@@ -2,11 +2,12 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export type ForesightPromptId = 'strategy-interviewer' | 'initiative-planner';
+export type ForesightPromptId = 'strategy-interviewer' | 'initiative-planner' | 'planner-dialogue';
 
 const PROMPTS: Record<ForesightPromptId, { version: string; filename: string }> = {
   'strategy-interviewer': { version: 'strategy-interviewer-v1', filename: 'strategy-interviewer-v1.md' },
   'initiative-planner': { version: 'initiative-planner-v1', filename: 'initiative-planner-v1.md' },
+  'planner-dialogue': { version: 'planner-dialogue-v1', filename: 'planner-dialogue-v1.md' },
 };
 
 export interface LoadedForesightPrompt {

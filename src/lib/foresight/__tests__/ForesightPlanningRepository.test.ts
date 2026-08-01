@@ -50,6 +50,17 @@ describe('ForesightPlanningRepository', () => {
     );
   });
 
+  it('lists only tenant threads with a bounded result size', async () => {
+    mockQuery.mockResolvedValue([]);
+
+    await expect(ForesightPlanningRepository.listThreads('business-1', 500)).resolves.toEqual([]);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('LIMIT 100'),
+      ['business-1'],
+    );
+  });
+
   it('appends messages only through a matching tenant thread', async () => {
     mockExecute.mockResolvedValue({ insertId: 21, affectedRows: 1 });
 
@@ -61,6 +72,39 @@ describe('ForesightPlanningRepository', () => {
       expect.stringMatching(/SELECT \?, thread\.id[\s\S]*thread\.business_id = \? AND thread\.id = \?/),
       expect.arrayContaining(['business-1', 'human', 7, 'Prioritise retention.', 'business-1', 12]),
     );
+  });
+
+  it('atomically appends a human turn and advances the locked thread revision', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ revision: 2 }]])
+      .mockResolvedValueOnce([{ insertId: 22 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    await expect(ForesightPlanningRepository.appendHumanMessage('business-1', 12, 2, {
+      actorUserId: 7, content: 'Prioritise profitable retention.',
+    })).resolves.toEqual({ messageId: 22, threadRevision: 3 });
+
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(2,
+      expect.stringContaining("VALUES (?, ?, 'human', ?, ?)"),
+      ['business-1', 12, 7, 'Prioritise profitable retention.'],
+    );
+    expect(mockConnection.execute).toHaveBeenLastCalledWith(
+      expect.stringContaining('AND revision = ?'),
+      [3, 'business-1', 12, 2],
+    );
+    expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an assistant response when the thread advanced during model work', async () => {
+    mockConnection.execute.mockResolvedValueOnce([[{ revision: 4 }]]);
+
+    await expect(ForesightPlanningRepository.appendAssistantMessage('business-1', 12, 3, {
+      content: 'Which audience matters most?', modelId: 'gemini-2.5-flash',
+      promptVersion: 'planner-dialogue-v1', message: { citationFactIds: [] },
+    })).rejects.toBeInstanceOf(PlanningThreadConflictError);
+
+    expect(mockConnection.execute).toHaveBeenCalledTimes(1);
+    expect(mockConnection.rollback).toHaveBeenCalledOnce();
   });
 
   it('creates immutable plan versions and advances the locked thread revision', async () => {

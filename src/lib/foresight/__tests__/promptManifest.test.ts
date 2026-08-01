@@ -12,10 +12,11 @@ describe('Foresight planning prompt manifest', () => {
     expect(second.sha256).toBe(first.sha256);
   });
 
-  it('lists both initial planner roles with explicit versions', () => {
+  it('lists planner roles and dialogue protocol with explicit versions', () => {
     expect(listForesightPrompts()).toEqual([
       { id: 'strategy-interviewer', version: 'strategy-interviewer-v1' },
       { id: 'initiative-planner', version: 'initiative-planner-v1' },
+      { id: 'planner-dialogue', version: 'planner-dialogue-v1' },
     ]);
   });
 });

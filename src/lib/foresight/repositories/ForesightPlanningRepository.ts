@@ -97,6 +97,17 @@ export const ForesightPlanningRepository = {
     return rows[0] ?? null;
   },
 
+  async listThreads(businessId: string, limit = 50): Promise<PlanningThreadRow[]> {
+    const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 100);
+    return query<PlanningThreadRow>(
+      `SELECT * FROM foresight_planning_threads
+       WHERE business_id = ?
+       ORDER BY updated_at DESC, id DESC
+       LIMIT ${boundedLimit}`,
+      [businessId],
+    );
+  },
+
   async listMessages(businessId: string, threadId: number, limit = 100): Promise<PlanningMessageRow[]> {
     const boundedLimit = Math.min(Math.max(Math.trunc(limit), 1), 500);
     const rows = await query<PlanningMessageRow>(
@@ -139,6 +150,95 @@ export const ForesightPlanningRepository = {
     );
     if (result.affectedRows !== 1) throw new Error('Planning thread not found.');
     return result.insertId;
+  },
+
+  async appendHumanMessage(businessId: string, threadId: number, expectedRevision: number, input: {
+    actorUserId: number;
+    content: string;
+  }): Promise<{ messageId: number; threadRevision: number }> {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [threadRows] = await connection.execute(
+        `SELECT revision FROM foresight_planning_threads
+         WHERE business_id = ? AND id = ? FOR UPDATE`,
+        [businessId, threadId],
+      );
+      const thread = (threadRows as Array<{ revision: number }>)[0];
+      if (!thread) throw new Error('Planning thread not found.');
+      if (thread.revision !== expectedRevision) throw new PlanningThreadConflictError();
+      const [messageResult] = await connection.execute(
+        `INSERT INTO foresight_planning_messages
+           (business_id, thread_id, actor_type, actor_user_id, content)
+         VALUES (?, ?, 'human', ?, ?)`,
+        [businessId, threadId, input.actorUserId, input.content.trim()],
+      );
+      const nextRevision = thread.revision + 1;
+      await connection.execute(
+        `UPDATE foresight_planning_threads
+         SET revision = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE business_id = ? AND id = ? AND revision = ?`,
+        [nextRevision, businessId, threadId, expectedRevision],
+      );
+      await connection.commit();
+      return {
+        messageId: (messageResult as { insertId: number }).insertId,
+        threadRevision: nextRevision,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+  async appendAssistantMessage(businessId: string, threadId: number, expectedRevision: number, input: {
+    content: string;
+    modelId: string;
+    promptVersion: string;
+    message: Record<string, unknown>;
+  }): Promise<{ messageId: number; threadRevision: number }> {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [threadRows] = await connection.execute(
+        `SELECT revision FROM foresight_planning_threads
+         WHERE business_id = ? AND id = ? FOR UPDATE`,
+        [businessId, threadId],
+      );
+      const thread = (threadRows as Array<{ revision: number }>)[0];
+      if (!thread) throw new Error('Planning thread not found.');
+      if (thread.revision !== expectedRevision) throw new PlanningThreadConflictError();
+      const [messageResult] = await connection.execute(
+        `INSERT INTO foresight_planning_messages
+           (business_id, thread_id, actor_type, model_id, prompt_version, content, message_json)
+         VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
+        [
+          businessId, threadId, input.modelId, input.promptVersion,
+          input.content.trim(), JSON.stringify(input.message),
+        ],
+      );
+      const nextRevision = thread.revision + 1;
+      await connection.execute(
+        `UPDATE foresight_planning_threads
+         SET revision = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE business_id = ? AND id = ? AND revision = ?`,
+        [nextRevision, businessId, threadId, expectedRevision],
+      );
+      await connection.commit();
+      return {
+        messageId: (messageResult as { insertId: number }).insertId,
+        threadRevision: nextRevision,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async createPlanVersion(businessId: string, threadId: number, expectedRevision: number, input: {
