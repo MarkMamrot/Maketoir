@@ -8712,6 +8712,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                       const data = await res.json();
                       if (!res.ok) { alert(data.error || 'Upload failed'); return; }
                       setPoFiles(data.files ?? []);
+                      if (data.xeroWarning) alert(`Invoice saved in IMS, but Xero attachment sync failed:\n\n${data.xeroWarning}`);
                     } catch (err: any) { alert(err.message); }
                     finally { setPoFileUploading(false); e.target.value = ''; }
                   }}

@@ -1,22 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
-const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch } = vi.hoisted(() => ({
+const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch, mockGetValidAccessToken } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockExecute: vi.fn(),
   mockImsQuery: vi.fn(),
   mockImsExecute: vi.fn(),
   mockXeroApiFetch: vi.fn(),
+  mockGetValidAccessToken: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery, imsExecute: mockImsExecute }));
 vi.mock('@/services/XeroService', () => ({
-  getValidAccessToken: vi.fn(),
+  getValidAccessToken: mockGetValidAccessToken,
   xeroApiFetch: mockXeroApiFetch,
 }));
 
 import {
   syncPOAsDraftBill,
+  syncPOAttachmentsToXero,
   syncGiftCardRedemptionReclass,
   syncGiftCardRedemptionReversal,
   syncStoreCreditIssueReclass,
@@ -228,5 +233,78 @@ describe('PO bill sync', () => {
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
+  });
+
+  it('uploads a stored supplier invoice to the linked Xero bill', async () => {
+    const uploadBase = fs.mkdtempSync(path.join(os.tmpdir(), 'po-xero-attachment-'));
+    const previousUploadBase = process.env.UPLOAD_BASE_PATH;
+    process.env.UPLOAD_BASE_PATH = uploadBase;
+    const invoiceDir = path.join(uploadBase, 'biz-1', 'POs', 'PO-2026-0021');
+    fs.mkdirSync(invoiceDir, { recursive: true });
+    fs.writeFileSync(path.join(invoiceDir, 'stored-invoice.pdf'), 'invoice');
+
+    mockImsQuery.mockResolvedValueOnce([{
+      filename: 'stored-invoice.pdf',
+      original_name: 'Supplier Invoice 21.pdf',
+      mime_type: 'application/pdf',
+    }]);
+    mockGetValidAccessToken.mockResolvedValueOnce({ accessToken: 'token', tenantId: 'tenant' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+    try {
+      const warnings = await syncPOAttachmentsToXero('biz-1', 21, 'PO-2026-0021', 'xero-bill-21');
+
+      expect(warnings).toEqual([]);
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'https://api.xero.com/api.xro/2.0/Invoices/xero-bill-21/Attachments/Supplier%20Invoice%2021.pdf',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      fs.rmSync(uploadBase, { recursive: true, force: true });
+      if (previousUploadBase === undefined) delete process.env.UPLOAD_BASE_PATH;
+      else process.env.UPLOAD_BASE_PATH = previousUploadBase;
+    }
+  });
+
+  it('returns a warning when Xero rejects an attachment', async () => {
+    const uploadBase = fs.mkdtempSync(path.join(os.tmpdir(), 'po-xero-attachment-'));
+    const previousUploadBase = process.env.UPLOAD_BASE_PATH;
+    process.env.UPLOAD_BASE_PATH = uploadBase;
+    const invoiceDir = path.join(uploadBase, 'biz-1', 'POs', 'PO-2026-0022');
+    fs.mkdirSync(invoiceDir, { recursive: true });
+    fs.writeFileSync(path.join(invoiceDir, 'invoice.pdf'), 'invoice');
+
+    mockImsQuery.mockResolvedValueOnce([{
+      filename: 'invoice.pdf',
+      original_name: 'invoice.pdf',
+      mime_type: 'application/pdf',
+    }]);
+    mockGetValidAccessToken.mockResolvedValueOnce({ accessToken: 'token', tenantId: 'tenant' });
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('forbidden', { status: 403 }));
+
+    try {
+      const warnings = await syncPOAttachmentsToXero('biz-1', 22, 'PO-2026-0022', 'xero-bill-22');
+
+      expect(warnings).toEqual([expect.stringContaining('Xero attachment upload failed (403)')]);
+      expect(mockExecute.mock.calls.some(call => call[1]?.[1] === 'po_attachment' && call[1]?.[4] === 'error')).toBe(true);
+    } finally {
+      fetchSpy.mockRestore();
+      fs.rmSync(uploadBase, { recursive: true, force: true });
+      if (previousUploadBase === undefined) delete process.env.UPLOAD_BASE_PATH;
+      else process.env.UPLOAD_BASE_PATH = previousUploadBase;
+    }
+  });
+
+  it('does not fail the parent PO sync when Xero attachment authentication fails', async () => {
+    mockImsQuery.mockResolvedValueOnce([{
+      filename: 'invoice.pdf',
+      original_name: 'invoice.pdf',
+      mime_type: 'application/pdf',
+    }]);
+    mockGetValidAccessToken.mockRejectedValueOnce(new Error('Xero connection expired'));
+
+    await expect(syncPOAttachmentsToXero('biz-1', 23, 'PO-2026-0023', 'xero-bill-23'))
+      .resolves.toEqual(['Xero connection expired']);
   });
 });

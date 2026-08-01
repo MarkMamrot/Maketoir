@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import fs from 'fs';
 import path from 'path';
 import { ImsPORepo, ImsPoFilesRepo } from '@/lib/ims/ImsRepository';
+import { syncPOAttachmentsToXero } from '@/services/XeroSyncService';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // Matches the invoice parser limit
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -66,8 +67,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       file.size,
     );
 
+    const xeroWarnings = po.xero_bill_id
+      ? await syncPOAttachmentsToXero(
+          session.businessId,
+          poId,
+          po.po_number,
+          po.xero_bill_id,
+          [filename],
+        )
+      : [];
+
     const files = await ImsPoFilesRepo.list(poId, session.businessId);
-    return NextResponse.json({ success: true, files });
+    return NextResponse.json({
+      success: true,
+      files,
+      ...(xeroWarnings.length ? { xeroWarning: xeroWarnings.join('\n') } : {}),
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

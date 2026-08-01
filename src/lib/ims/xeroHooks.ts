@@ -9,7 +9,7 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
-import { syncPOAsDraftBill, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -83,6 +83,12 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
   if (!po) return;
 
   if (newStatus === 'confirmed') {
+    const existingXeroId = (po as any).xero_bill_id ?? null;
+    if (existingXeroId) {
+      await updateXeroDraftBill(businessId, po as any, existingXeroId);
+      await syncPOAttachmentsToXero(businessId, poId, po.po_number, existingXeroId);
+      return;
+    }
     // Create Draft Bill — retry once on failure, then mark as queued
     await withRetry(
       () => syncPOAsDraftBill(businessId, po as any),
@@ -99,6 +105,7 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
     const xeroInvoiceId = storedXeroId ?? logRows[0]?.xero_id;
 
     if (xeroInvoiceId) {
+      await syncPOAttachmentsToXero(businessId, poId, po.po_number, xeroInvoiceId);
       await approveBill(businessId, xeroInvoiceId, poId);
       const hasDeposits = (po.payments?.length ?? 0) > 0;
       if (hasDeposits) {

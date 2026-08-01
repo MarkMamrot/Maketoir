@@ -506,6 +506,9 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     });
     const inv = result.Invoices?.[0];
     const xeroId = inv?.InvoiceID ?? null;
+    if (xeroId) {
+      await syncPOAttachmentsToXero(businessId, po.id, po.po_number, xeroId);
+    }
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`, inv?.Status ?? 'DRAFT');
     await markPoXeroStatus(po.id, 'synced', xeroId);
     return xeroId;
@@ -2791,6 +2794,102 @@ function parseXeroValidationDetails(errMessage: string): { summary: string; dupl
   const haystack = combined.toLowerCase();
   duplicateNumber = /invoice number|credit note number|already been used|must be unique|duplicate|credit note not of valid status for modification/.test(haystack);
   return { summary: combined, duplicateNumber };
+}
+
+interface POFileRow {
+  filename: string;
+  original_name: string | null;
+  mime_type: string | null;
+}
+
+function getPOUploadDir(businessId: string, poNumber: string): string {
+  const base = process.env.UPLOAD_BASE_PATH ?? './uploads';
+  const safePoNumber = poNumber.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(base, businessId, 'POs', safePoNumber);
+}
+
+export async function syncPOAttachmentsToXero(
+  businessId: string,
+  poId: number,
+  poNumber: string,
+  xeroInvoiceId: string,
+  onlyFilenames?: string[],
+): Promise<string[]> {
+  let files: POFileRow[] = [];
+  try {
+    if (onlyFilenames?.length) {
+      const placeholders = onlyFilenames.map(() => '?').join(', ');
+      files = await imsQuery<POFileRow>(
+        `SELECT filename, original_name, mime_type
+           FROM ims_po_files
+          WHERE po_id = ? AND business_id = ? AND filename IN (${placeholders})
+          ORDER BY uploaded_at ASC`,
+        [poId, businessId, ...onlyFilenames],
+      );
+    } else {
+      files = await imsQuery<POFileRow>(
+        `SELECT filename, original_name, mime_type
+           FROM ims_po_files
+          WHERE po_id = ? AND business_id = ?
+          ORDER BY uploaded_at ASC`,
+        [poId, businessId],
+      );
+    }
+  } catch {
+    return [];
+  }
+  if (!files.length) return [];
+
+  const uploadDir = getPOUploadDir(businessId, poNumber);
+  const warnings: string[] = [];
+  let accessToken: string;
+  let tenantId: string;
+  try {
+    ({ accessToken, tenantId } = await getValidAccessToken(businessId));
+  } catch (error: any) {
+    const message = error?.message || 'Could not authenticate with Xero for attachment upload';
+    await logSync(businessId, 'po_attachment', poId, xeroInvoiceId, 'error', message);
+    return [message];
+  }
+
+  for (const file of files) {
+    const filePath = path.join(uploadDir, file.filename);
+    if (!fs.existsSync(filePath)) {
+      const message = `Attachment missing on disk: ${file.original_name || file.filename}`;
+      warnings.push(message);
+      await logSync(businessId, 'po_attachment', poId, xeroInvoiceId, 'skipped', `file=${file.filename}; original=${file.original_name || ''}; message=${message}`);
+      continue;
+    }
+
+    const safeOriginalName = (file.original_name || file.filename).replace(/[^\w.\- ]/g, '_').slice(0, 120);
+    const url = `https://api.xero.com/api.xro/2.0/Invoices/${xeroInvoiceId}/Attachments/${encodeURIComponent(safeOriginalName)}`;
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'xero-tenant-id': tenantId,
+          'Content-Type': file.mime_type || 'application/octet-stream',
+          Accept: 'application/json',
+        },
+        body: fs.readFileSync(filePath),
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        if (response.status === 401 && /AuthorizationUnsuccessful/i.test(detail)) {
+          throw new Error('Reconnect Xero to grant the accounting.attachments scope, then retry the file upload.');
+        }
+        throw new Error(`Xero attachment upload failed (${response.status}): ${detail}`);
+      }
+      await logSync(businessId, 'po_attachment', poId, xeroInvoiceId, 'success', `file=${file.filename}; original=${safeOriginalName}; message=Attachment uploaded`);
+    } catch (error: any) {
+      const message = error?.message || 'Xero attachment upload failed';
+      warnings.push(`${safeOriginalName}: ${message}`);
+      await logSync(businessId, 'po_attachment', poId, xeroInvoiceId, 'error', `file=${file.filename}; original=${safeOriginalName}; message=${message}`);
+    }
+  }
+
+  return warnings;
 }
 
 function getSupplierCNUploadDir(businessId: string, scnNumber: string): string {

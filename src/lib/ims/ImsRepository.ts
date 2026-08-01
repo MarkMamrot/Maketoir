@@ -175,7 +175,7 @@ export interface ImsPO {
   status: POStatus; order_date: string; expected_date?: string;
   received_date?: string; notes?: string; subtotal: number;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
-  supplier_invoice_number?: string; payment_terms?: string;
+  supplier_invoice_number?: string; supplier_invoice_date?: string; payment_terms?: string;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
@@ -1096,12 +1096,12 @@ export const ImsPORepo = {
     const res = await imsExecute(
       `INSERT INTO ims_purchase_orders
          (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,
-          supplier_invoice_number,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
-          freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         supplier_invoice_number,supplier_invoice_date,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
+         freight,discount,subtotal,tax_amount,total_amount)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.notes ?? null,
-       data.supplier_invoice_number ?? null, data.payment_terms ?? null,
+       data.supplier_invoice_number ?? null, data.supplier_invoice_date || null, data.payment_terms ?? null,
        data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
        data.currency_code ?? 'AUD', data.exchange_rate ?? 1,
        freight, discount, subtotal, tax_amount, total_amount]
@@ -1132,17 +1132,18 @@ export const ImsPORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'payment_terms' | 'tax_treatment' | 'tax_code' | 'currency_code' | 'exchange_rate' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'supplier_invoice_date' | 'payment_terms' | 'tax_treatment' | 'tax_code' | 'currency_code' | 'exchange_rate' | 'freight' | 'discount'>>,
     items?: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
     landedCosts?: LandedCostRow[],
   ): Promise<void> {
-    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','payment_terms','tax_treatment','tax_code','currency_code','exchange_rate','freight','discount'];
+    const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','supplier_invoice_date','payment_terms','tax_treatment','tax_code','currency_code','exchange_rate','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
       if (data[f as keyof typeof data] !== undefined) {
         sets.push(`${f} = ?`);
-        vals.push(data[f as keyof typeof data]);
+        const value = data[f as keyof typeof data];
+        vals.push(f === 'supplier_invoice_date' && value === '' ? null : value);
       }
     }
 
