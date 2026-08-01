@@ -697,7 +697,7 @@ export async function POST(req: Request) {
           failedTabs,
         );
         let recommendationCount: number | null = null;
-        if (sources.includes('google-ads') || sources.includes('meta')) {
+        if (sources.includes('google-ads') || sources.includes('meta') || sources.includes('klaviyo')) {
           try {
             const evaluation = await ForesightRecommendationService.evaluatePaidMedia(
               databaseId,
@@ -762,15 +762,18 @@ export async function POST(req: Request) {
         }
         if (sources.includes('google-ads') || sources.includes('meta')) {
           try {
-            const outcomes = await ForesightOutcomeService.evaluateDuePaidMedia(
-              databaseId,
-              addDays(endDate, -1),
-            );
+            const throughDate = addDays(endDate, -1);
+            const [outcomes, campaignOutcomes] = await Promise.all([
+              ForesightOutcomeService.evaluateDuePaidMedia(databaseId, throughDate),
+              ForesightOutcomeService.evaluateDueCampaigns(databaseId, throughDate),
+            ]);
             emit({
               source: 'foresight-outcomes',
               status: 'done',
               measuredOutcomes: outcomes.measuredCount,
               deferredOutcomes: outcomes.deferredCount,
+              measuredCampaignOutcomes: campaignOutcomes.measuredCount,
+              deferredCampaignOutcomes: campaignOutcomes.deferredCount,
             });
           } catch (outcomeError) {
             emit({

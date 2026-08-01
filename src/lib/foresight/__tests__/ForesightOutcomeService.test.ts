@@ -6,12 +6,20 @@ const {
   mockGetMetrics,
   mockSummarize,
   mockAssess,
+  mockCampaignCandidates,
+  mockCreateCampaignOutcome,
+  mockSummarizeCampaign,
+  mockAssessCampaign,
 } = vi.hoisted(() => ({
   mockCandidates: vi.fn(),
   mockCreateOutcome: vi.fn(),
   mockGetMetrics: vi.fn(),
   mockSummarize: vi.fn(),
   mockAssess: vi.fn(),
+  mockCampaignCandidates: vi.fn(),
+  mockCreateCampaignOutcome: vi.fn(),
+  mockSummarizeCampaign: vi.fn(),
+  mockAssessCampaign: vi.fn(),
 }));
 
 vi.mock('../repositories/ForesightRepository', () => ({
@@ -22,6 +30,16 @@ vi.mock('../repositories/ForesightRepository', () => ({
 }));
 vi.mock('../ForesightMetricsService', () => ({
   ForesightMetricsService: { getDailyMarketingMetrics: mockGetMetrics },
+}));
+vi.mock('../repositories/ForesightCampaignActivationRepository', () => ({
+  ForesightCampaignActivationRepository: {
+    listDue: mockCampaignCandidates,
+    createOutcome: mockCreateCampaignOutcome,
+  },
+}));
+vi.mock('../campaignOutcomes', () => ({
+  summarizeCampaignOutcomeWindow: mockSummarizeCampaign,
+  assessCampaignOutcome: mockAssessCampaign,
 }));
 vi.mock('../recommendationOutcomes', () => ({
   summarizePaidMediaOutcomeWindow: mockSummarize,
@@ -111,5 +129,49 @@ describe('ForesightOutcomeService', () => {
 
     expect(mockCreateOutcome).not.toHaveBeenCalled();
     expect(result.deferredCount).toBe(1);
+  });
+});
+
+describe('ForesightOutcomeService campaign outcomes', () => {
+  const activation = {
+    id: 91, horizon_days: 7, baseline_start: '2026-07-25', baseline_end: '2026-07-31',
+    followup_start: '2026-08-02', followup_end: '2026-08-08',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCampaignCandidates.mockResolvedValue([activation]);
+    mockGetMetrics
+      .mockResolvedValueOnce({ reconciliation: [{ metricDate: 'baseline' }] })
+      .mockResolvedValueOnce({ reconciliation: [{ metricDate: 'followup' }] });
+    mockSummarizeCampaign
+      .mockReturnValueOnce({ windowStart: '2026-07-25' })
+      .mockReturnValueOnce({ windowStart: '2026-08-02' });
+    mockAssessCampaign.mockReturnValue({
+      direction: 'improved', primaryMetric: 'contribution_before_ads', baselineValue: 700,
+      followupValue: 840, baseline: {}, followup: {}, explanation: 'Observed improvement.',
+    });
+    mockCreateCampaignOutcome.mockResolvedValue(93);
+  });
+
+  it('measures both exact stored windows and persists an available assessment', async () => {
+    const result = await ForesightOutcomeService.evaluateDueCampaigns('business-1', '2026-08-09');
+    expect(mockCampaignCandidates).toHaveBeenCalledWith('business-1', '2026-08-09');
+    expect(mockGetMetrics).toHaveBeenNthCalledWith(1, 'business-1', '2026-07-25', '2026-07-31');
+    expect(mockGetMetrics).toHaveBeenNthCalledWith(2, 'business-1', '2026-08-02', '2026-08-08');
+    expect(mockAssessCampaign).toHaveBeenCalledWith(
+      { windowStart: '2026-07-25' }, { windowStart: '2026-08-02' }, 7,
+    );
+    expect(mockCreateCampaignOutcome).toHaveBeenCalledWith('business-1', {
+      activation, assessment: expect.objectContaining({ direction: 'improved' }),
+    });
+    expect(result).toMatchObject({ candidateCount: 1, measuredCount: 1, deferredCount: 0 });
+  });
+
+  it('leaves unavailable assessments unpersisted for a later retry', async () => {
+    mockAssessCampaign.mockReturnValue({ direction: 'unavailable' });
+    const result = await ForesightOutcomeService.evaluateDueCampaigns('business-1', '2026-08-09');
+    expect(mockCreateCampaignOutcome).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ measuredCount: 0, deferredCount: 1 });
   });
 });

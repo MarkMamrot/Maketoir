@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateGa4, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateGa4, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockEvaluateCampaignOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
   mockEvaluateGa4: vi.fn(),
   mockEvaluateKlaviyo: vi.fn(),
   mockEvaluateOutcomes: vi.fn(),
+  mockEvaluateCampaignOutcomes: vi.fn(),
   mockList: vi.fn(),
   mockLatestStrategy: vi.fn(),
   mockListEvents: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('@/lib/foresight/Ga4RecommendationService', () => ({
   Ga4RecommendationService: { evaluateChannels: mockEvaluateGa4 },
 }));
 vi.mock('@/lib/foresight/ForesightOutcomeService', () => ({
-  ForesightOutcomeService: { evaluateDuePaidMedia: mockEvaluateOutcomes },
+  ForesightOutcomeService: { evaluateDuePaidMedia: mockEvaluateOutcomes, evaluateDueCampaigns: mockEvaluateCampaignOutcomes },
 }));
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
   ForesightRepository: {
@@ -68,6 +69,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockListImplementations.mockResolvedValue([]);
     mockListExecutions.mockResolvedValue([]);
     mockEvaluateOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
+    mockEvaluateCampaignOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
   });
 
   it('evaluates only for the authenticated business', async () => {
@@ -81,6 +83,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     expect(mockEvaluateGa4).toHaveBeenCalledWith('business-1', '2026-07-28');
     expect(mockEvaluateKlaviyo).toHaveBeenCalledWith('business-1', '2026-07-28');
     expect(mockEvaluateOutcomes).toHaveBeenCalledWith('business-1', '2026-07-28');
+    expect(mockEvaluateCampaignOutcomes).toHaveBeenCalledWith('business-1', '2026-07-28');
   });
 
   it('rejects invalid evaluation dates', async () => {

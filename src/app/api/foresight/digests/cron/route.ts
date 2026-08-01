@@ -33,6 +33,8 @@ export async function POST(request: Request) {
     itemCount?: number;
     measuredOutcomes?: number;
     deferredOutcomes?: number;
+    measuredCampaignOutcomes?: number;
+    deferredCampaignOutcomes?: number;
     monitoringSyncState?: string;
     error?: string;
   }> = [];
@@ -57,6 +59,12 @@ export async function POST(request: Request) {
           () => ForesightOutcomeService.evaluateDuePaidMedia(businessId, throughDate),
         )
         : null;
+      const campaignOutcomes = digestType === 'daily_operations'
+        ? await runImsForBusiness(
+          businessId,
+          () => ForesightOutcomeService.evaluateDueCampaigns(businessId, throughDate),
+        )
+        : null;
       const digest = digestType === 'weekly_summary'
         ? await ForesightDigestService.generateWeekly(businessId, digestDate)
         : await ForesightDigestService.generateDaily(businessId, digestDate);
@@ -67,6 +75,8 @@ export async function POST(request: Request) {
         itemCount,
         measuredOutcomes: outcomes?.measuredCount,
         deferredOutcomes: outcomes?.deferredCount,
+        measuredCampaignOutcomes: campaignOutcomes?.measuredCount,
+        deferredCampaignOutcomes: campaignOutcomes?.deferredCount,
         monitoringSyncState: monitoringSync?.skipped ? 'skipped' : monitoringSync?.state,
       });
     } catch (error) {

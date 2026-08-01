@@ -29,6 +29,9 @@ async function planningContext(businessId: string, id: number) {
   const activation = thread
     ? await ForesightCampaignActivationRepository.getForThread(businessId, thread.id)
     : null;
+  const activationOutcome = thread
+    ? await ForesightCampaignActivationRepository.getOutcomeForThread(businessId, thread.id)
+    : null;
   return {
     recommendation,
     thread,
@@ -60,7 +63,13 @@ async function planningContext(businessId: string, id: number) {
               : null,
             activation: activation?.deliverable_version_id === latestDeliverable.id
               && activation.document_hash === latestDeliverable.document_hash
-              ? activation
+              ? {
+                  ...activation,
+                  outcome: activationOutcome?.activation_id === activation.id
+                    && activationOutcome.document_hash === activation.document_hash
+                    ? activationOutcome
+                    : null,
+                }
               : null,
           }
         : null,

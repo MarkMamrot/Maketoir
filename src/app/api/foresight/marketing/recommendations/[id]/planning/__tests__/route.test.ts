@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockSession, mockTier, mockGetRecommendation, mockFindThread, mockLatestPlan, mockLatestReview, mockLatestDeliverable, mockLatestDeliverableReview, mockLatestActivation, mockGetOrCreate } = vi.hoisted(() => ({
+const { mockSession, mockTier, mockGetRecommendation, mockFindThread, mockLatestPlan, mockLatestReview, mockLatestDeliverable, mockLatestDeliverableReview, mockLatestActivation, mockLatestActivationOutcome, mockGetOrCreate } = vi.hoisted(() => ({
   mockSession: vi.fn(), mockTier: vi.fn(), mockGetRecommendation: vi.fn(), mockFindThread: vi.fn(),
-  mockLatestPlan: vi.fn(), mockLatestReview: vi.fn(), mockLatestDeliverable: vi.fn(), mockLatestDeliverableReview: vi.fn(), mockLatestActivation: vi.fn(), mockGetOrCreate: vi.fn(),
+  mockLatestPlan: vi.fn(), mockLatestReview: vi.fn(), mockLatestDeliverable: vi.fn(), mockLatestDeliverableReview: vi.fn(), mockLatestActivation: vi.fn(), mockLatestActivationOutcome: vi.fn(), mockGetOrCreate: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: mockSession, requireAdminTier: mockTier }));
@@ -19,7 +19,7 @@ vi.mock('@/lib/foresight/repositories/ForesightDeliverableRepository', () => ({
   ForesightDeliverableRepository: { latest: mockLatestDeliverable, latestReview: mockLatestDeliverableReview },
 }));
 vi.mock('@/lib/foresight/repositories/ForesightCampaignActivationRepository', () => ({
-  ForesightCampaignActivationRepository: { getForThread: mockLatestActivation },
+  ForesightCampaignActivationRepository: { getForThread: mockLatestActivation, getOutcomeForThread: mockLatestActivationOutcome },
 }));
 
 import { GET, POST } from '../route';
@@ -37,6 +37,7 @@ describe('/api/foresight/marketing/recommendations/[id]/planning', () => {
     mockLatestDeliverable.mockResolvedValue(null);
     mockLatestDeliverableReview.mockResolvedValue(null);
     mockLatestActivation.mockResolvedValue(null);
+    mockLatestActivationOutcome.mockResolvedValue(null);
     mockGetOrCreate.mockResolvedValue({ threadId: 12, created: true });
   });
 

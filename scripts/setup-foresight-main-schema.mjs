@@ -22,6 +22,7 @@ const tableNames = [
   'foresight_deliverable_versions',
   'foresight_deliverable_review_events',
   'foresight_campaign_activations',
+  'foresight_campaign_activation_outcomes',
   'foresight_recommendations',
   'foresight_approvals',
   'foresight_recommendation_events',

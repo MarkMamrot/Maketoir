@@ -214,6 +214,19 @@ type RecommendationPlanningContext = {
         followup_start: string;
         followup_end: string;
         first_assessment_date: string;
+        outcome: {
+          id: number;
+          direction: 'improved' | 'unchanged' | 'worsened';
+          primary_metric: string | null;
+          baseline_value: number | string | null;
+          followup_value: number | string | null;
+          assessment_json: {
+            explanation: string;
+            baseline: { onlineRevenueExTax: number; contributionBeforeAds: number | null; paidMediaSpend: number; mer: number | null; contributionPoas: number | null };
+            followup: { onlineRevenueExTax: number; contributionBeforeAds: number | null; paidMediaSpend: number; mer: number | null; contributionPoas: number | null };
+          };
+          created_at: string;
+        } | null;
       } | null;
     } | null;
   } | null;
@@ -337,7 +350,7 @@ function minorUnitMoney(amountMinor: number, currencyCode: string): string {
 
 function metricValue(key: string, value: number | null): string {
   if (value == null) return 'Unavailable';
-  if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds' || key === 'net_online_revenue_ex_tax') return money(value);
+  if (key === 'spend' || key === 'onlineRevenueExTax' || key === 'contributionBeforeAds' || key === 'contribution_before_ads' || key === 'net_online_revenue_ex_tax') return money(value);
   if (key === 'deteriorationPercent' || key === 'merDeteriorationPercent') return `${value.toFixed(1)}%`;
   return value.toFixed(2);
 }
@@ -1388,6 +1401,22 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                               <p className="mt-3 text-xs leading-5 text-gray-700">{planningContext.latestPlan.deliverable.activation.published_details}</p>
                               {planningContext.latestPlan.deliverable.activation.deviations_text && <p className="mt-2 text-xs leading-5 text-amber-800">Declared deviations: {planningContext.latestPlan.deliverable.activation.deviations_text}</p>}
                               <p className="mt-2 text-xs leading-5 text-gray-500">This record schedules observational measurement only. It does not claim the campaign caused any later change.</p>
+                              {planningContext.latestPlan.deliverable.activation.outcome && (
+                                <div className="mt-4 border-t border-emerald-200 pt-4">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="text-[11px] font-bold uppercase text-gray-500">Observed campaign outcome</div>
+                                    <span className={`inline-flex items-center gap-1 text-sm font-semibold ${planningContext.latestPlan.deliverable.activation.outcome.direction === 'improved' ? 'text-emerald-700' : planningContext.latestPlan.deliverable.activation.outcome.direction === 'worsened' ? 'text-red-700' : 'text-gray-700'}`}>
+                                      {planningContext.latestPlan.deliverable.activation.outcome.direction === 'improved' ? <ArrowUpRight size={16} /> : planningContext.latestPlan.deliverable.activation.outcome.direction === 'worsened' ? <ArrowDownRight size={16} /> : <Minus size={16} />}
+                                      {planningContext.latestPlan.deliverable.activation.outcome.direction.charAt(0).toUpperCase() + planningContext.latestPlan.deliverable.activation.outcome.direction.slice(1)}
+                                    </span>
+                                  </div>
+                                  <div className="mt-3 grid grid-cols-2 gap-px border border-gray-200 bg-gray-200">
+                                    <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Baseline contribution</div><div className="mt-1 font-semibold tabular-nums text-gray-900">{metricValue('contribution_before_ads', planningContext.latestPlan.deliverable.activation.outcome.baseline_value == null ? null : Number(planningContext.latestPlan.deliverable.activation.outcome.baseline_value))}</div></div>
+                                    <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Follow-up contribution</div><div className="mt-1 font-semibold tabular-nums text-gray-900">{metricValue('contribution_before_ads', planningContext.latestPlan.deliverable.activation.outcome.followup_value == null ? null : Number(planningContext.latestPlan.deliverable.activation.outcome.followup_value))}</div></div>
+                                  </div>
+                                  <p className="mt-3 text-sm leading-6 text-gray-700">{planningContext.latestPlan.deliverable.activation.outcome.assessment_json.explanation}</p>
+                                </div>
+                              )}
                             </div>
                           )}
                           {isAdmin && planningContext.latestPlan.deliverable.review?.action === 'accepted' && !planningContext.latestPlan.deliverable.activation && (

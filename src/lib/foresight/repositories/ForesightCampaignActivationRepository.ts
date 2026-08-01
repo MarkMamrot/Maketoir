@@ -1,4 +1,5 @@
-import { getPool, query } from '@/services/MySQLService';
+import { execute, getPool, query } from '@/services/MySQLService';
+import type { CampaignOutcomeAssessment } from '../campaignOutcomes';
 import { buildCampaignMeasurementSchedule, type CampaignMeasurementSchedule } from '../planning/activationSchedule';
 import type { DeliverableChannel, ForesightDeliverableDocument } from '../planning/deliverableDocument';
 
@@ -32,6 +33,26 @@ export interface CampaignActivationRow extends CampaignMeasurementSchedule {
   followup_end: string;
   first_assessment_date: string;
   activated_by: number;
+  created_at: string;
+}
+
+export interface CampaignActivationOutcomeRow {
+  id: number;
+  business_id: string;
+  activation_id: number;
+  thread_id: number;
+  deliverable_version_id: number;
+  document_hash: string;
+  horizon_days: number;
+  baseline_start: string;
+  baseline_end: string;
+  followup_start: string;
+  followup_end: string;
+  direction: CampaignOutcomeAssessment['direction'];
+  primary_metric: string | null;
+  baseline_value: number | string | null;
+  followup_value: number | string | null;
+  assessment_json: CampaignOutcomeAssessment;
   created_at: string;
 }
 
@@ -85,6 +106,34 @@ function normalizeUrl(value: string | null | undefined): string | null {
 }
 
 export const ForesightCampaignActivationRepository = {
+  async listDue(businessId: string, throughDate: string): Promise<CampaignActivationRow[]> {
+    const rows = await query<CampaignActivationRow>(
+      `SELECT activation.*
+       FROM foresight_campaign_activations activation
+       LEFT JOIN foresight_campaign_activation_outcomes outcome
+         ON outcome.business_id = activation.business_id
+        AND outcome.activation_id = activation.id
+        AND outcome.horizon_days = activation.horizon_days
+       WHERE activation.business_id = ?
+         AND activation.followup_end <= ?
+         AND outcome.id IS NULL
+       ORDER BY activation.first_assessment_date ASC, activation.id ASC`,
+      [businessId, throughDate],
+    );
+    return rows.map((row) => ({
+      ...row,
+      channels_json: json(row.channels_json),
+      utm_json: json(row.utm_json),
+      asset_ids_json: json(row.asset_ids_json),
+      horizonDays: Number(row.horizon_days),
+      baselineStart: row.baseline_start,
+      baselineEnd: row.baseline_end,
+      followupStart: row.followup_start,
+      followupEnd: row.followup_end,
+      firstAssessmentDate: row.first_assessment_date,
+    }));
+  },
+
   async getForThread(businessId: string, threadId: number): Promise<CampaignActivationRow | null> {
     const rows = await query<CampaignActivationRow>(
       `SELECT activation.*
@@ -107,6 +156,51 @@ export const ForesightCampaignActivationRepository = {
       followupEnd: rows[0].followup_end,
       firstAssessmentDate: rows[0].first_assessment_date,
     } : null;
+  },
+
+  async getOutcomeForThread(businessId: string, threadId: number): Promise<CampaignActivationOutcomeRow | null> {
+    const rows = await query<CampaignActivationOutcomeRow>(
+      `SELECT outcome.*
+       FROM foresight_campaign_activation_outcomes outcome
+       INNER JOIN foresight_campaign_activations activation
+         ON activation.business_id = outcome.business_id AND activation.id = outcome.activation_id
+       WHERE outcome.business_id = ? AND outcome.thread_id = ?
+       ORDER BY outcome.id DESC LIMIT 1`,
+      [businessId, threadId],
+    );
+    return rows[0] ? { ...rows[0], assessment_json: json(rows[0].assessment_json) } : null;
+  },
+
+  async createOutcome(businessId: string, input: {
+    activation: CampaignActivationRow;
+    assessment: CampaignOutcomeAssessment;
+  }): Promise<number> {
+    const result = await execute(
+      `INSERT INTO foresight_campaign_activation_outcomes
+         (business_id, activation_id, thread_id, deliverable_version_id, document_hash,
+          horizon_days, baseline_start, baseline_end, followup_start, followup_end,
+          direction, primary_metric, baseline_value, followup_value, assessment_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [
+        businessId,
+        input.activation.id,
+        input.activation.thread_id,
+        input.activation.deliverable_version_id,
+        input.activation.document_hash,
+        input.activation.horizon_days,
+        input.activation.baseline_start,
+        input.activation.baseline_end,
+        input.activation.followup_start,
+        input.activation.followup_end,
+        input.assessment.direction,
+        input.assessment.primaryMetric,
+        input.assessment.baselineValue,
+        input.assessment.followupValue,
+        JSON.stringify(input.assessment),
+      ],
+    );
+    return result.insertId;
   },
 
   async create(businessId: string, threadId: number, input: {

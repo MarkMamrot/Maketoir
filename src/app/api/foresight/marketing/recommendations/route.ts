@@ -81,7 +81,10 @@ export async function POST(request: Request) {
     Ga4RecommendationService.evaluateChannels(user.businessId, through),
     KlaviyoRecommendationService.evaluateLifecycle(user.businessId, through),
   ]);
-  const outcomes = await ForesightOutcomeService.evaluateDuePaidMedia(user.businessId, through);
+  const [outcomes, campaignOutcomes] = await Promise.all([
+    ForesightOutcomeService.evaluateDuePaidMedia(user.businessId, through),
+    ForesightOutcomeService.evaluateDueCampaigns(user.businessId, through),
+  ]);
   return NextResponse.json({
     success: true,
     recommendationCount: paidMedia.recommendationCount + ga4.recommendationCount + klaviyo.recommendationCount,
@@ -90,5 +93,6 @@ export async function POST(request: Request) {
     ga4,
     klaviyo,
     outcomes,
+    campaignOutcomes,
   });
 }
