@@ -25,6 +25,8 @@ const tableNames = [
   'foresight_campaign_activation_outcomes',
   'foresight_campaign_lesson_versions',
   'foresight_campaign_lesson_review_events',
+  'foresight_campaign_experiment_versions',
+  'foresight_campaign_experiment_review_events',
   'foresight_recommendations',
   'foresight_approvals',
   'foresight_recommendation_events',

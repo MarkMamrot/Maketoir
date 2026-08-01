@@ -238,6 +238,19 @@ type RecommendationPlanningContext = {
               suggestedApplications: Array<{ text: string; executable: false }>;
             };
             review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+            experiment: {
+              id: number; version: number; experiment_hash: string;
+              experiment_json: {
+                title: string; hypothesis: { text: string; citationFactIds: string[] }; channel: 'meta' | 'google_ads' | 'klaviyo'; audience: string;
+                control: { name: string; description: string }; treatment: { name: string; description: string };
+                allocationPercent: { control: number; treatment: number }; startDate: string; endDate: string;
+                minimumSamplePerVariant: number; primaryMetric: string; minimumDetectableLiftPercent: number;
+                guardrails: Array<{ metric: string; maximumAdverseChangePercent: number }>;
+                analysis: { method: 'frequentist_two_sided'; confidenceLevel: 0.95; inconclusiveWhenUnderpowered: true };
+                limitations: string[]; executable: false;
+              };
+              review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+            } | null;
           } | null;
         } | null;
       } | null;
@@ -452,6 +465,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [activationDeviations, setActivationDeviations] = useState('');
   const [activationNote, setActivationNote] = useState('');
   const [lessonReviewNote, setLessonReviewNote] = useState('');
+  const [experimentReviewNote, setExperimentReviewNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -733,6 +747,31 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to review campaign lesson.' });
     } finally { setWorking(null); }
+  };
+
+  const generateCampaignExperiment = async () => {
+    const thread = planningContext?.thread; if (!thread) return;
+    setWorking('experiment_generate'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'generate' }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to draft campaign experiment.');
+      await refreshPlanningContext(); setMessage({ kind: 'success', text: 'Experiment design drafted for human review. Nothing was launched or changed.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to draft campaign experiment.' }); }
+    finally { setWorking(null); }
+  };
+
+  const reviewCampaignExperiment = async (action: 'accepted' | 'rejected' | 'revision_requested') => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    if (!thread || !experiment || experiment.review) return;
+    setWorking(`experiment_${action}`); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiments`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: 'review', experimentVersionId: experiment.id, experimentHash: experiment.experiment_hash, action, note: experimentReviewNote.trim() }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to review campaign experiment.');
+      await refreshPlanningContext(); setExperimentReviewNote('');
+      setMessage({ kind: 'success', text: action === 'accepted' ? 'Experiment design accepted. This does not launch or authorize a campaign.' : action === 'revision_requested' ? 'Experiment revision requested.' : 'Experiment rejected.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to review campaign experiment.' }); }
+    finally { setWorking(null); }
   };
 
   useEffect(() => {
@@ -1482,6 +1521,21 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                       </div>
                                     ) : isAdmin ? <button type="button" onClick={() => void generateCampaignLesson()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'lesson_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft campaign lesson</button> : <p className="mt-2 text-xs text-gray-500">No reviewed lesson has been drafted.</p>}
                                     <p className="mt-3 text-xs leading-5 text-gray-500">Accepting a lesson permits future planning context only. It does not alter strategy, budgets, targeting, content, or live campaigns.</p>
+                                    {planningContext.latestPlan.deliverable.activation.outcome.lesson?.review?.action === 'accepted' && (
+                                      <div className="mt-4 border-t border-gray-200 pt-4">
+                                        <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-[11px] font-bold uppercase text-gray-500">Governed experiment</div>{planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment?.review && <span className={`text-xs font-bold uppercase ${planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment.review.action === 'accepted' ? 'text-emerald-700' : 'text-amber-800'}`}>{planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment.review.action.replaceAll('_', ' ')}</span>}</div>
+                                        {planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment ? (() => { const experiment = planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment; const design = experiment.experiment_json; return <div className="mt-3">
+                                          <h4 className="text-sm font-bold text-gray-900">{design.title}</h4><p className="mt-1 text-xs leading-5 text-gray-700">{design.hypothesis.text}</p>
+                                          <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3"><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Channel</div><div className="mt-1 text-xs text-gray-800">{design.channel.replaceAll('_', ' ')}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Dates</div><div className="mt-1 text-xs text-gray-800">{dateOnly(design.startDate)} to {dateOnly(design.endDate)}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Minimum sample</div><div className="mt-1 text-xs text-gray-800">{design.minimumSamplePerVariant.toLocaleString()} per variant</div></div></div>
+                                          <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="border border-gray-200 p-3"><div className="text-xs font-bold text-gray-900">{design.control.name} ({design.allocationPercent.control}%)</div><p className="mt-1 text-xs leading-5 text-gray-600">{design.control.description}</p></div><div className="border border-gray-200 p-3"><div className="text-xs font-bold text-gray-900">{design.treatment.name} ({design.allocationPercent.treatment}%)</div><p className="mt-1 text-xs leading-5 text-gray-600">{design.treatment.description}</p></div></div>
+                                          <p className="mt-3 text-xs text-gray-700"><span className="font-bold">Primary metric:</span> {design.primaryMetric.replaceAll('_', ' ')}; minimum detectable lift {design.minimumDetectableLiftPercent}%.</p><p className="mt-1 text-xs text-gray-700"><span className="font-bold">Decision rule:</span> two-sided 95% confidence; underpowered results are inconclusive.</p>
+                                          <div className="mt-3 text-[11px] font-bold uppercase text-gray-500">Guardrails</div><ul className="mt-1 space-y-1 text-xs text-gray-600">{design.guardrails.map((item) => <li key={item.metric}>{item.metric.replaceAll('_', ' ')}: no more than {item.maximumAdverseChangePercent}% adverse change</li>)}</ul>
+                                          {isAdmin && !experiment.review && <div className="mt-3"><textarea value={experimentReviewNote} onChange={(event) => setExperimentReviewNote(event.target.value.slice(0, 1000))} rows={2} placeholder="Required for rejection or revision" className="w-full resize-y border border-gray-300 px-3 py-2 text-sm" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewCampaignExperiment('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Check size={15} /> Accept design</button><button type="button" onClick={() => void reviewCampaignExperiment('revision_requested')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"><RefreshCw size={15} /> Request revision</button><button type="button" onClick={() => void reviewCampaignExperiment('rejected')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><X size={15} /> Reject</button></div></div>}
+                                          {isAdmin && (experiment.review?.action === 'revision_requested' || experiment.review?.action === 'rejected') && <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft revised experiment</button>}
+                                        </div>; })() : isAdmin ? <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft experiment design</button> : <p className="mt-2 text-xs text-gray-500">No experiment design has been drafted.</p>}
+                                        <p className="mt-3 text-xs leading-5 text-gray-500">Accepting this design does not launch, schedule, send, change budget, or establish causality. A later exact launch attestation is required.</p>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}

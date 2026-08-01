@@ -645,6 +645,41 @@ CREATE TABLE IF NOT EXISTS foresight_campaign_lesson_review_events (
   INDEX idx_foresight_campaign_lesson_review_version (business_id, lesson_version_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_versions (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  lesson_version_id     BIGINT NOT NULL,
+  lesson_hash           VARCHAR(64) NOT NULL,
+  version               INT NOT NULL,
+  parent_id             BIGINT,
+  schema_version        INT NOT NULL,
+  experiment_json       JSON NOT NULL,
+  experiment_hash       VARCHAR(64) NOT NULL,
+  model_id              VARCHAR(100),
+  prompt_version        VARCHAR(100),
+  authored_by           INT NOT NULL,
+  change_reason         VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_campaign_experiment_version (business_id, lesson_version_id, version),
+  UNIQUE KEY uq_foresight_campaign_experiment_hash (business_id, lesson_version_id, experiment_hash),
+  INDEX idx_foresight_campaign_experiment_thread (business_id, thread_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_review_events (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  experiment_version_id BIGINT NOT NULL,
+  experiment_hash       VARCHAR(64) NOT NULL,
+  action                VARCHAR(32) NOT NULL,
+  actor_id              INT NOT NULL,
+  note                  VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_campaign_experiment_review_thread (business_id, thread_id, id),
+  INDEX idx_foresight_campaign_experiment_review_version (business_id, experiment_version_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,

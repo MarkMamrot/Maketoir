@@ -3,6 +3,7 @@ import { ForesightPlanningRepository } from '@/lib/foresight/repositories/Foresi
 import { ForesightDeliverableRepository } from '@/lib/foresight/repositories/ForesightDeliverableRepository';
 import { ForesightCampaignActivationRepository } from '@/lib/foresight/repositories/ForesightCampaignActivationRepository';
 import { ForesightCampaignLessonRepository } from '@/lib/foresight/repositories/ForesightCampaignLessonRepository';
+import { ForesightCampaignExperimentRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -35,6 +36,8 @@ async function planningContext(businessId: string, id: number) {
     : null;
   const latestLesson = thread ? await ForesightCampaignLessonRepository.latest(businessId, thread.id) : null;
   const latestLessonReview = thread ? await ForesightCampaignLessonRepository.latestReview(businessId, thread.id) : null;
+  const latestExperiment = thread ? await ForesightCampaignExperimentRepository.latest(businessId, thread.id) : null;
+  const latestExperimentReview = thread ? await ForesightCampaignExperimentRepository.latestReview(businessId, thread.id) : null;
   return {
     recommendation,
     thread,
@@ -79,6 +82,15 @@ async function planningContext(businessId: string, id: number) {
                               review: latestLessonReview?.lesson_version_id === latestLesson.id
                                 && latestLessonReview.lesson_hash === latestLesson.lesson_hash
                                 ? latestLessonReview : null,
+                              experiment: latestExperiment?.lesson_version_id === latestLesson.id
+                                && latestExperiment.lesson_hash === latestLesson.lesson_hash
+                                ? {
+                                    ...latestExperiment,
+                                    review: latestExperimentReview?.experiment_version_id === latestExperiment.id
+                                      && latestExperimentReview.experiment_hash === latestExperiment.experiment_hash
+                                      ? latestExperimentReview : null,
+                                  }
+                                : null,
                             }
                           : null,
                       }

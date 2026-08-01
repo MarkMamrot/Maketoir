@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export type ForesightPromptId = 'strategy-interviewer' | 'initiative-planner' | 'planner-dialogue' | 'campaign-deliverables' | 'campaign-learning';
+export type ForesightPromptId = 'strategy-interviewer' | 'initiative-planner' | 'planner-dialogue' | 'campaign-deliverables' | 'campaign-learning' | 'campaign-experiment';
 
 const PROMPTS: Record<ForesightPromptId, { version: string; filename: string }> = {
   'strategy-interviewer': { version: 'strategy-interviewer-v1', filename: 'strategy-interviewer-v1.md' },
@@ -10,6 +10,7 @@ const PROMPTS: Record<ForesightPromptId, { version: string; filename: string }> 
   'planner-dialogue': { version: 'planner-dialogue-v2', filename: 'planner-dialogue-v2.md' },
   'campaign-deliverables': { version: 'campaign-deliverables-v1', filename: 'campaign-deliverables-v1.md' },
   'campaign-learning': { version: 'campaign-learning-v1', filename: 'campaign-learning-v1.md' },
+  'campaign-experiment': { version: 'campaign-experiment-v1', filename: 'campaign-experiment-v1.md' },
 };
 
 export interface LoadedForesightPrompt {
