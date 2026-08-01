@@ -79,6 +79,15 @@ describe('/api/xero/document-policies', () => {
     expect(mockSavePolicy).not.toHaveBeenCalled();
   });
 
+  it('rejects online Draft with immediate payment sync enabled', async () => {
+    const response = await PUT(putRequest({
+      databaseId: 'biz-1',
+      policy: { ...DEFAULT_XERO_DOCUMENT_POLICY, onlineBatchAction: 'draft' },
+    }));
+    expect(response.status).toBe(400);
+    expect(mockSavePolicy).not.toHaveBeenCalled();
+  });
+
   it('rejects cross-business access before reading policy data', async () => {
     mockAssertBusinessAccess.mockReturnValue(new Response(null, { status: 403 }));
     const response = await GET(new Request(

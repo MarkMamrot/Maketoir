@@ -26,6 +26,27 @@ async function main() {
   const sql = readFileSync(join(__dirname, 'setup-xero-tables.sql'), 'utf8');
   await conn.query(sql);
 
+  const documentPolicyColumns = [
+    ['manual_customer_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER so_payment_sync_enabled"],
+    ['supplier_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'draft' AFTER manual_customer_cn_action"],
+    ['pos_batch_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER supplier_cn_action'],
+    ['pos_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER pos_batch_sync_enabled'],
+    ['online_batch_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER pos_batch_payment_sync_enabled"],
+    ['online_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER online_batch_action'],
+    ['shopify_payout_auto_post_enabled', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER online_batch_payment_sync_enabled'],
+  ];
+  for (const [columnName, definition] of documentPolicyColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_document_policies'
+          AND COLUMN_NAME = ? LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE xero_document_policies ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+
   const [gatewayTables] = await conn.query(
     `SELECT 1
        FROM information_schema.TABLES
@@ -94,7 +115,7 @@ async function main() {
   }
 
   console.log('✔ xero_account_mappings created');
-  console.log('✔ xero_document_policies created');
+  console.log('✔ xero_document_policies created/updated');
   console.log('✔ xero_tracking_mappings created');
   console.log('✔ xero_sync_log created');
   console.log('✔ xero_cogs_settings created');

@@ -15883,7 +15883,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   };
 
   const actionSelect = (
-    field: 'poApprovedAction' | 'poCompletedAction' | 'soApprovedAction' | 'soCompletedAction',
+    field: 'poApprovedAction' | 'poCompletedAction' | 'soApprovedAction' | 'soCompletedAction' | 'manualCustomerCreditNoteAction' | 'supplierCreditNoteAction' | 'onlineBatchAction',
     label: string,
   ) => (
     <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -15936,15 +15936,64 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
     );
   };
 
+  const toggle = (
+    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled',
+    label: string,
+    help: string,
+    disabled = false,
+  ) => (
+    <div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, color: disabled ? 'var(--sv-text-dim)' : 'var(--sv-text-main)', fontSize: 12, fontWeight: 600 }}>
+        <input
+          type="checkbox"
+          checked={policy[field]}
+          disabled={disabled}
+          onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.checked }))}
+        />
+        {label}
+      </label>
+      <p style={{ margin: '5px 0 0 24px', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>{help}</p>
+    </div>
+  );
+
+  const blockStyle = { padding: 14, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7 };
+
   return (
     <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Document Status &amp; Payments</h3>
       <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Choose how PO bills and SO invoices progress in Xero. Existing Xero documents are never moved backwards or changed merely because a later status is set to No sync.
+        Choose which IMS accounting events reach Xero and whether they remain Draft or become Authorised. Existing documents are never moved backwards.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading document policy...</div> : (
         <>
-          <div style={{ display: 'grid', gap: 12 }}>{policyBlock('po')}{policyBlock('so')}</div>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {policyBlock('po')}{policyBlock('so')}
+            <div style={blockStyle}>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Credit notes</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+                {actionSelect('manualCustomerCreditNoteAction', 'Completed manual customer credit note')}
+                {actionSelect('supplierCreditNoteAction', 'Completed supplier credit note')}
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>
+                POS returns stay in POS/EOD accounting. Shopify refunds always require an Authorised Xero credit note for payout reconciliation.
+              </p>
+            </div>
+            <div style={blockStyle}>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>POS sales batches</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {toggle('posBatchSyncEnabled', 'Sync POS EOD invoices to Xero', 'Creates one Authorised invoice per payment method at EOD.')}
+                {toggle('posBatchPaymentSyncEnabled', 'Apply POS clearing payments', 'Pays each EOD invoice into its mapped clearing account. Turning this off also keeps those cash rows out of Cash Banking.', !policy.posBatchSyncEnabled)}
+              </div>
+            </div>
+            <div style={blockStyle}>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online sales</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {actionSelect('onlineBatchAction', 'Completed daily online batch')}
+                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'Available only for Authorised invoices. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction !== 'authorised')}
+                {toggle('shopifyPayoutAutoPostEnabled', 'Automatically post planned Shopify payouts', 'After a paid payout balances and its actions are planned, Authorises linked Draft invoices and posts payments, fees, refunds, and adjustments. Failures remain blocked or partial for review.')}
+              </div>
+            </div>
+          </div>
           {(validationError || error) && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-red)' }}>{validationError || error}</div>
           )}
@@ -24041,22 +24090,31 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'DRAFT',        notes: 'One bill per PO; line items per SKU + optional freight line. Bill is updated automatically if you edit the PO before receiving.' },
+          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
           { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
-          { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'AUTHORISED',   notes: 'Bill approved; if deposits exist, journal transfers In Transit → Inventory Asset' },
+          { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Authorised. If deposits exist, the inventory journal still transfers In Transit → Inventory Asset.' },
           { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
-          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'DRAFT',        notes: 'Created as DRAFT; auto-syncs on edit. Approved to AUTHORISED when SO is fulfilled.' },
-          { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'Invoice approved on fulfilment.' },
+          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
+          { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Existing Xero documents are never moved backwards.' },
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
-          { trigger: 'Daily batch (manual/scheduled)',object: 'Invoice (ACCREC)',     status: 'AUTHORISED',   notes: 'One invoice per location per day for POS; one per day for online. If gateway clearing accounts are configured, one invoice per (day × gateway) with payment into clearing account.' },
-          { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'AUTHORISED', notes: 'Manual IMS credit notes sync individually. POS returns remain visible as internal credit notes, but the POS daily batch is what syncs their financial effect to Xero.' },
-          { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'DRAFT',        notes: 'Completed supplier credit notes queue immediate async sync; outcome appears in Sync History and can be retried if failed.' },
+          { trigger: 'POS EOD batch',                  object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised invoice plus clearing payment. Invoice sync and payment sync can be disabled independently.' },
+          { trigger: 'Daily online batch',             object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised; immediate gateway payments require Authorised.' },
+          { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'Policy', notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised. POS returns remain in POS EOD accounting.' },
+          { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised.' },
           { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
         ]} />
+
+        <h3 style={h3}>Document status and payment policy</h3>
+        <p style={p}>Configure these controls in <strong>Xero → Ledger Mapping → Document Status &amp; Payments</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
+        <ul style={ul}>
+          <li><strong>Payments require Authorised documents.</strong> A mapped PO or SO payment may promote its linked Draft when payment sync is enabled. Online immediate clearing payments can only be enabled with an Authorised daily invoice.</li>
+          <li><strong>POS EOD invoice-only mode</strong> does not fund the Xero clearing account. Those cash reconciliations remain unavailable to Cash Banking, preventing a transfer of money that Xero never received.</li>
+          <li><strong>Source ownership is fixed.</strong> POS returns remain in EOD accounting. Shopify refunds always use an Authorised credit note because the paid payout must settle it.</li>
+        </ul>
 
         <h3 style={h3}>PO Bill Due Date</h3>
         <p style={p}>The <strong>Due Date</strong> on a Xero Bill is calculated as: <strong>Supplier Invoice Date + Payment Terms days</strong> (e.g. Supplier Invoice Date + 30 days for "30 days" terms). If no Supplier Invoice Date is set on the PO, the Order Date is used as the base. Set both <em>Supplier Invoice Date</em> and <em>Payment Terms</em> on the PO to get an accurate due date in Xero.</p>
@@ -24205,12 +24263,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>Invoice payments are posted gross. Processing fees are separate Xero bank transactions from Shopify clearing to the configured fee expense account. Fee GST treatment is configured per merchant.</li>
           <li>Shopify refunds settle their completed Xero customer credit notes from Shopify clearing. Reserves, disputes, fee reversals, and other adjustments post separately with their signed effect.</li>
           <li>The payout row must balance exactly before it can be planned. Missing invoices, mappings, or Xero credit notes block it without partial fallback posting.</li>
-          <li>Posting is manually confirmed in <em>Xero → Sync History</em>. After posting, match the real Shopify deposit as a transfer from Shopify clearing to the bank account in Xero; IMS does not create that bank transfer.</li>
+          <li>Posting is manually confirmed in <em>Xero → Shopify Payouts</em> by default. You can opt into automatic posting under <em>Xero → Ledger Mapping → Document Status &amp; Payments</em>. Auto-post runs only after a payout balances and has a complete durable plan; it Authorises linked Draft invoices before payment and leaves failures blocked or partial for review.</li>
+          <li>After posting, match the real Shopify deposit as a transfer from Shopify clearing to the bank account in Xero; IMS does not create that bank transfer.</li>
           <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>
 
         <h3 style={h3}>5 — The Xero sync log</h3>
-        <p style={p}>Daily invoices appear in <strong>IMS → Xero → Sync History</strong>. Shopify payouts now have their own <strong>Shopify Payouts</strong> tab, and COGS has its own <strong>COGS Reconciliation</strong> tab; both are paginated and separate from Sync History. A payout shows its planned/completed Xero action count and blocker detail. <strong>Replan</strong> rebuilds actions without posting; <strong>Post Payout</strong> preflights Xero balances and asks for confirmation; a partial retry resumes only unfinished idempotent actions.</p>
+        <p style={p}>Daily invoices appear in <strong>IMS → Xero → Sync History</strong>. Shopify payouts have their own <strong>Shopify Payouts</strong> tab, and COGS has its own <strong>COGS Reconciliation</strong> tab. A payout shows its planned/completed Xero action count and blocker detail. <strong>Replan</strong> rebuilds actions without posting; <strong>Post Payout</strong> preflights Xero balances and asks for confirmation; a partial retry resumes only unfinished idempotent actions. When auto-post is enabled, the same preflight and idempotent executor run immediately after planning.</p>
         <p style={p}>The same log also shows gift card lifecycle events and store-credit redemption or legacy standalone issue events. CN-backed store-credit issuance is traced through the customer credit note and store-credit ledger instead, avoiding a duplicate revenue event.</p>
 
         <h3 style={h3}>Common issues</h3>

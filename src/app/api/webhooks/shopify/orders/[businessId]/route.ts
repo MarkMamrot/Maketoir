@@ -24,6 +24,7 @@ import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
+import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
@@ -436,6 +437,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     try {
       const creds = await getShopifyApiCreds(businessId);
       await ingestShopifyPayout(businessId, payload, creds);
+      await autoPostShopifyPayout(businessId, payoutId);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       await reportWebhookFailure(businessId, topic, e, { payout_id: payoutId });

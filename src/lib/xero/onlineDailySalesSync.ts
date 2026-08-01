@@ -10,6 +10,7 @@ import {
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
+import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 
 function isPayPalGateway(value: string): boolean {
   return normalizeOnlineGateway(value).includes('paypal');
@@ -39,6 +40,7 @@ export async function syncOnlineDailySalesDay(
   date: string,
 ): Promise<OnlineDailySalesSyncResult> {
   return runImsForBusiness(businessId, async () => {
+    const policy = await getXeroDocumentPolicy(businessId);
     const timeZone = await getBusinessTimeZone(businessId);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });
     if (date >= today) {
@@ -102,6 +104,9 @@ export async function syncOnlineDailySalesDay(
     if (!(totalSales > 0)) {
       return { xeroId: null, totalSales, totalTax, giftCardAmount, orderCount };
     }
+    if (policy.onlineBatchAction === 'none') {
+      return { xeroId: null, totalSales, totalTax, giftCardAmount, orderCount };
+    }
 
     const paymentRows = gatewayRows
       .map(row => {
@@ -118,12 +123,14 @@ export async function syncOnlineDailySalesDay(
       })
       .filter((row): row is { gateway: string; amount: number; accountCode: string | null; payoutManaged: boolean } => !!row);
 
-    const missingMappings = paymentRows.filter(row => !row.payoutManaged && !row.accountCode);
+    const missingMappings = policy.onlineBatchPaymentSyncEnabled
+      ? paymentRows.filter(row => !row.payoutManaged && !row.accountCode)
+      : [];
     if (gatewayMappings.length > 0 && missingMappings.length > 0) {
       throw new Error(`Missing gateway clearing mapping for: ${missingMappings.map(row => row.gateway).join(', ')}`);
     }
 
-    const clearingPayments = paymentRows
+    const clearingPayments = policy.onlineBatchPaymentSyncEnabled ? paymentRows
       .filter(row => !row.payoutManaged && !isPayPalGateway(row.gateway)
         && !hasCalculatedFees(row.gateway, findOnlineGatewayMapping(row.gateway, gatewayMappings))
         && !!row.accountCode)
@@ -131,8 +138,8 @@ export async function syncOnlineDailySalesDay(
         accountCode: row.accountCode as string,
         amount: row.amount,
         label: row.gateway === '_unknown' ? 'Unknown' : row.gateway,
-      }));
-    const feeEnabledPayments = orderRows
+      })) : [];
+    const feeEnabledPayments = policy.onlineBatchPaymentSyncEnabled ? orderRows
       .map(row => {
         const gateway = normalizeOnlineGateway(row.payment_gateway);
         const mapping = findOnlineGatewayMapping(gateway, gatewayMappings);
@@ -162,13 +169,13 @@ export async function syncOnlineDailySalesDay(
           } : {}),
         };
       })
-      .filter((payment): payment is NonNullable<typeof payment> => !!payment);
+      .filter((payment): payment is NonNullable<typeof payment> => !!payment) : [];
     const paypalOrderRows = orderRows.filter(row => isPayPalGateway(String(row.payment_gateway ?? '')));
     const paypalOrdersMissingIds = paypalOrderRows.filter(row => !String(row.shopify_order_id ?? '').trim());
     if (paypalOrdersMissingIds.length > 0) {
       throw new Error(`${paypalOrdersMissingIds.length} PayPal order(s) have no Shopify order ID and cannot be posted safely`);
     }
-    const paypalPayments = paypalOrderRows
+    const paypalPayments = policy.onlineBatchPaymentSyncEnabled ? paypalOrderRows
       .map(row => {
         const gateway = normalizeOnlineGateway(row.payment_gateway);
         const accountCode = findOnlineGatewayClearingAccount(gateway, gatewayMappings);
@@ -184,7 +191,7 @@ export async function syncOnlineDailySalesDay(
           reference: orderName ? `PayPal ${orderName}` : `PayPal order ${orderId}`,
         };
       })
-      .filter((payment): payment is NonNullable<typeof payment> => !!payment);
+      .filter((payment): payment is NonNullable<typeof payment> => !!payment) : [];
     clearingPayments.push(...feeEnabledPayments, ...paypalPayments);
     const deferredShopifyTotal = paymentRows
       .filter(row => row.payoutManaged)
@@ -212,6 +219,7 @@ export async function syncOnlineDailySalesDay(
         amount: row.amount,
         payoutManaged: row.payoutManaged,
       })),
+      invoiceStatus: policy.onlineBatchAction === 'draft' ? 'DRAFT' : 'AUTHORISED',
     });
 
     if (xeroId && giftCardAmount > 0) {

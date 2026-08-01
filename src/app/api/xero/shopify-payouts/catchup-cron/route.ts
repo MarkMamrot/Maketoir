@@ -7,6 +7,7 @@ import {
 } from '@/lib/ims/shopifyPayoutIngestion';
 import { query } from '@/services/MySQLService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
         for (const payout of payouts) {
           try {
             await ingestShopifyPayout(businessId, payout, creds);
+            await autoPostShopifyPayout(businessId, String(payout?.id ?? ''));
             processed += 1;
           } catch (error) {
             failed += 1;

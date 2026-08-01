@@ -23,6 +23,7 @@ import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import fs from 'fs';
 import path from 'path';
 
@@ -1185,6 +1186,7 @@ interface DailySalesBatch {
     amount: number;
     payoutManaged: boolean;
   }>;
+  invoiceStatus?: 'DRAFT' | 'AUTHORISED';
 }
 
 function roundCurrency(value: number): number {
@@ -1211,7 +1213,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     Date: batch.date,
     DueDate: batch.date,
     Reference: `${batch.channel.toUpperCase()}-${batch.date}${batch.locationId ? `-L${batch.locationId}` : ''}${batch.gateway ? `-${batch.gateway.replace(/\s+/g, '').toUpperCase().slice(0, 12)}` : ''}`,
-    Status: 'AUTHORISED',
+    Status: batch.invoiceStatus ?? 'AUTHORISED',
     LineAmountTypes: 'Exclusive',
     CurrencyCode: 'AUD',
     LineItems: [{
@@ -2124,14 +2126,14 @@ export async function syncEodEntry(
 }
 
 type EodSyncPersistence = {
-  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
+  setXeroInvoice: (locationId: number, date: string, method: string, invoiceId: string, clearingAccountCode: string, registerId?: number | null, paymentRequired?: boolean) => Promise<void>;
   setXeroPayment: (locationId: number, date: string, method: string, paymentId: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
   setXeroPaymentError: (locationId: number, date: string, method: string, error: string, clearingAccountCode: string, registerId?: number | null) => Promise<void>;
 };
 
 export type EodXeroSyncResult = {
   method: string;
-  status: 'paid' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'already_paid' | 'invoice_failed';
+  status: 'paid' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
   xeroId?: string;
   invoiceNumber?: string;
   error?: string;
@@ -2322,6 +2324,16 @@ export async function triggerEodXeroSync(
   registerName?: string | null,
 ): Promise<EodXeroSyncResult[]> {
   const results: EodXeroSyncResult[] = [];
+  const policy = await getXeroDocumentPolicy(businessId);
+  if (!policy.posBatchSyncEnabled) {
+    for (const row of rows) {
+      if (row.counted_amount == null) continue;
+      await logSync(businessId, 'eod_reconciliation', row.id ?? null, null, 'skipped', `POS EOD ${date} ${row.payment_method}: disabled by Xero document policy`);
+      results.push({ method: row.payment_method, status: 'skipped_policy' });
+    }
+    return results;
+  }
+  const paymentSyncEnabled = policy.posBatchPaymentSyncEnabled;
   const clearingMappings = await getPosClearingMappings(businessId, locationId);
   const accounts = await getAccountMappings(businessId);
   const tracking = getTrackingForLocation(await getTrackingMappings(businessId), locationId);
@@ -2353,18 +2365,18 @@ export async function triggerEodXeroSync(
     const openFloat = isCash ? (row.opening_float ?? 0) : 0;
     let salesAmount = row.counted_amount - openFloat;
     let cashPlan: CashEodPlan | null = null;
-    const clearingAccountCode = clearingMappings[row.payment_method.trim().toLowerCase()];
-    if (!clearingAccountCode) {
+    const clearingAccountCode = clearingMappings[row.payment_method.trim().toLowerCase()] ?? '';
+    if (paymentSyncEnabled && !clearingAccountCode) {
       const detail = `Missing POS clearing account mapping: ${locationName} / ${row.payment_method}`;
       await logSync(businessId, 'eod_reconciliation', null, null, 'skipped', detail);
       results.push({ method: row.payment_method, status: 'blocked_missing_mapping', error: detail });
       continue;
     }
 
-    if (isCash && row.id != null) {
+    if (paymentSyncEnabled && isCash && row.id != null) {
       cashPlan = await getCashEodPlan(businessId, row.id);
     }
-    if (isCash && row.id != null && !cashPlan && !row.xero_invoice_id) {
+    if (paymentSyncEnabled && isCash && row.id != null && !cashPlan && !row.xero_invoice_id) {
       const expectedAmount = Number(row.expected_amount ?? 0);
       const tillVariance = calculateCashPosition({
         expectedAmount,
@@ -2456,7 +2468,11 @@ export async function triggerEodXeroSync(
       xeroId = invoiceResult.xeroId;
       invoiceNumber = invoiceResult.invoiceNumber;
       amountDue = invoiceResult.amountDue;
-      await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId);
+      if (paymentSyncEnabled) {
+        await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId);
+      } else {
+        await persistence.setXeroInvoice(locationId, date, row.payment_method, xeroId, clearingAccountCode, registerId, false);
+      }
       if (cashPlan) {
         await execute(
           `UPDATE xero_pos_cash_eod_actions
@@ -2466,6 +2482,13 @@ export async function triggerEodXeroSync(
           [xeroId, businessId, cashPlan.eod_reconciliation_id],
         );
       }
+    }
+    if (!paymentSyncEnabled) {
+      await logSync(businessId, 'eod_reconciliation', row.id ?? null, xeroId, 'success',
+        `EOD ${date} ${row.payment_method} — ${locationName}: Authorised invoice posted; clearing payment disabled by policy`,
+        'AUTHORISED');
+      results.push({ method: row.payment_method, status: 'invoice_only_policy', xeroId, invoiceNumber });
+      continue;
     }
     try {
       if (row.xero_invoice_id) {
@@ -2625,7 +2648,11 @@ export async function markCNXeroStatus(
  * Post an AUTHORISED Xero Credit Note (ACCREC) for a completed Credit Note.
  * Returns the Xero CreditNoteID, or null on failure.
  */
-export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Promise<string | null> {
+export async function syncCNAsCreditNote(
+  businessId: string,
+  cn: CNForSync,
+  targetStatus: 'DRAFT' | 'AUTHORISED' = 'AUTHORISED',
+): Promise<string | null> {
   const stored = await imsQuery<{ xero_credit_note_id: string | null }>(
     `SELECT xero_credit_note_id FROM ims_credit_notes WHERE id = ? LIMIT 1`,
     [cn.id],
@@ -2667,7 +2694,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
     Date: cn.cn_date,
     CreditNoteNumber: cn.cn_number,
     Reference: cn.reference || cn.cn_number,
-    Status: 'AUTHORISED',
+    Status: targetStatus,
     LineAmountTypes: lineAmountType,
     LineItems: lineItems,
   };
@@ -2686,7 +2713,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
   });
   try {
     const idempotencyKey = crypto.createHash('sha256')
-      .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${monetaryFingerprint}`)
+      .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${targetStatus}|${monetaryFingerprint}`)
       .digest('hex');
     const result = await xeroApiFetch(businessId, '/CreditNotes', {
       method: 'POST',
@@ -2694,7 +2721,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
       body: { CreditNotes: [creditNote] },
     });
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
-    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Credit note created: ${cn.cn_number}`, result.CreditNotes?.[0]?.Status ?? 'AUTHORISED');
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Credit note created: ${cn.cn_number}`, result.CreditNotes?.[0]?.Status ?? targetStatus);
     await markCNXeroStatus(cn.id, 'synced', xeroId);
     return xeroId;
   } catch (err: any) {
@@ -2706,7 +2733,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
         const retry = await xeroApiFetch(businessId, '/CreditNotes', {
           method: 'POST',
           idempotencyKey: crypto.createHash('sha256')
-            .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${monetaryFingerprint}|auto-number`)
+            .update(`${businessId}|customer-credit-note|${cn.id}|${cn.cn_number}|${targetStatus}|${monetaryFingerprint}|auto-number`)
             .digest('hex'),
           body: { CreditNotes: [creditNoteNoNumber] },
         });
@@ -2718,7 +2745,7 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
           xeroId,
           'success',
           `Credit note created after duplicate-number fallback: ${cn.cn_number}`,
-          retry.CreditNotes?.[0]?.Status ?? 'AUTHORISED',
+          retry.CreditNotes?.[0]?.Status ?? targetStatus,
         );
         await markCNXeroStatus(cn.id, 'synced', xeroId);
         return xeroId;
@@ -2729,6 +2756,25 @@ export async function syncCNAsCreditNote(businessId: string, cn: CNForSync): Pro
     }
     await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', parsed.summary);
     return null;
+  }
+}
+
+export async function approveCreditNote(
+  businessId: string,
+  xeroCreditNoteId: string,
+  referenceId: number,
+  syncType: 'cn_credit_note' | 'scn_credit_note',
+): Promise<boolean> {
+  try {
+    await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
+      method: 'POST',
+      body: { CreditNotes: [{ CreditNoteID: xeroCreditNoteId, Status: 'AUTHORISED' }] },
+    });
+    await logSync(businessId, syncType, referenceId, xeroCreditNoteId, 'success', 'Credit note authorised', 'AUTHORISED');
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, syncType, referenceId, xeroCreditNoteId, 'error', `Authorise failed: ${err.message}`);
+    return false;
   }
 }
 

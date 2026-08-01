@@ -19,6 +19,10 @@ const {
   mockUpdateXeroDraftInvoice,
   mockApproveInvoice,
   mockUpdateXeroDraftSupplierCreditNote,
+  mockCNGet,
+  mockSyncCNAsCreditNote,
+  mockSyncSupplierCNAsCreditNote,
+  mockApproveCreditNote,
 } = vi.hoisted(() => ({
   mockConnectionsGet: vi.fn(),
   mockPOGet: vi.fn(),
@@ -38,6 +42,10 @@ const {
   mockUpdateXeroDraftInvoice: vi.fn(),
   mockApproveInvoice: vi.fn(),
   mockUpdateXeroDraftSupplierCreditNote: vi.fn(),
+  mockCNGet: vi.fn(),
+  mockSyncCNAsCreditNote: vi.fn(),
+  mockSyncSupplierCNAsCreditNote: vi.fn(),
+  mockApproveCreditNote: vi.fn(),
 }));
 
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
@@ -46,7 +54,7 @@ vi.mock('@/lib/db/ConnectionsRepository', () => ({
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsPORepo: { get: mockPOGet },
   ImsSORepo: { get: mockSOGet },
-  ImsCNRepo: {},
+  ImsCNRepo: { get: mockCNGet },
   ImsSupplierCNRepo: { get: mockSupplierCNGet },
 }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mockGetPolicy }));
@@ -66,13 +74,14 @@ vi.mock('@/services/XeroSyncService', () => ({
   markSoXeroStatus: vi.fn(),
   voidXeroBill: vi.fn(),
   voidXeroInvoice: vi.fn(),
-  syncCNAsCreditNote: vi.fn(),
+  syncCNAsCreditNote: mockSyncCNAsCreditNote,
   markCNXeroStatus: vi.fn(),
-  syncSupplierCNAsCreditNote: vi.fn(),
+  syncSupplierCNAsCreditNote: mockSyncSupplierCNAsCreditNote,
   markSupplierCNXeroStatus: vi.fn(),
   voidXeroCreditNote: vi.fn(),
   voidXeroSupplierCreditNote: vi.fn(),
   updateXeroDraftSupplierCreditNote: mockUpdateXeroDraftSupplierCreditNote,
+  approveCreditNote: mockApproveCreditNote,
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
@@ -81,6 +90,8 @@ import {
   triggerPOPaymentXeroSync,
   triggerPOXeroSync,
   triggerSOXeroSync,
+  triggerCNXeroSync,
+  triggerSupplierCNXeroSync,
   triggerSupplierCNXeroUpdate,
 } from '../xeroHooks';
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
@@ -219,5 +230,87 @@ describe('PO and SO Xero document policies', () => {
     expect(mockSyncPOAsDraftBill).not.toHaveBeenCalled();
     expect(mockApproveBill).not.toHaveBeenCalled();
     expect(mockSyncPOPayment).not.toHaveBeenCalled();
+  });
+});
+
+describe('credit note Xero document policies', () => {
+  const customerCreditNote = {
+    id: 4,
+    cn_number: 'CN-00004',
+    status: 'complete',
+    source: 'manual',
+    items: [],
+  };
+  const supplierCreditNote = {
+    id: 5,
+    scn_number: 'SCN-00005',
+    status: 'complete',
+    items: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConnectionsGet.mockResolvedValue({ xero_tenant_id: 'tenant', xero_refresh_token: 'token' });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+    mockReportRuntimeIssue.mockResolvedValue(null);
+    mockSyncCNAsCreditNote.mockResolvedValue('xero-cn-4');
+    mockSyncSupplierCNAsCreditNote.mockResolvedValue('xero-scn-5');
+  });
+
+  it('keeps manual customer credit notes local when configured as no sync', async () => {
+    mockCNGet.mockResolvedValue(customerCreditNote);
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, manualCustomerCreditNoteAction: 'none' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+  });
+
+  it('creates a Draft manual customer credit note when configured', async () => {
+    mockCNGet.mockResolvedValue(customerCreditNote);
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, manualCustomerCreditNoteAction: 'draft' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockSyncCNAsCreditNote).toHaveBeenCalledWith('biz-1', expect.objectContaining({ id: 4 }), 'DRAFT');
+  });
+
+  it('never syncs POS credit notes separately', async () => {
+    mockCNGet.mockResolvedValue({ ...customerCreditNote, source: 'pos' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockGetPolicy).not.toHaveBeenCalled();
+    expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+  });
+
+  it('always creates Shopify credit notes as Authorised', async () => {
+    mockCNGet.mockResolvedValue({ ...customerCreditNote, source: 'shopify' });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, manualCustomerCreditNoteAction: 'none' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockSyncCNAsCreditNote).toHaveBeenCalledWith('biz-1', expect.objectContaining({ id: 4 }), 'AUTHORISED');
+  });
+
+  it('promotes a linked supplier Draft when Authorised is configured', async () => {
+    mockSupplierCNGet.mockResolvedValue({ ...supplierCreditNote, xero_credit_note_id: 'xero-scn-5' });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, supplierCreditNoteAction: 'authorised' });
+    mockUpdateXeroDraftSupplierCreditNote.mockResolvedValue(true);
+
+    await triggerSupplierCNXeroSync('biz-1', 5);
+
+    expect(mockUpdateXeroDraftSupplierCreditNote).toHaveBeenCalled();
+    expect(mockApproveCreditNote).toHaveBeenCalledWith('biz-1', 'xero-scn-5', 5, 'scn_credit_note');
+  });
+
+  it('does not downgrade a linked customer credit note when Draft is configured', async () => {
+    mockCNGet.mockResolvedValue({ ...customerCreditNote, xero_credit_note_id: 'xero-cn-4' });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, manualCustomerCreditNoteAction: 'draft' });
+
+    await triggerCNXeroSync('biz-1', 4);
+
+    expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+    expect(mockApproveCreditNote).not.toHaveBeenCalled();
   });
 });

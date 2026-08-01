@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch } = vi.hoisted(() => ({
+const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch, mockGetPolicy } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockExecute: vi.fn(),
   mockImsQuery: vi.fn(),
   mockImsExecute: vi.fn(),
   mockXeroApiFetch: vi.fn(),
+  mockGetPolicy: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
@@ -14,8 +15,10 @@ vi.mock('@/services/XeroService', () => ({
   getValidAccessToken: vi.fn(),
   xeroApiFetch: mockXeroApiFetch,
 }));
+vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mockGetPolicy }));
 
 import { triggerEodXeroSync } from '../XeroSyncService';
+import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 function persistence() {
   return {
@@ -29,6 +32,7 @@ describe('triggerEodXeroSync clearing payments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([]);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
@@ -58,6 +62,51 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(results).toEqual([expect.objectContaining({ method: 'Card', status: 'blocked_missing_mapping' })]);
     expect(mockXeroApiFetch).not.toHaveBeenCalled();
     expect(store.setXeroInvoice).not.toHaveBeenCalled();
+  });
+
+  it('skips every POS batch action when invoice sync is disabled', async () => {
+    mockGetPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      posBatchSyncEnabled: false,
+      posBatchPaymentSyncEnabled: false,
+    });
+    const store = persistence();
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{ payment_method: 'Cash', counted_amount: 150, opening_float: 50 }],
+      'Newtown', 2, store,
+    );
+
+    expect(results).toEqual([{ method: 'Cash', status: 'skipped_policy' }]);
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(store.setXeroInvoice).not.toHaveBeenCalled();
+  });
+
+  it('creates an invoice without payment or variance when POS payment sync is disabled', async () => {
+    mockGetPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      posBatchPaymentSyncEnabled: false,
+    });
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
+      if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-cash', InvoiceNumber: 'INV-1', AmountDue: 100 }] });
+    const store = persistence();
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{ id: 44, payment_method: 'Cash', expected_amount: 100, counted_amount: 150.1, opening_float: 50 }],
+      'Newtown', 2, store,
+    );
+
+    expect(results).toEqual([expect.objectContaining({ status: 'invoice_only_policy', xeroId: 'invoice-cash' })]);
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/Invoices']);
+    expect(store.setXeroInvoice).toHaveBeenCalledWith(4, '2026-07-25', 'Cash', 'invoice-cash', '090', 2, false);
+    expect(store.setXeroPayment).not.toHaveBeenCalled();
   });
 
   it('posts Sales Revenue with location tracking, persists the invoice, then pays the clearing account', async () => {

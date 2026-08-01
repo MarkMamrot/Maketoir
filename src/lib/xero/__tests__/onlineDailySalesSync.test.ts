@@ -7,6 +7,7 @@ const {
   mockSyncDailySalesBatch,
   mockSyncGiftCardLiabilityReclass,
   mockGetBusinessTimeZone,
+  mockGetXeroDocumentPolicy,
 } = vi.hoisted(() => ({
   mockRunImsForBusiness: vi.fn(),
   mockImsQuery: vi.fn(),
@@ -14,6 +15,7 @@ const {
   mockSyncDailySalesBatch: vi.fn(),
   mockSyncGiftCardLiabilityReclass: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
+  mockGetXeroDocumentPolicy: vi.fn(),
 }));
 
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
@@ -27,6 +29,11 @@ vi.mock('@/services/XeroSyncService', () => ({
 vi.mock('@/lib/ims/businessTimeZone', () => ({
   getBusinessTimeZone: mockGetBusinessTimeZone,
 }));
+vi.mock('@/lib/xero/documentPolicyRepository', () => ({
+  getXeroDocumentPolicy: mockGetXeroDocumentPolicy,
+}));
+
+import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 import { calculateGatewayFee, syncOnlineDailySalesDay } from '../onlineDailySalesSync';
 
@@ -44,6 +51,7 @@ describe('syncOnlineDailySalesDay', () => {
     vi.setSystemTime(new Date('2026-07-27T02:00:00Z'));
     mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<unknown>) => callback());
     mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
+    mockGetXeroDocumentPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockQuery.mockResolvedValue([
       { gateway_name: 'shopify_payments', clearing_account_code: '091' },
       { gateway_name: 'paypal', clearing_account_code: '092' },
@@ -87,6 +95,7 @@ describe('syncOnlineDailySalesDay', () => {
         { gateway: 'shopify_payments', amount: 110, payoutManaged: true },
         { gateway: 'paypal_express', amount: 55, payoutManaged: false },
       ],
+      invoiceStatus: 'AUTHORISED',
     }));
     expect(mockSyncGiftCardLiabilityReclass).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1', amount: 20, date: '2026-07-25', channel: 'online',
@@ -150,5 +159,33 @@ describe('syncOnlineDailySalesDay', () => {
         fee: { amount: 1.3, gatewayName: 'afterpay', accountCode: '404', taxType: 'INPUT' },
       })],
     }));
+  });
+
+  it('creates a Draft online invoice without immediate clearing payments', async () => {
+    mockGetXeroDocumentPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      onlineBatchAction: 'draft',
+      onlineBatchPaymentSyncEnabled: false,
+    });
+
+    await syncOnlineDailySalesDay('biz-1', '2026-07-25');
+
+    expect(mockSyncDailySalesBatch).toHaveBeenCalledWith('biz-1', expect.objectContaining({
+      invoiceStatus: 'DRAFT',
+    }));
+    expect(mockSyncDailySalesBatch.mock.calls[0][1]).not.toHaveProperty('clearingPayments');
+  });
+
+  it('keeps a no-sync online day local', async () => {
+    mockGetXeroDocumentPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      onlineBatchAction: 'none',
+      onlineBatchPaymentSyncEnabled: false,
+    });
+
+    const result = await syncOnlineDailySalesDay('biz-1', '2026-07-25');
+
+    expect(result.xeroId).toBeNull();
+    expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
   });
 });

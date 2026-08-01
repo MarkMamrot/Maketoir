@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS xero_document_policies (
   so_approved_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
   so_completed_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
   so_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  manual_customer_cn_action  VARCHAR(20)  NOT NULL DEFAULT 'authorised',
+  supplier_cn_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
+  pos_batch_sync_enabled     TINYINT(1)   NOT NULL DEFAULT 1,
+  pos_batch_payment_sync_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  online_batch_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
+  online_batch_payment_sync_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  shopify_payout_auto_post_enabled TINYINT(1) NOT NULL DEFAULT 0,
   created_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

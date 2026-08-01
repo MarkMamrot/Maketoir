@@ -9,6 +9,13 @@ export type XeroDocumentPolicy = {
   soApprovedAction: XeroDocumentAction;
   soCompletedAction: XeroDocumentAction;
   soPaymentSyncEnabled: boolean;
+  manualCustomerCreditNoteAction: XeroDocumentAction;
+  supplierCreditNoteAction: XeroDocumentAction;
+  posBatchSyncEnabled: boolean;
+  posBatchPaymentSyncEnabled: boolean;
+  onlineBatchAction: XeroDocumentAction;
+  onlineBatchPaymentSyncEnabled: boolean;
+  shopifyPayoutAutoPostEnabled: boolean;
 };
 
 export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
@@ -18,6 +25,13 @@ export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
   soApprovedAction: 'draft',
   soCompletedAction: 'authorised',
   soPaymentSyncEnabled: true,
+  manualCustomerCreditNoteAction: 'authorised',
+  supplierCreditNoteAction: 'draft',
+  posBatchSyncEnabled: true,
+  posBatchPaymentSyncEnabled: true,
+  onlineBatchAction: 'authorised',
+  onlineBatchPaymentSyncEnabled: true,
+  shopifyPayoutAutoPostEnabled: false,
 });
 
 const actionRank: Record<Exclude<XeroDocumentAction, 'none'>, number> = {
@@ -45,6 +59,13 @@ export function validateXeroDocumentPolicy(policy: XeroDocumentPolicy): string |
     }
   }
 
+  if (!policy.posBatchSyncEnabled && policy.posBatchPaymentSyncEnabled) {
+    return 'POS clearing payments require POS batch invoice sync to be enabled.';
+  }
+  if (policy.onlineBatchAction !== 'authorised' && policy.onlineBatchPaymentSyncEnabled) {
+    return 'Online clearing payments require the daily online invoice to be Authorised.';
+  }
+
   return null;
 }
 
@@ -59,6 +80,9 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     'poCompletedAction',
     'soApprovedAction',
     'soCompletedAction',
+    'manualCustomerCreditNoteAction',
+    'supplierCreditNoteAction',
+    'onlineBatchAction',
   ] as const;
   for (const field of actionFields) {
     if (!isXeroDocumentAction(input[field])) {
@@ -66,7 +90,14 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     }
   }
 
-  const booleanFields = ['poPaymentSyncEnabled', 'soPaymentSyncEnabled'] as const;
+  const booleanFields = [
+    'poPaymentSyncEnabled',
+    'soPaymentSyncEnabled',
+    'posBatchSyncEnabled',
+    'posBatchPaymentSyncEnabled',
+    'onlineBatchPaymentSyncEnabled',
+    'shopifyPayoutAutoPostEnabled',
+  ] as const;
   for (const field of booleanFields) {
     if (typeof input[field] !== 'boolean') {
       throw new Error(`${field} must be a boolean.`);
@@ -80,6 +111,13 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     soApprovedAction: input.soApprovedAction as XeroDocumentAction,
     soCompletedAction: input.soCompletedAction as XeroDocumentAction,
     soPaymentSyncEnabled: input.soPaymentSyncEnabled as boolean,
+    manualCustomerCreditNoteAction: input.manualCustomerCreditNoteAction as XeroDocumentAction,
+    supplierCreditNoteAction: input.supplierCreditNoteAction as XeroDocumentAction,
+    posBatchSyncEnabled: input.posBatchSyncEnabled as boolean,
+    posBatchPaymentSyncEnabled: input.posBatchPaymentSyncEnabled as boolean,
+    onlineBatchAction: input.onlineBatchAction as XeroDocumentAction,
+    onlineBatchPaymentSyncEnabled: input.onlineBatchPaymentSyncEnabled as boolean,
+    shopifyPayoutAutoPostEnabled: input.shopifyPayoutAutoPostEnabled as boolean,
   };
   const validationError = validateXeroDocumentPolicy(policy);
   if (validationError) throw new Error(validationError);

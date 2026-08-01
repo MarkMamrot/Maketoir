@@ -12,7 +12,7 @@ import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
-import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote, approveCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -394,6 +394,19 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
   if (!cn || cn.status !== 'complete' || cn.source === 'pos') return;
   if (!(await isXeroConnected(businessId))) return;
 
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy) return;
+  const action = cn.source === 'shopify' ? 'authorised' : policy.manualCustomerCreditNoteAction;
+  if (action === 'none') return;
+
+  const existingXeroId = (cn as any).xero_credit_note_id ?? null;
+  if (existingXeroId) {
+    if (action === 'authorised') {
+      await approveCreditNote(businessId, existingXeroId, cnId, 'cn_credit_note');
+    }
+    return;
+  }
+
   await withRetry(
     () => syncCNAsCreditNote(businessId, {
       id: cn.id,
@@ -413,7 +426,7 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
         tax_rate: i.tax_rate,
         line_total: i.line_total,
       })),
-    }),
+    }, action === 'draft' ? 'DRAFT' : 'AUTHORISED'),
     () => markCNXeroStatus(cnId, 'queued'),
     (error) => notifyXeroFinalFailure(businessId, 'Credit Note', `CN ${cn.cn_number}`, error),
   );
@@ -424,31 +437,43 @@ export async function triggerSupplierCNXeroSync(businessId: string, scnId: numbe
   const scn = await ImsSupplierCNRepo.get(scnId, businessId);
   if (!scn || scn.status !== 'complete') return;
 
-  await withRetry(
-    () => syncSupplierCNAsCreditNote(businessId, {
-      id: scn.id,
-      scn_number: scn.scn_number,
-      supplier_id: scn.supplier_id,
-      supplier_name: scn.supplier_name,
-      location_id: scn.location_id,
-      scn_date: scn.scn_date,
-      reference: scn.reference,
-      supplier_credit_ref: scn.supplier_credit_ref,
-      tax_treatment: scn.tax_treatment,
-      total_amount: scn.total_amount,
-      items: (scn.items ?? []).map(i => ({
-        code: i.code,
-        name: i.name ?? i.product_name,
-        qty: i.qty,
-        unit_cost: i.unit_cost,
-        restock: i.restock,
-        tax_rate: i.tax_rate,
-        line_total: i.line_total,
-      })),
-    }),
-    () => markSupplierCNXeroStatus(scnId, 'queued'),
-    (error) => notifyXeroFinalFailure(businessId, 'Supplier Credit Note', `SCN ${scn.scn_number}`, error),
-  );
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy || policy.supplierCreditNoteAction === 'none') return;
+
+  const payload = {
+    id: scn.id,
+    scn_number: scn.scn_number,
+    supplier_id: scn.supplier_id,
+    supplier_name: scn.supplier_name,
+    location_id: scn.location_id,
+    scn_date: scn.scn_date,
+    reference: scn.reference,
+    supplier_credit_ref: scn.supplier_credit_ref,
+    tax_treatment: scn.tax_treatment,
+    total_amount: scn.total_amount,
+    items: (scn.items ?? []).map(i => ({
+      code: i.code,
+      name: i.name ?? i.product_name,
+      qty: i.qty,
+      unit_cost: i.unit_cost,
+      restock: i.restock,
+      tax_rate: i.tax_rate,
+      line_total: i.line_total,
+    })),
+  };
+  let xeroId = (scn as any).xero_credit_note_id ?? null;
+  if (xeroId) {
+    await updateXeroDraftSupplierCreditNote(businessId, payload, xeroId);
+  } else {
+    xeroId = await withRetry(
+      () => syncSupplierCNAsCreditNote(businessId, payload),
+      () => markSupplierCNXeroStatus(scnId, 'queued'),
+      (error) => notifyXeroFinalFailure(businessId, 'Supplier Credit Note', `SCN ${scn.scn_number}`, error),
+    );
+  }
+  if (xeroId && policy.supplierCreditNoteAction === 'authorised') {
+    await approveCreditNote(businessId, xeroId, scnId, 'scn_credit_note');
+  }
 }
 
 export async function triggerCNXeroVoid(businessId: string, cnId: number): Promise<string | null> {
