@@ -706,6 +706,28 @@ CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_launches (
   INDEX idx_foresight_campaign_experiment_launch_schedule (business_id, scheduled_end_on, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_results (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  experiment_version_id BIGINT NOT NULL,
+  experiment_hash       VARCHAR(64) NOT NULL,
+  launch_id             BIGINT NOT NULL,
+  formula_version       VARCHAR(100) NOT NULL,
+  observation_json      JSON NOT NULL,
+  assessment_json       JSON NOT NULL,
+  status                VARCHAR(32) NOT NULL,
+  primary_metric        VARCHAR(100) NOT NULL,
+  control_value         DECIMAL(20,8),
+  treatment_value       DECIMAL(20,8),
+  p_value               DECIMAL(20,12),
+  evaluated_by          INT NOT NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_campaign_experiment_result (business_id, launch_id),
+  INDEX idx_foresight_campaign_experiment_result_thread (business_id, thread_id, id),
+  INDEX idx_foresight_campaign_experiment_result_status (business_id, status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,

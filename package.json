@@ -23,6 +23,7 @@
     "google-ads-api": "^23.0.0",
     "googleapis": "^134.0.0",
     "jsbarcode": "^3.12.3",
+    "jstat": "^1.9.6",
     "lucide-react": "^1.27.0",
     "mysql2": "^3.22.3",
     "next": "14.2.35",

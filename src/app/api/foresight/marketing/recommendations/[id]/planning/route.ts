@@ -5,6 +5,7 @@ import { ForesightCampaignActivationRepository } from '@/lib/foresight/repositor
 import { ForesightCampaignLessonRepository } from '@/lib/foresight/repositories/ForesightCampaignLessonRepository';
 import { ForesightCampaignExperimentRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentRepository';
 import { ForesightCampaignExperimentLaunchRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentLaunchRepository';
+import { ForesightCampaignExperimentResultRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentResultRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -40,6 +41,7 @@ async function planningContext(businessId: string, id: number) {
   const latestExperiment = thread ? await ForesightCampaignExperimentRepository.latest(businessId, thread.id) : null;
   const latestExperimentReview = thread ? await ForesightCampaignExperimentRepository.latestReview(businessId, thread.id) : null;
   const experimentLaunch = thread ? await ForesightCampaignExperimentLaunchRepository.getForThread(businessId, thread.id) : null;
+  const experimentResult = thread ? await ForesightCampaignExperimentResultRepository.getForThread(businessId, thread.id) : null;
   return {
     recommendation,
     thread,
@@ -93,7 +95,14 @@ async function planningContext(businessId: string, id: number) {
                                       ? latestExperimentReview : null,
                                     launch: experimentLaunch?.experiment_version_id === latestExperiment.id
                                       && experimentLaunch.experiment_hash === latestExperiment.experiment_hash
-                                      ? experimentLaunch : null,
+                                      ? {
+                                          ...experimentLaunch,
+                                          result: experimentResult?.launch_id === experimentLaunch.id
+                                            && experimentResult.experiment_version_id === latestExperiment.id
+                                            && experimentResult.experiment_hash === latestExperiment.experiment_hash
+                                            ? experimentResult : null,
+                                        }
+                                      : null,
                                   }
                                 : null,
                             }
