@@ -483,7 +483,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const bill: any = {
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
-    Date: po.order_date,
+    Date: po.supplier_invoice_date || po.order_date,
     DueDate: calcPoDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',
@@ -584,7 +584,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     InvoiceID: xeroId,
     Type: 'ACCPAY',
     Contact: { Name: po.supplier_name || `Supplier #${po.supplier_id}` },
-    Date: po.order_date,
+    Date: po.supplier_invoice_date || po.order_date,
     DueDate: calcPoDueDate(po),
     Reference: po.po_number,
     Status: 'DRAFT',

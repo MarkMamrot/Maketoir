@@ -24117,7 +24117,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>PO Bill Due Date</h3>
-        <p style={p}>The <strong>Due Date</strong> on a Xero Bill is calculated as: <strong>Supplier Invoice Date + Payment Terms days</strong> (e.g. Supplier Invoice Date + 30 days for "30 days" terms). If no Supplier Invoice Date is set on the PO, the Order Date is used as the base. Set both <em>Supplier Invoice Date</em> and <em>Payment Terms</em> on the PO to get an accurate due date in Xero.</p>
+        <p style={p}>The Xero Bill <strong>Date</strong> is the PO's <strong>Supplier Invoice Date</strong>. Its <strong>Due Date</strong> is calculated as Supplier Invoice Date + Payment Terms days (for example, +30 days for "30 days" terms). If no Supplier Invoice Date is set, both calculations fall back to the PO Order Date.</p>
 
         <h3 style={h3}>Account mappings</h3>
         <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>

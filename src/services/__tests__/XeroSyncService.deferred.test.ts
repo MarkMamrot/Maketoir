@@ -202,6 +202,8 @@ describe('PO bill sync', () => {
       supplier_name: 'Supplier',
       location_id: 4,
       order_date: '2026-07-27',
+      supplier_invoice_date: '2026-07-29',
+      payment_terms: '30 days',
       subtotal: 326.4,
       tax_amount: 32.64,
       total_amount: 359.04,
@@ -228,11 +230,38 @@ describe('PO bill sync', () => {
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).toEqual(
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toEqual(
+      expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
+    );
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).toEqual(
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0]).toEqual(
+      expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
+    );
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
+  });
+
+  it('uses the PO order date when no supplier invoice date is saved', async () => {
+    const po = {
+      id: 4852,
+      po_number: 'PO-2026-0016',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 10,
+      tax_amount: 1,
+      total_amount: 11,
+      items: [],
+    };
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-2', Status: 'DRAFT' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toEqual(
+      expect.objectContaining({ Date: '2026-07-27', DueDate: '2026-07-27' }),
+    );
   });
 
   it('uploads a stored supplier invoice to the linked Xero bill', async () => {
