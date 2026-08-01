@@ -26,6 +26,11 @@ export interface PlanningThreadDetail {
   thread: PlanningThread;
   messages: PlanningMessage[];
   latestPlan: { markdown_text?: string; version?: number; state?: string } | null;
+  links: Array<{
+    id: number;
+    link_type: 'recommendation' | 'initiative' | 'strategy';
+    link_id: string;
+  }>;
 }
 
 export async function plannerResponseJson(response: Response): Promise<Record<string, unknown>> {

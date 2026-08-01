@@ -7,6 +7,7 @@ import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
 import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
+import { dashboardHashView } from './dashboardHandoff';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 
@@ -102,9 +103,8 @@ const DASHBOARD_VIEW_IDS = new Set<string>([
 ]);
 
 function parseDashboardViewFromHash(hash: string): string | null {
-  const raw = hash.replace(/^#/, '').trim();
-  if (!raw) return null;
-  const decoded = decodeURIComponent(raw);
+  const decoded = dashboardHashView(hash);
+  if (!decoded) return null;
   return DASHBOARD_VIEW_IDS.has(decoded) ? decoded : null;
 }
 
@@ -8548,7 +8548,7 @@ export default function DashboardPage() {
     if (!hashReady) return;
     if (!DASHBOARD_VIEW_IDS.has(activeView)) return;
     const nextHash = `#${encodeURIComponent(activeView)}`;
-    if (window.location.hash !== nextHash) {
+    if (parseDashboardViewFromHash(window.location.hash) !== activeView) {
       window.history.replaceState(null, '', nextHash);
     }
   }, [activeView, hashReady]);

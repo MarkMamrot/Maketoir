@@ -54,6 +54,16 @@ export interface PlanVersionRow {
   created_at: string;
 }
 
+export interface PlanningLinkRow {
+  id: number;
+  business_id: string;
+  thread_id: number;
+  plan_version_id: number | null;
+  link_type: 'recommendation' | 'initiative' | 'strategy';
+  link_id: string;
+  created_at: string;
+}
+
 export class PlanningThreadConflictError extends Error {
   constructor() {
     super('The planning thread changed. Reload it before saving another plan version.');
@@ -316,6 +326,95 @@ export const ForesightPlanningRepository = {
       [businessId, threadId],
     );
     return rows[0] ? normalizePlanVersion(rows[0]) : null;
+  },
+
+  async listThreadLinks(businessId: string, threadId: number): Promise<PlanningLinkRow[]> {
+    return query<PlanningLinkRow>(
+      `SELECT link.*
+       FROM foresight_plan_links link
+       INNER JOIN foresight_planning_threads thread
+         ON thread.business_id = link.business_id AND thread.id = link.thread_id
+       WHERE link.business_id = ? AND link.thread_id = ?
+       ORDER BY link.created_at ASC, link.id ASC`,
+      [businessId, threadId],
+    );
+  },
+
+  async findThreadForLink(
+    businessId: string,
+    linkType: PlanningLinkRow['link_type'],
+    linkId: string,
+  ): Promise<PlanningThreadRow | null> {
+    const rows = await query<PlanningThreadRow>(
+      `SELECT thread.*
+       FROM foresight_plan_links link
+       INNER JOIN foresight_planning_threads thread
+         ON thread.business_id = link.business_id AND thread.id = link.thread_id
+       WHERE link.business_id = ? AND link.link_type = ? AND link.link_id = ?
+       ORDER BY thread.updated_at DESC, thread.id DESC
+       LIMIT 1`,
+      [businessId, linkType, linkId],
+    );
+    return rows[0] ?? null;
+  },
+
+  async getOrCreateRecommendationThread(businessId: string, recommendationId: number, input: {
+    title: string;
+    createdBy: number;
+    systemContent: string;
+    systemMessage: Record<string, unknown>;
+  }): Promise<{ threadId: number; created: boolean }> {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [recommendationRows] = await connection.execute(
+        `SELECT id FROM foresight_recommendations
+         WHERE business_id = ? AND id = ? FOR UPDATE`,
+        [businessId, recommendationId],
+      );
+      if (!(recommendationRows as Array<{ id: number }>)[0]) throw new Error('Recommendation not found.');
+      const [threadRows] = await connection.execute(
+        `SELECT thread.id
+         FROM foresight_plan_links link
+         INNER JOIN foresight_planning_threads thread
+           ON thread.business_id = link.business_id AND thread.id = link.thread_id
+         WHERE link.business_id = ? AND link.link_type = 'recommendation' AND link.link_id = ?
+         ORDER BY thread.updated_at DESC, thread.id DESC LIMIT 1`,
+        [businessId, String(recommendationId)],
+      );
+      const existing = (threadRows as Array<{ id: number }>)[0];
+      if (existing) {
+        await connection.commit();
+        return { threadId: existing.id, created: false };
+      }
+      const [threadResult] = await connection.execute(
+        `INSERT INTO foresight_planning_threads
+           (business_id, thread_type, state, title, created_by, revision)
+         VALUES (?, 'recommendation', 'discovering', ?, ?, 1)`,
+        [businessId, input.title.trim(), input.createdBy],
+      );
+      const threadId = (threadResult as { insertId: number }).insertId;
+      await connection.execute(
+        `INSERT INTO foresight_plan_links
+           (business_id, thread_id, link_type, link_id)
+         VALUES (?, ?, 'recommendation', ?)`,
+        [businessId, threadId, String(recommendationId)],
+      );
+      await connection.execute(
+        `INSERT INTO foresight_planning_messages
+           (business_id, thread_id, actor_type, content, message_json)
+         VALUES (?, ?, 'system', ?, ?)`,
+        [businessId, threadId, input.systemContent.trim(), JSON.stringify(input.systemMessage)],
+      );
+      await connection.commit();
+      return { threadId, created: true };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async linkThread(businessId: string, threadId: number, input: {

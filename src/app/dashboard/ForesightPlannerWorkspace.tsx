@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Bot,
   CheckCircle2,
+  ExternalLink,
   FileText,
   Loader2,
   MessageSquareText,
@@ -15,6 +16,7 @@ import {
   UserRound,
   X,
 } from 'lucide-react';
+import { buildDashboardHash, dashboardHashParam } from './dashboardHandoff';
 import {
   messageCitations,
   messageQuestions,
@@ -66,6 +68,13 @@ function ThreadButton({ thread, selected, onSelect }: {
 }
 
 function ConversationMessage({ message }: { message: PlanningMessage }) {
+  if (message.actor_type === 'system') {
+    return (
+      <article className="border border-cyan-200 bg-cyan-50 px-4 py-3 text-xs leading-5 text-cyan-900">
+        <div className="flex items-start gap-2"><ShieldCheck size={15} className="mt-0.5 shrink-0" /><p>{message.content}</p></div>
+      </article>
+    );
+  }
   const assistant = message.actor_type === 'assistant';
   const citations = messageCitations(message);
   return (
@@ -158,7 +167,10 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
     }
   };
 
-  useEffect(() => { void loadThreads(); }, []);
+  useEffect(() => {
+    const requested = Number(dashboardHashParam(window.location.hash, 'thread'));
+    void loadThreads(Number.isInteger(requested) && requested > 0 ? requested : undefined);
+  }, []);
   useEffect(() => {
     if (selectedId == null) { setDetail(null); return; }
     setNotice(null);
@@ -222,6 +234,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
 
   const latestAssistant = [...(detail?.messages ?? [])].reverse().find((message) => message.actor_type === 'assistant');
   const questions = messageQuestions(latestAssistant);
+  const recommendationLink = detail?.links.find((link) => link.link_type === 'recommendation') ?? null;
 
   return (
     <section className="min-h-[680px] overflow-hidden border border-gray-200 bg-white" aria-label="Foresight planning workspace">
@@ -278,9 +291,16 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
               {detail && <p className="mt-0.5 text-xs text-gray-500">{planningThreadTypeLabel(detail.thread.thread_type)} · {stateLabel(detail.thread.state)} · Revision {detail.thread.revision}</p>}
             </div>
             {detail && (
-              <button type="button" onClick={() => void loadDetail(detail.thread.id)} title="Refresh conversation" disabled={loadingDetail || sending} className="flex h-8 w-8 shrink-0 items-center justify-center border border-gray-300 text-gray-500 hover:text-cyan-700 disabled:opacity-40">
-                <RefreshCw size={15} className={loadingDetail ? 'animate-spin' : ''} />
-              </button>
+              <div className="flex shrink-0 items-center gap-2">
+                {recommendationLink && (
+                  <button type="button" onClick={() => { window.location.hash = buildDashboardHash('marketing-recommendations', { recommendation: recommendationLink.link_id }); }} className="inline-flex h-8 items-center gap-2 border border-gray-300 px-2.5 text-xs font-semibold text-gray-600 hover:border-cyan-600 hover:text-cyan-700">
+                    Inbox <ExternalLink size={13} />
+                  </button>
+                )}
+                <button type="button" onClick={() => void loadDetail(detail.thread.id)} title="Refresh conversation" disabled={loadingDetail || sending} className="flex h-8 w-8 items-center justify-center border border-gray-300 text-gray-500 hover:text-cyan-700 disabled:opacity-40">
+                  <RefreshCw size={15} className={loadingDetail ? 'animate-spin' : ''} />
+                </button>
+              </div>
             )}
           </header>
 
@@ -348,6 +368,15 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
             <p className="mt-2 text-xs leading-5 text-gray-500">Read-only business facts. Conversation text cannot approve or execute actions.</p>
           </div>
           <div className="space-y-5 p-4">
+            {recommendationLink && (
+              <section>
+                <h3 className="text-[11px] font-bold uppercase text-gray-500">Linked recommendation</h3>
+                <div className="mt-2 text-sm font-semibold text-gray-800">Recommendation #{recommendationLink.link_id}</div>
+                <button type="button" onClick={() => { window.location.hash = buildDashboardHash('marketing-recommendations', { recommendation: recommendationLink.link_id }); }} className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-700 hover:text-cyan-900">
+                  Review authorization state <ExternalLink size={12} />
+                </button>
+              </section>
+            )}
             <section>
               <h3 className="text-[11px] font-bold uppercase text-gray-500">Open questions</h3>
               {questions.length === 0 ? (

@@ -13,6 +13,7 @@ import {
   History,
   ListChecks,
   Loader2,
+  MessageSquareText,
   Minus,
   RefreshCw,
   Send,
@@ -40,6 +41,7 @@ import { googleAdsCampaignUrl } from '@/lib/foresight/googleAdsLinks';
 import type { ForesightMarketingStrategy } from '@/lib/foresight/marketingStrategy';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 import { WeeklyMarketingDigest } from './WeeklyMarketingDigest';
+import { buildDashboardHash, dashboardHashParam } from './dashboardHandoff';
 
 type RecommendationState = 'shadow' | 'pending_approval' | 'approved' | 'executing' | 'succeeded' | 'failed' | 'compensated' | 'rejected';
 type Recommendation = {
@@ -153,6 +155,10 @@ type InboxResponse = {
   businessToday?: string;
   paidMediaPolicy?: ForesightMarketingStrategy['paidMedia'];
   error?: string;
+};
+type RecommendationPlanningContext = {
+  thread: { id: number; title: string; state: string; revision: number } | null;
+  latestPlan: { version: number; state: string } | null;
 };
 type Filter = 'all' | RecommendationState;
 
@@ -338,6 +344,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [metaRollbackPreflight, setMetaRollbackPreflight] = useState<MetaRollbackPreflightResult | null>(null);
   const [metaRollbackConfirmed, setMetaRollbackConfirmed] = useState(false);
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
+  const [planningContext, setPlanningContext] = useState<RecommendationPlanningContext | null>(null);
+  const [planningLoading, setPlanningLoading] = useState(false);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -366,7 +374,11 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
         setBusinessToday(body.businessToday);
         setImplementationDate(body.businessToday);
       }
-      setSelectedId((current) => current && next.some((item) => item.id === current) ? current : next[0]?.id ?? null);
+      const requested = Number(dashboardHashParam(window.location.hash, 'recommendation'));
+      setSelectedId((current) => {
+        const candidate = Number.isInteger(requested) && requested > 0 ? requested : current;
+        return candidate && next.some((item) => item.id === candidate) ? candidate : next[0]?.id ?? null;
+      });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to load recommendations.' });
     } finally {
@@ -375,6 +387,21 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   };
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (selectedId == null) { setPlanningContext(null); return; }
+    let active = true;
+    setPlanningLoading(true);
+    fetch(`/api/foresight/marketing/recommendations/${selectedId}/planning`, { cache: 'no-store' })
+      .then(async (response) => {
+        const body = await responseJson(response);
+        if (!response.ok) throw new Error(body.error || 'Unable to load planning context.');
+        if (active) setPlanningContext({ thread: body.thread ?? null, latestPlan: body.latestPlan ?? null });
+      })
+      .catch((error) => { if (active) setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to load planning context.' }); })
+      .finally(() => { if (active) setPlanningLoading(false); });
+    return () => { active = false; };
+  }, [selectedId]);
 
   const filtered = useMemo(
     () => recommendations.filter((item) => filter === 'all' || item.state === filter),
@@ -400,6 +427,27 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const selectedPreview = selected
     ? buildRecommendationImplementationPreview(selected.channel as Parameters<typeof buildRecommendationImplementationPreview>[0], selected.proposed_action_json)
     : null;
+
+  const openPlanning = async () => {
+    if (!selected) return;
+    if (planningContext?.thread) {
+      window.location.hash = buildDashboardHash('planning-workspace', { thread: planningContext.thread.id, recommendation: selected.id });
+      return;
+    }
+    if (!isAdmin) return;
+    setWorking('planning');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/marketing/recommendations/${selected.id}/planning`, { method: 'POST' });
+      const body = await responseJson(response);
+      if (!response.ok || !body.thread) throw new Error(body.error || 'Unable to create a planning thread.');
+      window.location.hash = buildDashboardHash('planning-workspace', { thread: body.thread.id, recommendation: selected.id });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to create a planning thread.' });
+    } finally {
+      setWorking(null);
+    }
+  };
 
   useEffect(() => {
     setPreflight(null);
@@ -958,11 +1006,30 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                   <h2 className="text-lg font-bold text-gray-950">{RULE_LABELS[selected.rule_id] ?? selected.rule_id}</h2>
                   <p className="mt-1 text-sm text-gray-500">Evidence window {selected.evidence_json.windowStart} to {selected.evidence_json.windowEnd}</p>
                 </div>
-                <div className="text-right text-xs text-gray-500">
-                  <div>Confidence {Math.round(Number(selected.confidence ?? 0) * 100)}%</div>
-                  <div className="mt-1">Expires {dateTime(selected.expires_at)}</div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="text-right text-xs text-gray-500">
+                    <div>Confidence {Math.round(Number(selected.confidence ?? 0) * 100)}%</div>
+                    <div className="mt-1">Expires {dateTime(selected.expires_at)}</div>
+                  </div>
+                  {(isAdmin || planningContext?.thread) && (
+                    <button type="button" onClick={() => void openPlanning()} disabled={planningLoading || working === 'planning'} className="inline-flex h-9 items-center gap-2 border border-cyan-700 px-3 text-sm font-semibold text-cyan-800 hover:bg-cyan-50 disabled:opacity-50">
+                      {planningLoading || working === 'planning' ? <Loader2 size={15} className="animate-spin" /> : planningContext?.thread ? <ExternalLink size={15} /> : <MessageSquareText size={15} />}
+                      {planningContext?.thread ? 'Open planning' : 'Discuss in planning'}
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {planningContext?.thread && (
+                <div className="flex flex-wrap items-center justify-between gap-3 border border-cyan-200 bg-cyan-50 px-4 py-3">
+                  <div>
+                    <div className="text-xs font-bold uppercase text-cyan-800">Linked planning thread</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">{planningContext.thread.title}</div>
+                    <div className="mt-1 text-xs text-gray-600">{planningContext.latestPlan ? `Plan version ${planningContext.latestPlan.version} · ${planningContext.latestPlan.state.replaceAll('_', ' ')}` : 'Discussion in progress · no structured plan yet'}</div>
+                  </div>
+                  <button type="button" onClick={() => void openPlanning()} className="inline-flex items-center gap-2 text-xs font-bold text-cyan-800 hover:text-cyan-950">Continue planning <ExternalLink size={13} /></button>
+                </div>
+              )}
 
               <div>
                 <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">Observed evidence</h3>

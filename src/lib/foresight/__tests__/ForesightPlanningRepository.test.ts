@@ -138,6 +138,63 @@ describe('ForesightPlanningRepository', () => {
     expect(mockConnection.rollback).toHaveBeenCalledOnce();
   });
 
+  it('reads thread links only through a matching tenant thread', async () => {
+    mockQuery.mockResolvedValue([{ id: 4, business_id: 'business-1', thread_id: 12, link_type: 'recommendation', link_id: '20' }]);
+
+    await expect(ForesightPlanningRepository.listThreadLinks('business-1', 12)).resolves.toHaveLength(1);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/thread\.business_id = link\.business_id[\s\S]*link\.business_id = \? AND link\.thread_id = \?/),
+      ['business-1', 12],
+    );
+  });
+
+  it('finds the newest tenant thread linked to a recommendation', async () => {
+    mockQuery.mockResolvedValue([{ id: 12, business_id: 'business-1', title: 'Recommendation plan' }]);
+
+    await expect(ForesightPlanningRepository.findThreadForLink('business-1', 'recommendation', '20'))
+      .resolves.toMatchObject({ id: 12 });
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/link\.business_id = \?[\s\S]*link\.link_type = \?[\s\S]*link\.link_id = \?/),
+      ['business-1', 'recommendation', '20'],
+    );
+  });
+
+  it('serializes recommendation thread creation and writes its link and context atomically', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ id: 20 }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([{ insertId: 12 }])
+      .mockResolvedValueOnce([{ insertId: 5 }])
+      .mockResolvedValueOnce([{ insertId: 30 }]);
+
+    await expect(ForesightPlanningRepository.getOrCreateRecommendationThread('business-1', 20, {
+      title: 'Plan: profitable growth', createdBy: 7, systemContent: 'Linked context.',
+      systemMessage: { recommendationId: 20 },
+    })).resolves.toEqual({ threadId: 12, created: true });
+
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(1, expect.stringContaining('FOR UPDATE'), ['business-1', 20]);
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(4, expect.stringContaining('foresight_plan_links'), ['business-1', 12, '20']);
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(5, expect.stringContaining("'system'"), [
+      'business-1', 12, 'Linked context.', '{"recommendationId":20}',
+    ]);
+    expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('reuses a linked recommendation thread while holding the recommendation lock', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ id: 20 }]])
+      .mockResolvedValueOnce([[{ id: 11 }]]);
+
+    await expect(ForesightPlanningRepository.getOrCreateRecommendationThread('business-1', 20, {
+      title: 'Unused', createdBy: 7, systemContent: 'Unused', systemMessage: {},
+    })).resolves.toEqual({ threadId: 11, created: false });
+
+    expect(mockConnection.execute).toHaveBeenCalledTimes(2);
+    expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
   it('records validations only when business, thread, version, and plan hash match', async () => {
     mockExecute.mockResolvedValue({ insertId: 51, affectedRows: 1 });
 
