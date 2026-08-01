@@ -250,6 +250,13 @@ type RecommendationPlanningContext = {
                 limitations: string[]; executable: false;
               };
               review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+              launch: {
+                id: number; launched_on: string; scheduled_end_on: string; channel: 'meta' | 'google_ads' | 'klaviyo';
+                control_external_id: string; treatment_external_id: string; control_allocation: number | string;
+                treatment_allocation: number | string; target_sample_per_variant: number;
+                random_assignment_attested: number | boolean; single_variable_attested: number | boolean;
+                implementation_details: string; deviations_text: string | null; operator_note: string; created_at: string;
+              } | null;
             } | null;
           } | null;
         } | null;
@@ -466,6 +473,13 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [activationNote, setActivationNote] = useState('');
   const [lessonReviewNote, setLessonReviewNote] = useState('');
   const [experimentReviewNote, setExperimentReviewNote] = useState('');
+  const [experimentControlExternalId, setExperimentControlExternalId] = useState('');
+  const [experimentTreatmentExternalId, setExperimentTreatmentExternalId] = useState('');
+  const [experimentImplementationDetails, setExperimentImplementationDetails] = useState('');
+  const [experimentDeviations, setExperimentDeviations] = useState('');
+  const [experimentOperatorNote, setExperimentOperatorNote] = useState('');
+  const [experimentRandomAssignment, setExperimentRandomAssignment] = useState(false);
+  const [experimentSingleVariable, setExperimentSingleVariable] = useState(false);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -771,6 +785,25 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await refreshPlanningContext(); setExperimentReviewNote('');
       setMessage({ kind: 'success', text: action === 'accepted' ? 'Experiment design accepted. This does not launch or authorize a campaign.' : action === 'revision_requested' ? 'Experiment revision requested.' : 'Experiment rejected.' });
     } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to review campaign experiment.' }); }
+    finally { setWorking(null); }
+  };
+
+  const recordCampaignExperimentLaunch = async () => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    if (!thread || !experiment || experiment.review?.action !== 'accepted' || experiment.launch) return;
+    const design = experiment.experiment_json; setWorking('experiment_launch'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        experimentVersionId: experiment.id, experimentHash: experiment.experiment_hash, launchedOn: design.startDate, scheduledEndOn: design.endDate,
+        channel: design.channel, controlExternalId: experimentControlExternalId.trim(), treatmentExternalId: experimentTreatmentExternalId.trim(),
+        controlAllocation: design.allocationPercent.control, treatmentAllocation: design.allocationPercent.treatment,
+        targetSamplePerVariant: design.minimumSamplePerVariant, randomAssignmentAttested: experimentRandomAssignment,
+        singleVariableAttested: experimentSingleVariable, implementationDetails: experimentImplementationDetails.trim(),
+        deviationsText: experimentDeviations.trim() || null, operatorNote: experimentOperatorNote.trim(),
+      }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to record experiment launch.');
+      await refreshPlanningContext(); setMessage({ kind: 'success', text: 'Manual experiment launch recorded against the exact accepted design.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record experiment launch.' }); }
     finally { setWorking(null); }
   };
 
@@ -1532,6 +1565,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                           <div className="mt-3 text-[11px] font-bold uppercase text-gray-500">Guardrails</div><ul className="mt-1 space-y-1 text-xs text-gray-600">{design.guardrails.map((item) => <li key={item.metric}>{item.metric.replaceAll('_', ' ')}: no more than {item.maximumAdverseChangePercent}% adverse change</li>)}</ul>
                                           {isAdmin && !experiment.review && <div className="mt-3"><textarea value={experimentReviewNote} onChange={(event) => setExperimentReviewNote(event.target.value.slice(0, 1000))} rows={2} placeholder="Required for rejection or revision" className="w-full resize-y border border-gray-300 px-3 py-2 text-sm" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewCampaignExperiment('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Check size={15} /> Accept design</button><button type="button" onClick={() => void reviewCampaignExperiment('revision_requested')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"><RefreshCw size={15} /> Request revision</button><button type="button" onClick={() => void reviewCampaignExperiment('rejected')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><X size={15} /> Reject</button></div></div>}
                                           {isAdmin && (experiment.review?.action === 'revision_requested' || experiment.review?.action === 'rejected') && <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft revised experiment</button>}
+                                          {experiment.launch && <div className="mt-4 border-t border-emerald-200 pt-3"><div className="flex items-center gap-2 text-sm font-bold text-emerald-800"><CheckCircle2 size={16} /> Manual launch recorded</div><p className="mt-2 text-xs leading-5 text-gray-700">{dateOnly(experiment.launch.launched_on)} to {dateOnly(experiment.launch.scheduled_end_on)}; {experiment.launch.target_sample_per_variant.toLocaleString()} target participants per variant.</p><p className="mt-1 text-xs text-gray-600">Control: {experiment.launch.control_external_id} · Treatment: {experiment.launch.treatment_external_id}</p>{experiment.launch.deviations_text && <p className="mt-1 text-xs text-amber-800">Declared deviations: {experiment.launch.deviations_text}</p>}</div>}
+                                          {isAdmin && experiment.review?.action === 'accepted' && !experiment.launch && <div className="mt-4 border-t border-emerald-200 pt-4"><div className="text-[11px] font-bold uppercase text-gray-500">Record manual experiment launch</div><p className="mt-1 text-xs leading-5 text-gray-600">Attest an external launch matching the exact accepted channel, dates, allocation, and minimum sample. Foresight does not launch it.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-gray-700">Control external ID<input value={experimentControlExternalId} onChange={(event) => setExperimentControlExternalId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label><label className="text-xs font-semibold text-gray-700">Treatment external ID<input value={experimentTreatmentExternalId} onChange={(event) => setExperimentTreatmentExternalId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label></div><label className="mt-3 block text-xs font-semibold text-gray-700">Implementation details<textarea value={experimentImplementationDetails} onChange={(event) => setExperimentImplementationDetails(event.target.value.slice(0, 8000))} rows={3} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold text-gray-700">Deviations from accepted design<textarea value={experimentDeviations} onChange={(event) => setExperimentDeviations(event.target.value.slice(0, 8000))} rows={2} placeholder="Leave blank only when there were no deviations" className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold text-gray-700">Operator note<textarea value={experimentOperatorNote} onChange={(event) => setExperimentOperatorNote(event.target.value.slice(0, 8000))} rows={2} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><div className="mt-3 space-y-2"><label className="flex items-start gap-2 text-xs leading-5 text-gray-700"><input type="checkbox" checked={experimentRandomAssignment} onChange={(event) => setExperimentRandomAssignment(event.target.checked)} className="mt-1 accent-emerald-700" />Participants are randomly assigned to mutually exclusive control and treatment groups.</label><label className="flex items-start gap-2 text-xs leading-5 text-gray-700"><input type="checkbox" checked={experimentSingleVariable} onChange={(event) => setExperimentSingleVariable(event.target.checked)} className="mt-1 accent-emerald-700" />Only the declared treatment differs between variants.</label></div><button type="button" onClick={() => void recordCampaignExperimentLaunch()} disabled={working != null || !experimentControlExternalId.trim() || !experimentTreatmentExternalId.trim() || experimentControlExternalId.trim() === experimentTreatmentExternalId.trim() || !experimentImplementationDetails.trim() || !experimentOperatorNote.trim() || !experimentRandomAssignment || !experimentSingleVariable} className="mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_launch' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Record experiment launch</button></div>}
                                         </div>; })() : isAdmin ? <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft experiment design</button> : <p className="mt-2 text-xs text-gray-500">No experiment design has been drafted.</p>}
                                         <p className="mt-3 text-xs leading-5 text-gray-500">Accepting this design does not launch, schedule, send, change budget, or establish causality. A later exact launch attestation is required.</p>
                                       </div>

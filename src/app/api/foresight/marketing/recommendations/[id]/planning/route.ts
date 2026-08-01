@@ -4,6 +4,7 @@ import { ForesightDeliverableRepository } from '@/lib/foresight/repositories/For
 import { ForesightCampaignActivationRepository } from '@/lib/foresight/repositories/ForesightCampaignActivationRepository';
 import { ForesightCampaignLessonRepository } from '@/lib/foresight/repositories/ForesightCampaignLessonRepository';
 import { ForesightCampaignExperimentRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentRepository';
+import { ForesightCampaignExperimentLaunchRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentLaunchRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -38,6 +39,7 @@ async function planningContext(businessId: string, id: number) {
   const latestLessonReview = thread ? await ForesightCampaignLessonRepository.latestReview(businessId, thread.id) : null;
   const latestExperiment = thread ? await ForesightCampaignExperimentRepository.latest(businessId, thread.id) : null;
   const latestExperimentReview = thread ? await ForesightCampaignExperimentRepository.latestReview(businessId, thread.id) : null;
+  const experimentLaunch = thread ? await ForesightCampaignExperimentLaunchRepository.getForThread(businessId, thread.id) : null;
   return {
     recommendation,
     thread,
@@ -89,6 +91,9 @@ async function planningContext(businessId: string, id: number) {
                                     review: latestExperimentReview?.experiment_version_id === latestExperiment.id
                                       && latestExperimentReview.experiment_hash === latestExperiment.experiment_hash
                                       ? latestExperimentReview : null,
+                                    launch: experimentLaunch?.experiment_version_id === latestExperiment.id
+                                      && experimentLaunch.experiment_hash === latestExperiment.experiment_hash
+                                      ? experimentLaunch : null,
                                   }
                                 : null,
                             }
