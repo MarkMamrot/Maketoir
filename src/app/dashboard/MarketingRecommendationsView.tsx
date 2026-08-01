@@ -39,6 +39,7 @@ import type { WeeklyDigestSnapshot } from '@/lib/foresight/weeklyDigest';
 import { buildRecommendationEvaluationSummary } from '@/lib/foresight/recommendationEvaluationSummary';
 import { googleAdsCampaignUrl } from '@/lib/foresight/googleAdsLinks';
 import type { ForesightMarketingStrategy } from '@/lib/foresight/marketingStrategy';
+import type { MarketingOperationalStatus } from '@/lib/foresight/marketingOperationalStatus';
 import { MarketingStrategyPanel } from './MarketingStrategyPanel';
 import { WeeklyMarketingDigest } from './WeeklyMarketingDigest';
 import { buildDashboardHash, dashboardHashParam } from './dashboardHandoff';
@@ -152,6 +153,7 @@ type InboxResponse = {
   outcomes?: RecommendationOutcome[];
   implementations?: RecommendationImplementation[];
   executions?: RecommendationExecution[];
+  operationalStatuses?: MarketingOperationalStatus[];
   businessToday?: string;
   paidMediaPolicy?: ForesightMarketingStrategy['paidMedia'];
   error?: string;
@@ -444,6 +446,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [outcomes, setOutcomes] = useState<RecommendationOutcome[]>([]);
   const [implementations, setImplementations] = useState<RecommendationImplementation[]>([]);
   const [executions, setExecutions] = useState<RecommendationExecution[]>([]);
+  const [operationalStatuses, setOperationalStatuses] = useState<MarketingOperationalStatus[]>([]);
   const [digests, setDigests] = useState<DigestRow[]>([]);
   const [weeklyDigests, setWeeklyDigests] = useState<WeeklyDigestRow[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -523,6 +526,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       setOutcomes(body.outcomes ?? []);
       setImplementations(body.implementations ?? []);
       setExecutions(body.executions ?? []);
+      setOperationalStatuses(body.operationalStatuses ?? []);
       setPaidMediaPolicy(body.paidMediaPolicy ?? null);
       setDigests(digestBody.digests ?? []);
       setWeeklyDigests(digestBody.weeklyDigests ?? []);
@@ -1371,6 +1375,23 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
             const isSelected = item.id === selectedId;
             const observed = item.evidence_json.observedValues ?? {};
             const leadMetric = Object.entries(observed)[0];
+            const operationalStatus = operationalStatuses.find((status) => status.recommendationId === item.id);
+            const followupLabel = operationalStatus?.followup?.status === 'outcome_due'
+              ? 'Outcome due'
+              : operationalStatus?.followup?.status === 'monitoring'
+                ? `Monitoring to ${operationalStatus.followup.followupEnd}`
+                : operationalStatus?.followup?.status === 'measured'
+                  ? 'Outcome measured'
+                  : null;
+            const experimentLabel = operationalStatus?.experiment?.status === 'awaiting_launch'
+              ? 'Experiment awaiting launch'
+              : operationalStatus?.experiment?.status === 'running'
+                ? `Experiment running to ${operationalStatus.experiment.scheduledEndOn}`
+                : operationalStatus?.experiment?.status === 'evidence_due'
+                  ? 'Experiment evidence due'
+                  : operationalStatus?.experiment?.status === 'concluded'
+                    ? `Experiment ${operationalStatus.experiment.conclusion?.replaceAll('_', ' ')}`
+                    : null;
             return (
               <button
                 key={item.id}
@@ -1385,6 +1406,12 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                     <span className="font-medium text-gray-500">{stateLabel(item.state)}</span>
                     {leadMetric && <span className="tabular-nums text-gray-700">{METRIC_LABELS[leadMetric[0]] ?? leadMetric[0]} {metricValue(leadMetric[0], leadMetric[1])}</span>}
                   </span>
+                  {(followupLabel || experimentLabel) && (
+                    <span className="mt-2 flex flex-wrap gap-1.5">
+                      {followupLabel && <span className={`border px-1.5 py-0.5 text-[11px] font-semibold ${operationalStatus?.followup?.status === 'outcome_due' ? 'border-amber-300 bg-amber-50 text-amber-800' : operationalStatus?.followup?.status === 'measured' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-cyan-200 bg-cyan-50 text-cyan-800'}`}>{followupLabel}</span>}
+                      {experimentLabel && <span className={`border px-1.5 py-0.5 text-[11px] font-semibold ${operationalStatus?.experiment?.status === 'evidence_due' ? 'border-amber-300 bg-amber-50 text-amber-800' : operationalStatus?.experiment?.status === 'concluded' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>{experimentLabel}</span>}
+                    </span>
+                  )}
                 </span>
                 <ChevronRight size={16} className="mt-1 shrink-0 text-gray-300" />
               </button>

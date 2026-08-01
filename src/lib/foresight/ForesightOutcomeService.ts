@@ -6,8 +6,9 @@ import {
 import { ForesightRepository } from './repositories/ForesightRepository';
 import { assessCampaignOutcome, summarizeCampaignOutcomeWindow } from './campaignOutcomes';
 import { ForesightCampaignActivationRepository } from './repositories/ForesightCampaignActivationRepository';
+import { PAID_MEDIA_OUTCOME_HORIZON_DAYS } from './marketingOperationalStatus';
 
-export const PAID_MEDIA_OUTCOME_HORIZON_DAYS = 7;
+export { PAID_MEDIA_OUTCOME_HORIZON_DAYS } from './marketingOperationalStatus';
 
 function addDays(date: string, days: number): string {
   const value = new Date(`${date.slice(0, 10)}T00:00:00Z`);

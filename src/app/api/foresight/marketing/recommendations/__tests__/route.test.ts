@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateGa4, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockEvaluateCampaignOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluateGa4, mockEvaluateKlaviyo, mockEvaluateOutcomes, mockEvaluateCampaignOutcomes, mockList, mockLatestStrategy, mockListEvents, mockListOutcomes, mockListImplementations, mockListExecutions, mockListExperimentWorkflows } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockRequireAdminTier: vi.fn(),
   mockEvaluate: vi.fn(),
@@ -14,6 +14,7 @@ const { mockRequireAdminSession, mockRequireAdminTier, mockEvaluate, mockEvaluat
   mockListOutcomes: vi.fn(),
   mockListImplementations: vi.fn(),
   mockListExecutions: vi.fn(),
+  mockListExperimentWorkflows: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -51,6 +52,9 @@ vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
 vi.mock('@/lib/foresight/repositories/ForesightExecutionRepository', () => ({
   ForesightExecutionRepository: { listForRecommendations: mockListExecutions },
 }));
+vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentResultRepository', () => ({
+  ForesightCampaignExperimentResultRepository: { listWorkflowForRecommendations: mockListExperimentWorkflows },
+}));
 
 import { GET, POST } from '../route';
 
@@ -68,6 +72,7 @@ describe('/api/foresight/marketing/recommendations', () => {
     mockListOutcomes.mockResolvedValue([]);
     mockListImplementations.mockResolvedValue([]);
     mockListExecutions.mockResolvedValue([]);
+    mockListExperimentWorkflows.mockResolvedValue([]);
     mockEvaluateOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
     mockEvaluateCampaignOutcomes.mockResolvedValue({ measuredCount: 0, deferredCount: 0, outcomes: [] });
   });
@@ -107,7 +112,22 @@ describe('/api/foresight/marketing/recommendations', () => {
     expect(mockListOutcomes).toHaveBeenCalledWith('business-1', []);
     expect(mockListImplementations).toHaveBeenCalledWith('business-1', []);
     expect(mockListExecutions).toHaveBeenCalledWith('business-1', []);
+    expect(mockListExperimentWorkflows).toHaveBeenCalledWith('business-1', []);
     const body = await response.json();
     expect(body.paidMediaPolicy).toMatchObject({ minimumContributionPoas: 1, merDeteriorationPercent: 25 });
+  });
+
+  it('returns bulk operational follow-up and experiment statuses', async () => {
+    mockList.mockResolvedValue([{ id: 20, state: 'succeeded' }]);
+    mockListExecutions.mockResolvedValue([{ recommendation_id: 20, state: 'succeeded', compensates_execution_id: null,
+      completion_date: '2026-07-20' }]);
+    mockListExperimentWorkflows.mockResolvedValue([{ recommendation_id: 20, scheduled_end_on: '2026-07-27', conclusion: null }]);
+
+    const body = await (await GET()).json();
+
+    expect(mockListExperimentWorkflows).toHaveBeenCalledWith('business-1', [20]);
+    expect(body.operationalStatuses).toEqual([{ recommendationId: 20,
+      followup: { status: 'outcome_due', followupStart: '2026-07-21', followupEnd: '2026-07-27', assessmentDue: '2026-07-28' },
+      experiment: { status: 'evidence_due', scheduledEndOn: '2026-07-27', conclusion: null } }]);
   });
 });

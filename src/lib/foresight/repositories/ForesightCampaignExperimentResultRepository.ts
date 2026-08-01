@@ -13,12 +13,46 @@ export interface CampaignExperimentResultRow {
 export interface AcceptedCampaignExperimentConclusionRow extends CampaignExperimentResultRow {
   accepted_at: string;
 }
+export interface CampaignExperimentWorkflowRow {
+  recommendation_id: number;
+  scheduled_end_on: string | null;
+  conclusion: ExperimentResultAssessment['status'] | null;
+}
 export class CampaignExperimentResultTransitionError extends Error {
   constructor(message: string) { super(message); this.name = 'CampaignExperimentResultTransitionError'; }
 }
 function json<T>(value: T | string): T { return typeof value === 'string' ? JSON.parse(value) as T : value; }
 
 export const ForesightCampaignExperimentResultRepository = {
+  async listWorkflowForRecommendations(businessId: string, recommendationIds: number[]): Promise<CampaignExperimentWorkflowRow[]> {
+    if (recommendationIds.length === 0) return [];
+    const placeholders = recommendationIds.map(() => '?').join(',');
+    return query<CampaignExperimentWorkflowRow>(
+      `SELECT CAST(link.link_id AS UNSIGNED) AS recommendation_id,
+              launch.scheduled_end_on, result.status AS conclusion
+       FROM foresight_plan_links link
+       INNER JOIN foresight_campaign_experiment_versions experiment
+         ON experiment.business_id = link.business_id AND experiment.thread_id = link.thread_id
+       INNER JOIN foresight_campaign_experiment_review_events review
+         ON review.business_id = experiment.business_id
+        AND review.experiment_version_id = experiment.id
+        AND review.experiment_hash = experiment.experiment_hash
+        AND review.action = 'accepted'
+       LEFT JOIN foresight_campaign_experiment_launches launch
+         ON launch.business_id = experiment.business_id
+        AND launch.experiment_version_id = experiment.id
+        AND launch.experiment_hash = experiment.experiment_hash
+       LEFT JOIN foresight_campaign_experiment_results result
+         ON result.business_id = experiment.business_id
+        AND result.launch_id = launch.id
+        AND result.experiment_version_id = experiment.id
+        AND result.experiment_hash = experiment.experiment_hash
+       WHERE link.business_id = ? AND link.link_type = 'recommendation'
+         AND link.link_id IN (${placeholders})
+       ORDER BY experiment.id DESC`,
+      [businessId, ...recommendationIds.map(String)]);
+  },
+
   async listAccepted(businessId: string, input: { from: string; to: string; limit: number }): Promise<AcceptedCampaignExperimentConclusionRow[]> {
     const rows = await query<AcceptedCampaignExperimentConclusionRow>(
       `SELECT result.*, review.created_at AS accepted_at

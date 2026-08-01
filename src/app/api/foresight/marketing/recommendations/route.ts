@@ -6,6 +6,8 @@ import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService
 import { Ga4RecommendationService } from '@/lib/foresight/Ga4RecommendationService';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { ForesightExecutionRepository } from '@/lib/foresight/repositories/ForesightExecutionRepository';
+import { ForesightCampaignExperimentResultRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentResultRepository';
+import { buildMarketingOperationalStatus } from '@/lib/foresight/marketingOperationalStatus';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { DEFAULT_FORESIGHT_MARKETING_STRATEGY, parseMarketingStrategy } from '@/lib/foresight/marketingStrategy';
@@ -48,12 +50,28 @@ export async function GET() {
     () => getBusinessTimeZone(user.businessId),
   ).catch(() => DEFAULT_BUSINESS_TIME_ZONE);
   const businessToday = new Date().toLocaleDateString('sv-SE', { timeZone });
-  const [events, outcomes, implementations, executions] = await Promise.all([
+  const [events, outcomes, implementations, executions, experimentWorkflows] = await Promise.all([
     ForesightRepository.listRecommendationEvents(user.businessId, recommendationIds),
     ForesightRepository.listRecommendationOutcomes(user.businessId, recommendationIds),
     ForesightRepository.listRecommendationImplementations(user.businessId, recommendationIds),
     ForesightExecutionRepository.listForRecommendations(user.businessId, recommendationIds),
+    ForesightCampaignExperimentResultRepository.listWorkflowForRecommendations(user.businessId, recommendationIds),
   ]);
+  const operationalStatuses = recommendations.map((recommendation) => {
+    const implementation = implementations.find((item) => item.recommendation_id === recommendation.id);
+    const execution = executions.find((item) => item.recommendation_id === recommendation.id
+      && item.compensates_execution_id == null && item.state === 'succeeded');
+    const workflow = experimentWorkflows.find((item) => item.recommendation_id === recommendation.id);
+    const completionDate = implementation?.implemented_on
+      ?? (typeof execution?.completion_date === 'string' ? execution.completion_date : null);
+    return buildMarketingOperationalStatus({
+      recommendationId: recommendation.id,
+      businessToday,
+      completionDate,
+      hasOutcome: outcomes.some((item) => item.recommendation_id === recommendation.id),
+      experiment: workflow ? { scheduledEndOn: workflow.scheduled_end_on, conclusion: workflow.conclusion } : null,
+    });
+  });
   return NextResponse.json({
     success: true,
     recommendations,
@@ -61,6 +79,7 @@ export async function GET() {
     outcomes,
     implementations,
     executions,
+    operationalStatuses,
     businessToday,
     paidMediaPolicy: strategy.paidMedia,
   });

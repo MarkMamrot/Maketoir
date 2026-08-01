@@ -46,4 +46,12 @@ describe('ForesightCampaignExperimentResultRepository', () => {
     expect(mockQuery.mock.calls[0][0]).toContain('experiment.experiment_hash = result.experiment_hash');
     expect(rows[0]).toMatchObject({ id: 77, observation_json: observations, assessment_json: { status: 'treatment_won' } });
   });
+  it('lists experiment workflow only through exact accepted hashes and recommendation links', async () => {
+    mockQuery.mockResolvedValue([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null }]);
+    const rows = await ForesightCampaignExperimentResultRepository.listWorkflowForRecommendations('business-1', [20, 21]);
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("link.link_type = 'recommendation'"), ['business-1', '20', '21']);
+    expect(mockQuery.mock.calls[0][0]).toContain('review.experiment_hash = experiment.experiment_hash');
+    expect(mockQuery.mock.calls[0][0]).toContain('result.experiment_hash = experiment.experiment_hash');
+    expect(rows).toEqual([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null }]);
+  });
 });
