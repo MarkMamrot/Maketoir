@@ -17,6 +17,7 @@ describe('Foresight planning prompt manifest', () => {
       { id: 'strategy-interviewer', version: 'strategy-interviewer-v1' },
       { id: 'initiative-planner', version: 'initiative-planner-v1' },
       { id: 'planner-dialogue', version: 'planner-dialogue-v2' },
+      { id: 'campaign-deliverables', version: 'campaign-deliverables-v1' },
     ]);
   });
 });

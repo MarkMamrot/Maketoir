@@ -172,8 +172,43 @@ type RecommendationPlanningContext = {
     successMetrics: string[];
     guardrails: string[];
     review: { action: 'submitted' | 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+    deliverable: {
+      id: number;
+      version: number;
+      documentHash: string;
+      document: {
+        title: string;
+        objective: string;
+        audience: string[];
+        productSelection: Array<{ name: string; rationale: string; citationFactIds: string[] }>;
+        offerConstraints: string[];
+        creativeDirection: string[];
+        assets: Array<{
+          id: string;
+          channel: 'campaign_brief' | 'meta' | 'google_ads' | 'klaviyo';
+          assetType: string;
+          title: string;
+          content: string;
+          publishable: false;
+          reviewNotes: string[];
+        }>;
+        trackingRequirements: string[];
+        successMetrics: string[];
+        guardrails: string[];
+        reviewDate: string | null;
+        stopConditions: string[];
+      };
+      review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+    } | null;
   } | null;
 };
+type DeliverableChannel = 'campaign_brief' | 'meta' | 'google_ads' | 'klaviyo';
+const DELIVERABLE_CHANNELS: Array<{ value: DeliverableChannel; label: string }> = [
+  { value: 'campaign_brief', label: 'Campaign brief' },
+  { value: 'meta', label: 'Meta' },
+  { value: 'google_ads', label: 'Google Ads' },
+  { value: 'klaviyo', label: 'Klaviyo' },
+];
 type Filter = 'all' | RecommendationState;
 
 function addCalendarDays(value: string, days: number): string {
@@ -361,6 +396,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [planningContext, setPlanningContext] = useState<RecommendationPlanningContext | null>(null);
   const [planningLoading, setPlanningLoading] = useState(false);
   const [planReviewNote, setPlanReviewNote] = useState('');
+  const [deliverableChannels, setDeliverableChannels] = useState<DeliverableChannel[]>(['campaign_brief', 'meta']);
+  const [deliverableReviewNote, setDeliverableReviewNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -498,6 +535,68 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record the plan decision.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const refreshPlanningContext = async () => {
+    if (selectedId == null) return;
+    const response = await fetch(`/api/foresight/marketing/recommendations/${selectedId}/planning`, { cache: 'no-store' });
+    const body = await responseJson(response);
+    if (!response.ok) throw new Error(body.error || 'Unable to refresh planning context.');
+    setPlanningContext({ thread: body.thread ?? null, latestPlan: body.latestPlan ?? null });
+  };
+
+  const generateDeliverables = async () => {
+    const thread = planningContext?.thread;
+    if (!thread || deliverableChannels.length === 0) return;
+    setWorking('deliverable_generate');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/deliverables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: 'generate', channels: deliverableChannels }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to draft campaign deliverables.');
+      await refreshPlanningContext();
+      setMessage({ kind: 'success', text: 'A new immutable campaign deliverable package was drafted for human review.' });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to draft campaign deliverables.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const reviewDeliverables = async (action: 'accepted' | 'rejected' | 'revision_requested') => {
+    const thread = planningContext?.thread;
+    const deliverable = planningContext?.latestPlan?.deliverable;
+    if (!thread || !deliverable || deliverable.review) return;
+    setWorking(`deliverable_${action}`);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/deliverables`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'review', deliverableVersionId: deliverable.id, documentHash: deliverable.documentHash,
+          action, note: deliverableReviewNote.trim(),
+        }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to record the deliverable decision.');
+      await refreshPlanningContext();
+      setDeliverableReviewNote('');
+      setMessage({
+        kind: 'success',
+        text: action === 'accepted'
+          ? 'Deliverables accepted for manual use. Nothing was published or sent.'
+          : action === 'revision_requested'
+            ? 'Deliverable revision requested. A new immutable version can now be drafted.'
+            : 'Deliverables rejected. Nothing was published or sent.',
+      });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record the deliverable decision.' });
     } finally {
       setWorking(null);
     }
@@ -1127,6 +1226,84 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                             <button type="button" onClick={() => void decidePlan('rejected')} disabled={working != null || !planReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{working === 'plan_rejected' ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />} Reject plan</button>
                           </div>
                           <p className="mt-3 text-xs leading-5 text-gray-600">Accepting this plan records a planning decision only. Recommendation approval, live preflight, and execution remain separate controls.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {planningContext.latestPlan?.review?.action === 'accepted' && (
+                    <div className="mt-5 border-t border-cyan-200 pt-5">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold uppercase text-gray-500">Campaign deliverables</div>
+                          <p className="mt-1 text-sm leading-6 text-gray-700">Draft channel assets from the accepted plan. All outputs require human review and manual publishing.</p>
+                        </div>
+                        {planningContext.latestPlan.deliverable && (
+                          <span className={`text-xs font-bold uppercase ${planningContext.latestPlan.deliverable.review?.action === 'accepted' ? 'text-emerald-700' : planningContext.latestPlan.deliverable.review ? 'text-red-700' : 'text-amber-700'}`}>
+                            {planningContext.latestPlan.deliverable.review?.action.replaceAll('_', ' ') ?? 'Draft review'}
+                          </span>
+                        )}
+                      </div>
+
+                      {isAdmin && (!planningContext.latestPlan.deliverable || planningContext.latestPlan.deliverable.review?.action === 'revision_requested' || planningContext.latestPlan.deliverable.review?.action === 'rejected') && (
+                        <div className="mt-4 border border-gray-200 bg-white p-3">
+                          <div className="text-[11px] font-bold uppercase text-gray-500">Channels</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {DELIVERABLE_CHANNELS.map((channel) => {
+                              const selected = deliverableChannels.includes(channel.value);
+                              return (
+                                <label key={channel.value} className={`flex cursor-pointer items-center gap-2 border px-3 py-2 text-xs font-semibold ${selected ? 'border-cyan-700 bg-cyan-50 text-cyan-900' : 'border-gray-300 text-gray-600'}`}>
+                                  <input type="checkbox" checked={selected} onChange={() => setDeliverableChannels((current) => selected ? current.filter((item) => item !== channel.value) : [...current, channel.value])} className="h-3.5 w-3.5 accent-cyan-700" />
+                                  {channel.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <button type="button" onClick={() => void generateDeliverables()} disabled={working != null || deliverableChannels.length === 0} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50">
+                            {working === 'deliverable_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                            {planningContext.latestPlan.deliverable ? 'Draft revised package' : 'Draft deliverables'}
+                          </button>
+                        </div>
+                      )}
+
+                      {planningContext.latestPlan.deliverable && (
+                        <div className="mt-4 space-y-4">
+                          <div>
+                            <h3 className="text-base font-bold text-gray-950">{planningContext.latestPlan.deliverable.document.title}</h3>
+                            <p className="mt-1 text-sm leading-6 text-gray-700">{planningContext.latestPlan.deliverable.document.objective}</p>
+                            <p className="mt-1 text-xs text-gray-500">Version {planningContext.latestPlan.deliverable.version} · Not publishable from Foresight</p>
+                          </div>
+                          {planningContext.latestPlan.deliverable.document.productSelection.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-bold uppercase text-gray-500">Product selection</div>
+                              <ul className="mt-2 space-y-2 text-xs leading-5 text-gray-700">{planningContext.latestPlan.deliverable.document.productSelection.map((product) => <li key={product.name}><strong>{product.name}:</strong> {product.rationale}</li>)}</ul>
+                            </div>
+                          )}
+                          <div className="space-y-3">
+                            {planningContext.latestPlan.deliverable.document.assets.map((asset) => (
+                              <article key={asset.id} className="border border-gray-200 bg-white px-4 py-3">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <h4 className="text-sm font-bold text-gray-900">{asset.title}</h4>
+                                  <span className="text-[10px] font-bold uppercase text-gray-500">{asset.channel.replaceAll('_', ' ')} · {asset.assetType.replaceAll('_', ' ')}</span>
+                                </div>
+                                <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-gray-800">{asset.content}</div>
+                                {asset.reviewNotes.length > 0 && <div className="mt-3 border-t border-gray-100 pt-2 text-xs leading-5 text-amber-800">Review: {asset.reviewNotes.join('; ')}</div>}
+                              </article>
+                            ))}
+                          </div>
+                          {planningContext.latestPlan.deliverable.review?.note && <p className="text-xs leading-5 text-gray-600">Decision note: {planningContext.latestPlan.deliverable.review.note}</p>}
+                          {isAdmin && !planningContext.latestPlan.deliverable.review && (
+                            <div className="border-t border-cyan-200 pt-4">
+                              <label className="block text-xs font-bold uppercase text-gray-500" htmlFor="deliverable-review-note">Decision note</label>
+                              <textarea id="deliverable-review-note" value={deliverableReviewNote} onChange={(event) => setDeliverableReviewNote(event.target.value.slice(0, 1000))} rows={3} placeholder="Required when requesting revision or rejecting" className="mt-2 w-full resize-y border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" />
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <button type="button" onClick={() => void reviewDeliverables('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"><Check size={15} /> Accept drafts</button>
+                                <button type="button" onClick={() => void reviewDeliverables('revision_requested')} disabled={working != null || !deliverableReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 bg-white px-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"><RefreshCw size={15} /> Request revision</button>
+                                <button type="button" onClick={() => void reviewDeliverables('rejected')} disabled={working != null || !deliverableReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={15} /> Reject drafts</button>
+                              </div>
+                              <p className="mt-3 text-xs leading-5 text-gray-600">Acceptance records content review only. No campaign, ad, email, or flow is published, scheduled, or sent.</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

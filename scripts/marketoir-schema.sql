@@ -522,6 +522,42 @@ CREATE TABLE IF NOT EXISTS foresight_plan_review_events (
   INDEX idx_foresight_plan_review_version (business_id, plan_version_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_deliverable_versions (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  plan_version_id       BIGINT NOT NULL,
+  plan_hash             VARCHAR(64) NOT NULL,
+  version               INT NOT NULL,
+  parent_id             BIGINT,
+  schema_version        INT NOT NULL,
+  document_json         JSON NOT NULL,
+  markdown_text         LONGTEXT NOT NULL,
+  document_hash         VARCHAR(64) NOT NULL,
+  model_id              VARCHAR(100),
+  prompt_version        VARCHAR(100),
+  authored_by           INT,
+  change_reason         VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_deliverable_version (business_id, thread_id, version),
+  UNIQUE KEY uq_foresight_deliverable_hash (business_id, thread_id, document_hash),
+  INDEX idx_foresight_deliverable_plan (business_id, plan_version_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_deliverable_review_events (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  deliverable_version_id BIGINT NOT NULL,
+  document_hash         VARCHAR(64) NOT NULL,
+  action                VARCHAR(32) NOT NULL,
+  actor_id              INT NOT NULL,
+  note                  VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_deliverable_review_thread (business_id, thread_id, id),
+  INDEX idx_foresight_deliverable_review_version (business_id, deliverable_version_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,

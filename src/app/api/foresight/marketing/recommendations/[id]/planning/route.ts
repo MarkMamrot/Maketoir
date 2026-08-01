@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ForesightPlanningRepository } from '@/lib/foresight/repositories/ForesightPlanningRepository';
+import { ForesightDeliverableRepository } from '@/lib/foresight/repositories/ForesightDeliverableRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -17,6 +18,12 @@ async function planningContext(businessId: string, id: number) {
     : null;
   const latestReview = thread
     ? await ForesightPlanningRepository.latestPlanReview(businessId, thread.id)
+    : null;
+  const latestDeliverable = thread
+    ? await ForesightDeliverableRepository.latest(businessId, thread.id)
+    : null;
+  const latestDeliverableReview = thread
+    ? await ForesightDeliverableRepository.latestReview(businessId, thread.id)
     : null;
   return {
     recommendation,
@@ -36,6 +43,18 @@ async function planningContext(businessId: string, id: number) {
       guardrails: latestPlan.plan_json.guardrails,
       review: latestReview?.plan_version_id === latestPlan.id && latestReview.plan_hash === latestPlan.plan_hash
         ? latestReview
+        : null,
+      deliverable: latestDeliverable?.plan_version_id === latestPlan.id && latestDeliverable.plan_hash === latestPlan.plan_hash
+        ? {
+            id: latestDeliverable.id,
+            version: latestDeliverable.version,
+            documentHash: latestDeliverable.document_hash,
+            document: latestDeliverable.document_json,
+            review: latestDeliverableReview?.deliverable_version_id === latestDeliverable.id
+              && latestDeliverableReview.document_hash === latestDeliverable.document_hash
+              ? latestDeliverableReview
+              : null,
+          }
         : null,
     } : null,
   };
