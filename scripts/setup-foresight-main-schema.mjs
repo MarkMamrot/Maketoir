@@ -18,6 +18,7 @@ const tableNames = [
   'foresight_plan_versions',
   'foresight_plan_links',
   'foresight_plan_validations',
+  'foresight_plan_review_events',
   'foresight_recommendations',
   'foresight_approvals',
   'foresight_recommendation_events',

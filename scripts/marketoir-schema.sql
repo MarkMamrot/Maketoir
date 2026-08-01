@@ -508,6 +508,20 @@ CREATE TABLE IF NOT EXISTS foresight_plan_validations (
   INDEX idx_foresight_plan_validation (business_id, plan_version_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_plan_review_events (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  plan_version_id       BIGINT NOT NULL,
+  plan_hash             VARCHAR(64) NOT NULL,
+  action                VARCHAR(32) NOT NULL,
+  actor_id              INT NOT NULL,
+  note                  VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_plan_review_thread (business_id, thread_id, id),
+  INDEX idx_foresight_plan_review_version (business_id, plan_version_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_recommendations (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,

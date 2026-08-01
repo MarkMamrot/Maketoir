@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { ForesightPlanDraftingService, PlanDraftRejectedError } from '@/lib/foresight/assistant/ForesightPlanDraftingService';
 import { createGeminiPlannerModelGateway } from '@/lib/foresight/assistant/PlannerModelGateway';
 import { ForesightPlanValidationError } from '@/lib/foresight/planning/planDocument';
-import { PlanningThreadConflictError } from '@/lib/foresight/repositories/ForesightPlanningRepository';
+import { PlanReviewTransitionError, PlanningThreadConflictError } from '@/lib/foresight/repositories/ForesightPlanningRepository';
 import { requireAdminSession } from '@/lib/sessionUtils';
 
 export async function POST(request: Request, context: { params: { threadId: string } }) {
@@ -41,6 +41,9 @@ export async function POST(request: Request, context: { params: { threadId: stri
     }
     if (error instanceof PlanDraftRejectedError) {
       return NextResponse.json({ error: error.message, code: 'PLAN_REJECTED', validation: error.validation }, { status: 422 });
+    }
+    if (error instanceof PlanReviewTransitionError) {
+      return NextResponse.json({ error: error.message, code: 'PLAN_LOCKED' }, { status: 422 });
     }
     if (error instanceof ForesightPlanValidationError) {
       return NextResponse.json({ error: 'The model returned an invalid plan document.', code: 'INVALID_PLAN', issues: error.issues }, { status: 422 });

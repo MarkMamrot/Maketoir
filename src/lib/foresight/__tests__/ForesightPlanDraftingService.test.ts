@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../repositories/ForesightPlanningRepository', () => ({
   PlanningThreadConflictError: class PlanningThreadConflictError extends Error {},
+  PlanReviewTransitionError: class PlanReviewTransitionError extends Error {},
   ForesightPlanningRepository: {
     getThread: mocks.getThread, listMessages: mocks.listMessages, listThreadLinks: mocks.listThreadLinks,
     listThreadFacts: mocks.listThreadFacts, latestPlanVersion: mocks.latestPlanVersion,

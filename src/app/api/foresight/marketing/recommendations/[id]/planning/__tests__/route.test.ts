@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockSession, mockTier, mockGetRecommendation, mockFindThread, mockLatestPlan, mockGetOrCreate, mockGetThread } = vi.hoisted(() => ({
+const { mockSession, mockTier, mockGetRecommendation, mockFindThread, mockLatestPlan, mockLatestReview, mockGetOrCreate } = vi.hoisted(() => ({
   mockSession: vi.fn(), mockTier: vi.fn(), mockGetRecommendation: vi.fn(), mockFindThread: vi.fn(),
-  mockLatestPlan: vi.fn(), mockGetOrCreate: vi.fn(), mockGetThread: vi.fn(),
+  mockLatestPlan: vi.fn(), mockLatestReview: vi.fn(), mockGetOrCreate: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: mockSession, requireAdminTier: mockTier }));
@@ -11,8 +11,8 @@ vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
 }));
 vi.mock('@/lib/foresight/repositories/ForesightPlanningRepository', () => ({
   ForesightPlanningRepository: {
-    findThreadForLink: mockFindThread, latestPlanVersion: mockLatestPlan,
-    getOrCreateRecommendationThread: mockGetOrCreate, getThread: mockGetThread,
+    findThreadForLink: mockFindThread, latestPlanVersion: mockLatestPlan, latestPlanReview: mockLatestReview,
+    getOrCreateRecommendationThread: mockGetOrCreate,
   },
 }));
 
@@ -27,17 +27,26 @@ describe('/api/foresight/marketing/recommendations/[id]/planning', () => {
     mockTier.mockReturnValue({ user: { businessId: 'business-1', userId: 7 } });
     mockGetRecommendation.mockResolvedValue({ id: 42, rule_id: 'profitable_growth_opportunity' });
     mockFindThread.mockResolvedValue(null);
+    mockLatestReview.mockResolvedValue(null);
     mockGetOrCreate.mockResolvedValue({ threadId: 12, created: true });
-    mockGetThread.mockResolvedValue({ id: 12, business_id: 'business-1', title: 'Plan: profitable growth opportunity' });
   });
 
   it('returns an existing linked thread using the session tenant', async () => {
     mockFindThread.mockResolvedValue({ id: 11, business_id: 'business-1' });
-    mockLatestPlan.mockResolvedValue({ id: 8, version: 2 });
+    mockLatestPlan.mockResolvedValue({
+      id: 8, version: 2, state: 'locked_for_approval', plan_hash: 'hash-2',
+      plan_json: {
+        title: 'Growth plan', objective: 'Grow contribution.', planningHorizon: '30 days',
+        selectedOptionId: 'focused', options: [{ id: 'focused', title: 'Focused', summary: 'Focus spend.', benefits: [], risks: [], evidenceRequired: [] }],
+        actions: [], questions: [], successMetrics: ['Contribution'], guardrails: ['Human approval'],
+      },
+    });
+    mockLatestReview.mockResolvedValue({ plan_version_id: 8, plan_hash: 'hash-2', action: 'submitted' });
     const response = await GET(new Request('http://localhost'), context);
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.thread.id).toBe(11);
+    expect(body.latestPlan).toMatchObject({ version: 2, planHash: 'hash-2', review: { action: 'submitted' } });
     expect(mockGetRecommendation).toHaveBeenCalledWith('business-1', 42);
     expect(mockFindThread).toHaveBeenCalledWith('business-1', 'recommendation', '42');
   });

@@ -20,6 +20,7 @@ vi.mock('@/services/MySQLService', () => ({
 
 import {
   ForesightPlanningRepository,
+  PlanReviewTransitionError,
   PlanningThreadConflictError,
 } from '../repositories/ForesightPlanningRepository';
 
@@ -157,6 +158,16 @@ describe('ForesightPlanningRepository', () => {
     expect(mockConnection.rollback).toHaveBeenCalledOnce();
   });
 
+  it('prevents a submitted plan from being superseded through the draft persistence path', async () => {
+    mockConnection.execute.mockResolvedValueOnce([[{ revision: 5, state: 'locked_for_approval' }]]);
+
+    await expect(ForesightPlanningRepository.createPlanVersion('business-1', 12, 5, { plan }))
+      .rejects.toBeInstanceOf(PlanReviewTransitionError);
+
+    expect(mockConnection.execute).toHaveBeenCalledTimes(1);
+    expect(mockConnection.rollback).toHaveBeenCalledOnce();
+  });
+
   it('reads thread links only through a matching tenant thread', async () => {
     mockQuery.mockResolvedValue([{ id: 4, business_id: 'business-1', thread_id: 12, link_type: 'recommendation', link_id: '20' }]);
 
@@ -225,6 +236,63 @@ describe('ForesightPlanningRepository', () => {
     expect(mockExecute).toHaveBeenCalledWith(
       expect.stringMatching(/plan\.business_id = \?[\s\S]*plan\.thread_id = \?[\s\S]*plan\.plan_hash = \?/),
       expect.arrayContaining(['business-1', 12, 41, 'hash-1']),
+    );
+  });
+
+  it('submits only the exact latest passing plan and locks the thread for review', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ revision: 4 }]])
+      .mockResolvedValueOnce([[{ id: 41, plan_hash: 'hash-1' }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ state: 'passed' }]])
+      .mockResolvedValueOnce([{ insertId: 70 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    await expect(ForesightPlanningRepository.reviewPlan('business-1', 12, 4, {
+      planVersionId: 41, planHash: 'hash-1', action: 'submitted', actorId: 7,
+    })).resolves.toEqual({ eventId: 70, threadRevision: 5, threadState: 'locked_for_approval' });
+
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(4,
+      expect.stringMatching(/foresight_plan_validations[\s\S]*plan_hash = \?/),
+      ['business-1', 12, 41, 'hash-1'],
+    );
+    expect(mockConnection.execute).toHaveBeenLastCalledWith(
+      expect.stringContaining('AND revision = ?'),
+      ['locked_for_approval', 5, 'business-1', 12, 4],
+    );
+  });
+
+  it('rejects review submission when deterministic validation is not passed', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ revision: 4 }]])
+      .mockResolvedValueOnce([[{ id: 41, plan_hash: 'hash-1' }]])
+      .mockResolvedValueOnce([[]])
+      .mockResolvedValueOnce([[{ state: 'needs_human' }]]);
+
+    await expect(ForesightPlanningRepository.reviewPlan('business-1', 12, 4, {
+      planVersionId: 41, planHash: 'hash-1', action: 'submitted', actorId: 7,
+    })).rejects.toBeInstanceOf(PlanReviewTransitionError);
+
+    expect(mockConnection.execute).toHaveBeenCalledTimes(4);
+    expect(mockConnection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('records a human decision only after submission and requires revision detail', async () => {
+    mockConnection.execute
+      .mockResolvedValueOnce([[{ revision: 5 }]])
+      .mockResolvedValueOnce([[{ id: 41, plan_hash: 'hash-1' }]])
+      .mockResolvedValueOnce([[{ action: 'submitted' }]])
+      .mockResolvedValueOnce([{ insertId: 71 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    await expect(ForesightPlanningRepository.reviewPlan('business-1', 12, 5, {
+      planVersionId: 41, planHash: 'hash-1', action: 'revision_requested', actorId: 8,
+      note: 'Clarify the budget and stop condition.',
+    })).resolves.toEqual({ eventId: 71, threadRevision: 6, threadState: 'drafting' });
+
+    expect(mockConnection.execute).toHaveBeenNthCalledWith(4,
+      expect.stringContaining('foresight_plan_review_events'),
+      ['business-1', 12, 41, 'hash-1', 'revision_requested', 8, 'Clarify the budget and stop condition.'],
     );
   });
 

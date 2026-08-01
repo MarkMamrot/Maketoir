@@ -123,6 +123,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [sending, setSending] = useState(false);
   const [draftingPlan, setDraftingPlan] = useState(false);
+  const [reviewingPlan, setReviewingPlan] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newType, setNewType] = useState<PlanningThreadType>('strategy');
@@ -259,6 +260,38 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Foresight could not draft this plan.' });
     } finally {
       setDraftingPlan(false);
+    }
+  };
+
+  const submitPlanForReview = async () => {
+    if (!detail?.latestPlan || reviewingPlan) return;
+    setReviewingPlan(true);
+    setNotice(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${detail.thread.id}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedRevision: detail.thread.revision,
+          planVersionId: detail.latestPlan.id,
+          planHash: detail.latestPlan.plan_hash,
+          action: 'submitted',
+        }),
+      });
+      const body = await plannerResponseJson(response);
+      if (!response.ok) {
+        if (response.status === 409) {
+          setNotice({ kind: 'warning', text: 'This planning thread changed. The latest version has been loaded.' });
+          await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
+          return;
+        }
+        throw new Error(String(body.error || 'Unable to submit this plan for review.'));
+      }
+      setNotice({ kind: 'success', text: 'This exact plan version is locked and ready for a human decision in Recommendation Inbox.' });
+      await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to submit this plan for review.' });
+    } finally {
+      setReviewingPlan(false);
     }
   };
 
@@ -441,6 +474,13 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
                   {detail.latestValidation?.findings_json.warnings?.map((finding) => (
                     <p key={finding} className="mt-2 text-xs leading-5 text-gray-600">{finding}</p>
                   ))}
+                  {detail.latestReview && (
+                    <div className="mt-3 border border-gray-200 bg-gray-50 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-gray-500">Review status</div>
+                      <div className="mt-1 text-xs font-semibold text-gray-800">{stateLabel(detail.latestReview.action)}</div>
+                      {detail.latestReview.note && <p className="mt-1 text-xs leading-5 text-gray-600">{detail.latestReview.note}</p>}
+                    </div>
+                  )}
                   {detail.latestPlan.markdown_text && (
                     <details className="mt-3 border-t border-gray-200 pt-3">
                       <summary className="cursor-pointer text-xs font-semibold text-cyan-700">View plan document</summary>
@@ -452,10 +492,19 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
                 <p className="mt-2 text-sm leading-5 text-gray-500">No structured plan version has been drafted yet.</p>
               )}
               {detail && isAdmin && (
-                <button type="button" onClick={() => void draftPlan()} disabled={draftingPlan || sending || loadingDetail} className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:bg-gray-200 disabled:text-gray-400">
-                  {draftingPlan ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
-                  {detail.latestPlan ? 'Revise plan' : 'Draft plan'}
-                </button>
+                <div className="mt-3 space-y-2">
+                  {detail.latestPlan && detail.latestValidation?.state === 'passed' && !detail.latestReview && (
+                    <button type="button" onClick={() => void submitPlanForReview()} disabled={reviewingPlan || sending || loadingDetail} className="inline-flex h-9 w-full items-center justify-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:bg-gray-200 disabled:text-gray-400">
+                      {reviewingPlan ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />} Submit for review
+                    </button>
+                  )}
+                  {detail.latestReview?.action !== 'submitted' && detail.latestReview?.action !== 'accepted' && (
+                    <button type="button" onClick={() => void draftPlan()} disabled={draftingPlan || sending || loadingDetail} className="inline-flex h-9 w-full items-center justify-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white hover:bg-cyan-800 disabled:bg-gray-200 disabled:text-gray-400">
+                      {draftingPlan ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
+                      {detail.latestPlan ? 'Revise plan' : 'Draft plan'}
+                    </button>
+                  )}
+                </div>
               )}
             </section>
             <section className="border-t border-gray-200 pt-4">

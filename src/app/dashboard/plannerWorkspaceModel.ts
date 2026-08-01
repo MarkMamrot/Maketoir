@@ -25,11 +25,25 @@ export interface PlanningMessage {
 export interface PlanningThreadDetail {
   thread: PlanningThread;
   messages: PlanningMessage[];
-  latestPlan: { markdown_text?: string; version?: number; state?: string } | null;
+  latestPlan: {
+    id: number;
+    plan_hash: string;
+    markdown_text?: string;
+    version?: number;
+    state?: string;
+  } | null;
   latestValidation: {
     state: 'passed' | 'failed' | 'needs_human';
     findings_json: { blocking?: string[]; needsHuman?: string[]; warnings?: string[] };
     validator_version: string;
+  } | null;
+  latestReview: {
+    id: number;
+    plan_version_id: number;
+    plan_hash: string;
+    action: 'submitted' | 'accepted' | 'rejected' | 'revision_requested';
+    note: string | null;
+    created_at: string;
   } | null;
   links: Array<{
     id: number;

@@ -15,10 +15,29 @@ async function planningContext(businessId: string, id: number) {
   const latestPlan = thread
     ? await ForesightPlanningRepository.latestPlanVersion(businessId, thread.id)
     : null;
+  const latestReview = thread
+    ? await ForesightPlanningRepository.latestPlanReview(businessId, thread.id)
+    : null;
   return {
     recommendation,
     thread,
-    latestPlan: latestPlan ? { version: latestPlan.version, state: latestPlan.state } : null,
+    latestPlan: latestPlan ? {
+      id: latestPlan.id,
+      version: latestPlan.version,
+      state: latestPlan.state,
+      planHash: latestPlan.plan_hash,
+      title: latestPlan.plan_json.title,
+      objective: latestPlan.plan_json.objective,
+      planningHorizon: latestPlan.plan_json.planningHorizon,
+      selectedOption: latestPlan.plan_json.options.find((option) => option.id === latestPlan.plan_json.selectedOptionId) ?? null,
+      actions: latestPlan.plan_json.actions,
+      questions: latestPlan.plan_json.questions,
+      successMetrics: latestPlan.plan_json.successMetrics,
+      guardrails: latestPlan.plan_json.guardrails,
+      review: latestReview?.plan_version_id === latestPlan.id && latestReview.plan_hash === latestPlan.plan_hash
+        ? latestReview
+        : null,
+    } : null,
   };
 }
 
@@ -51,14 +70,11 @@ export async function POST(_request: Request, { params }: { params: { id: string
     systemContent,
     systemMessage: { recommendationId: id, contextType: 'recommendation_link' },
   });
-  const thread = await ForesightPlanningRepository.getThread(user.businessId, result.threadId);
-  const latestPlan = result.created
-    ? null
-    : await ForesightPlanningRepository.latestPlanVersion(user.businessId, result.threadId);
+  const refreshed = await planningContext(user.businessId, id);
   return NextResponse.json({
     success: true,
-    thread,
-    latestPlan: latestPlan ? { version: latestPlan.version, state: latestPlan.state } : null,
+    thread: refreshed?.thread ?? null,
+    latestPlan: refreshed?.latestPlan ?? null,
     created: result.created,
   }, { status: result.created ? 201 : 200 });
 }

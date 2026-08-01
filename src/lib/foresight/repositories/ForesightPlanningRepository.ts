@@ -89,6 +89,27 @@ export interface PlanValidationRow {
   created_at: string;
 }
 
+export type PlanReviewAction = 'submitted' | 'accepted' | 'rejected' | 'revision_requested';
+
+export interface PlanReviewEventRow {
+  id: number;
+  business_id: string;
+  thread_id: number;
+  plan_version_id: number;
+  plan_hash: string;
+  action: PlanReviewAction;
+  actor_id: number;
+  note: string | null;
+  created_at: string;
+}
+
+export class PlanReviewTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PlanReviewTransitionError';
+  }
+}
+
 export class PlanningThreadConflictError extends Error {
   constructor() {
     super('The planning thread changed. Reload it before saving another plan version.');
@@ -342,13 +363,16 @@ export const ForesightPlanningRepository = {
     try {
       await connection.beginTransaction();
       const [threadRows] = await connection.execute(
-        `SELECT revision FROM foresight_planning_threads
+        `SELECT revision, state FROM foresight_planning_threads
          WHERE business_id = ? AND id = ? FOR UPDATE`,
         [businessId, threadId],
       );
-      const thread = (threadRows as Array<{ revision: number }>)[0];
+      const thread = (threadRows as Array<{ revision: number; state: PlanningThreadState }>)[0];
       if (!thread) throw new Error('Planning thread not found.');
       if (thread.revision !== expectedRevision) throw new PlanningThreadConflictError();
+      if (thread.state === 'locked_for_approval' || thread.state === 'approved') {
+        throw new PlanReviewTransitionError('The current plan is locked for review and cannot be superseded.');
+      }
       const [versionRows] = await connection.execute(
         `SELECT id, version FROM foresight_plan_versions
          WHERE business_id = ? AND thread_id = ? ORDER BY version DESC LIMIT 1`,
@@ -414,6 +438,111 @@ export const ForesightPlanningRepository = {
       [businessId, threadId],
     );
     return rows[0] ? { ...rows[0], findings_json: json(rows[0].findings_json) } : null;
+  },
+
+  async latestPlanReview(businessId: string, threadId: number): Promise<PlanReviewEventRow | null> {
+    const rows = await query<PlanReviewEventRow>(
+      `SELECT review.*
+       FROM foresight_plan_review_events review
+       INNER JOIN foresight_plan_versions plan
+         ON plan.business_id = review.business_id AND plan.id = review.plan_version_id
+       WHERE review.business_id = ? AND review.thread_id = ?
+       ORDER BY plan.version DESC, review.id DESC
+       LIMIT 1`,
+      [businessId, threadId],
+    );
+    return rows[0] ?? null;
+  },
+
+  async reviewPlan(businessId: string, threadId: number, expectedRevision: number, input: {
+    planVersionId: number;
+    planHash: string;
+    action: PlanReviewAction;
+    actorId: number;
+    note?: string | null;
+  }): Promise<{ eventId: number; threadRevision: number; threadState: PlanningThreadState }> {
+    const pool = getPool();
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [threadRows] = await connection.execute(
+        `SELECT revision FROM foresight_planning_threads
+         WHERE business_id = ? AND id = ? FOR UPDATE`,
+        [businessId, threadId],
+      );
+      const thread = (threadRows as Array<{ revision: number }>)[0];
+      if (!thread) throw new Error('Planning thread not found.');
+      if (thread.revision !== expectedRevision) throw new PlanningThreadConflictError();
+      const [planRows] = await connection.execute(
+        `SELECT id, plan_hash FROM foresight_plan_versions
+         WHERE business_id = ? AND thread_id = ?
+         ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+        [businessId, threadId],
+      );
+      const plan = (planRows as Array<{ id: number; plan_hash: string }>)[0];
+      if (!plan || plan.id !== input.planVersionId || plan.plan_hash !== input.planHash) {
+        throw new PlanReviewTransitionError('Only the exact latest plan version can be reviewed.');
+      }
+      const [reviewRows] = await connection.execute(
+        `SELECT action FROM foresight_plan_review_events
+         WHERE business_id = ? AND thread_id = ? AND plan_version_id = ?
+         ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [businessId, threadId, input.planVersionId],
+      );
+      const previousAction = (reviewRows as Array<{ action: PlanReviewAction }>)[0]?.action ?? null;
+      let threadState: PlanningThreadState;
+      if (input.action === 'submitted') {
+        if (previousAction != null) throw new PlanReviewTransitionError('This plan version has already entered review.');
+        const [validationRows] = await connection.execute(
+          `SELECT state FROM foresight_plan_validations
+           WHERE business_id = ? AND thread_id = ? AND plan_version_id = ? AND plan_hash = ?
+           ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+          [businessId, threadId, input.planVersionId, input.planHash],
+        );
+        const validation = (validationRows as Array<{ state: PlanValidationRow['state'] }>)[0];
+        if (validation?.state !== 'passed') {
+          throw new PlanReviewTransitionError('The exact plan version must pass deterministic validation before review.');
+        }
+        threadState = 'locked_for_approval';
+      } else {
+        if (previousAction !== 'submitted') {
+          throw new PlanReviewTransitionError('A submitted plan is required before recording a review decision.');
+        }
+        threadState = input.action === 'accepted'
+          ? 'approved'
+          : input.action === 'rejected'
+            ? 'rejected'
+            : 'drafting';
+      }
+      const note = input.note?.trim() || null;
+      if ((input.action === 'rejected' || input.action === 'revision_requested') && !note) {
+        throw new PlanReviewTransitionError('A review note is required for rejection or revision requests.');
+      }
+      const [eventResult] = await connection.execute(
+        `INSERT INTO foresight_plan_review_events
+           (business_id, thread_id, plan_version_id, plan_hash, action, actor_id, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, threadId, input.planVersionId, input.planHash, input.action, input.actorId, note],
+      );
+      const nextRevision = thread.revision + 1;
+      await connection.execute(
+        `UPDATE foresight_planning_threads
+         SET state = ?, revision = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE business_id = ? AND id = ? AND revision = ?`,
+        [threadState, nextRevision, businessId, threadId, expectedRevision],
+      );
+      await connection.commit();
+      return {
+        eventId: (eventResult as { insertId: number }).insertId,
+        threadRevision: nextRevision,
+        threadState,
+      };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   },
 
   async listThreadLinks(businessId: string, threadId: number): Promise<PlanningLinkRow[]> {

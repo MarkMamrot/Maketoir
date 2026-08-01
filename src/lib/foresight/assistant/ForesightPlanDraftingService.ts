@@ -12,6 +12,7 @@ import {
 import { loadForesightPrompt } from '../prompts/promptManifest';
 import {
   ForesightPlanningRepository,
+  PlanReviewTransitionError,
   PlanningThreadConflictError,
   type PlanningMessageRow,
 } from '../repositories/ForesightPlanningRepository';
@@ -124,6 +125,7 @@ export const ForesightPlanDraftingService = {
       };
     } catch (error) {
       if (error instanceof PlanningThreadConflictError
+        || error instanceof PlanReviewTransitionError
         || error instanceof PlanDraftRejectedError
         || error instanceof ForesightPlanValidationError) throw error;
       await reportRuntimeIssue({

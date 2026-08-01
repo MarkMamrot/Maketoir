@@ -158,7 +158,21 @@ type InboxResponse = {
 };
 type RecommendationPlanningContext = {
   thread: { id: number; title: string; state: string; revision: number } | null;
-  latestPlan: { version: number; state: string } | null;
+  latestPlan: {
+    id: number;
+    version: number;
+    state: string;
+    planHash: string;
+    title: string;
+    objective: string;
+    planningHorizon: string;
+    selectedOption: { id: string; title: string; summary: string; benefits: string[]; risks: string[]; evidenceRequired: string[] } | null;
+    actions: Array<{ id: string; title: string; actionType: string; owner: string; executable: false; rationale: string; dependencies: string[] }>;
+    questions: Array<{ id: string; question: string; status: string; answer: string | null }>;
+    successMetrics: string[];
+    guardrails: string[];
+    review: { action: 'submitted' | 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+  } | null;
 };
 type Filter = 'all' | RecommendationState;
 
@@ -346,6 +360,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [message, setMessage] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const [planningContext, setPlanningContext] = useState<RecommendationPlanningContext | null>(null);
   const [planningLoading, setPlanningLoading] = useState(false);
+  const [planReviewNote, setPlanReviewNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -444,6 +459,45 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       window.location.hash = buildDashboardHash('planning-workspace', { thread: body.thread.id, recommendation: selected.id });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to create a planning thread.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const decidePlan = async (action: 'accepted' | 'rejected' | 'revision_requested') => {
+    const thread = planningContext?.thread;
+    const plan = planningContext?.latestPlan;
+    if (!thread || !plan || plan.review?.action !== 'submitted') return;
+    setWorking(`plan_${action}`);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/review`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expectedRevision: thread.revision,
+          planVersionId: plan.id,
+          planHash: plan.planHash,
+          action,
+          note: planReviewNote.trim(),
+        }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to record the plan decision.');
+      const contextResponse = await fetch(`/api/foresight/marketing/recommendations/${selectedId}/planning`, { cache: 'no-store' });
+      const contextBody = await responseJson(contextResponse);
+      if (!contextResponse.ok) throw new Error(contextBody.error || 'The decision was saved, but the planning context could not be refreshed.');
+      setPlanningContext({ thread: contextBody.thread ?? null, latestPlan: contextBody.latestPlan ?? null });
+      setPlanReviewNote('');
+      setMessage({
+        kind: 'success',
+        text: action === 'accepted'
+          ? 'Plan accepted. This does not approve the recommendation or execute a platform change.'
+          : action === 'revision_requested'
+            ? 'Revision requested. The planning thread is open for a new immutable version.'
+            : 'Plan rejected. The recommendation authorization state is unchanged.',
+      });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record the plan decision.' });
     } finally {
       setWorking(null);
     }
@@ -1021,13 +1075,62 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
               </div>
 
               {planningContext?.thread && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border border-cyan-200 bg-cyan-50 px-4 py-3">
-                  <div>
-                    <div className="text-xs font-bold uppercase text-cyan-800">Linked planning thread</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">{planningContext.thread.title}</div>
-                    <div className="mt-1 text-xs text-gray-600">{planningContext.latestPlan ? `Plan version ${planningContext.latestPlan.version} · ${planningContext.latestPlan.state.replaceAll('_', ' ')}` : 'Discussion in progress · no structured plan yet'}</div>
+                <div className="border border-cyan-200 bg-cyan-50 px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold uppercase text-cyan-800">Linked planning thread</div>
+                      <div className="mt-1 text-sm font-semibold text-gray-900">{planningContext.thread.title}</div>
+                      <div className="mt-1 text-xs text-gray-600">{planningContext.latestPlan ? `Plan version ${planningContext.latestPlan.version} · ${planningContext.latestPlan.review?.action.replaceAll('_', ' ') ?? planningContext.latestPlan.state.replaceAll('_', ' ')}` : 'Discussion in progress · no structured plan yet'}</div>
+                    </div>
+                    <button type="button" onClick={() => void openPlanning()} className="inline-flex items-center gap-2 text-xs font-bold text-cyan-800 hover:text-cyan-950">Continue planning <ExternalLink size={13} /></button>
                   </div>
-                  <button type="button" onClick={() => void openPlanning()} className="inline-flex items-center gap-2 text-xs font-bold text-cyan-800 hover:text-cyan-950">Continue planning <ExternalLink size={13} /></button>
+
+                  {planningContext.latestPlan?.review && (
+                    <div className="mt-4 border-t border-cyan-200 pt-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold uppercase text-gray-500">Plan decision package</div>
+                          <h3 className="mt-1 text-base font-bold text-gray-950">{planningContext.latestPlan.title}</h3>
+                          <p className="mt-1 text-sm leading-6 text-gray-700">{planningContext.latestPlan.objective}</p>
+                          <p className="mt-1 text-xs text-gray-500">Horizon: {planningContext.latestPlan.planningHorizon}</p>
+                        </div>
+                        <span className={`text-xs font-bold uppercase ${planningContext.latestPlan.review.action === 'accepted' ? 'text-emerald-700' : planningContext.latestPlan.review.action === 'submitted' ? 'text-amber-700' : 'text-red-700'}`}>
+                          {planningContext.latestPlan.review.action.replaceAll('_', ' ')}
+                        </span>
+                      </div>
+                      {planningContext.latestPlan.selectedOption && (
+                        <div className="mt-4 border border-cyan-200 bg-white px-3 py-3">
+                          <div className="text-[11px] font-bold uppercase text-gray-500">Selected option</div>
+                          <div className="mt-1 text-sm font-semibold text-gray-900">{planningContext.latestPlan.selectedOption.title}</div>
+                          <p className="mt-1 text-xs leading-5 text-gray-600">{planningContext.latestPlan.selectedOption.summary}</p>
+                          {planningContext.latestPlan.selectedOption.risks.length > 0 && <p className="mt-2 text-xs leading-5 text-amber-800">Risks: {planningContext.latestPlan.selectedOption.risks.join('; ')}</p>}
+                        </div>
+                      )}
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                          <div className="text-[11px] font-bold uppercase text-gray-500">Non-executable actions</div>
+                          <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">{planningContext.latestPlan.actions.map((action) => <li key={action.id}>{action.title}</li>)}</ul>
+                        </div>
+                        <div>
+                          <div className="text-[11px] font-bold uppercase text-gray-500">Success and guardrails</div>
+                          <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">{[...planningContext.latestPlan.successMetrics, ...planningContext.latestPlan.guardrails].map((item) => <li key={item}>{item}</li>)}</ul>
+                        </div>
+                      </div>
+                      {planningContext.latestPlan.review.note && <p className="mt-3 text-xs leading-5 text-gray-600">Review note: {planningContext.latestPlan.review.note}</p>}
+                      {isAdmin && planningContext.latestPlan.review.action === 'submitted' && (
+                        <div className="mt-4 border-t border-cyan-200 pt-4">
+                          <label className="block text-xs font-bold uppercase text-gray-500" htmlFor="plan-review-note">Decision note</label>
+                          <textarea id="plan-review-note" value={planReviewNote} onChange={(event) => setPlanReviewNote(event.target.value.slice(0, 1000))} rows={3} placeholder="Required when requesting revision or rejecting" className="mt-2 w-full resize-y border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600" />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => void decidePlan('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{working === 'plan_accepted' ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Accept plan</button>
+                            <button type="button" onClick={() => void decidePlan('revision_requested')} disabled={working != null || !planReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 bg-white px-3 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">{working === 'plan_revision_requested' ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Request revision</button>
+                            <button type="button" onClick={() => void decidePlan('rejected')} disabled={working != null || !planReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">{working === 'plan_rejected' ? <Loader2 size={15} className="animate-spin" /> : <X size={15} />} Reject plan</button>
+                          </div>
+                          <p className="mt-3 text-xs leading-5 text-gray-600">Accepting this plan records a planning decision only. Recommendation approval, live preflight, and execution remain separate controls.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
