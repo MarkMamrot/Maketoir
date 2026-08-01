@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ForesightPlanningRepository } from '@/lib/foresight/repositories/ForesightPlanningRepository';
 import { ForesightDeliverableRepository } from '@/lib/foresight/repositories/ForesightDeliverableRepository';
+import { ForesightCampaignActivationRepository } from '@/lib/foresight/repositories/ForesightCampaignActivationRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -24,6 +25,9 @@ async function planningContext(businessId: string, id: number) {
     : null;
   const latestDeliverableReview = thread
     ? await ForesightDeliverableRepository.latestReview(businessId, thread.id)
+    : null;
+  const activation = thread
+    ? await ForesightCampaignActivationRepository.getForThread(businessId, thread.id)
     : null;
   return {
     recommendation,
@@ -53,6 +57,10 @@ async function planningContext(businessId: string, id: number) {
             review: latestDeliverableReview?.deliverable_version_id === latestDeliverable.id
               && latestDeliverableReview.document_hash === latestDeliverable.document_hash
               ? latestDeliverableReview
+              : null,
+            activation: activation?.deliverable_version_id === latestDeliverable.id
+              && activation.document_hash === latestDeliverable.document_hash
+              ? activation
               : null,
           }
         : null,

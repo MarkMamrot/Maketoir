@@ -199,6 +199,22 @@ type RecommendationPlanningContext = {
         stopConditions: string[];
       };
       review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+      activation: {
+        id: number;
+        activated_on: string;
+        channels_json: Array<{ channel: 'meta' | 'google_ads' | 'klaviyo'; campaignId: string | null; adSetId: string | null; flowId: string | null }>;
+        destination_url: string | null;
+        utm_json: Record<string, string>;
+        asset_ids_json: string[];
+        published_details: string;
+        deviations_text: string | null;
+        operator_note: string;
+        baseline_start: string;
+        baseline_end: string;
+        followup_start: string;
+        followup_end: string;
+        first_assessment_date: string;
+      } | null;
     } | null;
   } | null;
 };
@@ -398,6 +414,17 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [planReviewNote, setPlanReviewNote] = useState('');
   const [deliverableChannels, setDeliverableChannels] = useState<DeliverableChannel[]>(['campaign_brief', 'meta']);
   const [deliverableReviewNote, setDeliverableReviewNote] = useState('');
+  const [activationChannel, setActivationChannel] = useState<'meta' | 'google_ads' | 'klaviyo'>('meta');
+  const [activationDate, setActivationDate] = useState(() => new Date().toLocaleDateString('sv-SE'));
+  const [activationCampaignId, setActivationCampaignId] = useState('');
+  const [activationAdSetId, setActivationAdSetId] = useState('');
+  const [activationFlowId, setActivationFlowId] = useState('');
+  const [activationDestinationUrl, setActivationDestinationUrl] = useState('');
+  const [activationUtmCampaign, setActivationUtmCampaign] = useState('');
+  const [activationAssetIds, setActivationAssetIds] = useState<string[]>([]);
+  const [activationPublishedDetails, setActivationPublishedDetails] = useState('');
+  const [activationDeviations, setActivationDeviations] = useState('');
+  const [activationNote, setActivationNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -425,6 +452,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       if (body.businessToday) {
         setBusinessToday(body.businessToday);
         setImplementationDate(body.businessToday);
+        setActivationDate(body.businessToday);
       }
       const requested = Number(dashboardHashParam(window.location.hash, 'recommendation'));
       setSelectedId((current) => {
@@ -597,6 +625,48 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       });
     } catch (error) {
       setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record the deliverable decision.' });
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  const recordCampaignActivation = async () => {
+    const thread = planningContext?.thread;
+    const deliverable = planningContext?.latestPlan?.deliverable;
+    if (!thread || !deliverable || deliverable.review?.action !== 'accepted' || deliverable.activation) return;
+    setWorking('campaign_activation');
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/activation`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deliverableVersionId: deliverable.id,
+          documentHash: deliverable.documentHash,
+          activatedOn: activationDate,
+          channels: [{
+            channel: activationChannel,
+            campaignId: activationCampaignId.trim() || null,
+            adSetId: activationAdSetId.trim() || null,
+            flowId: activationFlowId.trim() || null,
+          }],
+          destinationUrl: activationDestinationUrl.trim() || null,
+          utm: {
+            utm_source: activationChannel,
+            utm_medium: activationChannel === 'klaviyo' ? 'email' : 'paid',
+            utm_campaign: activationUtmCampaign.trim(),
+          },
+          assetIds: activationAssetIds,
+          publishedDetails: activationPublishedDetails.trim(),
+          deviationsText: activationDeviations.trim() || null,
+          operatorNote: activationNote.trim(),
+        }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to record campaign activation.');
+      await refreshPlanningContext();
+      setMessage({ kind: 'success', text: 'Manual campaign activation recorded. Measurement is scheduled from complete business days after launch.' });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to record campaign activation.' });
     } finally {
       setWorking(null);
     }
@@ -1302,6 +1372,43 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                 <button type="button" onClick={() => void reviewDeliverables('rejected')} disabled={working != null || !deliverableReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 bg-white px-3 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><X size={15} /> Reject drafts</button>
                               </div>
                               <p className="mt-3 text-xs leading-5 text-gray-600">Acceptance records content review only. No campaign, ad, email, or flow is published, scheduled, or sent.</p>
+                            </div>
+                          )}
+                          {planningContext.latestPlan.deliverable.review?.action === 'accepted' && planningContext.latestPlan.deliverable.activation && (
+                            <div className="border-t border-emerald-200 pt-4">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-xs font-bold uppercase text-emerald-800">Manual activation recorded</div>
+                                <span className="text-xs text-gray-600">Launched {dateOnly(planningContext.latestPlan.deliverable.activation.activated_on)}</span>
+                              </div>
+                              <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3">
+                                <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Baseline</div><div className="mt-1 text-xs text-gray-800">{dateOnly(planningContext.latestPlan.deliverable.activation.baseline_start)} to {dateOnly(planningContext.latestPlan.deliverable.activation.baseline_end)}</div></div>
+                                <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Follow-up</div><div className="mt-1 text-xs text-gray-800">{dateOnly(planningContext.latestPlan.deliverable.activation.followup_start)} to {dateOnly(planningContext.latestPlan.deliverable.activation.followup_end)}</div></div>
+                                <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">First assessment</div><div className="mt-1 text-xs text-gray-800">{dateOnly(planningContext.latestPlan.deliverable.activation.first_assessment_date)}</div></div>
+                              </div>
+                              <p className="mt-3 text-xs leading-5 text-gray-700">{planningContext.latestPlan.deliverable.activation.published_details}</p>
+                              {planningContext.latestPlan.deliverable.activation.deviations_text && <p className="mt-2 text-xs leading-5 text-amber-800">Declared deviations: {planningContext.latestPlan.deliverable.activation.deviations_text}</p>}
+                              <p className="mt-2 text-xs leading-5 text-gray-500">This record schedules observational measurement only. It does not claim the campaign caused any later change.</p>
+                            </div>
+                          )}
+                          {isAdmin && planningContext.latestPlan.deliverable.review?.action === 'accepted' && !planningContext.latestPlan.deliverable.activation && (
+                            <div className="border-t border-emerald-200 pt-4">
+                              <div className="text-xs font-bold uppercase text-gray-500">Record manual activation</div>
+                              <p className="mt-1 text-xs leading-5 text-gray-600">Attest what was launched outside Foresight. This does not publish, schedule, or send anything.</p>
+                              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                <label className="text-xs font-semibold text-gray-700">Channel<select value={activationChannel} onChange={(event) => { setActivationChannel(event.target.value as typeof activationChannel); setActivationAssetIds([]); }} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="meta">Meta</option><option value="google_ads">Google Ads</option><option value="klaviyo">Klaviyo</option></select></label>
+                                <label className="text-xs font-semibold text-gray-700">Launch date<input type="date" value={activationDate} max={businessToday} onChange={(event) => setActivationDate(event.target.value)} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal" /></label>
+                                {activationChannel !== 'klaviyo' && <label className="text-xs font-semibold text-gray-700">Campaign ID<input value={activationCampaignId} onChange={(event) => setActivationCampaignId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label>}
+                                {activationChannel === 'meta' && <label className="text-xs font-semibold text-gray-700">Ad set ID<input value={activationAdSetId} onChange={(event) => setActivationAdSetId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label>}
+                                {activationChannel === 'klaviyo' && <label className="text-xs font-semibold text-gray-700">Campaign or flow ID<input value={activationFlowId} onChange={(event) => setActivationFlowId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label>}
+                                <label className="text-xs font-semibold text-gray-700">Destination URL<input type="url" value={activationDestinationUrl} onChange={(event) => setActivationDestinationUrl(event.target.value.slice(0, 2000))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label>
+                                <label className="text-xs font-semibold text-gray-700">UTM campaign<input value={activationUtmCampaign} onChange={(event) => setActivationUtmCampaign(event.target.value.slice(0, 500))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label>
+                              </div>
+                              <div className="mt-3 text-xs font-semibold text-gray-700">Assets actually used</div>
+                              <div className="mt-2 flex flex-wrap gap-2">{planningContext.latestPlan.deliverable.document.assets.filter((asset) => asset.channel === activationChannel).map((asset) => <label key={asset.id} className="flex items-center gap-2 border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700"><input type="checkbox" checked={activationAssetIds.includes(asset.id)} onChange={() => setActivationAssetIds((current) => current.includes(asset.id) ? current.filter((id) => id !== asset.id) : [...current, asset.id])} className="accent-emerald-700" />{asset.title}</label>)}</div>
+                              <label className="mt-3 block text-xs font-semibold text-gray-700">Products, offer, and details actually published<textarea value={activationPublishedDetails} onChange={(event) => setActivationPublishedDetails(event.target.value.slice(0, 8000))} rows={3} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label>
+                              <label className="mt-3 block text-xs font-semibold text-gray-700">Deviations from accepted package<textarea value={activationDeviations} onChange={(event) => setActivationDeviations(event.target.value.slice(0, 8000))} rows={2} placeholder="Leave blank only when there were no deviations" className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label>
+                              <label className="mt-3 block text-xs font-semibold text-gray-700">Operator note<textarea value={activationNote} onChange={(event) => setActivationNote(event.target.value.slice(0, 8000))} rows={2} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label>
+                              <button type="button" onClick={() => void recordCampaignActivation()} disabled={working != null || !activationDate || activationAssetIds.length === 0 || !activationPublishedDetails.trim() || !activationNote.trim() || (!activationCampaignId.trim() && !activationAdSetId.trim() && !activationFlowId.trim())} className="mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">{working === 'campaign_activation' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Record activation</button>
                             </div>
                           )}
                         </div>
