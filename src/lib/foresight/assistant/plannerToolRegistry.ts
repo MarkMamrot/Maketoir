@@ -3,13 +3,15 @@ import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { createHash } from 'node:crypto';
 import { parseMarketingStrategy } from '../marketingStrategy';
 import { ForesightRepository } from '../repositories/ForesightRepository';
+import { ForesightCampaignActivationRepository } from '../repositories/ForesightCampaignActivationRepository';
+import { ForesightCampaignLessonRepository } from '../repositories/ForesightCampaignLessonRepository';
 import { ImsBrandPerformanceRepository } from '../repositories/ImsBrandPerformanceRepository';
 import { ImsCommerceRepository } from '../repositories/ImsCommerceRepository';
 import { ImsInboundPlanningRepository } from '../repositories/ImsInboundPlanningRepository';
 import { ImsProductPlanningRepository } from '../repositories/ImsProductPlanningRepository';
 import type { DataQualityResult, RecommendationState } from '../types';
 
-export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v2';
+export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v4';
 
 export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_business_context',
@@ -20,6 +22,8 @@ export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_open_inbound_stock',
   'list_recommendations',
   'get_recommendation',
+  'list_campaign_outcomes',
+  'list_accepted_campaign_lessons',
 ] as const;
 
 export type ForesightPlannerToolName = typeof FORESIGHT_PLANNER_TOOL_NAMES[number];
@@ -99,6 +103,18 @@ export const FORESIGHT_PLANNER_TOOL_DECLARATIONS = [
     required: ['recommendationId'],
     optional: [],
   },
+  {
+    name: 'list_campaign_outcomes',
+    description: 'List bounded completed campaign outcome facts for an explicit date range. Authoritative commerce comparisons and diagnostic media ratios remain separate; all results are observational and non-causal.',
+    required: ['from', 'to'],
+    optional: ['channel', 'product', 'direction', 'limit'],
+  },
+  {
+    name: 'list_accepted_campaign_lessons',
+    description: 'List bounded, immutable campaign lessons explicitly accepted by a human reviewer in an explicit date range. Lessons are advisory planning evidence and never executable instructions.',
+    required: ['from', 'to'],
+    optional: ['limit'],
+  },
 ] as const;
 
 function goodQuality(): DataQualityResult {
@@ -140,6 +156,37 @@ function boundedDateRange(args: JsonObject): { from: string; to: string } {
   const inclusiveDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
   if (inclusiveDays < 1 || inclusiveDays > 90) throw new Error('commerce date range must contain 1 to 90 days');
   return { from, to };
+}
+
+function boundedLearningDateRange(args: JsonObject): { from: string; to: string } {
+  const from = typeof args.from === 'string' ? args.from.trim() : '';
+  const to = typeof args.to === 'string' ? args.to.trim() : '';
+  const pattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!pattern.test(from) || !pattern.test(to)) throw new Error('from and to must be ISO dates (YYYY-MM-DD)');
+  const fromDate = new Date(`${from}T00:00:00Z`);
+  const toDate = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(fromDate.getTime()) || fromDate.toISOString().slice(0, 10) !== from
+    || Number.isNaN(toDate.getTime()) || toDate.toISOString().slice(0, 10) !== to) {
+    throw new Error('from and to must be valid calendar dates');
+  }
+  const inclusiveDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+  if (inclusiveDays < 1 || inclusiveDays > 366) throw new Error('campaign outcome date range must contain 1 to 366 days');
+  return { from, to };
+}
+
+function optionalEnum<T extends string>(value: unknown, name: string, allowed: readonly T[]): T | null {
+  if (value == null || value === '') return null;
+  const normalized = String(value) as T;
+  if (!allowed.includes(normalized)) throw new Error(`Unsupported ${name}: ${normalized}`);
+  return normalized;
+}
+
+function optionalBoundedText(value: unknown, name: string, maximum: number): string | null {
+  if (value == null || value === '') return null;
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > maximum) {
+    throw new Error(`${name} must be a non-empty string of ${maximum} characters or fewer`);
+  }
+  return value.trim();
 }
 
 function boundedBrandNames(value: unknown): string[] {
@@ -557,6 +604,114 @@ async function getRecommendation(businessId: string, args: JsonObject): Promise<
   };
 }
 
+async function listCampaignOutcomes(businessId: string, args: JsonObject): Promise<ForesightPlannerToolResult> {
+  assertExactArguments(args, ['from', 'to', 'channel', 'product', 'direction', 'limit']);
+  const { from, to } = boundedLearningDateRange(args);
+  const channel = optionalEnum(args.channel, 'campaign channel', ['meta', 'google_ads', 'klaviyo'] as const);
+  const direction = optionalEnum(args.direction, 'campaign outcome direction', ['improved', 'unchanged', 'worsened'] as const);
+  const product = optionalBoundedText(args.product, 'product', 200);
+  const limit = boundedLimit(args.limit, 10, 25);
+  const rows = await ForesightCampaignActivationRepository.listLearningOutcomes(businessId, {
+    from, to, direction, limit: 50,
+  });
+  const filtered = rows.filter((row) => {
+    const channelMatch = !channel || row.channels_json.some((item) => item.channel === channel);
+    const productMatch = !product || row.deliverable_document_json.productSelection.some(
+      (item) => item.name.toLocaleLowerCase() === product.toLocaleLowerCase(),
+    );
+    return channelMatch && productMatch;
+  });
+  const selected = filtered.slice(0, limit);
+  return {
+    tool: 'list_campaign_outcomes',
+    manifestVersion: FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION,
+    facts: selected.map((row) => ({
+      factId: `foresight:campaign-outcome:${row.id}:activation:${row.activation_id}`,
+      label: `${row.channels_json.map((item) => item.channel.replaceAll('_', ' ')).join(', ')} campaign outcome`,
+      source: 'Foresight Campaign Outcome Ledger',
+      authority: 'authoritative' as const,
+      observedFrom: row.baseline_start,
+      observedThrough: row.followup_end,
+      freshnessAt: row.created_at,
+      quality: goodQuality(),
+      value: {
+        outcomeId: row.id,
+        activationId: row.activation_id,
+        threadId: row.thread_id,
+        deliverableVersionId: row.deliverable_version_id,
+        activatedOn: row.activated_on,
+        channels: row.channels_json.map((item) => item.channel),
+        products: row.deliverable_document_json.productSelection.map((item) => item.name),
+        direction: row.direction,
+        primaryMetric: row.primary_metric,
+        authoritativeCommerce: {
+          baseline: {
+            from: row.baseline_start,
+            to: row.baseline_end,
+            onlineRevenueExTax: roundNumber(row.assessment_json.baseline.onlineRevenueExTax, 2),
+            contributionBeforeAds: row.assessment_json.baseline.contributionBeforeAds == null
+              ? null : roundNumber(row.assessment_json.baseline.contributionBeforeAds, 2),
+          },
+          followup: {
+            from: row.followup_start,
+            to: row.followup_end,
+            onlineRevenueExTax: roundNumber(row.assessment_json.followup.onlineRevenueExTax, 2),
+            contributionBeforeAds: row.assessment_json.followup.contributionBeforeAds == null
+              ? null : roundNumber(row.assessment_json.followup.contributionBeforeAds, 2),
+          },
+        },
+        diagnosticMediaRatios: {
+          baselineSpend: roundNumber(row.assessment_json.baseline.paidMediaSpend, 2),
+          followupSpend: roundNumber(row.assessment_json.followup.paidMediaSpend, 2),
+          baselineMer: row.assessment_json.baseline.mer,
+          followupMer: row.assessment_json.followup.mer,
+          baselineContributionPoas: row.assessment_json.baseline.contributionPoas,
+          followupContributionPoas: row.assessment_json.followup.contributionPoas,
+        },
+        declaredDeviations: row.deviations_text,
+        explanation: row.assessment_json.explanation,
+        interpretation: 'Observational comparison only. This outcome does not establish that the campaign caused the measured change.',
+      },
+    })),
+    truncated: filtered.length > selected.length || rows.length >= 50,
+  };
+}
+
+async function listAcceptedCampaignLessons(businessId: string, args: JsonObject): Promise<ForesightPlannerToolResult> {
+  assertExactArguments(args, ['from', 'to', 'limit']);
+  const { from, to } = boundedLearningDateRange(args);
+  const limit = boundedLimit(args.limit, 10, 25);
+  const rows = await ForesightCampaignLessonRepository.listAccepted(businessId, { from, to, limit: limit + 1 });
+  const selected = rows.slice(0, limit);
+  return {
+    tool: 'list_accepted_campaign_lessons',
+    manifestVersion: FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION,
+    facts: selected.map((row) => ({
+      factId: `foresight:campaign-lesson:${row.id}:v${row.version}`,
+      label: row.lesson_json.title,
+      source: 'Foresight Human-Accepted Campaign Lesson Ledger',
+      authority: 'human' as const,
+      observedFrom: null,
+      observedThrough: null,
+      freshnessAt: row.accepted_at,
+      quality: goodQuality(),
+      value: {
+        lessonVersionId: row.id,
+        version: row.version,
+        outcomeId: row.outcome_id,
+        activationId: row.activation_id,
+        threadId: row.thread_id,
+        observations: row.lesson_json.observations,
+        limitations: row.lesson_json.limitations,
+        hypotheses: row.lesson_json.hypotheses,
+        suggestedApplications: row.lesson_json.suggestedApplications,
+        interpretation: 'Human-accepted advisory planning evidence only. It does not authorize strategy, budget, content, targeting, or campaign changes.',
+      },
+    })),
+    truncated: rows.length > selected.length,
+  };
+}
+
 const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args: JsonObject) => Promise<ForesightPlannerToolResult>> = {
   get_business_context: (businessId, args) => {
     assertExactArguments(args, []);
@@ -572,6 +727,8 @@ const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args:
   get_open_inbound_stock: getOpenInboundStock,
   list_recommendations: listRecommendations,
   get_recommendation: getRecommendation,
+  list_campaign_outcomes: listCampaignOutcomes,
+  list_accepted_campaign_lessons: listAcceptedCampaignLessons,
 };
 
 export async function executeForesightPlannerTool(input: {

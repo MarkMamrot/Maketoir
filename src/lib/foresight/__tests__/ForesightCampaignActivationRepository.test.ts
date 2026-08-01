@@ -44,6 +44,17 @@ const input = {
 describe('ForesightCampaignActivationRepository', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('lists bounded tenant-scoped learning outcomes with optional direction', async () => {
+    mockQuery.mockResolvedValue([]);
+    await ForesightCampaignActivationRepository.listLearningOutcomes('business-1', {
+      from: '2026-05-01', to: '2026-08-01', direction: 'improved', limit: 20,
+    });
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/outcome\.business_id = \?[\s\S]*activated_on BETWEEN \? AND \?[\s\S]*outcome\.direction = \?[\s\S]*LIMIT \?/),
+      ['business-1', '2026-05-01', '2026-08-01', 'improved', 20],
+    );
+  });
+
   it('loads only due tenant-scoped activations without an outcome', async () => {
     mockQuery.mockResolvedValue([]);
     await ForesightCampaignActivationRepository.listDue('business-1', '2026-08-08');

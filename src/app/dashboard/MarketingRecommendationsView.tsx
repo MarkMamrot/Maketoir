@@ -226,6 +226,19 @@ type RecommendationPlanningContext = {
             followup: { onlineRevenueExTax: number; contributionBeforeAds: number | null; paidMediaSpend: number; mer: number | null; contributionPoas: number | null };
           };
           created_at: string;
+          lesson: {
+            id: number;
+            version: number;
+            lesson_hash: string;
+            lesson_json: {
+              title: string;
+              observations: Array<{ text: string; citationFactIds: string[] }>;
+              limitations: string[];
+              hypotheses: Array<{ text: string; status: 'requires_human_validation'; validationApproach: string }>;
+              suggestedApplications: Array<{ text: string; executable: false }>;
+            };
+            review: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
+          } | null;
         } | null;
       } | null;
     } | null;
@@ -438,6 +451,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [activationPublishedDetails, setActivationPublishedDetails] = useState('');
   const [activationDeviations, setActivationDeviations] = useState('');
   const [activationNote, setActivationNote] = useState('');
+  const [lessonReviewNote, setLessonReviewNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -683,6 +697,42 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
     } finally {
       setWorking(null);
     }
+  };
+
+  const generateCampaignLesson = async () => {
+    const thread = planningContext?.thread;
+    if (!thread) return;
+    setWorking('lesson_generate'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/lessons`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operation: 'generate' }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to draft campaign lesson.');
+      await refreshPlanningContext();
+      setMessage({ kind: 'success', text: 'Campaign lesson drafted for human review. It does not change strategy or campaigns.' });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to draft campaign lesson.' });
+    } finally { setWorking(null); }
+  };
+
+  const reviewCampaignLesson = async (action: 'accepted' | 'rejected' | 'revision_requested') => {
+    const thread = planningContext?.thread;
+    const lesson = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson;
+    if (!thread || !lesson || lesson.review) return;
+    setWorking(`lesson_${action}`); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/lessons`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operation: 'review', lessonVersionId: lesson.id, lessonHash: lesson.lesson_hash, action, note: lessonReviewNote.trim() }),
+      });
+      const body = await responseJson(response);
+      if (!response.ok) throw new Error(body.error || 'Unable to review campaign lesson.');
+      await refreshPlanningContext(); setLessonReviewNote('');
+      setMessage({ kind: 'success', text: action === 'accepted' ? 'Lesson accepted as planning evidence only. No strategy or campaign was changed.' : action === 'revision_requested' ? 'Lesson revision requested.' : 'Lesson rejected.' });
+    } catch (error) {
+      setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to review campaign lesson.' });
+    } finally { setWorking(null); }
   };
 
   useEffect(() => {
@@ -1415,6 +1465,24 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                     <div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Follow-up contribution</div><div className="mt-1 font-semibold tabular-nums text-gray-900">{metricValue('contribution_before_ads', planningContext.latestPlan.deliverable.activation.outcome.followup_value == null ? null : Number(planningContext.latestPlan.deliverable.activation.outcome.followup_value))}</div></div>
                                   </div>
                                   <p className="mt-3 text-sm leading-6 text-gray-700">{planningContext.latestPlan.deliverable.activation.outcome.assessment_json.explanation}</p>
+                                  <div className="mt-4 border-t border-cyan-200 pt-4">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <div className="text-[11px] font-bold uppercase text-gray-500">Campaign lesson</div>
+                                      {planningContext.latestPlan.deliverable.activation.outcome.lesson?.review && <span className={`text-xs font-bold uppercase ${planningContext.latestPlan.deliverable.activation.outcome.lesson.review.action === 'accepted' ? 'text-emerald-700' : 'text-amber-800'}`}>{planningContext.latestPlan.deliverable.activation.outcome.lesson.review.action.replaceAll('_', ' ')}</span>}
+                                    </div>
+                                    {planningContext.latestPlan.deliverable.activation.outcome.lesson ? (
+                                      <div className="mt-3">
+                                        <h4 className="text-sm font-bold text-gray-900">{planningContext.latestPlan.deliverable.activation.outcome.lesson.lesson_json.title}</h4>
+                                        <ul className="mt-2 space-y-1 text-xs leading-5 text-gray-700">{planningContext.latestPlan.deliverable.activation.outcome.lesson.lesson_json.observations.map((item) => <li key={item.text}>{item.text}</li>)}</ul>
+                                        <div className="mt-3 text-[11px] font-bold uppercase text-gray-500">Limitations</div>
+                                        <ul className="mt-1 space-y-1 text-xs leading-5 text-gray-600">{planningContext.latestPlan.deliverable.activation.outcome.lesson.lesson_json.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
+                                        {planningContext.latestPlan.deliverable.activation.outcome.lesson.lesson_json.hypotheses.length > 0 && <><div className="mt-3 text-[11px] font-bold uppercase text-amber-700">Hypotheses requiring validation</div><ul className="mt-1 space-y-1 text-xs leading-5 text-gray-700">{planningContext.latestPlan.deliverable.activation.outcome.lesson.lesson_json.hypotheses.map((item) => <li key={item.text}>{item.text} Validation: {item.validationApproach}</li>)}</ul></>}
+                                        {isAdmin && !planningContext.latestPlan.deliverable.activation.outcome.lesson.review && <div className="mt-3"><textarea value={lessonReviewNote} onChange={(event) => setLessonReviewNote(event.target.value.slice(0, 1000))} rows={2} placeholder="Required for rejection or revision" className="w-full resize-y border border-gray-300 px-3 py-2 text-sm" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewCampaignLesson('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Check size={15} /> Accept lesson</button><button type="button" onClick={() => void reviewCampaignLesson('revision_requested')} disabled={working != null || !lessonReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"><RefreshCw size={15} /> Request revision</button><button type="button" onClick={() => void reviewCampaignLesson('rejected')} disabled={working != null || !lessonReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><X size={15} /> Reject</button></div></div>}
+                                        {isAdmin && (planningContext.latestPlan.deliverable.activation.outcome.lesson.review?.action === 'revision_requested' || planningContext.latestPlan.deliverable.activation.outcome.lesson.review?.action === 'rejected') && <button type="button" onClick={() => void generateCampaignLesson()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'lesson_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft revised lesson</button>}
+                                      </div>
+                                    ) : isAdmin ? <button type="button" onClick={() => void generateCampaignLesson()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'lesson_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft campaign lesson</button> : <p className="mt-2 text-xs text-gray-500">No reviewed lesson has been drafted.</p>}
+                                    <p className="mt-3 text-xs leading-5 text-gray-500">Accepting a lesson permits future planning context only. It does not alter strategy, budgets, targeting, content, or live campaigns.</p>
+                                  </div>
                                 </div>
                               )}
                             </div>

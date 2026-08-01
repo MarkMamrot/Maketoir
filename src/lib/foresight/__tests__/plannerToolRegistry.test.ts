@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
+const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
   mockBusinessGet: vi.fn(),
   mockBrandGet: vi.fn(),
   mockLatestStrategy: vi.fn(),
   mockListRecommendations: vi.fn(),
   mockGetRecommendation: vi.fn(),
+  mockListLearningOutcomes: vi.fn(),
+  mockListAcceptedLessons: vi.fn(),
   mockGetDailyCommerce: vi.fn(),
   mockListBrandPerformance: vi.fn(),
   mockListProductPlanningRows: vi.fn(),
@@ -20,6 +22,12 @@ vi.mock('../repositories/ForesightRepository', () => ({
     listRecommendations: mockListRecommendations,
     getRecommendation: mockGetRecommendation,
   },
+}));
+vi.mock('../repositories/ForesightCampaignActivationRepository', () => ({
+  ForesightCampaignActivationRepository: { listLearningOutcomes: mockListLearningOutcomes },
+}));
+vi.mock('../repositories/ForesightCampaignLessonRepository', () => ({
+  ForesightCampaignLessonRepository: { listAccepted: mockListAcceptedLessons },
 }));
 vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mockGetDailyCommerce },
@@ -289,5 +297,80 @@ describe('Foresight planner tool registry', () => {
 
     expect(mockGetRecommendation).toHaveBeenCalledWith('business-1', 20);
     expect(result.facts[0].factId).toContain('foresight:recommendation:20');
+  });
+
+  it('returns bounded audited campaign outcomes with authoritative commerce separate from diagnostics', async () => {
+    mockListLearningOutcomes.mockResolvedValue([{
+      id: 93, business_id: 'business-1', activation_id: 91, thread_id: 12,
+      deliverable_version_id: 80, document_hash: 'b'.repeat(64), horizon_days: 7,
+      baseline_start: '2026-07-17', baseline_end: '2026-07-23',
+      followup_start: '2026-07-25', followup_end: '2026-07-31', direction: 'improved',
+      primary_metric: 'contribution_before_ads', baseline_value: 700, followup_value: 840,
+      activated_on: '2026-07-24', channels_json: [{ channel: 'meta', campaignId: 'campaign-1', adSetId: null, flowId: null }],
+      asset_ids_json: ['meta-primary'], published_details: 'Published.', deviations_text: null,
+      deliverable_document_json: { productSelection: [{ name: 'Legami', rationale: 'Demand.', citationFactIds: ['fact-1'] }] },
+      assessment_json: {
+        explanation: 'Observed improvement without causal inference.',
+        baseline: { onlineRevenueExTax: 1400, contributionBeforeAds: 700, paidMediaSpend: 350, mer: 4, contributionPoas: 2 },
+        followup: { onlineRevenueExTax: 1600, contributionBeforeAds: 840, paidMediaSpend: 400, mer: 4, contributionPoas: 2.1 },
+      },
+      created_at: '2026-08-01',
+    }]);
+
+    const result = await executeForesightPlannerTool({
+      businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_campaign_outcomes',
+      args: { from: '2026-05-01', to: '2026-08-01', channel: 'meta', product: 'legami', direction: 'improved', limit: 10 },
+    });
+
+    expect(mockListLearningOutcomes).toHaveBeenCalledWith('business-1', {
+      from: '2026-05-01', to: '2026-08-01', direction: 'improved', limit: 50,
+    });
+    expect(result).toMatchObject({
+      tool: 'list_campaign_outcomes', manifestVersion: 'foresight-planner-tools-v4', truncated: false,
+      facts: [{
+        factId: 'foresight:campaign-outcome:93:activation:91', authority: 'authoritative',
+        observedFrom: '2026-07-17', observedThrough: '2026-07-31',
+        value: {
+          products: ['Legami'], direction: 'improved',
+          authoritativeCommerce: { baseline: { onlineRevenueExTax: 1400 }, followup: { contributionBeforeAds: 840 } },
+          diagnosticMediaRatios: { baselineSpend: 350, followupMer: 4 },
+          interpretation: expect.stringContaining('does not establish'),
+        },
+      }],
+    });
+  });
+
+  it('returns only repository-confirmed human-accepted campaign lessons as advisory facts', async () => {
+    mockListAcceptedLessons.mockResolvedValue([{ id: 44, business_id: 'business-1', thread_id: 12,
+      outcome_id: 31, activation_id: 22, version: 1, parent_id: null, schema_version: 1,
+      lesson_hash: 'a'.repeat(64), model_id: 'gemini-2.5-flash', prompt_version: 'campaign-learning-v1',
+      authored_by: 7, change_reason: null, created_at: '2026-08-03', accepted_at: '2026-08-04',
+      accepted_by: 8, review_note: null, lesson_json: { title: 'Keep testing the offer',
+        observations: [{ text: 'Contribution improved.', citationFactIds: ['foresight:campaign-outcome:31:activation:22'] }],
+        limitations: ['This comparison is observational.'],
+        hypotheses: [{ text: 'The offer may matter.', status: 'requires_human_validation', validationApproach: 'Repeat a controlled test.' }],
+        suggestedApplications: [{ text: 'Consider a follow-up test.', executable: false }] } }]);
+
+    const result = await executeForesightPlannerTool({ businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_accepted_campaign_lessons', args: { from: '2026-08-01', to: '2026-08-31', limit: 10 } });
+
+    expect(mockListAcceptedLessons).toHaveBeenCalledWith('business-1', { from: '2026-08-01', to: '2026-08-31', limit: 11 });
+    expect(result).toMatchObject({ tool: 'list_accepted_campaign_lessons', manifestVersion: 'foresight-planner-tools-v4',
+      facts: [{ factId: 'foresight:campaign-lesson:44:v1', authority: 'human', value: {
+        outcomeId: 31, suggestedApplications: [{ executable: false }] } }] });
+    expect(JSON.stringify(result)).toContain('does not authorize strategy');
+  });
+
+  it('rejects unbounded or unsupported campaign outcome filters before repository access', async () => {
+    await expect(executeForesightPlannerTool({
+      businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_campaign_outcomes', args: { from: '2025-01-01', to: '2026-08-01' },
+    })).rejects.toThrow('1 to 366 days');
+    await expect(executeForesightPlannerTool({
+      businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_campaign_outcomes', args: { from: '2026-07-01', to: '2026-08-01', channel: 'tiktok' },
+    })).rejects.toThrow('Unsupported campaign channel');
+    expect(mockListLearningOutcomes).not.toHaveBeenCalled();
   });
 });

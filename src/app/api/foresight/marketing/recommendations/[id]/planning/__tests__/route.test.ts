@@ -4,6 +4,7 @@ const { mockSession, mockTier, mockGetRecommendation, mockFindThread, mockLatest
   mockSession: vi.fn(), mockTier: vi.fn(), mockGetRecommendation: vi.fn(), mockFindThread: vi.fn(),
   mockLatestPlan: vi.fn(), mockLatestReview: vi.fn(), mockLatestDeliverable: vi.fn(), mockLatestDeliverableReview: vi.fn(), mockLatestActivation: vi.fn(), mockLatestActivationOutcome: vi.fn(), mockGetOrCreate: vi.fn(),
 }));
+const { mockLatestLesson, mockLatestLessonReview } = vi.hoisted(() => ({ mockLatestLesson: vi.fn(), mockLatestLessonReview: vi.fn() }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: mockSession, requireAdminTier: mockTier }));
 vi.mock('@/lib/foresight/repositories/ForesightRepository', () => ({
@@ -20,6 +21,9 @@ vi.mock('@/lib/foresight/repositories/ForesightDeliverableRepository', () => ({
 }));
 vi.mock('@/lib/foresight/repositories/ForesightCampaignActivationRepository', () => ({
   ForesightCampaignActivationRepository: { getForThread: mockLatestActivation, getOutcomeForThread: mockLatestActivationOutcome },
+}));
+vi.mock('@/lib/foresight/repositories/ForesightCampaignLessonRepository', () => ({
+  ForesightCampaignLessonRepository: { latest: mockLatestLesson, latestReview: mockLatestLessonReview },
 }));
 
 import { GET, POST } from '../route';
@@ -38,6 +42,8 @@ describe('/api/foresight/marketing/recommendations/[id]/planning', () => {
     mockLatestDeliverableReview.mockResolvedValue(null);
     mockLatestActivation.mockResolvedValue(null);
     mockLatestActivationOutcome.mockResolvedValue(null);
+    mockLatestLesson.mockResolvedValue(null);
+    mockLatestLessonReview.mockResolvedValue(null);
     mockGetOrCreate.mockResolvedValue({ threadId: 12, created: true });
   });
 

@@ -56,6 +56,15 @@ export interface CampaignActivationOutcomeRow {
   created_at: string;
 }
 
+export interface CampaignLearningOutcomeRow extends CampaignActivationOutcomeRow {
+  activated_on: string;
+  channels_json: CampaignActivationChannel[];
+  asset_ids_json: string[];
+  published_details: string;
+  deviations_text: string | null;
+  deliverable_document_json: ForesightDeliverableDocument;
+}
+
 export class CampaignActivationValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -106,6 +115,43 @@ function normalizeUrl(value: string | null | undefined): string | null {
 }
 
 export const ForesightCampaignActivationRepository = {
+  async listLearningOutcomes(businessId: string, input: {
+    from: string;
+    to: string;
+    direction?: CampaignOutcomeAssessment['direction'] | null;
+    limit: number;
+  }): Promise<CampaignLearningOutcomeRow[]> {
+    const directionClause = input.direction ? 'AND outcome.direction = ?' : '';
+    const parameters: Array<string | number> = [businessId, input.from, input.to];
+    if (input.direction) parameters.push(input.direction);
+    parameters.push(input.limit);
+    const rows = await query<CampaignLearningOutcomeRow>(
+      `SELECT outcome.*, activation.activated_on, activation.channels_json,
+              activation.asset_ids_json, activation.published_details,
+              activation.deviations_text,
+              deliverable.document_json AS deliverable_document_json
+       FROM foresight_campaign_activation_outcomes outcome
+       INNER JOIN foresight_campaign_activations activation
+         ON activation.business_id = outcome.business_id AND activation.id = outcome.activation_id
+       INNER JOIN foresight_deliverable_versions deliverable
+         ON deliverable.business_id = outcome.business_id
+        AND deliverable.id = outcome.deliverable_version_id
+       WHERE outcome.business_id = ?
+         AND activation.activated_on BETWEEN ? AND ?
+         ${directionClause}
+       ORDER BY activation.activated_on DESC, outcome.id DESC
+       LIMIT ?`,
+      parameters,
+    );
+    return rows.map((row) => ({
+      ...row,
+      channels_json: json(row.channels_json),
+      asset_ids_json: json(row.asset_ids_json),
+      assessment_json: json(row.assessment_json),
+      deliverable_document_json: json(row.deliverable_document_json),
+    }));
+  },
+
   async listDue(businessId: string, throughDate: string): Promise<CampaignActivationRow[]> {
     const rows = await query<CampaignActivationRow>(
       `SELECT activation.*

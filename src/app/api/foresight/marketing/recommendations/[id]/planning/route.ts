@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ForesightPlanningRepository } from '@/lib/foresight/repositories/ForesightPlanningRepository';
 import { ForesightDeliverableRepository } from '@/lib/foresight/repositories/ForesightDeliverableRepository';
 import { ForesightCampaignActivationRepository } from '@/lib/foresight/repositories/ForesightCampaignActivationRepository';
+import { ForesightCampaignLessonRepository } from '@/lib/foresight/repositories/ForesightCampaignLessonRepository';
 import { ForesightRepository } from '@/lib/foresight/repositories/ForesightRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
 
@@ -32,6 +33,8 @@ async function planningContext(businessId: string, id: number) {
   const activationOutcome = thread
     ? await ForesightCampaignActivationRepository.getOutcomeForThread(businessId, thread.id)
     : null;
+  const latestLesson = thread ? await ForesightCampaignLessonRepository.latest(businessId, thread.id) : null;
+  const latestLessonReview = thread ? await ForesightCampaignLessonRepository.latestReview(businessId, thread.id) : null;
   return {
     recommendation,
     thread,
@@ -67,7 +70,18 @@ async function planningContext(businessId: string, id: number) {
                   ...activation,
                   outcome: activationOutcome?.activation_id === activation.id
                     && activationOutcome.document_hash === activation.document_hash
-                    ? activationOutcome
+                    ? {
+                        ...activationOutcome,
+                        lesson: latestLesson?.outcome_id === activationOutcome.id
+                          && latestLesson.activation_id === activation.id
+                          ? {
+                              ...latestLesson,
+                              review: latestLessonReview?.lesson_version_id === latestLesson.id
+                                && latestLessonReview.lesson_hash === latestLesson.lesson_hash
+                                ? latestLessonReview : null,
+                            }
+                          : null,
+                      }
                     : null,
                 }
               : null,

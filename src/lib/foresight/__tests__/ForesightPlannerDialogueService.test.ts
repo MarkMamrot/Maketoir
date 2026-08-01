@@ -72,7 +72,7 @@ describe('ForesightPlannerDialogueService', () => {
     expect(planningPayload.availableTools).toContainEqual(expect.objectContaining({ name: 'get_brand_performance' }));
     expect(mockAppendAssistant).toHaveBeenCalledWith('business-1', 12, 3, expect.objectContaining({
       modelId: 'gemini-2.5-flash', promptVersion: 'planner-dialogue-v2',
-      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v2' }),
+      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v4' }),
     }));
     expect(result).toMatchObject({ assistantMessageId: 31, threadRevision: 4, citationFactIds: ['fact-stock-1'] });
     vi.useRealTimers();
