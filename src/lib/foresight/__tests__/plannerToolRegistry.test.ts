@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockGetDailyCommerce, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
+const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
   mockBusinessGet: vi.fn(),
   mockBrandGet: vi.fn(),
   mockLatestStrategy: vi.fn(),
   mockListRecommendations: vi.fn(),
   mockGetRecommendation: vi.fn(),
   mockGetDailyCommerce: vi.fn(),
+  mockListBrandPerformance: vi.fn(),
   mockListProductPlanningRows: vi.fn(),
   mockListOpenInbound: vi.fn(),
 }));
@@ -22,6 +23,9 @@ vi.mock('../repositories/ForesightRepository', () => ({
 }));
 vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mockGetDailyCommerce },
+}));
+vi.mock('../repositories/ImsBrandPerformanceRepository', () => ({
+  ImsBrandPerformanceRepository: { listBrandPerformance: mockListBrandPerformance },
 }));
 vi.mock('../repositories/ImsProductPlanningRepository', () => ({
   ImsProductPlanningRepository: { listProductPlanningRows: mockListProductPlanningRows },
@@ -163,6 +167,41 @@ describe('Foresight planner tool registry', () => {
       name: 'get_commerce_performance', args: { from: '2026-01-01', to: '2026-04-01' },
     })).rejects.toThrow('1 to 90 days');
     expect(mockGetDailyCommerce).not.toHaveBeenCalled();
+  });
+
+  it('returns selected brand revenue and makes unmatched requested brands explicit', async () => {
+    mockListBrandPerformance.mockResolvedValue([{
+      brand: 'Legami', quantity: 42, revenue: 1234.567, historyRevenue: 900,
+      posRevenue: 134.567, onlineRevenue: 200, wholesaleRevenue: 0, productCount: 8,
+    }]);
+
+    const result = await executeForesightPlannerTool({
+      businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'get_brand_performance',
+      args: { from: '2026-05-04', to: '2026-08-01', brands: ['Legami', 'Wooderful Life'] },
+    });
+
+    expect(mockListBrandPerformance).toHaveBeenCalledWith(
+      'business-1', '2026-05-04', '2026-08-01', ['Legami', 'Wooderful Life'], 2,
+    );
+    expect(result.facts[0]).toMatchObject({
+      observedFrom: '2026-05-04', observedThrough: '2026-08-01',
+      quality: { grade: 'partial', issues: [{ code: 'unmatched_brand_names' }] },
+      value: {
+        revenueBasis: 'tax_inclusive_before_returns',
+        matchedBrands: ['Legami'], unmatchedBrands: ['Wooderful Life'],
+        brands: [{ brand: 'Legami', revenue: 1234.57, posRevenue: 134.57 }],
+      },
+    });
+  });
+
+  it('rejects unbounded brand requests before IMS access', async () => {
+    await expect(executeForesightPlannerTool({
+      businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'get_brand_performance',
+      args: { from: '2026-07-01', to: '2026-08-01', brands: Array.from({ length: 11 }, (_, index) => `Brand ${index}`) },
+    })).rejects.toThrow('1 to 10');
+    expect(mockListBrandPerformance).not.toHaveBeenCalled();
   });
 
   it('returns bounded inventory signals with tax-exclusive unit margin', async () => {

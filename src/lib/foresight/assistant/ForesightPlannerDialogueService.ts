@@ -103,11 +103,13 @@ export const ForesightPlannerDialogueService = {
         ForesightPlanningRepository.listMessages(input.businessId, input.threadId, MAX_HISTORY_MESSAGES),
       ]);
       const declarations = FORESIGHT_PLANNER_TOOL_DECLARATIONS.filter((tool) => enabledTools.includes(tool.name));
+      const currentDate = new Date().toISOString().slice(0, 10);
       const plan = await input.model.generateJson({
         modelId: input.modelId,
         systemInstruction: prompt.content,
         prompt: JSON.stringify({
           task: 'Select zero to four read tools needed for the next response.',
+          currentDate,
           availableTools: declarations,
           conversation: messageHistory(messages),
         }),
@@ -129,6 +131,7 @@ export const ForesightPlannerDialogueService = {
         systemInstruction: prompt.content,
         prompt: JSON.stringify({
           task: 'Respond to the latest human message using only supplied facts. Return message, citationFactIds, and questions.',
+          currentDate,
           conversation: messageHistory(messages),
           toolResults,
         }),

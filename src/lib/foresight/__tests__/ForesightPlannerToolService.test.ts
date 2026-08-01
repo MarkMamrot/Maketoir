@@ -25,7 +25,7 @@ describe('ForesightPlannerToolService', () => {
 
   it('audits successful read-tool results with their fact IDs', async () => {
     mockExecute.mockResolvedValue({
-      tool: 'get_marketing_strategy', manifestVersion: 'foresight-planner-tools-v1', truncated: false,
+      tool: 'get_marketing_strategy', manifestVersion: 'foresight-planner-tools-v2', truncated: false,
       facts: [{ factId: 'foresight:strategy:4:v2' }],
     });
 

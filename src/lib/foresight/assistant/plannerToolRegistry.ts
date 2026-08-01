@@ -1,18 +1,21 @@
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
+import { createHash } from 'node:crypto';
 import { parseMarketingStrategy } from '../marketingStrategy';
 import { ForesightRepository } from '../repositories/ForesightRepository';
+import { ImsBrandPerformanceRepository } from '../repositories/ImsBrandPerformanceRepository';
 import { ImsCommerceRepository } from '../repositories/ImsCommerceRepository';
 import { ImsInboundPlanningRepository } from '../repositories/ImsInboundPlanningRepository';
 import { ImsProductPlanningRepository } from '../repositories/ImsProductPlanningRepository';
 import type { DataQualityResult, RecommendationState } from '../types';
 
-export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v1';
+export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v2';
 
 export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_business_context',
   'get_marketing_strategy',
   'get_commerce_performance',
+  'get_brand_performance',
   'get_product_inventory_signals',
   'get_open_inbound_stock',
   'list_recommendations',
@@ -65,6 +68,12 @@ export const FORESIGHT_PLANNER_TOOL_DECLARATIONS = [
     description: 'Get authoritative online and POS revenue, returns, COGS, contribution, and order totals for an explicit date range of up to 90 days.',
     required: ['from', 'to'],
     optional: [],
+  },
+  {
+    name: 'get_brand_performance',
+    description: 'Get authoritative tax-inclusive sales revenue, quantity, product count, and channel revenue for up to 10 exact IMS brand names in an explicit date range of up to 90 days. Omit brands to rank the top brands.',
+    required: ['from', 'to'],
+    optional: ['brands', 'limit'],
   },
   {
     name: 'get_product_inventory_signals',
@@ -131,6 +140,15 @@ function boundedDateRange(args: JsonObject): { from: string; to: string } {
   const inclusiveDays = Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
   if (inclusiveDays < 1 || inclusiveDays > 90) throw new Error('commerce date range must contain 1 to 90 days');
   return { from, to };
+}
+
+function boundedBrandNames(value: unknown): string[] {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length === 0) throw new Error('brands must be a non-empty array when provided');
+  const brands = [...new Set(value.map((brand) => typeof brand === 'string' ? brand.trim() : '').filter(Boolean))];
+  if (brands.length === 0 || brands.length > 10) throw new Error('brands must contain 1 to 10 non-empty names');
+  if (brands.some((brand) => brand.length > 100)) throw new Error('brand names must be 100 characters or fewer');
+  return brands;
 }
 
 function recommendationStates(value: unknown): RecommendationState[] {
@@ -296,6 +314,65 @@ async function getCommercePerformance(businessId: string, args: JsonObject): Pro
       value: { channels: summaries },
     }],
     truncated: false,
+  };
+}
+
+async function getBrandPerformance(businessId: string, args: JsonObject): Promise<ForesightPlannerToolResult> {
+  assertExactArguments(args, ['from', 'to', 'brands', 'limit']);
+  const { from, to } = boundedDateRange(args);
+  const brands = boundedBrandNames(args.brands);
+  const limit = boundedLimit(args.limit, brands.length || 10, 25);
+  const rows = await ImsBrandPerformanceRepository.listBrandPerformance(businessId, from, to, brands, limit);
+  const matchedBrands = rows.map((row) => row.brand);
+  const unmatchedBrands = brands.filter((brand) => !matchedBrands.some((matched) => matched.toLowerCase() === brand.toLowerCase()));
+  const selectionKey = brands.length > 0
+    ? createHash('sha256').update(brands.map((brand) => brand.toLowerCase()).sort().join('\n')).digest('hex').slice(0, 12)
+    : 'top';
+  const quality: DataQualityResult = rows.length === 0 ? {
+    grade: 'partial',
+    issues: [{
+      code: 'no_matching_brand_sales',
+      severity: 'warning',
+      message: brands.length > 0
+        ? 'No sales matched the requested IMS brand names in this date range.'
+        : 'No branded sales were recorded in this date range.',
+    }],
+  } : unmatchedBrands.length > 0 ? {
+    grade: 'partial',
+    issues: [{
+      code: 'unmatched_brand_names',
+      severity: 'warning',
+      message: `No sales matched these IMS brand names: ${unmatchedBrands.join(', ')}.`,
+    }],
+  } : goodQuality();
+  return {
+    tool: 'get_brand_performance',
+    manifestVersion: FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION,
+    facts: [{
+      factId: `ims:brand-performance:${from}:${to}:${selectionKey}`,
+      label: brands.length > 0 ? 'Selected brand sales performance' : 'Top brand sales performance',
+      source: 'IMS Sales Ledger',
+      authority: 'authoritative',
+      observedFrom: from,
+      observedThrough: to,
+      freshnessAt: to,
+      quality,
+      value: {
+        revenueBasis: 'tax_inclusive_before_returns',
+        requestedBrands: brands,
+        matchedBrands,
+        unmatchedBrands,
+        brands: rows.map((row) => ({
+          ...row,
+          revenue: roundNumber(row.revenue, 2),
+          historyRevenue: roundNumber(row.historyRevenue, 2),
+          posRevenue: roundNumber(row.posRevenue, 2),
+          onlineRevenue: roundNumber(row.onlineRevenue, 2),
+          wholesaleRevenue: roundNumber(row.wholesaleRevenue, 2),
+        })),
+      },
+    }],
+    truncated: brands.length === 0 && rows.length >= limit,
   };
 }
 
@@ -490,6 +567,7 @@ const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args:
     return getMarketingStrategy(businessId);
   },
   get_commerce_performance: getCommercePerformance,
+  get_brand_performance: getBrandPerformance,
   get_product_inventory_signals: getProductInventorySignals,
   get_open_inbound_stock: getOpenInboundStock,
   list_recommendations: listRecommendations,

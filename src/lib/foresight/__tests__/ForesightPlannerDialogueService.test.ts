@@ -30,12 +30,14 @@ describe('ForesightPlannerDialogueService', () => {
       id: 30, actor_type: 'human', content: 'Should we promote slow stock?',
     }]);
     mockLoadPrompt.mockResolvedValue({
-      version: 'planner-dialogue-v1', content: 'Governed planner prompt', sha256: 'prompt-hash',
+      version: 'planner-dialogue-v2', content: 'Governed planner prompt', sha256: 'prompt-hash',
     });
     mockReport.mockResolvedValue(91);
   });
 
   it('executes only allowlisted audited tools and persists a cited assistant turn', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-01T12:00:00Z'));
     const model = { generateJson: vi.fn()
       .mockResolvedValueOnce({ toolCalls: [
         { name: 'get_product_inventory_signals', args: { limit: 10 } },
@@ -46,7 +48,7 @@ describe('ForesightPlannerDialogueService', () => {
         questions: ['Is clearance consistent with the brand?'],
       }) };
     mockExecuteTool.mockResolvedValue({
-      tool: 'get_product_inventory_signals', manifestVersion: 'foresight-planner-tools-v1', truncated: false,
+      tool: 'get_product_inventory_signals', manifestVersion: 'foresight-planner-tools-v2', truncated: false,
       facts: [{ factId: 'fact-stock-1' }],
     });
 
@@ -63,11 +65,17 @@ describe('ForesightPlannerDialogueService', () => {
       businessId: 'business-1', threadId: 12, messageId: 30,
       name: 'get_product_inventory_signals', args: { limit: 10 },
     }));
+    const planningPayload = JSON.parse(model.generateJson.mock.calls[0][0].prompt);
+    const responsePayload = JSON.parse(model.generateJson.mock.calls[1][0].prompt);
+    expect(planningPayload.currentDate).toBe('2026-08-01');
+    expect(responsePayload.currentDate).toBe('2026-08-01');
+    expect(planningPayload.availableTools).toContainEqual(expect.objectContaining({ name: 'get_brand_performance' }));
     expect(mockAppendAssistant).toHaveBeenCalledWith('business-1', 12, 3, expect.objectContaining({
-      modelId: 'gemini-2.5-flash', promptVersion: 'planner-dialogue-v1',
-      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v1' }),
+      modelId: 'gemini-2.5-flash', promptVersion: 'planner-dialogue-v2',
+      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v2' }),
     }));
     expect(result).toMatchObject({ assistantMessageId: 31, threadRevision: 4, citationFactIds: ['fact-stock-1'] });
+    vi.useRealTimers();
   });
 
   it('rejects unknown citations and reports the failed operational turn', async () => {

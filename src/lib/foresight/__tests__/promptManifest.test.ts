@@ -16,7 +16,7 @@ describe('Foresight planning prompt manifest', () => {
     expect(listForesightPrompts()).toEqual([
       { id: 'strategy-interviewer', version: 'strategy-interviewer-v1' },
       { id: 'initiative-planner', version: 'initiative-planner-v1' },
-      { id: 'planner-dialogue', version: 'planner-dialogue-v1' },
+      { id: 'planner-dialogue', version: 'planner-dialogue-v2' },
     ]);
   });
 });
