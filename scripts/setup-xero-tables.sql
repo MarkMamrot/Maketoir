@@ -14,6 +14,19 @@ CREATE TABLE IF NOT EXISTS xero_account_mappings (
   UNIQUE KEY uq_business_role (business_id, role_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Per-business PO/SO Xero lifecycle and payment-sync policy.
+CREATE TABLE IF NOT EXISTS xero_document_policies (
+  business_id                VARCHAR(255) NOT NULL PRIMARY KEY,
+  po_approved_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
+  po_completed_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
+  po_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  so_approved_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
+  so_completed_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
+  so_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tracking category mapping: links IMS locations/channels → Xero Tracking Category options
 CREATE TABLE IF NOT EXISTS xero_tracking_mappings (
   id                      INT AUTO_INCREMENT PRIMARY KEY,

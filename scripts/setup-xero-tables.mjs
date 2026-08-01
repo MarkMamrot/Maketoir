@@ -94,6 +94,7 @@ async function main() {
   }
 
   console.log('✔ xero_account_mappings created');
+  console.log('✔ xero_document_policies created');
   console.log('✔ xero_tracking_mappings created');
   console.log('✔ xero_sync_log created');
   console.log('✔ xero_cogs_settings created');

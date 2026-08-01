@@ -35,7 +35,9 @@ export async function POST(req: Request) {
       const syncStatus = status === 'complete' ? 'complete' : 'confirmed';
       await triggerPOXeroSync(businessId, id, syncStatus);
     } else if (type === 'so') {
-      await triggerSOXeroSync(businessId, id, 'confirmed');
+      const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_sales_orders WHERE id = ?`, [id]);
+      const status = rows[0]?.status ?? 'confirmed';
+      await triggerSOXeroSync(businessId, id, status);
     } else if (type === 'po_payment' || type === 'so_payment') {
       if (!parentId) return NextResponse.json({ error: 'parentId is required for payment replay.' }, { status: 400 });
       const table = type === 'po_payment' ? 'ims_purchase_order_payments' : 'ims_sales_order_payments';

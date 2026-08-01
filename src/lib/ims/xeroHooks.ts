@@ -9,6 +9,9 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
+import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
@@ -19,6 +22,21 @@ import { query } from '@/services/MySQLService';
 async function isXeroConnected(businessId: string): Promise<boolean> {
   const conn = await ConnectionsRepository.get(businessId);
   return !!(conn?.xero_tenant_id && conn?.xero_refresh_token);
+}
+
+async function loadDocumentPolicy(businessId: string) {
+  try {
+    return await getXeroDocumentPolicy(businessId);
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'XeroHooks',
+      operation: 'load_document_policy',
+      title: 'Xero sync skipped because document policy could not be loaded',
+      error,
+    });
+    return null;
+  }
 }
 
 /** Retry a sync function once after 2s. Marks as queued if both attempts fail. */
@@ -79,47 +97,38 @@ async function notifyXeroFinalFailure(
 export async function triggerPOXeroSync(businessId: string, poId: number, newStatus: string): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy) return;
+  const action = resolvePODocumentAction(policy, newStatus);
+  if (action === 'none') return;
+
   const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
 
-  if (newStatus === 'confirmed') {
-    const existingXeroId = (po as any).xero_bill_id ?? null;
-    if (existingXeroId) {
-      await updateXeroDraftBill(businessId, po as any, existingXeroId);
-      await syncPOAttachmentsToXero(businessId, poId, po.po_number, existingXeroId);
-      return;
-    }
-    // Create Draft Bill — retry once on failure, then mark as queued
-    await withRetry(
+  const storedXeroId = (po as any).xero_bill_id ?? null;
+  const logRows = storedXeroId ? [] : await query(
+    `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+    [businessId, poId],
+  );
+  let xeroInvoiceId = storedXeroId ?? logRows[0]?.xero_id ?? null;
+
+  if (xeroInvoiceId) {
+    await updateXeroDraftBill(businessId, po as any, xeroInvoiceId);
+  } else {
+    xeroInvoiceId = await withRetry(
       () => syncPOAsDraftBill(businessId, po as any),
       () => markPoXeroStatus(poId, 'queued'),
       (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
     );
-  } else if (newStatus === 'complete') {
-    // Prefer the stored xero_bill_id, fall back to sync_log lookup
-    const storedXeroId = (po as any).xero_bill_id ?? null;
-    const logRows = storedXeroId ? [] : await query(
-      `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
-      [businessId, poId],
-    );
-    const xeroInvoiceId = storedXeroId ?? logRows[0]?.xero_id;
+  }
+  if (!xeroInvoiceId) return;
 
-    if (xeroInvoiceId) {
-      await syncPOAttachmentsToXero(businessId, poId, po.po_number, xeroInvoiceId);
-      await approveBill(businessId, xeroInvoiceId, poId);
-      const hasDeposits = (po.payments?.length ?? 0) > 0;
-      if (hasDeposits) {
-        await syncPOReceivedJournal(businessId, poId, po.po_number, po.total_amount, po.location_id);
-      }
-    } else {
-      // No bill exists yet — create then approve, retry once on failure
-      const xeroId = await withRetry(
-        () => syncPOAsDraftBill(businessId, po as any),
-        () => markPoXeroStatus(poId, 'queued'),
-        (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
-      );
-      if (xeroId) await approveBill(businessId, xeroId, poId);
-    }
+  await syncPOAttachmentsToXero(businessId, poId, po.po_number, xeroInvoiceId);
+  if (action !== 'authorised') return;
+
+  const approved = await approveBill(businessId, xeroInvoiceId, poId);
+  if (approved && newStatus === 'complete' && (po.payments?.length ?? 0) > 0) {
+    await syncPOReceivedJournal(businessId, poId, po.po_number, po.total_amount, po.location_id);
   }
 }
 
@@ -148,9 +157,20 @@ export async function triggerPOXeroUpdate(businessId: string, poId: number): Pro
  */
 export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy) return;
+  if (!policy.poPaymentSyncEnabled) return;
 
   const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
+
+  const payment = (po as any).payments?.find((candidate: any) => candidate.id === paymentId);
+  if (!payment?.payment_method_id) return;
+  const [method] = await imsQuery<{ xero_account_code: string }>(
+    'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
+    [payment.payment_method_id],
+  );
+  if (!method?.xero_account_code) return;
 
   // Prefer stored xero_bill_id, fall back to sync_log
   const storedXeroId = (po as any).xero_bill_id ?? null;
@@ -171,17 +191,10 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
 
   if (!xeroInvoiceId) return;
 
-  await approveBill(businessId, xeroInvoiceId, poId);
+  await updateXeroDraftBill(businessId, po as any, xeroInvoiceId);
+  const approved = await approveBill(businessId, xeroInvoiceId, poId);
+  if (!approved) return;
 
-  const payment = (po as any).payments?.find((p: any) => p.id === paymentId);
-  if (!payment) return;
-  // Look up xero_account_code from payment method — skip Xero payment if none set
-  if (!payment.payment_method_id) return;
-  const [method] = await imsQuery<{ xero_account_code: string }>(
-    'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
-    [payment.payment_method_id],
-  );
-  if (!method?.xero_account_code) return;
   await syncPOPayment(businessId, xeroInvoiceId, poId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
 }
 
@@ -191,6 +204,9 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
  */
 export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy) return;
+  if (!policy.soPaymentSyncEnabled) return;
 
   const so = await ImsSORepo.get(soId, businessId);
   if (!so) return;
@@ -215,7 +231,9 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
     );
   }
   if (!xeroInvoiceId) return;
-  await approveInvoice(businessId, xeroInvoiceId, Number(soId));
+  await updateXeroDraftInvoice(businessId, so as any, xeroInvoiceId);
+  const approved = await approveInvoice(businessId, xeroInvoiceId, Number(soId));
+  if (!approved) return;
 
   await syncSOPayment(businessId, xeroInvoiceId, soId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
 }
@@ -227,29 +245,25 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
 export async function triggerSOXeroSync(businessId: string, soId: number, newStatus: string): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
-  if (newStatus === 'confirmed') {
-    const so = await ImsSORepo.get(soId, businessId);
-    if (!so) return;
-    await withRetry(
+  const policy = await loadDocumentPolicy(businessId);
+  if (!policy) return;
+  const action = resolveSODocumentAction(policy, newStatus);
+  if (action === 'none') return;
+
+  const so = await ImsSORepo.get(soId, businessId);
+  if (!so) return;
+  let xeroInvoiceId = (so as any).xero_invoice_id ?? null;
+  if (xeroInvoiceId) {
+    await updateXeroDraftInvoice(businessId, so as any, xeroInvoiceId);
+  } else {
+    xeroInvoiceId = await withRetry(
       () => syncSOAsInvoice(businessId, so as any),
       () => markSoXeroStatus(Number(soId), 'queued'),
       (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
     );
-  } else if (newStatus === 'fulfilled') {
-    const so = await ImsSORepo.get(soId, businessId);
-    if (!so) return;
-    const storedXeroId = (so as any).xero_invoice_id ?? null;
-    if (storedXeroId) {
-      await approveInvoice(businessId, storedXeroId, Number(soId));
-    } else {
-      // No invoice yet — create then approve
-      const xeroId = await withRetry(
-        () => syncSOAsInvoice(businessId, so as any),
-        () => markSoXeroStatus(Number(soId), 'queued'),
-        (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
-      );
-      if (xeroId) await approveInvoice(businessId, xeroId, Number(soId));
-    }
+  }
+  if (xeroInvoiceId && action === 'authorised') {
+    await approveInvoice(businessId, xeroInvoiceId, Number(soId));
   }
 }
 

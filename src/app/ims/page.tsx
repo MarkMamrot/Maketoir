@@ -8,6 +8,12 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import {
+  DEFAULT_XERO_DOCUMENT_POLICY,
+  type XeroDocumentAction,
+  type XeroDocumentPolicy,
+  validateXeroDocumentPolicy,
+} from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
@@ -8648,6 +8654,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
                 {poPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                    <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
+                      Xero payment behaviour follows Ledger Mapping. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
+                    </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -12107,6 +12116,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
                 {soPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                    <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
+                      Xero payment behaviour follows Ledger Mapping. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
+                    </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -15784,7 +15796,7 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
     <div style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{label}</h3>
       <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Map each payment method to a Xero bank account. Payments recorded with a mapped method are automatically synced to Xero. Methods with no mapping are saved locally only.
+        Map each payment method to a Xero bank account. Xero payment sync must also be enabled above. Methods with no mapping are saved locally only.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading…</div> : methods.length === 0 ? (
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No payment methods defined. Add them under Settings → {type === 'po' ? 'Purchase Orders' : 'Sales Orders'} → Payment Methods.</p>
@@ -15821,6 +15833,132 @@ function XeroPaymentMappingSection({ type, label, accounts }: { type: 'po' | 'so
             ))}
           </tbody>
         </table>
+      )}
+    </div>
+  );
+}
+
+function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => string }) {
+  const [policy, setPolicy] = useState<XeroDocumentPolicy>({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+  const [savedPolicy, setSavedPolicy] = useState<XeroDocumentPolicy>({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const validationError = validateXeroDocumentPolicy(policy);
+
+  useEffect(() => {
+    const businessId = getBusinessId();
+    if (!businessId) { setLoading(false); return; }
+    fetch(`/api/xero/document-policies?databaseId=${encodeURIComponent(businessId)}`)
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to load document policy');
+        setPolicy(data.policy);
+        setSavedPolicy(data.policy);
+      })
+      .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Failed to load document policy'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const save = async () => {
+    if (validationError) return;
+    setSaving(true);
+    setError('');
+    try {
+      const response = await fetch('/api/xero/document-policies', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), policy }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Failed to save document policy');
+      setPolicy(data.policy);
+      setSavedPolicy(data.policy);
+    } catch (saveError) {
+      setPolicy(savedPolicy);
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save document policy');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const actionSelect = (
+    field: 'poApprovedAction' | 'poCompletedAction' | 'soApprovedAction' | 'soCompletedAction',
+    label: string,
+  ) => (
+    <label style={{ display: 'grid', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+      {label}
+      <select
+        value={policy[field]}
+        onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.value as XeroDocumentAction }))}
+        style={{ width: '100%', padding: '7px 9px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+      >
+        <option value="none">No sync</option>
+        <option value="draft">Draft</option>
+        <option value="authorised">Authorised</option>
+      </select>
+    </label>
+  );
+
+  const policyBlock = (type: 'po' | 'so') => {
+    const isPO = type === 'po';
+    const paymentField = isPO ? 'poPaymentSyncEnabled' : 'soPaymentSyncEnabled';
+    return (
+      <div style={{ padding: 14, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
+        <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+          {isPO ? 'Purchase orders' : 'Sales orders'}
+        </div>
+        <div style={{ marginBottom: 10, padding: '7px 9px', borderLeft: '3px solid var(--sv-text-dim)', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+          IMS Draft: local only, never sent to Xero.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+          {isPO
+            ? actionSelect('poApprovedAction', 'When PO is confirmed')
+            : actionSelect('soApprovedAction', 'When SO is confirmed')}
+          {isPO
+            ? actionSelect('poCompletedAction', 'When PO is completed')
+            : actionSelect('soCompletedAction', 'When SO is fulfilled')}
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 600 }}>
+          <input
+            type="checkbox"
+            checked={policy[paymentField]}
+            onChange={event => setPolicy(previous => ({ ...previous, [paymentField]: event.target.checked }))}
+          />
+          Sync {isPO ? 'PO' : 'SO'} payments to Xero
+        </label>
+        <p style={{ margin: '7px 0 0 24px', fontSize: 11, lineHeight: 1.45, color: policy[paymentField] ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>
+          {policy[paymentField]
+            ? `Xero requires an Authorised ${isPO ? 'bill' : 'invoice'}. Saving a mapped payment will create the document if needed and authorise a Draft before applying payment.`
+            : 'Payments remain in IMS only, even when the payment method has a Xero account mapping.'}
+        </p>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Document Status &amp; Payments</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+        Choose how PO bills and SO invoices progress in Xero. Existing Xero documents are never moved backwards or changed merely because a later status is set to No sync.
+      </p>
+      {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading document policy...</div> : (
+        <>
+          <div style={{ display: 'grid', gap: 12 }}>{policyBlock('po')}{policyBlock('so')}</div>
+          {(validationError || error) && (
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-red)' }}>{validationError || error}</div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || !!validationError}
+              style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: 'var(--sv-mint)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: saving || validationError ? 'not-allowed' : 'pointer', opacity: saving || validationError ? 0.55 : 1 }}
+            >
+              {saving ? 'Saving...' : 'Save document policy'}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
@@ -16207,6 +16345,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   return (
     <div style={{ maxWidth: 800 }}>
+      <XeroDocumentPolicySection getBusinessId={getBusinessId} />
       {/* Account mapping */}
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
