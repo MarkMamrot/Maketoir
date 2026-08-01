@@ -3,6 +3,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { ForesightDigestService } from '@/lib/foresight/ForesightDigestService';
 import { ForesightOutcomeService } from '@/lib/foresight/ForesightOutcomeService';
 import { ForesightMonitoringSyncService } from '@/lib/foresight/ForesightMonitoringSyncService';
+import { ForesightExperimentEvidenceCollectionService } from '@/lib/foresight/ForesightExperimentEvidenceCollectionService';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { query } from '@/services/MySQLService';
 
@@ -36,6 +37,9 @@ export async function POST(request: Request) {
     measuredCampaignOutcomes?: number;
     deferredCampaignOutcomes?: number;
     monitoringSyncState?: string;
+    measuredExperiments?: number;
+    inconclusiveExperiments?: number;
+    deferredExperiments?: number;
     error?: string;
   }> = [];
   for (const { business_id: businessId } of businesses) {
@@ -65,6 +69,12 @@ export async function POST(request: Request) {
           () => ForesightOutcomeService.evaluateDueCampaigns(businessId, throughDate),
         )
         : null;
+      const experiments = digestType === 'daily_operations'
+        ? await runImsForBusiness(
+          businessId,
+          () => ForesightExperimentEvidenceCollectionService.collectDue(businessId, throughDate),
+        )
+        : null;
       const digest = digestType === 'weekly_summary'
         ? await ForesightDigestService.generateWeekly(businessId, digestDate)
         : await ForesightDigestService.generateDaily(businessId, digestDate);
@@ -78,6 +88,9 @@ export async function POST(request: Request) {
         measuredCampaignOutcomes: campaignOutcomes?.measuredCount,
         deferredCampaignOutcomes: campaignOutcomes?.deferredCount,
         monitoringSyncState: monitoringSync?.skipped ? 'skipped' : monitoringSync?.state,
+        measuredExperiments: experiments?.measuredCount,
+        inconclusiveExperiments: experiments?.inconclusiveCount,
+        deferredExperiments: experiments?.deferredCount,
       });
     } catch (error) {
       results.push({ businessId, error: error instanceof Error ? error.message : 'Digest generation failed.' });

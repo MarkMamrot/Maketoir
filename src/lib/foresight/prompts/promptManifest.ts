@@ -10,7 +10,7 @@ const PROMPTS: Record<ForesightPromptId, { version: string; filename: string }> 
   'planner-dialogue': { version: 'planner-dialogue-v2', filename: 'planner-dialogue-v2.md' },
   'campaign-deliverables': { version: 'campaign-deliverables-v1', filename: 'campaign-deliverables-v1.md' },
   'campaign-learning': { version: 'campaign-learning-v1', filename: 'campaign-learning-v1.md' },
-  'campaign-experiment': { version: 'campaign-experiment-v1', filename: 'campaign-experiment-v1.md' },
+  'campaign-experiment': { version: 'campaign-experiment-v2', filename: 'campaign-experiment-v2.md' },
 };
 
 export interface LoadedForesightPrompt {

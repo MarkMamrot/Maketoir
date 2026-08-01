@@ -19,7 +19,7 @@ function addDays(value: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-async function fetchMetaDaily(accountId: string, accessToken: string, startDate: string, endDate: string, level: 'campaign' | 'adset') {
+export async function fetchMetaDaily(accountId: string, accessToken: string, startDate: string, endDate: string, level: 'campaign' | 'adset') {
   const id = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
   const url = new URL(`https://graph.facebook.com/${process.env.META_GRAPH_API_VERSION || 'v25.0'}/${id}/insights`);
   url.searchParams.set('level', level);

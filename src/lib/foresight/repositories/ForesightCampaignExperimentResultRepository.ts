@@ -18,12 +18,49 @@ export interface CampaignExperimentWorkflowRow {
   scheduled_end_on: string | null;
   conclusion: ExperimentResultAssessment['status'] | null;
 }
+export interface DueCampaignExperimentRow {
+  launch_id: number;
+  thread_id: number;
+  experiment_version_id: number;
+  experiment_hash: string;
+  launched_on: string;
+  scheduled_end_on: string;
+  channel: 'meta' | 'google_ads' | 'klaviyo';
+  control_external_id: string;
+  treatment_external_id: string;
+  experiment_json: ForesightCampaignExperimentDocument;
+}
 export class CampaignExperimentResultTransitionError extends Error {
   constructor(message: string) { super(message); this.name = 'CampaignExperimentResultTransitionError'; }
 }
 function json<T>(value: T | string): T { return typeof value === 'string' ? JSON.parse(value) as T : value; }
 
 export const ForesightCampaignExperimentResultRepository = {
+  async listDueWithoutResult(businessId: string, throughDate: string): Promise<DueCampaignExperimentRow[]> {
+    const rows = await query<DueCampaignExperimentRow & { experiment_json: ForesightCampaignExperimentDocument | string }>(
+      `SELECT launch.id AS launch_id, launch.thread_id, launch.experiment_version_id, launch.experiment_hash,
+              launch.launched_on, launch.scheduled_end_on, launch.channel, launch.control_external_id,
+              launch.treatment_external_id, experiment.experiment_json
+       FROM foresight_campaign_experiment_launches launch
+       INNER JOIN foresight_campaign_experiment_versions experiment
+         ON experiment.business_id = launch.business_id
+        AND experiment.id = launch.experiment_version_id
+        AND experiment.experiment_hash = launch.experiment_hash
+       INNER JOIN foresight_campaign_experiment_review_events review
+         ON review.business_id = experiment.business_id
+        AND review.experiment_version_id = experiment.id
+        AND review.experiment_hash = experiment.experiment_hash
+        AND review.id = (SELECT MAX(r.id) FROM foresight_campaign_experiment_review_events r
+                         WHERE r.business_id = experiment.business_id AND r.experiment_version_id = experiment.id)
+        AND review.action = 'accepted'
+       LEFT JOIN foresight_campaign_experiment_results result
+         ON result.business_id = launch.business_id AND result.launch_id = launch.id
+       WHERE launch.business_id = ? AND launch.scheduled_end_on <= ? AND result.id IS NULL
+       ORDER BY launch.scheduled_end_on, launch.id`,
+      [businessId, throughDate]);
+    return rows.map((row) => ({ ...row, experiment_json: json(row.experiment_json) }));
+  },
+
   async listWorkflowForRecommendations(businessId: string, recommendationIds: number[]): Promise<CampaignExperimentWorkflowRow[]> {
     if (recommendationIds.length === 0) return [];
     const placeholders = recommendationIds.map(() => '?').join(',');
