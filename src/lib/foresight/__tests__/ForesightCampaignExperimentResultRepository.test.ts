@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const { connection } = vi.hoisted(() => ({ connection: { beginTransaction: vi.fn(), execute: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn() } }));
-vi.mock('@/services/MySQLService', () => ({ query: vi.fn(), getPool: () => ({ getConnection: vi.fn().mockResolvedValue(connection) }) }));
+const { connection, mockQuery } = vi.hoisted(() => ({
+  connection: { beginTransaction: vi.fn(), execute: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn() },
+  mockQuery: vi.fn(),
+}));
+vi.mock('@/services/MySQLService', () => ({ query: mockQuery, getPool: () => ({ getConnection: vi.fn().mockResolvedValue(connection) }) }));
 import { ForesightCampaignExperimentResultRepository } from '../repositories/ForesightCampaignExperimentResultRepository';
 
 const hash = 'c'.repeat(64);
@@ -27,5 +30,20 @@ describe('ForesightCampaignExperimentResultRepository', () => {
     connection.execute.mockResolvedValueOnce([[{ launch_id: 66, launched_on: '2026-08-10', scheduled_end_on: '2026-08-16', experiment_version_id: 55, experiment_hash: hash, experiment_json: design, action: 'accepted' }]]).mockResolvedValueOnce([{ insertId: 78 }]);
     const result = await ForesightCampaignExperimentResultRepository.create('business-1', 12, { ...input, observations: { ...observations, treatment: { ...observations.treatment, sampleSize: 400 } } });
     expect(result.status).toBe('inconclusive'); expect(connection.commit).toHaveBeenCalledOnce();
+  });
+  it('lists only exact accepted-design results within the tenant and date range', async () => {
+    mockQuery.mockResolvedValue([{ id: 77, business_id: 'business-1', thread_id: 12, experiment_version_id: 55,
+      experiment_hash: hash, launch_id: 66, formula_version: 'foresight-experiment-evaluator-v1',
+      observation_json: JSON.stringify(observations), assessment_json: JSON.stringify({ status: 'treatment_won', qualityIssues: [] }),
+      status: 'treatment_won', primary_metric: 'conversion_rate', control_value: 0.05, treatment_value: 0.09,
+      p_value: 0.001, evaluated_by: 7, created_at: '2026-08-17', accepted_at: '2026-08-09' }]);
+
+    const rows = await ForesightCampaignExperimentResultRepository.listAccepted(
+      'business-1', { from: '2026-08-01', to: '2026-08-31', limit: 11 });
+
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("review.action = 'accepted'"),
+      ['business-1', '2026-08-01', '2026-08-31']);
+    expect(mockQuery.mock.calls[0][0]).toContain('experiment.experiment_hash = result.experiment_hash');
+    expect(rows[0]).toMatchObject({ id: 77, observation_json: observations, assessment_json: { status: 'treatment_won' } });
   });
 });

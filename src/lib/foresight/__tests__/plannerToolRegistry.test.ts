@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
+const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockListAcceptedExperimentConclusions, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
   mockBusinessGet: vi.fn(),
   mockBrandGet: vi.fn(),
   mockLatestStrategy: vi.fn(),
@@ -8,6 +8,7 @@ const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendatio
   mockGetRecommendation: vi.fn(),
   mockListLearningOutcomes: vi.fn(),
   mockListAcceptedLessons: vi.fn(),
+  mockListAcceptedExperimentConclusions: vi.fn(),
   mockGetDailyCommerce: vi.fn(),
   mockListBrandPerformance: vi.fn(),
   mockListProductPlanningRows: vi.fn(),
@@ -28,6 +29,9 @@ vi.mock('../repositories/ForesightCampaignActivationRepository', () => ({
 }));
 vi.mock('../repositories/ForesightCampaignLessonRepository', () => ({
   ForesightCampaignLessonRepository: { listAccepted: mockListAcceptedLessons },
+}));
+vi.mock('../repositories/ForesightCampaignExperimentResultRepository', () => ({
+  ForesightCampaignExperimentResultRepository: { listAccepted: mockListAcceptedExperimentConclusions },
 }));
 vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mockGetDailyCommerce },
@@ -327,7 +331,7 @@ describe('Foresight planner tool registry', () => {
       from: '2026-05-01', to: '2026-08-01', direction: 'improved', limit: 50,
     });
     expect(result).toMatchObject({
-      tool: 'list_campaign_outcomes', manifestVersion: 'foresight-planner-tools-v4', truncated: false,
+      tool: 'list_campaign_outcomes', manifestVersion: 'foresight-planner-tools-v5', truncated: false,
       facts: [{
         factId: 'foresight:campaign-outcome:93:activation:91', authority: 'authoritative',
         observedFrom: '2026-07-17', observedThrough: '2026-07-31',
@@ -356,10 +360,45 @@ describe('Foresight planner tool registry', () => {
       name: 'list_accepted_campaign_lessons', args: { from: '2026-08-01', to: '2026-08-31', limit: 10 } });
 
     expect(mockListAcceptedLessons).toHaveBeenCalledWith('business-1', { from: '2026-08-01', to: '2026-08-31', limit: 11 });
-    expect(result).toMatchObject({ tool: 'list_accepted_campaign_lessons', manifestVersion: 'foresight-planner-tools-v4',
+    expect(result).toMatchObject({ tool: 'list_accepted_campaign_lessons', manifestVersion: 'foresight-planner-tools-v5',
       facts: [{ factId: 'foresight:campaign-lesson:44:v1', authority: 'human', value: {
         outcomeId: 31, suggestedApplications: [{ executable: false }] } }] });
     expect(JSON.stringify(result)).toContain('does not authorize strategy');
+  });
+
+  it('returns exact accepted-design experiment conclusions as non-authorizing evidence', async () => {
+    mockListAcceptedExperimentConclusions.mockResolvedValue([{ id: 77, business_id: 'business-1', thread_id: 12,
+      experiment_version_id: 55, experiment_hash: 'c'.repeat(64), launch_id: 66,
+      formula_version: 'foresight-experiment-evaluator-v1', status: 'treatment_won', primary_metric: 'conversion_rate',
+      control_value: 0.05, treatment_value: 0.09, p_value: 0.0004, evaluated_by: 7, created_at: '2026-08-17', accepted_at: '2026-08-09',
+      observation_json: { source: 'verified_klaviyo_export', observedFrom: '2026-08-10', observedThrough: '2026-08-16', qualityIssues: [],
+        control: { sampleSize: 1000, conversions: 50, guardrailEvents: { unsubscribe_rate: 10 } },
+        treatment: { sampleSize: 1000, conversions: 90, guardrailEvents: { unsubscribe_rate: 11 } } },
+      assessment_json: { status: 'treatment_won', primaryMetric: 'conversion_rate', controlValue: 0.05, treatmentValue: 0.09,
+        absoluteDifference: 0.04, relativeLiftPercent: 80,
+        test: { method: 'two_proportion_z', statistic: 3.5, degreesOfFreedom: null, pValue: 0.0004, confidenceLevel: 0.95 },
+        sample: { control: 1000, treatment: 1000, minimumPerVariant: 500, sufficient: true }, qualityIssues: [],
+        guardrails: [{ metric: 'unsubscribe_rate', controlRate: 0.01, treatmentRate: 0.011, adverseChangePercent: 10,
+          maximumAdverseChangePercent: 20, passed: true }],
+        explanation: 'Treatment performed better under the predeclared test.' } }]);
+
+    const result = await executeForesightPlannerTool({ businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_experiment_conclusions', args: { from: '2026-08-01', to: '2026-08-31', status: 'treatment_won', limit: 10 } });
+
+    expect(mockListAcceptedExperimentConclusions).toHaveBeenCalledWith('business-1',
+      { from: '2026-08-01', to: '2026-08-31', limit: 26 });
+    expect(result).toMatchObject({ tool: 'list_experiment_conclusions', manifestVersion: 'foresight-planner-tools-v5',
+      facts: [{ factId: 'foresight:experiment-result:77:launch:66', authority: 'authoritative',
+        observedFrom: '2026-08-10', observedThrough: '2026-08-16', value: {
+          status: 'treatment_won', pValue: 0.0004, relativeLiftPercent: 80, confidenceLevel: 0.95 } }] });
+    expect(JSON.stringify(result)).toContain('does not authorize strategy');
+  });
+
+  it('rejects unsupported experiment conclusion statuses before repository access', async () => {
+    await expect(executeForesightPlannerTool({ businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_experiment_conclusions', args: { from: '2026-08-01', to: '2026-08-31', status: 'approved' } }))
+      .rejects.toThrow('Unsupported experiment conclusion status');
+    expect(mockListAcceptedExperimentConclusions).not.toHaveBeenCalled();
   });
 
   it('rejects unbounded or unsupported campaign outcome filters before repository access', async () => {

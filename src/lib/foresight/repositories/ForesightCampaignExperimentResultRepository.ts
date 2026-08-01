@@ -10,12 +10,36 @@ export interface CampaignExperimentResultRow {
   control_value: number | string | null; treatment_value: number | string | null; p_value: number | string | null;
   evaluated_by: number; created_at: string;
 }
+export interface AcceptedCampaignExperimentConclusionRow extends CampaignExperimentResultRow {
+  accepted_at: string;
+}
 export class CampaignExperimentResultTransitionError extends Error {
   constructor(message: string) { super(message); this.name = 'CampaignExperimentResultTransitionError'; }
 }
 function json<T>(value: T | string): T { return typeof value === 'string' ? JSON.parse(value) as T : value; }
 
 export const ForesightCampaignExperimentResultRepository = {
+  async listAccepted(businessId: string, input: { from: string; to: string; limit: number }): Promise<AcceptedCampaignExperimentConclusionRow[]> {
+    const rows = await query<AcceptedCampaignExperimentConclusionRow>(
+      `SELECT result.*, review.created_at AS accepted_at
+       FROM foresight_campaign_experiment_results result
+       INNER JOIN foresight_campaign_experiment_versions experiment
+         ON experiment.business_id = result.business_id
+        AND experiment.id = result.experiment_version_id
+        AND experiment.experiment_hash = result.experiment_hash
+       INNER JOIN foresight_campaign_experiment_review_events review
+         ON review.business_id = experiment.business_id
+        AND review.experiment_version_id = experiment.id
+        AND review.experiment_hash = experiment.experiment_hash
+        AND review.action = 'accepted'
+       WHERE result.business_id = ?
+         AND DATE(result.created_at) BETWEEN ? AND ?
+       ORDER BY result.created_at DESC, result.id DESC
+       LIMIT ${input.limit}`,
+      [businessId, input.from, input.to]);
+    return rows.map((row) => ({ ...row, observation_json: json(row.observation_json), assessment_json: json(row.assessment_json) }));
+  },
+
   async getForThread(businessId: string, threadId: number): Promise<CampaignExperimentResultRow | null> {
     const rows = await query<CampaignExperimentResultRow>(
       `SELECT result.* FROM foresight_campaign_experiment_results result

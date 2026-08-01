@@ -70,9 +70,10 @@ describe('ForesightPlannerDialogueService', () => {
     expect(planningPayload.currentDate).toBe('2026-08-01');
     expect(responsePayload.currentDate).toBe('2026-08-01');
     expect(planningPayload.availableTools).toContainEqual(expect.objectContaining({ name: 'get_brand_performance' }));
+    expect(planningPayload.availableTools).toContainEqual(expect.objectContaining({ name: 'list_experiment_conclusions' }));
     expect(mockAppendAssistant).toHaveBeenCalledWith('business-1', 12, 3, expect.objectContaining({
       modelId: 'gemini-2.5-flash', promptVersion: 'planner-dialogue-v2',
-      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v4' }),
+      message: expect.objectContaining({ citationFactIds: ['fact-stock-1'], toolManifestVersion: 'foresight-planner-tools-v5' }),
     }));
     expect(result).toMatchObject({ assistantMessageId: 31, threadRevision: 4, citationFactIds: ['fact-stock-1'] });
     vi.useRealTimers();

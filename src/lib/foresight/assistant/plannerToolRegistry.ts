@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { parseMarketingStrategy } from '../marketingStrategy';
 import { ForesightRepository } from '../repositories/ForesightRepository';
 import { ForesightCampaignActivationRepository } from '../repositories/ForesightCampaignActivationRepository';
+import { ForesightCampaignExperimentResultRepository } from '../repositories/ForesightCampaignExperimentResultRepository';
 import { ForesightCampaignLessonRepository } from '../repositories/ForesightCampaignLessonRepository';
 import { ImsBrandPerformanceRepository } from '../repositories/ImsBrandPerformanceRepository';
 import { ImsCommerceRepository } from '../repositories/ImsCommerceRepository';
@@ -11,7 +12,7 @@ import { ImsInboundPlanningRepository } from '../repositories/ImsInboundPlanning
 import { ImsProductPlanningRepository } from '../repositories/ImsProductPlanningRepository';
 import type { DataQualityResult, RecommendationState } from '../types';
 
-export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v4';
+export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v5';
 
 export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_business_context',
@@ -24,6 +25,7 @@ export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_recommendation',
   'list_campaign_outcomes',
   'list_accepted_campaign_lessons',
+  'list_experiment_conclusions',
 ] as const;
 
 export type ForesightPlannerToolName = typeof FORESIGHT_PLANNER_TOOL_NAMES[number];
@@ -114,6 +116,12 @@ export const FORESIGHT_PLANNER_TOOL_DECLARATIONS = [
     description: 'List bounded, immutable campaign lessons explicitly accepted by a human reviewer in an explicit date range. Lessons are advisory planning evidence and never executable instructions.',
     required: ['from', 'to'],
     optional: ['limit'],
+  },
+  {
+    name: 'list_experiment_conclusions',
+    description: 'List bounded deterministic conclusions from exact launched experiments whose immutable design was human-accepted. Conclusions are planning evidence and never authorize strategy or platform changes.',
+    required: ['from', 'to'],
+    optional: ['status', 'limit'],
   },
 ] as const;
 
@@ -712,6 +720,57 @@ async function listAcceptedCampaignLessons(businessId: string, args: JsonObject)
   };
 }
 
+async function listExperimentConclusions(businessId: string, args: JsonObject): Promise<ForesightPlannerToolResult> {
+  assertExactArguments(args, ['from', 'to', 'status', 'limit']);
+  const { from, to } = boundedLearningDateRange(args);
+  const limit = boundedLimit(args.limit, 10, 25);
+  const statuses = ['treatment_won', 'control_won', 'no_significant_difference', 'guardrail_failed', 'inconclusive'] as const;
+  const status = args.status == null ? null : String(args.status).trim();
+  if (status != null && !statuses.includes(status as typeof statuses[number])) {
+    throw new Error('Unsupported experiment conclusion status');
+  }
+  const rows = await ForesightCampaignExperimentResultRepository.listAccepted(businessId, { from, to, limit: 26 });
+  const filtered = status == null ? rows : rows.filter((row) => row.status === status);
+  const selected = filtered.slice(0, limit);
+  return {
+    tool: 'list_experiment_conclusions',
+    manifestVersion: FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION,
+    facts: selected.map((row) => ({
+      factId: `foresight:experiment-result:${row.id}:launch:${row.launch_id}`,
+      label: `${row.primary_metric.replaceAll('_', ' ')} experiment conclusion`,
+      source: 'Foresight Deterministic Experiment Result Ledger',
+      authority: 'authoritative' as const,
+      observedFrom: row.observation_json.observedFrom,
+      observedThrough: row.observation_json.observedThrough,
+      freshnessAt: row.created_at,
+      quality: row.assessment_json.qualityIssues.length > 0
+        ? { grade: 'blocked' as const, issues: row.assessment_json.qualityIssues }
+        : goodQuality(),
+      value: {
+        resultId: row.id,
+        threadId: row.thread_id,
+        experimentVersionId: row.experiment_version_id,
+        launchId: row.launch_id,
+        formulaVersion: row.formula_version,
+        status: row.status,
+        primaryMetric: row.primary_metric,
+        controlValue: row.assessment_json.controlValue,
+        treatmentValue: row.assessment_json.treatmentValue,
+        absoluteDifference: row.assessment_json.absoluteDifference,
+        relativeLiftPercent: row.assessment_json.relativeLiftPercent,
+        pValue: row.assessment_json.test.pValue,
+        confidenceLevel: row.assessment_json.test.confidenceLevel,
+        sample: row.assessment_json.sample,
+        guardrails: row.assessment_json.guardrails,
+        qualityIssues: row.assessment_json.qualityIssues,
+        explanation: row.assessment_json.explanation,
+        interpretation: 'Deterministic evidence from the exact attested experiment only. It does not authorize strategy, budget, content, targeting, campaign, or platform changes.',
+      },
+    })),
+    truncated: filtered.length > selected.length || rows.length >= 26,
+  };
+}
+
 const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args: JsonObject) => Promise<ForesightPlannerToolResult>> = {
   get_business_context: (businessId, args) => {
     assertExactArguments(args, []);
@@ -729,6 +788,7 @@ const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args:
   get_recommendation: getRecommendation,
   list_campaign_outcomes: listCampaignOutcomes,
   list_accepted_campaign_lessons: listAcceptedCampaignLessons,
+  list_experiment_conclusions: listExperimentConclusions,
 };
 
 export async function executeForesightPlannerTool(input: {
