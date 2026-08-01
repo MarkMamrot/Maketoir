@@ -5,6 +5,7 @@ import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, P
 import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
+import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -1648,14 +1649,13 @@ function MainPos({
     setScreen('pos');
   }
 
-  async function completeSale(payments: PaymentEntry[], changeDue = 0, cashRounding = 0) {
-    // Re-entrancy guard — prevents a double-fired handler (double-click / key event)
-    // from creating two sales. Each completeSale generates a fresh local_id, so the
-    // DB UNIQUE(local_id) constraint would NOT catch a double-invocation.
+  async function completeSale(payments: PaymentEntry[], changeDue = 0, cashRounding = 0, saleLocalId?: string) {
+    // The ref blocks overlapping UI handlers. Terminal sales also pass a stable
+    // transaction-derived local_id so later retries are covered by DB uniqueness.
     if (submittingRef.current) return;
     submittingRef.current = true;
     try {
-      const localId = newLocalId();
+      const localId = saleLocalId ?? newLocalId();
       const now = new Date().toISOString();
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
       const db_discount_total = discount_total + order_disc_amount;
@@ -3959,7 +3959,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   total:              number;
   methods:            string[];
   isLayby:            boolean;
-  onComplete:         (payments: PaymentEntry[], changeDue?: number, cashRounding?: number) => void;
+  onComplete:         (payments: PaymentEntry[], changeDue?: number, cashRounding?: number, saleLocalId?: string) => void;
   onCancel:           () => void;
   zellerEnabled?:     boolean;
   cardTerminalMethods?: string[];
@@ -4172,12 +4172,22 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
         setZellerError(`Payment ${t === 'Cancelled' ? 'cancelled at terminal' : 'failed'}: ${t} (sent $${(amountCents / 100).toFixed(2)})`);
         return;
       }
-      // result is ClientTransaction — transactionUuid is the authorisation ID
-      const txId = result.transactionUuid ?? ref;
+      const approved = getApprovedZellerPurchase(result);
+      if (!approved) {
+        const detail = result.responseText || result.status || 'Transaction declined';
+        setZellerError(`Payment declined: ${detail} (sent $${(amountCents / 100).toFixed(2)})`);
+        return;
+      }
+      const txId = approved.transactionUuid;
       const newPayment: PaymentEntry = { localId: newLocalId(), method: activeMethod, amount: remaining, reference: txId };
       const newPayments = [...payments, newPayment];
       const rounding = isCashMethod ? cashRoundAdj : 0;
-      onComplete(isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments, 0, rounding !== 0 ? rounding : undefined);
+      onComplete(
+        isRefund ? newPayments.map(p => ({ ...p, amount: -p.amount })) : newPayments,
+        0,
+        rounding !== 0 ? rounding : undefined,
+        `zeller:${txId}`,
+      );
     } catch (e: any) {
       setZellerError(`Terminal error: ${e?.type ?? e?.message ?? 'Unknown error'}`);
     } finally {
