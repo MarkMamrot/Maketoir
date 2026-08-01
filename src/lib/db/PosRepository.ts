@@ -508,7 +508,7 @@ export const PosSalesRepo = {
         );
       }
       await stockConn.execute(
-        `UPDATE pos_sales SET status = 'voided', updated_at = NOW() WHERE id = ?`,
+        `UPDATE pos_sales SET status = 'voided' WHERE id = ?`,
         [id],
       );
       await stockConn.commit();
