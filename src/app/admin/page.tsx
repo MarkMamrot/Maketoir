@@ -613,10 +613,18 @@ export default function AdminPage() {
   useEffect(() => {
     if (!checked) return;
     fetch('/api/admin/runtime-issues?limit=1')
-      .then(response => response.json())
-      .then(data => setOpenIssueCount((data.summary ?? [])
-        .filter((row: any) => row.status !== 'fixed')
-        .reduce((total: number, row: any) => total + Number(row.count ?? 0), 0)))
+      .then(async response => {
+        if (!response.ok) return null;
+        const text = await response.text();
+        if (!text) return null;
+        try { return JSON.parse(text); } catch { return null; }
+      })
+      .then(data => {
+        if (!data) return;
+        setOpenIssueCount((data.summary ?? [])
+          .filter((row: any) => row.status !== 'fixed')
+          .reduce((total: number, row: any) => total + Number(row.count ?? 0), 0));
+      })
       .catch(() => {});
   }, [checked, view]);
 

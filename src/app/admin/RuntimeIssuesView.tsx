@@ -59,6 +59,12 @@ function formatContext(value: unknown): string | null {
   }
 }
 
+async function responseJson(response: Response): Promise<any> {
+  const text = await response.text();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 export default function RuntimeIssuesView() {
   const [issues, setIssues] = useState<RuntimeIssue[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
@@ -71,34 +77,43 @@ export default function RuntimeIssuesView() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<{ issue: IssueDetail; events: IssueEvent[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     const params = new URLSearchParams({ limit: '200' });
     if (status) params.set('status', status);
     if (severity) params.set('severity', severity);
     if (source) params.set('source', source);
     if (businessId) params.set('businessId', businessId);
     if (search.trim()) params.set('search', search.trim());
-    const response = await fetch(`/api/admin/runtime-issues?${params}`);
-    const data = await response.json();
-    if (response.ok) {
+    try {
+      const response = await fetch(`/api/admin/runtime-issues?${params}`);
+      const data = await responseJson(response);
+      if (!response.ok || !data) {
+        setLoadError(data?.error ?? 'Runtime issues could not be loaded.');
+        return;
+      }
       setIssues(data.issues ?? []);
       setSummary(Object.fromEntries((data.summary ?? []).map((row: any) => [row.status, Number(row.count)])));
       setBusinesses(data.businesses ?? []);
       setSources((data.sources ?? []).map((row: any) => row.source));
+    } catch {
+      setLoadError('Runtime issues could not be loaded.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [businessId, search, severity, source, status]);
 
   useEffect(() => { void load(); }, [load]);
 
   const openIssue = async (id: number) => {
     const response = await fetch(`/api/admin/runtime-issues/${id}`);
-    const data = await response.json();
-    if (response.ok) {
+    const data = await responseJson(response);
+    if (response.ok && data) {
       setSelected({ issue: data.issue, events: data.events ?? [] });
       setNotes(data.issue.resolution_notes ?? '');
     }
@@ -157,7 +172,7 @@ export default function RuntimeIssuesView() {
         <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', padding: '9px 12px', background: '#334155', color: '#94a3b8', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>
           <span>Severity</span><span>Organisation</span><span>Source</span><span>Issue</span><span>Count</span><span>Last seen</span>
         </div>
-        {loading ? <p style={{ padding: 24, color: '#94a3b8' }}>Loading…</p> : issues.length === 0 ? <p style={{ padding: 24, color: '#94a3b8' }}>No matching runtime issues.</p> : issues.map(issue => (
+        {loading ? <p style={{ padding: 24, color: '#94a3b8' }}>Loading…</p> : loadError ? <p style={{ padding: 24, color: '#fca5a5' }}>{loadError}</p> : issues.length === 0 ? <p style={{ padding: 24, color: '#94a3b8' }}>No matching runtime issues.</p> : issues.map(issue => (
           <button key={issue.id} onClick={() => void openIssue(issue.id)} style={{ width: '100%', display: 'grid', gridTemplateColumns: '110px minmax(140px,1fr) 150px minmax(240px,2fr) 90px 150px', alignItems: 'center', padding: '11px 12px', border: 0, borderTop: '1px solid rgba(255,255,255,.07)', background: 'transparent', color: '#e2e8f0', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
             <span style={{ color: severityColor(issue.severity), fontWeight: 800, textTransform: 'uppercase', fontSize: 10 }}>{issue.severity}</span>
             <span>{issue.business_name}</span>

@@ -73,6 +73,37 @@ try {
       await connection.query(`ALTER TABLE runtime_issues ADD COLUMN ${columnName} ${definition}`);
     }
   }
+
+  const [businessIdColumns] = await connection.query(
+    `SELECT CHARACTER_SET_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'businesses'
+        AND COLUMN_NAME = 'business_id'
+      LIMIT 1`,
+  );
+  const businessIdColumn = businessIdColumns[0];
+  if (businessIdColumn?.CHARACTER_SET_NAME && businessIdColumn?.COLLATION_NAME) {
+    const [runtimeIssueColumns] = await connection.query(
+      `SELECT CHARACTER_SET_NAME, COLLATION_NAME
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'runtime_issues'
+          AND COLUMN_NAME = 'business_id'
+        LIMIT 1`,
+    );
+    const runtimeIssueColumn = runtimeIssueColumns[0];
+    if (
+      runtimeIssueColumn?.CHARACTER_SET_NAME !== businessIdColumn.CHARACTER_SET_NAME
+      || runtimeIssueColumn?.COLLATION_NAME !== businessIdColumn.COLLATION_NAME
+    ) {
+      const charset = String(businessIdColumn.CHARACTER_SET_NAME).replace(/[^a-zA-Z0-9_]/g, '');
+      const collation = String(businessIdColumn.COLLATION_NAME).replace(/[^a-zA-Z0-9_]/g, '');
+      await connection.query(
+        `ALTER TABLE runtime_issues MODIFY COLUMN business_id VARCHAR(100) CHARACTER SET ${charset} COLLATE ${collation} NULL`,
+      );
+    }
+  }
   console.log(`Runtime issue tables are ready in ${process.env.MYSQL_DATABASE}.`);
 } finally {
   await connection.end();
