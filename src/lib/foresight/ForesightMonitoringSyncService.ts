@@ -1,6 +1,9 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
+import { MetaAdsReadService } from '@/services/MetaAdsReadService';
+import { normalizeGoogleCreativeObservations, normalizeMetaCreativeObservations } from './creative/creativeObservations';
 import {
   aggregateGoogleAdsDaily,
   aggregateGoogleAdsEntities,
@@ -8,6 +11,7 @@ import {
   aggregateMetaAdsEntities,
 } from './metrics/marketingObservations';
 import { ForesightIngestionRepository } from './repositories/ForesightIngestionRepository';
+import { ForesightCreativeRepository } from './repositories/ForesightCreativeRepository';
 import { ForesightRepository } from './repositories/ForesightRepository';
 import { ImsCommerceRepository } from './repositories/ImsCommerceRepository';
 
@@ -67,8 +71,8 @@ export const ForesightMonitoringSyncService = {
 
     if (requestedSources.includes('google_ads')) {
       const accountId = connection!.google_ads_customer_id!.replace(/-/g, '');
+      const service = new GoogleAdsService(accountId, decrypt(connection!.google_ads_refresh_token!));
       try {
-        const service = new GoogleAdsService(accountId, decrypt(connection!.google_ads_refresh_token!));
         const raw = await service.getDailyPerformance(startDate, throughDate);
         const rows = Array.isArray(raw) ? raw : [];
         const daily = aggregateGoogleAdsDaily(rows, accountId);
@@ -79,12 +83,29 @@ export const ForesightMonitoringSyncService = {
       } catch (error) {
         await record({ source: 'google_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Google Ads monitoring sync failed.' }, accountId, 'GAds_DailyPerformance', 'Daily Performance');
       }
+      try {
+        const [adRows, assetRows] = await Promise.all([
+          service.getAds(startDate, throughDate),
+          service.getAssetPerformance(startDate, throughDate),
+        ]);
+        const creatives = normalizeGoogleCreativeObservations({
+          accountId, rows: Array.isArray(adRows) ? adRows : [], assetRows: Array.isArray(assetRows) ? assetRows : [],
+          windowStart: startDate, windowEnd: throughDate,
+        });
+        await ForesightCreativeRepository.ingest(runId, businessId, creatives);
+        await record({ source: 'google_ads', state: 'succeeded', rows: creatives.length }, accountId, 'GAds_Creatives', 'Creative History');
+      } catch (error) {
+        await reportRuntimeIssue({ businessId, source: 'ForesightMonitoringSyncService', operation: 'ingest_google_creatives',
+          title: 'Google Ads creative history ingestion failed', error, context: { accountId, startDate, throughDate },
+          reference: { type: 'foresight_sync_run', id: runId } });
+        await record({ source: 'google_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Google Ads creative sync failed.' }, accountId, 'GAds_Creatives', 'Creative History');
+      }
     }
 
     if (requestedSources.includes('meta_ads')) {
       const accountId = connection!.meta_ad_account_id!;
+      const accessToken = decrypt(connection!.meta_access_token!);
       try {
-        const accessToken = decrypt(connection!.meta_access_token!);
         const [campaignRows, adSetRows] = await Promise.all([
           fetchMetaDaily(accountId, accessToken, startDate, throughDate, 'campaign'),
           fetchMetaDaily(accountId, accessToken, startDate, throughDate, 'adset'),
@@ -99,6 +120,18 @@ export const ForesightMonitoringSyncService = {
         await record({ source: 'meta_ads', state: 'succeeded', rows: daily.length }, accountId, 'Meta_DailyPerformance', 'Daily Performance');
       } catch (error) {
         await record({ source: 'meta_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Meta monitoring sync failed.' }, accountId, 'Meta_DailyPerformance', 'Daily Performance');
+      }
+      try {
+        const service = new MetaAdsReadService(accessToken, accountId);
+        const rows = await service.getCreativePerformance(startDate, throughDate);
+        const creatives = normalizeMetaCreativeObservations({ accountId, rows, windowStart: startDate, windowEnd: throughDate });
+        await ForesightCreativeRepository.ingest(runId, businessId, creatives);
+        await record({ source: 'meta_ads', state: 'succeeded', rows: creatives.length }, accountId, 'Meta_Creatives', 'Creative History');
+      } catch (error) {
+        await reportRuntimeIssue({ businessId, source: 'ForesightMonitoringSyncService', operation: 'ingest_meta_creatives',
+          title: 'Meta creative history ingestion failed', error, context: { accountId, startDate, throughDate },
+          reference: { type: 'foresight_sync_run', id: runId } });
+        await record({ source: 'meta_ads', state: 'failed', rows: 0, error: error instanceof Error ? error.message : 'Meta creative sync failed.' }, accountId, 'Meta_Creatives', 'Creative History');
       }
     }
 

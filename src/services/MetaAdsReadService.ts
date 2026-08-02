@@ -12,6 +12,8 @@ interface MetaReadable {
   update(fields: string[], params: Record<string, unknown>): Promise<unknown>;
   delete?(fields: string[], params?: Record<string, unknown>): Promise<unknown>;
   getCampaigns?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  getAds?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  getInsights?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
   getCells?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
   getAdStudies?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
   createAdStudy?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
@@ -76,6 +78,11 @@ export interface MetaSplitTestSnapshot {
   endTime: string;
   canceledTime: string | null;
   cells: Array<{ cellId: string; name: string; allocationPercent: number; campaignIds: string[] }>;
+}
+
+export interface MetaCreativePerformanceRow extends Record<string, unknown> {
+  ad_id: string;
+  creative_id: string;
 }
 
 function plainData(value: unknown): Record<string, unknown> {
@@ -182,6 +189,47 @@ export class MetaAdsReadService {
         effectiveStatus: text(record.effective_status),
       };
     }));
+  }
+
+  async getCreativePerformance(startDate: string, endDate: string): Promise<MetaCreativePerformanceRow[]> {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate) || startDate > endDate) {
+      throw new Error('Meta creative performance requires a valid increasing date range.');
+    }
+    const account = new this.sdk.AdAccount(this.accountId, {}, undefined, this.api);
+    if (typeof account.getAds !== 'function' || typeof account.getInsights !== 'function') {
+      throw new Error('Meta creative performance reads are unavailable.');
+    }
+    const adsResponse = await account.getAds([
+      'id', 'name', 'campaign_id', 'adset_id', 'configured_status', 'effective_status',
+      'creative{id,name,body,title,object_story_id,image_hash,video_id,call_to_action_type}',
+    ], { limit: 500 });
+    const metadata = new Map((Array.isArray(adsResponse) ? adsResponse : []).map((value) => {
+      const ad = plainData(value);
+      return [text(ad.id), ad] as const;
+    }).filter(([id]) => id));
+    const insightsResponse = await account.getInsights([
+      'campaign_id', 'campaign_name', 'adset_id', 'adset_name', 'ad_id', 'ad_name',
+      'spend', 'impressions', 'clicks', 'reach', 'frequency', 'actions', 'action_values',
+      'video_thruplay_watched_actions', 'account_currency', 'date_start', 'date_stop',
+    ], {
+      level: 'ad', time_range: { since: startDate, until: endDate }, time_increment: 1, limit: 500,
+    });
+    return (Array.isArray(insightsResponse) ? insightsResponse : []).map((value) => {
+      const insight = plainData(value);
+      const ad = metadata.get(text(insight.ad_id)) ?? {};
+      const creative = plainData(ad.creative);
+      return {
+        ...insight,
+        creative_id: text(creative.id),
+        creative_format: text(creative.call_to_action_type),
+        body: text(creative.body),
+        title: text(creative.title),
+        object_story_id: text(creative.object_story_id),
+        image_hash: text(creative.image_hash),
+        video_id: text(creative.video_id),
+        effective_status: text(ad.effective_status),
+      };
+    }).filter((row) => text(row.ad_id));
   }
 
   async updateCampaignStatuses(changes: MetaCampaignStatusUpdate[]): Promise<unknown[]> {

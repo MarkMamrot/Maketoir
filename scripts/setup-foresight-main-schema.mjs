@@ -43,6 +43,9 @@ const tableNames = [
   'foresight_sync_tabs',
   'foresight_marketing_observations',
   'foresight_marketing_entity_observations',
+  'foresight_creatives',
+  'foresight_creative_entity_links',
+  'foresight_creative_daily_metrics',
   'foresight_commerce_observations',
 ];
 

@@ -171,7 +171,8 @@ export class GoogleAdsService {
   async getAds(startDate: string, endDate: string) {
     return this.getCustomer().query(`
       SELECT
-        campaign.name, ad_group.name,
+        segments.date, customer.currency_code,
+        campaign.id, campaign.name, ad_group.id, ad_group.name,
         ad_group_ad.ad.id, ad_group_ad.ad.type, ad_group_ad.status,
         ad_group_ad.ad.final_urls,
         ad_group_ad.ad.responsive_search_ad.headlines,
@@ -190,7 +191,8 @@ export class GoogleAdsService {
   async getAssetPerformance(startDate: string, endDate: string) {
     return this.getCustomer().query(`
       SELECT
-        campaign.name, ad_group.name,
+        segments.date, customer.currency_code,
+        campaign.id, campaign.name, ad_group.id, ad_group.name,
         ad_group_ad.ad.id,
         asset.id, asset.name, asset.type,
         asset.text_asset.text,

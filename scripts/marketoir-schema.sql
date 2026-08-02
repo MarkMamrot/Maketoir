@@ -987,6 +987,67 @@ CREATE TABLE IF NOT EXISTS foresight_marketing_entity_observations (
   INDEX idx_foresight_marketing_entity_run (run_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_creatives (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  source                VARCHAR(32) NOT NULL,
+  account_id            VARCHAR(255) NOT NULL,
+  external_id           VARCHAR(255) NOT NULL,
+  creative_kind         VARCHAR(32) NOT NULL,
+  name                  VARCHAR(500) NOT NULL,
+  format                VARCHAR(100),
+  status                VARCHAR(64),
+  copy_json             JSON,
+  media_json            JSON,
+  first_seen_on         DATE NOT NULL,
+  last_seen_on          DATE NOT NULL,
+  ended_on              DATE,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_creative_identity (business_id, source, account_id, creative_kind, external_id),
+  INDEX idx_foresight_creative_seen (business_id, last_seen_on, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_creative_entity_links (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  creative_id           BIGINT NOT NULL,
+  source                VARCHAR(32) NOT NULL,
+  account_id            VARCHAR(255) NOT NULL,
+  entity_type           VARCHAR(32) NOT NULL,
+  entity_id             VARCHAR(255) NOT NULL,
+  entity_name           VARCHAR(500),
+  first_seen_on         DATE NOT NULL,
+  last_seen_on          DATE NOT NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_creative_entity_link (business_id, creative_id, entity_type, entity_id),
+  INDEX idx_foresight_creative_entity (business_id, source, account_id, entity_type, entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS foresight_creative_daily_metrics (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  run_id                BIGINT NOT NULL,
+  business_id           VARCHAR(100) NOT NULL,
+  creative_id           BIGINT NOT NULL,
+  source                VARCHAR(32) NOT NULL,
+  account_id            VARCHAR(255) NOT NULL,
+  metric_date           DATE NOT NULL,
+  impressions           BIGINT NOT NULL DEFAULT 0,
+  spend                 DECIMAL(16,4) NOT NULL DEFAULT 0,
+  clicks                BIGINT NOT NULL DEFAULT 0,
+  conversions           DECIMAL(16,4) NOT NULL DEFAULT 0,
+  attributed_revenue    DECIMAL(16,4) NOT NULL DEFAULT 0,
+  reach                 BIGINT,
+  frequency             DECIMAL(12,6),
+  video_views            BIGINT,
+  currency_code         VARCHAR(10),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_creative_daily (run_id, business_id, creative_id, metric_date),
+  INDEX idx_foresight_creative_daily_latest (business_id, source, account_id, creative_id, metric_date, run_id),
+  INDEX idx_foresight_creative_daily_retention (business_id, metric_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_commerce_observations (
   id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
   run_id                  BIGINT NOT NULL,

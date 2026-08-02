@@ -4,6 +4,9 @@ const mocks = vi.hoisted(() => ({
   hasActive: vi.fn(),
   getConnection: vi.fn(),
   getDailyPerformance: vi.fn(),
+  getAds: vi.fn(),
+  getAssetPerformance: vi.fn(),
+  ingestCreatives: vi.fn(),
   startRun: vi.fn(),
   recordTab: vi.fn(),
   appendDaily: vi.fn(),
@@ -23,7 +26,14 @@ vi.mock('@/lib/encryption', () => ({ decrypt: (value: string) => value }));
 vi.mock('@/services/GoogleAdsService', () => ({
   GoogleAdsService: class {
     getDailyPerformance = mocks.getDailyPerformance;
+    getAds = mocks.getAds;
+    getAssetPerformance = mocks.getAssetPerformance;
   },
+}));
+vi.mock('@/services/MetaAdsReadService', () => ({ MetaAdsReadService: class {} }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
+vi.mock('../repositories/ForesightCreativeRepository', () => ({
+  ForesightCreativeRepository: { ingest: mocks.ingestCreatives },
 }));
 vi.mock('../repositories/ForesightIngestionRepository', () => ({
   ForesightIngestionRepository: {
@@ -56,6 +66,9 @@ describe('ForesightMonitoringSyncService', () => {
     mocks.appendDaily.mockResolvedValue(undefined);
     mocks.appendEntities.mockResolvedValue(undefined);
     mocks.appendCommerce.mockResolvedValue(undefined);
+    mocks.getAds.mockResolvedValue([]);
+    mocks.getAssetPerformance.mockResolvedValue([]);
+    mocks.ingestCreatives.mockResolvedValue(0);
     mocks.completeRun.mockResolvedValue(undefined);
     mocks.getCommerce.mockResolvedValue([]);
   });
@@ -92,7 +105,8 @@ describe('ForesightMonitoringSyncService', () => {
       entityId: '123', entityName: 'PMax', spend: 88,
     })]);
     expect(mocks.getCommerce).toHaveBeenCalledWith('business-1', '2026-07-19', '2026-08-01');
-    expect(mocks.completeRun).toHaveBeenCalledWith(91, 'business-1', 'succeeded', 2, 0, null);
+    expect(mocks.ingestCreatives).toHaveBeenCalledWith(91, 'business-1', []);
+    expect(mocks.completeRun).toHaveBeenCalledWith(91, 'business-1', 'succeeded', 3, 0, null);
     expect(result).toMatchObject({ skipped: false, runId: 91, state: 'succeeded' });
   });
 });
