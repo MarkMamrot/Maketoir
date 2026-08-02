@@ -42,6 +42,7 @@ async function planningContext(businessId: string, id: number) {
   const latestExperimentReview = thread ? await ForesightCampaignExperimentRepository.latestReview(businessId, thread.id) : null;
   const experimentLaunch = thread ? await ForesightCampaignExperimentLaunchRepository.getForThread(businessId, thread.id) : null;
   const experimentResult = thread ? await ForesightCampaignExperimentResultRepository.getForThread(businessId, thread.id) : null;
+  const experimentResultReview = thread ? await ForesightCampaignExperimentResultRepository.latestReview(businessId, thread.id) : null;
   return {
     recommendation,
     thread,
@@ -100,7 +101,14 @@ async function planningContext(businessId: string, id: number) {
                                           result: experimentResult?.launch_id === experimentLaunch.id
                                             && experimentResult.experiment_version_id === latestExperiment.id
                                             && experimentResult.experiment_hash === latestExperiment.experiment_hash
-                                            ? experimentResult : null,
+                                            ? {
+                                                ...experimentResult,
+                                                review: experimentResultReview?.result_id === experimentResult.id
+                                                  && experimentResultReview.experiment_version_id === experimentResult.experiment_version_id
+                                                  && experimentResultReview.experiment_hash === experimentResult.experiment_hash
+                                                  && experimentResultReview.launch_id === experimentResult.launch_id
+                                                  ? experimentResultReview : null,
+                                              } : null,
                                         }
                                       : null,
                                   }

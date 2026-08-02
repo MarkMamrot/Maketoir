@@ -1,7 +1,7 @@
 export const PAID_MEDIA_OUTCOME_HORIZON_DAYS = 7;
 
 export type RecommendationFollowupStatus = 'monitoring' | 'outcome_due' | 'measured';
-export type ExperimentWorkflowStatus = 'awaiting_launch' | 'running' | 'evidence_due' | 'concluded';
+export type ExperimentWorkflowStatus = 'awaiting_launch' | 'running' | 'evidence_due' | 'conclusion_review_due' | 'concluded' | 'conclusion_rejected';
 
 export interface MarketingOperationalStatus {
   recommendationId: number;
@@ -29,7 +29,7 @@ export function buildMarketingOperationalStatus(input: {
   businessToday: string;
   completionDate?: string | null;
   hasOutcome: boolean;
-  experiment?: { scheduledEndOn: string | null; conclusion: string | null } | null;
+  experiment?: { scheduledEndOn: string | null; conclusion: string | null; conclusionReview: 'acknowledged' | 'rejected' | null } | null;
 }): MarketingOperationalStatus {
   let followup: MarketingOperationalStatus['followup'] = null;
   if (input.hasOutcome) {
@@ -49,7 +49,11 @@ export function buildMarketingOperationalStatus(input: {
   let experiment: MarketingOperationalStatus['experiment'] = null;
   if (input.experiment) {
     const status: ExperimentWorkflowStatus = input.experiment.conclusion
-      ? 'concluded'
+      ? input.experiment.conclusionReview === 'acknowledged'
+        ? 'concluded'
+        : input.experiment.conclusionReview === 'rejected'
+          ? 'conclusion_rejected'
+          : 'conclusion_review_due'
       : input.experiment.scheduledEndOn == null
         ? 'awaiting_launch'
         : input.businessToday >= input.experiment.scheduledEndOn

@@ -69,7 +69,7 @@ export async function GET() {
       businessToday,
       completionDate,
       hasOutcome: outcomes.some((item) => item.recommendation_id === recommendation.id),
-      experiment: workflow ? { scheduledEndOn: workflow.scheduled_end_on, conclusion: workflow.conclusion } : null,
+      experiment: workflow ? { scheduledEndOn: workflow.scheduled_end_on, conclusion: workflow.conclusion, conclusionReview: workflow.conclusion_review } : null,
     });
   });
   return NextResponse.json({

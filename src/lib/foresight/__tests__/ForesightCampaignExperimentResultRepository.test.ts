@@ -31,27 +31,47 @@ describe('ForesightCampaignExperimentResultRepository', () => {
     const result = await ForesightCampaignExperimentResultRepository.create('business-1', 12, { ...input, observations: { ...observations, treatment: { ...observations.treatment, sampleSize: 400 } } });
     expect(result.status).toBe('inconclusive'); expect(connection.commit).toHaveBeenCalledOnce();
   });
-  it('lists only exact accepted-design results within the tenant and date range', async () => {
+  it('lists only exact human-acknowledged results within the tenant and date range', async () => {
     mockQuery.mockResolvedValue([{ id: 77, business_id: 'business-1', thread_id: 12, experiment_version_id: 55,
       experiment_hash: hash, launch_id: 66, formula_version: 'foresight-experiment-evaluator-v1',
       observation_json: JSON.stringify(observations), assessment_json: JSON.stringify({ status: 'treatment_won', qualityIssues: [] }),
       status: 'treatment_won', primary_metric: 'conversion_rate', control_value: 0.05, treatment_value: 0.09,
-      p_value: 0.001, evaluated_by: 7, created_at: '2026-08-17', accepted_at: '2026-08-09' }]);
+      p_value: 0.001, evaluated_by: 7, created_at: '2026-08-17', acknowledged_at: '2026-08-18' }]);
 
-    const rows = await ForesightCampaignExperimentResultRepository.listAccepted(
+    const rows = await ForesightCampaignExperimentResultRepository.listAcknowledged(
       'business-1', { from: '2026-08-01', to: '2026-08-31', limit: 11 });
 
-    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("review.action = 'accepted'"),
+    expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("result_review.action = 'acknowledged'"),
       ['business-1', '2026-08-01', '2026-08-31']);
     expect(mockQuery.mock.calls[0][0]).toContain('experiment.experiment_hash = result.experiment_hash');
     expect(rows[0]).toMatchObject({ id: 77, observation_json: observations, assessment_json: { status: 'treatment_won' } });
   });
+  it('appends a review only for the exact latest automated result', async () => {
+    connection.execute.mockResolvedValueOnce([[{ id: 77, experiment_version_id: 55, experiment_hash: hash, launch_id: 66 }]])
+      .mockResolvedValueOnce([{ insertId: 88 }]);
+    const reviewId = await ForesightCampaignExperimentResultRepository.review('business-1', 12, {
+      resultId: 77, experimentVersionId: 55, experimentHash: hash, launchId: 66,
+      action: 'acknowledged', actorId: 7,
+    });
+    expect(reviewId).toBe(88);
+    expect(connection.execute).toHaveBeenLastCalledWith(expect.stringContaining('result_review_events'),
+      ['business-1', 12, 77, 55, hash, 66, 'acknowledged', 7, null]);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+  it('requires a note when rejecting an automated conclusion', async () => {
+    await expect(ForesightCampaignExperimentResultRepository.review('business-1', 12, {
+      resultId: 77, experimentVersionId: 55, experimentHash: hash, launchId: 66,
+      action: 'rejected', actorId: 7,
+    })).rejects.toThrow('note is required');
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+  });
   it('lists experiment workflow only through exact accepted hashes and recommendation links', async () => {
-    mockQuery.mockResolvedValue([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null }]);
+    mockQuery.mockResolvedValue([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null, conclusion_review: null }]);
     const rows = await ForesightCampaignExperimentResultRepository.listWorkflowForRecommendations('business-1', [20, 21]);
     expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining("link.link_type = 'recommendation'"), ['business-1', '20', '21']);
     expect(mockQuery.mock.calls[0][0]).toContain('review.experiment_hash = experiment.experiment_hash');
     expect(mockQuery.mock.calls[0][0]).toContain('result.experiment_hash = experiment.experiment_hash');
-    expect(rows).toEqual([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null }]);
+    expect(mockQuery.mock.calls[0][0]).toContain('result_review.action AS conclusion_review');
+    expect(rows).toEqual([{ recommendation_id: 20, scheduled_end_on: '2026-08-16', conclusion: null, conclusion_review: null }]);
   });
 });

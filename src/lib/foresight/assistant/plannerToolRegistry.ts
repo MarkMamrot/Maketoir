@@ -729,7 +729,7 @@ async function listExperimentConclusions(businessId: string, args: JsonObject): 
   if (status != null && !statuses.includes(status as typeof statuses[number])) {
     throw new Error('Unsupported experiment conclusion status');
   }
-  const rows = await ForesightCampaignExperimentResultRepository.listAccepted(businessId, { from, to, limit: 26 });
+  const rows = await ForesightCampaignExperimentResultRepository.listAcknowledged(businessId, { from, to, limit: 26 });
   const filtered = status == null ? rows : rows.filter((row) => row.status === status);
   const selected = filtered.slice(0, limit);
   return {
@@ -739,7 +739,7 @@ async function listExperimentConclusions(businessId: string, args: JsonObject): 
       factId: `foresight:experiment-result:${row.id}:launch:${row.launch_id}`,
       label: `${row.primary_metric.replaceAll('_', ' ')} experiment conclusion`,
       source: 'Foresight Deterministic Experiment Result Ledger',
-      authority: 'authoritative' as const,
+      authority: 'human' as const,
       observedFrom: row.observation_json.observedFrom,
       observedThrough: row.observation_json.observedThrough,
       freshnessAt: row.created_at,

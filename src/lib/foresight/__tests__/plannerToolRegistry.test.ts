@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockListAcceptedExperimentConclusions, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
   mockBusinessGet: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('../repositories/ForesightCampaignLessonRepository', () => ({
   ForesightCampaignLessonRepository: { listAccepted: mockListAcceptedLessons },
 }));
 vi.mock('../repositories/ForesightCampaignExperimentResultRepository', () => ({
-  ForesightCampaignExperimentResultRepository: { listAccepted: mockListAcceptedExperimentConclusions },
+  ForesightCampaignExperimentResultRepository: { listAcknowledged: mockListAcceptedExperimentConclusions },
 }));
 vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mockGetDailyCommerce },
@@ -77,7 +77,12 @@ const recommendation = {
 };
 
 describe('Foresight planner tool registry', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-01T12:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
 
   it('fails closed for unknown, disabled, and unexpected arguments', async () => {
     await expect(executeForesightPlannerTool({
@@ -366,11 +371,11 @@ describe('Foresight planner tool registry', () => {
     expect(JSON.stringify(result)).toContain('does not authorize strategy');
   });
 
-  it('returns exact accepted-design experiment conclusions as non-authorizing evidence', async () => {
+  it('returns exact human-acknowledged experiment conclusions as non-authorizing evidence', async () => {
     mockListAcceptedExperimentConclusions.mockResolvedValue([{ id: 77, business_id: 'business-1', thread_id: 12,
       experiment_version_id: 55, experiment_hash: 'c'.repeat(64), launch_id: 66,
       formula_version: 'foresight-experiment-evaluator-v1', status: 'treatment_won', primary_metric: 'conversion_rate',
-      control_value: 0.05, treatment_value: 0.09, p_value: 0.0004, evaluated_by: 7, created_at: '2026-08-17', accepted_at: '2026-08-09',
+      control_value: 0.05, treatment_value: 0.09, p_value: 0.0004, evaluated_by: 0, created_at: '2026-08-17', acknowledged_at: '2026-08-18',
       observation_json: { source: 'verified_klaviyo_export', observedFrom: '2026-08-10', observedThrough: '2026-08-16', qualityIssues: [],
         control: { sampleSize: 1000, conversions: 50, guardrailEvents: { unsubscribe_rate: 10 } },
         treatment: { sampleSize: 1000, conversions: 90, guardrailEvents: { unsubscribe_rate: 11 } } },
@@ -388,7 +393,7 @@ describe('Foresight planner tool registry', () => {
     expect(mockListAcceptedExperimentConclusions).toHaveBeenCalledWith('business-1',
       { from: '2026-08-01', to: '2026-08-31', limit: 26 });
     expect(result).toMatchObject({ tool: 'list_experiment_conclusions', manifestVersion: 'foresight-planner-tools-v5',
-      facts: [{ factId: 'foresight:experiment-result:77:launch:66', authority: 'authoritative',
+      facts: [{ factId: 'foresight:experiment-result:77:launch:66', authority: 'human',
         observedFrom: '2026-08-10', observedThrough: '2026-08-16', value: {
           status: 'treatment_won', pValue: 0.0004, relativeLiftPercent: 80, confidenceLevel: 0.95 } }] });
     expect(JSON.stringify(result)).toContain('does not authorize strategy');

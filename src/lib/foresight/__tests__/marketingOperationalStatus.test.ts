@@ -16,12 +16,16 @@ describe('buildMarketingOperationalStatus', () => {
 
   it('classifies accepted experiment workflows without implying authorization', () => {
     expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-01', hasOutcome: false,
-      experiment: { scheduledEndOn: null, conclusion: null } }).experiment?.status).toBe('awaiting_launch');
+      experiment: { scheduledEndOn: null, conclusion: null, conclusionReview: null } }).experiment?.status).toBe('awaiting_launch');
     expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-12', hasOutcome: false,
-      experiment: { scheduledEndOn: '2026-08-16', conclusion: null } }).experiment?.status).toBe('running');
+      experiment: { scheduledEndOn: '2026-08-16', conclusion: null, conclusionReview: null } }).experiment?.status).toBe('running');
     expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-16', hasOutcome: false,
-      experiment: { scheduledEndOn: '2026-08-16', conclusion: null } }).experiment?.status).toBe('evidence_due');
+      experiment: { scheduledEndOn: '2026-08-16', conclusion: null, conclusionReview: null } }).experiment?.status).toBe('evidence_due');
     expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-17', hasOutcome: false,
-      experiment: { scheduledEndOn: '2026-08-16', conclusion: 'treatment_won' } }).experiment?.status).toBe('concluded');
+      experiment: { scheduledEndOn: '2026-08-16', conclusion: 'treatment_won', conclusionReview: null } }).experiment?.status).toBe('conclusion_review_due');
+    expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-17', hasOutcome: false,
+      experiment: { scheduledEndOn: '2026-08-16', conclusion: 'treatment_won', conclusionReview: 'acknowledged' } }).experiment?.status).toBe('concluded');
+    expect(buildMarketingOperationalStatus({ recommendationId: 20, businessToday: '2026-08-17', hasOutcome: false,
+      experiment: { scheduledEndOn: '2026-08-16', conclusion: 'treatment_won', conclusionReview: 'rejected' } }).experiment?.status).toBe('conclusion_rejected');
   });
 });

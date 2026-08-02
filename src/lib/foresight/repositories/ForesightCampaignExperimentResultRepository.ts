@@ -10,13 +10,20 @@ export interface CampaignExperimentResultRow {
   control_value: number | string | null; treatment_value: number | string | null; p_value: number | string | null;
   evaluated_by: number; created_at: string;
 }
-export interface AcceptedCampaignExperimentConclusionRow extends CampaignExperimentResultRow {
-  accepted_at: string;
+export type CampaignExperimentResultReviewAction = 'acknowledged' | 'rejected';
+export interface CampaignExperimentResultReviewRow {
+  id: number; business_id: string; thread_id: number; result_id: number; experiment_version_id: number;
+  experiment_hash: string; launch_id: number; action: CampaignExperimentResultReviewAction;
+  actor_id: number; note: string | null; created_at: string;
+}
+export interface AcknowledgedCampaignExperimentConclusionRow extends CampaignExperimentResultRow {
+  acknowledged_at: string;
 }
 export interface CampaignExperimentWorkflowRow {
   recommendation_id: number;
   scheduled_end_on: string | null;
   conclusion: ExperimentResultAssessment['status'] | null;
+  conclusion_review: CampaignExperimentResultReviewAction | null;
 }
 export interface DueCampaignExperimentRow {
   launch_id: number;
@@ -66,7 +73,7 @@ export const ForesightCampaignExperimentResultRepository = {
     const placeholders = recommendationIds.map(() => '?').join(',');
     return query<CampaignExperimentWorkflowRow>(
       `SELECT CAST(link.link_id AS UNSIGNED) AS recommendation_id,
-              launch.scheduled_end_on, result.status AS conclusion
+              launch.scheduled_end_on, result.status AS conclusion, result_review.action AS conclusion_review
        FROM foresight_plan_links link
        INNER JOIN foresight_campaign_experiment_versions experiment
          ON experiment.business_id = link.business_id AND experiment.thread_id = link.thread_id
@@ -84,25 +91,34 @@ export const ForesightCampaignExperimentResultRepository = {
         AND result.launch_id = launch.id
         AND result.experiment_version_id = experiment.id
         AND result.experiment_hash = experiment.experiment_hash
+       LEFT JOIN foresight_campaign_experiment_result_review_events result_review
+         ON result_review.business_id = result.business_id
+        AND result_review.result_id = result.id
+        AND result_review.id = (SELECT MAX(rr.id) FROM foresight_campaign_experiment_result_review_events rr
+                                WHERE rr.business_id = result.business_id AND rr.result_id = result.id)
        WHERE link.business_id = ? AND link.link_type = 'recommendation'
          AND link.link_id IN (${placeholders})
        ORDER BY experiment.id DESC`,
       [businessId, ...recommendationIds.map(String)]);
   },
 
-  async listAccepted(businessId: string, input: { from: string; to: string; limit: number }): Promise<AcceptedCampaignExperimentConclusionRow[]> {
-    const rows = await query<AcceptedCampaignExperimentConclusionRow>(
-      `SELECT result.*, review.created_at AS accepted_at
+  async listAcknowledged(businessId: string, input: { from: string; to: string; limit: number }): Promise<AcknowledgedCampaignExperimentConclusionRow[]> {
+    const rows = await query<AcknowledgedCampaignExperimentConclusionRow>(
+      `SELECT result.*, result_review.created_at AS acknowledged_at
        FROM foresight_campaign_experiment_results result
        INNER JOIN foresight_campaign_experiment_versions experiment
          ON experiment.business_id = result.business_id
         AND experiment.id = result.experiment_version_id
         AND experiment.experiment_hash = result.experiment_hash
-       INNER JOIN foresight_campaign_experiment_review_events review
-         ON review.business_id = experiment.business_id
-        AND review.experiment_version_id = experiment.id
-        AND review.experiment_hash = experiment.experiment_hash
-        AND review.action = 'accepted'
+       INNER JOIN foresight_campaign_experiment_result_review_events result_review
+         ON result_review.business_id = result.business_id
+        AND result_review.result_id = result.id
+        AND result_review.experiment_version_id = result.experiment_version_id
+        AND result_review.experiment_hash = result.experiment_hash
+        AND result_review.launch_id = result.launch_id
+        AND result_review.id = (SELECT MAX(r.id) FROM foresight_campaign_experiment_result_review_events r
+                                WHERE r.business_id = result.business_id AND r.result_id = result.id)
+        AND result_review.action = 'acknowledged'
        WHERE result.business_id = ?
          AND DATE(result.created_at) BETWEEN ? AND ?
        ORDER BY result.created_at DESC, result.id DESC
@@ -117,6 +133,47 @@ export const ForesightCampaignExperimentResultRepository = {
        INNER JOIN foresight_campaign_experiment_launches launch ON launch.business_id = result.business_id AND launch.id = result.launch_id
        WHERE result.business_id = ? AND result.thread_id = ? ORDER BY result.id DESC LIMIT 1`, [businessId, threadId]);
     return rows[0] ? { ...rows[0], observation_json: json(rows[0].observation_json), assessment_json: json(rows[0].assessment_json) } : null;
+  },
+
+  async latestReview(businessId: string, threadId: number): Promise<CampaignExperimentResultReviewRow | null> {
+    const rows = await query<CampaignExperimentResultReviewRow>(
+      `SELECT result_review.* FROM foresight_campaign_experiment_result_review_events result_review
+       INNER JOIN foresight_campaign_experiment_results result
+         ON result.business_id = result_review.business_id AND result.id = result_review.result_id
+       WHERE result_review.business_id = ? AND result_review.thread_id = ?
+       ORDER BY result_review.id DESC LIMIT 1`,
+      [businessId, threadId]);
+    return rows[0] ?? null;
+  },
+
+  async review(businessId: string, threadId: number, input: {
+    resultId: number; experimentVersionId: number; experimentHash: string; launchId: number;
+    action: CampaignExperimentResultReviewAction; actorId: number; note?: string | null;
+  }): Promise<number> {
+    const note = input.note?.trim() || null;
+    if (input.action === 'rejected' && !note) throw new CampaignExperimentResultTransitionError('A note is required when rejecting an experiment conclusion.');
+    if (note && note.length > 1_000) throw new CampaignExperimentResultTransitionError('Conclusion review notes must be 1000 characters or fewer.');
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        `SELECT result.id, result.experiment_version_id, result.experiment_hash, result.launch_id
+         FROM foresight_campaign_experiment_results result
+         WHERE result.business_id = ? AND result.thread_id = ? ORDER BY result.id DESC LIMIT 1 FOR UPDATE`,
+        [businessId, threadId]);
+      const result = (rows as Array<{ id: number; experiment_version_id: number; experiment_hash: string; launch_id: number }>)[0];
+      if (!result || result.id !== input.resultId || result.experiment_version_id !== input.experimentVersionId
+        || result.experiment_hash !== input.experimentHash || result.launch_id !== input.launchId) {
+        throw new CampaignExperimentResultTransitionError('Only the exact latest automated experiment conclusion can be reviewed.');
+      }
+      const [insert] = await connection.execute(
+        `INSERT INTO foresight_campaign_experiment_result_review_events
+          (business_id, thread_id, result_id, experiment_version_id, experiment_hash, launch_id, action, actor_id, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, threadId, input.resultId, input.experimentVersionId, input.experimentHash, input.launchId, input.action, input.actorId, note]);
+      await connection.commit();
+      return (insert as { insertId: number }).insertId;
+    } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
   },
 
   async create(businessId: string, threadId: number, input: {
