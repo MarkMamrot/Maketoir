@@ -33,12 +33,13 @@ async function reviewContext(businessId: string, creativeId: number, throughDate
     ForesightCreativeRepository.listDiagnosticInputs(businessId, addDays(throughDate, -13), throughDate, 100),
     ForesightCreativeBriefRepository.latest(businessId, creativeId),
   ]);
-  const [messages, humanContext] = thread ? await Promise.all([
+  const [messages, humanContext, latestReview] = thread ? await Promise.all([
     ForesightCreativeBriefRepository.listMessages(businessId, thread.id),
     ForesightCreativeBriefRepository.latestHumanContext(businessId, thread.id),
-  ]) : [[], null];
+    ForesightCreativeBriefRepository.latestReview(businessId, thread.id),
+  ]) : [[], null, null];
   const diagnostics = diagnoseCreativePerformance({ throughDate, creatives: diagnosticInputs });
-  return { creative, assessment, thread, messages, humanContext, diagnostics, latestBrief,
+  return { creative, assessment, thread, messages, humanContext, diagnostics, latestBrief, latestReview,
     mediaUrl: `/api/foresight/creatives/${creativeId}/media` };
 }
 
@@ -70,9 +71,26 @@ export async function POST(request: Request, context: { params: { creativeId: st
       return NextResponse.json({ success: true, ...result }, { status: result.created ? 201 : 200 });
     }
     const threadId = Number(body?.threadId);
+    if (!Number.isSafeInteger(threadId) || threadId <= 0) {
+      return NextResponse.json({ error: 'threadId must be a positive integer.' }, { status: 400 });
+    }
+    if (operation === 'review') {
+      const briefVersionId = Number(body?.briefVersionId);
+      const documentHash = typeof body?.documentHash === 'string' ? body.documentHash.trim() : '';
+      const action = body?.action;
+      if (!Number.isSafeInteger(briefVersionId) || briefVersionId <= 0 || !/^[a-f0-9]{64}$/.test(documentHash)
+        || !['accepted', 'rejected', 'revision_requested'].includes(String(action))) {
+        return NextResponse.json({ error: 'briefVersionId, documentHash, and a valid review action are required.' }, { status: 400 });
+      }
+      const reviewId = await ForesightCreativeBriefRepository.review(user.businessId, creativeId, threadId, {
+        briefVersionId, documentHash, action: action as 'accepted' | 'rejected' | 'revision_requested',
+        actorId: user.userId, note: typeof body?.note === 'string' ? body.note : null,
+      });
+      return NextResponse.json({ success: true, reviewId }, { status: 201 });
+    }
     const expectedRevision = Number(body?.expectedRevision);
-    if (!Number.isSafeInteger(threadId) || threadId <= 0 || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
-      return NextResponse.json({ error: 'threadId and expectedRevision must be positive integers.' }, { status: 400 });
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) {
+      return NextResponse.json({ error: 'expectedRevision must be a positive integer.' }, { status: 400 });
     }
     if (operation === 'context') {
       const revision = await ForesightCreativeBriefRepository.recordHumanContext(
@@ -94,7 +112,7 @@ export async function POST(request: Request, context: { params: { creativeId: st
       });
       return NextResponse.json({ success: true, brief }, { status: 201 });
     }
-    return NextResponse.json({ error: 'operation must be start, context, or generate.' }, { status: 400 });
+    return NextResponse.json({ error: 'operation must be start, context, generate, or review.' }, { status: 400 });
   } catch (error) {
     if (error instanceof PlanningThreadConflictError) return NextResponse.json({ error: error.message, code: 'THREAD_CONFLICT' }, { status: 409 });
     if (error instanceof CreativeBriefTransitionError) return NextResponse.json({ error: error.message }, { status: 409 });

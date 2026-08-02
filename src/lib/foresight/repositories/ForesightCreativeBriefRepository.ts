@@ -30,6 +30,17 @@ export interface CreativeBriefVersionRow {
   created_at: string;
 }
 
+export type CreativeBriefReviewAction = 'accepted' | 'rejected' | 'revision_requested';
+
+export interface CreativeBriefReviewRow {
+  id: number; business_id: string; thread_id: number; brief_version_id: number;
+  document_hash: string; action: CreativeBriefReviewAction; actor_id: number; note: string | null; created_at: string;
+}
+
+export interface AcceptedCreativeBriefRow extends CreativeBriefVersionRow {
+  creative_name: string; creative_source: string; accepted_at: string; accepted_by: number; review_note: string | null;
+}
+
 export class CreativeBriefTransitionError extends Error {
   constructor(message: string) {
     super(message);
@@ -46,6 +57,23 @@ function normalize(row: CreativeBriefVersionRow): CreativeBriefVersionRow {
 }
 
 export const ForesightCreativeBriefRepository = {
+  async listAccepted(businessId: string, input: { from: string; to: string; limit: number }): Promise<AcceptedCreativeBriefRow[]> {
+    const rows = await query<AcceptedCreativeBriefRow>(
+      `SELECT brief.*, creative.name AS creative_name, creative.source AS creative_source,
+              review.created_at AS accepted_at, review.actor_id AS accepted_by, review.note AS review_note
+       FROM foresight_creative_brief_versions brief
+       INNER JOIN foresight_creatives creative
+         ON creative.business_id = brief.business_id AND creative.id = brief.creative_id
+       INNER JOIN foresight_creative_brief_review_events review
+         ON review.business_id = brief.business_id AND review.brief_version_id = brief.id
+        AND review.document_hash = brief.document_hash AND review.action = 'accepted'
+       WHERE brief.business_id = ? AND DATE(review.created_at) BETWEEN ? AND ?
+       ORDER BY review.created_at DESC, brief.id DESC LIMIT ?`,
+      [businessId, input.from, input.to, input.limit],
+    );
+    return rows.map(normalize);
+  },
+
   async getOrCreateReviewThread(businessId: string, creativeId: number, input: {
     title: string; createdBy: number;
   }): Promise<{ threadId: number; created: boolean }> {
@@ -201,6 +229,20 @@ export const ForesightCreativeBriefRepository = {
     return rows[0] ? normalize(rows[0]) : null;
   },
 
+  async latestReview(businessId: string, threadId: number): Promise<CreativeBriefReviewRow | null> {
+    const rows = await query<CreativeBriefReviewRow & { id: number | null }>(
+      `SELECT review.* FROM foresight_creative_brief_versions brief
+       LEFT JOIN foresight_creative_brief_review_events review
+         ON review.business_id = brief.business_id AND review.brief_version_id = brief.id
+        AND review.id = (SELECT MAX(r.id) FROM foresight_creative_brief_review_events r
+                         WHERE r.business_id = brief.business_id AND r.brief_version_id = brief.id)
+       WHERE brief.business_id = ? AND brief.thread_id = ?
+       ORDER BY brief.version DESC LIMIT 1`,
+      [businessId, threadId],
+    );
+    return rows[0]?.id ? rows[0] : null;
+  },
+
   async createVersion(businessId: string, threadId: number, expectedRevision: number, input: {
     creativeId: number; assessmentId: number; diagnosticsThrough: string; humanContext: CreativeReviewHumanContext;
     document: unknown; modelId: string; promptVersion: string; promptHash: string; authoredBy: number; changeReason: string;
@@ -232,14 +274,22 @@ export const ForesightCreativeBriefRepository = {
       if (owner.revision !== expectedRevision) throw new PlanningThreadConflictError();
       if (owner.assessment_id !== input.assessmentId) throw new CreativeBriefTransitionError('The creative assessment changed; refresh before drafting the brief.');
       const [latestRows] = await connection.execute(
-        `SELECT * FROM foresight_creative_brief_versions
-         WHERE business_id = ? AND thread_id = ? ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+        `SELECT brief.*, review.action FROM foresight_creative_brief_versions brief
+         LEFT JOIN foresight_creative_brief_review_events review
+           ON review.business_id = brief.business_id AND review.brief_version_id = brief.id
+          AND review.id = (SELECT MAX(r.id) FROM foresight_creative_brief_review_events r
+                           WHERE r.business_id = brief.business_id AND r.brief_version_id = brief.id)
+         WHERE brief.business_id = ? AND brief.thread_id = ? ORDER BY brief.version DESC LIMIT 1 FOR UPDATE`,
         [businessId, threadId],
       );
-      const latest = (latestRows as CreativeBriefVersionRow[])[0];
-      if (latest?.document_hash === documentHash) {
+      const latest = (latestRows as Array<CreativeBriefVersionRow & { action: CreativeBriefReviewAction | null }>)[0];
+      if (latest?.document_hash === documentHash && !latest.action) {
         await connection.commit();
         return normalize(latest);
+      }
+      if (latest?.action === 'accepted') throw new CreativeBriefTransitionError('An accepted creative brief cannot be superseded.');
+      if (latest && latest.action !== 'rejected' && latest.action !== 'revision_requested') {
+        throw new CreativeBriefTransitionError('Review the current creative brief before drafting another version.');
       }
       const version = (latest?.version ?? 0) + 1;
       const [result] = await connection.execute(
@@ -261,6 +311,48 @@ export const ForesightCreativeBriefRepository = {
         prompt_hash: input.promptHash, authored_by: input.authoredBy, change_reason: input.changeReason.trim(),
         created_at: new Date().toISOString(),
       };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  },
+
+  async review(businessId: string, creativeId: number, threadId: number, input: {
+    briefVersionId: number; documentHash: string; action: CreativeBriefReviewAction; actorId: number; note?: string | null;
+  }): Promise<number> {
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.execute(
+        `SELECT brief.id, brief.document_hash, review.action
+         FROM foresight_creative_brief_versions brief
+         LEFT JOIN foresight_creative_brief_review_events review
+           ON review.business_id = brief.business_id AND review.brief_version_id = brief.id
+          AND review.id = (SELECT MAX(r.id) FROM foresight_creative_brief_review_events r
+                           WHERE r.business_id = brief.business_id AND r.brief_version_id = brief.id)
+         WHERE brief.business_id = ? AND brief.creative_id = ? AND brief.thread_id = ?
+         ORDER BY brief.version DESC LIMIT 1 FOR UPDATE`,
+        [businessId, creativeId, threadId],
+      );
+      const brief = (rows as Array<{ id: number; document_hash: string; action: CreativeBriefReviewAction | null }>)[0];
+      if (!brief || brief.id !== input.briefVersionId || brief.document_hash !== input.documentHash) {
+        throw new CreativeBriefTransitionError('Only the exact latest creative brief can be reviewed.');
+      }
+      if (brief.action) throw new CreativeBriefTransitionError('This creative brief already has a decision.');
+      const note = input.note?.trim() || null;
+      if (input.action !== 'accepted' && !note) {
+        throw new CreativeBriefTransitionError('A note is required for rejection or revision requests.');
+      }
+      const [result] = await connection.execute(
+        `INSERT INTO foresight_creative_brief_review_events
+           (business_id, thread_id, brief_version_id, document_hash, action, actor_id, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, threadId, input.briefVersionId, input.documentHash, input.action, input.actorId, note],
+      );
+      await connection.commit();
+      return (result as { insertId: number }).insertId;
     } catch (error) {
       await connection.rollback();
       throw error;

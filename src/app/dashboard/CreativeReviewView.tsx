@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Bot, FileText, ImageOff, Loader2, RefreshCw, Save, Sparkles } from 'lucide-react';
+import { AlertTriangle, Bot, Check, FileText, ImageOff, Loader2, RefreshCw, RotateCcw, Save, Sparkles, X } from 'lucide-react';
 
 type Creative = {
   id: number; source: 'google_ads' | 'meta_ads'; creative_kind: string; name: string; format: string | null;
@@ -21,12 +21,13 @@ type ReviewContext = {
     creatives: Array<{ creativeId: number; signals: string[]; ctrChangePercent: number | null; explanation: string[] }>;
     patterns: Array<{ tag: string; direction: string; creativeCount: number; disclaimer: string }>;
   };
-  latestBrief: { version: number; document_hash: string; markdown_text: string; document_json: {
+  latestBrief: { id: number; version: number; document_hash: string; markdown_text: string; document_json: {
     title: string; hypothesis: string; audience: string; singleMindedProposition: string; proofPoints: string[];
     formats: Array<{ format: string; placement: string; adaptationNotes: string }>;
     variants: Array<{ id: string; change: string; rationale: string }>;
     successMetric: string; stockOfferConstraints: string[]; uncertainties: string[];
   } } | null;
+  latestReview: { action: 'accepted' | 'rejected' | 'revision_requested'; note: string | null; created_at: string } | null;
   mediaUrl: string;
 };
 
@@ -57,6 +58,7 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
   const [notice, setNotice] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
   const [human, setHuman] = useState<HumanContext>({ intendedAudience: '', intendedMessage: '', offer: '', offlineContext: '' });
   const [changeReason, setChangeReason] = useState('');
+  const [reviewNote, setReviewNote] = useState('');
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const loadCreatives = async () => {
@@ -103,6 +105,7 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
       await loadReview(selectedId);
       setNotice({ kind: 'success', text: success });
       setChangeReason('');
+      setReviewNote('');
     } catch (error) {
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Creative Review action failed.' });
       if (review?.thread) await loadReview(selectedId);
@@ -111,6 +114,7 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
 
   const diagnostic = review?.diagnostics.creatives.find((item) => item.creativeId === selectedId) ?? null;
   const contextComplete = Object.values(human).every((value) => value.trim().length > 0);
+  const canDraft = !review?.latestBrief || review.latestReview?.action === 'rejected' || review.latestReview?.action === 'revision_requested';
 
   return (
     <section className="min-h-[720px] overflow-hidden border border-gray-200 bg-white" aria-label="Creative Review workspace">
@@ -160,11 +164,12 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
               </div>
 
               {review.latestBrief && <div className="border-t border-gray-200 pt-5">
-                <div className="flex items-center gap-2"><FileText size={16} className="text-cyan-700" /><h3 className="text-base font-bold text-gray-950">{review.latestBrief.document_json.title}</h3><span className="text-xs text-gray-500">v{review.latestBrief.version}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><FileText size={16} className="text-cyan-700" /><h3 className="text-base font-bold text-gray-950">{review.latestBrief.document_json.title}</h3><span className="text-xs text-gray-500">v{review.latestBrief.version}</span><span className={`border px-2 py-0.5 text-[11px] font-semibold uppercase ${review.latestReview?.action === 'accepted' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : review.latestReview ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>{review.latestReview?.action.replaceAll('_', ' ') || 'review due'}</span></div>
                 <p className="mt-3 text-sm leading-6 text-gray-700"><strong>Hypothesis:</strong> {review.latestBrief.document_json.hypothesis}</p>
                 <p className="mt-2 text-sm leading-6 text-gray-700"><strong>Proposition:</strong> {review.latestBrief.document_json.singleMindedProposition}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">{review.latestBrief.document_json.variants.map((variant) => <div key={variant.id} className="border-l-2 border-cyan-600 pl-3"><div className="text-xs font-bold text-gray-900">{variant.id}</div><p className="mt-1 text-xs leading-5 text-gray-600">{variant.change}</p></div>)}</div>
                 <p className="mt-4 text-xs text-gray-500">Draft only · Not publishable from Foresight · Hash {review.latestBrief.document_hash.slice(0, 12)}</p>
+                {review.latestReview?.note && <p className="mt-2 border-l-2 border-gray-300 pl-3 text-xs leading-5 text-gray-600">{review.latestReview.note}</p>}
               </div>}
             </div>
           </>}
@@ -177,8 +182,16 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
               {review.messages.slice(-3).map((message) => <div key={message.id} className={`border-l-2 pl-3 text-xs leading-5 ${message.actor_type === 'human' ? 'border-gray-800 text-gray-700' : 'border-cyan-600 text-gray-600'}`}>{message.content}</div>)}
               {(['intendedAudience', 'intendedMessage', 'offer', 'offlineContext'] as const).map((field) => <label key={field} className="block text-xs font-semibold text-gray-700">{{ intendedAudience: 'Intended audience', intendedMessage: 'Intended message', offer: 'Offer or no-offer decision', offlineContext: 'Offline / external context' }[field]}<textarea value={human[field]} onChange={(event) => setHuman((current) => ({ ...current, [field]: event.target.value }))} rows={field === 'offlineContext' ? 3 : 2} maxLength={field === 'offlineContext' ? 2000 : 1000} className="mt-1 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-cyan-600" /></label>)}
               <button type="button" disabled={!isAdmin || !contextComplete || working != null} onClick={() => void post({ operation: 'context', threadId: review.thread!.id, expectedRevision: review.thread!.revision, context: human }, 'Human creative context recorded.')} className="inline-flex h-9 w-full items-center justify-center gap-2 border border-gray-800 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40"><Save size={15} /> Save context</button>
-              <label className="block text-xs font-semibold text-gray-700">Revision reason<input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} maxLength={500} placeholder={review.latestBrief ? 'What should this revision improve?' : 'Initial brief'} className="mt-1 h-9 w-full border border-gray-300 bg-white px-3 text-sm font-normal outline-none focus:border-cyan-600" /></label>
-              <button type="button" disabled={!isAdmin || !review.humanContext || !review.assessment || working != null} onClick={() => void post({ operation: 'generate', threadId: review.thread!.id, expectedRevision: review.thread!.revision, diagnosticsThrough: throughDate, changeReason }, review.latestBrief ? 'A new immutable creative brief version was drafted.' : 'The first immutable creative brief was drafted.')} className="inline-flex h-10 w-full items-center justify-center gap-2 bg-gray-900 px-3 text-sm font-semibold text-white disabled:opacity-40">{working === 'generate' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {review.latestBrief ? 'Draft revision' : 'Draft brief'}</button>
+              {review.latestBrief && !review.latestReview && <div className="space-y-2 border-t border-gray-200 pt-4">
+                <label className="block text-xs font-semibold text-gray-700">Decision note<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} rows={2} maxLength={1000} placeholder="Required for reject or revision request" className="mt-1 w-full resize-none border border-gray-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-cyan-600" /></label>
+                <button type="button" disabled={!isAdmin || working != null} onClick={() => void post({ operation: 'review', threadId: review.thread!.id, briefVersionId: review.latestBrief!.id, documentHash: review.latestBrief!.document_hash, action: 'accepted', note: reviewNote }, 'Creative brief accepted for advisory planning.')} className="inline-flex h-9 w-full items-center justify-center gap-2 bg-emerald-700 text-sm font-semibold text-white disabled:opacity-40"><Check size={15} /> Accept for planning</button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" disabled={!isAdmin || !reviewNote.trim() || working != null} onClick={() => void post({ operation: 'review', threadId: review.thread!.id, briefVersionId: review.latestBrief!.id, documentHash: review.latestBrief!.document_hash, action: 'revision_requested', note: reviewNote }, 'Creative brief returned for revision.')} className="inline-flex h-9 items-center justify-center gap-1 border border-amber-500 bg-white text-xs font-semibold text-amber-800 disabled:opacity-40"><RotateCcw size={14} /> Revise</button>
+                  <button type="button" disabled={!isAdmin || !reviewNote.trim() || working != null} onClick={() => void post({ operation: 'review', threadId: review.thread!.id, briefVersionId: review.latestBrief!.id, documentHash: review.latestBrief!.document_hash, action: 'rejected', note: reviewNote }, 'Creative brief rejected.')} className="inline-flex h-9 items-center justify-center gap-1 border border-red-500 bg-white text-xs font-semibold text-red-700 disabled:opacity-40"><X size={14} /> Reject</button>
+                </div>
+              </div>}
+              {canDraft && <><label className="block text-xs font-semibold text-gray-700">Revision reason<input value={changeReason} onChange={(event) => setChangeReason(event.target.value)} maxLength={500} placeholder={review.latestBrief ? 'What should this revision improve?' : 'Initial brief'} className="mt-1 h-9 w-full border border-gray-300 bg-white px-3 text-sm font-normal outline-none focus:border-cyan-600" /></label>
+              <button type="button" disabled={!isAdmin || !review.humanContext || !review.assessment || working != null} onClick={() => void post({ operation: 'generate', threadId: review.thread!.id, expectedRevision: review.thread!.revision, diagnosticsThrough: throughDate, changeReason }, review.latestBrief ? 'A new immutable creative brief version was drafted.' : 'The first immutable creative brief was drafted.')} className="inline-flex h-10 w-full items-center justify-center gap-2 bg-gray-900 px-3 text-sm font-semibold text-white disabled:opacity-40">{working === 'generate' ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />} {review.latestBrief ? 'Draft revision' : 'Draft brief'}</button></>}
             </div>}
         </aside>
       </div>

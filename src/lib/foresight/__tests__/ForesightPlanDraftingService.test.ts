@@ -73,7 +73,7 @@ describe('ForesightPlanDraftingService', () => {
     expect(mocks.createPlanVersion).toHaveBeenCalledWith('business-1', 12, 3, expect.objectContaining({
       plan: expect.objectContaining({ title: 'Growth plan' }), state: 'ready_for_validation', authoredBy: 7,
       modelId: 'gemini-2.5-flash', promptVersion: 'initiative-planner-v1',
-      toolManifestVersion: 'foresight-planner-tools-v5',
+      toolManifestVersion: 'foresight-planner-tools-v6',
     }));
     expect(mocks.recordValidation).toHaveBeenCalledWith('business-1', expect.objectContaining({
       planVersionId: 50, planHash: 'plan-hash', state: 'passed', validatorVersion: 'foresight-plan-validator-v1',

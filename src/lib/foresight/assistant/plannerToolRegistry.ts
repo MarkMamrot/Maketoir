@@ -6,13 +6,14 @@ import { ForesightRepository } from '../repositories/ForesightRepository';
 import { ForesightCampaignActivationRepository } from '../repositories/ForesightCampaignActivationRepository';
 import { ForesightCampaignExperimentResultRepository } from '../repositories/ForesightCampaignExperimentResultRepository';
 import { ForesightCampaignLessonRepository } from '../repositories/ForesightCampaignLessonRepository';
+import { ForesightCreativeBriefRepository } from '../repositories/ForesightCreativeBriefRepository';
 import { ImsBrandPerformanceRepository } from '../repositories/ImsBrandPerformanceRepository';
 import { ImsCommerceRepository } from '../repositories/ImsCommerceRepository';
 import { ImsInboundPlanningRepository } from '../repositories/ImsInboundPlanningRepository';
 import { ImsProductPlanningRepository } from '../repositories/ImsProductPlanningRepository';
 import type { DataQualityResult, RecommendationState } from '../types';
 
-export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v5';
+export const FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION = 'foresight-planner-tools-v6';
 
 export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'get_business_context',
@@ -26,6 +27,7 @@ export const FORESIGHT_PLANNER_TOOL_NAMES = [
   'list_campaign_outcomes',
   'list_accepted_campaign_lessons',
   'list_experiment_conclusions',
+  'list_accepted_creative_briefs',
 ] as const;
 
 export type ForesightPlannerToolName = typeof FORESIGHT_PLANNER_TOOL_NAMES[number];
@@ -122,6 +124,12 @@ export const FORESIGHT_PLANNER_TOOL_DECLARATIONS = [
     description: 'List bounded deterministic conclusions from exact launched experiments whose immutable design was human-accepted. Conclusions are planning evidence and never authorize strategy or platform changes.',
     required: ['from', 'to'],
     optional: ['status', 'limit'],
+  },
+  {
+    name: 'list_accepted_creative_briefs',
+    description: 'List bounded immutable creative briefs explicitly accepted by a human reviewer. Briefs are advisory planning evidence and never authorize publication or platform mutation.',
+    required: ['from', 'to'],
+    optional: ['limit'],
   },
 ] as const;
 
@@ -771,6 +779,51 @@ async function listExperimentConclusions(businessId: string, args: JsonObject): 
   };
 }
 
+async function listAcceptedCreativeBriefs(businessId: string, args: JsonObject): Promise<ForesightPlannerToolResult> {
+  assertExactArguments(args, ['from', 'to', 'limit']);
+  const { from, to } = boundedLearningDateRange(args);
+  const limit = boundedLimit(args.limit, 10, 25);
+  const rows = await ForesightCreativeBriefRepository.listAccepted(businessId, { from, to, limit: limit + 1 });
+  const selected = rows.slice(0, limit);
+  return {
+    tool: 'list_accepted_creative_briefs',
+    manifestVersion: FORESIGHT_PLANNER_TOOL_MANIFEST_VERSION,
+    facts: selected.map((row) => ({
+      factId: `foresight:creative-brief:${row.id}:v${row.version}`,
+      label: row.document_json.title,
+      source: 'Foresight Human-Accepted Creative Brief Ledger',
+      authority: 'human' as const,
+      observedFrom: null,
+      observedThrough: row.diagnostics_through,
+      freshnessAt: row.accepted_at,
+      quality: goodQuality(),
+      value: {
+        briefVersionId: row.id,
+        version: row.version,
+        threadId: row.thread_id,
+        creativeId: row.creative_id,
+        creativeName: row.creative_name,
+        creativeSource: row.creative_source,
+        assessmentId: row.assessment_id,
+        diagnosticsThrough: row.diagnostics_through,
+        audience: row.document_json.audience,
+        hypothesis: row.document_json.hypothesis,
+        singleMindedProposition: row.document_json.singleMindedProposition,
+        proofPoints: row.document_json.proofPoints,
+        tone: row.document_json.tone,
+        formats: row.document_json.formats,
+        variants: row.document_json.variants,
+        exclusions: row.document_json.exclusions,
+        successMetric: row.document_json.successMetric,
+        stockOfferConstraints: row.document_json.stockOfferConstraints,
+        uncertainties: row.document_json.uncertainties,
+        interpretation: 'Human-accepted advisory creative planning evidence only. It does not authorize publication, scheduling, sending, uploading, targeting, budget, campaign, or platform changes.',
+      },
+    })),
+    truncated: rows.length > selected.length,
+  };
+}
+
 const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args: JsonObject) => Promise<ForesightPlannerToolResult>> = {
   get_business_context: (businessId, args) => {
     assertExactArguments(args, []);
@@ -789,6 +842,7 @@ const TOOL_HANDLERS: Record<ForesightPlannerToolName, (businessId: string, args:
   list_campaign_outcomes: listCampaignOutcomes,
   list_accepted_campaign_lessons: listAcceptedCampaignLessons,
   list_experiment_conclusions: listExperimentConclusions,
+  list_accepted_creative_briefs: listAcceptedCreativeBriefs,
 };
 
 export async function executeForesightPlannerTool(input: {

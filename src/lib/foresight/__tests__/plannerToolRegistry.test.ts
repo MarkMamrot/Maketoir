@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockListAcceptedExperimentConclusions, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
+const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendations, mockGetRecommendation, mockListLearningOutcomes, mockListAcceptedLessons, mockListAcceptedExperimentConclusions, mockListAcceptedCreativeBriefs, mockGetDailyCommerce, mockListBrandPerformance, mockListProductPlanningRows, mockListOpenInbound } = vi.hoisted(() => ({
   mockBusinessGet: vi.fn(),
   mockBrandGet: vi.fn(),
   mockLatestStrategy: vi.fn(),
@@ -9,6 +9,7 @@ const { mockBusinessGet, mockBrandGet, mockLatestStrategy, mockListRecommendatio
   mockListLearningOutcomes: vi.fn(),
   mockListAcceptedLessons: vi.fn(),
   mockListAcceptedExperimentConclusions: vi.fn(),
+  mockListAcceptedCreativeBriefs: vi.fn(),
   mockGetDailyCommerce: vi.fn(),
   mockListBrandPerformance: vi.fn(),
   mockListProductPlanningRows: vi.fn(),
@@ -32,6 +33,9 @@ vi.mock('../repositories/ForesightCampaignLessonRepository', () => ({
 }));
 vi.mock('../repositories/ForesightCampaignExperimentResultRepository', () => ({
   ForesightCampaignExperimentResultRepository: { listAcknowledged: mockListAcceptedExperimentConclusions },
+}));
+vi.mock('../repositories/ForesightCreativeBriefRepository', () => ({
+  ForesightCreativeBriefRepository: { listAccepted: mockListAcceptedCreativeBriefs },
 }));
 vi.mock('../repositories/ImsCommerceRepository', () => ({
   ImsCommerceRepository: { getDailyCommerce: mockGetDailyCommerce },
@@ -336,7 +340,7 @@ describe('Foresight planner tool registry', () => {
       from: '2026-05-01', to: '2026-08-01', direction: 'improved', limit: 50,
     });
     expect(result).toMatchObject({
-      tool: 'list_campaign_outcomes', manifestVersion: 'foresight-planner-tools-v5', truncated: false,
+      tool: 'list_campaign_outcomes', manifestVersion: 'foresight-planner-tools-v6', truncated: false,
       facts: [{
         factId: 'foresight:campaign-outcome:93:activation:91', authority: 'authoritative',
         observedFrom: '2026-07-17', observedThrough: '2026-07-31',
@@ -365,7 +369,7 @@ describe('Foresight planner tool registry', () => {
       name: 'list_accepted_campaign_lessons', args: { from: '2026-08-01', to: '2026-08-31', limit: 10 } });
 
     expect(mockListAcceptedLessons).toHaveBeenCalledWith('business-1', { from: '2026-08-01', to: '2026-08-31', limit: 11 });
-    expect(result).toMatchObject({ tool: 'list_accepted_campaign_lessons', manifestVersion: 'foresight-planner-tools-v5',
+    expect(result).toMatchObject({ tool: 'list_accepted_campaign_lessons', manifestVersion: 'foresight-planner-tools-v6',
       facts: [{ factId: 'foresight:campaign-lesson:44:v1', authority: 'human', value: {
         outcomeId: 31, suggestedApplications: [{ executable: false }] } }] });
     expect(JSON.stringify(result)).toContain('does not authorize strategy');
@@ -392,7 +396,7 @@ describe('Foresight planner tool registry', () => {
 
     expect(mockListAcceptedExperimentConclusions).toHaveBeenCalledWith('business-1',
       { from: '2026-08-01', to: '2026-08-31', limit: 26 });
-    expect(result).toMatchObject({ tool: 'list_experiment_conclusions', manifestVersion: 'foresight-planner-tools-v5',
+    expect(result).toMatchObject({ tool: 'list_experiment_conclusions', manifestVersion: 'foresight-planner-tools-v6',
       facts: [{ factId: 'foresight:experiment-result:77:launch:66', authority: 'human',
         observedFrom: '2026-08-10', observedThrough: '2026-08-16', value: {
           status: 'treatment_won', pValue: 0.0004, relativeLiftPercent: 80, confidenceLevel: 0.95 } }] });
@@ -404,6 +408,32 @@ describe('Foresight planner tool registry', () => {
       name: 'list_experiment_conclusions', args: { from: '2026-08-01', to: '2026-08-31', status: 'approved' } }))
       .rejects.toThrow('Unsupported experiment conclusion status');
     expect(mockListAcceptedExperimentConclusions).not.toHaveBeenCalled();
+  });
+
+  it('returns only exact human-accepted creative briefs as non-publishing planning evidence', async () => {
+    mockListAcceptedCreativeBriefs.mockResolvedValue([{ id: 80, business_id: 'business-1', thread_id: 12,
+      creative_id: 44, creative_name: 'Gift ad', creative_source: 'meta_ads', assessment_id: 9,
+      diagnostics_through: '2026-08-01', version: 2, parent_id: 79, schema_version: 1,
+      document_hash: 'd'.repeat(64), model_id: 'gemini-2.5-flash', prompt_version: 'creative-brief-v1',
+      prompt_hash: 'e'.repeat(64), authored_by: 7, change_reason: 'Proof revision', created_at: '2026-08-02',
+      accepted_at: '2026-08-03', accepted_by: 8, review_note: null, markdown_text: '# Brief', document_json: {
+        title: 'Gift confidence refresh', audience: 'Returning gift buyers', hypothesis: 'Clear proof may improve engagement.',
+        singleMindedProposition: 'Choose a thoughtful gift confidently.', proofPoints: ['Free wrapping'], tone: ['Warm'],
+        formats: [{ format: '4:5 image', placement: 'Meta feed', adaptationNotes: 'Keep proof visible.' }],
+        variants: [{ id: 'proof', change: 'Lead with wrapping', rationale: 'Test confidence cue.' }],
+        exclusions: ['No urgency'], successMetric: 'Platform CTR', stockOfferConstraints: ['Confirm stock'],
+        uncertainties: ['No causal result exists yet'],
+      } }]);
+
+    const result = await executeForesightPlannerTool({ businessId: 'business-1', enabledTools: FORESIGHT_PLANNER_TOOL_NAMES,
+      name: 'list_accepted_creative_briefs', args: { from: '2026-08-01', to: '2026-08-31', limit: 10 } });
+
+    expect(mockListAcceptedCreativeBriefs).toHaveBeenCalledWith('business-1',
+      { from: '2026-08-01', to: '2026-08-31', limit: 11 });
+    expect(result).toMatchObject({ tool: 'list_accepted_creative_briefs', manifestVersion: 'foresight-planner-tools-v6',
+      facts: [{ factId: 'foresight:creative-brief:80:v2', authority: 'human', observedThrough: '2026-08-01',
+        value: { creativeId: 44, hypothesis: 'Clear proof may improve engagement.', successMetric: 'Platform CTR' } }] });
+    expect(JSON.stringify(result)).toContain('does not authorize publication');
   });
 
   it('rejects unbounded or unsupported campaign outcome filters before repository access', async () => {

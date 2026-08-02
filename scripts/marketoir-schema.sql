@@ -1090,6 +1090,20 @@ CREATE TABLE IF NOT EXISTS foresight_creative_brief_versions (
   INDEX idx_foresight_creative_brief_latest (business_id, creative_id, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_creative_brief_review_events (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  brief_version_id      BIGINT NOT NULL,
+  document_hash         VARCHAR(64) NOT NULL,
+  action                ENUM('accepted','rejected','revision_requested') NOT NULL,
+  actor_id              INT NOT NULL,
+  note                  VARCHAR(1000),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_foresight_creative_brief_review_latest (business_id, thread_id, id),
+  INDEX idx_foresight_creative_brief_review_version (business_id, brief_version_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_commerce_observations (
   id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
   run_id                  BIGINT NOT NULL,
