@@ -1,7 +1,95 @@
 import { getPool } from '@/services/MySQLService';
 import type { CreativeIdentityObservation } from '../creative/creativeObservations';
+import type { CreativeAssessmentDocument } from '../creative/creativeAssessment';
+
+export interface ForesightCreativeRow {
+  id: number;
+  business_id: string;
+  source: 'google_ads' | 'meta_ads';
+  account_id: string;
+  external_id: string;
+  creative_kind: 'ad' | 'asset' | 'creative';
+  name: string;
+  format: string | null;
+  status: string | null;
+  copy_json: Record<string, unknown> | null;
+  media_json: Record<string, unknown> | null;
+  first_seen_on: string;
+  last_seen_on: string;
+}
+
+export interface ForesightCreativeAssessmentRow {
+  id: number;
+  business_id: string;
+  creative_id: number;
+  assessment_hash: string;
+  creative_snapshot_hash: string;
+  brand_profile_hash: string;
+  evidence_mode: 'text_only' | 'image' | 'video_frame';
+  model_id: string;
+  prompt_version: string;
+  prompt_hash: string;
+  assessment_json: CreativeAssessmentDocument;
+  assessed_by: number;
+  created_at: string;
+}
+
+function jsonObject(value: unknown): Record<string, unknown> | null {
+  if (value == null) return null;
+  const parsed = typeof value === 'string' ? JSON.parse(value) as unknown : value;
+  return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+}
 
 export const ForesightCreativeRepository = {
+  async get(businessId: string, creativeId: number): Promise<ForesightCreativeRow | null> {
+    const [rows] = await getPool().query(
+      `SELECT id, business_id, source, account_id, external_id, creative_kind, name, format,
+              status, copy_json, media_json, first_seen_on, last_seen_on
+       FROM foresight_creatives WHERE business_id = ? AND id = ? LIMIT 1`,
+      [businessId, creativeId],
+    );
+    const row = (rows as ForesightCreativeRow[])[0];
+    return row ? { ...row, copy_json: jsonObject(row.copy_json), media_json: jsonObject(row.media_json) } : null;
+  },
+
+  async latestAssessment(businessId: string, creativeId: number): Promise<ForesightCreativeAssessmentRow | null> {
+    const [rows] = await getPool().query(
+      `SELECT id, business_id, creative_id, assessment_hash, creative_snapshot_hash,
+              brand_profile_hash, evidence_mode, model_id, prompt_version, prompt_hash,
+              assessment_json, assessed_by, created_at
+       FROM foresight_creative_assessments
+       WHERE business_id = ? AND creative_id = ? ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [businessId, creativeId],
+    );
+    const row = (rows as ForesightCreativeAssessmentRow[])[0];
+    return row ? { ...row, assessment_json: jsonObject(row.assessment_json) as unknown as CreativeAssessmentDocument } : null;
+  },
+
+  async saveAssessment(input: Omit<ForesightCreativeAssessmentRow, 'id' | 'created_at'>): Promise<ForesightCreativeAssessmentRow> {
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO foresight_creative_assessments
+         (business_id, creative_id, assessment_hash, creative_snapshot_hash, brand_profile_hash,
+          evidence_mode, model_id, prompt_version, prompt_hash, assessment_json, assessed_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+      [input.business_id, input.creative_id, input.assessment_hash, input.creative_snapshot_hash,
+        input.brand_profile_hash, input.evidence_mode, input.model_id, input.prompt_version,
+        input.prompt_hash, JSON.stringify(input.assessment_json), input.assessed_by],
+    );
+    const [rows] = await pool.query(
+      `SELECT id, business_id, creative_id, assessment_hash, creative_snapshot_hash,
+              brand_profile_hash, evidence_mode, model_id, prompt_version, prompt_hash,
+              assessment_json, assessed_by, created_at
+       FROM foresight_creative_assessments
+       WHERE business_id = ? AND creative_id = ? AND assessment_hash = ? LIMIT 1`,
+      [input.business_id, input.creative_id, input.assessment_hash],
+    );
+    const row = (rows as ForesightCreativeAssessmentRow[])[0];
+    if (!row) throw new Error('Creative assessment was not readable after persistence.');
+    return { ...row, assessment_json: jsonObject(row.assessment_json) as unknown as CreativeAssessmentDocument };
+  },
+
   async ingest(
     runId: number,
     businessId: string,

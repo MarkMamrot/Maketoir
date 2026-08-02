@@ -24,4 +24,21 @@ describe('PlannerModelGateway', () => {
       config: { systemInstruction: 'Governed prompt', responseMimeType: 'application/json' },
     });
   });
+
+  it('places bounded media before the JSON assessment prompt', async () => {
+    mockGenerateContent.mockResolvedValue({ text: '{"schemaVersion":1}' });
+    const gateway = createGeminiPlannerModelGateway('test-key');
+
+    await gateway.generateJson({ modelId: 'gemini-test', systemInstruction: 'Governed prompt',
+      prompt: '{"task":"assess"}', media: { mimeType: 'image/jpeg', data: 'base64-data' } });
+
+    expect(mockGenerateContent).toHaveBeenCalledWith({
+      model: 'gemini-test',
+      contents: [{ role: 'user', parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: 'base64-data' } },
+        { text: '{"task":"assess"}' },
+      ] }],
+      config: { systemInstruction: 'Governed prompt', responseMimeType: 'application/json' },
+    });
+  });
 });

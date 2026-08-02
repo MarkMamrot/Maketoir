@@ -24,6 +24,7 @@ interface MetaSdk {
   AdAccount: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   Campaign: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   AdSet: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
+  AdCreative: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   Business: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   AdStudy: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
 }
@@ -230,6 +231,17 @@ export class MetaAdsReadService {
         effective_status: text(ad.effective_status),
       };
     }).filter((row) => text(row.ad_id));
+  }
+
+  async getCreativeMediaReference(creativeId: string): Promise<{ url: string; mediaType: 'image' | 'video_frame' } | null> {
+    const id = creativeId.trim();
+    if (!/^\d+$/.test(id)) throw new Error('Meta creative ID must be numeric.');
+    const record = await this.read(new this.sdk.AdCreative(id, {}, undefined, this.api), [
+      'id', 'image_url', 'thumbnail_url', 'video_id',
+    ]);
+    const url = text(record.image_url) || text(record.thumbnail_url);
+    if (!url) return null;
+    return { url, mediaType: text(record.video_id) ? 'video_frame' : 'image' };
   }
 
   async updateCampaignStatuses(changes: MetaCampaignStatusUpdate[]): Promise<unknown[]> {

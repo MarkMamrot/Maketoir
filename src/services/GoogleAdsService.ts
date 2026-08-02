@@ -205,6 +205,20 @@ export class GoogleAdsService {
     `);
   }
 
+  async getCreativeMediaReference(assetId: string): Promise<{ url: string; mediaType: 'image' | 'video_frame' } | null> {
+    const id = String(assetId).trim();
+    if (!/^\d+$/.test(id)) throw new Error('Google Ads asset ID must be numeric.');
+    const rows = await this.getCustomer().query(`
+      SELECT asset.id, asset.type, asset.image_asset.full_size.url,
+             asset.youtube_video_asset.youtube_video_id
+      FROM asset
+      WHERE asset.id = ${id}
+    `) as unknown[];
+    const row = rows[0] as { asset?: { image_asset?: { full_size?: { url?: string } } } } | undefined;
+    const url = row?.asset?.image_asset?.full_size?.url?.trim() ?? '';
+    return url ? { url, mediaType: 'image' } : null;
+  }
+
   // â”€â”€ Shopping (product-level) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async getShopping(startDate: string, endDate: string) {
     return this.getCustomer().query(`

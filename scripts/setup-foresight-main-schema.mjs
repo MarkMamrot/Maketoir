@@ -46,6 +46,7 @@ const tableNames = [
   'foresight_creatives',
   'foresight_creative_entity_links',
   'foresight_creative_daily_metrics',
+  'foresight_creative_assessments',
   'foresight_commerce_observations',
 ];
 

@@ -5,6 +5,7 @@ export interface PlannerModelGateway {
     modelId: string;
     systemInstruction: string;
     prompt: string;
+    media?: { mimeType: string; data: string } | null;
   }): Promise<Record<string, unknown>>;
 }
 
@@ -21,9 +22,15 @@ export function createGeminiPlannerModelGateway(apiKey: string): PlannerModelGat
   const ai = new GoogleGenAI({ apiKey });
   return {
     async generateJson(input) {
+      const contents = input.media
+        ? [{ role: 'user', parts: [
+          { inlineData: { mimeType: input.media.mimeType, data: input.media.data } },
+          { text: input.prompt },
+        ] }]
+        : input.prompt;
       const response = await ai.models.generateContent({
         model: input.modelId,
-        contents: input.prompt,
+        contents,
         config: {
           systemInstruction: input.systemInstruction,
           responseMimeType: 'application/json',
