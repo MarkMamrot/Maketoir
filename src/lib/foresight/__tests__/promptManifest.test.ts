@@ -21,6 +21,7 @@ describe('Foresight planning prompt manifest', () => {
       { id: 'campaign-learning', version: 'campaign-learning-v1' },
       { id: 'campaign-experiment', version: 'campaign-experiment-v2' },
       { id: 'creative-assessment', version: 'creative-assessment-v1' },
+      { id: 'creative-brief', version: 'creative-brief-v1' },
     ]);
   });
 });

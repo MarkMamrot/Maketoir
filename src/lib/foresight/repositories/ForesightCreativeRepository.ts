@@ -1,6 +1,7 @@
 import { getPool } from '@/services/MySQLService';
 import type { CreativeIdentityObservation } from '../creative/creativeObservations';
 import type { CreativeAssessmentDocument } from '../creative/creativeAssessment';
+import type { CreativeDiagnosticInput } from '../creative/creativeDiagnostics';
 
 export interface ForesightCreativeRow {
   id: number;
@@ -40,7 +41,26 @@ function jsonObject(value: unknown): Record<string, unknown> | null {
   return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
 }
 
+function dateOnly(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value ?? '').slice(0, 10);
+}
+
 export const ForesightCreativeRepository = {
+  async list(businessId: string, limit = 100): Promise<ForesightCreativeRow[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const [rows] = await getPool().query(
+      `SELECT id, business_id, source, account_id, external_id, creative_kind, name, format,
+              status, copy_json, media_json, first_seen_on, last_seen_on
+       FROM foresight_creatives WHERE business_id = ?
+       ORDER BY last_seen_on DESC, id DESC LIMIT ${safeLimit}`,
+      [businessId],
+    );
+    return (rows as ForesightCreativeRow[]).map((row) => ({
+      ...row, copy_json: jsonObject(row.copy_json), media_json: jsonObject(row.media_json),
+    }));
+  },
+
   async get(businessId: string, creativeId: number): Promise<ForesightCreativeRow | null> {
     const [rows] = await getPool().query(
       `SELECT id, business_id, source, account_id, external_id, creative_kind, name, format,
@@ -88,6 +108,83 @@ export const ForesightCreativeRepository = {
     const row = (rows as ForesightCreativeAssessmentRow[])[0];
     if (!row) throw new Error('Creative assessment was not readable after persistence.');
     return { ...row, assessment_json: jsonObject(row.assessment_json) as unknown as CreativeAssessmentDocument };
+  },
+
+  async listDiagnosticInputs(
+    businessId: string,
+    startDate: string,
+    endDate: string,
+    limit = 100,
+  ): Promise<CreativeDiagnosticInput[]> {
+    const safeLimit = Math.max(2, Math.min(200, Math.trunc(limit)));
+    const pool = getPool();
+    const [metricResult, assessmentResult] = await Promise.all([
+      pool.query(
+        `SELECT creative.id AS creative_id, creative.source, creative.name, creative.format,
+                metric.metric_date, metric.impressions, metric.clicks, metric.spend,
+                metric.conversions, metric.attributed_revenue, metric.frequency
+         FROM foresight_creatives creative
+         INNER JOIN foresight_creative_daily_metrics metric
+           ON metric.business_id = creative.business_id AND metric.creative_id = creative.id
+         INNER JOIN (
+           SELECT creative_id, metric_date, MAX(run_id) AS run_id
+           FROM foresight_creative_daily_metrics
+           WHERE business_id = ? AND metric_date BETWEEN ? AND ?
+           GROUP BY creative_id, metric_date
+         ) latest
+           ON latest.creative_id = metric.creative_id
+          AND latest.metric_date = metric.metric_date
+          AND latest.run_id = metric.run_id
+         WHERE creative.business_id = ?
+           AND creative.id IN (
+             SELECT recent.creative_id FROM (
+               SELECT creative_id, SUM(impressions) AS exposure
+               FROM foresight_creative_daily_metrics
+               WHERE business_id = ? AND metric_date BETWEEN ? AND ?
+               GROUP BY creative_id ORDER BY exposure DESC, creative_id LIMIT ${safeLimit}
+             ) recent
+           )
+         ORDER BY creative.id, metric.metric_date`,
+        [businessId, startDate, endDate, businessId, businessId, startDate, endDate],
+      ),
+      pool.query(
+        `SELECT assessment.creative_id, assessment.assessment_json
+         FROM foresight_creative_assessments assessment
+         INNER JOIN (
+           SELECT creative_id, MAX(id) AS id
+           FROM foresight_creative_assessments
+           WHERE business_id = ? GROUP BY creative_id
+         ) latest ON latest.id = assessment.id
+         WHERE assessment.business_id = ?`,
+        [businessId, businessId],
+      ),
+    ]);
+    const assessmentByCreative = new Map((assessmentResult[0] as Array<{ creative_id: number; assessment_json: unknown }>).map((row) => {
+      const assessment = jsonObject(row.assessment_json) as unknown as CreativeAssessmentDocument | null;
+      return [Number(row.creative_id), assessment] as const;
+    }));
+    type MetricRow = {
+      creative_id: number; source: CreativeDiagnosticInput['source']; name: string; format: string | null;
+      metric_date: unknown; impressions: number | string; clicks: number | string; spend: number | string;
+      conversions: number | string; attributed_revenue: number | string; frequency: number | string | null;
+    };
+    const grouped = new Map<number, CreativeDiagnosticInput>();
+    for (const row of metricResult[0] as MetricRow[]) {
+      const creativeId = Number(row.creative_id);
+      const assessment = assessmentByCreative.get(creativeId);
+      const creative = grouped.get(creativeId) ?? {
+        creativeId, source: row.source, name: row.name, format: row.format,
+        tags: assessment?.structuredTags ?? [], brandFitObservations: assessment?.brandFitObservations ?? [],
+        assessmentUncertainties: assessment?.uncertainties ?? [], metrics: [],
+      };
+      creative.metrics.push({
+        metricDate: dateOnly(row.metric_date), impressions: Number(row.impressions), clicks: Number(row.clicks),
+        spend: Number(row.spend), conversions: Number(row.conversions), attributedRevenue: Number(row.attributed_revenue),
+        frequency: row.frequency == null ? null : Number(row.frequency),
+      });
+      grouped.set(creativeId, creative);
+    }
+    return [...grouped.values()];
   },
 
   async ingest(

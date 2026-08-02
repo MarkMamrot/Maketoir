@@ -59,7 +59,7 @@ export interface PlanningLinkRow {
   business_id: string;
   thread_id: number;
   plan_version_id: number | null;
-  link_type: 'recommendation' | 'initiative' | 'strategy';
+  link_type: 'recommendation' | 'initiative' | 'strategy' | 'creative';
   link_id: string;
   created_at: string;
 }
@@ -635,7 +635,7 @@ export const ForesightPlanningRepository = {
   },
 
   async linkThread(businessId: string, threadId: number, input: {
-    linkType: 'recommendation' | 'initiative' | 'strategy';
+    linkType: PlanningLinkRow['link_type'];
     linkId: string;
     planVersionId?: number | null;
   }): Promise<number> {

@@ -47,7 +47,7 @@ export interface PlanningThreadDetail {
   } | null;
   links: Array<{
     id: number;
-    link_type: 'recommendation' | 'initiative' | 'strategy';
+    link_type: 'recommendation' | 'initiative' | 'strategy' | 'creative';
     link_id: string;
   }>;
 }

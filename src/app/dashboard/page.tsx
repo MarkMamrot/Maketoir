@@ -7,6 +7,7 @@ import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
 import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
+import { CreativeReviewView } from './CreativeReviewView';
 import { dashboardHashView } from './dashboardHandoff';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
@@ -56,6 +57,7 @@ const NAV: NavItem[] = [
       { id: 'marketing-assistant', label: 'Marketing Assistant' },
       { id: 'planning-workspace', label: 'Planning Workspace' },
       { id: 'marketing-recommendations', label: 'Recommendation Inbox' },
+      { id: 'creative-review', label: 'Creative Review' },
       { id: 'campaign-audit',      label: 'Campaign Audit'      },
     ],
   },
@@ -8586,6 +8588,7 @@ export default function DashboardPage() {
     'marketing-assistant': 'Marketing Assistant',
     'planning-workspace': 'Foresight Planning Workspace',
     'marketing-recommendations': 'Recommendation Inbox',
+    'creative-review': 'Creative Review',
     'campaign-audit':       'Campaign Architecture Audit',
     'product-description-template': 'Web Field Templates',
     'bulk-edit-listings':           'Bulk Edit Website Listings',
@@ -8726,6 +8729,7 @@ export default function DashboardPage() {
           {activeView === 'marketing-assistant' && <MarketingAssistantView databaseId={databaseId} />}
           {activeView === 'planning-workspace' && <ForesightPlannerWorkspace userTier={userTier} />}
           {activeView === 'marketing-recommendations' && <MarketingRecommendationsView userTier={userTier} />}
+          {activeView === 'creative-review' && <CreativeReviewView userTier={userTier} />}
           {activeView === 'campaign-audit' && <CampaignAuditView databaseId={databaseId} />}
           {activeView === 'product-description-template' && <WebContentTemplatesView databaseId={databaseId} />}
           {activeView === 'bulk-edit-listings' && <BulkEditListingsView databaseId={databaseId} />}

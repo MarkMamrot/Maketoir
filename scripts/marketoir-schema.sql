@@ -1066,6 +1066,30 @@ CREATE TABLE IF NOT EXISTS foresight_creative_assessments (
   INDEX idx_foresight_creative_assessment_latest (business_id, creative_id, created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_creative_brief_versions (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  creative_id           BIGINT NOT NULL,
+  assessment_id         BIGINT NOT NULL,
+  diagnostics_through   DATE NOT NULL,
+  version               INT NOT NULL,
+  parent_id             BIGINT,
+  schema_version        INT NOT NULL,
+  document_json         JSON NOT NULL,
+  markdown_text         LONGTEXT NOT NULL,
+  document_hash         VARCHAR(64) NOT NULL,
+  model_id              VARCHAR(100),
+  prompt_version        VARCHAR(100),
+  prompt_hash           VARCHAR(64),
+  authored_by           INT,
+  change_reason         VARCHAR(500),
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_creative_brief_version (business_id, thread_id, version),
+  UNIQUE KEY uq_foresight_creative_brief_hash (business_id, thread_id, document_hash),
+  INDEX idx_foresight_creative_brief_latest (business_id, creative_id, version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_commerce_observations (
   id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
   run_id                  BIGINT NOT NULL,

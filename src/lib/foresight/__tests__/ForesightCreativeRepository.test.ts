@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), begin: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), getConnection: vi.fn(),
 }));
-vi.mock('@/services/MySQLService', () => ({ getPool: () => ({ getConnection: mocks.getConnection }) }));
+vi.mock('@/services/MySQLService', () => ({ getPool: () => ({ getConnection: mocks.getConnection, query: mocks.query }) }));
 
 import { ForesightCreativeRepository } from '../repositories/ForesightCreativeRepository';
 
@@ -44,5 +44,35 @@ describe('ForesightCreativeRepository', () => {
     expect(mocks.rollback).toHaveBeenCalledOnce();
     expect(mocks.commit).not.toHaveBeenCalled();
     expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it('loads latest-run diagnostic metrics and latest governed assessment by tenant', async () => {
+    mocks.query
+      .mockResolvedValueOnce([[{
+        creative_id: 77, source: 'google_ads', name: 'Search ad', format: 'RESPONSIVE_SEARCH_AD',
+        metric_date: '2026-08-01', impressions: '1000', clicks: '40', spend: '50',
+        conversions: '3', attributed_revenue: '120', frequency: null,
+      }]])
+      .mockResolvedValueOnce([[{
+        creative_id: 77, assessment_json: JSON.stringify({
+          schemaVersion: 1, factualDescription: 'Ad', structuredTags: ['product-led'],
+          brandFitObservations: ['Direct tone'], accessibilityIssues: [], compositionTraits: [],
+          formatTraits: [], uncertainties: ['Image unavailable'], confidence: 0.7,
+        }),
+      }]]);
+
+    const result = await ForesightCreativeRepository.listDiagnosticInputs(
+      'business-1', '2026-07-19', '2026-08-01', 100,
+    );
+
+    expect(mocks.query).toHaveBeenNthCalledWith(1, expect.stringContaining('MAX(run_id)'), [
+      'business-1', '2026-07-19', '2026-08-01', 'business-1',
+      'business-1', '2026-07-19', '2026-08-01',
+    ]);
+    expect(mocks.query).toHaveBeenNthCalledWith(2, expect.stringContaining('MAX(id)'), ['business-1', 'business-1']);
+    expect(result).toEqual([expect.objectContaining({
+      creativeId: 77, tags: ['product-led'], brandFitObservations: ['Direct tone'],
+      assessmentUncertainties: ['Image unavailable'], metrics: [expect.objectContaining({ impressions: 1000, clicks: 40 })],
+    })]);
   });
 });

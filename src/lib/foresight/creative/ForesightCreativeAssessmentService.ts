@@ -10,14 +10,14 @@ import { loadForesightPrompt } from '../prompts/promptManifest';
 import { ForesightCreativeRepository, type ForesightCreativeAssessmentRow, type ForesightCreativeRow } from '../repositories/ForesightCreativeRepository';
 import { parseCreativeAssessment } from './creativeAssessment';
 
-interface MediaEvidence { mimeType: string; data: string; mode: 'image' | 'video_frame' }
+export interface CreativeMediaEvidence { mimeType: string; data: string; mode: 'image' | 'video_frame' }
 interface Dependencies {
   getCreative: typeof ForesightCreativeRepository.get;
   getBrandProfile: typeof BrandProfileRepository.get;
   loadPrompt: typeof loadForesightPrompt;
   saveAssessment: typeof ForesightCreativeRepository.saveAssessment;
   resolveMedia: (businessId: string, creative: ForesightCreativeRow) => Promise<{ url: string; mediaType: 'image' | 'video_frame' } | null>;
-  fetchMedia: (url: string, mediaType: 'image' | 'video_frame') => Promise<MediaEvidence>;
+  fetchMedia: (url: string, mediaType: 'image' | 'video_frame') => Promise<CreativeMediaEvidence>;
   reportIssue: typeof reportRuntimeIssue;
 }
 
@@ -46,7 +46,7 @@ function allowedMediaUrl(value: string): URL {
   return url;
 }
 
-async function fetchMedia(urlValue: string, mode: 'image' | 'video_frame'): Promise<MediaEvidence> {
+async function fetchMedia(urlValue: string, mode: 'image' | 'video_frame'): Promise<CreativeMediaEvidence> {
   const url = allowedMediaUrl(urlValue);
   const response = await fetch(url, { signal: AbortSignal.timeout(10_000), redirect: 'error' });
   if (!response.ok) throw new Error(`Creative media fetch failed with HTTP ${response.status}.`);
@@ -69,6 +69,14 @@ async function resolveMedia(businessId: string, creative: ForesightCreativeRow) 
   if (!connection?.meta_ad_account_id || !connection.meta_access_token) return null;
   return new MetaAdsReadService(decrypt(connection.meta_access_token), connection.meta_ad_account_id)
     .getCreativeMediaReference(creative.external_id);
+}
+
+export async function loadCreativeMediaEvidence(
+  businessId: string,
+  creative: ForesightCreativeRow,
+): Promise<CreativeMediaEvidence | null> {
+  const reference = await resolveMedia(businessId, creative);
+  return reference ? fetchMedia(reference.url, reference.mediaType) : null;
 }
 
 const defaults: Dependencies = {
@@ -100,7 +108,7 @@ export function createForesightCreativeAssessmentService(dependencies: Dependenc
           copy: creative.copy_json, stableMediaReferences: creative.media_json,
           firstSeenOn: creative.first_seen_on, lastSeenOn: creative.last_seen_on,
         };
-        let media: MediaEvidence | null = null;
+        let media: CreativeMediaEvidence | null = null;
         try {
           const reference = await dependencies.resolveMedia(input.businessId, creative);
           if (reference) media = await dependencies.fetchMedia(reference.url, reference.mediaType);
