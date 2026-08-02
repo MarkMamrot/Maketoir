@@ -2,6 +2,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { fetchMetaDaily } from './ForesightMonitoringSyncService';
+import { GoogleAdsService } from '@/services/GoogleAdsService';
 import type { ExperimentObservationPackage, ExperimentVariantObservation } from './experimentResults';
 import type { ForesightCampaignExperimentDocument } from './planning/campaignExperimentDocument';
 import {
@@ -119,6 +120,35 @@ export function buildMetaExperimentObservations(
   };
 }
 
+function aggregateGoogleVariant(rows: unknown[], campaignId: string, design: ForesightCampaignExperimentDocument): ExperimentVariantObservation | null {
+  const matches = rows.map(record).filter((row) => String(record(row.campaign).id ?? '') === campaignId);
+  if (matches.length === 0) return null;
+  return matches.reduce<ExperimentVariantObservation>((total, row) => {
+    const metrics = record(row.metrics);
+    return {
+      sampleSize: total.sampleSize + nonNegativeInteger(metrics.impressions),
+      conversions: Number(total.conversions) + nonNegativeInteger(metrics.conversions),
+      guardrailEvents: total.guardrailEvents,
+    };
+  }, { sampleSize: 0, conversions: 0, guardrailEvents: Object.fromEntries(design.guardrails.map(({ metric }) => [metric, 0])) });
+}
+
+export function buildGoogleAdsExperimentObservations(due: DueCampaignExperimentRow, rows: unknown[]): ExperimentObservationPackage {
+  if (due.experiment_json.primaryMetric !== 'conversion_rate') {
+    return unsupportedObservations(due, 'Automated Google Ads evidence currently supports conversion_rate only.');
+  }
+  const control = aggregateGoogleVariant(rows, due.control_external_id, due.experiment_json);
+  const treatment = aggregateGoogleVariant(rows, due.treatment_external_id, due.experiment_json);
+  const qualityIssues = due.experiment_json.guardrails.map(({ metric }) =>
+    `Google Ads does not provide the sufficient event statistics required for guardrail ${metric}; the conclusion is inconclusive.`);
+  if (!control) qualityIssues.push(`Google Ads returned no campaign evidence for control ID ${due.control_external_id}.`);
+  if (!treatment) qualityIssues.push(`Google Ads returned no campaign evidence for treatment ID ${due.treatment_external_id}.`);
+  return {
+    source: 'google_ads_api:campaign', observedFrom: due.launched_on, observedThrough: due.scheduled_end_on,
+    qualityIssues, control: control ?? emptyVariant(due.experiment_json), treatment: treatment ?? emptyVariant(due.experiment_json),
+  };
+}
+
 export const ForesightExperimentEvidenceCollectionService = {
   async collectDue(businessId: string, throughDate: string) {
     let dueExperiments: DueCampaignExperimentRow[];
@@ -147,11 +177,24 @@ export const ForesightExperimentEvidenceCollectionService = {
     for (const due of dueExperiments) {
       try {
         let observations: ExperimentObservationPackage;
-        if (due.channel !== 'meta') {
+        if (due.channel === 'klaviyo') {
           observations = unsupportedObservations(
             due,
-            `Automated exact-variant evidence collection is not yet supported for ${due.channel}.`,
+            'Klaviyo does not expose the exact variant sufficient statistics required by the governed experiment contract.',
           );
+        } else if (due.channel === 'google_ads') {
+          if (!connection?.google_ads_customer_id || !connection.google_ads_refresh_token) {
+            deferredCount += 1;
+            await reportRuntimeIssue({ businessId, source: 'ForesightExperimentEvidenceCollectionService', operation: 'collect_due_experiment',
+              severity: 'warning', title: 'Google Ads experiment evidence collection is not configured',
+              error: new Error('The tenant Google Ads connection is missing a customer ID or refresh token.'),
+              reference: { type: 'campaign_experiment_launch', id: due.launch_id },
+              context: { channel: due.channel, threadId: due.thread_id, scheduledEndOn: due.scheduled_end_on } }).catch(() => undefined);
+            continue;
+          }
+          const rows = await new GoogleAdsService(connection.google_ads_customer_id, decrypt(connection.google_ads_refresh_token))
+            .getDailyPerformance(due.launched_on, due.scheduled_end_on);
+          observations = buildGoogleAdsExperimentObservations(due, rows);
         } else if (!supportsAutomatedMeta(due.experiment_json)) {
           observations = unsupportedObservations(
             due,

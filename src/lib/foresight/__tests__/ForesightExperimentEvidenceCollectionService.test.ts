@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { listDue, createResult, getConnections, fetchMeta, reportIssue, decrypt } = vi.hoisted(() => ({
-  listDue: vi.fn(), createResult: vi.fn(), getConnections: vi.fn(), fetchMeta: vi.fn(), reportIssue: vi.fn(), decrypt: vi.fn(),
+const { listDue, createResult, getConnections, fetchMeta, fetchGoogle, reportIssue, decrypt } = vi.hoisted(() => ({
+  listDue: vi.fn(), createResult: vi.fn(), getConnections: vi.fn(), fetchMeta: vi.fn(), fetchGoogle: vi.fn(), reportIssue: vi.fn(), decrypt: vi.fn(),
 }));
 vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentResultRepository', () => ({
   ForesightCampaignExperimentResultRepository: { listDueWithoutResult: listDue, create: createResult },
 }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: getConnections } }));
 vi.mock('@/lib/foresight/ForesightMonitoringSyncService', () => ({ fetchMetaDaily: fetchMeta }));
+vi.mock('@/services/GoogleAdsService', () => ({ GoogleAdsService: class { getDailyPerformance = fetchGoogle; } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: reportIssue }));
 vi.mock('@/lib/encryption', () => ({ decrypt }));
 
 import {
+  buildGoogleAdsExperimentObservations,
   buildMetaExperimentObservations,
   ForesightExperimentEvidenceCollectionService,
 } from '../ForesightExperimentEvidenceCollectionService';
@@ -45,11 +47,29 @@ describe('ForesightExperimentEvidenceCollectionService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     listDue.mockResolvedValue([due]);
-    getConnections.mockResolvedValue({ meta_ad_account_id: 'act_123', meta_access_token: 'encrypted' });
+    getConnections.mockResolvedValue({ meta_ad_account_id: 'act_123', meta_access_token: 'encrypted', google_ads_customer_id: '999', google_ads_refresh_token: 'google-encrypted' });
     decrypt.mockReturnValue('decrypted');
     fetchMeta.mockResolvedValue(metaRows);
     createResult.mockResolvedValue({ status: 'treatment_won' });
     reportIssue.mockResolvedValue(undefined);
+  });
+
+  it('collects exact Google campaign evidence but remains inconclusive for unsupported guardrail statistics', async () => {
+    const googleDue = { ...due, channel: 'google_ads' as const, control_external_id: '101', treatment_external_id: '202',
+      experiment_json: { ...due.experiment_json, channel: 'google_ads' as const, guardrails: [{ metric: 'cost_per_conversion', maximumAdverseChangePercent: 20 }] } };
+    const rows = [
+      { campaign: { id: '101' }, metrics: { impressions: 1000, conversions: 40 } },
+      { campaign: { id: '202' }, metrics: { impressions: 1200, conversions: 60 } },
+    ];
+    expect(buildGoogleAdsExperimentObservations(googleDue, rows)).toMatchObject({
+      source: 'google_ads_api:campaign', control: { sampleSize: 1000, conversions: 40 }, treatment: { sampleSize: 1200, conversions: 60 },
+      qualityIssues: [expect.stringContaining('sufficient event statistics')],
+    });
+    listDue.mockResolvedValue([googleDue]); fetchGoogle.mockResolvedValue(rows); createResult.mockResolvedValue({ status: 'inconclusive' });
+    const result = await ForesightExperimentEvidenceCollectionService.collectDue('business-1', '2026-08-17');
+    expect(decrypt).toHaveBeenCalledWith('google-encrypted');
+    expect(fetchGoogle).toHaveBeenCalledWith('2026-08-10', '2026-08-16');
+    expect(result.inconclusiveCount).toBe(1);
   });
 
   it('aggregates exact Meta campaign IDs without double-counting purchase aliases', () => {
@@ -76,7 +96,7 @@ describe('ForesightExperimentEvidenceCollectionService', () => {
     const result = await ForesightExperimentEvidenceCollectionService.collectDue('business-1', '2026-08-17');
     expect(fetchMeta).not.toHaveBeenCalled();
     expect(createResult).toHaveBeenCalledWith('business-1', 12, expect.objectContaining({
-      observations: expect.objectContaining({ qualityIssues: [expect.stringContaining('not yet supported')] }),
+      observations: expect.objectContaining({ qualityIssues: [expect.stringContaining('sufficient statistics')] }),
     }));
     expect(result.inconclusiveCount).toBe(1);
   });

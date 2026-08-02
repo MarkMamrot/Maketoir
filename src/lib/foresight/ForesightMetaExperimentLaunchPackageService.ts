@@ -35,12 +35,14 @@ export const ForesightMetaExperimentLaunchPackageService = {
     if (!/^\d+$/.test(accountId.replace(/^act_/i, ''))) {
       throw new MetaExperimentLaunchPackageValidationError('The connected Meta ad account ID is invalid.');
     }
-    const campaigns = await new MetaAdsReadService(decrypt(storedAccessToken), accountId).listCampaigns();
+    const meta = new MetaAdsReadService(decrypt(storedAccessToken), accountId);
+    const [campaigns, identity] = await Promise.all([meta.listCampaigns(), meta.getExperimentAccountIdentity()]);
     return buildMetaExperimentLaunchPackage({
       experimentVersionId: experiment.id,
       experimentHash: experiment.experiment_hash,
       design: experiment.experiment_json,
       accountId,
+      businessManagerId: identity.businessId,
       campaigns,
       controlCampaignId: input.controlCampaignId,
       treatmentCampaignId: input.treatmentCampaignId,

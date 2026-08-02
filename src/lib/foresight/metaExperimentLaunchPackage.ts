@@ -16,6 +16,7 @@ export interface MetaExperimentLaunchPackage {
   experimentVersionId: number;
   experimentHash: string;
   accountId: string;
+  businessManagerId: string;
   controlCampaignId: string | null;
   treatmentCampaignId: string | null;
   recommendedControlCampaignId: string | null;
@@ -48,7 +49,7 @@ function normalizedAccount(value: string): string {
 function selectable(campaign: MetaCampaignOption, accountId: string): boolean {
   const status = campaign.effectiveStatus.toUpperCase();
   return normalizedAccount(campaign.accountId) === normalizedAccount(accountId)
-    && ['PAUSED', 'ACTIVE'].includes(status);
+    && status === 'PAUSED' && campaign.configuredStatus.toUpperCase() === 'PAUSED';
 }
 
 export function metaExperimentLaunchPackageFingerprint(value: MetaExperimentLaunchPackage): string {
@@ -59,6 +60,7 @@ export function metaExperimentLaunchPackageFingerprint(value: MetaExperimentLaun
     experimentVersionId: value.experimentVersionId,
     experimentHash: value.experimentHash,
     accountId: normalizedAccount(value.accountId),
+    businessManagerId: value.businessManagerId,
     controlCampaignId: value.controlCampaignId,
     treatmentCampaignId: value.treatmentCampaignId,
     selectedCampaigns: value.candidates.filter(({ campaignId }) => selectedCampaignIds.has(campaignId))
@@ -75,6 +77,7 @@ export function buildMetaExperimentLaunchPackage(input: {
   experimentHash: string;
   design: ForesightCampaignExperimentDocument;
   accountId: string;
+  businessManagerId: string;
   campaigns: MetaCampaignOption[];
   controlCampaignId?: string | null;
   treatmentCampaignId?: string | null;
@@ -103,7 +106,8 @@ export function buildMetaExperimentLaunchPackage(input: {
   const controlCampaignId = input.controlCampaignId?.trim() || null;
   const treatmentCampaignId = input.treatmentCampaignId?.trim() || null;
 
-  if (available.length < 2) blockers.push({ code: 'insufficient_campaign_candidates', message: 'At least two readable active or paused campaigns are required.' });
+  if (!input.businessManagerId.trim()) blockers.push({ code: 'meta_business_manager_unavailable', message: 'The connected ad account must expose its owning Meta Business Manager.' });
+  if (available.length < 2) blockers.push({ code: 'insufficient_campaign_candidates', message: 'At least two readable paused campaigns are required for a governed split test.' });
   if ((controlCampaignId == null) !== (treatmentCampaignId == null)) blockers.push({ code: 'incomplete_variant_mapping', message: 'Select both control and treatment campaigns.' });
   if (controlCampaignId && treatmentCampaignId && controlCampaignId === treatmentCampaignId) {
     blockers.push({ code: 'duplicate_variant_campaign', message: 'Control and treatment must use different campaigns.', campaignId: controlCampaignId });
@@ -117,7 +121,7 @@ export function buildMetaExperimentLaunchPackage(input: {
   const ready = Boolean(controlCampaignId && treatmentCampaignId && blockers.length === 0);
   const result: MetaExperimentLaunchPackage = {
     mode: 'read_only_meta_experiment_launch_package', executable: false, ready, checkedAt: input.checkedAt,
-    experimentVersionId: input.experimentVersionId, experimentHash: input.experimentHash, accountId: normalizedAccount(input.accountId),
+    experimentVersionId: input.experimentVersionId, experimentHash: input.experimentHash, accountId: normalizedAccount(input.accountId), businessManagerId: input.businessManagerId.trim(),
     controlCampaignId, treatmentCampaignId,
     recommendedControlCampaignId: recommendedControl?.controlScore ? recommendedControl.campaignId : null,
     recommendedTreatmentCampaignId: recommendedTreatment?.treatmentScore ? recommendedTreatment.campaignId : null,

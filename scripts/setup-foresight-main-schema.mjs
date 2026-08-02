@@ -28,6 +28,7 @@ const tableNames = [
   'foresight_campaign_experiment_versions',
   'foresight_campaign_experiment_review_events',
   'foresight_meta_experiment_launch_package_confirmations',
+  'foresight_campaign_experiment_executions',
   'foresight_campaign_experiment_launches',
   'foresight_campaign_experiment_results',
   'foresight_campaign_experiment_result_review_events',

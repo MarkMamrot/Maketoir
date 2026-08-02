@@ -297,6 +297,11 @@ type MetaExperimentPackageConfirmation = {
   package_fingerprint: string;
   created_at: string;
 };
+type MetaExperimentExecutionPreflight = {
+  ready: boolean; studyName: string; startTime: number; endTime: number;
+  executionFingerprint: string | null; blockers: Array<{ code: string; message: string }>;
+};
+type MetaExperimentExecution = { id: number; state: 'in_progress' | 'succeeded' | 'failed' | 'compensated'; meta_study_id: string | null };
 type DeliverableChannel = 'campaign_brief' | 'meta' | 'google_ads' | 'klaviyo';
 const DELIVERABLE_CHANNELS: Array<{ value: DeliverableChannel; label: string }> = [
   { value: 'campaign_brief', label: 'Campaign brief' },
@@ -460,12 +465,20 @@ async function responseJson(response: Response): Promise<any> {
   try { return JSON.parse(text); } catch { return { error: text.slice(0, 500) }; }
 }
 
-function MetaExperimentPackagePanel({ value, confirmation, loading, onRefresh, onConfirm }: {
+function MetaExperimentPackagePanel({ value, confirmation, executionPreflight, execution, compensation, executionConfirmed, loading, onRefresh, onConfirm, onRefreshExecution, onExecutionConfirmed, onExecute, onRollback }: {
   value: MetaExperimentLaunchPackage | null;
   confirmation: MetaExperimentPackageConfirmation | null;
+  executionPreflight: MetaExperimentExecutionPreflight | null;
+  execution: MetaExperimentExecution | null;
+  compensation: MetaExperimentExecution | null;
+  executionConfirmed: boolean;
   loading: boolean;
   onRefresh: (controlCampaignId?: string, treatmentCampaignId?: string) => void;
   onConfirm: () => void;
+  onRefreshExecution: () => void;
+  onExecutionConfirmed: (value: boolean) => void;
+  onExecute: () => void;
+  onRollback: () => void;
 }) {
   const selectable = value?.candidates.filter((campaign) => campaign.selectable) ?? [];
   return (
@@ -486,7 +499,22 @@ function MetaExperimentPackagePanel({ value, confirmation, loading, onRefresh, o
         <button type="button" onClick={() => onRefresh(value.controlCampaignId ?? undefined, value.treatmentCampaignId ?? undefined)} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Refresh live package</button>
         {value.ready && !confirmation && <button type="button" onClick={onConfirm} disabled={loading} className="ml-2 mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Confirm exact package</button>}
         {confirmation && <p className="mt-3 text-xs font-semibold text-emerald-800">Confirmed {dateOnly(confirmation.created_at)} · package {confirmation.package_fingerprint.slice(0, 12)}</p>}
-        <p className="mt-3 text-xs leading-5 text-gray-500">Read-only package. No campaign is created, edited, scheduled, or launched.</p>
+        {!confirmation && <p className="mt-3 text-xs leading-5 text-gray-500">Read-only package. No campaign is created, edited, scheduled, or launched.</p>}
+        {confirmation && <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="text-[11px] font-bold uppercase text-gray-500">Governed execution</div>
+          {!executionPreflight && !execution && <button type="button" onClick={onRefreshExecution} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><RefreshCw size={15} /> Final live preflight</button>}
+          {executionPreflight && !execution && <>
+            <p className="mt-2 text-xs leading-5 text-gray-700">Meta split test <span className="font-semibold">{executionPreflight.studyName}</span> · {new Date(executionPreflight.startTime * 1000).toLocaleString()} to {new Date(executionPreflight.endTime * 1000).toLocaleString()}</p>
+            {executionPreflight.blockers.length > 0 && <ul className="mt-2 border-l-2 border-amber-500 pl-3 text-xs leading-5 text-amber-900">{executionPreflight.blockers.map((blocker) => <li key={blocker.code}>{blocker.message}</li>)}</ul>}
+            {executionPreflight.executionFingerprint && <p className="mt-2 font-mono text-[11px] text-gray-500">Execution {executionPreflight.executionFingerprint.slice(0, 12)}</p>}
+            <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-gray-700"><input type="checkbox" checked={executionConfirmed} onChange={(event) => onExecutionConfirmed(event.target.checked)} className="mt-1 accent-emerald-700" />Create this exact randomized Meta split test and activate only the two confirmed paused campaigns.</label>
+            <button type="button" onClick={onExecute} disabled={loading || !executionPreflight.ready || !executionConfirmed} className="mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Send size={15} /> Launch exact split test</button>
+            <button type="button" onClick={onRefreshExecution} disabled={loading} className="ml-2 mt-3 inline-flex h-9 items-center gap-2 border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 disabled:opacity-50"><RefreshCw size={15} /> Refresh</button>
+          </>}
+          {execution && <p className={`mt-3 text-xs font-semibold ${execution.state === 'succeeded' ? 'text-emerald-800' : 'text-amber-900'}`}>Execution {execution.state.replace('_', ' ')}{execution.meta_study_id ? ` · Meta study ${execution.meta_study_id}` : ''}</p>}
+          {execution?.state === 'succeeded' && !compensation && <button type="button" onClick={onRollback} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 border border-red-300 bg-white px-3 text-sm font-semibold text-red-800 disabled:opacity-50"><Undo2 size={15} /> Cancel study and pause variants</button>}
+          {compensation && <p className="mt-2 text-xs font-semibold text-gray-700">Rollback {compensation.state}.</p>}
+        </div>}
       </>}
     </div>
   );
@@ -549,6 +577,10 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [experimentSingleVariable, setExperimentSingleVariable] = useState(false);
   const [metaExperimentPackage, setMetaExperimentPackage] = useState<MetaExperimentLaunchPackage | null>(null);
   const [metaExperimentPackageConfirmation, setMetaExperimentPackageConfirmation] = useState<MetaExperimentPackageConfirmation | null>(null);
+  const [metaExperimentExecutionPreflight, setMetaExperimentExecutionPreflight] = useState<MetaExperimentExecutionPreflight | null>(null);
+  const [metaExperimentExecution, setMetaExperimentExecution] = useState<MetaExperimentExecution | null>(null);
+  const [metaExperimentCompensation, setMetaExperimentCompensation] = useState<MetaExperimentExecution | null>(null);
+  const [metaExperimentExecutionConfirmed, setMetaExperimentExecutionConfirmed] = useState(false);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -889,6 +921,51 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await refreshMetaExperimentPackage(packageResult.controlCampaignId, packageResult.treatmentCampaignId); await refreshPlanningContext();
       setMessage({ kind: 'success', text: 'Exact Meta launch package confirmed. No campaign was changed, scheduled, or launched.' });
     } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to confirm Meta launch package.' }); }
+    finally { setWorking(null); }
+  };
+
+  const refreshMetaExperimentExecution = async () => {
+    const thread = planningContext?.thread; if (!thread) return;
+    setWorking('experiment_execution_preflight'); setMessage(null); setMetaExperimentExecutionConfirmed(false);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch?view=meta-execution`, { cache: 'no-store' });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to run final Meta execution preflight.');
+      setMetaExperimentExecutionPreflight(body.preflight as MetaExperimentExecutionPreflight);
+      setMetaExperimentExecution((body.execution ?? null) as MetaExperimentExecution | null);
+      setMetaExperimentCompensation((body.compensation ?? null) as MetaExperimentExecution | null);
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to run final Meta execution preflight.' }); }
+    finally { setWorking(null); }
+  };
+
+  const executeMetaExperiment = async () => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    const executionPreflight = metaExperimentExecutionPreflight;
+    if (!thread || !experiment || !executionPreflight?.ready || !executionPreflight.executionFingerprint || !metaExperimentExecutionConfirmed) return;
+    setWorking('experiment_execute'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        operation: 'execute-meta-experiment', experimentVersionId: experiment.id, experimentHash: experiment.experiment_hash,
+        executionFingerprint: executionPreflight.executionFingerprint,
+      }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to execute Meta experiment.');
+      setMetaExperimentExecution(body.execution as MetaExperimentExecution); setMetaExperimentExecutionConfirmed(false);
+      await refreshPlanningContext(); setMessage({ kind: 'success', text: 'Exact Meta split test created, activated, and verified by live read-back.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to execute Meta experiment.' }); }
+    finally { setWorking(null); }
+  };
+
+  const rollbackMetaExperiment = async () => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    if (!thread || !experiment || metaExperimentExecution?.state !== 'succeeded') return;
+    setWorking('experiment_rollback'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        operation: 'rollback-meta-experiment', experimentVersionId: experiment.id, experimentHash: experiment.experiment_hash,
+      }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to roll back Meta experiment.');
+      setMetaExperimentCompensation(body.execution as MetaExperimentExecution);
+      setMessage({ kind: 'success', text: 'Meta split test cancelled and both experiment campaigns paused after live read-back.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to roll back Meta experiment.' }); }
     finally { setWorking(null); }
   };
 
@@ -2187,16 +2264,23 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                               )}
                                             {isAdmin &&
                                               experiment.review?.action === "accepted" &&
-                                              !experiment.launch &&
                                               design.channel === "meta" && (
                                                 <MetaExperimentPackagePanel
                                                   value={metaExperimentPackage?.experimentVersionId === experiment.id ? metaExperimentPackage : null}
                                                   confirmation={metaExperimentPackageConfirmation?.experiment_version_id === experiment.id ? metaExperimentPackageConfirmation : null}
-                                                  loading={working === "experiment_package" || working === "experiment_package_confirm"}
+                                                  executionPreflight={metaExperimentExecutionPreflight}
+                                                  execution={metaExperimentExecution}
+                                                  compensation={metaExperimentCompensation}
+                                                  executionConfirmed={metaExperimentExecutionConfirmed}
+                                                  loading={working?.startsWith("experiment_") === true}
                                                   onRefresh={(controlCampaignId, treatmentCampaignId) =>
                                                     void refreshMetaExperimentPackage(controlCampaignId, treatmentCampaignId)
                                                   }
                                                   onConfirm={() => void confirmMetaExperimentPackage()}
+                                                  onRefreshExecution={() => void refreshMetaExperimentExecution()}
+                                                  onExecutionConfirmed={setMetaExperimentExecutionConfirmed}
+                                                  onExecute={() => void executeMetaExperiment()}
+                                                  onRollback={() => void rollbackMetaExperiment()}
                                                 />
                                               )}
                                             {isAdmin &&

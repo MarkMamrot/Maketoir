@@ -3,6 +3,10 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { DEFAULT_BUSINESS_TIME_ZONE, getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { ForesightMetaExperimentLaunchPackageService, MetaExperimentLaunchPackageValidationError } from '@/lib/foresight/ForesightMetaExperimentLaunchPackageService';
+import { ForesightMetaExperimentExecutionPreflightService } from '@/lib/foresight/ForesightMetaExperimentExecutionPreflightService';
+import { ForesightMetaExperimentExecutionService } from '@/lib/foresight/ForesightMetaExperimentExecutionService';
+import { ForesightCampaignExperimentExecutionRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentExecutionRepository';
+import { ForesightCampaignExperimentRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentRepository';
 import { CampaignExperimentLaunchValidationError, ForesightCampaignExperimentLaunchRepository } from '@/lib/foresight/repositories/ForesightCampaignExperimentLaunchRepository';
 import { ForesightMetaExperimentLaunchPackageRepository } from '@/lib/foresight/repositories/ForesightMetaExperimentLaunchPackageRepository';
 import { requireAdminSession, requireAdminTier } from '@/lib/sessionUtils';
@@ -17,6 +21,20 @@ export async function GET(request: Request, context: { params: { threadId: strin
   const { user, response } = requireAdminSession(); if (response) return response;
   const id = threadId(context.params.threadId); if (!id) return NextResponse.json({ error: 'Invalid thread id.' }, { status: 400 });
   const parameters = new URL(request.url).searchParams;
+  if (parameters.get('view') === 'meta-execution') {
+    try {
+      const experiment = await ForesightCampaignExperimentRepository.latest(user.businessId, id);
+      if (!experiment) return NextResponse.json({ error: 'Campaign experiment not found.' }, { status: 404 });
+      const execution = await ForesightCampaignExperimentExecutionRepository.getForExperiment(user.businessId, experiment.id);
+      const compensation = await ForesightCampaignExperimentExecutionRepository.getForExperiment(user.businessId, experiment.id, 'compensation');
+      const preflight = execution ? null : await ForesightMetaExperimentExecutionPreflightService.preflight(user.businessId, id);
+      return NextResponse.json({ success: true, preflight, execution, compensation });
+    } catch (error) {
+      await reportRuntimeIssue({ businessId: user.businessId, source: 'ForesightPlanner', operation: 'preflight_meta_campaign_experiment', severity: 'error',
+        title: 'Meta campaign experiment preflight failed', error, reference: { type: 'planning_thread', id } }).catch(() => undefined);
+      throw error;
+    }
+  }
   if (parameters.get('view') === 'meta-package') {
     const experimentVersionId = Number(parameters.get('experimentVersionId'));
     const experimentHash = parameters.get('experimentHash')?.trim() ?? '';
@@ -50,6 +68,30 @@ export async function POST(request: Request, context: { params: { threadId: stri
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const experimentVersionId = Number(body?.experimentVersionId); const experimentHash = typeof body?.experimentHash === 'string' ? body.experimentHash.trim() : '';
   if (!Number.isInteger(experimentVersionId) || experimentVersionId <= 0 || !/^[a-f0-9]{64}$/.test(experimentHash)) return NextResponse.json({ error: 'An exact experiment version and hash are required.' }, { status: 400 });
+  if (body?.operation === 'execute-meta-experiment') {
+    const executionFingerprint = typeof body.executionFingerprint === 'string' ? body.executionFingerprint.trim() : '';
+    if (!/^[a-f0-9]{64}$/.test(executionFingerprint)) return NextResponse.json({ error: 'An exact execution fingerprint is required.' }, { status: 400 });
+    try {
+      const result = await ForesightMetaExperimentExecutionService.execute({ businessId: user.businessId, threadId: id,
+        experimentVersionId, actorId: user.userId, executionFingerprint });
+      return NextResponse.json({ success: true, ...result }, { status: result.idempotentReplay ? 200 : 201 });
+    } catch (error) {
+      await reportRuntimeIssue({ businessId: user.businessId, source: 'ForesightPlanner', operation: 'execute_meta_campaign_experiment', severity: 'error',
+        title: 'Meta campaign experiment execution failed', error, reference: { type: 'planning_thread', id }, context: { experimentVersionId } }).catch(() => undefined);
+      throw error;
+    }
+  }
+  if (body?.operation === 'rollback-meta-experiment') {
+    try {
+      const result = await ForesightMetaExperimentExecutionService.rollback({ businessId: user.businessId, threadId: id,
+        experimentVersionId, actorId: user.userId });
+      return NextResponse.json({ success: true, ...result });
+    } catch (error) {
+      await reportRuntimeIssue({ businessId: user.businessId, source: 'ForesightPlanner', operation: 'rollback_meta_campaign_experiment', severity: 'error',
+        title: 'Meta campaign experiment rollback failed', error, reference: { type: 'planning_thread', id }, context: { experimentVersionId } }).catch(() => undefined);
+      throw error;
+    }
+  }
   if (body?.operation === 'confirm-meta-package') {
     const controlCampaignId = typeof body.controlCampaignId === 'string' ? body.controlCampaignId.trim() : '';
     const treatmentCampaignId = typeof body.treatmentCampaignId === 'string' ? body.treatmentCampaignId.trim() : '';

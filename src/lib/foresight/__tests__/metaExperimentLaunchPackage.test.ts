@@ -23,7 +23,7 @@ const campaigns = [
 ];
 
 function build(overrides: Partial<Parameters<typeof buildMetaExperimentLaunchPackage>[0]> = {}) {
-  return buildMetaExperimentLaunchPackage({ experimentVersionId: 7, experimentHash: 'b'.repeat(64), design, accountId: 'act_123', campaigns, checkedAt: '2026-07-30T00:00:00.000Z', ...overrides });
+  return buildMetaExperimentLaunchPackage({ experimentVersionId: 7, experimentHash: 'b'.repeat(64), design, accountId: 'act_123', businessManagerId: 'business-456', campaigns, checkedAt: '2026-07-30T00:00:00.000Z', ...overrides });
 }
 
 describe('buildMetaExperimentLaunchPackage', () => {
@@ -44,6 +44,15 @@ describe('buildMetaExperimentLaunchPackage', () => {
     expect(first.blockers).toEqual([]);
     expect(first.confirmationFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(first.confirmationFingerprint).toBe(second.confirmationFingerprint);
+    expect(first.confirmationFingerprint).not.toBe(build({ controlCampaignId: 'c1', treatmentCampaignId: 'c2', businessManagerId: 'business-789' }).confirmationFingerprint);
+  });
+
+  it('blocks active campaigns and accounts without an owning Business Manager', () => {
+    const activeCampaigns = campaigns.map((campaign) => campaign.campaignId === 'c2'
+      ? { ...campaign, configuredStatus: 'ACTIVE', effectiveStatus: 'ACTIVE' }
+      : campaign);
+    expect(build({ campaigns: activeCampaigns, controlCampaignId: 'c1', treatmentCampaignId: 'c2' }).blockers.map(({ code }) => code)).toContain('treatment_campaign_unavailable');
+    expect(build({ businessManagerId: '', controlCampaignId: 'c1', treatmentCampaignId: 'c2' }).blockers.map(({ code }) => code)).toContain('meta_business_manager_unavailable');
   });
 
   it('blocks duplicate, unavailable, and incompatible mappings', () => {

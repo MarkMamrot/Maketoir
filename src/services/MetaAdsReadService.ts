@@ -10,7 +10,11 @@ const metaSdk = require('facebook-nodejs-business-sdk') as MetaSdk;
 interface MetaReadable {
   read(fields: string[]): Promise<unknown>;
   update(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  delete?(fields: string[], params?: Record<string, unknown>): Promise<unknown>;
   getCampaigns?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  getCells?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  getAdStudies?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  createAdStudy?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
 }
 
 interface MetaSdk {
@@ -18,6 +22,8 @@ interface MetaSdk {
   AdAccount: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   Campaign: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
   AdSet: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
+  Business: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
+  AdStudy: new (id: string, data?: object, parentId?: string, api?: unknown) => MetaReadable;
 }
 
 export interface MetaBudgetSettings {
@@ -39,6 +45,37 @@ export interface MetaCampaignOption {
   objective: string;
   configuredStatus: string;
   effectiveStatus: string;
+}
+
+export interface MetaCampaignStatusUpdate {
+  campaignId: string;
+  status: 'ACTIVE' | 'PAUSED';
+}
+
+export interface MetaExperimentAccountIdentity {
+  accountId: string;
+  businessId: string;
+}
+
+export interface MetaSplitTestInput {
+  businessId: string;
+  name: string;
+  description: string;
+  startTime: number;
+  endTime: number;
+  control: { campaignId: string; name: string; allocationPercent: number };
+  treatment: { campaignId: string; name: string; allocationPercent: number };
+}
+
+export interface MetaSplitTestSnapshot {
+  studyId: string;
+  businessId: string;
+  name: string;
+  type: string;
+  startTime: string;
+  endTime: string;
+  canceledTime: string | null;
+  cells: Array<{ cellId: string; name: string; allocationPercent: number; campaignIds: string[] }>;
 }
 
 function plainData(value: unknown): Record<string, unknown> {
@@ -117,6 +154,140 @@ export class MetaAdsReadService {
         effectiveStatus: text(record.effective_status),
       };
     }).filter((campaign) => campaign.campaignId && campaign.accountId);
+  }
+
+  async getExperimentAccountIdentity(): Promise<MetaExperimentAccountIdentity> {
+    const record = await this.read(new this.sdk.AdAccount(this.accountId, {}, undefined, this.api), [
+      'id', 'account_id', 'business', 'owner_business',
+    ]);
+    const business = plainData(record.business || record.owner_business);
+    const businessId = text(business.id) || text(record.business) || text(record.owner_business);
+    if (!businessId) throw new Error('The connected Meta ad account has no readable owning Business Manager.');
+    return { accountId: text(record.account_id) || this.accountId.replace(/^act_/, ''), businessId };
+  }
+
+  async getCampaignStatuses(campaignIds: string[]): Promise<MetaCampaignOption[]> {
+    const ids = [...new Set(campaignIds.map(text).filter(Boolean))];
+    if (ids.length === 0) throw new Error('At least one Meta campaign ID is required.');
+    return Promise.all(ids.map(async (campaignId) => {
+      const record = await this.read(new this.sdk.Campaign(campaignId, {}, undefined, this.api), [
+        'id', 'account_id', 'name', 'objective', 'configured_status', 'effective_status',
+      ]);
+      return {
+        campaignId: text(record.id) || campaignId,
+        campaignName: text(record.name) || campaignId,
+        accountId: text(record.account_id),
+        objective: text(record.objective),
+        configuredStatus: text(record.configured_status),
+        effectiveStatus: text(record.effective_status),
+      };
+    }));
+  }
+
+  async updateCampaignStatuses(changes: MetaCampaignStatusUpdate[]): Promise<unknown[]> {
+    if (changes.length === 0) throw new Error('At least one Meta campaign status change is required.');
+    const ids = new Set<string>();
+    const validated = changes.map(({ campaignId, status }) => {
+      const id = campaignId.trim();
+      if (!id) throw new Error('Meta campaign ID is required.');
+      if (ids.has(id)) throw new Error('Meta campaign status changes must use distinct campaign IDs.');
+      ids.add(id);
+      if (status !== 'ACTIVE' && status !== 'PAUSED') throw new Error('Meta campaign status must be ACTIVE or PAUSED.');
+      return { campaignId: id, status };
+    });
+    return Promise.all(validated.map(({ campaignId, status }) => (
+      new this.sdk.Campaign(campaignId, {}, undefined, this.api).update([], { status })
+    )));
+  }
+
+  async createSplitTest(input: MetaSplitTestInput): Promise<MetaSplitTestSnapshot> {
+    const businessId = input.businessId.trim();
+    const name = input.name.trim();
+    const variants = [input.control, input.treatment].map((variant) => ({
+      campaignId: variant.campaignId.trim(), name: variant.name.trim(), allocationPercent: variant.allocationPercent,
+    }));
+    if (!/^\d+$/.test(businessId)) throw new Error('Meta Business Manager ID must contain digits only.');
+    if (!name) throw new Error('Meta split-test name is required.');
+    if (!Number.isSafeInteger(input.startTime) || !Number.isSafeInteger(input.endTime) || input.startTime >= input.endTime) {
+      throw new Error('Meta split-test timestamps must be increasing epoch seconds.');
+    }
+    if (variants.some((variant) => !variant.campaignId || !variant.name)) throw new Error('Each Meta split-test cell requires a campaign ID and name.');
+    if (variants[0].campaignId === variants[1].campaignId) throw new Error('Meta split-test cells must use distinct campaign IDs.');
+    if (variants.some(({ allocationPercent }) => !Number.isSafeInteger(allocationPercent) || allocationPercent < 10)
+      || variants.reduce((sum, variant) => sum + variant.allocationPercent, 0) !== 100) {
+      throw new Error('Meta split-test allocations must be integer percentages of at least 10 that total 100.');
+    }
+    const business = new this.sdk.Business(businessId, {}, undefined, this.api);
+    if (typeof business.createAdStudy !== 'function') throw new Error('Meta split-test creation is unavailable.');
+    const created = plainData(await business.createAdStudy(['id'], {
+      name,
+      description: input.description.trim(),
+      start_time: input.startTime,
+      end_time: input.endTime,
+      type: 'SPLIT_TEST',
+      cells: variants.map((variant) => ({
+        name: variant.name,
+        treatment_percentage: variant.allocationPercent,
+        campaigns: [variant.campaignId],
+      })),
+    }));
+    const studyId = text(created.id);
+    if (!studyId) throw new Error('Meta created the split test without returning a study ID.');
+    return this.getSplitTest(studyId);
+  }
+
+  async findSplitTestByName(businessId: string, name: string): Promise<MetaSplitTestSnapshot | null> {
+    const id = businessId.trim();
+    const expectedName = name.trim();
+    if (!/^\d+$/.test(id)) throw new Error('Meta Business Manager ID must contain digits only.');
+    if (!expectedName) throw new Error('Meta split-test name is required.');
+    const business = new this.sdk.Business(id, {}, undefined, this.api);
+    if (typeof business.getAdStudies !== 'function') throw new Error('Meta split-test discovery is unavailable.');
+    const response = await business.getAdStudies(['id', 'name', 'type', 'start_time', 'end_time', 'canceled_time'], { limit: 100 });
+    const matches = (Array.isArray(response) ? response : []).map(plainData)
+      .filter((study) => text(study.name) === expectedName && text(study.type) === 'SPLIT_TEST');
+    if (matches.length > 1) throw new Error('Multiple Meta split tests match the execution identity; manual review is required.');
+    const studyId = text(matches[0]?.id);
+    return studyId ? this.getSplitTest(studyId) : null;
+  }
+
+  async getSplitTest(studyId: string): Promise<MetaSplitTestSnapshot> {
+    const id = studyId.trim();
+    if (!id) throw new Error('Meta ad study ID is required.');
+    const study = new this.sdk.AdStudy(id, {}, undefined, this.api);
+    const record = await this.read(study, ['id', 'business', 'name', 'type', 'start_time', 'end_time', 'canceled_time']);
+    if (typeof study.getCells !== 'function') throw new Error('Meta split-test cell read-back is unavailable.');
+    const response = await study.getCells(['id', 'name', 'treatment_percentage', 'campaigns'], {});
+    const cells = (Array.isArray(response) ? response : []).map((value) => {
+      const cell = plainData(value);
+      const campaignsValue = plainData(cell.campaigns);
+      const campaignRows = Array.isArray(campaignsValue.data) ? campaignsValue.data : [];
+      return {
+        cellId: text(cell.id),
+        name: text(cell.name),
+        allocationPercent: integer(cell.treatment_percentage) ?? 0,
+        campaignIds: campaignRows.map((campaign) => text(plainData(campaign).id)).filter(Boolean).sort(),
+      };
+    }).sort((left, right) => left.cellId.localeCompare(right.cellId));
+    const business = plainData(record.business);
+    return {
+      studyId: text(record.id) || id,
+      businessId: text(business.id) || text(record.business),
+      name: text(record.name),
+      type: text(record.type),
+      startTime: text(record.start_time),
+      endTime: text(record.end_time),
+      canceledTime: text(record.canceled_time) || null,
+      cells,
+    };
+  }
+
+  async cancelSplitTest(studyId: string): Promise<unknown> {
+    const id = studyId.trim();
+    if (!id) throw new Error('Meta ad study ID is required.');
+    const study = new this.sdk.AdStudy(id, {}, undefined, this.api);
+    if (typeof study.delete !== 'function') throw new Error('Meta split-test cancellation is unavailable.');
+    return study.delete([], {});
   }
 
   async updateDailyBudgets(changes: MetaDailyBudgetUpdate[]): Promise<unknown[]> {

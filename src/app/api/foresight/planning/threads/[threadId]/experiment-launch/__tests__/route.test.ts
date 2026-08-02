@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const { session, tier, getForThread, create, getPackageConfirmation, buildPackage, confirmPackage, runIms, getTimeZone, report } = vi.hoisted(() => ({ session: vi.fn(), tier: vi.fn(), getForThread: vi.fn(), create: vi.fn(), getPackageConfirmation: vi.fn(), buildPackage: vi.fn(), confirmPackage: vi.fn(), runIms: vi.fn(), getTimeZone: vi.fn(), report: vi.fn() }));
+const { session, tier, getForThread, create, getPackageConfirmation, buildPackage, confirmPackage, executionPreflight, getExecution, latestExperiment, runIms, getTimeZone, report } = vi.hoisted(() => ({ session: vi.fn(), tier: vi.fn(), getForThread: vi.fn(), create: vi.fn(), getPackageConfirmation: vi.fn(), buildPackage: vi.fn(), confirmPackage: vi.fn(), executionPreflight: vi.fn(), getExecution: vi.fn(), latestExperiment: vi.fn(), runIms: vi.fn(), getTimeZone: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: session, requireAdminTier: tier }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: runIms }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ DEFAULT_BUSINESS_TIME_ZONE: 'Australia/Sydney', getBusinessTimeZone: getTimeZone }));
@@ -9,6 +9,10 @@ vi.mock('@/lib/foresight/ForesightMetaExperimentLaunchPackageService', async (im
   return { MetaExperimentLaunchPackageValidationError: actual.MetaExperimentLaunchPackageValidationError, ForesightMetaExperimentLaunchPackageService: { build: buildPackage, confirm: confirmPackage } };
 });
 vi.mock('@/lib/foresight/repositories/ForesightMetaExperimentLaunchPackageRepository', () => ({ ForesightMetaExperimentLaunchPackageRepository: { getForThread: getPackageConfirmation } }));
+vi.mock('@/lib/foresight/ForesightMetaExperimentExecutionPreflightService', () => ({ ForesightMetaExperimentExecutionPreflightService: { preflight: executionPreflight } }));
+vi.mock('@/lib/foresight/ForesightMetaExperimentExecutionService', () => ({ ForesightMetaExperimentExecutionService: { execute: vi.fn(), rollback: vi.fn() } }));
+vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentExecutionRepository', () => ({ ForesightCampaignExperimentExecutionRepository: { getForExperiment: getExecution } }));
+vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentRepository', () => ({ ForesightCampaignExperimentRepository: { latest: latestExperiment } }));
 vi.mock('@/lib/foresight/repositories/ForesightCampaignExperimentLaunchRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/foresight/repositories/ForesightCampaignExperimentLaunchRepository')>();
   return { CampaignExperimentLaunchValidationError: actual.CampaignExperimentLaunchValidationError, ForesightCampaignExperimentLaunchRepository: { getForThread, create } };
@@ -21,7 +25,7 @@ const context = { params: { threadId: '12' } };
 describe('/api/foresight/planning/threads/[threadId]/experiment-launch', () => {
   beforeEach(() => {
     vi.clearAllMocks(); session.mockReturnValue({ user: { businessId: 'business-1', userId: 7 } }); tier.mockReturnValue({ user: { businessId: 'business-1', userId: 7 } });
-    getForThread.mockResolvedValue(null); getPackageConfirmation.mockResolvedValue(null); buildPackage.mockResolvedValue({ ready: false }); confirmPackage.mockResolvedValue({ id: 77 }); runIms.mockImplementation(async (_businessId: string, callback: () => unknown) => callback()); getTimeZone.mockResolvedValue('Australia/Sydney'); create.mockResolvedValue({ id: 66 });
+    getForThread.mockResolvedValue(null); getPackageConfirmation.mockResolvedValue(null); buildPackage.mockResolvedValue({ ready: false }); confirmPackage.mockResolvedValue({ id: 77 }); latestExperiment.mockResolvedValue({ id: 55 }); getExecution.mockResolvedValue(null); executionPreflight.mockResolvedValue({ experimentVersionId: 55, ready: true }); runIms.mockImplementation(async (_businessId: string, callback: () => unknown) => callback()); getTimeZone.mockResolvedValue('Australia/Sydney'); create.mockResolvedValue({ id: 66 });
   });
   it('reads only through the session tenant', async () => {
     expect((await GET(new Request('http://localhost'), context)).status).toBe(200); expect(getForThread).toHaveBeenCalledWith('business-1', 12);
@@ -32,6 +36,17 @@ describe('/api/foresight/planning/threads/[threadId]/experiment-launch', () => {
     expect(buildPackage).toHaveBeenCalledWith('business-1', 12, { experimentVersionId: 55, experimentHash: 'c'.repeat(64), controlCampaignId: 'c1', treatmentCampaignId: 'c2' });
     expect(getPackageConfirmation).toHaveBeenCalledWith('business-1', 12);
     expect(getForThread).not.toHaveBeenCalled();
+  });
+  it('runs final execution preflight through the session tenant', async () => {
+    const response = await GET(new Request('http://localhost?view=meta-execution'), context);
+    expect(response.status).toBe(200); expect(executionPreflight).toHaveBeenCalledWith('business-1', 12);
+    expect(getExecution).toHaveBeenCalledWith('business-1', 55);
+  });
+  it('returns an existing execution without rerunning pre-launch checks', async () => {
+    getExecution.mockImplementation(async (_businessId: string, _experimentId: number, kind?: string) => kind ? null : { id: 91, state: 'succeeded' });
+    const response = await GET(new Request('http://localhost?view=meta-execution'), context);
+    expect(response.status).toBe(200); expect(executionPreflight).not.toHaveBeenCalled();
+    expect((await response.json()).execution).toMatchObject({ id: 91, state: 'succeeded' });
   });
   it('returns expected package validation failures without a runtime issue', async () => {
     buildPackage.mockRejectedValue(new MetaExperimentLaunchPackageValidationError('Not accepted.'));
