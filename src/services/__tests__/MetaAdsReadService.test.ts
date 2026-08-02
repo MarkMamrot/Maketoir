@@ -9,6 +9,10 @@ function sdkFixture() {
     'campaign:campaign-1': { id: 'campaign-1', account_id: '123', name: 'Prospecting', configured_status: 'ACTIVE', effective_status: 'ACTIVE', daily_budget: '10000' },
     'adset:adset-1': { id: 'adset-1', account_id: '123', campaign_id: 'campaign-1', name: 'Broad', configured_status: 'ACTIVE', effective_status: 'ACTIVE', daily_budget: '5000' },
   };
+  const campaigns = [
+    { id: 'campaign-1', account_id: '123', name: 'Control offer', objective: 'OUTCOME_SALES', configured_status: 'PAUSED', effective_status: 'PAUSED' },
+    { id: 'campaign-2', account_id: '123', name: 'Treatment offer', objective: 'OUTCOME_SALES', configured_status: 'PAUSED', effective_status: 'PAUSED' },
+  ];
   const api = { tenantClient: true };
   class FacebookAdsApi {
     constructor(public token: string) { Object.assign(this, api); }
@@ -22,6 +26,10 @@ function sdkFixture() {
       async update(fields: string[], params: Record<string, unknown>) {
         updates.push({ kind, id, fields, params, api: suppliedApi });
         return { success: true };
+      },
+      async getCampaigns(fields: string[], params: Record<string, unknown>) {
+        reads.push({ kind: 'campaign-list', id, fields, api: suppliedApi });
+        return campaigns.slice(0, Number(params.limit));
       },
     };
   }
@@ -38,6 +46,20 @@ function sdkFixture() {
 }
 
 describe('MetaAdsReadService', () => {
+  it('lists bounded campaign identities through the tenant API without mutation', async () => {
+    const fixture = sdkFixture();
+    const service = new MetaAdsReadService('tenant-token', '123', fixture.sdk as never);
+    const result = await service.listCampaigns(2);
+
+    expect(result).toEqual([
+      { campaignId: 'campaign-1', accountId: '123', campaignName: 'Control offer', objective: 'OUTCOME_SALES', configuredStatus: 'PAUSED', effectiveStatus: 'PAUSED' },
+      { campaignId: 'campaign-2', accountId: '123', campaignName: 'Treatment offer', objective: 'OUTCOME_SALES', configuredStatus: 'PAUSED', effectiveStatus: 'PAUSED' },
+    ]);
+    expect(fixture.reads[0]).toMatchObject({ kind: 'campaign-list', id: 'act_123' });
+    expect((fixture.reads[0].api as { token: string }).token).toBe('tenant-token');
+    expect(fixture.updates).toEqual([]);
+  });
+
   it('uses explicit tenant API instances and reads ad-set parent campaign settings', async () => {
     const fixture = sdkFixture();
     const service = new MetaAdsReadService('tenant-token', '123', fixture.sdk as never);

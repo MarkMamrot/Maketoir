@@ -680,6 +680,22 @@ CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_review_events (
   INDEX idx_foresight_campaign_experiment_review_version (business_id, experiment_version_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS foresight_meta_experiment_launch_package_confirmations (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(100) NOT NULL,
+  thread_id             BIGINT NOT NULL,
+  experiment_version_id BIGINT NOT NULL,
+  experiment_hash       VARCHAR(64) NOT NULL,
+  meta_account_id       VARCHAR(255) NOT NULL,
+  control_campaign_id   VARCHAR(255) NOT NULL,
+  treatment_campaign_id VARCHAR(255) NOT NULL,
+  package_fingerprint   VARCHAR(64) NOT NULL,
+  confirmed_by          INT NOT NULL,
+  created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_foresight_meta_experiment_package (business_id, experiment_version_id),
+  INDEX idx_foresight_meta_experiment_package_thread (business_id, thread_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS foresight_campaign_experiment_launches (
   id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id           VARCHAR(100) NOT NULL,

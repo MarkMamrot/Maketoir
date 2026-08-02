@@ -277,6 +277,26 @@ type RecommendationPlanningContext = {
     } | null;
   } | null;
 };
+type MetaExperimentLaunchPackage = {
+  experimentVersionId: number;
+  ready: boolean;
+  accountId: string;
+  controlCampaignId: string | null;
+  treatmentCampaignId: string | null;
+  recommendedControlCampaignId: string | null;
+  recommendedTreatmentCampaignId: string | null;
+  candidates: Array<{ campaignId: string; campaignName: string; effectiveStatus: string; selectable: boolean }>;
+  measurement: { sample: string; conversion: string; guardrail: string };
+  blockers: Array<{ code: string; message: string }>;
+  confirmationFingerprint: string | null;
+};
+type MetaExperimentPackageConfirmation = {
+  experiment_version_id: number;
+  control_campaign_id: string;
+  treatment_campaign_id: string;
+  package_fingerprint: string;
+  created_at: string;
+};
 type DeliverableChannel = 'campaign_brief' | 'meta' | 'google_ads' | 'klaviyo';
 const DELIVERABLE_CHANNELS: Array<{ value: DeliverableChannel; label: string }> = [
   { value: 'campaign_brief', label: 'Campaign brief' },
@@ -440,6 +460,38 @@ async function responseJson(response: Response): Promise<any> {
   try { return JSON.parse(text); } catch { return { error: text.slice(0, 500) }; }
 }
 
+function MetaExperimentPackagePanel({ value, confirmation, loading, onRefresh, onConfirm }: {
+  value: MetaExperimentLaunchPackage | null;
+  confirmation: MetaExperimentPackageConfirmation | null;
+  loading: boolean;
+  onRefresh: (controlCampaignId?: string, treatmentCampaignId?: string) => void;
+  onConfirm: () => void;
+}) {
+  const selectable = value?.candidates.filter((campaign) => campaign.selectable) ?? [];
+  return (
+    <div className="mt-4 border-t border-cyan-200 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[11px] font-bold uppercase text-gray-500">Meta launch package</div>
+        {value && <span className={`text-xs font-bold uppercase ${value.ready ? 'text-emerald-700' : 'text-amber-800'}`}>{value.ready ? 'Ready for confirmation' : 'Mapping required'}</span>}
+      </div>
+      {!value ? <button type="button" onClick={() => onRefresh()} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Discover Meta campaigns</button> : <>
+        <p className="mt-2 text-xs leading-5 text-gray-600">Live read from account {value.accountId}. Foresight recommends mappings from names, but campaign identity remains an explicit human confirmation.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-gray-700">Control campaign<select value={confirmation?.control_campaign_id ?? value.controlCampaignId ?? ''} onChange={(event) => onRefresh(event.target.value, value.treatmentCampaignId ?? undefined)} disabled={loading || confirmation != null} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="">Select live campaign</option>{selectable.map((campaign) => <option key={campaign.campaignId} value={campaign.campaignId}>{campaign.campaignName} ({campaign.effectiveStatus})</option>)}</select>{!value.controlCampaignId && value.recommendedControlCampaignId && <span className="mt-1 block font-normal text-cyan-800">Suggested: {selectable.find(({ campaignId }) => campaignId === value.recommendedControlCampaignId)?.campaignName}</span>}</label>
+          <label className="text-xs font-semibold text-gray-700">Treatment campaign<select value={confirmation?.treatment_campaign_id ?? value.treatmentCampaignId ?? ''} onChange={(event) => onRefresh(value.controlCampaignId ?? undefined, event.target.value)} disabled={loading || confirmation != null} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="">Select live campaign</option>{selectable.map((campaign) => <option key={campaign.campaignId} value={campaign.campaignId}>{campaign.campaignName} ({campaign.effectiveStatus})</option>)}</select>{!value.treatmentCampaignId && value.recommendedTreatmentCampaignId && <span className="mt-1 block font-normal text-cyan-800">Suggested: {selectable.find(({ campaignId }) => campaignId === value.recommendedTreatmentCampaignId)?.campaignName}</span>}</label>
+        </div>
+        {value.blockers.length > 0 && <ul className="mt-3 space-y-1 border-l-2 border-amber-500 pl-3 text-xs leading-5 text-amber-900">{value.blockers.map((blocker) => <li key={`${blocker.code}:${blocker.message}`}>{blocker.message}</li>)}</ul>}
+        <div className="mt-3 border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-700"><span className="font-bold">Measurement:</span> impressions denominator, prioritized Meta purchase actions, and negative-feedback-rate guardrails.</div>
+        {value.confirmationFingerprint && <p className="mt-2 font-mono text-[11px] text-gray-500">Package {value.confirmationFingerprint.slice(0, 12)}</p>}
+        <button type="button" onClick={() => onRefresh(value.controlCampaignId ?? undefined, value.treatmentCampaignId ?? undefined)} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 border border-gray-300 bg-white px-3 text-sm font-semibold text-gray-800 disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Refresh live package</button>
+        {value.ready && !confirmation && <button type="button" onClick={onConfirm} disabled={loading} className="ml-2 mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Confirm exact package</button>}
+        {confirmation && <p className="mt-3 text-xs font-semibold text-emerald-800">Confirmed {dateOnly(confirmation.created_at)} · package {confirmation.package_fingerprint.slice(0, 12)}</p>}
+        <p className="mt-3 text-xs leading-5 text-gray-500">Read-only package. No campaign is created, edited, scheduled, or launched.</p>
+      </>}
+    </div>
+  );
+}
+
 export function MarketingRecommendationsView({ userTier }: { userTier: string }) {
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [paidMediaPolicy, setPaidMediaPolicy] = useState<ForesightMarketingStrategy['paidMedia'] | null>(null);
@@ -495,6 +547,8 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
   const [experimentOperatorNote, setExperimentOperatorNote] = useState('');
   const [experimentRandomAssignment, setExperimentRandomAssignment] = useState(false);
   const [experimentSingleVariable, setExperimentSingleVariable] = useState(false);
+  const [metaExperimentPackage, setMetaExperimentPackage] = useState<MetaExperimentLaunchPackage | null>(null);
+  const [metaExperimentPackageConfirmation, setMetaExperimentPackageConfirmation] = useState<MetaExperimentPackageConfirmation | null>(null);
   const isAdmin = userTier === 'Admin' || userTier === 'SuperAdmin';
 
   const load = async () => {
@@ -801,6 +855,40 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
       await refreshPlanningContext(); setExperimentReviewNote('');
       setMessage({ kind: 'success', text: action === 'accepted' ? 'Experiment design accepted. This does not launch or authorize a campaign.' : action === 'revision_requested' ? 'Experiment revision requested.' : 'Experiment rejected.' });
     } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to review campaign experiment.' }); }
+    finally { setWorking(null); }
+  };
+
+  const refreshMetaExperimentPackage = async (controlCampaignId?: string, treatmentCampaignId?: string) => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    if (!thread || !experiment || experiment.review?.action !== 'accepted' || experiment.experiment_json.channel !== 'meta') return;
+    setWorking('experiment_package'); setMessage(null);
+    try {
+      const parameters = new URLSearchParams({ view: 'meta-package', experimentVersionId: String(experiment.id), experimentHash: experiment.experiment_hash });
+      if (controlCampaignId) parameters.set('controlCampaignId', controlCampaignId);
+      if (treatmentCampaignId) parameters.set('treatmentCampaignId', treatmentCampaignId);
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch?${parameters}`, { cache: 'no-store' });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to build Meta launch package.');
+      setMetaExperimentPackage(body.package as MetaExperimentLaunchPackage);
+      setMetaExperimentPackageConfirmation((body.confirmation ?? null) as MetaExperimentPackageConfirmation | null);
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to build Meta launch package.' }); }
+    finally { setWorking(null); }
+  };
+
+  const confirmMetaExperimentPackage = async () => {
+    const thread = planningContext?.thread; const experiment = planningContext?.latestPlan?.deliverable?.activation?.outcome?.lesson?.experiment;
+    const packageResult = metaExperimentPackage;
+    if (!thread || !experiment || !packageResult?.ready || !packageResult.controlCampaignId || !packageResult.treatmentCampaignId || !packageResult.confirmationFingerprint) return;
+    setWorking('experiment_package_confirm'); setMessage(null);
+    try {
+      const response = await fetch(`/api/foresight/planning/threads/${thread.id}/experiment-launch`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        operation: 'confirm-meta-package', experimentVersionId: experiment.id, experimentHash: experiment.experiment_hash,
+        controlCampaignId: packageResult.controlCampaignId, treatmentCampaignId: packageResult.treatmentCampaignId,
+        packageFingerprint: packageResult.confirmationFingerprint,
+      }) });
+      const body = await responseJson(response); if (!response.ok) throw new Error(body.error || 'Unable to confirm Meta launch package.');
+      await refreshMetaExperimentPackage(packageResult.controlCampaignId, packageResult.treatmentCampaignId); await refreshPlanningContext();
+      setMessage({ kind: 'success', text: 'Exact Meta launch package confirmed. No campaign was changed, scheduled, or launched.' });
+    } catch (error) { setMessage({ kind: 'error', text: error instanceof Error ? error.message : 'Unable to confirm Meta launch package.' }); }
     finally { setWorking(null); }
   };
 
@@ -1620,19 +1708,679 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                     {planningContext.latestPlan.deliverable.activation.outcome.lesson?.review?.action === 'accepted' && (
                                       <div className="mt-4 border-t border-gray-200 pt-4">
                                         <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-[11px] font-bold uppercase text-gray-500">Governed experiment</div>{planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment?.review && <span className={`text-xs font-bold uppercase ${planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment.review.action === 'accepted' ? 'text-emerald-700' : 'text-amber-800'}`}>{planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment.review.action.replaceAll('_', ' ')}</span>}</div>
-                                        {planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment ? (() => { const experiment = planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment; const design = experiment.experiment_json; return <div className="mt-3">
-                                          <h4 className="text-sm font-bold text-gray-900">{design.title}</h4><p className="mt-1 text-xs leading-5 text-gray-700">{design.hypothesis.text}</p>
-                                          <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3"><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Channel</div><div className="mt-1 text-xs text-gray-800">{design.channel.replaceAll('_', ' ')}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Dates</div><div className="mt-1 text-xs text-gray-800">{dateOnly(design.startDate)} to {dateOnly(design.endDate)}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Minimum sample</div><div className="mt-1 text-xs text-gray-800">{design.minimumSamplePerVariant.toLocaleString()} per variant</div></div></div>
-                                          <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="border border-gray-200 p-3"><div className="text-xs font-bold text-gray-900">{design.control.name} ({design.allocationPercent.control}%)</div><p className="mt-1 text-xs leading-5 text-gray-600">{design.control.description}</p></div><div className="border border-gray-200 p-3"><div className="text-xs font-bold text-gray-900">{design.treatment.name} ({design.allocationPercent.treatment}%)</div><p className="mt-1 text-xs leading-5 text-gray-600">{design.treatment.description}</p></div></div>
-                                          <p className="mt-3 text-xs text-gray-700"><span className="font-bold">Primary metric:</span> {design.primaryMetric.replaceAll('_', ' ')}; minimum detectable lift {design.minimumDetectableLiftPercent}%.</p><p className="mt-1 text-xs text-gray-700"><span className="font-bold">Decision rule:</span> two-sided 95% confidence; underpowered results are inconclusive.</p>
-                                          <div className="mt-3 text-[11px] font-bold uppercase text-gray-500">Guardrails</div><ul className="mt-1 space-y-1 text-xs text-gray-600">{design.guardrails.map((item) => <li key={item.metric}>{item.metric.replaceAll('_', ' ')}: no more than {item.maximumAdverseChangePercent}% adverse change</li>)}</ul>
-                                          {isAdmin && !experiment.review && <div className="mt-3"><textarea value={experimentReviewNote} onChange={(event) => setExperimentReviewNote(event.target.value.slice(0, 1000))} rows={2} placeholder="Required for rejection or revision" className="w-full resize-y border border-gray-300 px-3 py-2 text-sm" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewCampaignExperiment('accepted')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Check size={15} /> Accept design</button><button type="button" onClick={() => void reviewCampaignExperiment('revision_requested')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-amber-600 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"><RefreshCw size={15} /> Request revision</button><button type="button" onClick={() => void reviewCampaignExperiment('rejected')} disabled={working != null || !experimentReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><X size={15} /> Reject</button></div></div>}
-                                          {isAdmin && (experiment.review?.action === 'revision_requested' || experiment.review?.action === 'rejected') && <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft revised experiment</button>}
-                                          {experiment.launch && <div className="mt-4 border-t border-emerald-200 pt-3"><div className="flex items-center gap-2 text-sm font-bold text-emerald-800"><CheckCircle2 size={16} /> Manual launch recorded</div><p className="mt-2 text-xs leading-5 text-gray-700">{dateOnly(experiment.launch.launched_on)} to {dateOnly(experiment.launch.scheduled_end_on)}; {experiment.launch.target_sample_per_variant.toLocaleString()} target participants per variant.</p><p className="mt-1 text-xs text-gray-600">Control: {experiment.launch.control_external_id} · Treatment: {experiment.launch.treatment_external_id}</p>{experiment.launch.deviations_text && <p className="mt-1 text-xs text-amber-800">Declared deviations: {experiment.launch.deviations_text}</p>}</div>}
-                                          {experiment.launch?.result && (() => { const result = experiment.launch.result; const assessment = result.assessment_json; return <div className="mt-4 border-t border-cyan-200 pt-4"><div className="flex flex-wrap items-center justify-between gap-2"><div className="text-[11px] font-bold uppercase text-gray-500">Experiment result</div><span className={`text-xs font-bold uppercase ${result.status === 'treatment_won' ? 'text-emerald-700' : result.status === 'guardrail_failed' || result.status === 'control_won' ? 'text-red-700' : 'text-amber-800'}`}>{result.status.replaceAll('_', ' ')}</span></div><div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3"><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Control</div><div className="mt-1 text-sm font-semibold text-gray-900">{result.control_value == null ? 'Unavailable' : Number(result.control_value).toFixed(4)}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Treatment</div><div className="mt-1 text-sm font-semibold text-gray-900">{result.treatment_value == null ? 'Unavailable' : Number(result.treatment_value).toFixed(4)}</div></div><div className="bg-white p-3"><div className="text-[11px] font-bold uppercase text-gray-500">Two-sided p-value</div><div className="mt-1 text-sm font-semibold text-gray-900">{result.p_value == null ? 'Not tested' : Number(result.p_value).toFixed(4)}</div></div></div><p className="mt-3 text-sm leading-6 text-gray-700">{assessment.explanation}</p>{assessment.relativeLiftPercent != null && <p className="mt-1 text-xs text-gray-600">Relative treatment lift: {assessment.relativeLiftPercent.toFixed(2)}%</p>}<ul className="mt-3 space-y-1 text-xs text-gray-600">{assessment.guardrails.map((item) => <li key={item.metric} className={item.passed ? '' : 'font-semibold text-red-700'}>{item.metric.replaceAll('_', ' ')}: {item.passed ? 'passed' : 'failed'} ({(item.controlRate * 100).toFixed(2)}% control; {(item.treatmentRate * 100).toFixed(2)}% treatment)</li>)}</ul>{assessment.qualityIssues.length > 0 && <p className="mt-2 text-xs text-amber-800">Quality issues: {assessment.qualityIssues.join('; ')}</p>}<p className="mt-2 text-xs text-gray-500">Formula: {result.formula_version}. This conclusion applies only to the exact attested randomized experiment.</p>{result.review ? <div className={`mt-4 border-l-4 px-3 py-2 ${result.review.action === 'acknowledged' ? 'border-emerald-600 bg-emerald-50' : 'border-red-600 bg-red-50'}`}><div className="text-xs font-bold uppercase text-gray-800">Conclusion {result.review.action}</div>{result.review.note && <p className="mt-1 text-xs text-gray-700">{result.review.note}</p>}<p className="mt-1 text-[11px] text-gray-500">{result.review.action === 'acknowledged' ? 'Available to future AI planning as human-reviewed evidence.' : 'Excluded from future AI planning context.'}</p></div> : isAdmin ? <div className="mt-4 border-t border-gray-200 pt-3"><div className="text-[11px] font-bold uppercase text-gray-500">Human conclusion review</div><textarea value={experimentConclusionReviewNote} onChange={(event) => setExperimentConclusionReviewNote(event.target.value.slice(0, 1000))} rows={2} placeholder="Required when rejecting the conclusion" className="mt-2 w-full resize-y border border-gray-300 px-3 py-2 text-sm" /><div className="mt-2 flex flex-wrap gap-2"><button type="button" onClick={() => void reviewCampaignExperimentConclusion('acknowledged')} disabled={working != null} className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"><Check size={15} /> Acknowledge for planning</button><button type="button" onClick={() => void reviewCampaignExperimentConclusion('rejected')} disabled={working != null || !experimentConclusionReviewNote.trim()} className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"><X size={15} /> Reject conclusion</button></div></div> : <p className="mt-3 text-xs text-amber-800">Awaiting Admin review before this conclusion can inform future AI planning.</p>}</div>; })()}
-                                          {experiment.launch && !experiment.launch.result && <div className="mt-4 border-t border-cyan-200 pt-4"><div className="flex items-center gap-2 text-sm font-bold text-cyan-800"><Loader2 size={15} className="animate-spin" /> Automated evidence collection</div><p className="mt-2 text-xs leading-5 text-gray-600">Foresight collects exact variant evidence after the scheduled end date and records the deterministic conclusion. No result upload or transcription is required.</p></div>}
-                                          {isAdmin && experiment.review?.action === 'accepted' && !experiment.launch && <div className="mt-4 border-t border-emerald-200 pt-4"><div className="text-[11px] font-bold uppercase text-gray-500">Record manual experiment launch</div><p className="mt-1 text-xs leading-5 text-gray-600">Attest an external launch matching the exact accepted channel, dates, allocation, and minimum sample. Foresight does not launch it.</p><div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs font-semibold text-gray-700">Control external ID<input value={experimentControlExternalId} onChange={(event) => setExperimentControlExternalId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label><label className="text-xs font-semibold text-gray-700">Treatment external ID<input value={experimentTreatmentExternalId} onChange={(event) => setExperimentTreatmentExternalId(event.target.value.slice(0, 255))} className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal" /></label></div><label className="mt-3 block text-xs font-semibold text-gray-700">Implementation details<textarea value={experimentImplementationDetails} onChange={(event) => setExperimentImplementationDetails(event.target.value.slice(0, 8000))} rows={3} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold text-gray-700">Deviations from accepted design<textarea value={experimentDeviations} onChange={(event) => setExperimentDeviations(event.target.value.slice(0, 8000))} rows={2} placeholder="Leave blank only when there were no deviations" className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><label className="mt-3 block text-xs font-semibold text-gray-700">Operator note<textarea value={experimentOperatorNote} onChange={(event) => setExperimentOperatorNote(event.target.value.slice(0, 8000))} rows={2} className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal" /></label><div className="mt-3 space-y-2"><label className="flex items-start gap-2 text-xs leading-5 text-gray-700"><input type="checkbox" checked={experimentRandomAssignment} onChange={(event) => setExperimentRandomAssignment(event.target.checked)} className="mt-1 accent-emerald-700" />Participants are randomly assigned to mutually exclusive control and treatment groups.</label><label className="flex items-start gap-2 text-xs leading-5 text-gray-700"><input type="checkbox" checked={experimentSingleVariable} onChange={(event) => setExperimentSingleVariable(event.target.checked)} className="mt-1 accent-emerald-700" />Only the declared treatment differs between variants.</label></div><button type="button" onClick={() => void recordCampaignExperimentLaunch()} disabled={working != null || !experimentControlExternalId.trim() || !experimentTreatmentExternalId.trim() || experimentControlExternalId.trim() === experimentTreatmentExternalId.trim() || !experimentImplementationDetails.trim() || !experimentOperatorNote.trim() || !experimentRandomAssignment || !experimentSingleVariable} className="mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_launch' ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />} Record experiment launch</button></div>}
-                                        </div>; })() : isAdmin ? <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft experiment design</button> : <p className="mt-2 text-xs text-gray-500">No experiment design has been drafted.</p>}
+                                        {planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment ? (() => { const experiment = planningContext.latestPlan.deliverable.activation.outcome.lesson.experiment; const design = experiment.experiment_json; return (
+                                          <div className="mt-3">
+                                            <h4 className="text-sm font-bold text-gray-900">
+                                              {design.title}
+                                            </h4>
+                                            <p className="mt-1 text-xs leading-5 text-gray-700">
+                                              {design.hypothesis.text}
+                                            </p>
+                                            <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3">
+                                              <div className="bg-white p-3">
+                                                <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                  Channel
+                                                </div>
+                                                <div className="mt-1 text-xs text-gray-800">
+                                                  {design.channel.replaceAll(
+                                                    "_",
+                                                    " ",
+                                                  )}
+                                                </div>
+                                              </div>
+                                              <div className="bg-white p-3">
+                                                <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                  Dates
+                                                </div>
+                                                <div className="mt-1 text-xs text-gray-800">
+                                                  {dateOnly(design.startDate)}{" "}
+                                                  to {dateOnly(design.endDate)}
+                                                </div>
+                                              </div>
+                                              <div className="bg-white p-3">
+                                                <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                  Minimum sample
+                                                </div>
+                                                <div className="mt-1 text-xs text-gray-800">
+                                                  {design.minimumSamplePerVariant.toLocaleString()}{" "}
+                                                  per variant
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                              <div className="border border-gray-200 p-3">
+                                                <div className="text-xs font-bold text-gray-900">
+                                                  {design.control.name} (
+                                                  {
+                                                    design.allocationPercent
+                                                      .control
+                                                  }
+                                                  %)
+                                                </div>
+                                                <p className="mt-1 text-xs leading-5 text-gray-600">
+                                                  {design.control.description}
+                                                </p>
+                                              </div>
+                                              <div className="border border-gray-200 p-3">
+                                                <div className="text-xs font-bold text-gray-900">
+                                                  {design.treatment.name} (
+                                                  {
+                                                    design.allocationPercent
+                                                      .treatment
+                                                  }
+                                                  %)
+                                                </div>
+                                                <p className="mt-1 text-xs leading-5 text-gray-600">
+                                                  {design.treatment.description}
+                                                </p>
+                                              </div>
+                                            </div>
+                                            <p className="mt-3 text-xs text-gray-700">
+                                              <span className="font-bold">
+                                                Primary metric:
+                                              </span>{" "}
+                                              {design.primaryMetric.replaceAll(
+                                                "_",
+                                                " ",
+                                              )}
+                                              ; minimum detectable lift{" "}
+                                              {
+                                                design.minimumDetectableLiftPercent
+                                              }
+                                              %.
+                                            </p>
+                                            <p className="mt-1 text-xs text-gray-700">
+                                              <span className="font-bold">
+                                                Decision rule:
+                                              </span>{" "}
+                                              two-sided 95% confidence;
+                                              underpowered results are
+                                              inconclusive.
+                                            </p>
+                                            <div className="mt-3 text-[11px] font-bold uppercase text-gray-500">
+                                              Guardrails
+                                            </div>
+                                            <ul className="mt-1 space-y-1 text-xs text-gray-600">
+                                              {design.guardrails.map((item) => (
+                                                <li key={item.metric}>
+                                                  {item.metric.replaceAll(
+                                                    "_",
+                                                    " ",
+                                                  )}
+                                                  : no more than{" "}
+                                                  {
+                                                    item.maximumAdverseChangePercent
+                                                  }
+                                                  % adverse change
+                                                </li>
+                                              ))}
+                                            </ul>
+                                            {isAdmin && !experiment.review && (
+                                              <div className="mt-3">
+                                                <textarea
+                                                  value={experimentReviewNote}
+                                                  onChange={(event) =>
+                                                    setExperimentReviewNote(
+                                                      event.target.value.slice(
+                                                        0,
+                                                        1000,
+                                                      ),
+                                                    )
+                                                  }
+                                                  rows={2}
+                                                  placeholder="Required for rejection or revision"
+                                                  className="w-full resize-y border border-gray-300 px-3 py-2 text-sm"
+                                                />
+                                                <div className="mt-2 flex flex-wrap gap-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      void reviewCampaignExperiment(
+                                                        "accepted",
+                                                      )
+                                                    }
+                                                    disabled={working != null}
+                                                    className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
+                                                  >
+                                                    <Check size={15} /> Accept
+                                                    design
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      void reviewCampaignExperiment(
+                                                        "revision_requested",
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      working != null ||
+                                                      !experimentReviewNote.trim()
+                                                    }
+                                                    className="inline-flex h-9 items-center gap-2 border border-amber-600 px-3 text-sm font-semibold text-amber-800 disabled:opacity-50"
+                                                  >
+                                                    <RefreshCw size={15} />{" "}
+                                                    Request revision
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      void reviewCampaignExperiment(
+                                                        "rejected",
+                                                      )
+                                                    }
+                                                    disabled={
+                                                      working != null ||
+                                                      !experimentReviewNote.trim()
+                                                    }
+                                                    className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"
+                                                  >
+                                                    <X size={15} /> Reject
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                            {isAdmin &&
+                                              (experiment.review?.action ===
+                                                "revision_requested" ||
+                                                experiment.review?.action ===
+                                                  "rejected") && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    void generateCampaignExperiment()
+                                                  }
+                                                  disabled={working != null}
+                                                  className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
+                                                >
+                                                  {working ===
+                                                  "experiment_generate" ? (
+                                                    <Loader2
+                                                      size={15}
+                                                      className="animate-spin"
+                                                    />
+                                                  ) : (
+                                                    <FileText size={15} />
+                                                  )}{" "}
+                                                  Draft revised experiment
+                                                </button>
+                                              )}
+                                            {experiment.launch && (
+                                              <div className="mt-4 border-t border-emerald-200 pt-3">
+                                                <div className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                                                  <CheckCircle2 size={16} />{" "}
+                                                  Manual launch recorded
+                                                </div>
+                                                <p className="mt-2 text-xs leading-5 text-gray-700">
+                                                  {dateOnly(
+                                                    experiment.launch
+                                                      .launched_on,
+                                                  )}{" "}
+                                                  to{" "}
+                                                  {dateOnly(
+                                                    experiment.launch
+                                                      .scheduled_end_on,
+                                                  )}
+                                                  ;{" "}
+                                                  {experiment.launch.target_sample_per_variant.toLocaleString()}{" "}
+                                                  target participants per
+                                                  variant.
+                                                </p>
+                                                <p className="mt-1 text-xs text-gray-600">
+                                                  Control:{" "}
+                                                  {
+                                                    experiment.launch
+                                                      .control_external_id
+                                                  }{" "}
+                                                  · Treatment:{" "}
+                                                  {
+                                                    experiment.launch
+                                                      .treatment_external_id
+                                                  }
+                                                </p>
+                                                {experiment.launch
+                                                  .deviations_text && (
+                                                  <p className="mt-1 text-xs text-amber-800">
+                                                    Declared deviations:{" "}
+                                                    {
+                                                      experiment.launch
+                                                        .deviations_text
+                                                    }
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+                                            {experiment.launch?.result &&
+                                              (() => {
+                                                const result =
+                                                  experiment.launch.result;
+                                                const assessment =
+                                                  result.assessment_json;
+                                                return (
+                                                  <div className="mt-4 border-t border-cyan-200 pt-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                      <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                        Experiment result
+                                                      </div>
+                                                      <span
+                                                        className={`text-xs font-bold uppercase ${result.status === "treatment_won" ? "text-emerald-700" : result.status === "guardrail_failed" || result.status === "control_won" ? "text-red-700" : "text-amber-800"}`}
+                                                      >
+                                                        {result.status.replaceAll(
+                                                          "_",
+                                                          " ",
+                                                        )}
+                                                      </span>
+                                                    </div>
+                                                    <div className="mt-3 grid gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3">
+                                                      <div className="bg-white p-3">
+                                                        <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                          Control
+                                                        </div>
+                                                        <div className="mt-1 text-sm font-semibold text-gray-900">
+                                                          {result.control_value ==
+                                                          null
+                                                            ? "Unavailable"
+                                                            : Number(
+                                                                result.control_value,
+                                                              ).toFixed(4)}
+                                                        </div>
+                                                      </div>
+                                                      <div className="bg-white p-3">
+                                                        <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                          Treatment
+                                                        </div>
+                                                        <div className="mt-1 text-sm font-semibold text-gray-900">
+                                                          {result.treatment_value ==
+                                                          null
+                                                            ? "Unavailable"
+                                                            : Number(
+                                                                result.treatment_value,
+                                                              ).toFixed(4)}
+                                                        </div>
+                                                      </div>
+                                                      <div className="bg-white p-3">
+                                                        <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                          Two-sided p-value
+                                                        </div>
+                                                        <div className="mt-1 text-sm font-semibold text-gray-900">
+                                                          {result.p_value ==
+                                                          null
+                                                            ? "Not tested"
+                                                            : Number(
+                                                                result.p_value,
+                                                              ).toFixed(4)}
+                                                        </div>
+                                                      </div>
+                                                    </div>
+                                                    <p className="mt-3 text-sm leading-6 text-gray-700">
+                                                      {assessment.explanation}
+                                                    </p>
+                                                    {assessment.relativeLiftPercent !=
+                                                      null && (
+                                                      <p className="mt-1 text-xs text-gray-600">
+                                                        Relative treatment lift:{" "}
+                                                        {assessment.relativeLiftPercent.toFixed(
+                                                          2,
+                                                        )}
+                                                        %
+                                                      </p>
+                                                    )}
+                                                    <ul className="mt-3 space-y-1 text-xs text-gray-600">
+                                                      {assessment.guardrails.map(
+                                                        (item) => (
+                                                          <li
+                                                            key={item.metric}
+                                                            className={
+                                                              item.passed
+                                                                ? ""
+                                                                : "font-semibold text-red-700"
+                                                            }
+                                                          >
+                                                            {item.metric.replaceAll(
+                                                              "_",
+                                                              " ",
+                                                            )}
+                                                            :{" "}
+                                                            {item.passed
+                                                              ? "passed"
+                                                              : "failed"}{" "}
+                                                            (
+                                                            {(
+                                                              item.controlRate *
+                                                              100
+                                                            ).toFixed(2)}
+                                                            % control;{" "}
+                                                            {(
+                                                              item.treatmentRate *
+                                                              100
+                                                            ).toFixed(2)}
+                                                            % treatment)
+                                                          </li>
+                                                        ),
+                                                      )}
+                                                    </ul>
+                                                    {assessment.qualityIssues
+                                                      .length > 0 && (
+                                                      <p className="mt-2 text-xs text-amber-800">
+                                                        Quality issues:{" "}
+                                                        {assessment.qualityIssues.join(
+                                                          "; ",
+                                                        )}
+                                                      </p>
+                                                    )}
+                                                    <p className="mt-2 text-xs text-gray-500">
+                                                      Formula:{" "}
+                                                      {result.formula_version}.
+                                                      This conclusion applies
+                                                      only to the exact attested
+                                                      randomized experiment.
+                                                    </p>
+                                                    {result.review ? (
+                                                      <div
+                                                        className={`mt-4 border-l-4 px-3 py-2 ${result.review.action === "acknowledged" ? "border-emerald-600 bg-emerald-50" : "border-red-600 bg-red-50"}`}
+                                                      >
+                                                        <div className="text-xs font-bold uppercase text-gray-800">
+                                                          Conclusion{" "}
+                                                          {result.review.action}
+                                                        </div>
+                                                        {result.review.note && (
+                                                          <p className="mt-1 text-xs text-gray-700">
+                                                            {result.review.note}
+                                                          </p>
+                                                        )}
+                                                        <p className="mt-1 text-[11px] text-gray-500">
+                                                          {result.review
+                                                            .action ===
+                                                          "acknowledged"
+                                                            ? "Available to future AI planning as human-reviewed evidence."
+                                                            : "Excluded from future AI planning context."}
+                                                        </p>
+                                                      </div>
+                                                    ) : isAdmin ? (
+                                                      <div className="mt-4 border-t border-gray-200 pt-3">
+                                                        <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                          Human conclusion
+                                                          review
+                                                        </div>
+                                                        <textarea
+                                                          value={
+                                                            experimentConclusionReviewNote
+                                                          }
+                                                          onChange={(event) =>
+                                                            setExperimentConclusionReviewNote(
+                                                              event.target.value.slice(
+                                                                0,
+                                                                1000,
+                                                              ),
+                                                            )
+                                                          }
+                                                          rows={2}
+                                                          placeholder="Required when rejecting the conclusion"
+                                                          className="mt-2 w-full resize-y border border-gray-300 px-3 py-2 text-sm"
+                                                        />
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                          <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                              void reviewCampaignExperimentConclusion(
+                                                                "acknowledged",
+                                                              )
+                                                            }
+                                                            disabled={
+                                                              working != null
+                                                            }
+                                                            className="inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
+                                                          >
+                                                            <Check size={15} />{" "}
+                                                            Acknowledge for
+                                                            planning
+                                                          </button>
+                                                          <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                              void reviewCampaignExperimentConclusion(
+                                                                "rejected",
+                                                              )
+                                                            }
+                                                            disabled={
+                                                              working != null ||
+                                                              !experimentConclusionReviewNote.trim()
+                                                            }
+                                                            className="inline-flex h-9 items-center gap-2 border border-red-600 px-3 text-sm font-semibold text-red-700 disabled:opacity-50"
+                                                          >
+                                                            <X size={15} />{" "}
+                                                            Reject conclusion
+                                                          </button>
+                                                        </div>
+                                                      </div>
+                                                    ) : (
+                                                      <p className="mt-3 text-xs text-amber-800">
+                                                        Awaiting Admin review
+                                                        before this conclusion
+                                                        can inform future AI
+                                                        planning.
+                                                      </p>
+                                                    )}
+                                                  </div>
+                                                );
+                                              })()}
+                                            {experiment.launch &&
+                                              !experiment.launch.result && (
+                                                <div className="mt-4 border-t border-cyan-200 pt-4">
+                                                  <div className="flex items-center gap-2 text-sm font-bold text-cyan-800">
+                                                    <Loader2
+                                                      size={15}
+                                                      className="animate-spin"
+                                                    />{" "}
+                                                    Automated evidence
+                                                    collection
+                                                  </div>
+                                                  <p className="mt-2 text-xs leading-5 text-gray-600">
+                                                    Foresight collects exact
+                                                    variant evidence after the
+                                                    scheduled end date and
+                                                    records the deterministic
+                                                    conclusion. No result upload
+                                                    or transcription is
+                                                    required.
+                                                  </p>
+                                                </div>
+                                              )}
+                                            {isAdmin &&
+                                              experiment.review?.action === "accepted" &&
+                                              !experiment.launch &&
+                                              design.channel === "meta" && (
+                                                <MetaExperimentPackagePanel
+                                                  value={metaExperimentPackage?.experimentVersionId === experiment.id ? metaExperimentPackage : null}
+                                                  confirmation={metaExperimentPackageConfirmation?.experiment_version_id === experiment.id ? metaExperimentPackageConfirmation : null}
+                                                  loading={working === "experiment_package" || working === "experiment_package_confirm"}
+                                                  onRefresh={(controlCampaignId, treatmentCampaignId) =>
+                                                    void refreshMetaExperimentPackage(controlCampaignId, treatmentCampaignId)
+                                                  }
+                                                  onConfirm={() => void confirmMetaExperimentPackage()}
+                                                />
+                                              )}
+                                            {isAdmin &&
+                                              experiment.review?.action ===
+                                                "accepted" &&
+                                              design.channel !== "meta" &&
+                                              !experiment.launch && (
+                                                <div className="mt-4 border-t border-emerald-200 pt-4">
+                                                  <div className="text-[11px] font-bold uppercase text-gray-500">
+                                                    Record manual experiment
+                                                    launch
+                                                  </div>
+                                                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                                                    Attest an external launch
+                                                    matching the exact accepted
+                                                    channel, dates, allocation,
+                                                    and minimum sample.
+                                                    Foresight does not launch
+                                                    it.
+                                                  </p>
+                                                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                    <label className="text-xs font-semibold text-gray-700">
+                                                      Control external ID
+                                                      <input
+                                                        value={
+                                                          experimentControlExternalId
+                                                        }
+                                                        onChange={(event) =>
+                                                          setExperimentControlExternalId(
+                                                            event.target.value.slice(
+                                                              0,
+                                                              255,
+                                                            ),
+                                                          )
+                                                        }
+                                                        className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal"
+                                                      />
+                                                    </label>
+                                                    <label className="text-xs font-semibold text-gray-700">
+                                                      Treatment external ID
+                                                      <input
+                                                        value={
+                                                          experimentTreatmentExternalId
+                                                        }
+                                                        onChange={(event) =>
+                                                          setExperimentTreatmentExternalId(
+                                                            event.target.value.slice(
+                                                              0,
+                                                              255,
+                                                            ),
+                                                          )
+                                                        }
+                                                        className="mt-1 block h-9 w-full border border-gray-300 px-2 text-sm font-normal"
+                                                      />
+                                                    </label>
+                                                  </div>
+                                                  <label className="mt-3 block text-xs font-semibold text-gray-700">
+                                                    Implementation details
+                                                    <textarea
+                                                      value={
+                                                        experimentImplementationDetails
+                                                      }
+                                                      onChange={(event) =>
+                                                        setExperimentImplementationDetails(
+                                                          event.target.value.slice(
+                                                            0,
+                                                            8000,
+                                                          ),
+                                                        )
+                                                      }
+                                                      rows={3}
+                                                      className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal"
+                                                    />
+                                                  </label>
+                                                  <label className="mt-3 block text-xs font-semibold text-gray-700">
+                                                    Deviations from accepted
+                                                    design
+                                                    <textarea
+                                                      value={
+                                                        experimentDeviations
+                                                      }
+                                                      onChange={(event) =>
+                                                        setExperimentDeviations(
+                                                          event.target.value.slice(
+                                                            0,
+                                                            8000,
+                                                          ),
+                                                        )
+                                                      }
+                                                      rows={2}
+                                                      placeholder="Leave blank only when there were no deviations"
+                                                      className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal"
+                                                    />
+                                                  </label>
+                                                  <label className="mt-3 block text-xs font-semibold text-gray-700">
+                                                    Operator note
+                                                    <textarea
+                                                      value={
+                                                        experimentOperatorNote
+                                                      }
+                                                      onChange={(event) =>
+                                                        setExperimentOperatorNote(
+                                                          event.target.value.slice(
+                                                            0,
+                                                            8000,
+                                                          ),
+                                                        )
+                                                      }
+                                                      rows={2}
+                                                      className="mt-1 block w-full resize-y border border-gray-300 px-3 py-2 text-sm font-normal"
+                                                    />
+                                                  </label>
+                                                  <div className="mt-3 space-y-2">
+                                                    <label className="flex items-start gap-2 text-xs leading-5 text-gray-700">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={
+                                                          experimentRandomAssignment
+                                                        }
+                                                        onChange={(event) =>
+                                                          setExperimentRandomAssignment(
+                                                            event.target
+                                                              .checked,
+                                                          )
+                                                        }
+                                                        className="mt-1 accent-emerald-700"
+                                                      />
+                                                      Participants are randomly
+                                                      assigned to mutually
+                                                      exclusive control and
+                                                      treatment groups.
+                                                    </label>
+                                                    <label className="flex items-start gap-2 text-xs leading-5 text-gray-700">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={
+                                                          experimentSingleVariable
+                                                        }
+                                                        onChange={(event) =>
+                                                          setExperimentSingleVariable(
+                                                            event.target
+                                                              .checked,
+                                                          )
+                                                        }
+                                                        className="mt-1 accent-emerald-700"
+                                                      />
+                                                      Only the declared
+                                                      treatment differs between
+                                                      variants.
+                                                    </label>
+                                                  </div>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      void recordCampaignExperimentLaunch()
+                                                    }
+                                                    disabled={
+                                                      working != null ||
+                                                      !experimentControlExternalId.trim() ||
+                                                      !experimentTreatmentExternalId.trim() ||
+                                                      experimentControlExternalId.trim() ===
+                                                        experimentTreatmentExternalId.trim() ||
+                                                      !experimentImplementationDetails.trim() ||
+                                                      !experimentOperatorNote.trim() ||
+                                                      !experimentRandomAssignment ||
+                                                      !experimentSingleVariable
+                                                    }
+                                                    className="mt-3 inline-flex h-9 items-center gap-2 bg-emerald-700 px-3 text-sm font-semibold text-white disabled:opacity-50"
+                                                  >
+                                                    {working ===
+                                                    "experiment_launch" ? (
+                                                      <Loader2
+                                                        size={15}
+                                                        className="animate-spin"
+                                                      />
+                                                    ) : (
+                                                      <Send size={15} />
+                                                    )}{" "}
+                                                    Record experiment launch
+                                                  </button>
+                                                </div>
+                                              )}
+                                          </div>
+                                        ); })() : isAdmin ? <button type="button" onClick={() => void generateCampaignExperiment()} disabled={working != null} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{working === 'experiment_generate' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} Draft experiment design</button> : <p className="mt-2 text-xs text-gray-500">No experiment design has been drafted.</p>}
                                         <p className="mt-3 text-xs leading-5 text-gray-500">Accepting this design does not launch, schedule, send, change budget, or establish causality. A later exact launch attestation is required.</p>
                                       </div>
                                     )}

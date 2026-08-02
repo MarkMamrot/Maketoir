@@ -10,6 +10,7 @@ const metaSdk = require('facebook-nodejs-business-sdk') as MetaSdk;
 interface MetaReadable {
   read(fields: string[]): Promise<unknown>;
   update(fields: string[], params: Record<string, unknown>): Promise<unknown>;
+  getCampaigns?(fields: string[], params: Record<string, unknown>): Promise<unknown>;
 }
 
 interface MetaSdk {
@@ -29,6 +30,15 @@ export interface MetaDailyBudgetUpdate {
   entityType: 'campaign' | 'adset';
   entityId: string;
   dailyBudgetMinor: number;
+}
+
+export interface MetaCampaignOption {
+  campaignId: string;
+  campaignName: string;
+  accountId: string;
+  objective: string;
+  configuredStatus: string;
+  effectiveStatus: string;
 }
 
 function plainData(value: unknown): Record<string, unknown> {
@@ -86,6 +96,27 @@ export class MetaAdsReadService {
       campaigns,
       adSets,
     };
+  }
+
+  async listCampaigns(limit = 100): Promise<MetaCampaignOption[]> {
+    const boundedLimit = Math.max(1, Math.min(100, Math.trunc(limit)));
+    const account = new this.sdk.AdAccount(this.accountId, {}, undefined, this.api);
+    if (typeof account.getCampaigns !== 'function') throw new Error('Meta campaign discovery is unavailable.');
+    const response = await account.getCampaigns([
+      'id', 'account_id', 'name', 'objective', 'configured_status', 'effective_status',
+    ], { limit: boundedLimit });
+    const rows = Array.isArray(response) ? response : [];
+    return rows.slice(0, boundedLimit).map((value) => {
+      const record = plainData(value);
+      return {
+        campaignId: text(record.id),
+        campaignName: text(record.name) || text(record.id),
+        accountId: text(record.account_id),
+        objective: text(record.objective),
+        configuredStatus: text(record.configured_status),
+        effectiveStatus: text(record.effective_status),
+      };
+    }).filter((campaign) => campaign.campaignId && campaign.accountId);
   }
 
   async updateDailyBudgets(changes: MetaDailyBudgetUpdate[]): Promise<unknown[]> {
