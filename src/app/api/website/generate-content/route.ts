@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
+import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
 
 const SYSTEM_INSTRUCTION = `You are an expert e-commerce product content writer specialising in retail apparel and accessories. You use web search to research specific products and write accurate, engaging, SEO-optimised content for Shopify stores. Always respond with valid JSON only — no markdown code blocks, no preamble.`;
 
@@ -120,7 +121,7 @@ function buildFullPrompt(
     : '\nTAGS TEMPLATE:\nGenerate relevant SEO tags as a comma-separated list.';
 
   const researchBlock = tavilyInfo
-    ? `\nPRODUCT RESEARCH (sourced via Tavily Search):\n${tavilyInfo}`
+    ? `\nAPPROVED PRODUCT PAGE FACTS (authoritative):\n${tavilyInfo}`
     : '';
 
   const urlBlock = discoveredUrls.length > 0
@@ -128,7 +129,7 @@ function buildFullPrompt(
     : '';
 
   const taskInstruction = tavilyInfo
-    ? `Using ONLY the product research and URLs provided above, generate all content fields for "${product.name}" by ${product.brand}. Do not search the web — all information needed is in the research block above.`
+    ? `Using ONLY the approved-page facts provided above, generate all content fields for "${product.name}" by ${product.brand}. Do not search the web, add general knowledge, or borrow facts from related products.`
     : `Research "${product.name}" by ${product.brand} using the verified URLs above (or by web search if none provided), then generate all content fields.`;
 
   return `Generate complete website content for this specific product.
@@ -255,16 +256,6 @@ async function discoverProductUrls(
   }
 }
 
-function parseJsonResponse(text: string): any {
-  const stripped = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-  // Try direct parse first
-  try { return JSON.parse(stripped); } catch {}
-  // Try extracting JSON object
-  const match = stripped.match(/\{[\s\S]*\}/);
-  if (match) { try { return JSON.parse(match[0]); } catch {} }
-  return null;
-}
-
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: Request) {
@@ -350,6 +341,11 @@ export async function POST(req: Request) {
     const restBody: any = {
       contents: [{ role: 'user', parts: contentParts }],
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 8192,
+        ...(useSearch ? {} : { responseMimeType: 'application/json' }),
+      },
     };
     if (useSearch) {
       restBody.tools = [{ google_search: {} }];
@@ -374,13 +370,16 @@ export async function POST(req: Request) {
     }
 
     const genJson = await genRes.json();
-    const text = (genJson.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+    const textParts = (genJson.candidates?.[0]?.content?.parts ?? [])
+      .map((part: any) => typeof part.text === 'string' ? part.text : '')
+      .filter(Boolean);
+    const text = textParts.join('\n').trim();
 
     if (!text) {
       return NextResponse.json({ error: 'AI returned empty response.' }, { status: 500 });
     }
 
-    const parsed = parseJsonResponse(text);
+    const parsed = parseAiJsonResponse(textParts);
     if (!parsed) {
       return NextResponse.json({ error: 'AI response could not be parsed as JSON.', raw: text.slice(0, 500) }, { status: 500 });
     }

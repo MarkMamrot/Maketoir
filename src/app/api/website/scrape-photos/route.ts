@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { extractProductPageImages } from '@/lib/website/productPageImages';
+import { extractProductPageFacts } from '@/lib/website/productPageFacts';
 
 /**
  * POST /api/website/scrape-photos
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
     }
 
     const uniqueImages = new Set<string>();
+    const productFactBlocks: string[] = [];
     const failedUrls: string[] = [];
 
     // Prefer the approved page's own product gallery. This excludes recommendation
@@ -43,7 +45,10 @@ export async function POST(req: Request) {
           failedUrls.push(rawUrl);
           continue;
         }
-        const images = extractProductPageImages(await pageRes.text(), rawUrl);
+        const html = await pageRes.text();
+        const images = extractProductPageImages(html, rawUrl);
+        const facts = extractProductPageFacts(html, rawUrl);
+        if (facts) productFactBlocks.push(facts);
         if (images.length === 0) failedUrls.push(rawUrl);
         images.forEach(image => uniqueImages.add(image));
       } catch (e: any) {
@@ -77,6 +82,8 @@ export async function POST(req: Request) {
             if (result.raw_content && result.url) {
               const trusted = extractProductPageImages(result.raw_content, result.url);
               trusted.forEach(image => uniqueImages.add(image));
+              const facts = extractProductPageFacts(result.raw_content, result.url);
+              if (facts) productFactBlocks.push(facts);
             }
           }
 
@@ -88,7 +95,10 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ images: [...uniqueImages].slice(0, 6) });
+    return NextResponse.json({
+      images: [...uniqueImages].slice(0, 10),
+      productFacts: [...new Set(productFactBlocks)].join('\n\n').slice(0, 16_000),
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }

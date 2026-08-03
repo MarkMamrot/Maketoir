@@ -5133,6 +5133,33 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     // Clear any previous preflight result so the new one shows fresh
     setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
     try {
+      const approvedUrl = urlsSnapshot[0]?.trim();
+      if (approvedUrl) {
+        const sourceResponse = await fetch('/api/website/scrape-photos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: [approvedUrl] }),
+        });
+        const sourceData = await sourceResponse.json();
+        if (!sourceResponse.ok || sourceData.error) {
+          setPreflightError(prev => ({ ...prev, [key]: sourceData.error ?? 'Approved-page extraction failed' }));
+          return;
+        }
+        const productFacts = String(sourceData.productFacts ?? '').trim();
+        if (!productFacts) {
+          setPreflightError(prev => ({ ...prev, [key]: 'No authoritative product facts were found on the selected page.' }));
+          return;
+        }
+        const images = (sourceData.images ?? []) as string[];
+        setPreflightMap(prev => ({ ...prev, [key]: { answer: productFacts, urls: [approvedUrl] } }));
+        setProductInputs(prev => {
+          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+          return { ...prev, [key]: { ...existing, notes: productFacts } };
+        });
+        setScrapedPhotosMap(prev => ({ ...prev, [key]: images }));
+        setUrlPhotosMap(prev => ({ ...prev, [key]: [images, [], []] }));
+        return;
+      }
       const res = await fetch('/api/website/tavily-preflight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5257,7 +5284,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       // Validate before Tavily, scraping, or content application.
       step('Step 2/4: AI validating product pages…');
       let finalUrls: string[] = [];
-      let judgeGeneratedContent: any = null;
       try {
         const judgeRes = await fetch('/api/website/judge-urls', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5295,7 +5321,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             : `⛔ No valid product page found — session blocked, but attempt recording failed: ${attemptData.error ?? 'unknown error'}`);
           return;
         }
-        if (judgeData.generatedContent) judgeGeneratedContent = judgeData.generatedContent;
       } catch (assessmentError: any) {
         setSessionBlockedKeys(prev => new Set(prev).add(key));
         setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
@@ -5318,6 +5343,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
       // Only confirmed pages reach photo collection.
       step('Step 3/4: Collecting photos from the selected page…');
+      let sourceFacts = '';
       const urlsToScrape = finalUrls.filter(u => u?.trim());
       if (urlsToScrape.length > 0) {
         try {
@@ -5326,6 +5352,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             body: JSON.stringify({ urls: urlsToScrape }),
           });
           const scrapeData = await scrapeRes.json();
+          sourceFacts = String(scrapeData.productFacts ?? '').trim();
           const approvedPhotos = (scrapeData.images ?? []).filter(noiseOk) as string[];
           if (approvedPhotos.length > 0) {
             setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], []] }));
@@ -5334,23 +5361,17 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } catch { /* scrape failed */ }
       }
 
-      // Apply generated content or use the existing fallback for a confirmed page.
-      if (judgeGeneratedContent) {
-        step('Step 4/4: Applying generated content…');
-        setGenerateError(prev => ({ ...prev, [key]: '' }));
-        setContentMap(prev => ({ ...prev, [key]: judgeGeneratedContent }));
-        setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-        step('✅ Done — review content below, then Save and Push Online');
+      if (!sourceFacts) {
+        step('❌ Could not extract authoritative product facts from the approved page. Nothing was generated.');
         return;
       }
-      // Fallback: call generate-content if judge-urls didn't return content
-      step('Step 4/4: Generating content…');
+      step('Step 4/4: Generating content from approved-page facts…');
       setGeneratingSet(prev => new Set(prev).add(key));
       setGenerateError(prev => ({ ...prev, [key]: '' }));
       try {
         const genRes = await fetch('/api/website/generate-content', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ databaseId, product, tavilyInfo: '', userPhotos: [], userNotes: '' }),
+          body: JSON.stringify({ databaseId, product, tavilyInfo: sourceFacts, tavilyUrls: finalUrls, userPhotos: [], userNotes: '' }),
         });
         const genData = await genRes.json();
         if (!genData.success) {

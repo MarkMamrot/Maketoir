@@ -4307,6 +4307,20 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
     const topUrl = urls[0]?.trim();
     setResearching(true); setError(null); setResearchResult(null);
     try {
+      if (topUrl) {
+        const sourceResponse = await fetch('/api/website/scrape-photos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: [topUrl] }),
+        });
+        const sourceData = await sourceResponse.json();
+        if (!sourceResponse.ok || sourceData.error) throw new Error(sourceData.error ?? 'Approved-page extraction failed');
+        const productFacts = String(sourceData.productFacts ?? '').trim();
+        if (!productFacts) throw new Error('No authoritative product facts were found on the selected page.');
+        setResearchResult({ answer: productFacts, urls: [topUrl], images: [] });
+        setScrapedImages(filterImages(sourceData.images ?? []));
+        return;
+      }
       // Fetch research from all three URLs in parallel, then aggregate images
       const nonEmptyUrls = urls.filter(Boolean);
       const requests = nonEmptyUrls.length > 0
@@ -4433,62 +4447,46 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       }
       setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
 
-      const [researchSettled, scrapeSettled] = await Promise.allSettled([
-        Promise.all(finalUrls.map(url => fetch('/api/website/tavily-preflight', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
-        }).then(response => response.json()))),
-        fetch('/api/website/scrape-photos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: finalUrls }),
-        }).then(response => response.json()),
-      ]);
-
-      const researchRows = researchSettled.status === 'fulfilled' ? researchSettled.value : [];
+      const scrapeResponse = await fetch('/api/website/scrape-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: finalUrls }),
+      });
+      const scrapeData = await scrapeResponse.json();
+      if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');
+      const sourceFacts = String(scrapeData.productFacts ?? '').trim();
+      if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the approved page. Nothing was generated.');
       setResearchResult({
-        answer: researchRows.find(row => row?.answer)?.answer ?? '',
+        answer: sourceFacts,
         urls: finalUrls,
         images: [],
       });
-      if (scrapeSettled.status === 'fulfilled') {
-        setScrapedImages(filterImages(scrapeSettled.value?.images ?? []));
-      }
+      setScrapedImages(filterImages(scrapeData.images ?? []));
 
-      const content = judgeData.generatedContent;
-      if (content) {
-        setGenerated({
-          title: content.title ?? '',
-          websiteDescription: content.websiteDescription ?? '',
-          tags: content.tags ?? '',
-        });
-      } else {
-        const generateResponse = await fetch('/api/website/generate-content', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            databaseId: businessId,
-            product: {
-              name: product.name,
-              brand: product.brand ?? '',
-              code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-              styleCode: '',
-              retailPrice: product.variants?.[0]?.price_rrp ?? '0',
-            },
-            mode: 'full',
-            tavilyInfo: researchRows.find(row => row?.answer)?.answer ?? '',
-            tavilyUrls: finalUrls,
-          }),
-        });
-        const generateData = await generateResponse.json();
-        if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
-        setGenerated({
-          title: generateData.content?.title ?? generateData.title ?? '',
-          websiteDescription: generateData.content?.websiteDescription ?? generateData.websiteDescription ?? '',
-          tags: generateData.content?.tags ?? generateData.tags ?? '',
-        });
-      }
+      const generateResponse = await fetch('/api/website/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: businessId,
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            styleCode: '',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+          },
+          mode: 'full',
+          tavilyInfo: sourceFacts,
+          tavilyUrls: finalUrls,
+        }),
+      });
+      const generateData = await generateResponse.json();
+      if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
+      setGenerated({
+        title: generateData.content?.title ?? generateData.title ?? '',
+        websiteDescription: generateData.content?.websiteDescription ?? generateData.websiteDescription ?? '',
+        tags: generateData.content?.tags ?? generateData.tags ?? '',
+      });
     } catch (generationError: any) {
       setError(generationError.message ?? 'Unable to generate website content');
     } finally {
@@ -6235,9 +6233,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
               ) : (
                 <div
+                  key={`description-preview-${modal.edit?.product_id ?? 'new'}`}
+                  contentEditable
+                  suppressContentEditableWarning
                   className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                  style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13, padding: '12px 14px' }}
-                  dangerouslySetInnerHTML={{ __html: form.description || '<em style="opacity:.5">No description</em>' }} />
+                  onBlur={event => setForm((previous: any) => ({ ...previous, description: event.currentTarget.innerHTML }))}
+                  style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13, padding: '12px 14px', cursor: 'text' }}
+                  dangerouslySetInnerHTML={{ __html: form.description || '' }} />
               )}
               {descBuilderOpen && modal.edit?.product_id && (
                 <AiDescriptionBuilder
