@@ -77,6 +77,19 @@ function rawImageUrls(html: string, pageUrl: string): string[] {
     .filter((url): url is string => Boolean(url));
 }
 
+function explicitGalleryImages(html: string, pageUrl: string): string[] {
+  const images: string[] = [];
+  for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
+    const tag = match[0];
+    if (!/(?:class=["'][^"']*(?:show-gallery|product[^"']*gallery)[^"']*["']|aria-label=["'][^"']*(?:gallery|open media)[^"']*["'])/i.test(tag)) continue;
+    const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
+    if (!href) continue;
+    const normalized = normalizeImageUrl(href, pageUrl);
+    if (normalized) images.push(normalized);
+  }
+  return images;
+}
+
 function dedupeImageVariants(urls: string[]): string[] {
   const unique = new Map<string, string>();
   for (const url of urls) {
@@ -112,6 +125,11 @@ export function extractProductPageImages(html: string, pageUrl: string, limit = 
   }
 
   const uniqueStructured = dedupeImageVariants(structuredImages);
+  const galleryImages = dedupeImageVariants(explicitGalleryImages(html, pageUrl));
+  if (galleryImages.length > 1) {
+    return dedupeImageVariants([...uniqueStructured, ...galleryImages]).slice(0, limit);
+  }
+
   const familyTokens = [...new Set(uniqueStructured.map(assetFamilyToken).filter((token): token is string => Boolean(token)))];
   if (familyTokens.length === 0) return uniqueStructured.slice(0, limit);
 

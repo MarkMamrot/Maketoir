@@ -32,4 +32,27 @@ describe('extractProductPageImages', () => {
       'https://shop.test/cdn/main-product.jpg',
     ]);
   });
+
+  it('collects explicitly marked gallery images with different filenames', () => {
+    const html = `
+      <script type="application/ld+json">
+        {"@type":"Product","image":"https:\/\/shop.test\/cdn\/big-hugo-the-duck-123.jpg?width=1920"}
+      </script>
+      <div class="product-media-wrapper">
+        <a class="block show-gallery" href="//shop.test/cdn/big-hugo-the-duck-123.jpg?width=5000" aria-label="Load image 1 in gallery view"></a>
+        <a class="block show-gallery" href="//shop.test/cdn/big-hugo-the-mallard-duck-456.jpg?width=5000" aria-label="Load image 2 in gallery view"></a>
+        <a class="block show-gallery" href="//shop.test/cdn/big-hugo-the-duck-124.jpg?width=5000" aria-label="Load image 3 in gallery view"></a>
+        <a class="block show-gallery" href="//shop.test/cdn/big-buddy-hugo-bundle-789.jpg?width=5000" aria-label="Load image 4 in gallery view"></a>
+      </div>
+      <section class="recommendations">
+        <a href="//shop.test/cdn/mini-hugo-rattle.jpg"><img src="//shop.test/cdn/mini-hugo-rattle.jpg"></a>
+      </section>`;
+
+    expect(extractProductPageImages(html, 'https://shop.test/products/big-hugo-the-duck')).toEqual([
+      'https://shop.test/cdn/big-hugo-the-duck-123.jpg',
+      'https://shop.test/cdn/big-hugo-the-mallard-duck-456.jpg',
+      'https://shop.test/cdn/big-hugo-the-duck-124.jpg',
+      'https://shop.test/cdn/big-buddy-hugo-bundle-789.jpg',
+    ]);
+  });
 });
