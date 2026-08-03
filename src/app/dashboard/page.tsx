@@ -4829,7 +4829,7 @@ interface PendingOnlineProduct {
   // and `product_id` drives the Push to Online Shop / shopify-sync call.
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
-  sku: string; styleCode: string; retailPrice: string;
+  sku: string; styleCode: string; retailPrice: string; soh: number;
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
 }
@@ -4877,6 +4877,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Column filters: Website Product (is_online) and Shopify Synced
   const [filterWebsite, setFilterWebsite] = useState<'yes' | 'no' | 'any'>('yes');
   const [filterShopify, setFilterShopify] = useState<'yes' | 'no' | 'any'>('no');
+  const [sohGreaterThan, setSohGreaterThan] = useState('');
 
   // Content state
   const [contentMap, setContentMap]     = useState<Record<string, ProductContent>>({});
@@ -4992,6 +4993,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
           styleCode:     p.style_code ?? '',
           retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
+          soh:           Number(p.soh ?? 0),
           is_online:     Number(p.is_online ?? 0),
           shopify_linked: !!(p.shopify_product_id),
         }));
@@ -5372,7 +5374,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const filtered = products?.filter(p => {
     const q = filter.toLowerCase();
     if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) &&
-        !p.brand.toLowerCase().includes(q) && !p.styleCode.toLowerCase().includes(q)) return false;
+        !p.brand.toLowerCase().includes(q)) return false;
     if (brandExclude.trim()) {
       const exc = brandExclude.toLowerCase();
       if (p.brand.toLowerCase().includes(exc)) return false;
@@ -5381,6 +5383,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (filterWebsite === 'no'   && p.is_online === 1)   return false;
     if (filterShopify === 'yes'  && !p.shopify_linked)   return false;
     if (filterShopify === 'no'   && p.shopify_linked)    return false;
+    const sohThreshold = Number(sohGreaterThan);
+    if (sohGreaterThan.trim() && Number.isFinite(sohThreshold) && p.soh <= sohThreshold) return false;
     return true;
   }) ?? [];
 
@@ -5497,8 +5501,12 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         {products !== null && products.length > 0 && (
           <>
             <div className="mb-3 flex flex-wrap gap-2 items-center">
-              <input type="text" placeholder="Filter by name, SKU, brand or style code…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px] max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              <input type="text" placeholder="Filter by name, SKU or brand…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px] max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               <input type="text" placeholder="Brand excludes…" value={brandExclude} onChange={e => setBrandExclude(e.target.value)} className="w-44 px-3 py-1.5 border border-red-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400" title="Hide products whose brand contains this text" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500 whitespace-nowrap">SOH greater than:</span>
+                <input type="number" value={sohGreaterThan} onChange={e => setSohGreaterThan(e.target.value)} placeholder="Any" className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-500 whitespace-nowrap">Website Product:</span>
                 <select value={filterWebsite} onChange={e => setFilterWebsite(e.target.value as 'yes' | 'no' | 'any')} className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
@@ -5550,12 +5558,12 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 )}
               </div>
 
-              {/* Table header — 10 cols: checkbox | SKU | Style Code | Name/Brand | Price | Status | Website | Shopify | action btn | expand */}
-              <div className="hidden md:grid grid-cols-[16px_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
+              {/* Table header — 10 cols: checkbox | SKU | Name/Brand | SOH | Price | Status | Website | Shopify | action btn | expand */}
+              <div className="hidden md:grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_64px_80px_100px_80px_80px_120px_24px] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
                 <span></span>
                 <span>SKU</span>
-                <span>Style Code</span>
                 <span>Name / Brand</span>
+                <span className="text-right">SOH</span>
                 <span>Price</span>
                 <span>Status</span>
                 <span>Website</span>
@@ -5593,7 +5601,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 return (
                   <div key={key}>
                     <div
-                      className={`grid grid-cols-[16px_minmax(80px,1fr)_minmax(80px,1fr)_minmax(160px,3fr)_80px_100px_80px_80px_auto_auto] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_64px_80px_100px_80px_80px_120px_24px] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => setExpandedCode(isExpanded ? null : key)}
@@ -5613,11 +5621,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         className="w-4 h-4 rounded accent-indigo-600"
                       />
                       <span className="font-mono text-xs text-gray-700 truncate">{p.sku || '—'}</span>
-                      <span className="text-xs text-gray-600 truncate">{p.styleCode || '—'}</span>
                       <div className="min-w-0">
                         <div className="font-medium text-gray-800 truncate text-xs">{p.name || '—'}</div>
                         <div className="text-xs text-gray-500 truncate">{p.brand || '—'}</div>
                       </div>
+                      <span className="text-xs text-gray-700 font-medium text-right tabular-nums">
+                        {p.soh.toLocaleString()}
+                      </span>
                       <span className="text-xs text-gray-700 font-medium">
                         {p.retailPrice ? `$${p.retailPrice}` : '—'}
                       </span>

@@ -3713,7 +3713,7 @@ export const ImsShopifyRepo = {
   },
 
   // ── Products list with link status ───────────────────────────────────────
-  async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify' }>> {
+  async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify'; soh: number }>> {
     const baseQuery = (withSupplier: boolean) => withSupplier
       ? `SELECT p.*, c.name AS supplier_name,
            IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
@@ -3739,16 +3739,33 @@ export const ImsShopifyRepo = {
         throw e;
       }
     }
-    const variants = await imsQuery<ImsVariant>(
-      `SELECT * FROM ims_product_variants WHERE is_active = 1 AND business_id = ? ORDER BY sku`,
-      [businessId],
-    );
+    const [variants, stockTotals] = await Promise.all([
+      imsQuery<ImsVariant>(
+        `SELECT * FROM ims_product_variants WHERE is_active = 1 AND business_id = ? ORDER BY sku`,
+        [businessId],
+      ),
+      imsQuery<{ product_id: string; soh: number }>(
+        `SELECT v.product_id, COALESCE(SUM(s.qty_on_hand), 0) AS soh
+         FROM ims_product_variants v
+         LEFT JOIN ims_stock s
+           ON s.variant_id = v.variant_id
+          AND s.business_id = v.business_id
+         WHERE v.is_active = 1 AND v.business_id = ?
+         GROUP BY v.product_id`,
+        [businessId],
+      ),
+    ]);
     const byProduct = new Map<string, ImsVariant[]>();
     for (const v of variants) {
       if (!byProduct.has(v.product_id)) byProduct.set(v.product_id, []);
       byProduct.get(v.product_id)!.push(v);
     }
-    return products.map((p: any) => ({ ...p, variants: byProduct.get(p.product_id) ?? [] }));
+    const sohByProduct = new Map(stockTotals.map(row => [row.product_id, Number(row.soh ?? 0)]));
+    return products.map((p: any) => ({
+      ...p,
+      variants: byProduct.get(p.product_id) ?? [],
+      soh: sohByProduct.get(p.product_id) ?? 0,
+    }));
   },
 };
 
