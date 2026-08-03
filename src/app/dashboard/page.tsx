@@ -4926,8 +4926,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
 
-  // Products marked "Remove from Website List" — skipped in Research/Images/Generate/Push
+  // Products removed from the website list are skipped by any in-flight/bulk processing.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
+  const [removingWebsiteSet, setRemovingWebsiteSet] = useState<Set<string>>(new Set());
 
   // Website description HTML preview toggle
   const [descSourceKeys, setDescSourceKeys] = useState<Set<string>>(new Set());
@@ -5390,6 +5391,43 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       ...prev,
       [code]: { ...prev[code], [field]: value },
     }));
+  };
+
+  const handleRemoveFromWebsiteList = async (product: PendingOnlineProduct) => {
+    const key = product.code;
+    if (!window.confirm(`Remove "${product.name}" from the website list?\n\nThis will set Website Product to No and deselect it from processing.`)) return;
+
+    setRemovingWebsiteSet(previous => new Set(previous).add(key));
+    setOnlineMessage(previous => ({ ...previous, [key]: '' }));
+    try {
+      const response = await fetch(`/api/ims/products/${product.product_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_online: 0 }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error ?? 'Failed to remove product from the website list');
+      }
+
+      setRemovedKeys(previous => new Set(previous).add(key));
+      setSelectedKeys(previous => {
+        const next = new Set(previous);
+        next.delete(key);
+        return next;
+      });
+      setProducts(previous => previous?.map(item => item.code === key ? { ...item, is_online: 0 } : item) ?? null);
+      setExpandedCode(previous => previous === key ? null : previous);
+    } catch (removeError: any) {
+      setOnlineMessage(previous => ({ ...previous, [key]: removeError.message ?? 'Failed to remove product from the website list' }));
+      setOnlineStatus(previous => ({ ...previous, [key]: 'error' }));
+    } finally {
+      setRemovingWebsiteSet(previous => {
+        const next = new Set(previous);
+        next.delete(key);
+        return next;
+      });
+    }
   };
 
   // Push to Online Shop — same mechanism as the Edit Product modal:
@@ -5887,21 +5925,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           )}
                         </div>
 
-                        <label className="flex items-center gap-2 cursor-pointer select-none w-fit" onClick={e => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={removedKeys.has(key)}
-                            onChange={e => {
-                              setRemovedKeys(prev => {
-                                const next = new Set(prev);
-                                e.target.checked ? next.add(key) : next.delete(key);
-                                return next;
-                              });
-                            }}
-                            className="w-3.5 h-3.5 rounded accent-red-600"
-                          />
-                          <span className="text-xs text-red-700 font-medium">Remove Product from Website List</span>
-                        </label>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); void handleRemoveFromWebsiteList(p); }}
+                          disabled={isBusy || removingWebsiteSet.has(key)}
+                          className="w-fit px-3 py-1.5 border border-red-300 bg-white text-red-700 text-xs font-semibold rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website List'}
+                        </button>
 
                         <button
                           onClick={e => { e.stopPropagation(); handleGenerateContent(p); }}
