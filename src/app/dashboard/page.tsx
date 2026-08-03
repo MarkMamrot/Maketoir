@@ -11,6 +11,7 @@ import { CreativeReviewView } from './CreativeReviewView';
 import { dashboardHashView } from './dashboardHandoff';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
+import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -4842,6 +4843,12 @@ interface ProductContent {
   scrapedUrls?: string[];
 }
 
+interface ProductUrlDecision {
+  url: string;
+  keep: boolean | null;
+  reason: string;
+}
+
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
 
 // ── Main view ─────────────────────────────────────────────────────────────────
@@ -4911,6 +4918,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [serperSearchingSet, setSerperSearchingSet] = useState<Set<string>>(new Set());
   // Per-URL Tavily photos [productKey][urlSlot 0-2] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
+  const [urlDecisionsMap, setUrlDecisionsMap] = useState<Record<string, ProductUrlDecision[]>>({});
   const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
@@ -5030,6 +5038,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return;
       }
       const urls: string[] = data.urls ?? [];
+      setUrlDecisionsMap(prev => ({
+        ...prev,
+        [key]: urls.filter(Boolean).slice(0, 3).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
+      }));
       setProductInputs(prev => {
         const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
         const newUrls: [string, string, string] = [urls[0] ?? '', urls[1] ?? '', urls[2] ?? ''];
@@ -5145,7 +5157,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     const noise = /thumb|icon|swatch|logo|favicon|width=[0-9]{1,2}(?![0-9])/i;
     const noiseOk = (u: string) => !noise.test(u);
     setAutomatingSet(prev => new Set(prev).add(key));
-    setExpandedCode(key);
+    setUrlPhotosMap(prev => ({ ...prev, [key]: [] }));
+    setTavilyPhotosMap(prev => ({ ...prev, [key]: [] }));
+    setScrapedPhotosMap(prev => ({ ...prev, [key]: [] }));
+    setSelectedPhotoUrls(prev => ({ ...prev, [key]: new Set<string>() }));
+    setUrlDecisionsMap(prev => ({ ...prev, [key]: [] }));
     try {
       // Step 1: Find URLs (using preferred brand/supplier domains if configured)
       step('Step 1/5: Finding URLs…');
@@ -5158,6 +5174,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
       const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 3);
       if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
+      setUrlDecisionsMap(prev => ({
+        ...prev,
+        [key]: foundUrls.map(url => ({ url, keep: null, reason: 'Awaiting AI assessment.' })),
+      }));
       setProductInputs(prev => {
         const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
         const newUrls: [string, string, string] = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? ''];
@@ -5199,7 +5219,19 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           }),
         });
         const judgeData = await judgeRes.json();
-        const ranked: { url: string; keep: boolean }[] = judgeData.rankedUrls ?? [];
+        if (!judgeRes.ok || judgeData.error) throw new Error(judgeData.error ?? 'AI URL assessment failed');
+        const ranked: { url: string; keep: boolean; reason?: string }[] = judgeData.rankedUrls ?? [];
+        setUrlDecisionsMap(prev => ({
+          ...prev,
+          [key]: foundUrls.map(url => {
+            const decision = ranked.find(item => item.url === url);
+            return {
+              url,
+              keep: decision ? Boolean(decision.keep) : null,
+              reason: decision?.reason?.trim() || (decision ? 'AI assessment completed.' : 'AI did not return an assessment for this URL.'),
+            };
+          }),
+        }));
         // Reorder all slots by Gemini's full ranked order, keeping only keep=true URLs (best first).
         // Fall back to full ranked order if Gemini didn't mark any as keep=true.
         const orderedAll = ranked.map(r => r.url).filter(u => foundUrls.includes(u));
@@ -5212,7 +5244,16 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           setUrlPhotosMap(prev => ({ ...prev, [key]: finalPerUrl }));
         }
         if (judgeData.generatedContent) judgeGeneratedContent = judgeData.generatedContent;
-      } catch { /* judge failed, keep original order */ }
+      } catch (assessmentError: any) {
+        setUrlDecisionsMap(prev => ({
+          ...prev,
+          [key]: foundUrls.map(url => ({
+            url,
+            keep: null,
+            reason: assessmentError?.message || 'AI URL assessment failed; original search order was retained.',
+          })),
+        }));
+      }
       const paddedFinal: [string, string, string] = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? ''];
       setProductInputs(prev => {
         const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
@@ -5590,6 +5631,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const pfErr = preflightError[key];
                 const onl = onlineStatus[key] ?? 'idle';
                 const isBusy = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
+                const urlDecisions = urlDecisionsMap[key] ?? [];
+                const candidatePhotos = dedupeProductPhotoUrls([
+                  ...(urlPhotosMap[key] ?? []).flat(),
+                  ...(tavilyPhotosMap[key] ?? []),
+                  ...(scrapedPhotosMap[key] ?? []),
+                  ...(contentMap[key]?.images ?? []),
+                ]);
 
                 const overallStatus = (() => {
                   if (onl === 'done') return { icon: '✅', label: 'On the shop', cls: 'text-green-700 bg-green-50' };
@@ -5713,12 +5761,35 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         </div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
 
+                        {urlDecisions.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1.5">AI URL assessment</p>
+                            <div className="space-y-1.5">
+                              {urlDecisions.map(decision => (
+                                <div key={decision.url} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 items-start rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                  <span className={`text-[10px] font-bold uppercase tracking-wide text-center rounded-full px-2 py-1 ${
+                                    decision.keep === true ? 'bg-emerald-100 text-emerald-700' :
+                                    decision.keep === false ? 'bg-gray-100 text-gray-500' :
+                                    'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {decision.keep === true ? 'Selected' : decision.keep === false ? 'Discarded' : 'Not assessed'}
+                                  </span>
+                                  <div className="min-w-0">
+                                    <a href={decision.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="block text-xs text-blue-600 hover:underline truncate">{decision.url}</a>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">{decision.reason}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Reference Pages */}
                         <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1.5">🔗 Reference Pages</p>
+                          <p className="text-xs font-medium text-gray-700 mb-1.5">Selected reference pages</p>
                           <div className="space-y-1.5">
                             {([0, 1, 2] as const).map(idx => (
-                              <div key={idx} className="space-y-1">
+                              <div key={idx}>
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}.</span>
                                   <input
@@ -5737,32 +5808,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                     <a href={getInputs(key).urls[idx]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:underline shrink-0">↗</a>
                                   )}
                                 </div>
-                                {/* Per-URL Tavily photos */}
-                                {(urlPhotosMap[key]?.[idx]?.length ?? 0) > 0 && (
-                                  <div className="flex flex-wrap gap-2 pl-6" onClick={e => e.stopPropagation()}>
-                                    {urlPhotosMap[key][idx].map((photoUrl, pi) => (
-                                      <div key={pi} className="relative w-24 h-24">
-                                        <a href={photoUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                          <ZoomThumb src={photoUrl} className="w-24 h-24 rounded border border-blue-200 overflow-hidden" />
-                                        </a>
-                                        <button
-                                          onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, photoUrl); }}
-                                          title={selectedPhotoUrls[key]?.has(photoUrl) ? 'Selected to add' : 'Add this photo'}
-                                          className={`absolute bottom-1.5 right-1.5 w-7 h-7 text-white rounded-full text-base font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(photoUrl) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
-                                        >{selectedPhotoUrls[key]?.has(photoUrl) ? '✓' : '+'}</button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        {/* Photos — Tavily + Manual Scrape */}
+                        {/* Deduplicated photo candidates */}
                         <div>
                           <div className="flex items-center gap-2 mb-1.5">
-                            <p className="text-xs font-medium text-gray-700">🖼️ Photos</p>
+                            <p className="text-xs font-medium text-gray-700">Photo candidates ({candidatePhotos.length})</p>
                             <button
                               onClick={e => { e.stopPropagation(); handleScrapePhotos(p); }}
                               disabled={scrapingSet.has(key) || !getInputs(key).urls[0]?.trim()}
@@ -5773,88 +5827,45 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             </button>
                           </div>
                           {scrapingSet.has(key) && <p className="text-xs text-gray-400 italic">Scraping top URL…</p>}
-
-                          {/* Tavily images */}
-                          {tavilyPhotosMap[key]?.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">Tavily ({tavilyPhotosMap[key].length})</p>
-                              <div className="flex flex-wrap gap-3" onClick={e => e.stopPropagation()}>
-                                {(tavilyPhotosMap[key] ?? []).map((url, idx) => (
-                                  <div key={idx} className="relative w-28 h-28">
-                                    <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <ZoomThumb src={url} className="w-28 h-28 rounded border border-emerald-200 overflow-hidden" />
-                                    </a>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }}
-                                      title={selectedPhotoUrls[key]?.has(url) ? 'Selected to add' : 'Add this photo'}
-                                      className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
-                                    >{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
-                                  </div>
-                                ))}
-                              </div>
+                          {candidatePhotos.length > 0 && (
+                            <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3" onClick={e => e.stopPropagation()}>
+                              {candidatePhotos.map(url => (
+                                <div key={url} className="relative aspect-square min-w-0">
+                                  <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                                    <ZoomThumb src={url} className="w-full h-full rounded border border-sky-200 overflow-hidden" />
+                                  </a>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }}
+                                    title={selectedPhotoUrls[key]?.has(url) ? 'Selected to add' : 'Add this photo'}
+                                    className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
+                                  >{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
+                                </div>
+                              ))}
                             </div>
                           )}
-
-                          {/* Manual scrape images */}
-                          {scrapedPhotosMap[key]?.length > 0 && (
-                            <div>
-                              <p className="text-[10px] font-semibold text-sky-700 uppercase tracking-wide mb-1">Manual Scrape ({scrapedPhotosMap[key].length})</p>
-                              <div className="flex flex-wrap gap-3" onClick={e => e.stopPropagation()}>
-                                {(scrapedPhotosMap[key] ?? []).map((url, idx) => (
-                                  <div key={idx} className="relative w-28 h-28">
-                                    <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <ZoomThumb src={url} className="w-28 h-28 rounded border border-sky-200 overflow-hidden" />
-                                    </a>
-                                    <button
-                                      onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }}
-                                      title={selectedPhotoUrls[key]?.has(url) ? 'Selected to add' : 'Add this photo'}
-                                      className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
-                                    >{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {!tavilyPhotosMap[key]?.length && !scrapedPhotosMap[key]?.length && !scrapingSet.has(key) && (
-                            <p className="text-xs text-gray-400 italic">No photos yet — Research for Tavily images, or Pull Images for manual scrape from top URL.</p>
+                          {candidatePhotos.length === 0 && !scrapingSet.has(key) && (
+                            <p className="text-xs text-gray-400 italic">No photo candidates found yet.</p>
                           )}
                           {(selectedPhotoUrls[key]?.size ?? 0) > 0 && (
                             <p className="text-xs font-medium text-emerald-700 mt-2">{selectedPhotoUrls[key].size} photo{selectedPhotoUrls[key].size === 1 ? '' : 's'} selected to add. Existing product photos will be kept.</p>
                           )}
                         </div>
 
-                        {/* Product Summary */}
-                        <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1.5">📝 Product Summary</p>
-                          <textarea
-                            value={getInputs(key).notes}
-                            onChange={e => patchInputs(key, { notes: e.target.value })}
-                            onClick={e => e.stopPropagation()}
-                            rows={4}
-                            placeholder="Key features, special notes, or context for the AI…"
-                            className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
+                        <label className="flex items-center gap-2 cursor-pointer select-none w-fit" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={removedKeys.has(key)}
+                            onChange={e => {
+                              setRemovedKeys(prev => {
+                                const next = new Set(prev);
+                                e.target.checked ? next.add(key) : next.delete(key);
+                                return next;
+                              });
+                            }}
+                            className="w-3.5 h-3.5 rounded accent-red-600"
                           />
-                          {/* Remove from website list */}
-                          <label
-                            className="flex items-center gap-2 mt-2 cursor-pointer select-none w-fit"
-                            onClick={e => e.stopPropagation()}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={removedKeys.has(key)}
-                              onChange={e => {
-                                setRemovedKeys(prev => {
-                                  const next = new Set(prev);
-                                  e.target.checked ? next.add(key) : next.delete(key);
-                                  return next;
-                                });
-                              }}
-                              className="w-3.5 h-3.5 rounded accent-red-600"
-                            />
-                            <span className="text-xs text-red-700 font-medium">🚫 Remove Product from Website List</span>
-                          </label>
-                        </div>
+                          <span className="text-xs text-red-700 font-medium">Remove Product from Website List</span>
+                        </label>
 
                         {/* Your Photos */}
                         <div>
@@ -5965,29 +5976,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             />
                           )}
                         </div>
-
-                        {/* Images with delete */}
-                        {(contentMap[key]?.images ?? []).some(Boolean) && (
-                          <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-2">Images</label>
-                            <div className="flex flex-wrap gap-3">
-                              {(contentMap[key]?.images ?? []).map((url, idx) => url ? (
-                                <div key={idx} className="relative w-20 h-20">
-                                  <img src={url} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200" referrerPolicy="no-referrer"
-                                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                                  <button
-                                    onClick={() => {
-                                      const imgs = [...(contentMap[key]?.images ?? [])];
-                                      imgs.splice(idx, 1);
-                                      handleContentChange(key, 'images', imgs);
-                                    }}
-                                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center leading-none shadow"
-                                  >×</button>
-                                </div>
-                              ) : null)}
-                            </div>
-                          </div>
-                        )}
 
                         {/* Push to Online Shop */}
                         <div className="flex items-center gap-3 flex-wrap pt-1">
