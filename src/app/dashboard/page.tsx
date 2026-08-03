@@ -4830,7 +4830,7 @@ interface PendingOnlineProduct {
   // and `product_id` drives the Push to Online Shop / shopify-sync call.
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
-  sku: string; styleCode: string; retailPrice: string; soh: number;
+  sku: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
 }
@@ -4850,6 +4850,7 @@ interface ProductUrlDecision {
 }
 
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
+type ShopifyProductLinks = { storefrontUrl: string; adminUrl: string };
 
 // ── Main view ─────────────────────────────────────────────────────────────────
 
@@ -4896,6 +4897,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Push to Online Shop status
   const [onlineStatus, setOnlineStatus]   = useState<Record<string, PushStatus>>({});
   const [onlineMessage, setOnlineMessage] = useState<Record<string, string>>({});
+  const [shopifyLinksMap, setShopifyLinksMap] = useState<Record<string, ShopifyProductLinks>>({});
+  const [shopifyLinksLoading, setShopifyLinksLoading] = useState<Set<string>>(new Set());
 
   // Tavily preflight state — Step 1 before full generation
   type PreflightData = { answer: string; urls: string[] };
@@ -4927,8 +4930,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
 
   // Website description HTML preview toggle
-  const [descPreviewKeys, setDescPreviewKeys] = useState<Set<string>>(new Set());
-  const toggleDescPreview = (k: string) => setDescPreviewKeys(prev => {
+  const [descSourceKeys, setDescSourceKeys] = useState<Set<string>>(new Set());
+  const toggleDescSource = (k: string) => setDescSourceKeys(prev => {
     const next = new Set(prev);
     next.has(k) ? next.delete(k) : next.add(k);
     return next;
@@ -4977,6 +4980,37 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     });
   };
 
+  const loadShopifyLinks = async (product: PendingOnlineProduct, force = false) => {
+    const key = product.code;
+    if (!force && (shopifyLinksMap[key] || shopifyLinksLoading.has(key))) return;
+    setShopifyLinksLoading(previous => new Set(previous).add(key));
+    try {
+      const response = await fetch(`/api/ims/products/${product.product_id}/shopify-sync`);
+      const data = await response.json();
+      if (response.ok && data.success && data.linked) {
+        setShopifyLinksMap(previous => ({
+          ...previous,
+          [key]: {
+            storefrontUrl: data.storefrontUrl ?? '',
+            adminUrl: data.adminUrl ?? '',
+          },
+        }));
+      }
+    } catch { /* links are optional status metadata */ }
+    finally {
+      setShopifyLinksLoading(previous => {
+        const next = new Set(previous);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const toggleExpandedProduct = (product: PendingOnlineProduct, key: string, isExpanded: boolean) => {
+    setExpandedCode(isExpanded ? null : key);
+    if (!isExpanded) void loadShopifyLinks(product);
+  };
+
   const handleFind = async () => {
     if (!databaseId) { setError('No business selected.'); return; }
     setLoading(true);
@@ -5001,6 +5035,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
           styleCode:     p.style_code ?? '',
           retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
+          website_title: p.website_title ?? '',
           soh:           Number(p.soh ?? 0),
           is_online:     Number(p.is_online ?? 0),
           shopify_linked: !!(p.shopify_product_id),
@@ -5280,7 +5315,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         setGenerateError(prev => ({ ...prev, [key]: '' }));
         setContentMap(prev => ({ ...prev, [key]: judgeGeneratedContent }));
         setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-        step('✅ Done — review content below, then Push to Online Shop');
+        step('✅ Done — review content below, then Save and Push Online');
         return;
       }
       // Fallback: call generate-content if judge-urls didn't return content
@@ -5299,7 +5334,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } else {
           setContentMap(prev => ({ ...prev, [key]: genData.content }));
           setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-          step('✅ Done — review content below, then Push to Online Shop');
+          step('✅ Done — review content below, then Save and Push Online');
           return;
         }
       } catch (e: any) {
@@ -5373,7 +5408,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: content.title?.trim() || product.name,
+          website_title: content.title?.trim() || product.website_title || product.name,
           description: content.websiteDescription ?? '',
           tags: content.tags ?? '',
         }),
@@ -5406,6 +5441,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       }
       setOnlineStatus(prev => ({ ...prev, [key]: 'done' }));
       setOnlineMessage(prev => ({ ...prev, [key]: syncData.created ? '✓ Created on the online shop' : '✓ Pushed to the online shop' }));
+      await loadShopifyLinks(product, true);
     } catch (e: any) {
       setOnlineStatus(prev => ({ ...prev, [key]: 'error' }));
       setOnlineMessage(prev => ({ ...prev, [key]: e.message }));
@@ -5584,7 +5620,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       🤖 Generate Product Descriptions &amp; Images
                     </button>
                     <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                      🛍️ Push to Online Shop
+                      Save and Push Online
                     </button>
                   </>
                 ) : (
@@ -5599,7 +5635,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       ✨ Format Content
                     </button>
                     <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                      🛍️ Push to Online Shop
+                      Save and Push Online
                     </button>
                   </>
                 )}
@@ -5658,7 +5694,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_100px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
-                      onClick={() => setExpandedCode(isExpanded ? null : key)}
+                      onClick={() => toggleExpandedProduct(p, key, isExpanded)}
                     >
                       <input
                         type="checkbox"
@@ -5716,7 +5752,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         </button>
                       )}
                       <button
-                        onClick={e => { e.stopPropagation(); setExpandedCode(isExpanded ? null : key); }}
+                        onClick={e => { e.stopPropagation(); toggleExpandedProduct(p, key, isExpanded); }}
                         className="text-gray-400 hover:text-gray-600 text-xs px-1"
                       >
                         {isExpanded ? '▲' : '▼'}
@@ -5867,42 +5903,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           <span className="text-xs text-red-700 font-medium">Remove Product from Website List</span>
                         </label>
 
-                        {/* Your Photos */}
-                        <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1.5">📷 Your Photos</p>
-                          <div className="flex flex-wrap gap-2 items-center" onClick={e => e.stopPropagation()}>
-                            {getInputs(key).photos.map((photo, idx) => (
-                              <div key={idx} className="relative">
-                                <img src={photo} alt="" className="w-16 h-16 object-cover rounded border border-gray-300" />
-                                <button
-                                  onClick={() => patchInputs(key, { photos: getInputs(key).photos.filter((_, i) => i !== idx) })}
-                                  className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center leading-none"
-                                >×</button>
-                              </div>
-                            ))}
-                            <label className="w-16 h-16 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer hover:border-blue-400 text-gray-400 hover:text-blue-400 text-2xl leading-none">
-                              +
-                              <input
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={async e => {
-                                  const files = Array.from(e.target.files ?? []);
-                                  const b64s = await Promise.all(files.map(f => new Promise<string>((res, rej) => {
-                                    const reader = new FileReader();
-                                    reader.onload = () => res(reader.result as string);
-                                    reader.onerror = rej;
-                                    reader.readAsDataURL(f);
-                                  })));
-                                  patchInputs(key, { photos: [...getInputs(key).photos, ...b64s] });
-                                  e.target.value = '';
-                                }}
-                              />
-                            </label>
-                          </div>
-                        </div>
-
                         <button
                           onClick={e => { e.stopPropagation(); handleGenerateContent(p); }}
                           disabled={isBusy}
@@ -5929,7 +5929,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                         {/* Title */}
                         <div>
-                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Title</label>
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Website Title</label>
                           <input
                             value={contentMap[key]?.title ?? ''}
                             onChange={e => handleContentChange(key, 'title', e.target.value)}
@@ -5952,18 +5952,18 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           <div className="flex items-center justify-between mb-1">
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Website Description</label>
                             <button
-                              onClick={() => toggleDescPreview(key)}
+                              onClick={() => toggleDescSource(key)}
                               className="text-xs border border-gray-300 rounded px-2 py-0.5 text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors"
                             >
-                              {descPreviewKeys.has(key) ? '✎ Source' : '👁 Preview'}
+                              {descSourceKeys.has(key) ? 'Preview' : 'HTML source'}
                             </button>
                           </div>
-                          {descPreviewKeys.has(key) ? (
+                          {!descSourceKeys.has(key) ? (
                             <div
                               key={`desc-preview-${key}`}
                               contentEditable
                               suppressContentEditableWarning
-                              className="w-full min-h-[8rem] px-3 py-2 border border-indigo-300 rounded-lg text-sm bg-white overflow-auto prose prose-sm max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-text"
+                              className="w-full min-h-[8rem] px-4 py-3 border border-indigo-300 rounded-lg text-sm leading-6 bg-white overflow-auto max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-text [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
                               dangerouslySetInnerHTML={{ __html: contentMap[key]?.websiteDescription ?? '' }}
                               onBlur={e => handleContentChange(key, 'websiteDescription', e.currentTarget.innerHTML)}
                             />
@@ -5977,7 +5977,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           )}
                         </div>
 
-                        {/* Push to Online Shop */}
+                        {/* Save and push online */}
                         <div className="flex items-center gap-3 flex-wrap pt-1">
                           <button
                             onClick={() => handlePushToOnline(p)}
@@ -5985,11 +5985,24 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
                           >
                             {onlineStatus[key] === 'pushing'
-                              ? '⏳ Pushing to the online shop…'
+                              ? 'Saving and pushing…'
                               : onlineStatus[key] === 'done'
-                              ? '✅ Pushed to the online shop'
-                              : '🛍️ Push to Online Shop'}
+                              ? 'Saved and pushed online'
+                              : 'Save and Push Online'}
                           </button>
+                          {shopifyLinksLoading.has(key) && (
+                            <span className="text-xs text-gray-400">Loading Shopify links…</span>
+                          )}
+                          {shopifyLinksMap[key]?.storefrontUrl && (
+                            <a href={shopifyLinksMap[key].storefrontUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 font-semibold hover:underline">
+                              View listing ↗
+                            </a>
+                          )}
+                          {shopifyLinksMap[key]?.adminUrl && (
+                            <a href={shopifyLinksMap[key].adminUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">
+                              Open in Shopify admin ↗
+                            </a>
+                          )}
                           {onlineMessage[key] && (
                             <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
                           )}

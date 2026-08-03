@@ -4182,6 +4182,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
+  const [generatedDescMode, setGeneratedDescMode] = useState<'source' | 'preview'>('preview');
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -4341,6 +4342,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
 
   const handleGenerate = async () => {
     setGenerating(true); setError(null); setGenerated(null);
+    setGeneratedDescMode('preview');
     try {
       const res = await fetch('/api/website/generate-content', {
         method: 'POST',
@@ -4378,6 +4380,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
     setGeneratingAll(true);
     setError(null);
     setGenerated(null);
+    setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
     try {
@@ -4767,10 +4770,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                   {/* Title */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Title</span>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Website Title</span>
                       <button
                         onClick={() => onApplyContent(generated.title || null, null, null)}
-                        title="Apply title to product name field"
+                        title="Apply title to Website Title field"
                         style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
                       >↙ Apply</button>
                     </div>
@@ -4779,14 +4782,26 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                   {/* Description */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description (HTML)</span>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description</span>
                       <button
                         onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
                         title="Apply description to product description field"
                         style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
                       >↙ Apply</button>
+                      <button
+                        onClick={() => setGeneratedDescMode(mode => mode === 'preview' ? 'source' : 'preview')}
+                        style={{ ...btnStyle('ghost', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >{generatedDescMode === 'preview' ? 'HTML source' : 'Preview'}</button>
                     </div>
-                    <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 140, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
+                    {generatedDescMode === 'preview' ? (
+                      <div
+                        className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
+                        style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '12px 14px', fontSize: 13, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', maxHeight: 280, overflowY: 'auto' }}
+                        dangerouslySetInnerHTML={{ __html: generated.websiteDescription || '<em>No description generated</em>' }}
+                      />
+                    ) : (
+                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 280, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
+                    )}
                   </div>
                   {/* Tags */}
                   <div>
@@ -5051,7 +5066,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [stockAvail, setStockAvail] = useState<Record<string, number>>({});
   const [stockSohLoading, setStockSohLoading] = useState(false);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
-  const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('source');
+  const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('preview');
   const [descBuilderOpen, setDescBuilderOpen] = useState(false);
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -5217,6 +5232,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
   const openNew = () => {
+    setDescHtmlMode('preview');
     setForm({ ...BLANK_PRODUCT });
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
@@ -5225,6 +5241,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   };
 
   const openEdit = (p: any) => {
+    setDescHtmlMode('preview');
     // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
     let base_sku = p.base_sku || '';
     if (!base_sku) {
@@ -6214,7 +6231,9 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 <textarea value={form.description ?? ''} onChange={sf('description') as any} rows={5}
                   style={{ ...inputStyle, resize: 'vertical', fontFamily: 'monospace', fontSize: 12, width: '100%', boxSizing: 'border-box' }} />
               ) : (
-                <div style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13 }}
+                <div
+                  className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
+                  style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13, padding: '12px 14px' }}
                   dangerouslySetInnerHTML={{ __html: form.description || '<em style="opacity:.5">No description</em>' }} />
               )}
               {descBuilderOpen && modal.edit?.product_id && (
@@ -6225,7 +6244,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   currentTags={form.tags ?? ''}
                   onApply={description => {
                     setForm((p: any) => ({ ...p, description }));
-                    setDescHtmlMode('source');
+                    setDescHtmlMode('preview');
                     setDescBuilderOpen(false);
                   }}
                   onClose={() => setDescBuilderOpen(false)}
