@@ -4182,6 +4182,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Preferred site URLs loaded from IMS contacts/brands
@@ -4372,6 +4374,122 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
     finally { setGenerating(false); }
   };
 
+  const handleGenerateAll = async () => {
+    setGeneratingAll(true);
+    setError(null);
+    setGenerated(null);
+    setResearchResult(null);
+    setScrapedImages([]);
+    try {
+      const preferredSites = [
+        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(useBrandSite && brandSite ? [brandSite] : []),
+      ];
+      const excludedSites = [
+        ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(!useBrandSite && brandSite ? [brandSite] : []),
+      ];
+      const searchResponse = await fetch('/api/website/serper-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product: { name: product.name, brand: product.brand ?? '' },
+          preferred_sites: preferredSites,
+          excluded_sites: excludedSites,
+          include_general: useGeneralResults,
+          search_au_only: searchAuOnly,
+        }),
+      });
+      const searchData = await searchResponse.json();
+      if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
+      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 3) as string[];
+      if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
+
+      const judgeResponse = await fetch('/api/website/judge-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: businessId,
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+          },
+          urls: foundUrls,
+        }),
+      });
+      const judgeData = await judgeResponse.json();
+      if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
+      const rankedUrls = (judgeData.rankedUrls ?? [])
+        .filter((entry: any) => entry?.url && entry.keep)
+        .map((entry: any) => entry.url as string);
+      const finalUrls = [...new Set([...rankedUrls, ...foundUrls])].slice(0, 3);
+      setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
+
+      const [researchSettled, scrapeSettled] = await Promise.allSettled([
+        Promise.all(finalUrls.map(url => fetch('/api/website/tavily-preflight', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
+        }).then(response => response.json()))),
+        fetch('/api/website/scrape-photos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: finalUrls }),
+        }).then(response => response.json()),
+      ]);
+
+      const researchRows = researchSettled.status === 'fulfilled' ? researchSettled.value : [];
+      setResearchResult({
+        answer: researchRows.find(row => row?.answer)?.answer ?? '',
+        urls: finalUrls,
+        images: filterImages(researchRows.flatMap(row => row?.images ?? [])),
+      });
+      if (scrapeSettled.status === 'fulfilled') {
+        setScrapedImages(filterImages(scrapeSettled.value?.images ?? []));
+      }
+
+      const content = judgeData.generatedContent;
+      if (content) {
+        setGenerated({
+          title: content.title ?? '',
+          websiteDescription: content.websiteDescription ?? '',
+          tags: content.tags ?? '',
+        });
+      } else {
+        const generateResponse = await fetch('/api/website/generate-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            databaseId: businessId,
+            product: {
+              name: product.name,
+              brand: product.brand ?? '',
+              code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+              styleCode: '',
+              retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+            },
+            mode: 'full',
+            tavilyInfo: researchRows.find(row => row?.answer)?.answer ?? '',
+            tavilyUrls: finalUrls,
+          }),
+        });
+        const generateData = await generateResponse.json();
+        if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
+        setGenerated({
+          title: generateData.content?.title ?? generateData.title ?? '',
+          websiteDescription: generateData.content?.websiteDescription ?? generateData.websiteDescription ?? '',
+          tags: generateData.content?.tags ?? generateData.tags ?? '',
+        });
+      }
+    } catch (generationError: any) {
+      setError(generationError.message ?? 'Unable to generate website content');
+    } finally {
+      setGeneratingAll(false);
+    }
+  };
+
   const handleApply = () => {
     if (!generated) return;
     onApplyContent(
@@ -4396,7 +4514,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: open ? 16 : 0 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>🔍 Website Content Generator</div>
-            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Find supplier URLs → Research product → Generate title, description & tags using your brand templates</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>One click finds the best product page, researches product facts, generates content, and collects photos for you to add.</div>
           </div>
           <button onClick={() => setOpen(p => !p)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 500 }}>
             {open ? 'Hide ↑' : 'Open ↓'}
@@ -4440,10 +4558,25 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
               )}
             </div>
 
-            {/* Step 1: URLs */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <button
+                onClick={handleGenerateAll}
+                disabled={generatingAll}
+                style={{ ...btnStyle('action', 'sm'), opacity: generatingAll ? .65 : 1 }}
+              >
+                {generatingAll ? 'Researching and generating…' : 'Generate Content & Find Photos'}
+              </button>
+              <button onClick={() => setShowResearchDetails(previous => !previous)} style={btnStyle('ghost', 'xs')}>
+                {showResearchDetails ? 'Hide research details' : 'Research details'}
+              </button>
+              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Research is collected internally; review the generated result and add only the photos you want.</span>
+            </div>
+
+            {showResearchDetails && (<>
+            {/* Research URLs */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 1 — Supplier / Retailer URLs</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Supplier / Retailer URLs</span>
                 <button
                   onClick={handleFindUrls}
                   disabled={findingUrls}
@@ -4474,10 +4607,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
               </div>
             </div>
 
-            {/* Step 2: Research */}
+            {/* Research summary */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 2 — Research Product</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Research Summary</span>
                 <button
                   onClick={handleResearch}
                   disabled={researching}
@@ -4593,30 +4726,40 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                         >
                           {addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}
                         </button>
-                        <button
-                          onClick={() => setScrapedImages(prev => prev.filter((_, i) => i !== idx))}
-                          style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', background: 'rgba(0,0,0,.55)', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 11, lineHeight: '18px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="Remove"
-                        >×</button>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
             </div>
+            </>)}
 
-            {/* Step 3: Generate */}
+            {(researchResult?.images.length || scrapedImages.length) ? (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Photo candidates</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(128px, 1fr))', gap: 10 }}>
+                  {[...new Set([...(researchResult?.images ?? []), ...scrapedImages])].map(imgUrl => (
+                    <div key={imgUrl} style={{ position: 'relative', aspectRatio: '1', minWidth: 0 }}>
+                      <a href={imgUrl} target="_blank" rel="noopener noreferrer" title={imgUrl} style={{ display: 'block', width: '100%', height: '100%', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                        <ZoomImg src={imgUrl} />
+                      </a>
+                      <button
+                        onClick={() => handleAddImage(imgUrl)}
+                        disabled={addingImages.has(imgUrl) || addedImages.has(imgUrl)}
+                        title={addedImages.has(imgUrl) ? 'Added to product images' : 'Add to product images'}
+                        style={{ position: 'absolute', bottom: 8, right: 8, width: 32, height: 32, borderRadius: '50%', background: addedImages.has(imgUrl) ? 'rgba(16,185,129,.9)' : 'rgba(0,0,0,.72)', color: '#fff', border: 'none', cursor: addedImages.has(imgUrl) ? 'default' : 'pointer', fontSize: addedImages.has(imgUrl) ? 15 : 21, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}
+                      >{addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Step 3 — Generate Content</span>
-                <button
-                  onClick={handleGenerate}
-                  disabled={generating}
-                  style={{ ...btnStyle('action', 'xs'), opacity: generating ? .6 : 1 }}
-                >
-                  {generating ? '⏳ Generating…' : '✦ Generate Content'}
-                </button>
-                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Uses your Foresight brand templates</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{generated ? 'Review generated content' : 'Generated content will appear here'}</span>
+                {generated && <button onClick={handleGenerateAll} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Regenerate</button>}
               </div>
 
               {generated && (

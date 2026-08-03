@@ -76,8 +76,10 @@ export async function POST(req: Request) {
       (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )];
 
-    // Single search — pull top 20 results as the pool to reorder from
-    const rawUrls = await serperQuery(baseQuery, apiKey, 20, search_au_only);
+    const [rawUrls, ...preferredResults] = await Promise.all([
+      include_general ? serperQuery(baseQuery, apiKey, 20, search_au_only) : Promise.resolve([]),
+      ...preferredDomains.map(domain => serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only)),
+    ]);
 
     // Strip any URL whose domain is in the excluded list
     const allUrls = excludedDomains.length
@@ -87,9 +89,11 @@ export async function POST(req: Request) {
     const seen = new Set<string>();
     const urls: string[] = [];
 
-    // First: pick the first result in the pool that matches each preferred domain
-    for (const domain of preferredDomains) {
-      const match = allUrls.find(url => urlMatchesDomain(url, domain) && !seen.has(url));
+    // First: use direct site searches for each enabled supplier/brand domain.
+    for (const [index, domain] of preferredDomains.entries()) {
+      const preferredPool = preferredResults[index] ?? [];
+      const match = preferredPool.find(url => urlMatchesDomain(url, domain) && !seen.has(url))
+        ?? allUrls.find(url => urlMatchesDomain(url, domain) && !seen.has(url));
       if (match) { seen.add(match); urls.push(match); }
     }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
 
 /**
  * POST /api/website/judge-urls
@@ -11,7 +12,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
  *
  * Body: {
  *   product:     { name, brand, code?, barcode?, styleCode?, retailPrice? }
- *   urlData:     { url: string; answer: string }[]
+ *   urls:        string[]
  *   databaseId?: string   — when provided, brand profile + templates are loaded
  *   notes?:      string   — any user notes to include
  * }
@@ -165,9 +166,9 @@ TASK 2 — CONTENT GENERATION
 Using the product information you find via Google Search on those pages, generate content for our e-commerce store.
 ${brandBlock}
 
-STRICT CONTENT RULES — use ONLY product-specific information:
-✅ Include: product features, materials, construction, fit, sizing, colours, technology, specifications, intended use
-❌ Exclude: shipping costs, delivery times, return policies, store promotions, brand/store contact info, pricing from the third-party site, any other store-specific information
+${PRODUCT_RESEARCH_RULES}
+
+When reliable product dimensions are found, include them clearly in WEBSITE DESCRIPTION. Never substitute parcel or packaging dimensions.
 
 TITLE:
 ${titleInstruction}

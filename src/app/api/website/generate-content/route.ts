@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
 
 const SYSTEM_INSTRUCTION = `You are an expert e-commerce product content writer specialising in retail apparel and accessories. You use web search to research specific products and write accurate, engaging, SEO-optimised content for Shopify stores. Always respond with valid JSON only — no markdown code blocks, no preamble.`;
 
@@ -151,7 +152,8 @@ ${researchBlock}${urlBlock}
 
 TASK:
 1. ${taskInstruction}
-2. Generate all content fields strictly following the templates above.
+2. ${PRODUCT_RESEARCH_RULES}
+3. Generate all content fields strictly following the templates above. Include sourced product dimensions in the description when available.
 
 Return ONLY the following JSON (no markdown, no explanation):
 {

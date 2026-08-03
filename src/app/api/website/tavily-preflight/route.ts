@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { productResearchQuery } from '@/lib/website/productResearchRules';
 
 /**
  * POST /api/website/tavily-preflight
@@ -37,10 +38,10 @@ export async function POST(req: Request) {
       // Skip text summary — only need images from this URL
       query = `${product.name} ${product.brand} product images`;
     } else if (firstUrl) {
-      query = `Search ${firstUrl} and give a summary of product information.`;
+      query = productResearchQuery(product.name, product.brand, firstUrl);
     } else {
       const barcodeHint = product.barcode ? ` May have barcode ${product.barcode} and code ${product.code}.` : (product.code ? ` May have code ${product.code}.` : '');
-      query = `Find the product URL of ${product.name} by the brand ${product.brand}.${barcodeHint} Also get a detailed description of the product. Preferably pull from the official ${product.brand} website. Make the URLS you pull be from different domains.`;
+      query = `${productResearchQuery(product.name, product.brand)}${barcodeHint} Prefer the official ${product.brand} or supplier website and return specific product pages from distinct domains.`;
     }
 
     const searchRequest: Record<string, any> = {

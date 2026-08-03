@@ -4866,8 +4866,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   //                'manual' = show individual Find URLs / Research / Format / Push buttons
   // Persisted to localStorage so preference survives page reload.
   const [workflowMode, setWorkflowMode] = useState<'auto' | 'manual'>(() => {
-    try { return (localStorage.getItem('lptw_workflow_mode') as 'auto' | 'manual') ?? 'manual'; }
-    catch { return 'manual'; }
+    try { return (localStorage.getItem('lptw_workflow_mode') as 'auto' | 'manual') ?? 'auto'; }
+    catch { return 'auto'; }
   });
   const setAndPersistMode = (m: 'auto' | 'manual') => {
     setWorkflowMode(m);
@@ -4910,6 +4910,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [serperSearchingSet, setSerperSearchingSet] = useState<Set<string>>(new Set());
   // Per-URL Tavily photos [productKey][urlSlot 0-2] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
+  const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
 
@@ -4929,6 +4930,43 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [tavilyLog, setTavilyLog]           = useState<TavilyEntry[]>([]);
   const [tavilyPanelOpen, setTavilyPanelOpen] = useState(true);
   const [tavilySearch, setTavilySearch]     = useState('');
+
+  const getProductSearchSources = async (product: PendingOnlineProduct) => {
+    let supplierSite: string | null = null;
+    let brandSite: string | null = null;
+    try {
+      const qs = new URLSearchParams();
+      if (product.brand) qs.set('brand', product.brand);
+      if (product.supplier_name) qs.set('supplier', product.supplier_name);
+      const siteRes = await fetch(`/api/ims/supplier-brand-urls?${qs.toString()}`);
+      const siteData = await siteRes.json();
+      if (siteData.success) {
+        supplierSite = siteData.supplier_url ?? null;
+        brandSite = siteData.brand_url ?? null;
+      }
+    } catch { /* source URLs are optional */ }
+
+    return {
+      preferred_sites: [
+        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(useBrandSite && brandSite ? [brandSite] : []),
+      ],
+      excluded_sites: [
+        ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
+        ...(!useBrandSite && brandSite ? [brandSite] : []),
+      ],
+      include_general: useGeneralResults,
+      search_au_only: searchAuOnly,
+    };
+  };
+
+  const toggleSelectedPhoto = (productKey: string, url: string) => {
+    setSelectedPhotoUrls(previous => {
+      const selected = new Set(previous[productKey] ?? []);
+      selected.has(url) ? selected.delete(url) : selected.add(url);
+      return { ...previous, [productKey]: selected };
+    });
+  };
 
   const handleFind = async () => {
     if (!databaseId) { setError('No business selected.'); return; }
@@ -4974,40 +5012,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setSerperSearchingSet(prev => new Set(prev).add(key));
     setExpandedCode(key);
     try {
-      // Look up this product's supplier + brand website URLs
-      let supplierSite: string | null = null;
-      let brandSite: string | null = null;
-      try {
-        const qs = new URLSearchParams();
-        if (product.brand) qs.set('brand', product.brand);
-        if (product.supplier_name) qs.set('supplier', product.supplier_name);
-        const siteRes = await fetch(`/api/ims/supplier-brand-urls?${qs.toString()}`);
-        const siteData = await siteRes.json();
-        if (siteData.success) {
-          supplierSite = siteData.supplier_url ?? null;
-          brandSite    = siteData.brand_url ?? null;
-        }
-      } catch { /* non-fatal */ }
-
-      const preferred_sites: string[] = [
-        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
-        ...(useBrandSite && brandSite ? [brandSite] : []),
-      ];
-      // Unchecked sources are excluded from general results too
-      const excluded_sites: string[] = [
-        ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
-        ...(!useBrandSite && brandSite ? [brandSite] : []),
-      ];
+      const searchSources = await getProductSearchSources(product);
 
       const res = await fetch('/api/website/serper-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product: { name: product.name, brand: product.brand ?? '' },
-          preferred_sites,
-          excluded_sites,
-          include_general: useGeneralResults,
-          search_au_only: searchAuOnly,
+          ...searchSources,
         }),
       });
       const data = await res.json();
@@ -5135,18 +5147,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     try {
       // Step 1: Find URLs (using preferred brand/supplier domains if configured)
       step('Step 1/5: Finding URLs…');
-      let preferred_sites: string[] = [];
-      try {
-        const qs = product.brand ? `?brand=${encodeURIComponent(product.brand)}` : '';
-        if (qs) {
-          const siteRes = await fetch(`/api/ims/supplier-brand-urls${qs}`);
-          const siteData = await siteRes.json();
-          if (siteData.success) preferred_sites = [siteData.brand_url, siteData.supplier_url].filter(Boolean) as string[];
-        }
-      } catch { /* non-fatal */ }
+      const searchSources = await getProductSearchSources(product);
       const serperRes = await fetch('/api/website/serper-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product, preferred_sites }),
+        body: JSON.stringify({ product, ...searchSources }),
       });
       const serperData = await serperRes.json();
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
@@ -5336,13 +5340,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         throw new Error(putData.error ?? 'Failed to save product content');
       }
 
-      // 2. Attach images (dedupe, http only) to the IMS product
-      const imageUrls = [...new Set([
-        ...(content.images ?? []),
-        ...(tavilyPhotosMap[key] ?? []),
-        ...(scrapedPhotosMap[key] ?? []),
-        ...(urlPhotosMap[key]?.flat() ?? []),
-      ].map(u => (u ?? '').trim()).filter(u => u.startsWith('http')))].slice(0, 10);
+      // 2. Add only explicitly selected candidate images. Existing product images are preserved.
+      const imageUrls = [...(selectedPhotoUrls[key] ?? new Set<string>())]
+        .map(url => url.trim())
+        .filter(url => url.startsWith('http'))
+        .slice(0, 10);
       for (const url of imageUrls) {
         try {
           await fetch(`/api/ims/products/${product.product_id}/images`, {
@@ -5721,16 +5723,17 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                 </div>
                                 {/* Per-URL Tavily photos */}
                                 {(urlPhotosMap[key]?.[idx]?.length ?? 0) > 0 && (
-                                  <div className="flex flex-wrap gap-1 pl-6" onClick={e => e.stopPropagation()}>
+                                  <div className="flex flex-wrap gap-2 pl-6" onClick={e => e.stopPropagation()}>
                                     {urlPhotosMap[key][idx].map((photoUrl, pi) => (
-                                      <div key={pi} className="relative w-10 h-10">
+                                      <div key={pi} className="relative w-24 h-24">
                                         <a href={photoUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                          <ZoomThumb src={photoUrl} className="w-10 h-10 rounded border border-blue-200 overflow-hidden" />
+                                          <ZoomThumb src={photoUrl} className="w-24 h-24 rounded border border-blue-200 overflow-hidden" />
                                         </a>
                                         <button
-                                          onClick={e => { e.stopPropagation(); setUrlPhotosMap(prev => { const updated = [...(prev[key] ?? [[], [], []])]; updated[idx] = updated[idx].filter((_, i) => i !== pi); return { ...prev, [key]: updated }; }); }}
-                                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full text-[10px] flex items-center justify-center leading-none shadow"
-                                        >×</button>
+                                          onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, photoUrl); }}
+                                          title={selectedPhotoUrls[key]?.has(photoUrl) ? 'Selected to add' : 'Add this photo'}
+                                          className={`absolute bottom-1.5 right-1.5 w-7 h-7 text-white rounded-full text-base font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(photoUrl) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
+                                        >{selectedPhotoUrls[key]?.has(photoUrl) ? '✓' : '+'}</button>
                                       </div>
                                     ))}
                                   </div>
@@ -5759,16 +5762,17 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           {tavilyPhotosMap[key]?.length > 0 && (
                             <div className="mb-2">
                               <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">Tavily ({tavilyPhotosMap[key].length})</p>
-                              <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+                              <div className="flex flex-wrap gap-3" onClick={e => e.stopPropagation()}>
                                 {(tavilyPhotosMap[key] ?? []).map((url, idx) => (
-                                  <div key={idx} className="relative w-16 h-16">
+                                  <div key={idx} className="relative w-28 h-28">
                                     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <ZoomThumb src={url} className="w-16 h-16 rounded border border-emerald-200 overflow-hidden" />
+                                      <ZoomThumb src={url} className="w-28 h-28 rounded border border-emerald-200 overflow-hidden" />
                                     </a>
                                     <button
-                                      onClick={e => { e.stopPropagation(); setTavilyPhotosMap(prev => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) })); }}
-                                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center leading-none shadow"
-                                    >×</button>
+                                      onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }}
+                                      title={selectedPhotoUrls[key]?.has(url) ? 'Selected to add' : 'Add this photo'}
+                                      className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
+                                    >{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
                                   </div>
                                 ))}
                               </div>
@@ -5779,16 +5783,17 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           {scrapedPhotosMap[key]?.length > 0 && (
                             <div>
                               <p className="text-[10px] font-semibold text-sky-700 uppercase tracking-wide mb-1">Manual Scrape ({scrapedPhotosMap[key].length})</p>
-                              <div className="flex flex-wrap gap-2" onClick={e => e.stopPropagation()}>
+                              <div className="flex flex-wrap gap-3" onClick={e => e.stopPropagation()}>
                                 {(scrapedPhotosMap[key] ?? []).map((url, idx) => (
-                                  <div key={idx} className="relative w-16 h-16">
+                                  <div key={idx} className="relative w-28 h-28">
                                     <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                                      <ZoomThumb src={url} className="w-16 h-16 rounded border border-sky-200 overflow-hidden" />
+                                      <ZoomThumb src={url} className="w-28 h-28 rounded border border-sky-200 overflow-hidden" />
                                     </a>
                                     <button
-                                      onClick={e => { e.stopPropagation(); setScrapedPhotosMap(prev => ({ ...prev, [key]: (prev[key] ?? []).filter((_, i) => i !== idx) })); }}
-                                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center leading-none shadow"
-                                    >×</button>
+                                      onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }}
+                                      title={selectedPhotoUrls[key]?.has(url) ? 'Selected to add' : 'Add this photo'}
+                                      className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}
+                                    >{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
                                   </div>
                                 ))}
                               </div>
@@ -5797,6 +5802,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                           {!tavilyPhotosMap[key]?.length && !scrapedPhotosMap[key]?.length && !scrapingSet.has(key) && (
                             <p className="text-xs text-gray-400 italic">No photos yet — Research for Tavily images, or Pull Images for manual scrape from top URL.</p>
+                          )}
+                          {(selectedPhotoUrls[key]?.size ?? 0) > 0 && (
+                            <p className="text-xs font-medium text-emerald-700 mt-2">{selectedPhotoUrls[key].size} photo{selectedPhotoUrls[key].size === 1 ? '' : 's'} selected to add. Existing product photos will be kept.</p>
                           )}
                         </div>
 
