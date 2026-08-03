@@ -51,6 +51,13 @@ export async function PUT(req: Request) {
     if (pairs.business_timezone !== undefined && !isValidBusinessTimeZone(String(pairs.business_timezone))) {
       return NextResponse.json({ success: false, error: 'Invalid business timezone.' }, { status: 400 });
     }
+    if (pairs.pending_online_invalid_url_exclusion_days !== undefined) {
+      const days = Number(pairs.pending_online_invalid_url_exclusion_days);
+      if (!Number.isInteger(days) || days < 0 || days > 90) {
+        return NextResponse.json({ success: false, error: 'Pending Online exclusion days must be an integer from 0 to 90.' }, { status: 400 });
+      }
+      pairs.pending_online_invalid_url_exclusion_days = String(days);
+    }
 
     for (const [key, value] of Object.entries(pairs)) {
       await imsExecute(

@@ -392,6 +392,19 @@ CREATE TABLE IF NOT EXISTS ims_product_images (
   INDEX idx_pi_primary (product_id, is_primary)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Website Content Attempts ────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  product_id          VARCHAR(36) NOT NULL,
+  outcome             VARCHAR(32) NOT NULL,
+  workflow            VARCHAR(32) NOT NULL DEFAULT 'pending_online_bulk',
+  candidate_urls_json MEDIUMTEXT NOT NULL,
+  decisions_json      MEDIUMTEXT NOT NULL,
+  attempted_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_website_attempt_product (business_id, product_id, outcome, attempted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Stock Levels ─────────────────────────────────────────────
 -- qty_on_hand   = physical stock at location
 -- qty_incoming  = on approved POs (not yet received)

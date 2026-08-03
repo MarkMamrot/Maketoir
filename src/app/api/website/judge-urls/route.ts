@@ -156,7 +156,7 @@ Rules:
 - keep = true  → confirmed product listing page for THIS specific product (any retailer is fine)
 - keep = false → category page, search results page, brand homepage, wrong product, or unrelated page
 - KEEP ONLY THE SINGLE BEST URL (the most authoritative/detailed product page). All others keep = false.
-- If none are a product page, keep the most relevant one as keep = true.
+- If none are confirmed product pages for this exact product, set keep = false for EVERY URL.
 - Do NOT invent URLs not in the list above.
 
 ═══════════════════════════════════════════════════════
@@ -239,11 +239,18 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       }
     }
 
-    const rankedUrls = (parsed.rankedUrls ?? []).filter((r: any) => r?.url?.trim());
+    const rankedUrls = (Array.isArray(parsed.rankedUrls) ? parsed.rankedUrls : [])
+      .filter((entry: any) => entry?.url?.trim() && validUrls.includes(String(entry.url).trim()))
+      .map((entry: any) => ({
+        url: String(entry.url).trim(),
+        keep: entry.keep === true,
+        reason: String(entry.reason ?? '').trim(),
+      }));
+    const validUrlFound = rankedUrls.some((entry: any) => entry.keep);
 
-    // Build generatedContent when the AI returned content fields
+    // Never expose generated content when no candidate is a confirmed exact product page.
     let generatedContent: Record<string, any> | undefined;
-    if (parsed.title || parsed.cin7Description || parsed.websiteDescription) {
+    if (validUrlFound && (parsed.title || parsed.cin7Description || parsed.websiteDescription)) {
       generatedContent = {
         title:              String(parsed.title ?? '').trim(),
         cin7Description:    String(parsed.cin7Description ?? '').trim().slice(0, 220),
@@ -255,7 +262,7 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       };
     }
 
-    return NextResponse.json({ success: true, rankedUrls, generatedContent });
+    return NextResponse.json({ success: true, validUrlFound, rankedUrls, generatedContent });
   } catch (e: any) {
     console.error('[judge-urls]', e);
     return NextResponse.json({ error: e.message ?? 'Internal server error' }, { status: 500 });

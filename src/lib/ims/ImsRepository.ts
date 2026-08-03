@@ -3713,18 +3713,31 @@ export const ImsShopifyRepo = {
   },
 
   // ── Products list with link status ───────────────────────────────────────
-  async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify'; soh: number }>> {
+  async listWithShopifyStatus(businessId: string): Promise<Array<ImsProduct & { shopify_status: 'linked' | 'not_in_shopify'; soh: number; last_invalid_url_attempt_at: string | null }>> {
     const baseQuery = (withSupplier: boolean) => withSupplier
-      ? `SELECT p.*, c.name AS supplier_name,
+      ? `SELECT p.*, c.name AS supplier_name, wa.last_invalid_url_attempt_at,
            IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
          FROM ims_products p
          LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
+         LEFT JOIN (
+           SELECT business_id, product_id, MAX(attempted_at) AS last_invalid_url_attempt_at
+           FROM ims_website_content_attempts
+           WHERE outcome = 'no_valid_url'
+           GROUP BY business_id, product_id
+         ) wa ON wa.business_id = p.business_id AND wa.product_id = p.product_id
          WHERE p.is_active = 1 AND p.business_id = ?
          ORDER BY p.name`
       : `SELECT p.*,
            NULL AS supplier_name,
+           wa.last_invalid_url_attempt_at,
            IF(p.shopify_product_id IS NOT NULL, 'linked', 'not_in_shopify') AS shopify_status
          FROM ims_products p
+         LEFT JOIN (
+           SELECT business_id, product_id, MAX(attempted_at) AS last_invalid_url_attempt_at
+           FROM ims_website_content_attempts
+           WHERE outcome = 'no_valid_url'
+           GROUP BY business_id, product_id
+         ) wa ON wa.business_id = p.business_id AND wa.product_id = p.product_id
          WHERE p.is_active = 1 AND p.business_id = ?
          ORDER BY p.name`;
 

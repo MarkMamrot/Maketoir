@@ -12,6 +12,7 @@ import { dashboardHashView } from './dashboardHandoff';
 import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
+import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -4833,6 +4834,7 @@ interface PendingOnlineProduct {
   sku: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
+  last_invalid_url_attempt_at: string | null;
 }
 
 interface ProductContent {
@@ -4886,6 +4888,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [filterWebsite, setFilterWebsite] = useState<'yes' | 'no' | 'any'>('yes');
   const [filterShopify, setFilterShopify] = useState<'yes' | 'no' | 'any'>('no');
   const [sohGreaterThan, setSohGreaterThan] = useState('3');
+  const [invalidUrlExclusionDays, setInvalidUrlExclusionDays] = useState('5');
 
   // Content state
   const [contentMap, setContentMap]     = useState<Record<string, ProductContent>>({});
@@ -4929,6 +4932,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Products removed from the website list are skipped by any in-flight/bulk processing.
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
   const [removingWebsiteSet, setRemovingWebsiteSet] = useState<Set<string>>(new Set());
+  const [sessionBlockedKeys, setSessionBlockedKeys] = useState<Set<string>>(new Set());
 
   // Website description HTML preview toggle
   const [descSourceKeys, setDescSourceKeys] = useState<Set<string>>(new Set());
@@ -4937,6 +4941,33 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     next.has(k) ? next.delete(k) : next.add(k);
     return next;
   });
+
+  useEffect(() => {
+    fetch('/api/ims/settings')
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          setInvalidUrlExclusionDays(String(normalizeInvalidUrlExclusionDays(data.data?.pending_online_invalid_url_exclusion_days)));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveInvalidUrlExclusionDays = async () => {
+    const days = normalizeInvalidUrlExclusionDays(invalidUrlExclusionDays);
+    setInvalidUrlExclusionDays(String(days));
+    try {
+      const response = await fetch('/api/ims/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'pending_online_invalid_url_exclusion_days', value: String(days) }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error ?? 'Unable to save exclusion days.');
+    } catch (saveError: any) {
+      setError(saveError.message ?? 'Unable to save exclusion days.');
+    }
+  };
 
   // Scraper results panel (replaces per-product pop-up dialog)
   type TavilyEntry = { productName: string; payload: Record<string, any>; response?: Record<string, any>; timestamp: number };
@@ -5040,6 +5071,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           soh:           Number(p.soh ?? 0),
           is_online:     Number(p.is_online ?? 0),
           shopify_linked: !!(p.shopify_product_id),
+          last_invalid_url_attempt_at: p.last_invalid_url_attempt_at ?? null,
         }));
       setProducts(mapped);
     } catch (e: any) {
@@ -5053,7 +5085,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // the product's Supplier + Brand website URLs plus the Search Sources toggles.
   const handleFindUrls = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (removedKeys.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     if (!product.brand?.trim()) { console.warn('[find-urls] product has no brand — skipped'); return; }
     setSerperSearchingSet(prev => new Set(prev).add(key));
     setExpandedCode(key);
@@ -5093,7 +5125,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Step 1b: Run Tavily research using the first URL found by serper (or fallback name query)
   const handleRunPreflight = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (removedKeys.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     const urlsSnapshot = getInputs(key).urls; // capture before any awaits
     setPreflightingSet(prev => new Set(prev).add(key));
     setPreflightError(prev => ({ ...prev, [key]: '' }));
@@ -5164,7 +5196,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Scrape photos manually from the top URL only (Manual Scrape source)
   const handleScrapePhotos = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (removedKeys.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     const topUrl = getInputs(key).urls[0]?.trim();
     if (!topUrl) return;
     setScrapingSet(prev => new Set(prev).add(key));
@@ -5185,14 +5217,16 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
-  // 🤖 Full automated pipeline: Find URLs → Tavily per-URL → AI judge → Scrape → Generate
+  // Full automated pipeline: Find URLs → validate → collect photos → apply content.
   const handleAutomatedRetrieval = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (removedKeys.has(key) || automatingSet.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key) || automatingSet.has(key)) return;
     const step = (msg: string) => setAutoStepMap(prev => ({ ...prev, [key]: msg }));
     const noise = /thumb|icon|swatch|logo|favicon|width=[0-9]{1,2}(?![0-9])/i;
     const noiseOk = (u: string) => !noise.test(u);
     setAutomatingSet(prev => new Set(prev).add(key));
+    setContentMap(prev => { const next = { ...prev }; delete next[key]; return next; });
+    setGenerateError(prev => ({ ...prev, [key]: '' }));
     setUrlPhotosMap(prev => ({ ...prev, [key]: [] }));
     setTavilyPhotosMap(prev => ({ ...prev, [key]: [] }));
     setScrapedPhotosMap(prev => ({ ...prev, [key]: [] }));
@@ -5200,7 +5234,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setUrlDecisionsMap(prev => ({ ...prev, [key]: [] }));
     try {
       // Step 1: Find URLs (using preferred brand/supplier domains if configured)
-      step('Step 1/5: Finding URLs…');
+      step('Step 1/4: Finding candidate URLs…');
       const searchSources = await getProductSearchSources(product);
       const serperRes = await fetch('/api/website/serper-search', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5220,30 +5254,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return { ...prev, [key]: { ...existing, urls: newUrls } };
       });
 
-      // Step 2: Fetch photos from each URL via Tavily (photos only — no summaries)
-      step('Step 2/5: Fetching photos from each URL…');
-      const tavilyResults = await Promise.allSettled(
-        foundUrls.map(url => fetch('/api/website/tavily-preflight', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product, firstUrl: url, photosOnly: true }),
-        }).then(r => r.json())),
-      );
-      const perUrlPhotos = foundUrls.map((_, i) => {
-        const res = tavilyResults[i];
-        if (res.status === 'fulfilled' && !res.value?.error) {
-          return (res.value.images ?? []).filter(noiseOk) as string[];
-        }
-        return [] as string[];
-      });
-      while (perUrlPhotos.length < 3) perUrlPhotos.push([]);
-      setUrlPhotosMap(prev => ({ ...prev, [key]: perUrlPhotos }));
-      const allTavilyPhotos = [...new Set(perUrlPhotos.flat())];
-      if (allTavilyPhotos.length > 0) setTavilyPhotosMap(prev => ({ ...prev, [key]: allTavilyPhotos }));
-
-      // Step 3: AI judges URLs (via Google Search) AND generates content — no summaries passed
-      step('Step 3/5: AI researching & generating content…');
-      let finalUrls = foundUrls.slice();
-      let finalPerUrl = [...perUrlPhotos];
+      // Validate before Tavily, scraping, or content application.
+      step('Step 2/4: AI validating product pages…');
+      let finalUrls: string[] = [];
       let judgeGeneratedContent: any = null;
       try {
         const judgeRes = await fetch('/api/website/judge-urls', {
@@ -5257,30 +5270,35 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         const judgeData = await judgeRes.json();
         if (!judgeRes.ok || judgeData.error) throw new Error(judgeData.error ?? 'AI URL assessment failed');
         const ranked: { url: string; keep: boolean; reason?: string }[] = judgeData.rankedUrls ?? [];
-        setUrlDecisionsMap(prev => ({
-          ...prev,
-          [key]: foundUrls.map(url => {
-            const decision = ranked.find(item => item.url === url);
-            return {
-              url,
-              keep: decision ? Boolean(decision.keep) : null,
-              reason: decision?.reason?.trim() || (decision ? 'AI assessment completed.' : 'AI did not return an assessment for this URL.'),
-            };
-          }),
-        }));
-        // Reorder all slots by Gemini's full ranked order, keeping only keep=true URLs (best first).
-        // Fall back to full ranked order if Gemini didn't mark any as keep=true.
-        const orderedAll = ranked.map(r => r.url).filter(u => foundUrls.includes(u));
-        const kept = ranked.filter(r => r.keep).map(r => r.url).filter(Boolean);
-        const reorderedUrls = kept.length > 0 ? kept : orderedAll;
-        if (reorderedUrls.length > 0) {
-          finalUrls = reorderedUrls;
-          finalPerUrl = reorderedUrls.map(url => { const i = foundUrls.indexOf(url); return i >= 0 ? (perUrlPhotos[i] ?? []) : []; });
-          while (finalPerUrl.length < 3) finalPerUrl.push([]);
-          setUrlPhotosMap(prev => ({ ...prev, [key]: finalPerUrl }));
+        const decisions = foundUrls.map(url => {
+          const decision = ranked.find(item => item.url === url);
+          return {
+            url,
+            keep: decision ? Boolean(decision.keep) : false,
+            reason: decision?.reason?.trim() || 'AI did not confirm this URL as an exact product page.',
+          };
+        });
+        setUrlDecisionsMap(prev => ({ ...prev, [key]: decisions }));
+        finalUrls = decisions.filter(decision => decision.keep).map(decision => decision.url).slice(0, 1);
+
+        if (!judgeData.validUrlFound || finalUrls.length === 0) {
+          setSessionBlockedKeys(prev => new Set(prev).add(key));
+          setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+          const attemptResponse = await fetch('/api/ims/website-content-attempts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productId: product.product_id, candidateUrls: foundUrls, decisions }),
+          });
+          const attemptData = await attemptResponse.json().catch(() => ({}));
+          step(attemptResponse.ok
+            ? '⛔ No valid product page found — skipped for this session.'
+            : `⛔ No valid product page found — session blocked, but attempt recording failed: ${attemptData.error ?? 'unknown error'}`);
+          return;
         }
         if (judgeData.generatedContent) judgeGeneratedContent = judgeData.generatedContent;
       } catch (assessmentError: any) {
+        setSessionBlockedKeys(prev => new Set(prev).add(key));
+        setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
         setUrlDecisionsMap(prev => ({
           ...prev,
           [key]: foundUrls.map(url => ({
@@ -5289,6 +5307,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             reason: assessmentError?.message || 'AI URL assessment failed; original search order was retained.',
           })),
         }));
+        step(`⛔ URL assessment failed — skipped for this session: ${assessmentError?.message ?? 'unknown error'}`);
+        return;
       }
       const paddedFinal: [string, string, string] = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? ''];
       setProductInputs(prev => {
@@ -5296,8 +5316,25 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return { ...prev, [key]: { ...existing, urls: paddedFinal } };
       });
 
-      // Step 4: Scrape images from ranked URLs (runs while content is already ready)
-      step('Step 4/5: Scraping images…');
+      // Only confirmed pages reach photo collection.
+      step('Step 3/4: Collecting photos from the selected page…');
+      const tavilyResults = await Promise.allSettled(
+        finalUrls.map(url => fetch('/api/website/tavily-preflight', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product, firstUrl: url, photosOnly: true }),
+        }).then(response => response.json())),
+      );
+      const perUrlPhotos = finalUrls.map((_, index) => {
+        const result = tavilyResults[index];
+        return result.status === 'fulfilled' && !result.value?.error
+          ? (result.value.images ?? []).filter(noiseOk) as string[]
+          : [] as string[];
+      });
+      while (perUrlPhotos.length < 3) perUrlPhotos.push([]);
+      setUrlPhotosMap(prev => ({ ...prev, [key]: perUrlPhotos }));
+      const allTavilyPhotos = [...new Set(perUrlPhotos.flat())];
+      if (allTavilyPhotos.length > 0) setTavilyPhotosMap(prev => ({ ...prev, [key]: allTavilyPhotos }));
+
       const urlsToScrape = finalUrls.filter(u => u?.trim());
       if (urlsToScrape.length > 0) {
         try {
@@ -5310,9 +5347,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } catch { /* scrape failed */ }
       }
 
-      // Step 5: Apply generated content (already done in Step 3) or fall back to generate-content
+      // Apply generated content or use the existing fallback for a confirmed page.
       if (judgeGeneratedContent) {
-        step('Step 5/5: Applying generated content…');
+        step('Step 4/4: Applying generated content…');
         setGenerateError(prev => ({ ...prev, [key]: '' }));
         setContentMap(prev => ({ ...prev, [key]: judgeGeneratedContent }));
         setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
@@ -5320,7 +5357,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return;
       }
       // Fallback: call generate-content if judge-urls didn't return content
-      step('Step 5/5: Generating content…');
+      step('Step 4/4: Generating content…');
       setGeneratingSet(prev => new Set(prev).add(key));
       setGenerateError(prev => ({ ...prev, [key]: '' }));
       try {
@@ -5354,7 +5391,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Step 2: Continue with AI generation using Tavily context
   const handleGenerateContent = async (product: PendingOnlineProduct, preflight?: { answer: string; urls: string[] }) => {
     const key = product.code;
-    if (removedKeys.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     const inputs = getInputs(key);
     setGeneratingSet(prev => new Set(prev).add(key));
     setGenerateError(prev => ({ ...prev, [key]: '' }));
@@ -5435,7 +5472,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // it on Shopify via shopify-sync.
   const handlePushToOnline = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (removedKeys.has(key)) return;
+    if (removedKeys.has(key) || sessionBlockedKeys.has(key)) return;
     const content = contentMap[key];
     if (!content) return;
     setOnlineStatus(prev => ({ ...prev, [key]: 'pushing' }));
@@ -5486,7 +5523,12 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
+  const exclusionDays = normalizeInvalidUrlExclusionDays(invalidUrlExclusionDays);
+  const recentAttemptHiddenCount = products?.filter(product =>
+    isRecentInvalidUrlAttempt(product.last_invalid_url_attempt_at, exclusionDays)
+  ).length ?? 0;
   const filtered = products?.filter(p => {
+    if (isRecentInvalidUrlAttempt(p.last_invalid_url_attempt_at, exclusionDays)) return false;
     const q = filter.toLowerCase();
     if (q && !p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q) &&
         !p.brand.toLowerCase().includes(q)) return false;
@@ -5502,6 +5544,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (sohGreaterThan.trim() && Number.isFinite(sohThreshold) && p.soh <= sohThreshold) return false;
     return true;
   }) ?? [];
+  const processableFiltered = filtered.filter(product =>
+    !removedKeys.has(product.code) && !sessionBlockedKeys.has(product.code)
+  );
 
   return (
     <div className="space-y-4">
@@ -5596,7 +5641,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             {loading ? 'Finding products…' : products === null ? 'Find Products' : 'Refresh Products'}
           </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,2fr)_minmax(160px,1fr)_110px_130px_130px] gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(210px,2fr)_minmax(150px,1fr)_100px_120px_120px_150px] gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
             <label className="block min-w-0">
               <span className="block text-[11px] font-semibold text-gray-500 mb-1">Search products</span>
               <input type="text" placeholder="Name, SKU or brand…" value={filter} onChange={e => setFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -5625,6 +5670,21 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 <option value="any">Any</option>
               </select>
             </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">Skip invalid attempts</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={invalidUrlExclusionDays}
+                  onChange={event => setInvalidUrlExclusionDays(event.target.value)}
+                  onBlur={() => void saveInvalidUrlExclusionDays()}
+                  className="w-full min-w-0 px-3 py-2 border border-gray-300 rounded-md text-sm text-right tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <span className="text-xs text-gray-500">days</span>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -5633,6 +5693,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         {products !== null && (
           <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-x-4 gap-y-1">
             <span><strong>{filtered.length}</strong> of <strong>{products.length}</strong> product{products.length !== 1 ? 's' : ''} shown</span>
+            {recentAttemptHiddenCount > 0 && <span>{recentAttemptHiddenCount} recent invalid attempt{recentAttemptHiddenCount === 1 ? '' : 's'} hidden</span>}
           </div>
         )}
 
@@ -5649,30 +5710,30 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             <div className="space-y-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                  <input type="checkbox" checked={filtered.length > 0 && filtered.every(p => selectedKeys.has(p.code || ''))} ref={el => { if (el) el.indeterminate = filtered.some(p => selectedKeys.has(p.code || '')) && !filtered.every(p => selectedKeys.has(p.code || '')); }} onChange={e => { if (e.target.checked) { setSelectedKeys(new Set(filtered.map(p => p.code || ''))); } else { setSelectedKeys(new Set()); } }} className="w-4 h-4 rounded accent-indigo-600" />
+                  <input type="checkbox" checked={processableFiltered.length > 0 && processableFiltered.every(p => selectedKeys.has(p.code || ''))} ref={el => { if (el) el.indeterminate = processableFiltered.some(p => selectedKeys.has(p.code || '')) && !processableFiltered.every(p => selectedKeys.has(p.code || '')); }} onChange={e => { if (e.target.checked) { setSelectedKeys(new Set(processableFiltered.map(p => p.code || ''))); } else { setSelectedKeys(new Set()); } }} className="w-4 h-4 rounded accent-indigo-600" />
                   <span className="text-xs text-gray-500">{selectedKeys.size > 0 ? `${selectedKeys.size} selected` : 'Select all'}</span>
                 </label>
                 {workflowMode === 'auto' ? (
                   <>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
                       🤖 Generate Product Descriptions &amp; Images
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       Save and Push Online
                     </button>
                   </>
                 ) : (
                   <>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleFindUrls(p); }} className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleFindUrls(p); }} className="px-3 py-1.5 bg-teal-600 text-white text-xs font-semibold rounded-lg hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       🔍 Find URLs
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) await handleRunPreflight(p); }} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleRunPreflight(p); }} className="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       🖼️ Get Images &amp; Research
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '')); for (const p of targets) { const key = p.code || ''; const preflight = preflightMap[key]; await handleGenerateContent(p, preflight); } }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) { const key = p.code || ''; const preflight = preflightMap[key]; await handleGenerateContent(p, preflight); } }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       ✨ Format Content
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = filtered.filter(p => selectedKeys.has(p.code || '') && !removedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       Save and Push Online
                     </button>
                   </>
@@ -5704,7 +5765,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const genErr = generateError[key];
                 const pfErr = preflightError[key];
                 const onl = onlineStatus[key] ?? 'idle';
-                const isBusy = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
+                const isSessionBlocked = sessionBlockedKeys.has(key);
+                const isActivelyWorking = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
+                const isBusy = isActivelyWorking || isSessionBlocked;
                 const urlDecisions = urlDecisionsMap[key] ?? [];
                 const candidatePhotos = dedupeProductPhotoUrls([
                   ...(urlPhotosMap[key] ?? []).flat(),
@@ -5714,6 +5777,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 ]);
 
                 const overallStatus = (() => {
+                  if (isSessionBlocked) return { icon: '⛔', label: 'Skipped', cls: 'text-red-700 bg-red-50' };
                   if (onl === 'done') return { icon: '✅', label: 'On the shop', cls: 'text-green-700 bg-green-50' };
                   if (hasContent) return { icon: '✏️', label: 'Content ready', cls: 'text-indigo-700 bg-indigo-50' };
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
@@ -5736,6 +5800,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     >
                       <input
                         type="checkbox"
+                        disabled={isSessionBlocked}
                         checked={selectedKeys.has(key)}
                         onChange={e => {
                           e.stopPropagation();
@@ -5746,7 +5811,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           });
                         }}
                         onClick={e => e.stopPropagation()}
-                        className="w-4 h-4 rounded accent-indigo-600"
+                        className="w-4 h-4 rounded accent-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
                       />
                       <span className="font-mono text-xs text-gray-700 truncate">{p.sku || '—'}</span>
                       <div className="min-w-0">
@@ -5810,7 +5875,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {autoStepMap[key] && (
                       <p className={`text-xs px-3 py-0.5 font-medium ${
-                        autoStepMap[key].startsWith('❌') ? 'text-red-600' :
+                        autoStepMap[key].startsWith('❌') || autoStepMap[key].startsWith('⛔') ? 'text-red-600' :
                         autoStepMap[key].startsWith('✅') ? 'text-green-700' : 'text-amber-600'
                       }`}>
                         🤖 {autoStepMap[key]}
@@ -5928,7 +5993,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <button
                           type="button"
                           onClick={e => { e.stopPropagation(); void handleRemoveFromWebsiteList(p); }}
-                          disabled={isBusy || removingWebsiteSet.has(key)}
+                          disabled={isActivelyWorking || removingWebsiteSet.has(key)}
                           className="w-fit px-3 py-1.5 border border-red-300 bg-white text-red-700 text-xs font-semibold rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website List'}
@@ -6012,7 +6077,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <div className="flex items-center gap-3 flex-wrap pt-1">
                           <button
                             onClick={() => handlePushToOnline(p)}
-                            disabled={removedKeys.has(key) || !contentMap[key] || onlineStatus[key] === 'pushing'}
+                            disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
                             className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
                           >
                             {onlineStatus[key] === 'pushing'

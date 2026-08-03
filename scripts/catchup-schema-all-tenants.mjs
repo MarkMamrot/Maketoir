@@ -21,6 +21,17 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    product_id VARCHAR(36) NOT NULL,
+    outcome VARCHAR(32) NOT NULL,
+    workflow VARCHAR(32) NOT NULL DEFAULT 'pending_online_bulk',
+    candidate_urls_json MEDIUMTEXT NOT NULL,
+    decisions_json MEDIUMTEXT NOT NULL,
+    attempted_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    INDEX idx_website_attempt_product (business_id, product_id, outcome, attempted_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_cs_settings (
     business_id VARCHAR(100) NOT NULL PRIMARY KEY,
     enabled TINYINT(1) NOT NULL DEFAULT 0,
