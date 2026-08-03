@@ -15,6 +15,10 @@ interface CogsSettingsRow {
   reliable_from: string | Date | null;
   next_period_start: string | Date | null;
   next_run_at: string | Date | null;
+  held_reason: string | null;
+  held_period_start: string | Date | null;
+  held_run_id: number | string | null;
+  held_at: string | Date | null;
   updated_at: string | Date;
 }
 
@@ -37,6 +41,10 @@ function defaultSettings(timeZone = 'Australia/Sydney') {
     reliableFrom: null,
     nextPeriodStart: null,
     nextRunAt: null,
+    heldReason: null,
+    heldPeriodStart: null,
+    heldRunId: null,
+    heldAt: null,
     updatedAt: null,
   };
 }
@@ -51,6 +59,10 @@ async function ensureCogsTables(): Promise<void> {
       reliable_from     DATE         DEFAULT NULL,
       next_period_start DATE         DEFAULT NULL,
       next_run_at       DATETIME     DEFAULT NULL,
+      held_reason       VARCHAR(32)  DEFAULT NULL,
+      held_period_start DATE         DEFAULT NULL,
+      held_run_id       BIGINT       DEFAULT NULL,
+      held_at           DATETIME     DEFAULT NULL,
       created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_cogs_due (enabled, next_run_at)
@@ -109,7 +121,8 @@ export async function GET(req: Request) {
     let rows: CogsSettingsRow[] = [];
     try {
       rows = await query<CogsSettingsRow>(
-        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at, updated_at
+        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at,
+          held_reason, held_period_start, held_run_id, held_at, updated_at
            FROM xero_cogs_settings WHERE business_id = ? LIMIT 1`,
         [databaseId],
       );
@@ -117,7 +130,8 @@ export async function GET(req: Request) {
       if (!isMissingTableError(error)) throw error;
       await ensureCogsTables();
       rows = await query<CogsSettingsRow>(
-        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at, updated_at
+        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at,
+          held_reason, held_period_start, held_run_id, held_at, updated_at
            FROM xero_cogs_settings WHERE business_id = ? LIMIT 1`,
         [databaseId],
       );
@@ -132,6 +146,10 @@ export async function GET(req: Request) {
         reliableFrom: dateString(row.reliable_from),
         nextPeriodStart: dateString(row.next_period_start),
         nextRunAt: row.next_run_at,
+        heldReason: row.held_reason,
+        heldPeriodStart: dateString(row.held_period_start),
+        heldRunId: row.held_run_id == null ? null : Number(row.held_run_id),
+        heldAt: row.held_at,
         updatedAt: row.updated_at,
       } : defaultSettings(timeZone),
     });
@@ -151,6 +169,7 @@ export async function PUT(req: Request) {
     const frequency = String(body.frequency ?? '') as CogsFrequency;
     const reliableFrom = body.reliableFrom == null || body.reliableFrom === '' ? null : String(body.reliableFrom);
     const enabled = body.enabled === true;
+    const resumeHeldSchedule = body.resumeHeldSchedule === true;
 
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
@@ -168,7 +187,8 @@ export async function PUT(req: Request) {
     let existingRows: CogsSettingsRow[];
     try {
       existingRows = await query<CogsSettingsRow>(
-        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at, updated_at
+        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at,
+          held_reason, held_period_start, held_run_id, held_at, updated_at
            FROM xero_cogs_settings WHERE business_id = ? LIMIT 1`,
         [databaseId],
       );
@@ -176,7 +196,8 @@ export async function PUT(req: Request) {
       if (!isMissingTableError(error)) throw error;
       await ensureCogsTables();
       existingRows = await query<CogsSettingsRow>(
-        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at, updated_at
+        `SELECT enabled, frequency, timezone, reliable_from, next_period_start, next_run_at,
+          held_reason, held_period_start, held_run_id, held_at, updated_at
            FROM xero_cogs_settings WHERE business_id = ? LIMIT 1`,
         [databaseId],
       );
@@ -187,6 +208,12 @@ export async function PUT(req: Request) {
       || existing.frequency !== frequency
       || existing.timezone !== timeZone
       || dateString(existing.reliable_from) !== reliableFrom;
+    if (existing?.held_reason && scheduleChanged) {
+      return NextResponse.json({ error: 'Resolve the held COGS period before changing its schedule.' }, { status: 409 });
+    }
+    if (resumeHeldSchedule && existing?.held_reason && existing.held_reason !== 'blocked') {
+      return NextResponse.json({ error: 'This COGS hold requires Xero reconciliation before it can be resumed.' }, { status: 409 });
+    }
     const nextPeriodStart = scheduleChanged
       ? getLastCompletedCogsPeriod(frequency, new Date(), timeZone).endDateExclusive
       : dateString(existing.next_period_start)
@@ -207,6 +234,14 @@ export async function PUT(req: Request) {
       if (!isMissingTableError(error)) throw error;
       await ensureCogsTables();
       await execute(upsertSql, upsertParams);
+    }
+    if (resumeHeldSchedule && existing?.held_reason === 'blocked') {
+      await execute(
+        `UPDATE xero_cogs_settings
+            SET held_reason = NULL, held_period_start = NULL, held_run_id = NULL, held_at = NULL
+          WHERE business_id = ? AND held_reason = 'blocked'`,
+        [databaseId],
+      );
     }
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

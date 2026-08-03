@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockRunImsForBusiness, mockPostCogsPeriod, mockGetBusinessTimeZone } = vi.hoisted(() => ({
+const { mockQuery, mockExecute, mockRunImsForBusiness, mockPostCogsPeriod, mockGetBusinessTimeZone, mockReportRuntimeIssue } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
+  mockExecute: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
+  mockReportRuntimeIssue: vi.fn(),
 }));
 
-vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: vi.fn().mockResolvedValue({ affectedRows: 1 }) }));
+vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 
 import { POST } from '../route';
 
@@ -28,6 +31,8 @@ describe('POST /api/xero/cogs/cron', () => {
     mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
     mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockPostCogsPeriod.mockResolvedValue({ outcome: 'posted' });
+    mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockReportRuntimeIssue.mockResolvedValue(1);
   });
 
   it('rejects requests without the shared cron secret', async () => {
@@ -79,5 +84,42 @@ describe('POST /api/xero/cogs/cron', () => {
     expect(mockPostCogsPeriod.mock.calls.length).toBeGreaterThanOrEqual(2);
     const starts = mockPostCogsPeriod.mock.calls.map(call => call[0].period.startDate);
     expect(starts[1]).toBe(mockPostCogsPeriod.mock.calls[0][0].period.endDateExclusive);
+  });
+
+  it('holds and reports a blocked period instead of advancing the cursor', async () => {
+    mockQuery.mockResolvedValueOnce([
+      { business_id: 'biz-1', frequency: 'monthly', reliable_from: '2020-01-01', next_period_start: '2026-07-01' },
+    ]);
+    mockPostCogsPeriod.mockResolvedValueOnce({
+      outcome: 'blocked',
+      reason: 'uncosted_movements',
+      calculation: {
+        includedMovementCount: 3,
+        missingCostMovementCount: 1,
+        zeroCostMovementCount: 0,
+        orphanedMovementCount: 0,
+      },
+    });
+
+    const response = await POST(cronRequest('test-secret'));
+    expect(response.status).toBe(200);
+    expect(mockExecute).toHaveBeenCalledOnce();
+    expect(mockExecute.mock.calls[0][0]).toContain('held_reason');
+    expect(mockExecute.mock.calls[0][1]).toEqual(['blocked', '2026-07-01', null, 'biz-1']);
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      operation: 'cogs_cron_period_held',
+      severity: 'warning',
+      reference: { type: 'cogs_period', id: 'monthly:2026-07-01:2026-08-01' },
+    }));
+  });
+
+  it('does not select schedules that are already held', async () => {
+    mockQuery.mockResolvedValueOnce([]);
+
+    await POST(cronRequest('test-secret'));
+
+    expect(mockQuery.mock.calls[0][0]).toContain('s.held_reason IS NULL');
+    expect(mockPostCogsPeriod).not.toHaveBeenCalled();
   });
 });

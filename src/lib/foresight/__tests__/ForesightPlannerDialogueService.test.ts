@@ -16,6 +16,7 @@ vi.mock('../repositories/ForesightPlanningRepository', () => ({
 vi.mock('../prompts/promptManifest', () => ({ loadForesightPrompt: mockLoadPrompt }));
 vi.mock('../assistant/ForesightPlannerToolService', () => ({
   ForesightPlannerToolService: { execute: mockExecuteTool },
+  isExpectedPlannerToolValidationError: (error: unknown) => error instanceof Error && error.message.startsWith('commerce date range must'),
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReport }));
 
@@ -107,6 +108,20 @@ describe('ForesightPlannerDialogueService', () => {
       businessId: 'business-1', threadId: 12, expectedRevision: 2, actorUserId: 7,
       content: 'What should we do?', modelId: 'gemini-2.5-flash', model,
     })).rejects.toBeInstanceOf(PlanningThreadConflictError);
+
+    expect(mockReport).not.toHaveBeenCalled();
+  });
+
+  it('does not report invalid AI tool arguments as an operational failure', async () => {
+    const model = { generateJson: vi.fn().mockResolvedValueOnce({
+      toolCalls: [{ name: 'get_commerce_performance', args: { from: '2026-01-01', to: '2026-04-01' } }],
+    }) };
+    mockExecuteTool.mockRejectedValueOnce(new Error('commerce date range must contain 1 to 90 days'));
+
+    await expect(ForesightPlannerDialogueService.runTurn({
+      businessId: 'business-1', threadId: 12, expectedRevision: 2, actorUserId: 7,
+      content: 'Review this quarter.', modelId: 'gemini-2.5-flash', model,
+    })).rejects.toThrow('1 to 90 days');
 
     expect(mockReport).not.toHaveBeenCalled();
   });

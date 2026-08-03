@@ -83,4 +83,54 @@ describe('/api/xero/cogs/settings', () => {
     expect(response.status).toBe(200);
     expect(mockExecute.mock.calls[0][1][5]).toBe('2026-07-20');
   });
+
+  it('explicitly resumes a corrected blocked period', async () => {
+    mockQuery.mockResolvedValueOnce([{
+      enabled: 1,
+      frequency: 'monthly',
+      timezone: 'Australia/Sydney',
+      reliable_from: '2026-07-01',
+      next_period_start: '2026-07-01',
+      next_run_at: null,
+      held_reason: 'blocked',
+      held_period_start: '2026-07-01',
+      held_run_id: null,
+      held_at: '2026-08-01 00:17:00',
+      updated_at: '2026-08-01 00:17:00',
+    }]);
+
+    const response = await PUT(putRequest({
+      databaseId: 'biz-1', enabled: true, frequency: 'monthly',
+      reliableFrom: '2026-07-01', resumeHeldSchedule: true,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mockExecute).toHaveBeenCalledTimes(2);
+    expect(mockExecute.mock.calls[1][0]).toContain('held_reason = NULL');
+    expect(mockExecute.mock.calls[1][1]).toEqual(['biz-1']);
+  });
+
+  it('does not resume an ambiguous Xero outcome', async () => {
+    mockQuery.mockResolvedValueOnce([{
+      enabled: 1,
+      frequency: 'monthly',
+      timezone: 'Australia/Sydney',
+      reliable_from: '2026-07-01',
+      next_period_start: '2026-07-01',
+      next_run_at: null,
+      held_reason: 'unknown',
+      held_period_start: '2026-07-01',
+      held_run_id: 42,
+      held_at: '2026-08-01 00:17:00',
+      updated_at: '2026-08-01 00:17:00',
+    }]);
+
+    const response = await PUT(putRequest({
+      databaseId: 'biz-1', enabled: true, frequency: 'monthly',
+      reliableFrom: '2026-07-01', resumeHeldSchedule: true,
+    }));
+
+    expect(response.status).toBe(409);
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
 });

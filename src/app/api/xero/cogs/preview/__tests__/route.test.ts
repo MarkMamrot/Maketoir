@@ -47,6 +47,20 @@ describe('POST /api/xero/cogs/preview', () => {
   });
 
   it('previews the last completed period without posting', async () => {
+    let tenantContextActive = false;
+    mockRunImsForBusiness.mockImplementationOnce(async (_businessId, callback) => {
+      tenantContextActive = true;
+      try {
+        return await callback();
+      } finally {
+        tenantContextActive = false;
+      }
+    });
+    mockCalculateCogsForPeriod.mockImplementationOnce(async () => {
+      expect(tenantContextActive).toBe(true);
+      return { totalCOGS: 125, blocked: false };
+    });
+
     const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }));
     const json = await response.json();
 
@@ -54,6 +68,7 @@ describe('POST /api/xero/cogs/preview', () => {
     expect(json.success).toBe(true);
     expect(json.period.frequency).toBe('monthly');
     expect(json.calculation.totalCOGS).toBe(125);
+    expect(mockRunImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
     expect(mockCalculateCogsForPeriod).toHaveBeenCalledOnce();
   });
 

@@ -5,7 +5,10 @@ import {
   PlanningThreadConflictError,
   type PlanningMessageRow,
 } from '../repositories/ForesightPlanningRepository';
-import { ForesightPlannerToolService } from './ForesightPlannerToolService';
+import {
+  ForesightPlannerToolService,
+  isExpectedPlannerToolValidationError,
+} from './ForesightPlannerToolService';
 import type { PlannerModelGateway } from './PlannerModelGateway';
 import {
   FORESIGHT_PLANNER_TOOL_DECLARATIONS,
@@ -163,6 +166,7 @@ export const ForesightPlannerDialogueService = {
       };
     } catch (error) {
       if (error instanceof PlanningThreadConflictError) throw error;
+      if (isExpectedPlannerToolValidationError(error)) throw error;
       await reportRuntimeIssue({
         businessId: input.businessId,
         source: 'ForesightPlanner',

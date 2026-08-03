@@ -80,6 +80,10 @@ async function ensureCogsTables(): Promise<void> {
       reliable_from     DATE         DEFAULT NULL,
       next_period_start DATE         DEFAULT NULL,
       next_run_at       DATETIME     DEFAULT NULL,
+      held_reason       VARCHAR(32)  DEFAULT NULL,
+      held_period_start DATE         DEFAULT NULL,
+      held_run_id       BIGINT       DEFAULT NULL,
+      held_at           DATETIME     DEFAULT NULL,
       created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_cogs_due (enabled, next_run_at)
@@ -165,8 +169,9 @@ export async function GET(req: Request) {
   }
 
   try {
-    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
-    await ensureCogsTables();
+    return await runImsForBusiness(databaseId, async () => {
+      const timeZone = await getBusinessTimeZone(databaseId);
+      await ensureCogsTables();
 
     const settingsRows = await query<CogsSettingsRow>(
       `SELECT enabled, frequency, timezone, reliable_from
@@ -341,6 +346,7 @@ export async function GET(req: Request) {
         overrideReason: run.override_reason,
         createdAt: toIso(run.created_at),
       })),
+      });
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);

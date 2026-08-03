@@ -37,8 +37,23 @@ describe('POST /api/xero/cogs/post', () => {
   });
 
   it('posts only a completed calendar period', async () => {
+    let tenantContextActive = false;
+    mockRunImsForBusiness.mockImplementationOnce(async (_businessId, callback) => {
+      tenantContextActive = true;
+      try {
+        return await callback();
+      } finally {
+        tenantContextActive = false;
+      }
+    });
+    mockPostCogsPeriod.mockImplementationOnce(async () => {
+      expect(tenantContextActive).toBe(true);
+      return { outcome: 'posted', runId: 1, xeroId: 'xero-1' };
+    });
+
     const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'weekly' }));
     expect(response.status).toBe(200);
+    expect(mockRunImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
     expect(mockPostCogsPeriod).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1',
       period: expect.objectContaining({ frequency: 'weekly' }),

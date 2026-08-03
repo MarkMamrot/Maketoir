@@ -45,7 +45,7 @@ export const ForesightPlannerToolService = {
         errorText: error instanceof Error ? error.message : 'Planner tool failed.',
         durationMs: Date.now() - startedAt,
       }).catch(() => undefined);
-      if (!isExpectedValidationError(error)) {
+      if (!isExpectedPlannerToolValidationError(error)) {
         await reportRuntimeIssue({
           businessId: input.businessId,
           source: 'ForesightPlanner',
@@ -62,7 +62,7 @@ export const ForesightPlannerToolService = {
   },
 };
 
-function isExpectedValidationError(error: unknown): boolean {
+export function isExpectedPlannerToolValidationError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return /^(Unknown Foresight planner tool|Foresight planner tool is disabled|Unexpected planner tool arguments|businessId is required|recommendationId must|limit must|states must|Unsupported recommendation state|from and to must|commerce date range must)/.test(error.message);
 }

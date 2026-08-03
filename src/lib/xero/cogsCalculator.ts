@@ -125,7 +125,20 @@ export async function calculateCogsForPeriod(input: {
   validateCogsDateRange(input.startDate, input.endDateExclusive);
 
   const rows = await imsQuery<CogsCalculationRow>(
-    `SELECT sm.location_id,
+    `SELECT classified.location_id,
+            classified.channel,
+            classified.source_status,
+            classified.cost_status,
+            COUNT(*) AS movement_count,
+            SUM(ABS(classified.qty_change)) AS quantity,
+            SUM(CASE
+                  WHEN classified.unit_cost IS NULL OR classified.unit_cost <= 0 THEN 0
+                  ELSE -classified.qty_change * classified.unit_cost
+                END) AS cogs
+       FROM (
+         SELECT sm.location_id,
+                sm.qty_change,
+                sm.unit_cost,
             CASE
               WHEN sm.movement_type = 'pos_sale' THEN 'pos'
               WHEN so.so_type = 'online' THEN 'online'
@@ -144,30 +157,27 @@ export async function calculateCogsForPeriod(input: {
               WHEN sm.unit_cost IS NULL THEN 'missing'
               WHEN sm.unit_cost <= 0 THEN 'zero'
               ELSE 'ok'
-            END AS cost_status,
-            COUNT(*) AS movement_count,
-            SUM(ABS(sm.qty_change)) AS quantity,
-            SUM(CASE
-                  WHEN sm.unit_cost IS NULL OR sm.unit_cost <= 0 THEN 0
-                  ELSE -sm.qty_change * sm.unit_cost
-                END) AS cogs
-       FROM ims_stock_movements sm
-       LEFT JOIN pos_sales ps
-         ON sm.movement_type = 'pos_sale'
-        AND sm.reference_type = 'pos_sale'
-        AND ps.id = sm.reference_id
-        AND ps.business_id = sm.business_id
-       LEFT JOIN ims_sales_orders so
-         ON sm.movement_type = 'so_fulfilled'
-        AND sm.reference_type = 'sales_order'
-        AND so.id = sm.reference_id
-        AND so.business_id = sm.business_id
-      WHERE sm.business_id = ?
-        AND sm.movement_type IN ('pos_sale', 'so_fulfilled')
-        AND sm.created_at >= ?
-        AND sm.created_at < ?
-      GROUP BY sm.location_id, channel, source_status, cost_status
-      ORDER BY sm.location_id, channel, source_status, cost_status`,
+            END AS cost_status
+           FROM ims_stock_movements sm
+           LEFT JOIN pos_sales ps
+             ON sm.movement_type = 'pos_sale'
+            AND sm.reference_type = 'pos_sale'
+            AND ps.id = sm.reference_id
+            AND ps.business_id = sm.business_id
+           LEFT JOIN ims_sales_orders so
+             ON sm.movement_type = 'so_fulfilled'
+            AND sm.reference_type = 'sales_order'
+            AND so.id = sm.reference_id
+            AND so.business_id = sm.business_id
+          WHERE sm.business_id = ?
+            AND sm.movement_type IN ('pos_sale', 'so_fulfilled')
+            AND sm.created_at >= ?
+            AND sm.created_at < ?
+       ) classified
+      GROUP BY classified.location_id, classified.channel,
+               classified.source_status, classified.cost_status
+      ORDER BY classified.location_id, classified.channel,
+               classified.source_status, classified.cost_status`,
     [input.businessId, input.startDate, input.endDateExclusive],
   );
 

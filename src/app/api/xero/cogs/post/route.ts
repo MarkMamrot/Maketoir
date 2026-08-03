@@ -22,16 +22,11 @@ export async function POST(req: Request) {
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
     }
-    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
-
-    let period;
-    try {
-      period = getLastCompletedCogsPeriod(frequency, new Date(), timeZone);
-    } catch {
-      return NextResponse.json({ error: 'Invalid business timezone.' }, { status: 400 });
-    }
-
-    const result = await postCogsPeriod({ businessId: databaseId, period, overrideReason });
+    const result = await runImsForBusiness(databaseId, async () => {
+      const timeZone = await getBusinessTimeZone(databaseId);
+      const period = getLastCompletedCogsPeriod(frequency, new Date(), timeZone);
+      return postCogsPeriod({ businessId: databaseId, period, overrideReason });
+    });
     if (result.outcome === 'blocked') {
       return NextResponse.json(result, { status: 422 });
     }

@@ -3,7 +3,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getCogsPeriodStartingAt, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
-import { postCogsPeriod } from '@/services/XeroCogsService';
+import { postCogsPeriod, type CogsPostResult } from '@/services/XeroCogsService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export const runtime = 'nodejs';
@@ -17,6 +17,16 @@ interface EnabledSetting {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function heldReason(result: CogsPostResult): string | null {
+  if (result.outcome === 'blocked' || result.outcome === 'failed' || result.outcome === 'unknown') {
+    return result.outcome;
+  }
+  if (result.outcome === 'already_claimed' && result.status !== 'success') {
+    return `claimed_${result.status}`.slice(0, 32);
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -33,6 +43,7 @@ export async function POST(req: Request) {
          JOIN businesses b ON b.business_id = s.business_id
         WHERE s.enabled = 1
           AND s.reliable_from IS NOT NULL
+          AND s.held_reason IS NULL
           AND b.deleted_at IS NULL`,
       [],
     );
@@ -81,7 +92,36 @@ export async function POST(req: Request) {
           const canAdvance = result.outcome === 'posted'
             || result.outcome === 'current'
             || (result.outcome === 'already_claimed' && result.status === 'success');
-          if (!canAdvance) break;
+          if (!canAdvance) {
+            const reason = heldReason(result) ?? 'unexpected_outcome';
+            const runId = 'runId' in result ? result.runId : null;
+            await execute(
+              `UPDATE xero_cogs_settings
+                  SET held_reason = ?, held_period_start = ?, held_run_id = ?, held_at = NOW()
+                WHERE business_id = ?`,
+              [reason, period.startDate, runId, setting.business_id],
+            );
+            await reportRuntimeIssue({
+              businessId: setting.business_id,
+              source: 'xero',
+              operation: 'cogs_cron_period_held',
+              severity: reason === 'blocked' ? 'warning' : 'error',
+              title: 'Xero COGS schedule requires attention',
+              error: new Error(`COGS period held: ${reason}`),
+              context: {
+                frequency: setting.frequency,
+                periodStart: period.startDate,
+                periodEndExclusive: period.endDateExclusive,
+                runId,
+                includedMovementCount: result.calculation.includedMovementCount,
+                missingCostMovementCount: result.calculation.missingCostMovementCount,
+                zeroCostMovementCount: result.calculation.zeroCostMovementCount,
+                orphanedMovementCount: result.calculation.orphanedMovementCount,
+              },
+              reference: { type: 'cogs_period', id: period.key },
+            });
+            break;
+          }
 
           cursor = period.endDateExclusive;
           await execute(

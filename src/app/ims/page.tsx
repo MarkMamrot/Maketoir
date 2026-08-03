@@ -4135,7 +4135,10 @@ function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?
         src={src}
         alt=""
         style={thumbStyle ?? { width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-        onLoad={e => setSpec(prev => ({ ...prev, dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }))}
+        onLoad={e => {
+          const dimensions = `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`;
+          setSpec(prev => ({ ...prev, dimensions, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }));
+        }}
         onError={() => setHidden(true)}
       />
       {mouse && (
@@ -15369,6 +15372,10 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsSettings, setCogsSettings] = React.useState<{
     enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
     reliableFrom: string | null;
+    nextPeriodStart: string | null;
+    heldReason: string | null;
+    heldPeriodStart: string | null;
+    heldRunId: number | null;
   } | null>(null);
   const [savingCogs, setSavingCogs] = React.useState(false);
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
@@ -15394,6 +15401,33 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Unable to save COGS settings');
       setCogsMessage({ ok: true, text: 'COGS schedule saved.' });
+    } catch (e: any) {
+      setCogsMessage({ ok: false, text: e.message });
+    } finally { setSavingCogs(false); }
+  };
+
+  const resumeCogsSchedule = async () => {
+    if (!cogsSettings || cogsSettings.heldReason !== 'blocked') return;
+    setSavingCogs(true);
+    setCogsMessage(null);
+    try {
+      const res = await fetch('/api/xero/cogs/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: getBusinessId(),
+          ...cogsSettings,
+          resumeHeldSchedule: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to resume COGS schedule');
+      setCogsSettings(current => current ? ({
+        ...current,
+        heldReason: null,
+        heldPeriodStart: null,
+        heldRunId: null,
+      }) : current);
+      setCogsMessage({ ok: true, text: 'COGS schedule resumed. The next hourly check will re-evaluate the held period.' });
     } catch (e: any) {
       setCogsMessage({ ok: false, text: e.message });
     } finally { setSavingCogs(false); }
@@ -15589,7 +15623,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
               COGS journals
               <HintBadge text="Posts completed periods to Cost of Goods Sold and Inventory Asset. Missing or zero costs block posting unless you provide an override reason." />
             </h3>
-            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Post completed calendar periods to Cost of Goods Sold and Inventory Asset.</p>
+            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>The scheduler checks hourly and posts only after the selected calendar period has closed.</p>
           </div>
           {cogsSettings && (
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
@@ -15626,6 +15660,25 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
               <button onClick={saveCogsSettings} disabled={savingCogs} style={{ padding: '7px 14px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{savingCogs ? 'Saving...' : 'Save schedule'}</button>
               <button onClick={previewCogs} disabled={cogsBusy !== null} style={{ padding: '7px 14px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'preview' ? 'Calculating...' : 'Preview completed period'}</button>
             </div>
+
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+              {cogsSettings.frequency === 'monthly'
+                ? 'Monthly: one journal is posted after each calendar month closes.'
+                : `${cogsSettings.frequency[0].toUpperCase()}${cogsSettings.frequency.slice(1)} journals are posted only after each complete period closes.`}
+              {cogsSettings.nextPeriodStart ? ` Next period starts ${cogsSettings.nextPeriodStart}.` : ''}
+            </div>
+
+            {cogsSettings.heldReason && (
+              <div style={{ marginTop: 12, padding: 12, border: '1px solid rgba(248,113,113,.4)', borderRadius: 6, background: 'rgba(248,113,113,.06)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                <strong style={{ color: '#f87171' }}>Automatic COGS is held.</strong>{' '}
+                Period {cogsSettings.heldPeriodStart || 'unknown'} requires attention ({cogsSettings.heldReason.replace('_', ' ')}{cogsSettings.heldRunId ? `, run ${cogsSettings.heldRunId}` : ''}).
+                {cogsSettings.heldReason === 'blocked' ? (
+                  <button onClick={resumeCogsSchedule} disabled={savingCogs} style={{ display: 'block', marginTop: 8, padding: '6px 12px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.35)', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600 }}>Resume after correcting costs</button>
+                ) : (
+                  <div style={{ marginTop: 5, color: 'var(--sv-text-dim)' }}>Reconcile the run in Xero before resuming; ambiguous or failed posts are never retried automatically.</div>
+                )}
+              </div>
+            )}
 
             {cogsPreview && (
               <div style={{ marginTop: 14, padding: 12, border: `1px solid ${cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.4)' : 'var(--sv-etch)'}`, borderRadius: 6, background: cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.06)' : 'var(--sv-bg-1)' }}>
@@ -17091,6 +17144,7 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
 
 function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [cogsReport, setCogsReport] = useState<CogsReportData | null>(null);
+  const [savedCogsFrequency, setSavedCogsFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'quarterly'>('monthly');
   const [cogsFilters, setCogsFilters] = useState<{
     frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
     startDate: string;
@@ -17114,11 +17168,11 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
   const fmtDate = (d: string) => { try { return new Date(d).toLocaleString('en-AU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return d; } };
   const fmtMoney = (v: number | null) => v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
-  const loadCogsReport = async () => {
+  const loadCogsReport = async (frequencyOverride?: 'daily' | 'weekly' | 'monthly' | 'quarterly') => {
     setCogsLoading(true);
     setCogsError('');
     try {
-      const params = new URLSearchParams({ databaseId: getBusinessId(), frequency: cogsFilters.frequency });
+      const params = new URLSearchParams({ databaseId: getBusinessId(), frequency: frequencyOverride ?? cogsFilters.frequency });
       if (cogsFilters.startDate) params.set('startDate', cogsFilters.startDate);
       if (cogsFilters.endDateExclusive) params.set('endDateExclusive', cogsFilters.endDateExclusive);
       if (cogsFilters.locationId) params.set('locationId', cogsFilters.locationId);
@@ -17135,7 +17189,17 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
     }
   };
 
-  useEffect(() => { loadCogsReport(); }, []);
+  useEffect(() => {
+    fetch(`/api/xero/cogs/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
+      .then(async response => response.ok ? response.json() : Promise.reject(new Error('Unable to load COGS settings')))
+      .then(data => {
+        const frequency = data.settings?.frequency ?? 'monthly';
+        setSavedCogsFrequency(frequency);
+        setCogsFilters(current => ({ ...current, frequency }));
+        return loadCogsReport(frequency);
+      })
+      .catch(() => loadCogsReport('monthly'));
+  }, []);
 
   const previewCogsFromReport = async () => {
     setCogsActionBusy('preview');
@@ -17177,7 +17241,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
       const res = await fetch('/api/xero/cogs/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), frequency: cogsFilters.frequency, overrideReason }),
+        body: JSON.stringify({ databaseId: getBusinessId(), frequency: savedCogsFrequency, overrideReason }),
       });
       const data = await res.json();
       if (!res.ok && res.status !== 202) throw new Error(data.error || data.reason || 'Unable to post COGS.');
@@ -17258,8 +17322,9 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={loadCogsReport} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsLoading ? 'Loading…' : 'Apply Filters'}</button>
             <button onClick={previewCogsFromReport} disabled={cogsActionBusy !== null} style={{ padding: '7px 12px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsActionBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'preview' ? 'Previewing…' : 'Preview'}</button>
-            <button onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}</button>
+            <button title={cogsFilters.frequency !== savedCogsFrequency ? `Posting uses the saved ${savedCogsFrequency} schedule.` : undefined} onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport || cogsFilters.frequency !== savedCogsFrequency} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport || cogsFilters.frequency !== savedCogsFrequency ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}</button>
           </div>
+          {cogsFilters.frequency !== savedCogsFrequency && <div style={{ fontSize: 11, color: '#fbbf24' }}>This is an analysis-only view. Automatic and manual posting use the saved {savedCogsFrequency} schedule.</div>}
           {cogsError && <div style={{ fontSize: 12, color: '#f87171' }}>{cogsError}</div>}
           {cogsActionMsg && <div style={{ fontSize: 12, color: cogsActionMsg.ok ? '#34d399' : '#f87171' }}>{cogsActionMsg.text}</div>}
           {cogsReport && (

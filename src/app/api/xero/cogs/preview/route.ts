@@ -21,19 +21,15 @@ export async function POST(req: Request) {
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
     }
-    const timeZone = await runImsForBusiness(databaseId, () => getBusinessTimeZone(databaseId));
-
-    let period;
-    try {
-      period = getLastCompletedCogsPeriod(frequency, new Date(), timeZone);
-    } catch {
-      return NextResponse.json({ error: 'Invalid business timezone.' }, { status: 400 });
-    }
-
-    const calculation = await calculateCogsForPeriod({
-      businessId: databaseId,
-      startDate: period.startDate,
-      endDateExclusive: period.endDateExclusive,
+    const { period, calculation } = await runImsForBusiness(databaseId, async () => {
+      const timeZone = await getBusinessTimeZone(databaseId);
+      const period = getLastCompletedCogsPeriod(frequency, new Date(), timeZone);
+      const calculation = await calculateCogsForPeriod({
+        businessId: databaseId,
+        startDate: period.startDate,
+        endDateExclusive: period.endDateExclusive,
+      });
+      return { period, calculation };
     });
 
     return NextResponse.json({ success: true, period, calculation });
