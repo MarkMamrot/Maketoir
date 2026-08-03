@@ -4877,7 +4877,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Column filters: Website Product (is_online) and Shopify Synced
   const [filterWebsite, setFilterWebsite] = useState<'yes' | 'no' | 'any'>('yes');
   const [filterShopify, setFilterShopify] = useState<'yes' | 'no' | 'any'>('no');
-  const [sohGreaterThan, setSohGreaterThan] = useState('');
+  const [sohGreaterThan, setSohGreaterThan] = useState('3');
 
   // Content state
   const [contentMap, setContentMap]     = useState<Record<string, ProductContent>>({});
@@ -5476,10 +5476,41 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           )}
         </div>
 
-        <div className="flex flex-wrap items-end gap-4 mb-5">
+        <div className="mb-5 space-y-3">
           <button onClick={handleFind} disabled={loading} className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {loading ? 'Searching…' : 'Find Products Not On The Online Shop'}
+            {loading ? 'Finding products…' : products === null ? 'Find Products' : 'Refresh Products'}
           </button>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(220px,2fr)_minmax(160px,1fr)_110px_130px_130px] gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+            <label className="block min-w-0">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">Search products</span>
+              <input type="text" placeholder="Name, SKU or brand…" value={filter} onChange={e => setFilter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </label>
+            <label className="block min-w-0">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">Exclude brand</span>
+              <input type="text" placeholder="Brand name…" value={brandExclude} onChange={e => setBrandExclude(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">SOH greater than</span>
+              <input type="number" value={sohGreaterThan} onChange={e => setSohGreaterThan(e.target.value)} placeholder="Any" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-right tabular-nums bg-white focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">Website product</span>
+              <select value={filterWebsite} onChange={e => setFilterWebsite(e.target.value as 'yes' | 'no' | 'any')} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="any">Any</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-[11px] font-semibold text-gray-500 mb-1">Shopify synced</span>
+              <select value={filterShopify} onChange={e => setFilterShopify(e.target.value as 'yes' | 'no' | 'any')} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+                <option value="any">Any</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-600 mb-3">❌ {error}</p>}
@@ -5500,31 +5531,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
         {products !== null && products.length > 0 && (
           <>
-            <div className="mb-3 flex flex-wrap gap-2 items-center">
-              <input type="text" placeholder="Filter by name, SKU or brand…" value={filter} onChange={e => setFilter(e.target.value)} className="flex-1 min-w-[180px] max-w-sm px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-              <input type="text" placeholder="Brand excludes…" value={brandExclude} onChange={e => setBrandExclude(e.target.value)} className="w-44 px-3 py-1.5 border border-red-400 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400" title="Hide products whose brand contains this text" />
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500 whitespace-nowrap">SOH greater than:</span>
-                <input type="number" value={sohGreaterThan} onChange={e => setSohGreaterThan(e.target.value)} placeholder="Any" className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-400" />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500 whitespace-nowrap">Website Product:</span>
-                <select value={filterWebsite} onChange={e => setFilterWebsite(e.target.value as 'yes' | 'no' | 'any')} className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                  <option value="any">Any</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-500 whitespace-nowrap">Shopify Synced:</span>
-                <select value={filterShopify} onChange={e => setFilterShopify(e.target.value as 'yes' | 'no' | 'any')} className="px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-400">
-                  <option value="no">No</option>
-                  <option value="yes">Yes</option>
-                  <option value="any">Any</option>
-                </select>
-              </div>
-            </div>
-
             <div className="space-y-1">
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
@@ -5559,12 +5565,12 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
               </div>
 
               {/* Table header — 10 cols: checkbox | SKU | Name/Brand | SOH | Price | Status | Website | Shopify | action btn | expand */}
-              <div className="hidden md:grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_64px_80px_100px_80px_80px_120px_24px] gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
+              <div className="hidden md:grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_100px_80px_80px_120px_24px] gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
                 <span></span>
                 <span>SKU</span>
                 <span>Name / Brand</span>
-                <span className="text-right">SOH</span>
-                <span>Price</span>
+                <span className="text-right pr-2">SOH</span>
+                <span className="pl-2">Price</span>
                 <span>Status</span>
                 <span>Website</span>
                 <span>Shopify</span>
@@ -5601,7 +5607,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 return (
                   <div key={key}>
                     <div
-                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_64px_80px_100px_80px_80px_120px_24px] gap-2 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_100px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => setExpandedCode(isExpanded ? null : key)}
@@ -5625,10 +5631,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <div className="font-medium text-gray-800 truncate text-xs">{p.name || '—'}</div>
                         <div className="text-xs text-gray-500 truncate">{p.brand || '—'}</div>
                       </div>
-                      <span className="text-xs text-gray-700 font-medium text-right tabular-nums">
+                      <span className="text-xs text-gray-700 font-medium text-right tabular-nums pr-2">
                         {p.soh.toLocaleString()}
                       </span>
-                      <span className="text-xs text-gray-700 font-medium">
+                      <span className="text-xs text-gray-700 font-medium pl-2">
                         {p.retailPrice ? `$${p.retailPrice}` : '—'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${overallStatus.cls}`}>
