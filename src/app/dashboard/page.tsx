@@ -5318,23 +5318,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
       // Only confirmed pages reach photo collection.
       step('Step 3/4: Collecting photos from the selected page…');
-      const tavilyResults = await Promise.allSettled(
-        finalUrls.map(url => fetch('/api/website/tavily-preflight', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product, firstUrl: url, photosOnly: true }),
-        }).then(response => response.json())),
-      );
-      const perUrlPhotos = finalUrls.map((_, index) => {
-        const result = tavilyResults[index];
-        return result.status === 'fulfilled' && !result.value?.error
-          ? (result.value.images ?? []).filter(noiseOk) as string[]
-          : [] as string[];
-      });
-      while (perUrlPhotos.length < 3) perUrlPhotos.push([]);
-      setUrlPhotosMap(prev => ({ ...prev, [key]: perUrlPhotos }));
-      const allTavilyPhotos = [...new Set(perUrlPhotos.flat())];
-      if (allTavilyPhotos.length > 0) setTavilyPhotosMap(prev => ({ ...prev, [key]: allTavilyPhotos }));
-
       const urlsToScrape = finalUrls.filter(u => u?.trim());
       if (urlsToScrape.length > 0) {
         try {
@@ -5343,7 +5326,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             body: JSON.stringify({ urls: urlsToScrape }),
           });
           const scrapeData = await scrapeRes.json();
-          if (scrapeData.images?.length) setScrapedPhotosMap(prev => ({ ...prev, [key]: scrapeData.images }));
+          const approvedPhotos = (scrapeData.images ?? []).filter(noiseOk) as string[];
+          if (approvedPhotos.length > 0) {
+            setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], []] }));
+            setScrapedPhotosMap(prev => ({ ...prev, [key]: approvedPhotos }));
+          }
         } catch { /* scrape failed */ }
       }
 

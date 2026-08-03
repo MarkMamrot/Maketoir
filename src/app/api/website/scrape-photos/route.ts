@@ -1,49 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-
-const IMAGE_NOISE = ['thumb', 'icon', 'swatch', 'logo', 'favicon', 'width=160', 'width=100', 'width=50'];
-
-function isUsableImage(url: string) {
-  return !IMAGE_NOISE.some(n => url.includes(n));
-}
-
-/** Fix double-slashes in paths (from JSON-escaped \/ sequences) and stray backslashes. */
-function normalizeImageUrl(url: string): string {
-  // Unescape JSON-escaped forward slashes (\/ → /)
-  let u = url.replace(/\\\//g, '/');
-  // Collapse any // (or more) in the path — but preserve the https:// or http:// at the start
-  u = u.replace(/([^:])\/{2,}/g, '$1/');
-  return u;
-}
-
-function extractImagesFromHtml(html: string, uniqueImages: Set<string>) {
-  // og:image — handles both attribute orders and multiline tags
-  const og = html.match(/property=["']og:image["'][\s\S]{0,200}?content=["']([^"']+)["']/i)
-    ?? html.match(/content=["']([^"']+)["'][\s\S]{0,200}?property=["']og:image["']/i);
-  if (og?.[1]) uniqueImages.add(og[1]);
-
-  // twitter:image
-  const tw = html.match(/(?:name|property)=["']twitter:image["'][\s\S]{0,200}?content=["']([^"']+)["']/i)
-    ?? html.match(/content=["']([^"']+)["'][\s\S]{0,200}?(?:name|property)=["']twitter:image["']/i);
-  if (tw?.[1]) uniqueImages.add(tw[1]);
-
-  // Magento/JSON gallery: "img":"https://..."
-  for (const m of html.matchAll(/"img":"([^"]+\.(?:jpg|jpeg|png|webp))"/gi)) {
-    const imgUrl = normalizeImageUrl(m[1].replace(/\\u002F/g, '/'));
-    if (isUsableImage(imgUrl)) uniqueImages.add(imgUrl);
-  }
-
-  // Raw URL sweep
-  const rawMatches = html.match(/(?:https?:)?\/\/[^"'\s<>]+?\.(?:jpg|jpeg|png|webp)/gi) ?? [];
-  for (let imgUrl of rawMatches) {
-    let fullUrl = imgUrl.startsWith('//') ? `https:${imgUrl}` : imgUrl;
-    fullUrl = normalizeImageUrl(fullUrl);
-    if (!isUsableImage(fullUrl)) continue;
-    fullUrl = fullUrl.replace(/_[0-9]+x[0-9]*\.(jpg|png|webp)/i, '.$1');
-    uniqueImages.add(fullUrl);
-    if (uniqueImages.size >= 10) break;
-  }
-}
+import { extractProductPageImages } from '@/lib/website/productPageImages';
 
 /**
  * POST /api/website/scrape-photos
@@ -70,58 +27,9 @@ export async function POST(req: Request) {
     const uniqueImages = new Set<string>();
     const failedUrls: string[] = [];
 
-    // --- Strategy 1: Tavily Extract (handles Cloudflare-protected sites) ---
-    const tavilyKey = process.env.TAVILY_API_KEY;
-    if (tavilyKey) {
-      try {
-        const tavilyRes = await fetch('https://api.tavily.com/extract', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${tavilyKey}`,
-          },
-          body: JSON.stringify({ urls, include_images: true }),
-          signal: AbortSignal.timeout(30000),
-        });
-
-        if (tavilyRes.ok) {
-          const tavilyJson = await tavilyRes.json();
-          const results: any[] = tavilyJson.results ?? [];
-          const failed: any[] = tavilyJson.failed_results ?? [];
-
-          // Collect images Tavily found directly
-          for (const result of results) {
-            for (const imgUrl of (result.images ?? [])) {
-              if (typeof imgUrl === 'string') {
-                const norm = normalizeImageUrl(imgUrl);
-                if (isUsableImage(norm)) uniqueImages.add(norm);
-              }
-            }
-            // Also parse the raw_content Tavily returned
-            if (result.raw_content) {
-              extractImagesFromHtml(result.raw_content, uniqueImages);
-            }
-          }
-
-          // Queue any URLs Tavily couldn't fetch for direct fallback
-          for (const f of failed) {
-            if (f.url) failedUrls.push(f.url);
-          }
-        } else {
-          // Tavily extract failed — fall back to direct fetch for all urls
-          failedUrls.push(...urls);
-        }
-      } catch (e: any) {
-        console.warn('[scrape-photos] Tavily Extract error:', e.message);
-        failedUrls.push(...urls);
-      }
-    } else {
-      failedUrls.push(...urls);
-    }
-
-    // --- Strategy 2: Direct fetch fallback for any URLs Tavily couldn't handle ---
-    for (const rawUrl of failedUrls) {
-      if (uniqueImages.size >= 10) break;
+    // Prefer the approved page's own product gallery. This excludes recommendation
+    // carousels and other products that broad image extraction commonly returns.
+    for (const rawUrl of urls) {
       try {
         const pageRes = await fetch(rawUrl, {
           headers: {
@@ -131,12 +39,52 @@ export async function POST(req: Request) {
           },
           signal: AbortSignal.timeout(8000),
         });
-
-        if (!pageRes.ok) continue;
-        const html = await pageRes.text();
-        extractImagesFromHtml(html, uniqueImages);
+        if (!pageRes.ok) {
+          failedUrls.push(rawUrl);
+          continue;
+        }
+        const images = extractProductPageImages(await pageRes.text(), rawUrl);
+        if (images.length === 0) failedUrls.push(rawUrl);
+        images.forEach(image => uniqueImages.add(image));
       } catch (e: any) {
         console.warn(`[scrape-photos] Direct fetch failed for ${rawUrl}:`, e.message);
+        failedUrls.push(rawUrl);
+      }
+    }
+
+    // Tavily is a fallback for pages the direct structured-gallery pass cannot read.
+    const tavilyKey = process.env.TAVILY_API_KEY;
+    if (tavilyKey && failedUrls.length > 0) {
+      try {
+        const tavilyRes = await fetch('https://api.tavily.com/extract', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${tavilyKey}`,
+          },
+          body: JSON.stringify({ urls: failedUrls, include_images: true }),
+          signal: AbortSignal.timeout(30000),
+        });
+
+        if (tavilyRes.ok) {
+          const tavilyJson = await tavilyRes.json();
+          const results: any[] = tavilyJson.results ?? [];
+          const failed: any[] = tavilyJson.failed_results ?? [];
+
+          // Broad Tavily image lists include recommendations and page chrome.
+          // Only page content with structured product evidence is trusted.
+          for (const result of results) {
+            if (result.raw_content && result.url) {
+              const trusted = extractProductPageImages(result.raw_content, result.url);
+              trusted.forEach(image => uniqueImages.add(image));
+            }
+          }
+
+          // Queue any URLs Tavily couldn't fetch for direct fallback
+          for (const f of failed) console.warn(`[scrape-photos] Tavily could not extract ${f.url ?? 'page'}`);
+        }
+      } catch (e: any) {
+        console.warn('[scrape-photos] Tavily Extract error:', e.message);
       }
     }
 

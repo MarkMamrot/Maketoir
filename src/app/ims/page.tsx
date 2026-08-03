@@ -4427,7 +4427,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       const rankedUrls = (judgeData.rankedUrls ?? [])
         .filter((entry: any) => entry?.url && entry.keep)
         .map((entry: any) => entry.url as string);
-      const finalUrls = [...new Set([...rankedUrls, ...foundUrls])].slice(0, 3);
+      const finalUrls = [...new Set(rankedUrls)].slice(0, 1);
+      if (!judgeData.validUrlFound || finalUrls.length === 0) {
+        throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
+      }
       setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
 
       const [researchSettled, scrapeSettled] = await Promise.allSettled([
@@ -4447,7 +4450,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       setResearchResult({
         answer: researchRows.find(row => row?.answer)?.answer ?? '',
         urls: finalUrls,
-        images: filterImages(researchRows.flatMap(row => row?.images ?? [])),
+        images: [],
       });
       if (scrapeSettled.status === 'fulfilled') {
         setScrapedImages(filterImages(scrapeSettled.value?.images ?? []));
