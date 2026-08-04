@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
 PRODUCT TO FIND:
 - Name: ${product.name}
-- Brand: ${product.brand}${skuBlock}${product.barcode ? `\n- Barcode: ${product.barcode}` : ''}${priceBlock}
+- Brand: ${product.brand}${skuBlock}${product.barcode ? `\n- Barcode: ${product.barcode}` : ''}
 
 CANDIDATE URLs (search for and visit each one):
 ${urlList}
