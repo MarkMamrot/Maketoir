@@ -6733,6 +6733,7 @@ function EditTransactionModal({
     discount_amount: Number(it.discount_amount ?? 0),
     tax_rate: Number(it.tax_rate ?? 0.1),
     line_total: Number(it.line_total ?? 0),
+    is_gift_card: Boolean(it.is_gift_card),
   })));
   const [payLines, setPayLines] = useState<{ method: string; amount: string }[]>(
     () => (t.payments ?? []).map((p: any) => ({ method: p.payment_method, amount: fmt(Number(p.amount)) })),
@@ -6797,6 +6798,7 @@ function EditTransactionModal({
       discount_amount: 0,
       tax_rate: 0.1,
       line_total: p.price,
+      is_gift_card: false,
     }]);
     setSearch('');
   };
@@ -6837,6 +6839,7 @@ function EditTransactionModal({
             unit_price: i.unit_price, original_price: i.original_price,
             discount_type: i.discount_type, discount_value: i.discount_value,
             discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total,
+            is_gift_card: Boolean(i.is_gift_card),
           })),
           payments: payLines.map(l => ({ payment_method: l.method.trim(), amount: parseFloat(l.amount) || 0 })),
         }),

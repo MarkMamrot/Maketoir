@@ -36,6 +36,15 @@ export class LoyaltyReturnBlockedError extends Error {
   }
 }
 
+export class LoyaltyEditBlockedError extends Error {
+  readonly status = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'LoyaltyEditBlockedError';
+  }
+}
+
 interface AccountRow extends RowDataPacket {
   id: number;
   business_id: string;
@@ -450,14 +459,25 @@ export const LoyaltyRepository = {
         FOR UPDATE`,
       [input.businessId, String(input.saleId)],
     );
+    const [editRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT points_delta
+         FROM loyalty_transactions
+        WHERE business_id = ? AND source_type = 'pos_sale_edit' AND source_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [input.businessId, String(input.saleId)],
+    );
+    const editDelta = editRows.reduce((sum, row) => sum + Number(row.points_delta), 0);
     const earnReversals: LoyaltyMutationResult[] = [];
-    for (const earn of earns) {
+    for (const [index, earn] of earns.entries()) {
+      const netEarned = Math.max(0, Number(earn.points_delta) + (index === 0 ? editDelta : 0));
+      if (netEarned === 0) continue;
       try {
         earnReversals.push(await this.applyTransaction(connection, {
           businessId: input.businessId,
           contactId: Number(earn.contact_id),
           type: 'earn_reversal',
-          pointsDelta: -Math.abs(Number(earn.points_delta)),
+          pointsDelta: -netEarned,
           channel: 'pos',
           sourceType: 'pos_sale_void',
           sourceId: input.saleId,
@@ -500,6 +520,19 @@ export const LoyaltyRepository = {
     const earn = earns[0];
     if (!earn) return null;
 
+    const [editRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT points_delta
+         FROM loyalty_transactions
+        WHERE business_id = ? AND source_type = 'pos_sale_edit' AND source_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [input.businessId, String(input.originalSaleId)],
+    );
+    const netEarned = Math.max(
+      0,
+      Number(earn.points_delta) + editRows.reduce((sum, row) => sum + Number(row.points_delta), 0),
+    );
+
     const [reversalRows] = await connection.execute<RowDataPacket[]>(
       `SELECT points_delta
          FROM loyalty_transactions
@@ -511,7 +544,7 @@ export const LoyaltyRepository = {
     );
     const alreadyReversed = reversalRows.reduce((sum, row) => sum + Math.abs(Number(row.points_delta)), 0);
     const points = calculateProportionalReturnReversal({
-      originalEarned: Number(earn.points_delta),
+      originalEarned: netEarned,
       originalEligibleCents: input.originalEligibleCents,
       cumulativeReturnedCents: input.cumulativeReturnedCents,
       alreadyReversed,
@@ -534,6 +567,63 @@ export const LoyaltyRepository = {
     } catch (error) {
       if (error instanceof LoyaltyValidationError && error.message === 'The customer does not have enough points.') {
         throw new LoyaltyReturnBlockedError('This return would reverse loyalty points that the customer has already spent. Reverse the later loyalty activity before completing this return.');
+      }
+      throw error;
+    }
+  },
+
+  async reconcilePosSaleEarn(
+    connection: PoolConnection,
+    input: {
+      businessId: string;
+      saleId: number;
+      targetPoints: number;
+      actorId?: string | number | null;
+    },
+  ): Promise<LoyaltyMutationResult | null> {
+    const [earns] = await connection.execute<PosSaleEarnRow[]>(
+      `SELECT t.id, a.contact_id, t.points_delta
+         FROM loyalty_transactions t
+         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+        WHERE t.business_id = ? AND t.type = 'earn'
+          AND t.source_type = 'pos_sale' AND t.source_id = ?
+        ORDER BY t.id
+        FOR UPDATE`,
+      [input.businessId, String(input.saleId)],
+    );
+    const originalEarn = earns[0];
+    if (!originalEarn) return null;
+
+    const [editRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT id, points_delta
+         FROM loyalty_transactions
+        WHERE business_id = ? AND source_type = 'pos_sale_edit' AND source_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [input.businessId, String(input.saleId)],
+    );
+    const currentPoints = Number(originalEarn.points_delta)
+      + editRows.reduce((sum, row) => sum + Number(row.points_delta), 0);
+    const targetPoints = Math.max(0, Math.floor(Number(input.targetPoints) || 0));
+    const pointsDelta = targetPoints - currentPoints;
+    if (pointsDelta === 0) return null;
+
+    try {
+      return await this.applyTransaction(connection, {
+        businessId: input.businessId,
+        contactId: Number(originalEarn.contact_id),
+        type: pointsDelta > 0 ? 'earn' : 'earn_reversal',
+        pointsDelta,
+        channel: 'pos',
+        sourceType: 'pos_sale_edit',
+        sourceId: input.saleId,
+        idempotencyKey: `pos:sale:${input.saleId}:edit:${editRows.length + 1}:earn`,
+        actorId: input.actorId,
+        reason: `Manager edit recalculated POS sale ${input.saleId} earning to ${targetPoints} points`,
+      });
+    } catch (error) {
+      if (error instanceof LoyaltyValidationError && error.message === 'The customer does not have enough points.') {
+        throw new LoyaltyEditBlockedError('This edit would remove loyalty points that the customer has already spent. Reverse the later loyalty activity before editing this sale.');
       }
       throw error;
     }

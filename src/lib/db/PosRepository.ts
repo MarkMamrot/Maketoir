@@ -3,6 +3,7 @@ import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
 import { unwindGiftCardTransactionsForSale, type GiftCardVoidReversal } from '@/lib/pos/giftCardSaleVoid';
 import {
   LoyaltyRepository,
+  LoyaltyEditBlockedError,
   LoyaltyValidationError,
   LoyaltyVoidBlockedError,
   type LoyaltyPosSaleReversalResult,
@@ -39,6 +40,7 @@ export interface PosSaleRow {
   tax_total:         number;
   total:             number;
   cash_rounding?:    number;
+  loyalty_earn_rate: number | null;
   notes:             string | null;
   parked_label:      string | null;
   return_of_sale_id: number | null;
@@ -394,10 +396,11 @@ export const PosSalesRepo = {
       for (const item of data.items) {
         await conn.execute(
           `INSERT INTO pos_sale_items
-             (sale_id, return_of_sale_item_id, is_gift_card, variant_id, code, name, qty, unit_price, original_price,
+             (business_id, sale_id, return_of_sale_item_id, is_gift_card, variant_id, code, name, qty, unit_price, original_price,
               discount_type, discount_value, discount_amount, tax_rate, line_total)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
+            data.business_id,
             saleId,
             item.return_of_sale_item_id ?? null,
             item.is_gift_card ? 1 : 0,
@@ -496,6 +499,10 @@ export const PosSalesRepo = {
 
       if (data.sale_type === 'sale' && data.status === 'completed' && data.customer_id) {
         if (loyaltyEnabled && (!loyaltyStartedAt || now.slice(0, 10) >= loyaltyStartedAt)) {
+          await conn.execute(
+            'UPDATE pos_sales SET loyalty_earn_rate = ? WHERE id = ? AND business_id = ?',
+            [loyaltyEarnRate, saleId, data.business_id],
+          );
           const [contactRows] = await conn.execute<any[]>(
             `SELECT id
                FROM ims_contacts
@@ -800,6 +807,7 @@ export const PosSalesRepo = {
     tax_total:      number;
     total:          number;
     cash_rounding?: number;
+    actor_id?:      string | number | null;
     items: Array<{
       variant_id:      string | null;
       code:            string | null;
@@ -812,17 +820,71 @@ export const PosSalesRepo = {
       discount_amount: number;
       tax_rate:        number;
       line_total:      number;
+      is_gift_card?:   boolean;
     }>;
     payments: Array<{ payment_method: string; amount: number; reference?: string | null }>;
-  }): Promise<{ stockError?: string }> {
+  }): Promise<{ stockError?: string; loyalty?: LoyaltyMutationResult | null }> {
     const existing = await this.get(id);
     if (!existing) throw new Error('Sale not found.');
     const { sale: oldSale, items: oldItems } = existing;
 
     const pool = getIMSPool();
     const conn = await pool.getConnection();
+    let loyaltyWriteAttempted = false;
+    let loyalty: LoyaltyMutationResult | null = null;
     try {
       await conn.beginTransaction();
+
+      const [lockedSaleRows] = await conn.execute<any[]>(
+        `SELECT business_id, customer_id, status, sale_type, loyalty_earn_rate
+           FROM pos_sales
+          WHERE id = ?
+          LIMIT 1
+          FOR UPDATE`,
+        [id],
+      );
+      const lockedSale = lockedSaleRows[0];
+      if (!lockedSale) throw new Error('Sale not found.');
+      const [linkedReturns] = await conn.execute<any[]>(
+        `SELECT id
+           FROM pos_sales
+          WHERE business_id = ? AND return_of_sale_id = ? AND sale_type = 'return' AND status = 'completed'
+          LIMIT 1
+          FOR UPDATE`,
+        [lockedSale.business_id, id],
+      );
+      if (linkedReturns[0]) {
+        throw new LoyaltyEditBlockedError('This sale has linked returns and can no longer be edited. Void or correct the linked return first.');
+      }
+
+      let earnRate = Number(lockedSale.loyalty_earn_rate);
+      if (!Number.isFinite(earnRate) || earnRate <= 0) {
+        const [settingRows] = await conn.execute<any[]>(
+          `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = ? LIMIT 1`,
+          [lockedSale.business_id, LOYALTY_SETTING_KEYS.earnRate],
+        );
+        earnRate = Number(settingRows[0]?.value ?? 1);
+      }
+      const targetPoints = data.sale_type === 'sale'
+        ? calculateEarnedPoints({
+            merchandiseTotal: calculatePosEligibleSpend({
+              items: data.items.map(item => ({
+                lineTotal: Number(item.line_total),
+                discountAmount: Number(item.discount_amount),
+                isGiftCard: Boolean(item.is_gift_card),
+              })),
+              discountTotal: Number(data.discount_total),
+            }),
+            earnRate,
+          })
+        : 0;
+      loyaltyWriteAttempted = true;
+      loyalty = await LoyaltyRepository.reconcilePosSaleEarn(conn, {
+        businessId: String(lockedSale.business_id),
+        saleId: id,
+        targetPoints,
+        actorId: data.actor_id,
+      });
 
       await conn.execute(
         `UPDATE pos_sales SET sale_type = ?, customer_name = ?, customer_phone = ?,
@@ -846,11 +908,13 @@ export const PosSalesRepo = {
       for (const item of data.items) {
         await conn.execute(
           `INSERT INTO pos_sale_items
-             (sale_id, variant_id, code, name, qty, unit_price, original_price,
+             (business_id, sale_id, is_gift_card, variant_id, code, name, qty, unit_price, original_price,
               discount_type, discount_value, discount_amount, tax_rate, line_total)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
+            oldSale.business_id,
             id,
+            item.is_gift_card ? 1 : 0,
             item.variant_id ?? null,
             item.code ?? null,
             item.name,
@@ -877,6 +941,17 @@ export const PosSalesRepo = {
       await conn.commit();
     } catch (err) {
       await conn.rollback();
+      if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError) && !(err instanceof LoyaltyEditBlockedError)) {
+        await reportRuntimeIssue({
+          businessId: oldSale.business_id,
+          source: 'pos_loyalty',
+          operation: 'edit_sale_loyalty',
+          title: 'POS sale edit loyalty reconciliation failed',
+          error: err,
+          context: { saleId: id, actorId: data.actor_id ?? null },
+          reference: { type: 'pos_sale', id },
+        });
+      }
       throw err;
     } finally {
       conn.release();
@@ -946,7 +1021,7 @@ export const PosSalesRepo = {
         stockConn.release();
       }
     }
-    return { stockError };
+    return { stockError, loyalty };
   },
 };
 

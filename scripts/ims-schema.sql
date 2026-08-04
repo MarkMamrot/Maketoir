@@ -854,6 +854,7 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   completed_at      DATETIME,
   is_historical     TINYINT(1) NOT NULL DEFAULT 0,
   cash_rounding     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  loyalty_earn_rate DECIMAL(12,4) NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   INDEX idx_pos_loc_date (location_id, created_at),
   INDEX idx_business_id (business_id),

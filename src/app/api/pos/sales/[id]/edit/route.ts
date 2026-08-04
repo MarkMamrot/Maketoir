@@ -4,6 +4,7 @@ import { PosSalesRepo, PosRegisterSessionRepo } from '@/lib/db/PosRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { verifyManagerPin } from '@/lib/pos/managerPin';
+import { LoyaltyEditBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -17,7 +18,8 @@ function getPosSession() {
 // timestamps are never touched. Only allowed while the sale's register
 // session is still the currently open one.
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  if (!getPosSession()) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const posSession = getPosSession();
+  if (!posSession) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   await getImsSession(['pos_session']);
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id.' }, { status: 400 });
@@ -58,6 +60,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       sale_type: sale_type ?? existing.sale.sale_type,
       customer_name, customer_phone, notes,
       subtotal, discount_total, tax_total, total, cash_rounding,
+      actor_id: posSession.pos_user_id ?? null,
       items, payments,
     });
 
@@ -71,6 +74,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     return NextResponse.json({ success: true, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale edit error:', err);
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+    const status = err instanceof LoyaltyEditBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;
+    return NextResponse.json({ error: err.message || String(err) }, { status });
   }
 }

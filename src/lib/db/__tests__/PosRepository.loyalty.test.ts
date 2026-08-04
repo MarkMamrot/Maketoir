@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockUnwindGiftCards } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
   mockReversePosSale: vi.fn(),
   mockReversePosReturn: vi.fn(),
+  mockReconcilePosSaleEarn: vi.fn(),
   mockUnwindGiftCards: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
   imsExecute: vi.fn(),
 }));
 vi.mock('@/lib/ims/LoyaltyRepository', () => ({
+  LoyaltyEditBlockedError: class LoyaltyEditBlockedError extends Error {},
   LoyaltyValidationError: class LoyaltyValidationError extends Error {},
   LoyaltyVoidBlockedError: class LoyaltyVoidBlockedError extends Error {},
   LoyaltyRepository: {
@@ -22,6 +24,7 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
     reserveReward: mockReserveReward,
     reversePosSale: mockReversePosSale,
     reversePosReturn: mockReversePosReturn,
+    reconcilePosSaleEarn: mockReconcilePosSaleEarn,
   },
 }));
 vi.mock('@/lib/ims/posReturnCreditNote', () => ({ getPosStockQtyChange: vi.fn() }));
@@ -72,6 +75,7 @@ function setupConnections(settings: Array<{ key: string; value: string }>, conta
       .mockResolvedValueOnce([{ insertId: 101 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([settings])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([contacts]),
   };
   const stockConnection = {
@@ -105,6 +109,7 @@ describe('PosSalesRepo loyalty earning', () => {
     });
     mockReversePosSale.mockResolvedValue({ earnReversals: [], redemptionReversals: [] });
     mockReversePosReturn.mockResolvedValue({ transactionId: 12, accountId: 9, balanceAfter: 50, duplicate: false });
+    mockReconcilePosSaleEarn.mockResolvedValue({ transactionId: 13, accountId: 9, balanceAfter: 90, duplicate: false });
     mockUnwindGiftCards.mockResolvedValue([]);
   });
 
@@ -263,6 +268,77 @@ describe('PosSalesRepo loyalty earning', () => {
     }));
     expect(mockReversePosReturn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
     expect(saleConnection.execute.mock.calls[4][0]).toContain('return_of_sale_item_id');
+  });
+
+  it('reconciles manager-edited earning inside the sale update transaction', async () => {
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: {
+        id: 101,
+        business_id: 'business-1',
+        status: 'completed',
+        sale_type: 'sale',
+        location_id: 3,
+        customer_id: 42,
+      },
+      items: [{ variant_id: null, qty: 1 }],
+      payments: [],
+    } as any);
+    const saleConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{
+          business_id: 'business-1',
+          customer_id: 42,
+          status: 'completed',
+          sale_type: 'sale',
+          loyalty_earn_rate: 1,
+        }]])
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValue([{ affectedRows: 1 }]),
+    };
+    const stockConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn(),
+    };
+    mockGetIMSPool.mockReturnValue({
+      getConnection: vi.fn().mockResolvedValueOnce(saleConnection).mockResolvedValueOnce(stockConnection),
+    });
+
+    await PosSalesRepo.updateFull(101, {
+      sale_type: 'sale',
+      subtotal: 90,
+      discount_total: 0,
+      tax_total: 90 / 11,
+      total: 90,
+      actor_id: 4,
+      items: [{
+        variant_id: null,
+        code: 'SKU-1',
+        name: 'Product',
+        qty: 1,
+        unit_price: 90,
+        discount_type: 'none',
+        discount_value: 0,
+        discount_amount: 0,
+        tax_rate: 10,
+        line_total: 90,
+      }],
+      payments: [{ payment_method: 'Card', amount: 90 }],
+    });
+
+    expect(mockReconcilePosSaleEarn).toHaveBeenCalledWith(saleConnection, {
+      businessId: 'business-1',
+      saleId: 101,
+      targetPoints: 90,
+      actorId: 4,
+    });
+    expect(mockReconcilePosSaleEarn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
   });
 
   it('reverses loyalty inside the manager void transaction before commit', async () => {

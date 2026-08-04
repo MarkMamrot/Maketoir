@@ -584,6 +584,7 @@ const COLUMNS = [
   // ── pos_sales / store_credit_transactions ───────────────────────────────
   ['pos_sales', 'customer_id',       'INT NULL'],
   ['pos_sales', 'credit_note_id',    'INT NULL'],
+  ['pos_sales', 'loyalty_earn_rate', 'DECIMAL(12,4) NULL'],
   ['pos_sale_items', 'return_of_sale_item_id', 'INT NULL'],
   ['pos_sale_items', 'is_gift_card', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
