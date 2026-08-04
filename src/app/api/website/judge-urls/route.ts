@@ -85,18 +85,33 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     let finishReason = '';
     let responseLength = 0;
     for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+      const requestBody = attempt === 0
+        ? body
+        : {
             ...body,
-            generationConfig: { ...body.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
-          }),
-          signal: AbortSignal.timeout(90000),
-        },
-      );
+            tools: undefined,
+            generationConfig: {
+              ...body.generationConfig,
+              temperature: 0,
+              responseMimeType: 'application/json',
+            },
+          };
+      let res: Response;
+      try {
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(30000),
+          },
+        );
+      } catch (error) {
+        finishReason = error instanceof Error ? error.name : 'FETCH_FAILED';
+        if (attempt === 0) continue;
+        break;
+      }
       const rawResponse = await res.text();
       if (!res.ok) {
         finishReason = `HTTP_${res.status}`;

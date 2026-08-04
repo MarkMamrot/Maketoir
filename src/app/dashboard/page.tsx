@@ -13,6 +13,7 @@ import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSo
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
+import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -5102,7 +5103,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           ...searchSources,
         }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) {
         console.warn('[find-urls]', data.error);
         return;
@@ -5142,7 +5143,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ urls: [approvedUrl] }),
         });
-        const sourceData = await sourceResponse.json();
+        const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) {
           setPreflightError(prev => ({ ...prev, [key]: sourceData.error ?? 'Approved-page extraction failed' }));
           return;
@@ -5167,7 +5168,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product, firstUrl: getInputs(key).urls[0]?.trim() || undefined }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) {
         setPreflightError(prev => ({ ...prev, [key]: data.error ?? 'Tavily search failed' }));
         return;
@@ -5187,7 +5188,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ product, firstUrl: url }),
           });
-          const d = await r.json();
+          const d = await parseWebsiteJsonResponse(r);
           return (d.images ?? []).filter(_ok);
         } catch { return []; }
       };
@@ -5235,7 +5236,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: [topUrl] }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (data.images?.length) {
         setScrapedPhotosMap(prev => ({ ...prev, [key]: data.images }));
       }
@@ -5264,7 +5265,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: [topUrl], includeFallback: true }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) throw new Error(data.error ?? 'Unable to find more photos');
       setFallbackPhotosMap(prev => ({ ...prev, [key]: dedupeProductPhotoUrls([...(data.fallbackImages ?? []), ...(tavilyPhotosMap[key] ?? [])]) }));
       setShowFallbackPhotoKeys(prev => new Set(prev).add(key));
@@ -5300,7 +5301,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product, ...searchSources }),
       });
-      const serperData = await serperRes.json();
+      const serperData = await parseWebsiteJsonResponse(serperRes);
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
       const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 3);
       if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
@@ -5326,7 +5327,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             databaseId,
           }),
         });
-        const judgeData = await judgeRes.json();
+        const judgeData = await parseWebsiteJsonResponse(judgeRes);
         if (!judgeRes.ok || judgeData.error) throw new Error(judgeData.error ?? 'AI URL assessment failed');
         const ranked: { url: string; keep: boolean; reason?: string }[] = judgeData.rankedUrls ?? [];
         const decisions = foundUrls.map(url => {
@@ -5384,7 +5385,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ urls: urlsToScrape }),
           });
-          const scrapeData = await scrapeRes.json();
+          const scrapeData = await parseWebsiteJsonResponse(scrapeRes);
           sourceFacts = String(scrapeData.productFacts ?? '').trim();
           const approvedPhotos = (scrapeData.images ?? []).filter(noiseOk) as string[];
           if (approvedPhotos.length > 0) {
@@ -5406,7 +5407,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ databaseId, product, tavilyInfo: sourceFacts, tavilyUrls: finalUrls, userPhotos: [], userNotes: '' }),
         });
-        const genData = await genRes.json();
+        const genData = await parseWebsiteJsonResponse(genRes);
         if (!genData.success) {
           setGenerateError(prev => ({ ...prev, [key]: genData.error ?? 'Generation failed' }));
           step('❌ Content generation failed');
@@ -5449,7 +5450,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           userNotes: inputs.notes,
         }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (!data.success) {
         setGenerateError(prev => ({ ...prev, [key]: data.error ?? 'Generation failed' }));
         return;

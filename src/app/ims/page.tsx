@@ -8,6 +8,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -4218,7 +4219,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: activeUrls }),
       });
-      const d = await res.json();
+      const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
       // Merge with existing, deduplicate
       setScrapedImages(prev => [...new Set([...prev, ...(d.images ?? [])])]);
@@ -4237,7 +4238,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: activeUrls, includeFallback: true }),
       });
-      const data = await res.json();
+      const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) { setScrapeError(data.error ?? 'Unable to find more photos'); return; }
       setFallbackImages(filterImages(data.fallbackImages ?? []));
       setShowFallbackImages(true);
@@ -4316,7 +4317,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           search_au_only: searchAuOnly,
         }),
       });
-      const d = await res.json();
+      const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
       setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '']);
@@ -4334,7 +4335,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ urls: [topUrl] }),
         });
-        const sourceData = await sourceResponse.json();
+        const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) throw new Error(sourceData.error ?? 'Approved-page extraction failed');
         const productFacts = String(sourceData.productFacts ?? '').trim();
         if (!productFacts) throw new Error('No authoritative product facts were found on the selected page.');
@@ -4344,24 +4345,24 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       }
       // Fetch research from all three URLs in parallel, then aggregate images
       const nonEmptyUrls = urls.filter(Boolean);
-      const requests = nonEmptyUrls.length > 0
+      const requests: Promise<Record<string, any>>[] = nonEmptyUrls.length > 0
         ? nonEmptyUrls.map(url =>
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
-            }).then(r => r.json()).catch(() => ({}))
+            }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           )
         : [
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
-            }).then(r => r.json()).catch(() => ({}))
+            }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           ];
 
       const results = await Promise.all(requests);
-      const primary = results[0] ?? {};
+      const primary: Record<string, any> = results[0] ?? {};
       if (primary.error) { setError(primary.error ?? 'Research failed'); return; }
 
       // Aggregate images from all URL results, deduplicated and filtered
@@ -4396,7 +4397,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           tavilyUrls: urls.filter(Boolean),
         }),
       });
-      const d = await res.json();
+      const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? `Generate failed (HTTP ${res.status})`); return; }
       if (!d.content && !d.title) {
         setError(`Unexpected response shape: ${JSON.stringify(d).slice(0, 200)}`);
@@ -4440,7 +4441,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           search_au_only: searchAuOnly,
         }),
       });
-      const searchData = await searchResponse.json();
+      const searchData = await parseWebsiteJsonResponse(searchResponse);
       if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
       const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 3) as string[];
       if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
@@ -4459,7 +4460,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           urls: foundUrls,
         }),
       });
-      const judgeData = await judgeResponse.json();
+      const judgeData = await parseWebsiteJsonResponse(judgeResponse);
       if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
       const rankedUrls: string[] = (judgeData.rankedUrls ?? [])
         .filter((entry: any) => entry?.url && entry.keep)
@@ -4475,7 +4476,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ urls: finalUrls }),
       });
-      const scrapeData = await scrapeResponse.json();
+      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
       if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');
       const sourceFacts = String(scrapeData.productFacts ?? '').trim();
       if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the approved page. Nothing was generated.');
@@ -4503,7 +4504,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
           tavilyUrls: finalUrls,
         }),
       });
-      const generateData = await generateResponse.json();
+      const generateData = await parseWebsiteJsonResponse(generateResponse);
       if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
       setGenerated({
         title: generateData.content?.title ?? generateData.title ?? '',
