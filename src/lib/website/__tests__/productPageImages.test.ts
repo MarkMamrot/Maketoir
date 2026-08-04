@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractProductPageImages } from '../productPageImages';
+import { extractProductPageImageCandidates, extractProductPageImages } from '../productPageImages';
 
 describe('extractProductPageImages', () => {
   it('keeps the selected product media family and rejects recommendation images', () => {
@@ -54,5 +54,27 @@ describe('extractProductPageImages', () => {
       'https://shop.test/cdn/big-hugo-the-duck-124.jpg',
       'https://shop.test/cdn/big-buddy-hugo-bundle-789.jpg',
     ]);
+  });
+
+  it('collects Dawn product media items while keeping broader page images separate', () => {
+    const html = `
+      <script type="application/ld+json">
+        {"@type":"ProductGroup","image":"https:\/\/shop.test\/cdn\/Flutterby_LS-Bodysuit_01.png?width=1920"}
+      </script>
+      <ul class="product__media-list">
+        <li class="product__media-item" data-media-id="1"><img src="//shop.test/cdn/Flutterby_LS-Bodysuit_01.png?width=74" srcset="//shop.test/cdn/Flutterby_LS-Bodysuit_01.png?width=600 600w"></li>
+        <li class="product__media-item" data-media-id="2"><img src="//shop.test/cdn/flutterby-long-sleeve-bodysuit-01.jpg?width=74"></li>
+        <li class="product__media-item" data-media-id="3"><img src="//shop.test/cdn/flutterby-long-sleeve-bodysuit-02.jpg?width=74"></li>
+      </ul>
+      <section class="recommendations"><img src="//shop.test/cdn/Flutterby_Sherpa-Jacket_01.png?width=360"></section>`;
+
+    const candidates = extractProductPageImageCandidates(html, 'https://shop.test/products/flutterby');
+    expect(candidates.images).toEqual([
+      'https://shop.test/cdn/Flutterby_LS-Bodysuit_01.png',
+      'https://shop.test/cdn/flutterby-long-sleeve-bodysuit-01.jpg',
+      'https://shop.test/cdn/flutterby-long-sleeve-bodysuit-02.jpg',
+    ]);
+    expect(candidates.fallbackImages).toContain('https://shop.test/cdn/Flutterby_Sherpa-Jacket_01.png');
+    expect(candidates.images).not.toContain('https://shop.test/cdn/Flutterby_Sherpa-Jacket_01.png');
   });
 });

@@ -4203,6 +4203,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
 
   // Scraped images (HTML scraper — fallback to direct fetch when Tavily can't reach the page)
   const [scrapedImages, setScrapedImages]   = useState<string[]>([]);
+  const [fallbackImages, setFallbackImages] = useState<string[]>([]);
+  const [showFallbackImages, setShowFallbackImages] = useState(false);
   const [scraping, setScraping]             = useState(false);
   const [scrapeError, setScrapeError]       = useState<string | null>(null);
 
@@ -4220,6 +4222,25 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
       // Merge with existing, deduplicate
       setScrapedImages(prev => [...new Set([...prev, ...(d.images ?? [])])]);
+    } catch (e: any) { setScrapeError(e.message); }
+    finally { setScraping(false); }
+  };
+
+  const handleShowMoreImages = async () => {
+    const activeUrls = urls.filter(u => u.trim());
+    if (!activeUrls.length) return;
+    if (fallbackImages.length > 0) { setShowFallbackImages(true); return; }
+    setScraping(true); setScrapeError(null);
+    try {
+      const res = await fetch('/api/website/scrape-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: activeUrls, includeFallback: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) { setScrapeError(data.error ?? 'Unable to find more photos'); return; }
+      setFallbackImages(filterImages(data.fallbackImages ?? []));
+      setShowFallbackImages(true);
     } catch (e: any) { setScrapeError(e.message); }
     finally { setScraping(false); }
   };
@@ -4397,6 +4418,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
     setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
+    setFallbackImages([]);
+    setShowFallbackImages(false);
     try {
       const preferredSites = [
         ...(useSupplierSite && supplierSite ? [supplierSite] : []),
@@ -4596,7 +4619,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                     <input
                       type="url"
                       value={urls[i]}
-                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); }}
+                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
                       placeholder="https://…"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
@@ -4758,6 +4781,35 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                 </div>
               </div>
             ) : null}
+
+            {urls.some(url => url.trim()) && (
+              <div style={{ marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={showFallbackImages ? () => setShowFallbackImages(false) : handleShowMoreImages}
+                  disabled={scraping}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping ? .6 : 1 }}
+                  title="Review broader same-page and Tavily candidates. These are never added automatically."
+                >
+                  {scraping ? 'Finding photos…' : showFallbackImages ? 'Hide extra photos' : 'Show more photos'}
+                </button>
+                {showFallbackImages && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 6 }}>Broader results — verify the exact product before adding</div>
+                    {fallbackImages.length > 0 ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(128px, 1fr))', gap: 10 }}>
+                        {fallbackImages.map(imgUrl => (
+                          <div key={imgUrl} style={{ position: 'relative', aspectRatio: '1', minWidth: 0 }}>
+                            <a href={imgUrl} target="_blank" rel="noopener noreferrer" title={imgUrl} style={{ display: 'block', width: '100%', height: '100%', borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}><ZoomImg src={imgUrl} /></a>
+                            <button onClick={() => handleAddImage(imgUrl)} disabled={addingImages.has(imgUrl) || addedImages.has(imgUrl)} title="Add this reviewed photo" style={{ position: 'absolute', bottom: 8, right: 8, width: 32, height: 32, borderRadius: '50%', background: addedImages.has(imgUrl) ? 'rgba(16,185,129,.9)' : 'rgba(0,0,0,.72)', color: '#fff', border: 'none', fontSize: 21, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{addingImages.has(imgUrl) ? '…' : addedImages.has(imgUrl) ? '✓' : '+'}</button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>No additional photo candidates found.</div>}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>

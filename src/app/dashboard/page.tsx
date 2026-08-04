@@ -4920,6 +4920,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Scraped photos from reference page URLs
   const [scrapedPhotosMap, setScrapedPhotosMap] = useState<Record<string, string[]>>({});
   const [tavilyPhotosMap, setTavilyPhotosMap]   = useState<Record<string, string[]>>({});
+  const [fallbackPhotosMap, setFallbackPhotosMap] = useState<Record<string, string[]>>({});
+  const [showFallbackPhotoKeys, setShowFallbackPhotoKeys] = useState<Set<string>>(new Set());
   const [scrapingSet, setScrapingSet]           = useState<Set<string>>(new Set());
   const [serperSearchingSet, setSerperSearchingSet] = useState<Set<string>>(new Set());
   // Per-URL Tavily photos [productKey][urlSlot 0-2] and automated retrieval state
@@ -5244,6 +5246,35 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
+  const handleShowMorePhotos = async (product: PendingOnlineProduct) => {
+    const key = product.code;
+    if (showFallbackPhotoKeys.has(key)) {
+      setShowFallbackPhotoKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+      return;
+    }
+    if (fallbackPhotosMap[key]?.length) {
+      setShowFallbackPhotoKeys(prev => new Set(prev).add(key));
+      return;
+    }
+    const topUrl = getInputs(key).urls[0]?.trim();
+    if (!topUrl) return;
+    setScrapingSet(prev => new Set(prev).add(key));
+    try {
+      const res = await fetch('/api/website/scrape-photos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: [topUrl], includeFallback: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Unable to find more photos');
+      setFallbackPhotosMap(prev => ({ ...prev, [key]: dedupeProductPhotoUrls([...(data.fallbackImages ?? []), ...(tavilyPhotosMap[key] ?? [])]) }));
+      setShowFallbackPhotoKeys(prev => new Set(prev).add(key));
+    } catch (e: any) {
+      setPreflightError(prev => ({ ...prev, [key]: e.message }));
+    } finally {
+      setScrapingSet(prev => { const next = new Set(prev); next.delete(key); return next; });
+    }
+  };
+
   // Full automated pipeline: Find URLs → validate → collect photos → apply content.
   const handleAutomatedRetrieval = async (product: PendingOnlineProduct) => {
     const key = product.code;
@@ -5256,6 +5287,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     setGenerateError(prev => ({ ...prev, [key]: '' }));
     setUrlPhotosMap(prev => ({ ...prev, [key]: [] }));
     setTavilyPhotosMap(prev => ({ ...prev, [key]: [] }));
+    setFallbackPhotosMap(prev => ({ ...prev, [key]: [] }));
+    setShowFallbackPhotoKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
     setScrapedPhotosMap(prev => ({ ...prev, [key]: [] }));
     setSelectedPhotoUrls(prev => ({ ...prev, [key]: new Set<string>() }));
     setUrlDecisionsMap(prev => ({ ...prev, [key]: [] }));
@@ -5779,10 +5812,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const urlDecisions = urlDecisionsMap[key] ?? [];
                 const candidatePhotos = dedupeProductPhotoUrls([
                   ...(urlPhotosMap[key] ?? []).flat(),
-                  ...(tavilyPhotosMap[key] ?? []),
                   ...(scrapedPhotosMap[key] ?? []),
                   ...(contentMap[key]?.images ?? []),
                 ]);
+                const fallbackPhotos = dedupeProductPhotoUrls(fallbackPhotosMap[key] ?? []).filter(url => !candidatePhotos.includes(url));
 
                 const overallStatus = (() => {
                   if (isSessionBlocked) return { icon: '⛔', label: 'Skipped', cls: 'text-red-700 bg-red-50' };
@@ -5946,6 +5979,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                       const urls = [...getInputs(key).urls] as [string, string, string];
                                       urls[idx] = e.target.value;
                                       patchInputs(key, { urls });
+                                      setFallbackPhotosMap(prev => ({ ...prev, [key]: [] }));
+                                      setShowFallbackPhotoKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
                                     }}
                                     onClick={e => e.stopPropagation()}
                                     placeholder="https://…"
@@ -5972,6 +6007,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             >
                               {scrapingSet.has(key) ? 'Scraping…' : '📸 Pull Images'}
                             </button>
+                            <button
+                              onClick={e => { e.stopPropagation(); void handleShowMorePhotos(p); }}
+                              disabled={scrapingSet.has(key) || !getInputs(key).urls[0]?.trim()}
+                              className="px-2 py-0.5 border border-gray-300 bg-white text-gray-700 text-xs font-semibold rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                              title="Review broader same-page and Tavily candidates. These are never selected automatically."
+                            >
+                              {showFallbackPhotoKeys.has(key) ? 'Hide extra photos' : 'Show more photos'}
+                            </button>
                           </div>
                           {scrapingSet.has(key) && <p className="text-xs text-gray-400 italic">Scraping top URL…</p>}
                           {candidatePhotos.length > 0 && (
@@ -5992,6 +6035,21 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           )}
                           {candidatePhotos.length === 0 && !scrapingSet.has(key) && (
                             <p className="text-xs text-gray-400 italic">No photo candidates found yet.</p>
+                          )}
+                          {showFallbackPhotoKeys.has(key) && (
+                            <div className="mt-3 border-t border-amber-200 pt-3">
+                              <p className="text-xs font-medium text-amber-800 mb-2">Broader results — verify the exact product before adding</p>
+                              {fallbackPhotos.length > 0 ? (
+                                <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3" onClick={e => e.stopPropagation()}>
+                                  {fallbackPhotos.map(url => (
+                                    <div key={url} className="relative aspect-square min-w-0">
+                                      <a href={url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}><ZoomThumb src={url} className="w-full h-full rounded border border-amber-300 overflow-hidden" /></a>
+                                      <button onClick={e => { e.stopPropagation(); toggleSelectedPhoto(key, url); }} title="Add this reviewed photo" className={`absolute bottom-2 right-2 w-8 h-8 text-white rounded-full text-lg font-bold flex items-center justify-center leading-none shadow ${selectedPhotoUrls[key]?.has(url) ? 'bg-emerald-600' : 'bg-gray-800 hover:bg-indigo-600'}`}>{selectedPhotoUrls[key]?.has(url) ? '✓' : '+'}</button>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : <p className="text-xs text-gray-400 italic">No additional photo candidates found.</p>}
+                            </div>
                           )}
                           {(selectedPhotoUrls[key]?.size ?? 0) > 0 && (
                             <p className="text-xs font-medium text-emerald-700 mt-2">{selectedPhotoUrls[key].size} photo{selectedPhotoUrls[key].size === 1 ? '' : 's'} selected to add. Existing product photos will be kept.</p>

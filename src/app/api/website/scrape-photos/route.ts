@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { extractProductPageImages } from '@/lib/website/productPageImages';
+import { extractProductPageImageCandidates, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
 import { extractProductPageFacts } from '@/lib/website/productPageFacts';
 
 /**
@@ -9,7 +9,7 @@ import { extractProductPageFacts } from '@/lib/website/productPageFacts';
  * Scrapes up to 10 product images from the provided URLs.
  * Uses Tavily Extract API first (bypasses Cloudflare / bot protection),
  * then falls back to a direct fetch for any URLs Tavily cannot handle.
- * Returns { images: string[] } — absolute image URLs.
+ * Returns trusted gallery images separately from review-only fallback candidates.
  */
 export async function POST(req: Request) {
   try {
@@ -20,12 +20,14 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const urls: string[] = (body.urls ?? []).filter((u: any) => typeof u === 'string' && u.startsWith('http'));
+    const includeFallback = body.includeFallback === true;
 
     if (urls.length === 0) {
-      return NextResponse.json({ images: [] });
+      return NextResponse.json({ images: [], fallbackImages: [], productFacts: '' });
     }
 
     const uniqueImages = new Set<string>();
+    const fallbackImages = new Set<string>();
     const productFactBlocks: string[] = [];
     const failedUrls: string[] = [];
 
@@ -46,11 +48,13 @@ export async function POST(req: Request) {
           continue;
         }
         const html = await pageRes.text();
-        const images = extractProductPageImages(html, rawUrl);
+        const candidates = extractProductPageImageCandidates(html, rawUrl);
+        const images = candidates.images;
         const facts = extractProductPageFacts(html, rawUrl);
         if (facts) productFactBlocks.push(facts);
         if (images.length === 0) failedUrls.push(rawUrl);
         images.forEach(image => uniqueImages.add(image));
+        candidates.fallbackImages.forEach(image => fallbackImages.add(image));
       } catch (e: any) {
         console.warn(`[scrape-photos] Direct fetch failed for ${rawUrl}:`, e.message);
         failedUrls.push(rawUrl);
@@ -59,7 +63,8 @@ export async function POST(req: Request) {
 
     // Tavily is a fallback for pages the direct structured-gallery pass cannot read.
     const tavilyKey = process.env.TAVILY_API_KEY;
-    if (tavilyKey && failedUrls.length > 0) {
+    const tavilyUrls = includeFallback ? urls : failedUrls;
+    if (tavilyKey && tavilyUrls.length > 0) {
       try {
         const tavilyRes = await fetch('https://api.tavily.com/extract', {
           method: 'POST',
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${tavilyKey}`,
           },
-          body: JSON.stringify({ urls: failedUrls, include_images: true }),
+          body: JSON.stringify({ urls: tavilyUrls, include_images: true }),
           signal: AbortSignal.timeout(30000),
         });
 
@@ -80,10 +85,18 @@ export async function POST(req: Request) {
           // Only page content with structured product evidence is trusted.
           for (const result of results) {
             if (result.raw_content && result.url) {
-              const trusted = extractProductPageImages(result.raw_content, result.url);
-              trusted.forEach(image => uniqueImages.add(image));
+              const candidates = extractProductPageImageCandidates(result.raw_content, result.url);
+              candidates.images.forEach(image => uniqueImages.add(image));
+              candidates.fallbackImages.forEach(image => fallbackImages.add(image));
               const facts = extractProductPageFacts(result.raw_content, result.url);
               if (facts) productFactBlocks.push(facts);
+            }
+            if (includeFallback && result.url) {
+              for (const image of (result.images ?? [])) {
+                if (typeof image !== 'string') continue;
+                const normalized = normalizeProductImageCandidate(image, result.url);
+                if (normalized) fallbackImages.add(normalized);
+              }
             }
           }
 
@@ -97,6 +110,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       images: [...uniqueImages].slice(0, 10),
+      fallbackImages: [...fallbackImages].filter(image => !uniqueImages.has(image)).slice(0, 30),
       productFacts: [...new Set(productFactBlocks)].join('\n\n').slice(0, 16_000),
     });
   } catch (e: any) {

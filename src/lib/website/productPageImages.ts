@@ -77,6 +77,33 @@ function rawImageUrls(html: string, pageUrl: string): string[] {
     .filter((url): url is string => Boolean(url));
 }
 
+function imageUrlsFromMarkup(markup: string, pageUrl: string): string[] {
+  const images: string[] = [];
+  for (const match of markup.matchAll(/\b(?:href|src|data-src)=["']([^"']+)["']/gi)) {
+    const normalized = normalizeImageUrl(match[1], pageUrl);
+    if (normalized) images.push(normalized);
+  }
+  for (const match of markup.matchAll(/\b(?:srcset|data-srcset)=["']([^"']+)["']/gi)) {
+    for (const candidate of match[1].split(',')) {
+      const normalized = normalizeImageUrl(candidate.trim().split(/\s+/)[0], pageUrl);
+      if (normalized) images.push(normalized);
+    }
+  }
+  return images;
+}
+
+function scopedProductMediaImages(html: string, pageUrl: string): string[] {
+  const images: string[] = [];
+  const containerPatterns = [
+    /<li\b[^>]*class=["'][^"']*product__media-item[^"']*["'][^>]*>[\s\S]*?<\/li>/gi,
+    /<(?:figure|div)\b[^>]*class=["'][^"']*(?:product-media-wrapper|product__media-item)[^"']*["'][^>]*>[\s\S]{0,20000}?<\/(?:figure|div)>/gi,
+  ];
+  for (const pattern of containerPatterns) {
+    for (const match of html.matchAll(pattern)) images.push(...imageUrlsFromMarkup(match[0], pageUrl));
+  }
+  return images;
+}
+
 function explicitGalleryImages(html: string, pageUrl: string): string[] {
   const images: string[] = [];
   for (const match of html.matchAll(/<a\b[^>]*>/gi)) {
@@ -107,7 +134,12 @@ function dedupeImageVariants(urls: string[]): string[] {
   return [...unique.values()];
 }
 
-export function extractProductPageImages(html: string, pageUrl: string, limit = 10): string[] {
+export interface ProductPageImageCandidates {
+  images: string[];
+  fallbackImages: string[];
+}
+
+export function extractProductPageImageCandidates(html: string, pageUrl: string, limit = 10): ProductPageImageCandidates {
   const structuredImages: string[] = [];
   const scriptPattern = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   for (const match of html.matchAll(scriptPattern)) {
@@ -126,17 +158,41 @@ export function extractProductPageImages(html: string, pageUrl: string, limit = 
 
   const uniqueStructured = dedupeImageVariants(structuredImages);
   const galleryImages = dedupeImageVariants(explicitGalleryImages(html, pageUrl));
-  if (galleryImages.length > 1) {
-    return dedupeImageVariants([...uniqueStructured, ...galleryImages]).slice(0, limit);
+  const scopedMediaImages = dedupeImageVariants(scopedProductMediaImages(html, pageUrl));
+  let trustedImages: string[];
+  if (galleryImages.length > 1 || scopedMediaImages.length > 1) {
+    trustedImages = dedupeImageVariants([...uniqueStructured, ...galleryImages, ...scopedMediaImages]);
+  } else {
+    const familyTokens = [...new Set(uniqueStructured.map(assetFamilyToken).filter((token): token is string => Boolean(token)))];
+    const familyImages = familyTokens.length === 0
+      ? []
+      : rawImageUrls(html, pageUrl).filter(imageUrl => {
+          const lowerUrl = decodeURIComponent(imageUrl).toLowerCase();
+          return familyTokens.some(token => lowerUrl.includes(token));
+        });
+    trustedImages = dedupeImageVariants([...uniqueStructured, ...galleryImages, ...scopedMediaImages, ...familyImages]);
   }
 
-  const familyTokens = [...new Set(uniqueStructured.map(assetFamilyToken).filter((token): token is string => Boolean(token)))];
-  if (familyTokens.length === 0) return uniqueStructured.slice(0, limit);
-
-  const familyImages = rawImageUrls(html, pageUrl).filter(imageUrl => {
-    const lowerUrl = decodeURIComponent(imageUrl).toLowerCase();
-    return familyTokens.some(token => lowerUrl.includes(token));
+  const trustedKeys = new Set(dedupeImageVariants(trustedImages).map(image => {
+    const parsed = new URL(image);
+    return `${parsed.hostname.toLowerCase()}${decodeURIComponent(parsed.pathname).toLowerCase()}`;
+  }));
+  const fallbackImages = dedupeImageVariants(imageUrlsFromMarkup(html, pageUrl)).filter(image => {
+    const parsed = new URL(image);
+    const key = `${parsed.hostname.toLowerCase()}${decodeURIComponent(parsed.pathname).toLowerCase()}`;
+    return !trustedKeys.has(key);
   });
 
-  return dedupeImageVariants([...uniqueStructured, ...familyImages]).slice(0, limit);
+  return {
+    images: trustedImages.slice(0, limit),
+    fallbackImages: fallbackImages.slice(0, 30),
+  };
+}
+
+export function extractProductPageImages(html: string, pageUrl: string, limit = 10): string[] {
+  return extractProductPageImageCandidates(html, pageUrl, limit).images;
+}
+
+export function normalizeProductImageCandidate(rawUrl: string, pageUrl: string): string | null {
+  return normalizeImageUrl(rawUrl, pageUrl);
 }
