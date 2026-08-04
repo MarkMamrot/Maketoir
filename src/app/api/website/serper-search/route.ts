@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, productUrlScore, type ProductUrlIdentity } from '@/lib/website/productUrlCandidates';
+import { readSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /**
  * POST /api/website/serper-search
@@ -18,16 +20,25 @@ import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, product
  * Returns: { success: true, urls: string[] }
  */
 
-async function serperQuery(query: string, apiKey: string, num = 20, searchAuOnly = true): Promise<string[]> {
-  const res = await fetch('https://google.serper.dev/search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify(searchAuOnly ? { q: query, gl: 'au', num } : { q: query, num }),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.organic ?? []).map((r: any) => r.link as string).filter(Boolean);
+interface SerperQueryResult {
+  urls: string[];
+  error?: string;
+}
+
+async function serperQuery(query: string, apiKey: string, num = 20, searchAuOnly = true): Promise<SerperQueryResult> {
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+      body: JSON.stringify(searchAuOnly ? { q: query, gl: 'au', num } : { q: query, num }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return { urls: [], error: `Serper HTTP ${res.status}` };
+    const data = await res.json();
+    return { urls: (data.organic ?? []).map((r: any) => r.link as string).filter(Boolean) };
+  } catch (error) {
+    return { urls: [], error: error instanceof Error ? error.message : 'Serper request failed' };
+  }
 }
 
 function extractDomain(url: string): string | null {
@@ -101,10 +112,30 @@ export async function POST(req: Request) {
       (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )];
 
-    const [rawUrls, ...preferredResults] = await Promise.all([
-      include_general ? serperQuery(baseQuery, apiKey, 20, search_au_only) : Promise.resolve([]),
+    const [generalSearch, ...preferredSearches] = await Promise.all([
+      include_general ? serperQuery(baseQuery, apiKey, 20, search_au_only) : Promise.resolve({ urls: [] }),
       ...preferredDomains.map(domain => serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only)),
     ]);
+    const rawUrls = generalSearch.urls;
+    const preferredResults = preferredSearches.map(result => result.urls);
+    const searchErrors = [generalSearch, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
+    if (searchErrors.length > 0) {
+      const runtimeSession = readSession();
+      await reportRuntimeIssue({
+        businessId: runtimeSession?.businessId,
+        source: 'website-content',
+        operation: 'serper_product_search',
+        severity: 'warning',
+        title: 'Product URL search provider request failed',
+        error: new Error(searchErrors.join('; ')),
+        context: {
+          productName: identity.name.slice(0, 200),
+          preferredDomainCount: preferredDomains.length,
+          failedRequestCount: searchErrors.length,
+          includeGeneral: Boolean(include_general),
+        },
+      });
+    }
 
     // Strip any URL whose domain is in the excluded list
     const allUrls = excludedDomains.length
