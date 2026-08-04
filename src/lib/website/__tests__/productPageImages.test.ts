@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractProductPageImageCandidates, extractProductPageImages } from '../productPageImages';
+import { extractProductPageImageCandidates, extractProductPageImages, extractShopifyProductImages } from '../productPageImages';
 
 describe('extractProductPageImages', () => {
   it('keeps the selected product media family and rejects recommendation images', () => {
@@ -76,5 +76,22 @@ describe('extractProductPageImages', () => {
     ]);
     expect(candidates.fallbackImages).toContain('https://shop.test/cdn/Flutterby_Sherpa-Jacket_01.png');
     expect(candidates.images).not.toContain('https://shop.test/cdn/Flutterby_Sherpa-Jacket_01.png');
+  });
+
+  it('collects exact Shopify product JSON images when theme HTML is unavailable', () => {
+    const payload = {
+      title: 'Long Sleeve Bodysuit / Flutterby',
+      images: [
+        '//cdn.shopify.com/files/Flutterby_LS-Bodysuit_01.png?width=1946',
+        '//cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-01.jpg?width=1946',
+        { src: '//cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-02.jpg?width=1946' },
+      ],
+    };
+
+    expect(extractShopifyProductImages(payload, 'https://shop.test/products/flutterby.js')).toEqual([
+      'https://cdn.shopify.com/files/Flutterby_LS-Bodysuit_01.png',
+      'https://cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-01.jpg',
+      'https://cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-02.jpg',
+    ]);
   });
 });

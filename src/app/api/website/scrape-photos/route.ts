@@ -1,7 +1,64 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { extractProductPageImageCandidates, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
+import { extractProductPageImageCandidates, extractShopifyProductImages, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
 import { extractProductPageFacts } from '@/lib/website/productPageFacts';
+
+const PAGE_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+};
+
+function canonicalProductUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  for (const key of [...url.searchParams.keys()]) {
+    if (key.startsWith('utm_') || ['srsltid', 'gclid', 'fbclid', '_gl'].includes(key)) {
+      url.searchParams.delete(key);
+    }
+  }
+  return url.href;
+}
+
+async function fetchProductPage(rawUrl: string): Promise<Response> {
+  const canonicalUrl = canonicalProductUrl(rawUrl);
+  const attempts = canonicalUrl === rawUrl ? [canonicalUrl, canonicalUrl] : [canonicalUrl, rawUrl];
+  let lastError: unknown;
+
+  for (const attemptUrl of attempts) {
+    try {
+      const response = await fetch(attemptUrl, {
+        headers: PAGE_HEADERS,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(12000),
+      });
+      if (response.ok) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Product page fetch failed');
+}
+
+async function fetchShopifyGallery(rawUrl: string): Promise<string[]> {
+  const url = new URL(canonicalProductUrl(rawUrl));
+  if (!/^\/products\/[^/]+\/?$/.test(url.pathname)) return [];
+  url.pathname = `${url.pathname.replace(/\/$/, '')}.js`;
+
+  try {
+    const response = await fetch(url, {
+      headers: PAGE_HEADERS,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) return [];
+    return extractShopifyProductImages(await response.json(), response.url || url.href);
+  } catch (error) {
+    console.warn(`[scrape-photos] Shopify product JSON failed for ${rawUrl}:`, error instanceof Error ? error.message : error);
+    return [];
+  }
+}
 
 /**
  * POST /api/website/scrape-photos
@@ -34,29 +91,28 @@ export async function POST(req: Request) {
     // Prefer the approved page's own product gallery. This excludes recommendation
     // carousels and other products that broad image extraction commonly returns.
     for (const rawUrl of urls) {
+      const shopifyGalleryPromise = fetchShopifyGallery(rawUrl);
+      let directImages: string[] = [];
       try {
-        const pageRes = await fetch(rawUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-          signal: AbortSignal.timeout(8000),
-        });
-        if (!pageRes.ok) {
-          failedUrls.push(rawUrl);
-          continue;
-        }
+        const pageRes = await fetchProductPage(rawUrl);
         const html = await pageRes.text();
-        const candidates = extractProductPageImageCandidates(html, rawUrl);
+        const sourceUrl = pageRes.url || canonicalProductUrl(rawUrl);
+        const candidates = extractProductPageImageCandidates(html, sourceUrl);
         const images = candidates.images;
-        const facts = extractProductPageFacts(html, rawUrl);
+        const facts = extractProductPageFacts(html, sourceUrl);
         if (facts) productFactBlocks.push(facts);
-        if (images.length === 0) failedUrls.push(rawUrl);
-        images.forEach(image => uniqueImages.add(image));
+        directImages = images;
         candidates.fallbackImages.forEach(image => fallbackImages.add(image));
       } catch (e: any) {
         console.warn(`[scrape-photos] Direct fetch failed for ${rawUrl}:`, e.message);
+      }
+
+      const shopifyImages = await shopifyGalleryPromise;
+      const trustedImages = directImages.length > 1 || directImages.length >= shopifyImages.length
+        ? directImages
+        : shopifyImages;
+      trustedImages.forEach(image => uniqueImages.add(image));
+      if (trustedImages.length === 0) {
         failedUrls.push(rawUrl);
       }
     }

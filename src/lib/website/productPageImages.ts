@@ -196,3 +196,17 @@ export function extractProductPageImages(html: string, pageUrl: string, limit = 
 export function normalizeProductImageCandidate(rawUrl: string, pageUrl: string): string | null {
   return normalizeImageUrl(rawUrl, pageUrl);
 }
+
+export function extractShopifyProductImages(payload: unknown, pageUrl: string, limit = 10): string[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const images = (payload as Record<string, unknown>).images;
+  if (!Array.isArray(images)) return [];
+
+  return dedupeImageVariants(images.flatMap(image => {
+    if (typeof image === 'string') return normalizeImageUrl(image, pageUrl) ?? [];
+    if (!image || typeof image !== 'object') return [];
+    const record = image as Record<string, unknown>;
+    const rawUrl = record.src ?? record.url;
+    return typeof rawUrl === 'string' ? normalizeImageUrl(rawUrl, pageUrl) ?? [] : [];
+  })).slice(0, limit);
+}
