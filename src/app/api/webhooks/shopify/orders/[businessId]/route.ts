@@ -374,6 +374,34 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       if (existing.length) {
         const so = existing[0];
         try {
+          // Draft and confirmed orders have not moved on-hand stock. The repository
+          // transaction safely releases old commitments and commits replacement lines.
+          if ((so.status === 'draft' || so.status === 'confirmed') && Array.isArray(payload.line_items)) {
+            const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
+            const variantRows = await imsQuery<{ variant_id: string; shopify_variant_id: string }>(
+              `SELECT v.variant_id, v.shopify_variant_id
+                 FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
+                WHERE p.business_id = ? AND v.shopify_variant_id IS NOT NULL`,
+              [businessId],
+            );
+            const shopifyToIms = new Map(variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]));
+            const items = payload.line_items.map((li: any) => {
+              const qty = Number(li.quantity ?? 1);
+              const unitPrice = parseFloat(li.price ?? '0');
+              return {
+                shopify_line_item_id: String(li.id ?? '') || null,
+                variant_id: shopifyToIms.get(String(li.variant_id ?? '')) ?? fallbackVariantId,
+                qty_ordered: qty,
+                unit_price: unitPrice,
+                discount_pct: 0,
+                tax_rate: 0.1,
+                line_total: qty * unitPrice,
+                notes: li.name ?? '',
+              };
+            });
+            await ImsSORepo.update(so.id, {}, items);
+          }
+
           // Always update financial fields.
           const subtotal    = parseFloat(payload.subtotal_price ?? '0');
           const taxAmount   = parseFloat(payload.total_tax ?? '0');
@@ -394,36 +422,13 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
              giftCardAmount,
              payload.financial_status ?? null, gateway, payload.name ?? null, so.id],
           );
-
-          // Only update line items when the SO hasn't committed stock yet (draft).
-          if (so.status === 'draft' && Array.isArray(payload.line_items)) {
-            const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
-            const variantRows = await imsQuery<{ variant_id: string; shopify_variant_id: string }>(
-              `SELECT v.variant_id, v.shopify_variant_id
-                 FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
-                WHERE p.business_id = ?`,
-              [businessId],
-            );
-            const shopifyToIms = new Map(variantRows.map(r => [String(r.shopify_variant_id), r.variant_id]));
-            await imsExecute(`DELETE FROM ims_sales_order_items WHERE so_id = ?`, [so.id]);
-            for (const li of payload.line_items) {
-              const imsId = shopifyToIms.get(String(li.variant_id ?? '')) ?? fallbackVariantId;
-              const qty = Number(li.quantity ?? 1);
-              const price = parseFloat(li.price ?? '0');
-              await imsExecute(
-                `INSERT INTO ims_sales_order_items
-                   (so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-                 VALUES (?, ?, ?, ?, 0, ?, 0, 0.1, ?, ?)`,
-                [so.id, String(li.id ?? '') || null, imsId, qty, price, qty * price, li.name ?? ''],
-              );
-            }
-          }
         } catch (e: any) {
           console.error('[shopify-webhook] orders/updated error:', e.message);
           await reportWebhookFailure(businessId, topic, e, {
             shopify_order_id: orderIdStr,
             so_id: so.id,
           });
+          return NextResponse.json({ error: e?.message ?? String(e) }, { status: 500 });
         }
       }
     }

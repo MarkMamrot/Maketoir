@@ -2090,9 +2090,9 @@ export const ImsSORepo = {
           const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
           await conn.execute(
             `INSERT INTO ims_sales_order_items
-               (so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?)`,
-            [id, item.variant_id, item.qty_ordered, item.unit_price,
+               (so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
              item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]
           );
         }
