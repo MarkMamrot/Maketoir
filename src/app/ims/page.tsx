@@ -4309,7 +4309,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '' },
+          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4433,7 +4433,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '' },
+          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
           preferred_sites: preferredSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4461,10 +4461,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
       });
       const judgeData = await judgeResponse.json();
       if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
-      const rankedUrls = (judgeData.rankedUrls ?? [])
+      const rankedUrls: string[] = (judgeData.rankedUrls ?? [])
         .filter((entry: any) => entry?.url && entry.keep)
-        .map((entry: any) => entry.url as string);
-      const finalUrls = [...new Set(rankedUrls)].slice(0, 1);
+        .map((entry: any) => String(entry.url));
+      const finalUrls: string[] = [...new Set<string>(rankedUrls)].slice(0, 1);
       if (!judgeData.validUrlFound || finalUrls.length === 0) {
         throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
       }
@@ -23828,16 +23828,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <div style={{ marginBottom: 20, padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                     Branch Transfer Access in POS
-                    <HintBadge text="Defines which user tiers can create branch transfers from POS." />
+                    <HintBadge text="Controls who can send a branch transfer from POS. Manager mode asks for the location manager PIN." />
                   </label>
                   <select
-                    value={settings['pos_bt_access'] ?? 'manager'}
+                    value={settings['pos_bt_access'] ?? 'all'}
                     onChange={async e => { await saveSettings({ pos_bt_access: e.target.value }); }}
                     style={{ ...inputStyle, maxWidth: 280 }}
                   >
                     <option value="disabled">Disabled — not accessible from POS</option>
-                    <option value="manager">Manager &amp; above only (PosManager, StandardUser, Admin)</option>
-                    <option value="all">All POS users (including regular staff)</option>
+                    <option value="manager">Manager PIN required</option>
+                    <option value="all">Everyone — no manager PIN required</option>
                   </select>
                 </div>
 

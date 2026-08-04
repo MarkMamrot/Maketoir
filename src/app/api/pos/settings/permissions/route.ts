@@ -28,5 +28,6 @@ export async function GET() {
     [businessId],
   ).catch(() => []);
 
-  return NextResponse.json({ bt_access: rows[0]?.value ?? 'manager' });
+  const access = rows[0]?.value;
+  return NextResponse.json({ bt_access: access === 'disabled' || access === 'manager' ? access : 'all' });
 }

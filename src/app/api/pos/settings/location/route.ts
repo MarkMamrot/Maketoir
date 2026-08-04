@@ -26,8 +26,12 @@ export interface PosLocationSettings {
   receiptFooter:      string;
   giftReceiptMessage: string;
   theme:              string; // preset key
+  customMode:         'light' | 'dark';
+  backgroundColor:    string;
   topbarColor:        string; // hex or ''
   searchbarColor:     string; // hex or ''
+  chargeButtonColor:  string;
+  headingTextColor:   string;
   avatar:             string; // filename from /avatars/
   bgImage:            string; // base64 data URL or ''
   bgOpacity:          number; // 0-30
@@ -39,8 +43,12 @@ const DEFAULTS: PosLocationSettings = {
   receiptFooter: '',
   giftReceiptMessage: '',
   theme: 'midnight',
+  customMode: 'dark',
+  backgroundColor: '',
   topbarColor: '',
   searchbarColor: '',
+  chargeButtonColor: '',
+  headingTextColor: '',
   avatar: '',
   bgImage: '',
   bgOpacity: 10,
@@ -49,6 +57,11 @@ const DEFAULTS: PosLocationSettings = {
 };
 
 const SETTINGS_KEY = (locationId: number) => `pos_loc_${locationId}_settings`;
+
+function colorSetting(value: unknown): string {
+  const color = String(value ?? '').trim().toLowerCase();
+  return /^#[0-9a-f]{6}$/.test(color) ? color : '';
+}
 
 // GET /api/pos/settings/location?location_id=X
 export async function GET(req: Request) {
@@ -118,8 +131,12 @@ export async function PUT(req: Request) {
     receiptFooter:      String(body.receiptFooter ?? '').slice(0, 500),
     giftReceiptMessage: String(body.giftReceiptMessage ?? '').slice(0, 500),
     theme:              String(body.theme ?? 'classic').slice(0, 30),
-    topbarColor:        String(body.topbarColor ?? '').slice(0, 30),
-    searchbarColor:     String(body.searchbarColor ?? '').slice(0, 30),
+    customMode:         body.customMode === 'light' ? 'light' : 'dark',
+    backgroundColor:    colorSetting(body.backgroundColor),
+    topbarColor:        colorSetting(body.topbarColor),
+    searchbarColor:     colorSetting(body.searchbarColor),
+    chargeButtonColor:  colorSetting(body.chargeButtonColor),
+    headingTextColor:   colorSetting(body.headingTextColor),
     avatar:             String(body.avatar ?? '').replace(/[^a-zA-Z0-9_.\-]/g, '').slice(0, 100),    bgImage:            String(body.bgImage ?? '').slice(0, 5_000_000), // base64 JPEG, capped at ~5 MB
     bgOpacity:          Math.min(30, Math.max(0, Number(body.bgOpacity ?? 10))),
     bgPosition:         body.bgPosition === 'bottom' ? 'bottom' : 'center',

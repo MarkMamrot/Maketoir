@@ -97,12 +97,22 @@ Return ONLY valid JSON — no markdown fences, no extra text:
           signal: AbortSignal.timeout(90000),
         },
       );
+      const rawResponse = await res.text();
       if (!res.ok) {
-        const errText = await res.text();
-        return NextResponse.json({ error: `Gemini error: ${res.status}`, detail: errText.slice(0, 300) }, { status: 502 });
+        finishReason = `HTTP_${res.status}`;
+        responseLength = rawResponse.length;
+        if (res.status >= 500 && attempt === 0) continue;
+        return NextResponse.json({ error: `Gemini error: ${res.status}`, detail: rawResponse.slice(0, 300) }, { status: 502 });
       }
 
-      const json = await res.json();
+      let json: any;
+      try {
+        json = JSON.parse(rawResponse);
+      } catch {
+        finishReason = 'NON_JSON_HTTP_RESPONSE';
+        responseLength = rawResponse.length;
+        continue;
+      }
       const candidate = json.candidates?.[0];
       const textParts = (candidate?.content?.parts ?? [])
         .map((part: any) => typeof part.text === 'string' ? part.text : '')

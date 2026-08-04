@@ -3197,6 +3197,58 @@ export const ImsBTRepo = {
     return transfer_id;
   },
 
+  async createSent(
+    data: Pick<ImsBT, 'from_location_id' | 'to_location_id' | 'transfer_date' | 'notes'>,
+    items: { variant_id: string; qty_sent: number; unit_cost: number; notes?: string }[],
+    businessId: string,
+  ): Promise<number> {
+    await ensureBranchTransferTenantTables();
+    const transferNumber = await nextBTNumber(businessId);
+    const totalValue = items.reduce(
+      (sum, item) => sum + Number(item.qty_sent) * Number(item.unit_cost),
+      0,
+    );
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [result]: any = await conn.execute(
+        `INSERT INTO ims_branch_transfers
+           (business_id, transfer_number, from_location_id, to_location_id, status, transfer_date, notes, total_value)
+         VALUES (?, ?, ?, ?, 'sent', ?, ?, ?)`,
+        [businessId, transferNumber, data.from_location_id, data.to_location_id,
+         data.transfer_date, data.notes ?? null, totalValue],
+      );
+      const transferId = Number(result.insertId);
+
+      for (const item of items) {
+        const qtySent = Number(item.qty_sent);
+        const unitCost = Number(item.unit_cost);
+        const lineValue = qtySent * unitCost;
+        await conn.execute(
+          `INSERT INTO ims_branch_transfer_items
+             (transfer_id, variant_id, qty_sent, unit_cost, line_value, notes)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [transferId, item.variant_id, qtySent, unitCost, lineValue, item.notes ?? null],
+        );
+        await conn.execute(
+          `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+           VALUES (?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+          [businessId, item.variant_id, data.from_location_id, qtySent],
+        );
+      }
+
+      await conn.commit();
+      return transferId;
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  },
+
   async update(
     id: number,
     data: Partial<Pick<ImsBT, 'from_location_id' | 'to_location_id' | 'transfer_date' | 'notes'>>,

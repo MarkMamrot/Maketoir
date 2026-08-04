@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
 import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
+import { readSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const SYSTEM_INSTRUCTION = `You are an expert e-commerce product content writer specialising in retail apparel and accessories. You use web search to research specific products and write accurate, engaging, SEO-optimised content for Shopify stores. Always respond with valid JSON only — no markdown code blocks, no preamble.`;
 
@@ -351,37 +353,62 @@ export async function POST(req: Request) {
       restBody.tools = [{ google_search: {} }];
     }
 
-    const genRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(restBody),
-        signal: AbortSignal.timeout(120000),
-      },
-    );
-
-    if (!genRes.ok) {
-      const errBody = await genRes.text();
-      return NextResponse.json(
-        { error: `Gemini API error (HTTP ${genRes.status}): ${errBody.slice(0, 300)}` },
-        { status: 502 },
+    let parsed: Record<string, any> | null = null;
+    let lastText = '';
+    let lastError = '';
+    for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
+      const genRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...restBody,
+            generationConfig: { ...restBody.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
+          }),
+          signal: AbortSignal.timeout(120000),
+        },
       );
+      const rawResponse = await genRes.text();
+      if (!genRes.ok) {
+        lastError = `Gemini API error (HTTP ${genRes.status}): ${rawResponse.slice(0, 300)}`;
+        if (genRes.status < 500 || attempt === 1) break;
+        continue;
+      }
+
+      let genJson: any;
+      try {
+        genJson = JSON.parse(rawResponse);
+      } catch {
+        lastError = `Gemini returned a non-JSON HTTP response: ${rawResponse.slice(0, 300)}`;
+        continue;
+      }
+      const textParts = (genJson.candidates?.[0]?.content?.parts ?? [])
+        .map((part: any) => typeof part.text === 'string' ? part.text : '')
+        .filter(Boolean);
+      lastText = textParts.join('\n').trim();
+      lastError = lastText ? 'AI response could not be parsed as JSON.' : 'AI returned an empty response.';
+      parsed = parseAiJsonResponse<Record<string, any>>(textParts);
     }
 
-    const genJson = await genRes.json();
-    const textParts = (genJson.candidates?.[0]?.content?.parts ?? [])
-      .map((part: any) => typeof part.text === 'string' ? part.text : '')
-      .filter(Boolean);
-    const text = textParts.join('\n').trim();
-
-    if (!text) {
-      return NextResponse.json({ error: 'AI returned empty response.' }, { status: 500 });
-    }
-
-    const parsed = parseAiJsonResponse(textParts);
     if (!parsed) {
-      return NextResponse.json({ error: 'AI response could not be parsed as JSON.', raw: text.slice(0, 500) }, { status: 500 });
+      const runtimeSession = readSession();
+      await reportRuntimeIssue({
+        businessId: runtimeSession?.businessId ?? databaseId,
+        source: 'website-content',
+        operation: 'generate_content_parse_response',
+        severity: 'error',
+        title: 'Website content AI returned invalid JSON',
+        error: new Error(lastError || 'Gemini content response could not be parsed after retry.'),
+        context: {
+          productName: String(product.name ?? '').slice(0, 200),
+          mode: String(mode ?? 'generate').slice(0, 50),
+          field: String(field ?? '').slice(0, 50),
+          modelId: modelId.slice(0, 100),
+          responseLength: lastText.length,
+        },
+      });
+      return NextResponse.json({ error: `${lastError} Retried once.`, raw: lastText.slice(0, 500) }, { status: 502 });
     }
 
     // Normalise content structure

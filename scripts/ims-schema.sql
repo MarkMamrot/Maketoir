@@ -77,6 +77,32 @@ CREATE TABLE IF NOT EXISTS ims_locations (
   INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS pos_chat_messages (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  location_id    INT NOT NULL,
+  location_name  VARCHAR(255) NOT NULL DEFAULT '',
+  user_name      VARCHAR(255) NOT NULL DEFAULT '',
+  avatar         VARCHAR(100) NOT NULL DEFAULT '',
+  message        TEXT NOT NULL,
+  to_location_id INT NULL,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_pos_chat_created (created_at),
+  INDEX idx_pos_chat_dm (location_id, to_location_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_chat_attachments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  message_id    INT NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  stored_name   VARCHAR(255) NOT NULL,
+  mime_type     VARCHAR(100) NOT NULL,
+  file_size     INT UNSIGNED NOT NULL,
+  created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_pos_chat_attachment_message (message_id),
+  CONSTRAINT fk_pos_chat_attachment_message FOREIGN KEY (message_id)
+    REFERENCES pos_chat_messages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Settings (per-business IMS configuration) ───────────────
 CREATE TABLE IF NOT EXISTS ims_settings (
   id          INT AUTO_INCREMENT PRIMARY KEY,

@@ -6,6 +6,7 @@ Always read this file when starting a new session or implementing a feature to u
 ---
 
 ## 🌐 Deployment Environment
+* **POS staff workflow upgrades (2026-08-04):** Order notes now appear on standard, gift, and emailed receipts plus expanded POS report transactions. POS transfer receiving explicitly focuses the barcode field on entry. POS-created branch transfers default to everyone, optionally require the existing location manager PIN, bind the source to the current POS branch server-side, and atomically enter `sent` while committing source stock. Team/DM chat windows are larger and resizable and support up to three JPG/PNG/WebP/PDF attachments of 10 MB each under tenant `UPLOAD_BASE_PATH`; deploy `scripts/catchup-schema-all-tenants.mjs` before using attachments. Preset POS themes remain complete designs; Custom alone exposes light/dark base plus background, menu, search, charge, and heading colours.
 * **Hosting:** Vercel (serverless, auto-deploys on push to `main`)
 * **Public URL:** TBC (Vercel project URL)
 * **Framework:** Next.js 14 (App Router)

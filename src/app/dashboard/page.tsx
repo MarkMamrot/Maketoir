@@ -5098,7 +5098,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '' },
+          product: { name: product.name, brand: product.brand ?? '', code: product.code },
           ...searchSources,
         }),
       });

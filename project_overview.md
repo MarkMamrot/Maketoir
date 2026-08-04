@@ -22,6 +22,7 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 
 ### ✅ Completed
 - [x] POS system (device setup, PIN login, cart, payments, parked sales, receipt, EOD reconciliation)
+- [x] POS branch transfer creation/receiving, receipt order notes, resizable chat attachments, and per-location custom appearance
 - [x] Register lifecycle management (open/close, stale session detection)
 - [x] EOD accounting with Tax-Exc / GST / Tax-Inc columns (tax-inclusive price handling)
 - [x] Xero EOD sync (Inclusive tax treatment, one invoice per payment method per day)

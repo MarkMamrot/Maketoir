@@ -1,0 +1,81 @@
+export interface ProductUrlIdentity {
+  name: string;
+  brand?: string;
+  code?: string;
+  barcode?: string;
+}
+
+const GENERIC_WORDS = new Set(['and', 'the', 'for', 'with', 'from', 'new', 'hat', 'hats', 'cap', 'caps']);
+const NON_PRODUCT_PATH = /\/(?:collections?|categories?|search|pages?|blogs?|brands?)(?:\/|$)/i;
+const PRODUCT_PATH = /\/(?:products?|product|p)\//i;
+
+function normalizedWords(value: string): string[] {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+}
+
+function identityWords(product: ProductUrlIdentity): string[] {
+  const brandWords = new Set(normalizedWords(product.brand ?? ''));
+  return [...new Set(normalizedWords(product.name).filter(word => word.length >= 3 && !brandWords.has(word) && !GENERIC_WORDS.has(word)))];
+}
+
+function compact(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+export function productUrlScore(url: string, label: string, product: ProductUrlIdentity): number {
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return -100; }
+  if (!/^https?:$/.test(parsed.protocol) || NON_PRODUCT_PATH.test(parsed.pathname)) return -100;
+
+  const haystack = decodeURIComponent(`${parsed.pathname} ${label}`).toLowerCase();
+  let score = PRODUCT_PATH.test(parsed.pathname) ? 8 : 0;
+  for (const word of identityWords(product)) {
+    if (haystack.includes(word)) score += 3;
+  }
+  for (const identifier of [product.code, product.barcode]) {
+    const value = compact(identifier ?? '');
+    if (value.length >= 4 && compact(haystack).includes(value)) score += 20;
+  }
+  return score;
+}
+
+export function isLikelyProductUrl(url: string, product: ProductUrlIdentity): boolean {
+  const words = identityWords(product);
+  const minimum = words.length > 0 ? 11 : 8;
+  return productUrlScore(url, '', product) >= minimum;
+}
+
+export function isProductPageUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return /^https?:$/.test(parsed.protocol) && PRODUCT_PATH.test(parsed.pathname) && !NON_PRODUCT_PATH.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function decodeHtml(value: string): string {
+  return value.replace(/&amp;/gi, '&').replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'");
+}
+
+export function extractLinkedProductUrls(html: string, pageUrl: string, product: ProductUrlIdentity, limit = 5): string[] {
+  let page: URL;
+  try { page = new URL(pageUrl); } catch { return []; }
+  const candidates = new Map<string, number>();
+
+  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    try {
+      const url = new URL(decodeHtml(match[1]), page);
+      if (url.hostname !== page.hostname) continue;
+      url.hash = '';
+      const label = decodeHtml(match[2].replace(/<[^>]+>/g, ' '));
+      const score = productUrlScore(url.href, label, product);
+      if (score < 11) continue;
+      candidates.set(url.href, Math.max(score, candidates.get(url.href) ?? -100));
+    } catch {
+      // Ignore malformed links.
+    }
+  }
+
+  return [...candidates.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([url]) => url);
+}

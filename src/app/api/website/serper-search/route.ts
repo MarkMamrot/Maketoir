@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, productUrlScore, type ProductUrlIdentity } from '@/lib/website/productUrlCandidates';
 
 /**
  * POST /api/website/serper-search
@@ -43,6 +44,24 @@ function urlMatchesDomain(url: string, domain: string): boolean {
   } catch { return false; }
 }
 
+async function expandPreferredResults(urls: string[], domain: string, product: ProductUrlIdentity): Promise<string[]> {
+  const pages = urls.filter(url => urlMatchesDomain(url, domain) && !isLikelyProductUrl(url, product)).slice(0, 3);
+  const expanded = await Promise.all(pages.map(async pageUrl => {
+    try {
+      const response = await fetch(pageUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MarketoirProductDiscovery/1.0)', 'Accept': 'text/html' },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) return [];
+      return extractLinkedProductUrls(await response.text(), response.url || pageUrl, product);
+    } catch {
+      return [];
+    }
+  }));
+  return [...new Set(expanded.flat())];
+}
+
 export async function POST(req: Request) {
   try {
     const session = cookies().get('marketoir_session');
@@ -64,7 +83,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'SERPER_API_KEY not configured.' }, { status: 500 });
     }
 
-    const baseQuery = `${product.name} ${product.brand}`;
+    const identity: ProductUrlIdentity = {
+      name: String(product.name),
+      brand: String(product.brand ?? ''),
+      code: String(product.code ?? product.sku ?? ''),
+      barcode: String(product.barcode ?? ''),
+    };
+    const baseQuery = `${identity.name} ${identity.brand}`;
 
     // Extract unique preferred domains (only from explicitly-enabled URLs, max 2)
     const preferredDomains = [...new Set(
@@ -89,17 +114,34 @@ export async function POST(req: Request) {
     const seen = new Set<string>();
     const urls: string[] = [];
 
-    // First: use direct site searches for each enabled supplier/brand domain.
+    // First: use one strong product URL per enabled supplier/brand domain. If
+    // Google only found a category page, inspect that page for the product link.
     for (const [index, domain] of preferredDomains.entries()) {
       const preferredPool = preferredResults[index] ?? [];
-      const match = preferredPool.find(url => urlMatchesDomain(url, domain) && !seen.has(url))
-        ?? allUrls.find(url => urlMatchesDomain(url, domain) && !seen.has(url));
+      const domainPool = [...preferredPool, ...allUrls.filter(url => urlMatchesDomain(url, domain))];
+      const directMatches = domainPool
+        .filter(url => !seen.has(url) && isLikelyProductUrl(url, identity))
+        .sort((a, b) => productUrlScore(b, '', identity) - productUrlScore(a, '', identity));
+      const expandedMatches = directMatches.length > 0 ? [] : await expandPreferredResults(domainPool, domain, identity);
+      const match = directMatches[0] ?? expandedMatches[0];
       if (match) { seen.add(match); urls.push(match); }
     }
 
-    // Then: fill remaining slots from the general pool (skip already-chosen)
+    // Then fill from general web, preferring other domains so supplier results
+    // cannot crowd out viable retailer/product pages.
     if (include_general) {
-      for (const url of allUrls) {
+      const strictGeneralCandidates = allUrls
+        .filter(url => !seen.has(url) && isLikelyProductUrl(url, identity))
+        .sort((a, b) => {
+          const aPreferred = preferredDomains.some(domain => urlMatchesDomain(a, domain)) ? 1 : 0;
+          const bPreferred = preferredDomains.some(domain => urlMatchesDomain(b, domain)) ? 1 : 0;
+          return aPreferred - bPreferred || productUrlScore(b, '', identity) - productUrlScore(a, '', identity);
+        });
+      const fallbackProductPages = allUrls.filter(url =>
+        !seen.has(url) && !strictGeneralCandidates.includes(url) && isProductPageUrl(url)
+      );
+      const generalCandidates = [...strictGeneralCandidates, ...fallbackProductPages];
+      for (const url of generalCandidates) {
         if (urls.length >= 3) break;
         if (!seen.has(url)) { seen.add(url); urls.push(url); }
       }

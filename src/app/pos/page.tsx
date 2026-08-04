@@ -499,8 +499,12 @@ interface PosLocationSettings {
   receiptFooter:      string;
   giftReceiptMessage: string;
   theme:              string;
+  customMode:         'light' | 'dark';
+  backgroundColor:    string;
   topbarColor:        string;
   searchbarColor:     string;
+  chargeButtonColor:  string;
+  headingTextColor:   string;
   avatar:             string;
   bgImage:            string;
   bgOpacity:          number;
@@ -509,7 +513,7 @@ interface PosLocationSettings {
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', topbarColor: '', searchbarColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit',
 };
 
 const POS_AVATAR_FILES = [
@@ -778,8 +782,14 @@ const POS_THEMES: Record<string, { name: string; vars: Record<string, string> }>
 function computeThemeVars(s: PosLocationSettings): Record<string, string> {
   const preset = POS_THEMES[s.theme] ?? POS_THEMES.classic;
   const vars: Record<string, string> = { ...preset.vars };
-  if (s.topbarColor)    vars['--pos-topbar-bg']    = s.topbarColor;
-  if (s.searchbarColor) vars['--pos-searchbar-bg'] = s.searchbarColor;
+  if (s.theme === 'custom') {
+    Object.assign(vars, s.customMode === 'light' ? POS_THEMES.classic.vars : POS_THEMES.midnight.vars);
+    if (s.backgroundColor)   vars['--sv-bg-0']           = s.backgroundColor;
+    if (s.topbarColor)       vars['--pos-topbar-bg']     = s.topbarColor;
+    if (s.searchbarColor)    vars['--pos-searchbar-bg']  = s.searchbarColor;
+    if (s.chargeButtonColor) vars['--pos-charge-btn-bg'] = s.chargeButtonColor;
+    if (s.headingTextColor)  vars['--sv-text-strong']    = s.headingTextColor;
+  }
   return vars;
 }
 
@@ -908,8 +918,12 @@ function PosSettingsModal({
   const [receiptFooter,      setReceiptFooter]      = useState(initialSettings.receiptFooter);
   const [giftReceiptMessage, setGiftReceiptMessage] = useState(initialSettings.giftReceiptMessage);
   const [theme,              setTheme]              = useState(initialSettings.theme || 'classic');
+  const [customMode,         setCustomMode]         = useState<'light' | 'dark'>(initialSettings.customMode ?? 'dark');
+  const [backgroundColor,    setBackgroundColor]    = useState(initialSettings.backgroundColor ?? '');
   const [topbarColor,        setTopbarColor]        = useState(initialSettings.topbarColor);
   const [searchbarColor,     setSearchbarColor]     = useState(initialSettings.searchbarColor);
+  const [chargeButtonColor,  setChargeButtonColor]  = useState(initialSettings.chargeButtonColor ?? '');
+  const [headingTextColor,   setHeadingTextColor]   = useState(initialSettings.headingTextColor ?? '');
   const [avatar,             setAvatar]             = useState(initialSettings.avatar ?? '');
   const [bgImage,            setBgImage]            = useState(initialSettings.bgImage ?? '');
   const [bgOpacity,          setBgOpacity]          = useState(initialSettings.bgOpacity ?? 10);
@@ -919,34 +933,25 @@ function PosSettingsModal({
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, topbarColor, searchbarColor, avatar, bgImage, bgOpacity, bgPosition, bgScale };
+    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale };
   }
 
-  function previewTheme(t: string, tb: string, sb: string) {
-    onPreview(computeThemeVars({ receiptFooter: '', giftReceiptMessage: '', theme: t, topbarColor: tb, searchbarColor: sb, avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit' }));
+  function previewTheme(overrides: Partial<PosLocationSettings> = {}) {
+    onPreview(computeThemeVars({ ...buildSettings(), ...overrides }));
   }
 
   function handleThemeSelect(key: string) {
     setTheme(key);
-    previewTheme(key, topbarColor, searchbarColor);
-  }
-
-  function handleTopbarColor(c: string) {
-    setTopbarColor(c);
-    setTheme('custom');
-    previewTheme('custom', c, searchbarColor);
-  }
-
-  function handleSearchbarColor(c: string) {
-    setSearchbarColor(c);
-    setTheme('custom');
-    previewTheme('custom', topbarColor, c);
+    previewTheme({ theme: key });
   }
 
   function resetCustomColors() {
+    setBackgroundColor('');
     setTopbarColor('');
     setSearchbarColor('');
-    previewTheme(theme, '', '');
+    setChargeButtonColor('');
+    setHeadingTextColor('');
+    previewTheme({ backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '' });
   }
 
   async function handleSave() {
@@ -1092,7 +1097,7 @@ function PosSettingsModal({
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 10 }}>THEME PRESET</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
-                  {Object.entries(POS_THEMES).map(([key, t]) => {
+                  {Object.entries(POS_THEMES).filter(([key]) => key !== 'custom').map(([key, t]) => {
                     const isActive = theme === key;
                     return (
                       <button
@@ -1115,37 +1120,31 @@ function PosSettingsModal({
                       </button>
                     );
                   })}
+                  <button onClick={() => handleThemeSelect('custom')} style={{ padding: '10px 8px', borderRadius: 8, cursor: 'pointer', border: theme === 'custom' ? '2px solid var(--sv-action)' : '2px solid transparent', background: theme === 'custom' ? 'rgba(255,255,255,.08)' : 'var(--sv-bg-2)', color: theme === 'custom' ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontSize: 11, fontWeight: theme === 'custom' ? 700 : 500 }}>Custom</button>
                 </div>
               </div>
               {/* Custom colours */}
-              <div>
+              {theme === 'custom' && <div>
                 <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', flex: 1 }}>CUSTOM COLOUR OVERRIDES</label>
-                  {(topbarColor || searchbarColor) && (
-                    <button onClick={resetCustomColors} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Reset to theme</button>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', flex: 1 }}>CUSTOM COLOURS</label>
+                  {(backgroundColor || topbarColor || searchbarColor || chargeButtonColor || headingTextColor) && (
+                    <button onClick={resetCustomColors} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Reset colours</button>
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Top bar background</label>
-                    <input
-                      type="color"
-                      value={topbarColor || (POS_THEMES[theme]?.vars['--sv-bg-1'] ?? '#0f172a')}
-                      onChange={e => handleTopbarColor(e.target.value)}
-                      style={{ width: 40, height: 32, border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', padding: 2, background: 'var(--sv-bg-2)' }}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <label style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>Base mode</label>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {(['light', 'dark'] as const).map(mode => <button key={mode} onClick={() => { setCustomMode(mode); previewTheme({ customMode: mode }); }} style={{ padding: '6px 12px', borderRadius: 6, border: customMode === mode ? '1px solid var(--sv-action)' : '1px solid var(--sv-etch)', background: customMode === mode ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: customMode === mode ? '#fff' : 'var(--sv-text-main)', cursor: 'pointer', textTransform: 'capitalize' }}>{mode}</button>)}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Search area background</label>
-                    <input
-                      type="color"
-                      value={searchbarColor || (POS_THEMES[theme]?.vars['--sv-bg-1'] ?? '#0f172a')}
-                      onChange={e => handleSearchbarColor(e.target.value)}
-                      style={{ width: 40, height: 32, border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', padding: 2, background: 'var(--sv-bg-2)' }}
-                    />
-                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Background</label><input type="color" value={backgroundColor || (customMode === 'light' ? '#f1f5f9' : '#020617')} onChange={e => { setBackgroundColor(e.target.value); previewTheme({ backgroundColor: e.target.value }); }} style={{ width: 40, height: 32 }} /></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Menu bar</label><input type="color" value={topbarColor || (customMode === 'light' ? '#ffffff' : '#0f172a')} onChange={e => { setTopbarColor(e.target.value); previewTheme({ topbarColor: e.target.value }); }} style={{ width: 40, height: 32 }} /></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Search bar</label><input type="color" value={searchbarColor || (customMode === 'light' ? '#e8edf2' : '#1e293b')} onChange={e => { setSearchbarColor(e.target.value); previewTheme({ searchbarColor: e.target.value }); }} style={{ width: 40, height: 32 }} /></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Charge button</label><input type="color" value={chargeButtonColor || '#1ea8c2'} onChange={e => { setChargeButtonColor(e.target.value); previewTheme({ chargeButtonColor: e.target.value }); }} style={{ width: 40, height: 32 }} /></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><label style={{ fontSize: 13, color: 'var(--sv-text-main)', flex: 1 }}>Text headings</label><input type="color" value={headingTextColor || (customMode === 'light' ? '#0f172a' : '#ffffff')} onChange={e => { setHeadingTextColor(e.target.value); previewTheme({ headingTextColor: e.target.value }); }} style={{ width: 40, height: 32 }} /></div>
                 </div>
-              </div>
+              </div>}
 
               {/* Search area background image */}
               <div>
@@ -1284,7 +1283,7 @@ function MainPos({
   // Card terminal session-level toggle (staff can override admin config for this session)
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
-  const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('manager');
+  const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('all');
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
   const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
   // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
@@ -1754,7 +1753,7 @@ function MainPos({
   }
 
   if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
-  if (screen === 'branch-transfer') return <PosBranchTransferScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'branch-transfer') return <PosBranchTransferScreen session={session} btAccess={btAccess} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened). Also drain the offline
@@ -1939,7 +1938,6 @@ function MainPos({
                 const mAmb  = '#f59e0b';
                 const mGrn  = '#4ade80';
                 const mRed  = '#ef4444';
-                const isManager = ['PosManager', 'StandardUser', 'Admin', 'SuperAdmin'].includes(session.tier ?? '');
                 const btnStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                   padding: '9px 14px', background: 'none', border: 'none',
@@ -2018,7 +2016,7 @@ function MainPos({
                       Receive Transfers
                     </button>
                     {/* Create Branch Transfer */}
-                    {btAccess !== 'disabled' && (btAccess === 'all' || isManager) && (
+                    {btAccess !== 'disabled' && (
                       <button onClick={() => { setScreen('branch-transfer'); setMoreMenuOpen(false); }}
                         style={btnStyle()}
                         onMouseEnter={e => (e.currentTarget.style.background = mHov)}
@@ -2396,7 +2394,8 @@ function MainPos({
 // ─── POS Avatar Leaderboard Bar ───────────────────────────────────────────────
 
 interface LeaderboardEntry { id: number; name: string; today_sales: number; is_open: boolean; avatar: string; }
-interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; to_location_id?: number | null; created_at: string; }
+interface ChatAttachment { id: number; message_id: number; original_name: string; mime_type: string; file_size: number; }
+interface ChatMessage { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; to_location_id?: number | null; created_at: string; attachments?: ChatAttachment[]; }
 
 const OVERTAKE_SAYINGS = [
   "Eat my dust, {other}! 💨",
@@ -2555,6 +2554,7 @@ function PosAvatarBar({
   const [chatOpen,  setChatOpen]  = useState(false);
   const [messages,  setMessages]  = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatFiles, setChatFiles] = useState<File[]>([]);
   const [sending,   setSending]   = useState(false);
   const [unread,    setUnread]    = useState(0);
   const lastReadRef = useRef<number>(0);
@@ -2565,6 +2565,7 @@ function PosAvatarBar({
   const [dmOpen,     setDmOpen]     = useState<number | null>(null);
   const [dmMessages, setDmMessages] = useState<Record<number, ChatMessage[]>>({});
   const [dmInput,    setDmInput]    = useState('');
+  const [dmFiles,    setDmFiles]    = useState<File[]>([]);
   const [dmSending,  setDmSending]  = useState(false);
   const [dmUnread,   setDmUnread]   = useState<Record<number, number>>({});
   const dmLastReadRef = useRef<Record<number, number>>({});
@@ -2633,20 +2634,43 @@ function PosAvatarBar({
       .catch(() => {});
   }
 
+  async function uploadChatFiles(messageId: number, files: File[]) {
+    for (const file of files) {
+      const form = new FormData();
+      form.set('message_id', String(messageId));
+      form.set('file', file);
+      const response = await fetch('/api/pos/chat/attachments', { method: 'POST', body: form });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? `Failed to upload ${file.name}`);
+    }
+  }
+
+  function selectChatFiles(files: FileList | null, direct = false) {
+    const selected = Array.from(files ?? []).slice(0, 3);
+    const invalid = selected.find(file => file.size > 10 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type));
+    if (invalid) { alert('Attachments must be JPG, PNG, WebP or PDF files no larger than 10 MB each.'); return; }
+    if (direct) setDmFiles(selected); else setChatFiles(selected);
+  }
+
   async function sendMessage() {
-    if (!chatInput.trim() || sending) return;
+    if ((!chatInput.trim() && chatFiles.length === 0) || sending) return;
     setSending(true);
     try {
-      await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: chatInput.trim(), avatar: myAvatar }) });
+      const response = await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: chatInput.trim() || 'Attachment', avatar: myAvatar }) });
+      const result = await response.json();
+      if (!response.ok || !result.id) throw new Error(result.error ?? 'Message failed.');
+      await uploadChatFiles(Number(result.id), chatFiles);
       setChatInput('');
+      setChatFiles([]);
       fetchMessages();
-    } catch {} finally { setSending(false); }
+    } catch (error: any) { alert(error.message ?? 'Message failed.'); } finally { setSending(false); }
   }
 
   async function openDm(partnerId: number) {
     setChatOpen(false);
     setDmOpen(partnerId);
     setDmInput('');
+    setDmFiles([]);
     const res = await fetch(`/api/pos/chat?type=dm&to=${partnerId}`).then(r => r.json()).catch(() => ({ messages: [] }));
     const msgs: ChatMessage[] = res.messages ?? [];
     setDmMessages(prev => ({ ...prev, [partnerId]: msgs }));
@@ -2659,18 +2683,22 @@ function PosAvatarBar({
   }
 
   async function sendDm() {
-    if (!dmInput.trim() || dmSending || dmOpen === null) return;
+    if ((!dmInput.trim() && dmFiles.length === 0) || dmSending || dmOpen === null) return;
     setDmSending(true);
     try {
-      await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: dmInput.trim(), avatar: myAvatar, to_location_id: dmOpen }) });
+      const response = await fetch('/api/pos/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: dmInput.trim() || 'Attachment', avatar: myAvatar, to_location_id: dmOpen }) });
+      const result = await response.json();
+      if (!response.ok || !result.id) throw new Error(result.error ?? 'Message failed.');
+      await uploadChatFiles(Number(result.id), dmFiles);
       setDmInput('');
+      setDmFiles([]);
       // Reload DM messages
       const res = await fetch(`/api/pos/chat?type=dm&to=${dmOpen}`).then(r => r.json()).catch(() => ({ messages: [] }));
       const msgs: ChatMessage[] = res.messages ?? [];
       setDmMessages(prev => ({ ...prev, [dmOpen!]: msgs }));
       if (msgs.length > 0) { const maxId = Math.max(...msgs.map(m => m.id)); saveDmLastRead(dmOpen, maxId); setDmUnread(prev => ({ ...prev, [dmOpen!]: 0 })); }
       setTimeout(() => { if (dmListRef.current) dmListRef.current.scrollTop = dmListRef.current.scrollHeight; }, 80);
-    } catch {} finally { setDmSending(false); }
+    } catch (error: any) { alert(error.message ?? 'Message failed.'); } finally { setDmSending(false); }
   }
 
   function relTime(iso: string) {
@@ -2918,7 +2946,7 @@ function PosAvatarBar({
         const partnerAvatar = partner?.avatar || POS_AVATAR_FILES[dmOpen % POS_AVATAR_FILES.length];
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto', marginBottom: 4 }}>
-            <div style={{ width: 290, background: panelBg, border: '1px solid rgba(16,185,129,.35)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden' }}>
+            <div style={{ width: 460, height: 440, minWidth: 360, minHeight: 340, maxWidth: '80vw', maxHeight: '80vh', resize: 'both', background: panelBg, border: '1px solid rgba(16,185,129,.35)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
                 <div style={{ width: 22, height: 22, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
                   <img src={`/avatars/${partnerAvatar}`} alt={partnerName} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
@@ -2926,7 +2954,7 @@ function PosAvatarBar({
                 <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: '#10b981' }}>💬 {partnerName}</span>
                 <button onClick={() => setDmOpen(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
               </div>
-              <div ref={dmListRef} style={{ height: 260, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div ref={dmListRef} style={{ flex: 1, minHeight: 180, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {msgs.length === 0 && <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi to {partnerName}! 👋</div>}
                 {msgs.map(msg => {
                   const isMine = msg.location_id === myLocationId;
@@ -2939,15 +2967,18 @@ function PosAvatarBar({
                         <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>{msg.location_name} · {relTime(msg.created_at)}</div>
                         <div style={{ background: isMine ? 'rgba(16,185,129,.55)' : 'rgba(255,255,255,.09)', borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.92)', lineHeight: 1.5 }}>
                           {msg.message}
+                          {msg.attachments?.map(file => file.mime_type.startsWith('image/') ? <a key={file.id} href={`/api/pos/chat/attachments/${file.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 6 }}><img src={`/api/pos/chat/attachments/${file.id}`} alt={file.original_name} style={{ display: 'block', maxWidth: '100%', maxHeight: 180, borderRadius: 6 }} /></a> : <a key={file.id} href={`/api/pos/chat/attachments/${file.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 6, color: '#93c5fd' }}>📎 {file.original_name}</a>)}
                         </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
+              <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {dmFiles.length > 0 && <div style={{ width: '100%', fontSize: 10, color: 'rgba(255,255,255,.6)' }}>{dmFiles.map(file => file.name).join(' · ')}</div>}
+                <label title="Attach files" style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', cursor: 'pointer', color: '#fff' }}>📎<input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={e => { selectChatFiles(e.target.files, true); e.target.value = ''; }} style={{ display: 'none' }} /></label>
                 <input value={dmInput} onChange={e => setDmInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDm(); } }} placeholder={`Message ${partnerName}…`} maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
-                <button onClick={sendDm} disabled={dmSending || !dmInput.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, fontSize: 12, cursor: dmSending || !dmInput.trim() ? 'not-allowed' : 'pointer', opacity: dmSending || !dmInput.trim() ? 0.5 : 1 }}>{dmSending ? '…' : '→'}</button>
+                <button onClick={sendDm} disabled={dmSending || (!dmInput.trim() && dmFiles.length === 0)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, fontSize: 12, cursor: dmSending ? 'not-allowed' : 'pointer', opacity: dmSending ? 0.5 : 1 }}>{dmSending ? '…' : '→'}</button>
               </div>
             </div>
           </div>
@@ -2957,12 +2988,12 @@ function PosAvatarBar({
       {/* ── Group chat panel / toggle (rightmost, beside avatars) ───────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
         {chatOpen ? (
-          <div style={{ width: 290, background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4 }}>
+          <div style={{ width: 460, height: 440, minWidth: 360, minHeight: 340, maxWidth: '80vw', maxHeight: '80vh', resize: 'both', background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
               <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat (All Locations)</span>
               <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
             </div>
-            <div ref={listRef} style={{ height: 260, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div ref={listRef} style={{ flex: 1, minHeight: 180, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {messages.length === 0 && <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi! 👋</div>}
               {messages.map(msg => {
                 const isMine = msg.location_id === myLocationId;
@@ -2975,15 +3006,18 @@ function PosAvatarBar({
                       <div style={{ fontSize: 10, color: 'rgba(255,255,255,.4)', marginBottom: 2, textAlign: isMine ? 'right' : 'left' }}>{msg.location_name} · {relTime(msg.created_at)}</div>
                       <div style={{ background: isMine ? 'rgba(37,99,235,.75)' : 'rgba(255,255,255,.09)', borderRadius: isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px', padding: '7px 10px', fontSize: 12, color: 'rgba(255,255,255,.92)', lineHeight: 1.5 }}>
                         {msg.message}
+                        {msg.attachments?.map(file => file.mime_type.startsWith('image/') ? <a key={file.id} href={`/api/pos/chat/attachments/${file.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 6 }}><img src={`/api/pos/chat/attachments/${file.id}`} alt={file.original_name} style={{ display: 'block', maxWidth: '100%', maxHeight: 180, borderRadius: 6 }} /></a> : <a key={file.id} href={`/api/pos/chat/attachments/${file.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 6, color: '#93c5fd' }}>📎 {file.original_name}</a>)}
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-            <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6 }}>
+            <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {chatFiles.length > 0 && <div style={{ width: '100%', fontSize: 10, color: 'rgba(255,255,255,.6)' }}>{chatFiles.map(file => file.name).join(' · ')}</div>}
+              <label title="Attach files" style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', cursor: 'pointer', color: '#fff' }}>📎<input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={e => { selectChatFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} /></label>
               <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Message the team…" maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
-              <button onClick={sendMessage} disabled={sending || !chatInput.trim()} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending || !chatInput.trim() ? 'not-allowed' : 'pointer', opacity: sending || !chatInput.trim() ? 0.5 : 1 }}>{sending ? '…' : '→'}</button>
+              <button onClick={sendMessage} disabled={sending || (!chatInput.trim() && chatFiles.length === 0)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{sending ? '…' : '→'}</button>
             </div>
           </div>
         ) : (
@@ -4644,6 +4678,12 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                 </>
               )}
             </div>
+            {sale.notes?.trim() && (
+              <div style={{ borderTop: '1px dashed #ccc', marginTop: '.5rem', paddingTop: '.5rem', fontSize: '.78rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                <div style={{ fontWeight: 700, marginBottom: '.2rem' }}>Order Notes</div>
+                <div>{sale.notes.trim()}</div>
+              </div>
+            )}
             <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '.75rem', color: '#888', whiteSpace: 'pre-wrap' }}>
               {printSettings?.pos_receipt_footer || 'Thank you for your purchase!'}
             </div>
@@ -4699,6 +4739,12 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
                 </div>
               ))}
             </div>
+            {sale.notes?.trim() && (
+              <div style={{ borderTop: '1px dashed #ccc', paddingTop: '.75rem', marginTop: '.75rem', fontSize: '.78rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                <div style={{ fontWeight: 700, marginBottom: '.2rem' }}>Order Notes</div>
+                <div>{sale.notes.trim()}</div>
+              </div>
+            )}
             <div style={{ textAlign: 'center', marginTop: '.75rem', fontSize: '.8rem', color: '#666', borderTop: '1px dashed #ccc', paddingTop: '.75rem', whiteSpace: 'pre-wrap', fontStyle: 'italic' }}>
               {printSettings?.gift_receipt_message || 'We hope this gift brings you joy and happiness!'}
             </div>
@@ -5723,6 +5769,11 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
   const [nameSearch, setNameSearch]   = useState('');
   const scanRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => scanRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [bt.id]);
+
   const playError = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -6153,6 +6204,12 @@ function ReportsScreen({ session, regSession, products, onBack }: { session: Pos
                         <span key={p.id} style={{ background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 4, padding: '.2rem .5rem', fontSize: '.8rem', color: 'var(--sv-text-dim)' }}>{p.payment_method}: ${fmt(p.amount)}</span>
                       ))}
                     </div>
+                    {t.sale.notes?.trim() && (
+                      <div style={{ marginTop: '.75rem', padding: '.65rem .75rem', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                        <div style={{ color: 'var(--sv-text-dim)', fontSize: '.75rem', fontWeight: 700, marginBottom: '.25rem', textTransform: 'uppercase' }}>Order Notes</div>
+                        {t.sale.notes.trim()}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -6769,7 +6826,7 @@ const tdStyle: React.CSSProperties = {
 
 // ─── POS Branch Transfer Screen ──────────────────────────────────────────────
 
-function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
+function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSession; btAccess: 'disabled' | 'manager' | 'all'; onBack: () => void }) {
   const [locations, setLocations]     = useState<{ id: number; name: string }[]>([]);
   const [toLocationId, setToLocationId] = useState<number | ''>('');
   const [notes, setNotes]             = useState('');
@@ -6779,6 +6836,7 @@ function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onB
   const [searching, setSearching]     = useState(false);
   const [saving, setSaving]           = useState(false);
   const [result, setResult]           = useState<{ success: boolean; message: string } | null>(null);
+  const [managerPinOpen, setManagerPinOpen] = useState(false);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -6816,7 +6874,7 @@ function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onB
     setSearch(''); setSearchResults([]);
   }
 
-  async function createTransfer() {
+  async function createTransfer(managerPin?: string) {
     if (!toLocationId || items.length === 0) return;
     setSaving(true); setResult(null);
     try {
@@ -6828,17 +6886,22 @@ function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onB
           to_location_id: Number(toLocationId),
           transfer_date: new Date().toISOString().slice(0, 10),
           notes: notes.trim() || null,
+          manager_pin: managerPin,
           items: items.map(it => ({ variant_id: it.variant_id, qty_sent: it.qty, unit_cost: it.unit_cost, notes: '' })),
         }),
       });
       const d = await res.json();
       if (d.success) {
-        setResult({ success: true, message: `Draft transfer created successfully (${items.length} item${items.length !== 1 ? 's' : ''}).` });
+        setResult({ success: true, message: `Transfer sent successfully (${items.length} item${items.length !== 1 ? 's' : ''}). The destination can receive it now.` });
         setItems([]); setNotes(''); setToLocationId('');
+        setManagerPinOpen(false);
       } else {
-        setResult({ success: false, message: d.error ?? 'Failed to create transfer.' });
+        throw new Error(d.error ?? 'Failed to send transfer.');
       }
-    } catch (e: any) { setResult({ success: false, message: e.message ?? 'Network error.' }); }
+    } catch (e: any) {
+      setResult({ success: false, message: e.message ?? 'Network error.' });
+      throw e;
+    }
     finally { setSaving(false); }
   }
 
@@ -6936,23 +6999,34 @@ function PosBranchTransferScreen({ session, onBack }: { session: PosSession; onB
 
         {/* Create button */}
         <button
-          onClick={createTransfer}
+          onClick={() => {
+            if (btAccess === 'manager') setManagerPinOpen(true);
+            else void createTransfer().catch(() => {});
+          }}
           disabled={saving || !toLocationId || items.length === 0}
           style={{ width: '100%', padding: '14px', background: (saving || !toLocationId || items.length === 0) ? 'var(--sv-etch)' : 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 700, fontSize: 16, cursor: (saving || !toLocationId || items.length === 0) ? 'not-allowed' : 'pointer' }}
         >
-          {saving ? 'Creating…' : `Create Draft Transfer${items.length ? ` (${totalItems} unit${totalItems !== 1 ? 's' : ''})` : ''}`}
+          {saving ? 'Sending…' : `Send Transfer${items.length ? ` (${totalItems} unit${totalItems !== 1 ? 's' : ''})` : ''}`}
         </button>
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'center' }}>
-          Creates a draft transfer in IMS. Staff in the warehouse will confirm and send it.
+          Commits the stock at {session.location_name} and makes the transfer available for the destination to receive.
         </div>
       </div>
+      {managerPinOpen && (
+        <ManagerPinModal
+          locationId={session.location_id}
+          title="Send Branch Transfer"
+          onVerified={async pin => { await createTransfer(pin); }}
+          onClose={() => setManagerPinOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
 // ─── POS Help Modal ─────────────────────────────────────────────────────────
 
-type PosHelpSection = 'overview' | 'register' | 'offline' | 'pin';
+type PosHelpSection = 'overview' | 'workflows' | 'register' | 'offline' | 'pin';
 
 function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [active, setActive] = useState<PosHelpSection>('overview');
@@ -6961,6 +7035,7 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
   const NAV_ITEMS: { id: PosHelpSection; label: string; icon: string }[] = [
     { id: 'overview', label: 'Overview',          icon: '🛒' },
+    { id: 'workflows', label: 'Staff Workflows',  icon: '⚙' },
     { id: 'register', label: 'Register Sessions', icon: '🗂' },
     { id: 'offline',  label: 'Offline & Queue',   icon: '📶' },
     { id: 'pin',      label: 'PIN Security',      icon: '🔒' },
@@ -6993,6 +7068,21 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
         </ul>
         <h3 style={h3}>Daily Xero batch</h3>
         <p style={p}>POS sales and returns are not individually synced to Xero. Instead, they remain in the existing summary accounting flow from the <strong>Register → EOD</strong> screen. POS-sourced IMS credit notes are operational records and are not posted again as separate Xero credit notes.</p>
+      </div>
+    );
+    if (active === 'workflows') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Staff Workflows</h2>
+        <h3 style={h3}>Order notes</h3>
+        <p style={p}>Add notes from the cart before completing a sale. Notes appear on standard, gift, and emailed receipts, and under the selected transaction in <strong>Reports</strong>.</p>
+        <h3 style={h3}>Branch transfers</h3>
+        <p style={p}>Choose <strong>Create Transfer</strong> from the POS menu. The source is always this device&apos;s branch. Sending commits the source stock immediately and makes the transfer available at the destination under <strong>Receive Transfers</strong>. Depending on IMS Settings, sending may require the location manager PIN.</p>
+        <h3 style={h3}>Receiving by scanner</h3>
+        <p style={p}>Opening a transfer automatically focuses the scan field. Scan each barcode continuously; successful and failed scans return focus to the scanner field.</p>
+        <h3 style={h3}>Team chat</h3>
+        <p style={p}>Open Team Chat or select another branch avatar for a direct message. Chat windows can be resized. Each message can include up to three JPG, PNG, WebP, or PDF attachments of up to 10 MB each.</p>
+        <h3 style={h3}>POS appearance</h3>
+        <p style={p}>Preset themes are complete one-click designs. Select <strong>Custom</strong> to choose a light or dark base and override the background, menu bar, search bar, charge button, and heading colours.</p>
       </div>
     );
     if (active === 'register') return (

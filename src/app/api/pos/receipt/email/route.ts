@@ -12,6 +12,15 @@ function getPosSession() {
 
 function fmt(n: number) { return n.toFixed(2); }
 
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * POST /api/pos/receipt/email
  * Body: { email, sale, printSettings }
@@ -48,6 +57,7 @@ export async function POST(req: Request) {
   const businessPhone  = printSettings?.business_phone ?? '';
   const logoUrl        = printSettings?.receipt_logo_url ?? '';
   const footerText     = printSettings?.pos_receipt_footer ?? 'Thank you for your purchase!';
+  const orderNotes     = String(sale.notes ?? '').trim();
 
   const saleDate = new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' });
   const saleRef  = sale.id ? `#${sale.id}` : `local:${(sale.local_id ?? '').slice(-8)}`;
@@ -140,6 +150,13 @@ export async function POST(req: Request) {
             </tr>` : ''}
           </table>
         </td></tr>
+
+        ${orderNotes ? `
+        <!-- Order Notes -->
+        <tr><td style="padding:0 28px 16px;border-top:1px dashed #d1d5db;">
+          <div style="margin-top:12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;">Order Notes</div>
+          <div style="margin-top:4px;font-size:13px;line-height:1.45;color:#374151;white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(orderNotes)}</div>
+        </td></tr>` : ''}
 
         <!-- Footer -->
         <tr><td style="padding:16px 28px 24px;text-align:center;border-top:1px dashed #d1d5db;background:#f9fafb;">

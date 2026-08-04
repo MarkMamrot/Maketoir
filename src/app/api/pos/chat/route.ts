@@ -47,7 +47,8 @@ export async function GET(req: Request) {
   const toId = parseInt(url.searchParams.get('to') ?? '0', 10);
   const myId = parseInt(String(session.location_id ?? 0), 10);
 
-  type Row = { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; to_location_id: number | null; created_at: string; };
+  type Attachment = { id: number; message_id: number; original_name: string; mime_type: string; file_size: number };
+  type Row = { id: number; location_id: number; location_name: string; user_name: string; avatar: string; message: string; to_location_id: number | null; created_at: string; attachments?: Attachment[] };
 
   let messages: Row[];
   if (type === 'dm' && toId > 0) {
@@ -66,6 +67,23 @@ export async function GET(req: Request) {
         AND (to_location_id IS NULL OR to_location_id = 0)
       ORDER BY created_at ASC LIMIT 200
     `, []);
+  }
+
+  if (messages.length > 0) {
+    const messageIds = messages.map(message => Number(message.id));
+    const attachments = await imsQuery<Attachment>(
+      `SELECT id, message_id, original_name, mime_type, file_size
+       FROM pos_chat_attachments WHERE message_id IN (${messageIds.map(() => '?').join(',')})
+       ORDER BY id`,
+      messageIds,
+    ).catch(() => []);
+    const byMessage = new Map<number, Attachment[]>();
+    for (const attachment of attachments) {
+      const list = byMessage.get(Number(attachment.message_id)) ?? [];
+      list.push(attachment);
+      byMessage.set(Number(attachment.message_id), list);
+    }
+    messages = messages.map(message => ({ ...message, attachments: byMessage.get(Number(message.id)) ?? [] }));
   }
 
   return NextResponse.json({ messages });
@@ -96,12 +114,10 @@ export async function POST(req: Request) {
 
   if (!locationId) return NextResponse.json({ error: 'No location in session.' }, { status: 400 });
 
-  await imsExecute(
+  const result = await imsExecute(
     `INSERT INTO pos_chat_messages (location_id, location_name, user_name, avatar, message, to_location_id)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [locationId, locationName, userName, avatar, message, toLocationId],
   );
-
-  const idRows = await imsQuery<{ id: number }>('SELECT LAST_INSERT_ID() AS id', []);
-  return NextResponse.json({ success: true, id: idRows[0]?.id ?? null });
+  return NextResponse.json({ success: true, id: result.insertId });
 }

@@ -44,7 +44,7 @@ export async function GET(req: Request) {
           const rows = await imsQuery<{
             id: number; location_id: number; location_name: string;
             user_name: string; avatar: string; message: string;
-            to_location_id: number | null; created_at: string;
+            to_location_id: number | null; created_at: string; attachments?: any[];
           }>(
             `SELECT id, location_id, location_name, user_name, avatar, message, to_location_id, created_at
              FROM pos_chat_messages
@@ -60,7 +60,18 @@ export async function GET(req: Request) {
             [since, myLocId, myLocId],
             imsDb,
           );
-          return rows;
+          if (rows.length === 0) return rows;
+          const messageIds = rows.map(row => Number(row.id));
+          const attachments = await imsQuery<{
+            id: number; message_id: number; original_name: string; mime_type: string; file_size: number;
+          }>(
+            `SELECT id, message_id, original_name, mime_type, file_size
+             FROM pos_chat_attachments WHERE message_id IN (${messageIds.map(() => '?').join(',')})
+             ORDER BY id`,
+            messageIds,
+            imsDb,
+          ).catch(() => []);
+          return rows.map(row => ({ ...row, attachments: attachments.filter(file => Number(file.message_id) === Number(row.id)) }));
         } catch { return []; }
       }
 
