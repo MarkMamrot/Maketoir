@@ -26,6 +26,7 @@ import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVarian
 import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
 import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 
 export const runtime = 'nodejs';
 
@@ -137,11 +138,20 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
     const orderIdStr = String(payload.id ?? '');
 
-    const existing = await imsQuery<{ id: number }>(
-      `SELECT id FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
+    const customerId = await resolveShopifyOrderCustomerId(businessId, payload);
+    const existing = await imsQuery<{ id: number; customer_id: number | null }>(
+      `SELECT id, customer_id FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
       [orderIdStr, businessId],
     );
-    if (existing.length > 0) return respond();
+    if (existing.length > 0) {
+      if (customerId && Number(existing[0].customer_id) !== customerId) {
+        await imsExecute(
+          'UPDATE ims_sales_orders SET customer_id = ? WHERE id = ? AND business_id = ?',
+          [customerId, existing[0].id, businessId],
+        );
+      }
+      return respond();
+    }
     if (!config.locationId) return respond();
 
     const variantRows = await imsQuery<{ variant_id: string; shopify_variant_id: string }>(
@@ -186,10 +196,10 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         const gateway   = Array.isArray(payload.payment_gateway_names) ? payload.payment_gateway_names.join(', ') : null;
         const [r] = await conn.execute<any>(
           `INSERT INTO ims_sales_orders
-             (business_id, so_number, so_type, location_id, status, order_date, freight, discount,
+             (business_id, so_number, so_type, customer_id, location_id, status, order_date, freight, discount,
               subtotal, tax_amount, total_amount, gift_card_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
-            VALUES (?, ?, 'online', ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
-          [businessId, soNumber, config.locationId, orderDateTime, freight, discount,
+            VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
+          [businessId, soNumber, customerId, config.locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), giftCardAmount, orderIdStr, payload.name ?? null,
            gateway, payload.financial_status ?? null,
            `Shopify ${payload.name ?? ''}`.trim()],
@@ -374,6 +384,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       if (existing.length) {
         const so = existing[0];
         try {
+          const customerId = await resolveShopifyOrderCustomerId(businessId, payload);
           // Draft and confirmed orders have not moved on-hand stock. The repository
           // transaction safely releases old commitments and commits replacement lines.
           if ((so.status === 'draft' || so.status === 'confirmed') && Array.isArray(payload.line_items)) {
@@ -414,12 +425,13 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             `UPDATE ims_sales_orders
                SET subtotal = ?, tax_amount = ?, total_amount = ?, freight = ?, discount = ?,
                  gift_card_amount = ?,
+                   customer_id = COALESCE(?, customer_id),
                    financial_status = COALESCE(?, financial_status),
                    payment_gateway  = COALESCE(?, payment_gateway),
                    shopify_order_name = COALESCE(?, shopify_order_name)
              WHERE id = ?`,
             [subtotal, taxAmount, totalAmount, freight, discount,
-             giftCardAmount,
+             giftCardAmount, customerId,
              payload.financial_status ?? null, gateway, payload.name ?? null, so.id],
           );
         } catch (e: any) {

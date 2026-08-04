@@ -20,6 +20,7 @@ import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
+import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 
 function getShopifyGiftCardAmount(lineItems: any[]): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -163,8 +164,8 @@ export async function POST(req: Request) {
   const fallbackVariantId = await getOrCreateShopifyFallbackVariantId(businessId);
 
   // Existing shopify orders — id → {id, status} so we can self-heal stuck drafts.
-  const existingRows = await imsQuery<{ id: number; shopify_order_id: string; status: string }>(
-    `SELECT id, shopify_order_id, status FROM ims_sales_orders
+  const existingRows = await imsQuery<{ id: number; shopify_order_id: string; status: string; customer_id: number | null }>(
+    `SELECT id, shopify_order_id, status, customer_id FROM ims_sales_orders
      WHERE business_id = ? AND shopify_order_id IS NOT NULL`,
     [businessId],
   );
@@ -222,10 +223,18 @@ export async function POST(req: Request) {
 
   for (const order of shopifyOrders) {
     const orderIdStr = String(order.id);
+    const orderCustomerId = await resolveShopifyOrderCustomerId(businessId, order, onlineCustomerId);
 
     // Already imported — but self-heal if it got stuck at draft (stock never committed).
     const existing = existingById.get(orderIdStr);
     if (existing) {
+      if (orderCustomerId && Number(existing.customer_id) !== orderCustomerId) {
+        await imsExecute(
+          'UPDATE ims_sales_orders SET customer_id = ? WHERE id = ? AND business_id = ?',
+          [orderCustomerId, existing.id, businessId],
+        );
+        existing.customer_id = orderCustomerId;
+      }
       if (existing.status === 'draft') {
         try {
           // Backfill the real AEST order time (early imports stored date-only).
@@ -301,7 +310,7 @@ export async function POST(req: Request) {
               subtotal, tax_amount, total_amount, shopify_order_id, shopify_order_name, payment_gateway, financial_status, price_tier, tax_treatment, notes)
             VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [
-            businessId, soNumber, onlineCustomerId, locationId, orderDateTime, freight, discount,
+            businessId, soNumber, orderCustomerId, locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, totalAmount, orderIdStr, order.name ?? null,
             gateway, order.financial_status ?? null,
             `Shopify order ${order.name ?? ''}`.trim(),
