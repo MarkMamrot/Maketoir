@@ -24559,7 +24559,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
           <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
-              orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
+              orders/create<br/>orders/paid<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
             </div>
             <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
               <strong>Note:</strong> Shopify's <code style={code}>returns/*</code> webhooks require the <code style={code}>returns</code> access scope and Shopify/Advanced/Plus plan, and must be registered via the API (not the UI). <code style={code}>refunds/create</code> covers all refund + return scenarios without them.
@@ -24574,6 +24574,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>Orders arrive in IMS in real time (webhook) or via the manual <strong>Import from Shopify</strong> button, which is useful for a first-time backfill or catching any missed events.</p>
         <TriggerTable rows={[
           { trigger: 'New order placed',        object: 'IMS Sales Order',     status: 'Confirmed',  notes: 'Linked variants are matched by shopify_variant_id. Unmatched line items are silently skipped (run Reconcile if variants are missing). Stock is committed (qty_committed) immediately.' },
+          { trigger: 'Order paid',              object: 'Loyalty ledger',      status: 'Earned',     notes: 'Awards points once to an enrolled customer linked by exact Shopify customer ID. Freight and gift-card products are excluded.' },
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
           { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },

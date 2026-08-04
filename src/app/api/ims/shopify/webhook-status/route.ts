@@ -23,6 +23,7 @@ export const maxDuration = 60;
 
 const REQUIRED_TOPICS = [
   'orders/create',
+  'orders/paid',
   'orders/updated',
   'orders/cancelled',
   'fulfillments/create',

@@ -35,6 +35,29 @@ export function calculatePosEligibleSpend(input: {
   return Math.max(0, eligibleLineCents - eligibleOrderDiscountCents) / 100;
 }
 
+export function calculateShopifyEligibleSpend(input: {
+  subtotalPrice: number;
+  lineItems: Array<{
+    quantity?: number;
+    price?: number | string;
+    giftCard?: boolean;
+    discountAllocations?: Array<{ amount?: number | string }>;
+  }>;
+}): number {
+  const subtotalCents = nonNegativeMoney(input.subtotalPrice);
+  const giftCardCents = input.lineItems.reduce((sum, item) => {
+    if (!item.giftCard) return sum;
+    const quantity = Math.max(0, Number(item.quantity) || 0);
+    const grossCents = nonNegativeMoney(Number(item.price) * quantity);
+    const discountCents = (item.discountAllocations ?? []).reduce(
+      (discountSum, allocation) => discountSum + nonNegativeMoney(Number(allocation.amount)),
+      0,
+    );
+    return sum + Math.max(0, grossCents - discountCents);
+  }, 0);
+  return Math.max(0, subtotalCents - Math.min(subtotalCents, giftCardCents)) / 100;
+}
+
 export function calculatePosReturnEligibleCents(input: {
   originalItems: Array<{
     id: number;

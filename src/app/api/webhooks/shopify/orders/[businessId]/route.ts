@@ -27,6 +27,8 @@ import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayout
 import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
+import { calculateShopifyEligibleSpend } from '@/lib/loyalty/calculations';
+import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
 
 export const runtime = 'nodejs';
 
@@ -63,6 +65,28 @@ function getShopifyGiftCardAmount(lineItems: any[]): number {
     return sum + (qty * price);
   }, 0);
   return Math.round(total * 100) / 100;
+}
+
+async function awardPaidOrderLoyalty(businessId: string, payload: any) {
+  const shopifyOrderId = String(payload.id ?? '').trim();
+  if (!shopifyOrderId) return;
+  const eligibleSpend = calculateShopifyEligibleSpend({
+    subtotalPrice: Number(payload.subtotal_price ?? 0),
+    lineItems: (payload.line_items ?? []).map((item: any) => ({
+      quantity: Number(item.quantity ?? 0),
+      price: item.price ?? 0,
+      giftCard: Boolean(item.gift_card),
+      discountAllocations: (item.discount_allocations ?? []).map((allocation: any) => ({
+        amount: allocation?.amount ?? 0,
+      })),
+    })),
+  });
+  await ShopifyLoyaltyService.awardPaidOrder({
+    businessId,
+    shopifyOrderId,
+    paidDate: toBusinessDate(payload.processed_at ?? payload.updated_at ?? payload.created_at),
+    eligibleSpend,
+  });
 }
 
 async function ensureGiftCardAmountColumn(): Promise<void> {
@@ -150,6 +174,20 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           [customerId, existing[0].id, businessId],
         );
       }
+      if (topic === 'orders/paid') {
+        await imsExecute(
+          `UPDATE ims_sales_orders
+              SET financial_status = 'paid'
+            WHERE id = ? AND business_id = ?`,
+          [existing[0].id, businessId],
+        );
+        try {
+          await awardPaidOrderLoyalty(businessId, payload);
+        } catch (error: any) {
+          console.error('[shopify-webhook] paid-order loyalty error:', error?.message ?? String(error));
+          return NextResponse.json({ error: error?.message ?? String(error) }, { status: 500 });
+        }
+      }
       return respond();
     }
     if (!config.locationId) return respond();
@@ -201,7 +239,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             VALUES (?, ?, 'online', ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'retail', 'inc_tax', ?)`,
           [businessId, soNumber, customerId, config.locationId, orderDateTime, freight, discount,
             subtotal, taxAmount, parseFloat(payload.total_price ?? '0'), giftCardAmount, orderIdStr, payload.name ?? null,
-           gateway, payload.financial_status ?? null,
+           gateway, topic === 'orders/paid' ? 'paid' : payload.financial_status ?? null,
            `Shopify ${payload.name ?? ''}`.trim()],
         );
         soId = r.insertId;
@@ -217,6 +255,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
       await ImsSORepo.changeStatus(soId, 'confirmed');
       if (payload.fulfillment_status === 'fulfilled') await ImsSORepo.changeStatus(soId, 'fulfilled');
+      if (topic === 'orders/paid') await awardPaidOrderLoyalty(businessId, payload);
     } catch (e: any) {
       const msg = e?.message ?? String(e);
       console.error('[shopify-webhook] order create error:', msg);

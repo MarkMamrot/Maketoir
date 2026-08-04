@@ -5,6 +5,7 @@ import {
   calculateEligibleSpendCents,
   calculatePosEligibleSpend,
   calculatePosReturnEligibleCents,
+  calculateShopifyEligibleSpend,
   calculateProportionalReturnReversal,
   calculateReversalPoints,
   canClaimReward,
@@ -43,6 +44,23 @@ describe('loyalty calculations', () => {
       items: [{ lineTotal: 100 }],
       discountTotal: 0,
     })).toBe(100);
+  });
+
+  it('excludes only the net discounted value of Shopify gift-card products', () => {
+    expect(calculateShopifyEligibleSpend({
+      subtotalPrice: 135,
+      lineItems: [
+        { quantity: 1, price: '100.00', giftCard: false, discountAllocations: [{ amount: '10.00' }] },
+        { quantity: 1, price: '50.00', giftCard: true, discountAllocations: [{ amount: '5.00' }] },
+      ],
+    })).toBe(90);
+  });
+
+  it('never produces negative Shopify eligible spend', () => {
+    expect(calculateShopifyEligibleSpend({
+      subtotalPrice: 20,
+      lineItems: [{ quantity: 1, price: 50, giftCard: true }],
+    })).toBe(0);
   });
 
   it('allocates original order and loyalty discounts across returned eligible lines', () => {

@@ -736,6 +736,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         <div style={{ marginBottom: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12 }}>
           {[
             ['orders/create',      'New order placed — imports the order into IMS'],
+            ['orders/paid',        'Order paid — awards loyalty points to an enrolled linked customer'],
             ['orders/updated',     'Order edited — updates prices/totals in IMS'],
             ['orders/cancelled',   'Order cancelled — releases committed stock'],
             ['fulfillments/create','Order fulfilled — moves stock to fulfilled'],
