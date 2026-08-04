@@ -26,6 +26,30 @@ async function main() {
   const sql = readFileSync(join(__dirname, 'setup-xero-tables.sql'), 'utf8');
   await conn.query(sql);
 
+  const [[businessIdColumn]] = await conn.query(
+    `SELECT COLLATION_NAME AS collationName
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'businesses'
+        AND COLUMN_NAME = 'business_id'
+      LIMIT 1`,
+  );
+  const [[cogsBusinessIdColumn]] = await conn.query(
+    `SELECT COLLATION_NAME AS collationName
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_cogs_settings'
+        AND COLUMN_NAME = 'business_id'
+      LIMIT 1`,
+  );
+  const businessIdCollation = businessIdColumn?.collationName;
+  if (businessIdCollation
+    && /^[a-zA-Z0-9_]+$/.test(businessIdCollation)
+    && cogsBusinessIdColumn?.collationName !== businessIdCollation) {
+    await conn.query(
+      `ALTER TABLE xero_cogs_settings
+       MODIFY business_id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE ${businessIdCollation} NOT NULL`,
+    );
+  }
+
   const cogsSettingsColumns = [
     ['held_reason', 'VARCHAR(32) NULL AFTER next_run_at'],
     ['held_period_start', 'DATE NULL AFTER held_reason'],

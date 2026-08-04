@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     settings = await query<EnabledSetting>(
       `SELECT s.business_id, s.frequency, s.reliable_from, s.next_period_start
          FROM xero_cogs_settings s
-         JOIN businesses b ON b.business_id = s.business_id
+        JOIN businesses b ON BINARY b.business_id = BINARY s.business_id
         WHERE s.enabled = 1
           AND s.reliable_from IS NOT NULL
           AND s.held_reason IS NULL

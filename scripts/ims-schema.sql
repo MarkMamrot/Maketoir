@@ -1038,3 +1038,85 @@ CREATE TABLE IF NOT EXISTS store_credit_transactions (
   UNIQUE INDEX uq_sct_idempotency (idempotency_key),
   CONSTRAINT fk_sct_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Loyalty Program ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS loyalty_accounts (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  contact_id        INT NOT NULL,
+  balance_points    INT UNSIGNED NOT NULL DEFAULT 0,
+  lifetime_earned   BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  lifetime_redeemed BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  status            ENUM('active','suspended','closed') NOT NULL DEFAULT 'active',
+  enrolled_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_loyalty_account (business_id, contact_id),
+  INDEX idx_loyalty_account_business (business_id),
+  CONSTRAINT fk_loyalty_account_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS loyalty_transactions (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  account_id      INT NOT NULL,
+  type            ENUM('earn','redeem','earn_reversal','redeem_reversal','adjustment','migration') NOT NULL,
+  points_delta    INT NOT NULL,
+  balance_after   INT UNSIGNED NOT NULL,
+  channel         ENUM('pos','shopify','manual','migration') NOT NULL,
+  source_type     VARCHAR(50) NULL,
+  source_id       VARCHAR(191) NULL,
+  idempotency_key VARCHAR(191) NULL,
+  actor_id        VARCHAR(150) NULL,
+  reason          VARCHAR(500) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_loyalty_transaction_idempotency (business_id, idempotency_key),
+  INDEX idx_loyalty_transaction_account (business_id, account_id, created_at),
+  INDEX idx_loyalty_transaction_source (business_id, source_type, source_id),
+  INDEX idx_loyalty_transaction_type (business_id, type, created_at),
+  CONSTRAINT fk_loyalty_transaction_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS loyalty_rewards (
+  id                           INT AUTO_INCREMENT PRIMARY KEY,
+  business_id                  VARCHAR(100) NOT NULL,
+  reward_code                  VARCHAR(50) NOT NULL,
+  display_name                 VARCHAR(255) NOT NULL,
+  description                  TEXT NULL,
+  points_cost                  INT UNSIGNED NOT NULL,
+  value_aud                    DECIMAL(12,2) NOT NULL,
+  is_active                    TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order                   INT NOT NULL DEFAULT 0,
+  shopify_discount_template_id VARCHAR(100) NULL,
+  metadata_json                MEDIUMTEXT NULL,
+  created_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at                   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_loyalty_reward_code (business_id, reward_code),
+  INDEX idx_loyalty_reward_active (business_id, is_active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  account_id          INT NOT NULL,
+  reward_id           INT NOT NULL,
+  transaction_id      BIGINT NOT NULL,
+  status              ENUM('reserved','issued','used','cancelled','expired') NOT NULL DEFAULT 'reserved',
+  points_deducted     INT UNSIGNED NOT NULL,
+  idempotency_key     VARCHAR(191) NOT NULL,
+  pos_sale_id         INT NULL,
+  shopify_discount_id VARCHAR(100) NULL,
+  voucher_code        VARCHAR(100) NULL,
+  used_at             DATETIME NULL,
+  cancelled_at        DATETIME NULL,
+  cancelled_reason    VARCHAR(500) NULL,
+  actor_id            VARCHAR(150) NULL,
+  created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_loyalty_redemption_idempotency (business_id, idempotency_key),
+  INDEX idx_loyalty_redemption_account (business_id, account_id, status, created_at),
+  INDEX idx_loyalty_redemption_status (business_id, status, created_at),
+  INDEX idx_loyalty_redemption_voucher (business_id, voucher_code),
+  CONSTRAINT fk_loyalty_redemption_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_loyalty_redemption_reward FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_loyalty_redemption_transaction FOREIGN KEY (transaction_id) REFERENCES loyalty_transactions(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

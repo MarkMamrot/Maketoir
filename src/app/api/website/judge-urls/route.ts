@@ -138,6 +138,17 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     }
 
     if (!parsed) {
+      if (finishReason === 'STOP' && responseLength === 0) {
+        return NextResponse.json({
+          success: true,
+          validUrlFound: false,
+          rankedUrls: validUrls.map(url => ({
+            url,
+            keep: false,
+            reason: 'The product page could not be verified.',
+          })),
+        });
+      }
       const runtimeSession = readSession();
       await reportRuntimeIssue({
         businessId: runtimeSession?.businessId,

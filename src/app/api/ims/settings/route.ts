@@ -3,6 +3,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { DEFAULT_BUSINESS_TIME_ZONE, isValidBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { DEFAULT_LOYALTY_SETTINGS, LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -25,6 +26,11 @@ export async function GET() {
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value ?? '';
     settings.business_timezone ||= DEFAULT_BUSINESS_TIME_ZONE;
+    settings[LOYALTY_SETTING_KEYS.enabled] ??= DEFAULT_LOYALTY_SETTINGS.enabled ? '1' : '0';
+    settings[LOYALTY_SETTING_KEYS.earnRate] ??= String(DEFAULT_LOYALTY_SETTINGS.earnRate);
+    settings[LOYALTY_SETTING_KEYS.programName] ??= DEFAULT_LOYALTY_SETTINGS.programName;
+    settings[LOYALTY_SETTING_KEYS.pointsLabel] ??= DEFAULT_LOYALTY_SETTINGS.pointsLabel;
+    settings[LOYALTY_SETTING_KEYS.startedAt] ??= '';
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
@@ -57,6 +63,35 @@ export async function PUT(req: Request) {
         return NextResponse.json({ success: false, error: 'Pending Online exclusion days must be an integer from 0 to 90.' }, { status: 400 });
       }
       pairs.pending_online_invalid_url_exclusion_days = String(days);
+    }
+    if (pairs[LOYALTY_SETTING_KEYS.enabled] !== undefined && !['0', '1'].includes(String(pairs[LOYALTY_SETTING_KEYS.enabled]))) {
+      return NextResponse.json({ success: false, error: 'Loyalty enabled must be 0 or 1.' }, { status: 400 });
+    }
+    if (pairs[LOYALTY_SETTING_KEYS.earnRate] !== undefined) {
+      const earnRate = Number(pairs[LOYALTY_SETTING_KEYS.earnRate]);
+      if (!Number.isFinite(earnRate) || earnRate <= 0 || earnRate > 100) {
+        return NextResponse.json({ success: false, error: 'Loyalty earn rate must be greater than 0 and no more than 100.' }, { status: 400 });
+      }
+      pairs[LOYALTY_SETTING_KEYS.earnRate] = String(earnRate);
+    }
+    for (const [key, label, maxLength] of [
+      [LOYALTY_SETTING_KEYS.programName, 'Loyalty program name', 100],
+      [LOYALTY_SETTING_KEYS.pointsLabel, 'Loyalty points label', 30],
+    ] as const) {
+      if (pairs[key] === undefined) continue;
+      const value = String(pairs[key]).trim();
+      if (!value || value.length > maxLength) {
+        return NextResponse.json({ success: false, error: `${label} is required and must be ${maxLength} characters or fewer.` }, { status: 400 });
+      }
+      pairs[key] = value;
+    }
+    if (pairs[LOYALTY_SETTING_KEYS.startedAt] !== undefined) {
+      const startedAt = String(pairs[LOYALTY_SETTING_KEYS.startedAt]).trim();
+      const parsedDate = startedAt ? new Date(`${startedAt}T00:00:00.000Z`) : null;
+      if (startedAt && (!/^\d{4}-\d{2}-\d{2}$/.test(startedAt) || !parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== startedAt)) {
+        return NextResponse.json({ success: false, error: 'Loyalty start date must be a valid date.' }, { status: 400 });
+      }
+      pairs[LOYALTY_SETTING_KEYS.startedAt] = startedAt;
     }
 
     for (const [key, value] of Object.entries(pairs)) {

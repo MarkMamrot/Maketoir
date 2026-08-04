@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS xero_sync_log (
 -- COGS schedule configuration. Period calculation is performed in the stored
 -- IANA timezone; reliable_from marks the first trustworthy live IMS ledger day.
 CREATE TABLE IF NOT EXISTS xero_cogs_settings (
-  business_id     VARCHAR(255) NOT NULL PRIMARY KEY,
+  business_id     VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL PRIMARY KEY,
   enabled         TINYINT(1)   NOT NULL DEFAULT 0,
   frequency       VARCHAR(20)  NOT NULL DEFAULT 'monthly',
   timezone        VARCHAR(100) NOT NULL DEFAULT 'Australia/Sydney',

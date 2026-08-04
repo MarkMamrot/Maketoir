@@ -17,6 +17,7 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
@@ -5357,7 +5358,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     setModal({ open: true, edit: p });
     // Push a deep-link URL so right-click → Open in new tab works and the modal
     // can be restored on reload / back navigation.
-    window.history.pushState(null, '', `#products/${encodeURIComponent(p.product_id)}`);
+    window.history.pushState(window.history.state, '', `#products/${encodeURIComponent(p.product_id)}`);
   };
 
   const handleGenerate = () => {
@@ -6225,7 +6226,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
       {/* ── Combined Product + Variants Modal ── */}
       {modal.open && (
-        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => { setModal({ open: false, edit: null }); window.history.pushState(null, '', '#products'); }} wider>
+        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => { setModal({ open: false, edit: null }); window.history.pushState(window.history.state, '', '#products'); }} wider>
           {/* ── Product Details ── */}
           <div style={{ marginBottom: 20 }}>
             {modal.edit?.product_id && (
@@ -6301,7 +6302,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   contentEditable
                   suppressContentEditableWarning
                   className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                  onBlur={event => setForm((previous: any) => ({ ...previous, description: event.currentTarget.innerHTML }))}
+                  onBlur={event => {
+                    const description = event.currentTarget.innerHTML;
+                    setForm((previous: any) => ({ ...previous, description }));
+                  }}
                   style={{ ...inputStyle, minHeight: 100, overflow: 'auto', lineHeight: 1.6, fontSize: 13, padding: '12px 14px', cursor: 'text' }}
                   dangerouslySetInnerHTML={{ __html: form.description || '' }} />
               )}
@@ -17549,7 +17553,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>COGS Reconciliation</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: cogsLoading ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsLoading ? 'Loading…' : 'Refresh'}</button>
+            <button onClick={() => { void loadCogsReport(); }} disabled={cogsLoading} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: cogsLoading ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsLoading ? 'Loading…' : 'Refresh'}</button>
             <button onClick={exportCogsCsv} disabled={!cogsReport} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: !cogsReport ? 'not-allowed' : 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Export CSV</button>
           </div>
         </div>
@@ -17563,7 +17567,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
             <label style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Reconciliation State<select value={cogsFilters.reconciliationState} onChange={e => setCogsFilters(s => ({ ...s, reconciliationState: e.target.value as any }))} style={{ width: '100%', marginTop: 4, padding: '6px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="">All states</option><option value="current">Current</option><option value="adjustment_required">Adjustment Required</option><option value="blocked">Blocked</option></select></label>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={loadCogsReport} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsLoading ? 'Loading…' : 'Apply Filters'}</button>
+            <button onClick={() => { void loadCogsReport(); }} disabled={cogsLoading} style={{ padding: '7px 12px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: cogsLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsLoading ? 'Loading…' : 'Apply Filters'}</button>
             <button onClick={previewCogsFromReport} disabled={cogsActionBusy !== null} style={{ padding: '7px 12px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsActionBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'preview' ? 'Previewing…' : 'Preview'}</button>
             <button title={cogsFilters.frequency !== savedCogsFrequency ? `Posting uses the saved ${savedCogsFrequency} schedule.` : undefined} onClick={postCogsFromReport} disabled={cogsActionBusy !== null || !cogsReport || cogsFilters.frequency !== savedCogsFrequency} style={{ padding: '7px 12px', background: 'rgba(16,185,129,.15)', color: '#34d399', border: '1px solid rgba(16,185,129,.35)', borderRadius: 6, cursor: cogsActionBusy || !cogsReport || cogsFilters.frequency !== savedCogsFrequency ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsActionBusy === 'post' ? 'Posting…' : (cogsReport?.reconciliation.adjustmentRequired ? 'Post Adjustment' : 'Post COGS')}</button>
           </div>
@@ -18590,7 +18594,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -18932,7 +18936,7 @@ export default function ImsPage() {
     if (!hasRestoredInitialHash) return;
     const current = window.location.hash.replace(/^#/, '');
     if (!current.startsWith(`${view}/`)) {
-      window.history.pushState(null, '', `#${view}`);
+      window.history.pushState(window.history.state, '', `#${view}`);
     }
   }, [hasRestoredInitialHash, view]);
 
@@ -23073,6 +23077,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'loyalty',         label: 'Loyalty',         icon: '★' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
@@ -24097,6 +24102,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Wholesale Portal ── */}
         {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
+
+        {/* ── Loyalty ── */}
+        {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />}
 
       </div>{/* ─ end right content ─ */}
     </div>
