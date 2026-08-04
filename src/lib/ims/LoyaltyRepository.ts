@@ -8,12 +8,31 @@ import type {
   LoyaltyReward,
   LoyaltyTransactionType,
 } from '@/lib/loyalty/types';
+import { calculateProportionalReturnReversal } from '@/lib/loyalty/calculations';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 export class LoyaltyValidationError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'LoyaltyValidationError';
+  }
+}
+
+export class LoyaltyVoidBlockedError extends Error {
+  readonly status = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'LoyaltyVoidBlockedError';
+  }
+}
+
+export class LoyaltyReturnBlockedError extends Error {
+  readonly status = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'LoyaltyReturnBlockedError';
   }
 }
 
@@ -59,6 +78,18 @@ interface RewardRow extends RowDataPacket {
   sort_order: number;
 }
 
+interface PosSaleEarnRow extends RowDataPacket {
+  id: number;
+  contact_id: number;
+  points_delta: number;
+}
+
+interface PosSaleRedemptionRow extends RowDataPacket {
+  id: number;
+  contact_id: number;
+  points_deducted: number;
+}
+
 export interface LoyaltyTransactionInput {
   businessId: string;
   contactId: number;
@@ -80,6 +111,11 @@ export interface LoyaltyRewardReservationInput {
   channel: Exclude<LoyaltyChannel, 'migration'>;
   actorId?: string | number | null;
   posSaleId?: number | null;
+}
+
+export interface LoyaltyPosSaleReversalResult {
+  earnReversals: LoyaltyMutationResult[];
+  redemptionReversals: LoyaltyMutationResult[];
 }
 
 function mapAccount(row: AccountRow): LoyaltyAccount {
@@ -197,6 +233,7 @@ export const LoyaltyRepository = {
 
   async applyTransaction(connection: PoolConnection, input: LoyaltyTransactionInput): Promise<LoyaltyMutationResult> {
     validateMutation(input);
+    const isReversal = input.type === 'earn_reversal' || input.type === 'redeem_reversal';
 
     const existing = await findTransactionByKey(connection, input.businessId, input.idempotencyKey);
     if (existing) return replayResult(existing, input);
@@ -209,16 +246,18 @@ export const LoyaltyRepository = {
       [input.contactId, input.businessId],
     );
     const contact = contacts[0];
-    if (!contact || !Number(contact.is_active)) throw new LoyaltyValidationError('The selected customer is not active or does not exist.');
-    if (!['retail_customer', 'b2b_customer', 'both'].includes(String(contact.type)) || !Number(contact.loyalty_member)) {
+    if (!contact || (!isReversal && !Number(contact.is_active))) throw new LoyaltyValidationError('The selected customer is not active or does not exist.');
+    if (!isReversal && (!['retail_customer', 'b2b_customer', 'both'].includes(String(contact.type)) || !Number(contact.loyalty_member))) {
       throw new LoyaltyValidationError('This customer is not enrolled in the loyalty program.');
     }
 
-    await connection.execute(
-      `INSERT IGNORE INTO loyalty_accounts (business_id, contact_id)
-       VALUES (?, ?)`,
-      [input.businessId, input.contactId],
-    );
+    if (!isReversal) {
+      await connection.execute(
+        `INSERT IGNORE INTO loyalty_accounts (business_id, contact_id)
+         VALUES (?, ?)`,
+        [input.businessId, input.contactId],
+      );
+    }
 
     const [accounts] = await connection.execute<AccountRow[]>(
       `SELECT id, business_id, contact_id, balance_points, lifetime_earned, lifetime_redeemed, status
@@ -229,8 +268,8 @@ export const LoyaltyRepository = {
       [input.businessId, input.contactId],
     );
     const account = accounts[0];
-    if (!account) throw new Error('Loyalty account could not be created.');
-    if (account.status !== 'active') throw new LoyaltyValidationError('This loyalty account is not active.');
+    if (!account) throw new Error(isReversal ? 'The loyalty account to reverse does not exist.' : 'Loyalty account could not be created.');
+    if (!isReversal && account.status !== 'active') throw new LoyaltyValidationError('This loyalty account is not active.');
 
     const replay = await findTransactionByKey(connection, input.businessId, input.idempotencyKey);
     if (replay) return replayResult(replay, input);
@@ -363,5 +402,140 @@ export const LoyaltyRepository = {
       rewardValueAud: Number(reward.value_aud),
       status: input.posSaleId ? 'used' : 'reserved',
     };
+  },
+
+  async reversePosSale(
+    connection: PoolConnection,
+    input: { businessId: string; saleId: number; actorId?: string | number | null },
+  ): Promise<LoyaltyPosSaleReversalResult> {
+    const [redemptions] = await connection.execute<PosSaleRedemptionRow[]>(
+      `SELECT r.id, a.contact_id, r.points_deducted
+         FROM loyalty_redemptions r
+         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+        WHERE r.business_id = ? AND r.pos_sale_id = ? AND r.status = 'used'
+        ORDER BY r.id
+        FOR UPDATE`,
+      [input.businessId, input.saleId],
+    );
+    const redemptionReversals: LoyaltyMutationResult[] = [];
+    for (const redemption of redemptions) {
+      const reversal = await this.applyTransaction(connection, {
+        businessId: input.businessId,
+        contactId: Number(redemption.contact_id),
+        type: 'redeem_reversal',
+        pointsDelta: Number(redemption.points_deducted),
+        channel: 'pos',
+        sourceType: 'pos_sale_void',
+        sourceId: input.saleId,
+        idempotencyKey: `pos:sale:${input.saleId}:redemption:${redemption.id}:void`,
+        actorId: input.actorId,
+        reason: `POS sale ${input.saleId} voided`,
+      });
+      await connection.execute(
+        `UPDATE loyalty_redemptions
+            SET status = 'cancelled', cancelled_at = NOW(), cancelled_reason = ?
+          WHERE id = ? AND business_id = ? AND status = 'used'`,
+        [`POS sale ${input.saleId} voided`, redemption.id, input.businessId],
+      );
+      redemptionReversals.push(reversal);
+    }
+
+    const [earns] = await connection.execute<PosSaleEarnRow[]>(
+      `SELECT t.id, a.contact_id, t.points_delta
+         FROM loyalty_transactions t
+         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+        WHERE t.business_id = ? AND t.type = 'earn'
+          AND t.source_type = 'pos_sale' AND t.source_id = ?
+        ORDER BY t.id
+        FOR UPDATE`,
+      [input.businessId, String(input.saleId)],
+    );
+    const earnReversals: LoyaltyMutationResult[] = [];
+    for (const earn of earns) {
+      try {
+        earnReversals.push(await this.applyTransaction(connection, {
+          businessId: input.businessId,
+          contactId: Number(earn.contact_id),
+          type: 'earn_reversal',
+          pointsDelta: -Math.abs(Number(earn.points_delta)),
+          channel: 'pos',
+          sourceType: 'pos_sale_void',
+          sourceId: input.saleId,
+          idempotencyKey: `pos:sale:${input.saleId}:earn:${earn.id}:void`,
+          actorId: input.actorId,
+          reason: `POS sale ${input.saleId} voided`,
+        }));
+      } catch (error) {
+        if (error instanceof LoyaltyValidationError && error.message === 'The customer does not have enough points.') {
+          throw new LoyaltyVoidBlockedError('This sale earned points that have since been spent. Reverse the later loyalty activity before voiding this sale.');
+        }
+        throw error;
+      }
+    }
+
+    return { earnReversals, redemptionReversals };
+  },
+
+  async reversePosReturn(
+    connection: PoolConnection,
+    input: {
+      businessId: string;
+      originalSaleId: number;
+      returnSaleId: number;
+      originalEligibleCents: number;
+      cumulativeReturnedCents: number;
+      actorId?: string | number | null;
+    },
+  ): Promise<LoyaltyMutationResult | null> {
+    const [earns] = await connection.execute<PosSaleEarnRow[]>(
+      `SELECT t.id, a.contact_id, t.points_delta
+         FROM loyalty_transactions t
+         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+        WHERE t.business_id = ? AND t.type = 'earn'
+          AND t.source_type = 'pos_sale' AND t.source_id = ?
+        ORDER BY t.id
+        FOR UPDATE`,
+      [input.businessId, String(input.originalSaleId)],
+    );
+    const earn = earns[0];
+    if (!earn) return null;
+
+    const [reversalRows] = await connection.execute<RowDataPacket[]>(
+      `SELECT points_delta
+         FROM loyalty_transactions
+        WHERE business_id = ? AND type = 'earn_reversal'
+          AND source_type = 'pos_sale_return' AND source_id = ?
+        ORDER BY id
+        FOR UPDATE`,
+      [input.businessId, String(input.originalSaleId)],
+    );
+    const alreadyReversed = reversalRows.reduce((sum, row) => sum + Math.abs(Number(row.points_delta)), 0);
+    const points = calculateProportionalReturnReversal({
+      originalEarned: Number(earn.points_delta),
+      originalEligibleCents: input.originalEligibleCents,
+      cumulativeReturnedCents: input.cumulativeReturnedCents,
+      alreadyReversed,
+    });
+    if (points <= 0) return null;
+
+    try {
+      return await this.applyTransaction(connection, {
+        businessId: input.businessId,
+        contactId: Number(earn.contact_id),
+        type: 'earn_reversal',
+        pointsDelta: -points,
+        channel: 'pos',
+        sourceType: 'pos_sale_return',
+        sourceId: input.originalSaleId,
+        idempotencyKey: `pos:return:${input.returnSaleId}:earn:${earn.id}`,
+        actorId: input.actorId,
+        reason: `Linked POS return ${input.returnSaleId} for sale ${input.originalSaleId}`,
+      });
+    } catch (error) {
+      if (error instanceof LoyaltyValidationError && error.message === 'The customer does not have enough points.') {
+        throw new LoyaltyReturnBlockedError('This return would reverse loyalty points that the customer has already spent. Reverse the later loyalty activity before completing this return.');
+      }
+      throw error;
+    }
   },
 };

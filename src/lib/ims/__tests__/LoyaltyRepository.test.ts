@@ -1,7 +1,7 @@
 import type { PoolConnection } from 'mysql2/promise';
 import { describe, expect, it, vi } from 'vitest';
 
-import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
+import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 
 function connectionWith(...results: unknown[]): { connection: PoolConnection; execute: ReturnType<typeof vi.fn> } {
   const execute = vi.fn();
@@ -125,6 +125,28 @@ describe('LoyaltyRepository', () => {
     expect(execute.mock.calls[1][0]).toContain('loyalty_member');
   });
 
+  it('allows a corrective reversal after the customer opts out', async () => {
+    const { connection, execute } = connectionWith(
+      [[]],
+      [[{ ...enrolledContact, loyalty_member: 0 }]],
+      [[{ ...account, balance_points: 10 }]],
+      [[]],
+      [{ insertId: 101 }],
+      [{ affectedRows: 1 }],
+    );
+
+    await expect(LoyaltyRepository.applyTransaction(connection, {
+      ...earnInput,
+      type: 'redeem_reversal',
+      pointsDelta: 20,
+      idempotencyKey: 'pos:sale:101:reward:void',
+      reason: 'POS sale voided',
+    })).resolves.toEqual({ transactionId: 101, accountId: 7, balanceAfter: 30, duplicate: false });
+
+    expect(execute.mock.calls[2][0]).toContain('FOR UPDATE');
+    expect(execute.mock.calls.some(call => String(call[0]).includes('INSERT IGNORE INTO loyalty_accounts'))).toBe(false);
+  });
+
   it('reserves a reward against the same locked ledger account', async () => {
     const { connection, execute } = connectionWith(
       [[]],
@@ -171,5 +193,81 @@ describe('LoyaltyRepository', () => {
     expect(execute.mock.calls[0][0]).toContain('FOR UPDATE');
     expect(execute.mock.calls[1][1]).toEqual([3, 'business-1']);
     expect(execute.mock.calls[9][0]).toContain('INSERT INTO loyalty_redemptions');
+  });
+
+  it('restores redeemed points before reversing points earned by a voided POS sale', async () => {
+    const { connection, execute } = connectionWith(
+      [[{ id: 55, contact_id: 42, points_deducted: 20 }]],
+      [{ affectedRows: 1 }],
+      [[{ id: 99, contact_id: 42, points_delta: 25 }]],
+    );
+    const applySpy = vi.spyOn(LoyaltyRepository, 'applyTransaction')
+      .mockResolvedValueOnce({ transactionId: 102, accountId: 7, balanceAfter: 30, duplicate: false })
+      .mockResolvedValueOnce({ transactionId: 103, accountId: 7, balanceAfter: 5, duplicate: false });
+
+    await expect(LoyaltyRepository.reversePosSale(connection, {
+      businessId: 'business-1',
+      saleId: 101,
+      actorId: 'manager-1',
+    })).resolves.toEqual({
+      redemptionReversals: [{ transactionId: 102, accountId: 7, balanceAfter: 30, duplicate: false }],
+      earnReversals: [{ transactionId: 103, accountId: 7, balanceAfter: 5, duplicate: false }],
+    });
+
+    expect(applySpy.mock.calls[0][1]).toMatchObject({ type: 'redeem_reversal', pointsDelta: 20 });
+    expect(applySpy.mock.calls[1][1]).toMatchObject({ type: 'earn_reversal', pointsDelta: -25 });
+    expect(execute.mock.calls[1][0]).toContain("status = 'cancelled'");
+    applySpy.mockRestore();
+  });
+
+  it('reverses the cumulative proportional points target for a linked POS return', async () => {
+    const { connection } = connectionWith(
+      [[{ id: 99, contact_id: 42, points_delta: 95 }]],
+      [[{ points_delta: -30 }]],
+    );
+    const applySpy = vi.spyOn(LoyaltyRepository, 'applyTransaction').mockResolvedValueOnce({
+      transactionId: 104,
+      accountId: 7,
+      balanceAfter: 33,
+      duplicate: false,
+    });
+
+    await expect(LoyaltyRepository.reversePosReturn(connection, {
+      businessId: 'business-1',
+      originalSaleId: 101,
+      returnSaleId: 202,
+      originalEligibleCents: 9500,
+      cumulativeReturnedCents: 6200,
+      actorId: 'staff-1',
+    })).resolves.toMatchObject({ transactionId: 104 });
+
+    expect(applySpy).toHaveBeenCalledWith(connection, expect.objectContaining({
+      contactId: 42,
+      type: 'earn_reversal',
+      pointsDelta: -32,
+      sourceType: 'pos_sale_return',
+      sourceId: 101,
+      idempotencyKey: 'pos:return:202:earn:99',
+    }));
+    applySpy.mockRestore();
+  });
+
+  it('blocks a linked return when its earned points have already been spent', async () => {
+    const { connection } = connectionWith(
+      [[{ id: 99, contact_id: 42, points_delta: 95 }]],
+      [[]],
+    );
+    const applySpy = vi.spyOn(LoyaltyRepository, 'applyTransaction').mockRejectedValueOnce(
+      new LoyaltyValidationError('The customer does not have enough points.'),
+    );
+
+    await expect(LoyaltyRepository.reversePosReturn(connection, {
+      businessId: 'business-1',
+      originalSaleId: 101,
+      returnSaleId: 202,
+      originalEligibleCents: 9500,
+      cumulativeReturnedCents: 9500,
+    })).rejects.toBeInstanceOf(LoyaltyReturnBlockedError);
+    applySpy.mockRestore();
   });
 });

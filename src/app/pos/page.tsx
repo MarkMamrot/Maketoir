@@ -54,7 +54,7 @@ function calcLineTotal(item: CartItem): number {
   return base - item.discount_amount;
 }
 function calcTotals(items: CartItem[]) {
-  const subtotal       = items.reduce((s, i) => s + i.qty * i.unit_price, 0);
+  const subtotal       = items.reduce((s, i) => s + (i.return_of_sale_item_id != null ? i.line_total : i.qty * i.unit_price), 0);
   const discount_total = items.reduce((s, i) => s + i.discount_amount,    0);
   const total          = subtotal - discount_total;
   const tax_total      = total * 0.1 / 1.1; // GST inclusive
@@ -1246,6 +1246,10 @@ function MainPos({
 }) {
   const [screen, setScreen] = useState<MainScreen>('pos');
   const [cart, setCart] = useState<CartItem[]>(() => loadCurrentCart());
+  const [linkedReturnSaleId, setLinkedReturnSaleId] = useState<number | null>(() => {
+    const saleId = Number(loadCurrentCart()[0]?.return_of_sale_id);
+    return Number.isInteger(saleId) && saleId > 0 ? saleId : null;
+  });
   const [parkedSales, setParkedSales] = useState<ParkedSale[]>(() => loadParkedSales());
   const [showPayment, setShowPayment] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -1588,6 +1592,10 @@ function MainPos({
   }, [cart, orderDiscType, orderDiscVal, selectedReward, isLayby, isOnline]);
 
   function addToCart(product: CachedProduct) {
+    if (linkedReturnSaleId != null) {
+      setSaleSubmitError('Finish or clear the linked return before starting another sale.');
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(i => i.variant_id === product.variant_id);
       if (existing) {
@@ -1619,6 +1627,13 @@ function MainPos({
   function updateQty(localId: string, delta: number) {
     setCart(prev => prev.map(i => {
       if (i.localId !== localId) return i;
+      if (i.return_of_sale_item_id != null) {
+        const raw = i.qty + delta;
+        if (raw >= 0) return i;
+        const newQty = Math.max(-Number(i.return_max_qty ?? Math.abs(i.qty)), raw);
+        const updated = { ...i, qty: newQty };
+        return { ...updated, line_total: Math.round(newQty * i.unit_price * 100) / 100 };
+      }
       const raw    = i.qty + delta;
       const newQty = raw === 0 ? delta : raw; // skip 0: 1→-1 or -1→+1
       const updated = { ...i, qty: newQty };
@@ -1633,6 +1648,7 @@ function MainPos({
   function updateDiscount(localId: string, type: 'percent' | 'amount', value: number) {
     setCart(prev => prev.map(i => {
       if (i.localId !== localId) return i;
+      if (i.return_of_sale_item_id != null) return i;
       const base = i.qty * i.unit_price;
       const discAmt = type === 'percent' ? base * (value / 100) : value;
       const updated = { ...i, discount_type: type, discount_value: value, discount_amount: Math.min(discAmt, base) };
@@ -1643,6 +1659,7 @@ function MainPos({
   function updatePrice(localId: string, price: number) {
     setCart(prev => prev.map(i => {
       if (i.localId !== localId) return i;
+      if (i.return_of_sale_item_id != null) return i;
       const updated = { ...i, unit_price: price };
       return { ...updated, line_total: calcLineTotal(updated) };
     }));
@@ -1656,6 +1673,7 @@ function MainPos({
 
   function clearCart() {
     setCart([]);
+    setLinkedReturnSaleId(null);
     setCustomerName('');
     setCustomerPhone('');
     setCustomerOpen(false);
@@ -1671,6 +1689,64 @@ function MainPos({
     setContactSearch('');
     setContactResults([]);
     saveCurrentCart([]);
+  }
+
+  async function startLinkedReturn(saleId: number) {
+    setSaleSubmitError(null);
+    if (!navigator.onLine) {
+      setSaleSubmitError('Linked returns require an internet connection.');
+      setScreen('pos');
+      return;
+    }
+    if (cart.length > 0 && !window.confirm('Clear the current cart and start this return?')) return;
+
+    const response = await fetch(`/api/pos/sales/${saleId}`);
+    const original = await response.json();
+    if (!response.ok) throw new Error(original.error || 'The original sale could not be loaded.');
+    const items = Array.isArray(original.items) ? original.items : [];
+    const originalLineTotal = items.reduce((sum: number, item: any) => sum + Math.max(0, Number(item.line_total)), 0);
+    const netSaleRatio = originalLineTotal > 0 ? Math.max(0, Number(original.sale?.total)) / originalLineTotal : 0;
+    const returnItems: CartItem[] = items.flatMap((item: any) => {
+      const remainingQty = Math.max(0, Number(item.qty) - Number(item.returned_qty ?? 0));
+      if (remainingQty <= 0) return [];
+      const qty = -Math.min(1, remainingQty);
+      const unitPrice = Number(item.line_total) * netSaleRatio / Number(item.qty);
+      return [{
+        localId: newLocalId(),
+        return_of_sale_item_id: Number(item.id),
+        return_of_sale_id: saleId,
+        return_max_qty: remainingQty,
+        variant_id: item.variant_id ?? null,
+        code: item.code ?? null,
+        name: item.name,
+        qty,
+        unit_price: unitPrice,
+        original_price: unitPrice,
+        discount_type: 'none' as const,
+        discount_value: 0,
+        discount_amount: 0,
+        tax_rate: Number(item.tax_rate ?? 10),
+        line_total: Math.round(qty * unitPrice * 100) / 100,
+        is_gift_card: Boolean(item.is_gift_card),
+      }];
+    });
+    if (returnItems.length === 0) throw new Error('Every item on this sale has already been returned.');
+
+    setCart(returnItems);
+    setLinkedReturnSaleId(saleId);
+    setOrderDiscType('percent');
+    setOrderDiscVal('');
+    setSelectedReward(null);
+    setCustomerName(original.sale.customer_name ?? '');
+    setCustomerPhone(original.sale.customer_phone ?? '');
+    setLinkedContact(original.sale.customer_id ? {
+      id: Number(original.sale.customer_id),
+      name: original.sale.customer_name ?? 'Customer',
+      phone: original.sale.customer_phone ?? null,
+      store_credit: 0,
+    } : null);
+    loyaltySaleLocalIdRef.current = newLocalId();
+    setScreen('pos');
   }
 
   function parkSale() {
@@ -1715,8 +1791,12 @@ function MainPos({
         setSaleSubmitError('Loyalty rewards can only be redeemed while online.');
         return;
       }
-      if (selectedReward && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
-      const localId = selectedReward ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
+      if (linkedReturnSaleId != null && !navigator.onLine) {
+        setSaleSubmitError('Linked returns require an internet connection.');
+        return;
+      }
+      if ((selectedReward || linkedReturnSaleId != null) && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
+      const localId = selectedReward || linkedReturnSaleId != null ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
       const now = new Date().toISOString();
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
       const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
@@ -1727,6 +1807,7 @@ function MainPos({
         location_id:    session.location_id,
         cashier_id:     session.pos_user_id,
         sale_type:      isLayby ? 'layby' : cart.some(i => i.qty < 0) ? 'return' : 'sale',
+        return_of_sale_id: linkedReturnSaleId,
         status:         isLayby ? 'layby_active' : 'completed',
         customer_id:    linkedContact?.id ?? null,
         customer_name:  customerName || null,
@@ -1736,7 +1817,7 @@ function MainPos({
         notes:          saleNotes || null,
         subtotal, discount_total: db_discount_total, tax_total, total,
         cash_rounding: cashRounding || undefined,
-        items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total, is_gift_card: Boolean(i.is_gift_card) })),
+        items:    cart.map(i => ({ return_of_sale_item_id: i.return_of_sale_item_id ?? null, variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total, is_gift_card: Boolean(i.is_gift_card) })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
       };
 
@@ -1750,8 +1831,8 @@ function MainPos({
           });
           const data = await res.json();
           if (res.ok) serverId = data.id;
-          else if (selectedReward) {
-            setSaleSubmitError(data.error || 'Loyalty redemption could not be completed.');
+          else if (selectedReward || linkedReturnSaleId != null) {
+            setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
             return;
           } else addToOfflineQueue(payload);
         } else {
@@ -1762,8 +1843,8 @@ function MainPos({
           addToOfflineQueue(payload);
         }
       } catch {
-        if (selectedReward) {
-          setSaleSubmitError('Loyalty redemption could not reach the server. Try completing the sale again.');
+        if (selectedReward || linkedReturnSaleId != null) {
+          setSaleSubmitError(linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
           return;
         }
         addToOfflineQueue(payload);
@@ -1847,7 +1928,7 @@ function MainPos({
     setScreen('pos');
     setScanFocusTick(t => t + 1);
   }} />;
-  if (screen === 'reports') return <ReportsScreen session={session} regSession={regSession} products={products} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'reports') return <ReportsScreen session={session} regSession={regSession} products={products} onStartReturn={startLinkedReturn} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'parked') return (
     <ParkedScreen
       sales={parkedSales}
@@ -2332,7 +2413,7 @@ function MainPos({
           </div>
 
           {/* Order discount */}
-          {cart.length > 0 && (
+          {cart.length > 0 && linkedReturnSaleId == null && (
             <div style={{ padding: '.25rem .75rem .35rem', display: 'flex', gap: '.5rem', alignItems: 'center', borderTop: '1px solid var(--sv-etch)' }}>
               <span style={{ fontSize: '.78rem', color: 'var(--sv-text-dim)', flexShrink: 0 }}>Order disc.</span>
               <select value={orderDiscType} onChange={e => setOrderDiscType(e.target.value as 'percent' | 'amount')} style={{ fontSize: '.78rem', padding: '.15rem .25rem', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', borderRadius: 4, flexShrink: 0 }}>
@@ -6150,7 +6231,7 @@ function ReceiveBtInline({ bt, onBack, onDone }: { bt: any; onBack: () => void; 
 
 // ─── Reports Screen ───────────────────────────────────────────────────────────
 
-function ReportsScreen({ session, regSession, products, onBack }: { session: PosSession; regSession?: any; products?: CachedProduct[]; onBack: () => void }) {
+function ReportsScreen({ session, regSession, products, onStartReturn, onBack }: { session: PosSession; regSession?: any; products?: CachedProduct[]; onStartReturn: (saleId: number) => Promise<void>; onBack: () => void }) {
   const today = new Date().toLocaleDateString('sv-SE');
   const [date, setDate] = useState(today);
   const [data, setData] = useState<any>(null);
@@ -6311,6 +6392,13 @@ function ReportsScreen({ session, regSession, products, onBack }: { session: Pos
                     title="Reprint receipt"
                     style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: '.8rem', flexShrink: 0 }}
                   >🖨 Print</button>
+                  {t.sale.sale_type === 'sale' && t.sale.status === 'completed' && (
+                    <button
+                      onClick={e => { e.stopPropagation(); void onStartReturn(Number(t.sale.id)).catch(error => window.alert(error.message || 'Return could not be started.')); }}
+                      title="Return items from this sale"
+                      style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '2px 7px', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', flexShrink: 0 }}
+                    >↩ Return</button>
+                  )}
                   {regSession && typeof regSession === 'object' && t.sale.register_session_id === regSession.id && (
                     <>
                       <button

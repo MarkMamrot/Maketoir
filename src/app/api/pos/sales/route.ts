@@ -7,7 +7,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
-import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
+import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -183,6 +183,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, id: saleId, credit_note_id: creditNoteId, loyalty, loyalty_points: loyaltyPoints, loyalty_redemption: loyaltyRedemption, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale create error:', err);
-    return NextResponse.json({ error: err.message || String(err) }, { status: err instanceof LoyaltyValidationError ? 400 : 500 });
+    const status = err instanceof LoyaltyReturnBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;
+    return NextResponse.json({ error: err.message || String(err) }, { status });
   }
 }

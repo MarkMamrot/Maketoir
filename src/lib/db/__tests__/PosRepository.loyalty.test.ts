@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockUnwindGiftCards } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
+  mockReversePosSale: vi.fn(),
+  mockReversePosReturn: vi.fn(),
+  mockUnwindGiftCards: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -13,10 +16,16 @@ vi.mock('@/services/IMSMySQLService', () => ({
 }));
 vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   LoyaltyValidationError: class LoyaltyValidationError extends Error {},
-  LoyaltyRepository: { applyTransaction: mockApplyTransaction, reserveReward: mockReserveReward },
+  LoyaltyVoidBlockedError: class LoyaltyVoidBlockedError extends Error {},
+  LoyaltyRepository: {
+    applyTransaction: mockApplyTransaction,
+    reserveReward: mockReserveReward,
+    reversePosSale: mockReversePosSale,
+    reversePosReturn: mockReversePosReturn,
+  },
 }));
 vi.mock('@/lib/ims/posReturnCreditNote', () => ({ getPosStockQtyChange: vi.fn() }));
-vi.mock('@/lib/pos/giftCardSaleVoid', () => ({ unwindGiftCardTransactionsForSale: vi.fn() }));
+vi.mock('@/lib/pos/giftCardSaleVoid', () => ({ unwindGiftCardTransactionsForSale: mockUnwindGiftCards }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(null) }));
 
 import { PosSalesRepo } from '@/lib/db/PosRepository';
@@ -94,6 +103,9 @@ describe('PosSalesRepo loyalty earning', () => {
       rewardValueAud: 5,
       status: 'used',
     });
+    mockReversePosSale.mockResolvedValue({ earnReversals: [], redemptionReversals: [] });
+    mockReversePosReturn.mockResolvedValue({ transactionId: 12, accountId: 9, balanceAfter: 50, duplicate: false });
+    mockUnwindGiftCards.mockResolvedValue([]);
   });
 
   it('awards enrolled customer points before committing the sale', async () => {
@@ -192,5 +204,99 @@ describe('PosSalesRepo loyalty earning', () => {
 
     expect(saleConnection.rollback).toHaveBeenCalledTimes(1);
     expect(saleConnection.commit).not.toHaveBeenCalled();
+  });
+
+  it('validates and reverses a linked partial return before committing it', async () => {
+    const saleConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ id: 101, customer_id: 42, discount_total: 5, total: 90 }]])
+        .mockResolvedValueOnce([[{
+          id: 501,
+          variant_id: null,
+          qty: 2,
+          line_total: 95,
+          discount_amount: 0,
+          is_gift_card: 0,
+        }]])
+        .mockResolvedValueOnce([[{ return_of_sale_item_id: 501, qty: -0.5 }]])
+        .mockResolvedValueOnce([{ insertId: 202 }])
+        .mockResolvedValueOnce([{ affectedRows: 1 }]),
+    };
+    const stockConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn(),
+    };
+    mockGetIMSPool.mockReturnValue({
+      getConnection: vi.fn().mockResolvedValueOnce(saleConnection).mockResolvedValueOnce(stockConnection),
+    });
+
+    await PosSalesRepo.complete({
+      ...saleData(),
+      local_id: 'return-1',
+      sale_type: 'return',
+      return_of_sale_id: 101,
+      subtotal: -22.5,
+      discount_total: 0,
+      tax_total: -2.05,
+      total: -22.5,
+      items: [{
+        ...saleData().items[0],
+        return_of_sale_item_id: 501,
+        qty: -0.5,
+        line_total: -22.5,
+      }],
+    });
+
+    expect(mockReversePosReturn).toHaveBeenCalledWith(saleConnection, expect.objectContaining({
+      businessId: 'business-1',
+      originalSaleId: 101,
+      returnSaleId: 202,
+      originalEligibleCents: 9000,
+      cumulativeReturnedCents: 4500,
+    }));
+    expect(mockReversePosReturn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
+    expect(saleConnection.execute.mock.calls[4][0]).toContain('return_of_sale_item_id');
+  });
+
+  it('reverses loyalty inside the manager void transaction before commit', async () => {
+    const stockConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ status: 'completed' }]])
+        .mockResolvedValueOnce([{ affectedRows: 1 }]),
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn().mockResolvedValue(stockConnection) });
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: {
+        id: 101,
+        business_id: 'business-1',
+        status: 'completed',
+        sale_type: 'sale',
+        location_id: 3,
+        customer_id: 42,
+      },
+      items: [],
+      payments: [],
+    } as any);
+
+    await PosSalesRepo.voidWithReversal(101, 'manager-1');
+
+    expect(mockReversePosSale).toHaveBeenCalledWith(stockConnection, {
+      businessId: 'business-1',
+      saleId: 101,
+      actorId: 'manager-1',
+    });
+    expect(mockReversePosSale.mock.invocationCallOrder[0]).toBeLessThan(stockConnection.commit.mock.invocationCallOrder[0]);
+    expect(stockConnection.execute.mock.calls[1][0]).toContain("status = 'voided'");
   });
 });

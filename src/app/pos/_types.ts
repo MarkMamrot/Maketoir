@@ -38,6 +38,9 @@ export interface CachedProduct {
 
 export interface CartItem {
   localId:         string;
+  return_of_sale_item_id?: number | null;
+  return_of_sale_id?: number | null;
+  return_max_qty?: number;
   variant_id:      string | null;
   code:            string | null;
   name:            string;

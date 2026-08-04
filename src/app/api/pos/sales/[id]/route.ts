@@ -5,6 +5,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
+import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
 
 function getPosSession() {
@@ -59,7 +60,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      const { stockError, giftCardReversals } = await PosSalesRepo.voidWithReversal(id);
+      const { stockError, giftCardReversals, loyaltyReversals } = await PosSalesRepo.voidWithReversal(
+        id,
+        imsSession?.pos_user_id ?? imsSession?.userId ?? null,
+      );
       for (const reversal of giftCardReversals) {
         await syncGiftCardRedemptionReversal({
           businessId: imsSession.businessId,
@@ -73,7 +77,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale void:', err));
       }
-      return NextResponse.json({ success: true, ...(stockError ? { stockWarning: stockError } : {}) });
+      return NextResponse.json({ success: true, loyalty_reversals: loyaltyReversals, ...(stockError ? { stockWarning: stockError } : {}) });
     }
 
     await PosSalesRepo.updateStatus(id, status, { parked_label });
@@ -82,6 +86,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   } catch (err: any) {
     console.error('POS sale update error:', err);
     if (err instanceof GiftCardVoidBlockedError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    if (err instanceof LoyaltyVoidBlockedError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });

@@ -4,6 +4,8 @@ import {
   calculateEarnedPoints,
   calculateEligibleSpendCents,
   calculatePosEligibleSpend,
+  calculatePosReturnEligibleCents,
+  calculateProportionalReturnReversal,
   calculateReversalPoints,
   canClaimReward,
   parseLoyaltySettings,
@@ -43,6 +45,17 @@ describe('loyalty calculations', () => {
     })).toBe(100);
   });
 
+  it('allocates original order and loyalty discounts across returned eligible lines', () => {
+    expect(calculatePosReturnEligibleCents({
+      originalItems: [
+        { id: 1, qty: 2, lineTotal: 80, discountAmount: 20 },
+        { id: 2, qty: 1, lineTotal: 50, isGiftCard: true },
+      ],
+      originalDiscountTotal: 33,
+      cumulativeReturnedQtyByItemId: new Map([[1, 1], [2, 1]]),
+    })).toEqual({ originalEligibleCents: 7200, cumulativeReturnedCents: 3600 });
+  });
+
   it('never awards negative or invalid points', () => {
     expect(calculateEarnedPoints({ merchandiseTotal: -10, earnRate: 1 })).toBe(0);
     expect(calculateEarnedPoints({ merchandiseTotal: 10, discountTotal: 20, earnRate: 1 })).toBe(0);
@@ -53,6 +66,30 @@ describe('loyalty calculations', () => {
     expect(calculateReversalPoints(100, 30, 50)).toBe(50);
     expect(calculateReversalPoints(100, 80, 50)).toBe(20);
     expect(calculateReversalPoints(100, 100, 50)).toBe(0);
+  });
+
+  it('calculates cumulative proportional return points without rounding drift', () => {
+    expect(calculateProportionalReturnReversal({
+      originalEarned: 95,
+      originalEligibleCents: 9500,
+      cumulativeReturnedCents: 3000,
+      alreadyReversed: 0,
+    })).toBe(30);
+    expect(calculateProportionalReturnReversal({
+      originalEarned: 95,
+      originalEligibleCents: 9500,
+      cumulativeReturnedCents: 6200,
+      alreadyReversed: 30,
+    })).toBe(32);
+  });
+
+  it('caps cumulative return reversal at the original earned points', () => {
+    expect(calculateProportionalReturnReversal({
+      originalEarned: 95,
+      originalEligibleCents: 9500,
+      cumulativeReturnedCents: 12000,
+      alreadyReversed: 90,
+    })).toBe(5);
   });
 
   it('requires a positive integer reward cost and sufficient integer balance', () => {

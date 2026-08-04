@@ -868,6 +868,8 @@ CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   business_id     VARCHAR(100) NOT NULL DEFAULT '',
   sale_id         INT NOT NULL,
+  return_of_sale_item_id INT NULL,
+  is_gift_card    TINYINT(1) NOT NULL DEFAULT 0,
   variant_id      VARCHAR(36),
   code            VARCHAR(100),
   name            VARCHAR(500) NOT NULL,
@@ -881,7 +883,8 @@ CREATE TABLE IF NOT EXISTS pos_sale_items (
   line_total      DECIMAL(12,2) NOT NULL,
   FOREIGN KEY (sale_id) REFERENCES pos_sales(id) ON DELETE CASCADE,
   INDEX idx_business_id (business_id),
-  INDEX idx_psi_sale (sale_id)
+  INDEX idx_psi_sale (sale_id),
+  INDEX idx_psi_return_source (return_of_sale_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── POS Payments ──────────────────────────────────────────────

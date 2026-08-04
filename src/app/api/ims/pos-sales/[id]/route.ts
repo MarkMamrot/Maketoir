@@ -6,6 +6,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { enrichPosSaleItemsWithCosts } from '@/lib/ims/posSaleCosts.server';
 import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
+import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
 
 // GET /api/ims/pos-sales/[id]
@@ -72,7 +73,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    const { stockError, giftCardReversals } = await PosSalesRepo.voidWithReversal(id);
+    const { stockError, giftCardReversals, loyaltyReversals } = await PosSalesRepo.voidWithReversal(
+      id,
+      session.userId ?? null,
+    );
     for (const reversal of giftCardReversals) {
       await syncGiftCardRedemptionReversal({
         businessId: session.businessId,
@@ -87,10 +91,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for IMS POS sale void:', err));
     }
 
-    return NextResponse.json({ success: true, ...(stockError ? { stockWarning: stockError } : {}) });
+    return NextResponse.json({ success: true, loyalty_reversals: loyaltyReversals, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('IMS POS sale update error:', err);
     if (err instanceof GiftCardVoidBlockedError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    if (err instanceof LoyaltyVoidBlockedError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });

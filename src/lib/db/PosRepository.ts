@@ -1,8 +1,13 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
 import { unwindGiftCardTransactionsForSale, type GiftCardVoidReversal } from '@/lib/pos/giftCardSaleVoid';
-import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
-import { calculateEarnedPoints, calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
+import {
+  LoyaltyRepository,
+  LoyaltyValidationError,
+  LoyaltyVoidBlockedError,
+  type LoyaltyPosSaleReversalResult,
+} from '@/lib/ims/LoyaltyRepository';
+import { calculateEarnedPoints, calculatePosEligibleSpend, calculatePosReturnEligibleCents } from '@/lib/loyalty/calculations';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -44,6 +49,9 @@ export interface PosSaleRow {
 export interface PosSaleItemRow {
   id:              number;
   sale_id:         number;
+  return_of_sale_item_id: number | null;
+  is_gift_card:    number;
+  returned_qty?:   number;
   variant_id:      string | null;
   code:            string | null;
   name:            string;
@@ -158,7 +166,19 @@ export const PosSalesRepo = {
     const sales = await imsQuery<any>('SELECT * FROM pos_sales WHERE id = ? LIMIT 1', [id]);
     if (!sales[0]) return null;
     const sale = parseSale(sales[0]);
-    const items = (await imsQuery<any>('SELECT * FROM pos_sale_items WHERE sale_id = ?', [id])).map(parseItem);
+    const items = (await imsQuery<any>(
+      `SELECT i.*,
+              COALESCE((
+                SELECT SUM(ABS(ri.qty))
+                  FROM pos_sale_items ri
+                  JOIN pos_sales rs ON rs.id = ri.sale_id
+                 WHERE ri.return_of_sale_item_id = i.id
+                   AND rs.sale_type = 'return' AND rs.status = 'completed'
+              ), 0) AS returned_qty
+         FROM pos_sale_items i
+        WHERE i.sale_id = ?`,
+      [id],
+    )).map(parseItem);
     const payments = (await imsQuery<any>('SELECT * FROM pos_payments WHERE sale_id = ? ORDER BY created_at', [id])).map(parsePayment);
     return { sale, items, payments };
   },
@@ -220,6 +240,7 @@ export const PosSalesRepo = {
     parked_label?:     string | null;
     return_of_sale_id?: number | null;
     items: Array<{
+      return_of_sale_item_id?: number | null;
       variant_id:      string | null;
       code:            string | null;
       name:            string;
@@ -250,6 +271,90 @@ export const PosSalesRepo = {
 
       const now = localNow();
       const completedAt = ['completed', 'layby_complete', 'voided'].includes(data.status) ? now : null;
+      let linkedReturnAllocation: { originalEligibleCents: number; cumulativeReturnedCents: number } | null = null;
+
+      if (data.sale_type === 'return' && data.status === 'completed' && data.return_of_sale_id != null) {
+        const originalSaleId = Number(data.return_of_sale_id);
+        if (!Number.isInteger(originalSaleId) || originalSaleId <= 0) throw new LoyaltyValidationError('A valid original sale is required for a linked return.');
+        const [originalSales] = await conn.execute<any[]>(
+          `SELECT id, customer_id, discount_total, total
+             FROM pos_sales
+            WHERE id = ? AND business_id = ? AND sale_type = 'sale' AND status = 'completed'
+            LIMIT 1
+            FOR UPDATE`,
+          [originalSaleId, data.business_id],
+        );
+        const originalSale = originalSales[0];
+        if (!originalSale) throw new LoyaltyValidationError('The original completed sale could not be found.');
+        if (data.customer_id != null && Number(data.customer_id) !== Number(originalSale.customer_id)) {
+          throw new LoyaltyValidationError('The return customer must match the original sale customer.');
+        }
+
+        const [originalItems] = await conn.execute<any[]>(
+          `SELECT id, variant_id, qty, line_total, discount_amount, is_gift_card
+             FROM pos_sale_items
+            WHERE sale_id = ?
+            ORDER BY id
+            FOR UPDATE`,
+          [originalSaleId],
+        );
+        const originalById = new Map<number, any>(originalItems.map(item => [Number(item.id), item]));
+        const originalLineTotal = originalItems.reduce((sum, item) => sum + Math.max(0, Number(item.line_total)), 0);
+        if (originalLineTotal <= 0) throw new LoyaltyValidationError('The original sale has no refundable value.');
+        const netSaleRatio = Math.max(0, Number(originalSale.total)) / originalLineTotal;
+        const [priorReturnRows] = await conn.execute<any[]>(
+          `SELECT ri.return_of_sale_item_id, ri.qty
+             FROM pos_sale_items ri
+             JOIN pos_sales rs ON rs.id = ri.sale_id
+            WHERE rs.business_id = ? AND rs.sale_type = 'return' AND rs.status = 'completed'
+              AND rs.return_of_sale_id = ? AND ri.return_of_sale_item_id IS NOT NULL
+            ORDER BY ri.id
+            FOR UPDATE`,
+          [data.business_id, originalSaleId],
+        );
+        const cumulativeReturnedQtyByItemId = new Map<number, number>();
+        for (const row of priorReturnRows) {
+          const sourceItemId = Number(row.return_of_sale_item_id);
+          cumulativeReturnedQtyByItemId.set(
+            sourceItemId,
+            Number(cumulativeReturnedQtyByItemId.get(sourceItemId) ?? 0) + Math.abs(Number(row.qty)),
+          );
+        }
+        let expectedReturnTotal = 0;
+        for (const item of data.items) {
+          const sourceItemId = Number(item.return_of_sale_item_id);
+          const originalItem = originalById.get(sourceItemId);
+          if (!Number.isInteger(sourceItemId) || !originalItem) throw new LoyaltyValidationError('Every linked return line must reference an original sale line.');
+          const returnQty = Math.abs(Number(item.qty));
+          if (!Number.isFinite(returnQty) || returnQty <= 0 || Number(item.qty) >= 0) throw new LoyaltyValidationError('Linked return quantities must be negative.');
+          if ((item.variant_id ?? null) !== (originalItem.variant_id ?? null)) throw new LoyaltyValidationError('A linked return item does not match its original sale line.');
+          const cumulativeQty = Number(cumulativeReturnedQtyByItemId.get(sourceItemId) ?? 0) + returnQty;
+          if (cumulativeQty > Number(originalItem.qty) + 0.000001) throw new LoyaltyValidationError('A linked return quantity exceeds the remaining quantity sold.');
+          const expectedLineTotal = -Math.round(
+            Number(originalItem.line_total) * netSaleRatio * returnQty / Number(originalItem.qty) * 100,
+          ) / 100;
+          if (Math.abs(Number(item.line_total) - expectedLineTotal) > 0.011 || Math.abs(Number(item.discount_amount)) > 0.001) {
+            throw new LoyaltyValidationError('Linked return values must match the original sale after discounts.');
+          }
+          expectedReturnTotal += expectedLineTotal;
+          cumulativeReturnedQtyByItemId.set(sourceItemId, cumulativeQty);
+        }
+        expectedReturnTotal = Math.round(expectedReturnTotal * 100) / 100;
+        if (Math.abs(Number(data.total) - expectedReturnTotal) > 0.011 || Math.abs(Number(data.discount_total)) > 0.001) {
+          throw new LoyaltyValidationError('The linked return total must match the original sale value.');
+        }
+        linkedReturnAllocation = calculatePosReturnEligibleCents({
+          originalItems: originalItems.map(item => ({
+            id: Number(item.id),
+            qty: Number(item.qty),
+            lineTotal: Number(item.line_total),
+            discountAmount: Number(item.discount_amount),
+            isGiftCard: Boolean(item.is_gift_card),
+          })),
+          originalDiscountTotal: Number(originalSale.discount_total),
+          cumulativeReturnedQtyByItemId,
+        });
+      }
 
       // 1. Insert sale
       const [saleResult]: any = await conn.execute(
@@ -289,11 +394,13 @@ export const PosSalesRepo = {
       for (const item of data.items) {
         await conn.execute(
           `INSERT INTO pos_sale_items
-             (sale_id, variant_id, code, name, qty, unit_price, original_price,
+             (sale_id, return_of_sale_item_id, is_gift_card, variant_id, code, name, qty, unit_price, original_price,
               discount_type, discount_value, discount_amount, tax_rate, line_total)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             saleId,
+            item.return_of_sale_item_id ?? null,
+            item.is_gift_card ? 1 : 0,
             item.variant_id ?? null,
             item.code ?? null,
             item.name,
@@ -316,6 +423,18 @@ export const PosSalesRepo = {
            VALUES (?, ?, ?, ?)`,
           [saleId, pmt.payment_method, pmt.amount, pmt.reference ?? null],
         );
+      }
+
+      if (linkedReturnAllocation && data.return_of_sale_id != null) {
+        loyaltyWriteAttempted = true;
+        loyalty = await LoyaltyRepository.reversePosReturn(conn, {
+          businessId: data.business_id,
+          originalSaleId: Number(data.return_of_sale_id),
+          returnSaleId: saleId,
+          originalEligibleCents: linkedReturnAllocation.originalEligibleCents,
+          cumulativeReturnedCents: linkedReturnAllocation.cumulativeReturnedCents,
+          actorId: data.cashier_id,
+        });
       }
 
       let loyaltyEnabled = false;
@@ -568,7 +687,11 @@ export const PosSalesRepo = {
    * does NOT touch stock — this is the version to use when a manager
    * actually wants stock corrected (e.g. deleting a mistaken transaction).
    */
-  async voidWithReversal(id: number): Promise<{ stockError?: string; giftCardReversals: GiftCardVoidReversal[] }> {
+  async voidWithReversal(id: number, actorId?: string | number | null): Promise<{
+    stockError?: string;
+    giftCardReversals: GiftCardVoidReversal[];
+    loyaltyReversals?: LoyaltyPosSaleReversalResult;
+  }> {
     const existing = await this.get(id);
     if (!existing) throw new Error('Sale not found.');
     const { sale, items } = existing;
@@ -593,6 +716,11 @@ export const PosSalesRepo = {
       }
 
       const giftCardReversals = await unwindGiftCardTransactionsForSale(stockConn, id);
+      const loyaltyReversals = await LoyaltyRepository.reversePosSale(stockConn, {
+        businessId: sale.business_id,
+        saleId: id,
+        actorId,
+      });
       for (const item of items) {
         if (!item.variant_id) continue;
         // Opposite of the sign applied in complete(): a normal sale had
@@ -635,9 +763,20 @@ export const PosSalesRepo = {
         [id],
       );
       await stockConn.commit();
-      return { giftCardReversals };
+      return { giftCardReversals, loyaltyReversals };
     } catch (err) {
       await stockConn.rollback();
+      if (!(err instanceof LoyaltyValidationError) && !(err instanceof LoyaltyVoidBlockedError)) {
+        await reportRuntimeIssue({
+          businessId: sale.business_id,
+          source: 'pos_loyalty',
+          operation: 'void_sale_loyalty',
+          title: 'POS sale loyalty reversal failed',
+          error: err,
+          context: { saleId: id, customerId: sale.customer_id, locationId: sale.location_id },
+          reference: { type: 'pos_sale', id },
+        });
+      }
       throw err;
     } finally {
       stockConn.release();

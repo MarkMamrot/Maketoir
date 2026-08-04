@@ -584,6 +584,8 @@ const COLUMNS = [
   // ── pos_sales / store_credit_transactions ───────────────────────────────
   ['pos_sales', 'customer_id',       'INT NULL'],
   ['pos_sales', 'credit_note_id',    'INT NULL'],
+  ['pos_sale_items', 'return_of_sale_item_id', 'INT NULL'],
+  ['pos_sale_items', 'is_gift_card', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
   ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
 ];
@@ -595,6 +597,7 @@ const INDEXES = [
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
   ['pos_sales', 'idx_ps_customer', 'INDEX `idx_ps_customer` (`customer_id`)'],
   ['pos_sales', 'uq_ps_credit_note', 'UNIQUE INDEX `uq_ps_credit_note` (`business_id`, `credit_note_id`)'],
+  ['pos_sale_items', 'idx_psi_return_source', 'INDEX `idx_psi_return_source` (`return_of_sale_item_id`)'],
   ['store_credit_transactions', 'idx_sct_credit_note', 'INDEX `idx_sct_credit_note` (`credit_note_id`)'],
   ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
