@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   calculateEarnedPoints,
   calculateEligibleSpendCents,
+  calculatePosEligibleSpend,
   calculateReversalPoints,
   canClaimReward,
   parseLoyaltySettings,
@@ -23,6 +24,23 @@ describe('loyalty calculations', () => {
     };
     expect(calculateEligibleSpendCents(input)).toBe(11000);
     expect(calculateEarnedPoints({ ...input, earnRate: 1 })).toBe(110);
+  });
+
+  it('excludes gift-card products and allocates order discounts proportionally', () => {
+    expect(calculatePosEligibleSpend({
+      items: [
+        { lineTotal: 80, discountAmount: 20 },
+        { lineTotal: 50, isGiftCard: true },
+      ],
+      discountTotal: 33,
+    })).toBe(72);
+  });
+
+  it('does not reduce earning when a gift card is only used as payment', () => {
+    expect(calculatePosEligibleSpend({
+      items: [{ lineTotal: 100 }],
+      discountTotal: 0,
+    })).toBe(100);
   });
 
   it('never awards negative or invalid points', () => {

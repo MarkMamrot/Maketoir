@@ -40,6 +40,7 @@ interface RedemptionRow extends RowDataPacket {
   id: number;
   reward_id: number;
   points_deducted: number;
+  value_aud: number;
   status: LoyaltyRedemptionResult['status'];
   transaction_id: number;
   account_id: number;
@@ -78,6 +79,7 @@ export interface LoyaltyRewardReservationInput {
   idempotencyKey: string;
   channel: Exclude<LoyaltyChannel, 'migration'>;
   actorId?: string | number | null;
+  posSaleId?: number | null;
 }
 
 function mapAccount(row: AccountRow): LoyaltyAccount {
@@ -152,6 +154,25 @@ function replayResult(existing: TransactionRow, input: LoyaltyTransactionInput):
 }
 
 export const LoyaltyRepository = {
+  async getMutationByIdempotencyKey(businessId: string, idempotencyKey: string): Promise<LoyaltyMutationResult | null> {
+    const rows = await imsQuery<TransactionRow>(
+      `SELECT t.id, t.account_id, a.contact_id, t.type, t.points_delta, t.balance_after
+         FROM loyalty_transactions t
+         JOIN loyalty_accounts a ON a.id = t.account_id AND a.business_id = t.business_id
+        WHERE t.business_id = ? AND t.idempotency_key = ?
+        LIMIT 1`,
+      [businessId, idempotencyKey],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      transactionId: Number(row.id),
+      accountId: Number(row.account_id),
+      balanceAfter: Number(row.balance_after),
+      duplicate: true,
+    };
+  },
+
   async getAccount(businessId: string, contactId: number): Promise<LoyaltyAccount | null> {
     const rows = await imsQuery<AccountRow>(
       `SELECT id, business_id, contact_id, balance_points, lifetime_earned, lifetime_redeemed, status
@@ -181,10 +202,17 @@ export const LoyaltyRepository = {
     if (existing) return replayResult(existing, input);
 
     const [contacts] = await connection.execute<RowDataPacket[]>(
-      'SELECT id FROM ims_contacts WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+      `SELECT id, type, is_active, loyalty_member
+         FROM ims_contacts
+        WHERE id = ? AND business_id = ?
+        LIMIT 1`,
       [input.contactId, input.businessId],
     );
-    if (!contacts[0]) throw new LoyaltyValidationError('The selected customer is not active or does not exist.');
+    const contact = contacts[0];
+    if (!contact || !Number(contact.is_active)) throw new LoyaltyValidationError('The selected customer is not active or does not exist.');
+    if (!['retail_customer', 'b2b_customer', 'both'].includes(String(contact.type)) || !Number(contact.loyalty_member)) {
+      throw new LoyaltyValidationError('This customer is not enrolled in the loyalty program.');
+    }
 
     await connection.execute(
       `INSERT IGNORE INTO loyalty_accounts (business_id, contact_id)
@@ -254,9 +282,10 @@ export const LoyaltyRepository = {
     if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 191) throw new LoyaltyValidationError('A valid idempotency key is required.');
 
     const [existingRows] = await connection.execute<RedemptionRow[]>(
-      `SELECT r.id, r.reward_id, r.points_deducted, r.status, r.transaction_id,
+      `SELECT r.id, r.reward_id, r.points_deducted, rw.value_aud, r.status, r.transaction_id,
               t.account_id, t.balance_after
          FROM loyalty_redemptions r
+        JOIN loyalty_rewards rw ON rw.id = r.reward_id AND rw.business_id = r.business_id
          JOIN loyalty_transactions t ON t.id = r.transaction_id AND t.business_id = r.business_id
          JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
         WHERE r.business_id = ? AND r.idempotency_key = ? AND a.contact_id = ?
@@ -273,6 +302,7 @@ export const LoyaltyRepository = {
         redemptionId: Number(existing.id),
         rewardId: Number(existing.reward_id),
         pointsDeducted: Number(existing.points_deducted),
+        rewardValueAud: Number(existing.value_aud),
         status: existing.status,
         transactionId: Number(existing.transaction_id),
         accountId: Number(existing.account_id),
@@ -308,15 +338,19 @@ export const LoyaltyRepository = {
 
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO loyalty_redemptions
-         (business_id, account_id, reward_id, transaction_id, status, points_deducted, idempotency_key, actor_id)
-       VALUES (?, ?, ?, ?, 'reserved', ?, ?, ?)`,
+         (business_id, account_id, reward_id, transaction_id, status, points_deducted,
+          idempotency_key, pos_sale_id, used_at, actor_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.businessId,
         transaction.accountId,
         input.rewardId,
         transaction.transactionId,
+        input.posSaleId ? 'used' : 'reserved',
         pointsCost,
         input.idempotencyKey,
+        input.posSaleId ?? null,
+        input.posSaleId ? new Date() : null,
         input.actorId == null ? null : String(input.actorId),
       ],
     );
@@ -326,7 +360,8 @@ export const LoyaltyRepository = {
       redemptionId: Number(result.insertId),
       rewardId: input.rewardId,
       pointsDeducted: pointsCost,
-      status: 'reserved',
+      rewardValueAud: Number(reward.value_aud),
+      status: input.posSaleId ? 'used' : 'reserved',
     };
   },
 };

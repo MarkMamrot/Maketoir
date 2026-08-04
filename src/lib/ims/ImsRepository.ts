@@ -81,6 +81,9 @@ export interface ImsContact {
   store_credit?: number; on_account_limit?: number | null;
   date_of_birth?: string | null; gender?: string | null;
   promo_email?: number; promo_sms?: number;
+  loyalty_member?: number;
+  loyalty_member_enrolled_at?: string | null;
+  loyalty_member_opted_out_at?: string | null;
   // Supplier-specific
   lead_time_days?: number; order_frequency_days?: number;
   cin7_supplier_id?: number; cin7_contact_id?: number;
@@ -315,13 +318,15 @@ export const ImsContactsRepo = {
   },
 
   async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
+     const loyaltyMember = ['retail_customer', 'b2b_customer', 'both'].includes(data.type) && Number(data.loyalty_member) === 1 ? 1 : 0;
     const res = await imsExecute(
       `INSERT INTO ims_contacts
          (business_id,type,name,first_name,last_name,company,customer_code,customer_group,
          shopify_customer_id,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
           store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
+         loyalty_member,loyalty_member_enrolled_at,loyalty_member_opted_out_at,
           cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name,
        data.first_name ?? null, data.last_name ?? null,
        data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
@@ -333,6 +338,7 @@ export const ImsContactsRepo = {
       0, data.on_account_limit ?? null,
        data.date_of_birth ?? null, data.gender ?? null,
        data.promo_email ?? 0, data.promo_sms ?? 0,
+      loyaltyMember, loyaltyMember,
        data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
        data.order_frequency_days ?? 45, data.price_tier ?? 'retail',
        data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
@@ -363,6 +369,28 @@ export const ImsContactsRepo = {
         sets.push(`${f} = ?`);
         vals.push(data[f as keyof ImsContact]);
       }
+    }
+
+    if (data.loyalty_member !== undefined || data.type !== undefined) {
+      const existingRows = await imsQuery<Pick<ImsContact, 'type' | 'loyalty_member'>>(
+        'SELECT type, loyalty_member FROM ims_contacts WHERE id = ? LIMIT 1',
+        [id],
+      );
+      const existing = existingRows[0];
+      if (!existing) return;
+      const targetType = data.type ?? existing.type;
+      const customerCapable = ['retail_customer', 'b2b_customer', 'both'].includes(targetType);
+      const requestedMember = data.loyalty_member === undefined
+        ? Number(existing.loyalty_member ?? 0)
+        : (Number(data.loyalty_member) === 1 ? 1 : 0);
+      const loyaltyMember = customerCapable ? requestedMember : 0;
+
+      sets.push('loyalty_member_enrolled_at = IF(loyalty_member = 0 AND ? = 1, COALESCE(loyalty_member_enrolled_at, CURRENT_TIMESTAMP), loyalty_member_enrolled_at)');
+      vals.push(loyaltyMember);
+      sets.push('loyalty_member_opted_out_at = IF(loyalty_member = 1 AND ? = 0, CURRENT_TIMESTAMP, loyalty_member_opted_out_at)');
+      vals.push(loyaltyMember);
+      sets.push('loyalty_member = ?');
+      vals.push(loyaltyMember);
     }
     if (!sets.length) return;
     vals.push(id);

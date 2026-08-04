@@ -578,6 +578,9 @@ const COLUMNS = [
   ['ims_contacts', 'password_hash',   'VARCHAR(255) NULL'],
   ['ims_contacts', 'cin7_contact_id', 'INT NULL'],
   ['ims_contacts', 'shopify_customer_id', 'VARCHAR(100) NULL'],
+  ['ims_contacts', 'loyalty_member', 'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['ims_contacts', 'loyalty_member_enrolled_at', 'DATETIME NULL'],
+  ['ims_contacts', 'loyalty_member_opted_out_at', 'DATETIME NULL'],
   // ── pos_sales / store_credit_transactions ───────────────────────────────
   ['pos_sales', 'customer_id',       'INT NULL'],
   ['pos_sales', 'credit_note_id',    'INT NULL'],

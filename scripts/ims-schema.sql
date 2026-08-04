@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   gender            VARCHAR(10) DEFAULT NULL,
   promo_email       TINYINT(1) NOT NULL DEFAULT 0,
   promo_sms         TINYINT(1) NOT NULL DEFAULT 0,
+  loyalty_member              TINYINT(1) NOT NULL DEFAULT 0,
+  loyalty_member_enrolled_at  DATETIME DEFAULT NULL,
+  loyalty_member_opted_out_at DATETIME DEFAULT NULL,
   -- Supplier-specific
   lead_time_days      INT DEFAULT NULL,
   order_frequency_days INT NOT NULL DEFAULT 45,

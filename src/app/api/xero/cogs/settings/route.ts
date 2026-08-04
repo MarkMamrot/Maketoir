@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
-import { CogsFrequency, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
+import { CogsFrequency, getCogsPeriodStartingAt, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
 
 const FREQUENCIES = new Set<CogsFrequency>(['daily', 'weekly', 'monthly', 'quarterly']);
@@ -52,7 +52,7 @@ function defaultSettings(timeZone = 'Australia/Sydney') {
 async function ensureCogsTables(): Promise<void> {
   await execute(
     `CREATE TABLE IF NOT EXISTS xero_cogs_settings (
-      business_id       VARCHAR(255) NOT NULL PRIMARY KEY,
+      business_id       VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL PRIMARY KEY,
       enabled           TINYINT(1)   NOT NULL DEFAULT 0,
       frequency         VARCHAR(20)  NOT NULL DEFAULT 'monthly',
       timezone          VARCHAR(100) NOT NULL DEFAULT 'Australia/Sydney',
@@ -104,6 +104,10 @@ function dateString(value: string | Date | null): string | null {
   return (value instanceof Date ? value.toISOString() : String(value)).slice(0, 10);
 }
 
+function nextEligibleDate(frequency: CogsFrequency, nextPeriodStart: string | null): string | null {
+  return nextPeriodStart ? getCogsPeriodStartingAt(frequency, nextPeriodStart).endDateExclusive : null;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -138,13 +142,15 @@ export async function GET(req: Request) {
     }
 
     const row = rows[0];
+    const nextPeriodStart = row ? dateString(row.next_period_start) : null;
     return NextResponse.json({
       settings: row ? {
         enabled: Boolean(row.enabled),
         frequency: row.frequency,
         timeZone,
         reliableFrom: dateString(row.reliable_from),
-        nextPeriodStart: dateString(row.next_period_start),
+        nextPeriodStart,
+        nextEligibleDate: nextEligibleDate(row.frequency, nextPeriodStart),
         nextRunAt: row.next_run_at,
         heldReason: row.held_reason,
         heldPeriodStart: dateString(row.held_period_start),

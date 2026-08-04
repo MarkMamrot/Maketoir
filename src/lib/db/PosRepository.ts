@@ -1,6 +1,10 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
 import { unwindGiftCardTransactionsForSale, type GiftCardVoidReversal } from '@/lib/pos/giftCardSaleVoid';
+import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
+import { calculateEarnedPoints, calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
+import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
@@ -205,6 +209,8 @@ export const PosSalesRepo = {
     customer_id?:      number | null;
     customer_name?:    string | null;
     customer_phone?:   string | null;
+    loyalty_reward_id?: number | null;
+    loyalty_discount_total?: number;
     subtotal:          number;
     discount_total:    number;
     tax_total:         number;
@@ -225,15 +231,20 @@ export const PosSalesRepo = {
       discount_amount: number;
       tax_rate:        number;
       line_total:      number;
+      is_gift_card?:   boolean;
     }>;
     payments: Array<{
       payment_method: string;
       amount:         number;
       reference?:     string | null;
     }>;
-  }): Promise<{ saleId: number; stockError: string | undefined }> {
+  }): Promise<{ saleId: number; stockError: string | undefined; loyalty: LoyaltyMutationResult | null; loyaltyPoints: number; loyaltyRedemption: LoyaltyRedemptionResult | null }> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
+    let loyaltyWriteAttempted = false;
+    let loyalty: LoyaltyMutationResult | null = null;
+    let loyaltyPoints = 0;
+    let loyaltyRedemption: LoyaltyRedemptionResult | null = null;
     try {
       await conn.beginTransaction();
 
@@ -307,6 +318,101 @@ export const PosSalesRepo = {
         );
       }
 
+      let loyaltyEnabled = false;
+      let loyaltyStartedAt = '';
+      let loyaltyEarnRate = 1;
+      if (data.sale_type === 'sale' && data.status === 'completed' && data.customer_id) {
+        const [settingRows] = await conn.execute<any[]>(
+          `SELECT \`key\`, value
+             FROM ims_settings
+            WHERE business_id = ? AND \`key\` IN (?, ?, ?)`,
+          [data.business_id, LOYALTY_SETTING_KEYS.enabled, LOYALTY_SETTING_KEYS.earnRate, LOYALTY_SETTING_KEYS.startedAt],
+        );
+        const loyaltySettings = Object.fromEntries(settingRows.map(row => [String(row.key), String(row.value ?? '')]));
+        loyaltyEnabled = loyaltySettings[LOYALTY_SETTING_KEYS.enabled] === '1';
+        loyaltyStartedAt = loyaltySettings[LOYALTY_SETTING_KEYS.startedAt] || '';
+        loyaltyEarnRate = Number(loyaltySettings[LOYALTY_SETTING_KEYS.earnRate] || 1);
+      }
+
+      if (data.loyalty_reward_id != null) {
+        loyaltyWriteAttempted = true;
+        if (data.sale_type !== 'sale' || data.status !== 'completed' || !data.customer_id) {
+          throw new LoyaltyValidationError('Loyalty rewards require a completed customer sale.');
+        }
+        if (!loyaltyEnabled || (loyaltyStartedAt && now.slice(0, 10) < loyaltyStartedAt)) {
+          throw new LoyaltyValidationError('The loyalty program is not active.');
+        }
+        const loyaltyDiscount = Number(data.loyalty_discount_total ?? 0);
+        if (!Number.isFinite(loyaltyDiscount) || loyaltyDiscount <= 0) throw new LoyaltyValidationError('The loyalty discount is invalid.');
+        const eligibleBeforeReward = calculatePosEligibleSpend({
+          items: data.items.map(item => ({
+            lineTotal: Number(item.line_total),
+            discountAmount: Number(item.discount_amount),
+            isGiftCard: Boolean(item.is_gift_card),
+          })),
+          discountTotal: Math.max(0, Number(data.discount_total) - loyaltyDiscount),
+        });
+        loyaltyRedemption = await LoyaltyRepository.reserveReward(conn, {
+          businessId: data.business_id,
+          contactId: data.customer_id,
+          rewardId: data.loyalty_reward_id,
+          idempotencyKey: `pos:sale:${saleId}:reward:${data.loyalty_reward_id}`,
+          channel: 'pos',
+          actorId: data.cashier_id,
+          posSaleId: saleId,
+        });
+        if (Math.abs(loyaltyRedemption.rewardValueAud - loyaltyDiscount) > 0.001) {
+          throw new LoyaltyValidationError('The loyalty reward value does not match the sale discount.');
+        }
+        if (eligibleBeforeReward + 0.001 < loyaltyRedemption.rewardValueAud) {
+          throw new LoyaltyValidationError('Eligible merchandise must cover the full loyalty reward value.');
+        }
+        if (Math.abs(Number(data.total) - (Number(data.subtotal) - Number(data.discount_total))) > 0.011) {
+          throw new LoyaltyValidationError('The sale total does not match its discounts.');
+        }
+        if (Math.abs(Number(data.tax_total) - Number(data.total) / 11) > 0.011) {
+          throw new LoyaltyValidationError('The sale tax does not match its loyalty-adjusted total.');
+        }
+      }
+
+      if (data.sale_type === 'sale' && data.status === 'completed' && data.customer_id) {
+        if (loyaltyEnabled && (!loyaltyStartedAt || now.slice(0, 10) >= loyaltyStartedAt)) {
+          const [contactRows] = await conn.execute<any[]>(
+            `SELECT id
+               FROM ims_contacts
+              WHERE id = ? AND business_id = ? AND is_active = 1 AND loyalty_member = 1
+                AND type IN ('retail_customer','b2b_customer','both')
+              LIMIT 1`,
+            [data.customer_id, data.business_id],
+          );
+          if (contactRows[0]) {
+            const eligibleSpend = calculatePosEligibleSpend({
+              items: data.items.map(item => ({
+                lineTotal: Number(item.line_total),
+                discountAmount: Number(item.discount_amount),
+                isGiftCard: Boolean(item.is_gift_card),
+              })),
+              discountTotal: Number(data.discount_total),
+            });
+            loyaltyPoints = calculateEarnedPoints({ merchandiseTotal: eligibleSpend, earnRate: loyaltyEarnRate });
+            if (loyaltyPoints > 0) {
+              loyaltyWriteAttempted = true;
+              loyalty = await LoyaltyRepository.applyTransaction(conn, {
+                businessId: data.business_id,
+                contactId: data.customer_id,
+                type: 'earn',
+                pointsDelta: loyaltyPoints,
+                channel: 'pos',
+                sourceType: 'pos_sale',
+                sourceId: saleId,
+                idempotencyKey: `pos:sale:${saleId}:earn`,
+                actorId: data.cashier_id,
+              });
+            }
+          }
+        }
+      }
+
       await conn.commit();
 
       // 4. Deduct IMS stock AFTER the sale transaction has committed.
@@ -365,9 +471,26 @@ export const PosSalesRepo = {
         }
       }
 
-      return { saleId, stockError };
+      return { saleId, stockError, loyalty, loyaltyPoints, loyaltyRedemption };
     } catch (err) {
       await conn.rollback();
+      if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError)) {
+        await reportRuntimeIssue({
+          businessId: data.business_id,
+          source: 'pos_loyalty',
+          operation: 'process_sale_loyalty',
+          title: 'POS sale loyalty processing failed',
+          error: err,
+          context: {
+            localId: data.local_id,
+            customerId: data.customer_id,
+            locationId: data.location_id,
+            points: Number.isFinite(loyaltyPoints) ? loyaltyPoints : null,
+            rewardId: data.loyalty_reward_id ?? null,
+          },
+          reference: data.local_id ? { type: 'pos_sale_local_id', id: data.local_id } : undefined,
+        });
+      }
       throw err;
     } finally {
       conn.release();

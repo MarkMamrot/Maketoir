@@ -30,11 +30,18 @@ const account = {
   status: 'active',
 };
 
+const enrolledContact = {
+  id: 42,
+  type: 'retail_customer',
+  is_active: 1,
+  loyalty_member: 1,
+};
+
 describe('LoyaltyRepository', () => {
   it('locks the tenant account and writes the ledger before updating its cache', async () => {
     const { connection, execute } = connectionWith(
       [[]],
-      [[{ id: 42 }]],
+      [[enrolledContact]],
       [{ affectedRows: 1 }],
       [[account]],
       [[]],
@@ -90,7 +97,7 @@ describe('LoyaltyRepository', () => {
   it('prevents a redemption from taking the balance below zero', async () => {
     const { connection, execute } = connectionWith(
       [[]],
-      [[{ id: 42 }]],
+      [[enrolledContact]],
       [{ affectedRows: 1 }],
       [[{ ...account, balance_points: 10 }]],
       [[]],
@@ -103,6 +110,19 @@ describe('LoyaltyRepository', () => {
       idempotencyKey: 'reward:1:claim:abc',
     })).rejects.toBeInstanceOf(LoyaltyValidationError);
     expect(execute).toHaveBeenCalledTimes(5);
+  });
+
+  it('rejects new points activity for a customer who has not opted in', async () => {
+    const { connection, execute } = connectionWith(
+      [[]],
+      [[{ ...enrolledContact, loyalty_member: 0 }]],
+    );
+
+    await expect(LoyaltyRepository.applyTransaction(connection, earnInput)).rejects.toThrow(
+      'not enrolled in the loyalty program',
+    );
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(execute.mock.calls[1][0]).toContain('loyalty_member');
   });
 
   it('reserves a reward against the same locked ledger account', async () => {
@@ -120,7 +140,7 @@ describe('LoyaltyRepository', () => {
         sort_order: 0,
       }]],
       [[]],
-      [[{ id: 42 }]],
+      [[enrolledContact]],
       [{ affectedRows: 1 }],
       [[{ ...account, balance_points: 30 }]],
       [[]],

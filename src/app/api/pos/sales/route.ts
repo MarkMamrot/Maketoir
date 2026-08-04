@@ -7,6 +7,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
+import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -104,7 +105,8 @@ export async function POST(req: Request) {
       const existing = await PosSalesRepo.findByLocalId(body.local_id);
       if (existing) {
         const creditNoteId = await ensurePosReturnCreditNote(body, existing.id, businessId, locationId, session.username ?? session.full_name);
-        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, duplicate: true });
+        const loyalty = await LoyaltyRepository.getMutationByIdempotencyKey(businessId, `pos:sale:${existing.id}:earn`);
+        return NextResponse.json({ success: true, id: existing.id, credit_note_id: creditNoteId, loyalty, duplicate: true });
       }
     }
 
@@ -118,7 +120,7 @@ export async function POST(req: Request) {
       registerSessionId = openSession?.id ?? null;
     }
 
-    const { saleId, stockError } = await PosSalesRepo.complete({
+    const { saleId, stockError, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
       register_id:       registerId,
@@ -131,6 +133,8 @@ export async function POST(req: Request) {
       customer_id:       body.customer_id ?? null,
       customer_name:     body.customer_name  ?? null,
       customer_phone:    body.customer_phone ?? null,
+      loyalty_reward_id: body.loyalty_reward_id == null ? null : Number(body.loyalty_reward_id),
+      loyalty_discount_total: Number(body.loyalty_discount_total ?? 0),
       subtotal:          Number(body.subtotal       ?? 0),
       discount_total:    Number(body.discount_total ?? 0),
       tax_total:         Number(body.tax_total      ?? 0),
@@ -139,7 +143,7 @@ export async function POST(req: Request) {
       notes:             body.notes        ?? null,
       parked_label:      body.parked_label ?? null,
       return_of_sale_id: body.return_of_sale_id ?? null,
-      items:             body.items    ?? [],
+      items:             (body.items ?? []).map((item: any) => ({ ...item, is_gift_card: Boolean(item.is_gift_card) })),
       payments:          body.payments ?? [],
     });
     const creditNoteId = await ensurePosReturnCreditNote(body, saleId, businessId, locationId, session.username ?? session.full_name);
@@ -176,9 +180,9 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, id: saleId, credit_note_id: creditNoteId, ...(stockError ? { stockWarning: stockError } : {}) });
+    return NextResponse.json({ success: true, id: saleId, credit_note_id: creditNoteId, loyalty, loyalty_points: loyaltyPoints, loyalty_redemption: loyaltyRedemption, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale create error:', err);
-    return NextResponse.json({ error: err.message || String(err) }, { status: 500 });
+    return NextResponse.json({ error: err.message || String(err) }, { status: err instanceof LoyaltyValidationError ? 400 : 500 });
   }
 }

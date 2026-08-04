@@ -44,6 +44,30 @@ describe('/api/xero/cogs/settings', () => {
     expect(json.settings).toMatchObject({ enabled: false, frequency: 'monthly', reliableFrom: null });
   });
 
+  it('returns when the next configured period becomes eligible', async () => {
+    mockQuery.mockResolvedValueOnce([{
+      enabled: 1,
+      frequency: 'monthly',
+      timezone: 'Australia/Sydney',
+      reliable_from: '2026-07-01',
+      next_period_start: '2026-08-01',
+      next_run_at: null,
+      held_reason: null,
+      held_period_start: null,
+      held_run_id: null,
+      held_at: null,
+      updated_at: '2026-08-04',
+    }]);
+
+    const response = await GET(new Request('http://localhost/api/xero/cogs/settings?databaseId=biz-1'));
+    const json = await response.json();
+
+    expect(json.settings).toMatchObject({
+      nextPeriodStart: '2026-08-01',
+      nextEligibleDate: '2026-09-01',
+    });
+  });
+
   it('requires a reliable-from date before enabling automatic sync', async () => {
     const response = await PUT(putRequest({
       databaseId: 'biz-1', enabled: true, frequency: 'monthly', timeZone: 'Australia/Sydney',

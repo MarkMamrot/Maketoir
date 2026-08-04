@@ -75,5 +75,6 @@ export interface LoyaltyRedemptionResult extends LoyaltyMutationResult {
   redemptionId: number;
   rewardId: number;
   pointsDeducted: number;
+  rewardValueAud: number;
   status: LoyaltyRedemptionStatus;
 }

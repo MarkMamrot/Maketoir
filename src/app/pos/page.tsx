@@ -6,6 +6,7 @@ import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
+import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -1262,6 +1263,19 @@ function MainPos({
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<{ id: number; name: string; phone: string | null; store_credit: number }[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
+  const [loyaltySummary, setLoyaltySummary] = useState<{
+    enabled: boolean;
+    active: boolean;
+    member: boolean;
+    programName: string;
+    pointsLabel: string;
+    balancePoints: number;
+    rewards: { id: number; displayName: string; pointsCost: number; valueAud: number }[];
+  } | null>(null);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [loyaltyError, setLoyaltyError] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<{ id: number; displayName: string; pointsCost: number; valueAud: number } | null>(null);
+  const [saleSubmitError, setSaleSubmitError] = useState<string | null>(null);
   const [gcIssueOpen, setGcIssueOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -1273,6 +1287,7 @@ function MainPos({
   // undefined = still fetching, null = no open session, object = session is open
   const [regSession, setRegSession] = useState<any>(session.register_id ? undefined : null);
   const submittingRef = useRef(false);
+  const loyaltySaleLocalIdRef = useRef<string | null>(null);
   // Tracks whether we entered the EOD screen from the RegisterGate "Close Properly" path.
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -1447,6 +1462,29 @@ function MainPos({
     return () => clearTimeout(timer);
   }, [contactSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    setLoyaltySummary(null);
+    setLoyaltyError(false);
+    setSelectedReward(null);
+    loyaltySaleLocalIdRef.current = null;
+    if (!linkedContact || !isOnline) {
+      setLoyaltyLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setLoyaltyLoading(true);
+    fetch(`/api/pos/loyalty?contact_id=${linkedContact.id}`, { signal: controller.signal })
+      .then(async res => {
+        if (!res.ok) throw new Error('Loyalty summary request failed');
+        return res.json();
+      })
+      .then(data => setLoyaltySummary(data.loyalty ?? null))
+      .catch(error => { if (error?.name !== 'AbortError') setLoyaltyError(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoyaltyLoading(false); });
+    return () => controller.abort();
+  }, [linkedContact, isOnline]);
+
   // Track online/offline state changes
   useEffect(() => {
     const handleOnline  = () => setIsOnline(true);
@@ -1533,10 +1571,21 @@ function MainPos({
       ? afterItemDisc * (parseFloat(orderDiscVal) || 0) / 100
       : (parseFloat(orderDiscVal) || 0);
     const order_disc_amount = afterItemDisc > 0 ? Math.min(Math.max(0, orderDiscRaw), afterItemDisc) : 0;
-    const total             = base.subtotal - base.discount_total - order_disc_amount;
+    const loyalty_eligible_before_reward = calculatePosEligibleSpend({
+      items: cart.map(item => ({ lineTotal: item.line_total, discountAmount: item.discount_amount, isGiftCard: Boolean(item.is_gift_card) })),
+      discountTotal: base.discount_total + order_disc_amount,
+    });
+    const loyalty_reward_valid = Boolean(selectedReward)
+      && cart.length > 0
+      && cart.every(item => item.qty > 0)
+      && !isLayby
+      && isOnline
+      && loyalty_eligible_before_reward + 0.001 >= Number(selectedReward?.valueAud ?? 0);
+    const loyalty_discount_amount = loyalty_reward_valid ? Number(selectedReward?.valueAud ?? 0) : 0;
+    const total             = base.subtotal - base.discount_total - order_disc_amount - loyalty_discount_amount;
     const tax_total         = total * 0.1 / 1.1;
-    return { ...base, total, tax_total, order_disc_amount };
-  }, [cart, orderDiscType, orderDiscVal]);
+    return { ...base, total, tax_total, order_disc_amount, loyalty_eligible_before_reward, loyalty_reward_valid, loyalty_discount_amount };
+  }, [cart, orderDiscType, orderDiscVal, selectedReward, isLayby, isOnline]);
 
   function addToCart(product: CachedProduct) {
     setCart(prev => {
@@ -1616,6 +1665,9 @@ function MainPos({
     setOrderDiscType('percent');
     setOrderDiscVal('');
     setLinkedContact(null);
+    setSelectedReward(null);
+    setSaleSubmitError(null);
+    loyaltySaleLocalIdRef.current = null;
     setContactSearch('');
     setContactResults([]);
     saveCurrentCart([]);
@@ -1653,11 +1705,21 @@ function MainPos({
     // transaction-derived local_id so later retries are covered by DB uniqueness.
     if (submittingRef.current) return;
     submittingRef.current = true;
+    setSaleSubmitError(null);
     try {
-      const localId = saleLocalId ?? newLocalId();
+      if (selectedReward && !totals.loyalty_reward_valid) {
+        setSaleSubmitError('The selected loyalty reward is no longer valid for this cart.');
+        return;
+      }
+      if (selectedReward && !navigator.onLine) {
+        setSaleSubmitError('Loyalty rewards can only be redeemed while online.');
+        return;
+      }
+      if (selectedReward && !loyaltySaleLocalIdRef.current) loyaltySaleLocalIdRef.current = saleLocalId ?? newLocalId();
+      const localId = selectedReward ? loyaltySaleLocalIdRef.current! : (saleLocalId ?? newLocalId());
       const now = new Date().toISOString();
       const { subtotal, discount_total, tax_total, total, order_disc_amount } = totals;
-      const db_discount_total = discount_total + order_disc_amount;
+      const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
 
       const payload = {
         local_id:       localId,
@@ -1669,10 +1731,12 @@ function MainPos({
         customer_id:    linkedContact?.id ?? null,
         customer_name:  customerName || null,
         customer_phone: customerPhone || null,
+        loyalty_reward_id: selectedReward?.id ?? null,
+        loyalty_discount_total: totals.loyalty_discount_amount,
         notes:          saleNotes || null,
         subtotal, discount_total: db_discount_total, tax_total, total,
         cash_rounding: cashRounding || undefined,
-        items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total })),
+        items:    cart.map(i => ({ variant_id: i.variant_id, code: i.code, name: i.name, qty: i.qty, unit_price: i.unit_price, original_price: i.original_price, discount_type: i.discount_type, discount_value: i.discount_value, discount_amount: i.discount_amount, tax_rate: i.tax_rate, line_total: i.line_total, is_gift_card: Boolean(i.is_gift_card) })),
         payments: payments.map(p => ({ payment_method: p.method, amount: p.amount, reference: p.reference || null })),
       };
 
@@ -1686,11 +1750,22 @@ function MainPos({
           });
           const data = await res.json();
           if (res.ok) serverId = data.id;
-          else addToOfflineQueue(payload);
+          else if (selectedReward) {
+            setSaleSubmitError(data.error || 'Loyalty redemption could not be completed.');
+            return;
+          } else addToOfflineQueue(payload);
         } else {
+          if (selectedReward) {
+            setSaleSubmitError('Loyalty rewards can only be redeemed while online.');
+            return;
+          }
           addToOfflineQueue(payload);
         }
       } catch {
+        if (selectedReward) {
+          setSaleSubmitError('Loyalty redemption could not reach the server. Try completing the sale again.');
+          return;
+        }
         addToOfflineQueue(payload);
       }
       refreshQueueCount();
@@ -2157,12 +2232,51 @@ function MainPos({
               </div>
               {/* Contact/store-credit lookup */}
               {linkedContact ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .5rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.78rem' }}>
-                  <span style={{ flex: 1, color: 'var(--sv-action)', fontWeight: 600 }}>
-                    {linkedContact.name}
-                    {linkedContact.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)' }}>${linkedContact.store_credit.toFixed(2)} store credit</span>}
-                  </span>
-                  <button onClick={() => { setLinkedContact(null); setContactSearch(''); setContactResults([]); }} style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem', padding: '0 2px' }}>×</button>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', padding: '.3rem .5rem', background: 'rgba(37,99,235,.1)', border: '1px solid rgba(37,99,235,.3)', borderRadius: 6, fontSize: '.78rem' }}>
+                    <span style={{ flex: 1, color: 'var(--sv-action)', fontWeight: 600 }}>
+                      {linkedContact.name}
+                      {linkedContact.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)' }}>${linkedContact.store_credit.toFixed(2)} store credit</span>}
+                    </span>
+                    <button onClick={() => { setLinkedContact(null); setContactSearch(''); setContactResults([]); }} style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem', padding: '0 2px' }}>×</button>
+                  </div>
+                  <div style={{ marginTop: '.3rem', padding: '.4rem .5rem', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>
+                    {loyaltyLoading ? 'Loading loyalty details…' : loyaltyError ? 'Loyalty details unavailable.' : !loyaltySummary ? 'Loyalty details require an online connection.' : !loyaltySummary.enabled ? 'Loyalty program is switched off.' : !loyaltySummary.active ? `${loyaltySummary.programName} has not started yet.` : !loyaltySummary.member ? 'Customer is not a loyalty member.' : (
+                      <>
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '.5rem' }}>
+                          <span style={{ color: 'var(--sv-text-main)', fontWeight: 700 }}>{loyaltySummary.programName}</span>
+                          <span style={{ color: 'var(--sv-mint)', fontWeight: 800 }}>{loyaltySummary.balancePoints.toLocaleString()} {loyaltySummary.pointsLabel}</span>
+                        </div>
+                        {loyaltySummary.rewards.length > 0 && (
+                          <div style={{ marginTop: '.25rem' }}>
+                            {loyaltySummary.rewards.map(reward => {
+                              const selected = selectedReward?.id === reward.id;
+                              const canRedeem = loyaltySummary.balancePoints >= reward.pointsCost
+                                && totals.loyalty_eligible_before_reward + 0.001 >= reward.valueAud
+                                && cart.length > 0
+                                && cart.every(item => item.qty > 0)
+                                && !isLayby
+                                && isOnline;
+                              return (
+                                <div key={reward.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem', paddingTop: '.25rem' }}>
+                                  <span style={{ flex: 1 }}>{reward.displayName} · ${reward.valueAud.toFixed(2)}</span>
+                                  <span style={{ color: loyaltySummary.balancePoints >= reward.pointsCost ? 'var(--sv-mint)' : 'var(--sv-text-muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>{reward.pointsCost.toLocaleString()} {loyaltySummary.pointsLabel}</span>
+                                  <button
+                                    onClick={() => { setSelectedReward(selected ? null : reward); setSaleSubmitError(null); loyaltySaleLocalIdRef.current = null; }}
+                                    disabled={!selected && !canRedeem}
+                                    title={!isOnline ? 'Loyalty redemption requires an online connection.' : !canRedeem ? 'The customer needs enough points and eligible merchandise to use this reward.' : undefined}
+                                    style={{ padding: '2px 7px', borderRadius: 5, border: `1px solid ${selected ? 'var(--sv-red)' : 'var(--sv-mint)'}`, background: 'transparent', color: selected ? 'var(--sv-red)' : canRedeem ? 'var(--sv-mint)' : 'var(--sv-text-muted)', cursor: selected || canRedeem ? 'pointer' : 'not-allowed', fontSize: '.7rem', fontWeight: 700 }}
+                                  >
+                                    {selected ? 'Remove' : 'Use'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>
@@ -2240,6 +2354,7 @@ function MainPos({
             <TotalRow label='Subtotal' value={totals.subtotal} />
             {totals.discount_total > 0 && <TotalRow label='Item Disc.' value={-totals.discount_total} color='var(--sv-amber)' />}
             {totals.order_disc_amount > 0 && <TotalRow label='Order Disc.' value={-totals.order_disc_amount} color='var(--sv-amber)' />}
+            {totals.loyalty_discount_amount > 0 && <TotalRow label={selectedReward?.displayName ?? 'Loyalty Reward'} value={-totals.loyalty_discount_amount} color='var(--sv-mint)' />}
             <TotalRow label='GST (incl.)' value={totals.tax_total} muted />
             <TotalRow label='TOTAL' value={totals.total} large />
 
@@ -2291,6 +2406,7 @@ function MainPos({
           zellerEnabled={zellerTerminalEnabled}
           cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()}
           linkedContact={linkedContact}
+          submitError={saleSubmitError}
         />
       )}
 
@@ -4002,7 +4118,7 @@ function SellGiftCardModal({ onAdd, onCancel }: {
   );
 }
 
-function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods, linkedContact }: {
+function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEnabled, cardTerminalMethods, linkedContact, submitError }: {
   total:              number;
   methods:            string[];
   isLayby:            boolean;
@@ -4011,6 +4127,7 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
   zellerEnabled?:     boolean;
   cardTerminalMethods?: string[];
   linkedContact?:     { id: number; name: string; phone: string | null; store_credit: number } | null;
+  submitError?:       string | null;
 }) {
   const terminal = Zeller.useTerminal();
   const [zellerPending, setZellerPending] = useState(false);
@@ -4259,6 +4376,12 @@ function PaymentModal({ total, methods, isLayby, onComplete, onCancel, zellerEna
           {isLayby ? 'Layby Deposit' : isRefund ? 'Refund' : 'Payment'}
           <span style={{ float: 'right', color: isRefund ? 'var(--sv-red)' : 'var(--sv-action)' }}>{isRefund ? '−' : ''}${fmt(absTotal)}</span>
         </h2>
+
+        {submitError && (
+          <div style={{ marginBottom: '1rem', padding: '.65rem .75rem', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 7, color: 'var(--sv-red)', fontSize: '.82rem', lineHeight: 1.4 }}>
+            {submitError}
+          </div>
+        )}
 
         {isZeroTotal && (
           <div style={{ marginBottom: '1rem', padding: '.85rem 1rem', background: 'rgba(34,197,94,.12)', border: '1px solid rgba(34,197,94,.35)', borderRadius: 8 }}>

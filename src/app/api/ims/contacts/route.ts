@@ -28,6 +28,9 @@ async function ensureMigration() {
     ['gender',           'VARCHAR(10) DEFAULT NULL'],
     ['promo_email',      'TINYINT(1) NOT NULL DEFAULT 0'],
     ['promo_sms',        'TINYINT(1) NOT NULL DEFAULT 0'],
+    ['loyalty_member',              'TINYINT(1) NOT NULL DEFAULT 0'],
+    ['loyalty_member_enrolled_at',  'DATETIME DEFAULT NULL'],
+    ['loyalty_member_opted_out_at', 'DATETIME DEFAULT NULL'],
   ];
   const existingCols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_contacts').catch(() => [] as { Field: string }[]);
   const colSet = new Set(existingCols.map((c: { Field: string }) => c.Field));

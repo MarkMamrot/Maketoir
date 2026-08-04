@@ -18,6 +18,23 @@ export function calculateEligibleSpendCents(input: Omit<LoyaltyEarnInput, 'earnR
   return Math.max(0, merchandise - exclusions);
 }
 
+export function calculatePosEligibleSpend(input: {
+  items: Array<{ lineTotal: number; discountAmount?: number; isGiftCard?: boolean }>;
+  discountTotal: number;
+}): number {
+  const saleLines = input.items.filter(item => Number(item.lineTotal) > 0);
+  const allLineCents = saleLines.reduce((sum, item) => sum + nonNegativeMoney(item.lineTotal), 0);
+  const eligibleLineCents = saleLines
+    .filter(item => !item.isGiftCard)
+    .reduce((sum, item) => sum + nonNegativeMoney(item.lineTotal), 0);
+  if (allLineCents === 0 || eligibleLineCents === 0) return 0;
+
+  const itemDiscountCents = saleLines.reduce((sum, item) => sum + nonNegativeMoney(item.discountAmount), 0);
+  const orderDiscountCents = Math.max(0, nonNegativeMoney(input.discountTotal) - itemDiscountCents);
+  const eligibleOrderDiscountCents = Math.round(orderDiscountCents * eligibleLineCents / allLineCents);
+  return Math.max(0, eligibleLineCents - eligibleOrderDiscountCents) / 100;
+}
+
 export function calculateEarnedPoints(input: LoyaltyEarnInput): number {
   if (!Number.isFinite(input.earnRate) || input.earnRate <= 0) return 0;
   const eligibleSpendCents = calculateEligibleSpendCents(input);
