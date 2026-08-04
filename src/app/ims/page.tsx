@@ -4170,10 +4170,13 @@ function ZoomImg({ src, className: _cls, thumbStyle }: { src: string; className?
   );
 }
 
-function ForesightProductSection({ product, businessId, onApplyContent, onImageAdded }: {
+function ForesightProductSection({ product, businessId, onApplyContent, onApplyAllAndSave, saving, canSave, onImageAdded }: {
   product: any;
   businessId: string;
   onApplyContent: (title: string | null, description: string | null, tags: string | null) => void;
+  onApplyAllAndSave: (title: string | null, description: string | null, tags: string | null) => Promise<boolean>;
+  saving: boolean;
+  canSave: boolean;
   onImageAdded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -4518,14 +4521,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
     }
   };
 
-  const handleApply = () => {
+  const handleApplyAllAndSave = async () => {
     if (!generated) return;
-    onApplyContent(
+    const saved = await onApplyAllAndSave(
       generated.title               || null,
       generated.websiteDescription  || null,
       generated.tags                || null,
     );
-    setGenerated(null);
+    if (saved) setGenerated(null);
   };
 
   return (
@@ -4870,8 +4873,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onImageA
                     <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={handleApply} style={btnStyle('action', 'sm')}>Apply All to Product</button>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies all fields — or use ↙ Apply on individual fields above</span>
+                    <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
+                      {saving ? 'Saving…' : 'Apply All and Save'}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies and saves all fields — or use ↙ Apply on individual fields above</span>
                     <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
                   </div>
                 </div>
@@ -5402,12 +5407,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       return rows.filter(r => r._tempId !== tempId);
     });
 
-  const doSave = async (brandOverride?: string) => {
+  const doSave = async (brandOverride?: string, formOverride?: any): Promise<boolean> => {
     setSaving(true);
     try {
       let productId: string = modal.edit?.product_id ?? '';
       const [o1n, o2n, o3n] = optionSets.map(s => s.name.trim());
-      const saveForm = brandOverride !== undefined ? { ...form, brand: brandOverride } : form;
+      const sourceForm = formOverride ?? form;
+      const saveForm = brandOverride !== undefined ? { ...sourceForm, brand: brandOverride } : sourceForm;
       if (modal.edit) {
         await apiFetch(`/api/ims/products/${productId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saveForm) });
       } else {
@@ -5452,12 +5458,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         const fresh = await apiFetch(`/api/ims/products/${productId}`);
         if (fresh?.data) setModal({ open: true, edit: fresh.data });
       } catch { /* keep modal as-is */ }
-    } catch (e: any) { alert(e.message); }
+      return true;
+    } catch (e: any) { alert(e.message); return false; }
     finally { setSaving(false); }
   };
 
-  const handleSaveAll = async () => {
-    const inputBrand = (form.brand || '').trim();
+  const handleSaveAll = async (formOverride?: any): Promise<boolean> => {
+    const sourceForm = formOverride ?? form;
+    const inputBrand = (sourceForm.brand || '').trim();
     if (inputBrand) {
       const match = brands.find(b => normBrand(b.name) === normBrand(inputBrand));
       if (!match) {
@@ -5465,13 +5473,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         setBrandPromptChoice(brands.length > 0 ? 'existing' : 'new');
         setBrandPromptSelected(brands[0]?.name ?? '');
         setBrandPrompt({ inputBrand });
-        return;
+        return false;
       }
       // Normalise to canonical casing from DB
-      await doSave(match.name);
-      return;
+      return doSave(match.name, sourceForm);
     }
-    await doSave();
+    return doSave(undefined, sourceForm);
   };
 
   const handleBrandResolved = async () => {
@@ -6548,6 +6555,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(tags        !== null ? { tags:          tags        } : {}),
                 }));
               }}
+              onApplyAllAndSave={async (title, description, tags) => {
+                const appliedForm = {
+                  ...form,
+                  ...(title       !== null ? { website_title: title       } : {}),
+                  ...(description !== null ? { description:   description } : {}),
+                  ...(tags        !== null ? { tags:          tags        } : {}),
+                };
+                setForm(appliedForm);
+                return handleSaveAll(appliedForm);
+              }}
+              saving={saving}
+              canSave={!isAdvisor}
               onImageAdded={() => setGalleryRefreshKey(k => k + 1)}
             />
           )}
@@ -6555,7 +6574,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>🏷 Print Labels</button>}
             <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Close</button>
-            {!isAdvisor && <button type="button" onClick={handleSaveAll} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
+            {!isAdvisor && <button type="button" onClick={() => { void handleSaveAll(); }} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
           </div>
         </Modal>
       )}
