@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { extractProductPageImageCandidates, extractShopifyProductImages, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
-import { extractProductPageFacts } from '@/lib/website/productPageFacts';
+import { extractProductPageFacts, extractShopifyProductFacts } from '@/lib/website/productPageFacts';
 
 const PAGE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -41,9 +41,9 @@ async function fetchProductPage(rawUrl: string): Promise<Response> {
   throw lastError instanceof Error ? lastError : new Error('Product page fetch failed');
 }
 
-async function fetchShopifyGallery(rawUrl: string): Promise<string[]> {
+async function fetchShopifyProduct(rawUrl: string): Promise<{ images: string[]; facts: string }> {
   const url = new URL(canonicalProductUrl(rawUrl));
-  if (!/^\/products\/[^/]+\/?$/.test(url.pathname)) return [];
+  if (!/^\/products\/[^/]+\/?$/.test(url.pathname)) return { images: [], facts: '' };
   url.pathname = `${url.pathname.replace(/\/$/, '')}.js`;
 
   try {
@@ -52,11 +52,16 @@ async function fetchShopifyGallery(rawUrl: string): Promise<string[]> {
       redirect: 'follow',
       signal: AbortSignal.timeout(12000),
     });
-    if (!response.ok) return [];
-    return extractShopifyProductImages(await response.json(), response.url || url.href);
+    if (!response.ok) return { images: [], facts: '' };
+    const payload = await response.json();
+    const sourceUrl = response.url || url.href;
+    return {
+      images: extractShopifyProductImages(payload, sourceUrl),
+      facts: extractShopifyProductFacts(payload, sourceUrl),
+    };
   } catch (error) {
     console.warn(`[scrape-photos] Shopify product JSON failed for ${rawUrl}:`, error instanceof Error ? error.message : error);
-    return [];
+    return { images: [], facts: '' };
   }
 }
 
@@ -91,8 +96,9 @@ export async function POST(req: Request) {
     // Prefer the approved page's own product gallery. This excludes recommendation
     // carousels and other products that broad image extraction commonly returns.
     for (const rawUrl of urls) {
-      const shopifyGalleryPromise = fetchShopifyGallery(rawUrl);
+      const shopifyProductPromise = fetchShopifyProduct(rawUrl);
       let directImages: string[] = [];
+      let directFacts = '';
       try {
         const pageRes = await fetchProductPage(rawUrl);
         const html = await pageRes.text();
@@ -100,14 +106,17 @@ export async function POST(req: Request) {
         const candidates = extractProductPageImageCandidates(html, sourceUrl);
         const images = candidates.images;
         const facts = extractProductPageFacts(html, sourceUrl);
-        if (facts) productFactBlocks.push(facts);
+        directFacts = facts;
+        if (directFacts) productFactBlocks.push(directFacts);
         directImages = images;
         candidates.fallbackImages.forEach(image => fallbackImages.add(image));
       } catch (e: any) {
         console.warn(`[scrape-photos] Direct fetch failed for ${rawUrl}:`, e.message);
       }
 
-      const shopifyImages = await shopifyGalleryPromise;
+      const shopifyProduct = await shopifyProductPromise;
+      const shopifyImages = shopifyProduct.images;
+      if (!directFacts && shopifyProduct.facts) productFactBlocks.push(shopifyProduct.facts);
       const trustedImages = directImages.length > 1 || directImages.length >= shopifyImages.length
         ? directImages
         : shopifyImages;

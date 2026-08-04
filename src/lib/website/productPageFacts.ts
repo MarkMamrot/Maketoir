@@ -32,6 +32,12 @@ function brandName(value: unknown): string {
   return '';
 }
 
+function meaningfulText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const text = plainText(value);
+  return text && !/^(?:0|null|undefined|n\/a)$/i.test(text) ? text : '';
+}
+
 function collectProductNodes(value: unknown, target: Record<string, unknown>[]) {
   if (Array.isArray(value)) {
     value.forEach(item => collectProductNodes(item, target));
@@ -77,4 +83,45 @@ export function extractProductPageFacts(html: string, sourceUrl: string): string
   }
 
   return [...new Set(blocks)].join('\n\n').slice(0, 16_000);
+}
+
+export function extractShopifyProductFacts(payload: unknown, sourceUrl: string): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const product = payload as Record<string, unknown>;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const firstVariant = variants[0] && typeof variants[0] === 'object'
+    ? variants[0] as Record<string, unknown>
+    : {};
+  const title = meaningfulText(product.title);
+  const vendor = meaningfulText(product.vendor);
+  const sku = meaningfulText(firstVariant.sku);
+  const barcode = meaningfulText(firstVariant.barcode);
+  const productType = meaningfulText(product.type);
+  const identity = [
+    title ? `Product: ${title}` : '',
+    vendor ? `Brand: ${vendor}` : '',
+    sku ? `SKU: ${sku}` : '',
+    barcode ? `GTIN: ${barcode}` : '',
+    productType ? `Category: ${productType}` : '',
+  ].filter(Boolean);
+  const description = plainText(product.description ?? product.body_html);
+  if (identity.length === 0 && !description) return '';
+
+  const blocks = [
+    `APPROVED SOURCE: ${canonicalSourceUrl(sourceUrl)}`,
+    identity.join('\n'),
+    description ? `SUPPLIER PRODUCT DESCRIPTION:\n${description}` : '',
+  ].filter(Boolean);
+  return blocks.join('\n\n').slice(0, 16_000);
+}
+
+function canonicalSourceUrl(sourceUrl: string): string {
+  try {
+    const url = new URL(sourceUrl);
+    url.pathname = url.pathname.replace(/\.js$/, '');
+    url.search = '';
+    return url.href;
+  } catch {
+    return sourceUrl;
+  }
 }
