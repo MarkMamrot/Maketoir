@@ -6057,8 +6057,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
                         >
                           <a
-                            href={`#products/${encodeURIComponent(p.product_id)}`}
-                            onClick={e => { e.preventDefault(); openEdit(p); }}
+                            href={`/ims#products/${encodeURIComponent(p.product_id)}`}
+                            onClick={e => {
+                              if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                              e.preventDefault();
+                              openEdit(p);
+                            }}
                             style={{ color: 'var(--sv-text-strong)', textDecoration: 'none', cursor: 'pointer' }}
                             onMouseEnter={e => (e.currentTarget.style.textDecoration = 'underline')}
                             onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
@@ -18799,6 +18803,7 @@ export default function ImsPage() {
   const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
   const [view, setView] = useState<ImsView>('dashboard');
+  const [hasRestoredInitialHash, setHasRestoredInitialHash] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
@@ -18915,6 +18920,7 @@ export default function ImsPage() {
     };
     const initial = readHash();
     if (initial !== 'dashboard' || window.location.hash) setView(initial);
+    setHasRestoredInitialHash(true);
     const onPop = () => setView(readHash());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -18923,11 +18929,12 @@ export default function ImsPage() {
   // Keep hash in sync whenever the active view changes.
   // Don't overwrite deep-link hashes like #products/<id> — ProductsView needs those intact.
   useEffect(() => {
+    if (!hasRestoredInitialHash) return;
     const current = window.location.hash.replace(/^#/, '');
     if (!current.startsWith(`${view}/`)) {
       window.history.pushState(null, '', `#${view}`);
     }
-  }, [view]);
+  }, [hasRestoredInitialHash, view]);
 
   useEffect(() => {
     if (pageSettings.connect_accounting_software !== 'yes') return;
