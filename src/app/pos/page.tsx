@@ -2802,6 +2802,19 @@ function PosAvatarBar({
               });
             }
           }
+
+          // Attachments are uploaded immediately after the message row is created,
+          // so the first SSE event can arrive before its attachment metadata exists.
+          setTimeout(() => {
+            if (groupMsgs.length > 0) fetchMessages();
+            const partnerIds = new Set(dmMsgsArr.map((msg: ChatMessage) => msg.location_id === myLocationId ? msg.to_location_id! : msg.location_id));
+            for (const partnerId of partnerIds) {
+              fetch(`/api/pos/chat?type=dm&to=${partnerId}`)
+                .then(response => response.json())
+                .then(result => setDmMessages(previous => ({ ...previous, [partnerId]: result.messages ?? previous[partnerId] ?? [] })))
+                .catch(() => {});
+            }
+          }, 2500);
         } catch {}
       };
       es.onerror = () => {
