@@ -397,7 +397,7 @@ const TABLE_DDLS = [
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
     contact_id INT NOT NULL,
-    balance_points INT UNSIGNED NOT NULL DEFAULT 0,
+    balance_points INT NOT NULL DEFAULT 0,
     lifetime_earned BIGINT UNSIGNED NOT NULL DEFAULT 0,
     lifetime_redeemed BIGINT UNSIGNED NOT NULL DEFAULT 0,
     status ENUM('active','suspended','closed') NOT NULL DEFAULT 'active',
@@ -413,7 +413,8 @@ const TABLE_DDLS = [
     account_id INT NOT NULL,
     type ENUM('earn','redeem','earn_reversal','redeem_reversal','adjustment','migration') NOT NULL,
     points_delta INT NOT NULL,
-    balance_after INT UNSIGNED NOT NULL,
+    balance_after INT NOT NULL,
+    eligible_spend_cents INT UNSIGNED NULL,
     channel ENUM('pos','shopify','manual','migration') NOT NULL,
     source_type VARCHAR(50) NULL,
     source_id VARCHAR(191) NULL,
@@ -589,6 +590,7 @@ const COLUMNS = [
   ['pos_sale_items', 'is_gift_card', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
   ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
+  ['loyalty_transactions', 'eligible_spend_cents', 'INT UNSIGNED NULL'],
 ];
 
 const INDEXES = [
@@ -632,6 +634,41 @@ async function ensureEnumValues(schema, table, column, requiredValues) {
 
   await conn.query(
     `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ENUM(${enumSql}) ${nullSql}${defaultSql}`,
+  );
+}
+
+async function ensureSignedLoyaltyBalance(schema, table, column, definition) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_TYPE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+      LIMIT 1`,
+    [schema, table, column],
+  );
+  if (!String(rows[0]?.COLUMN_TYPE ?? '').toLowerCase().includes('unsigned')) return;
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ${definition}`,
+  );
+}
+
+async function ensureColumnCollationMatches(schema, table, column, referenceTable, referenceColumn) {
+  const [rows] = await conn.query(
+    `SELECT TABLE_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, CHARACTER_SET_NAME, COLLATION_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND ((TABLE_NAME = ? AND COLUMN_NAME = ?) OR (TABLE_NAME = ? AND COLUMN_NAME = ?))`,
+    [schema, table, column, referenceTable, referenceColumn],
+  );
+  const target = rows.find(row => row.TABLE_NAME === table);
+  const reference = rows.find(row => row.TABLE_NAME === referenceTable);
+  if (!target || !reference?.CHARACTER_SET_NAME || !reference.COLLATION_NAME) return;
+  if (target.CHARACTER_SET_NAME === reference.CHARACTER_SET_NAME && target.COLLATION_NAME === reference.COLLATION_NAME) return;
+
+  const nullSql = target.IS_NULLABLE === 'YES' ? 'NULL' : 'NOT NULL';
+  const defaultSql = target.COLUMN_DEFAULT === null ? '' : ` DEFAULT ${conn.escape(target.COLUMN_DEFAULT)}`;
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ${target.COLUMN_TYPE}`
+      + ` CHARACTER SET ${reference.CHARACTER_SET_NAME} COLLATE ${reference.COLLATION_NAME} ${nullSql}${defaultSql}`,
   );
 }
 
@@ -684,8 +721,12 @@ async function migrateSchema(schema) {
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
+    await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
+    await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
+    await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'business_id', 'ims_products', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'product_id', 'ims_products', 'product_id');
   } catch (e) {
-    console.error(`  ✗ ${schema} enum catch-up: ${e.message}`);
+    console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
 
   console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);

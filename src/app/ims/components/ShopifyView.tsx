@@ -740,7 +740,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
             ['orders/updated',     'Order edited — updates prices/totals in IMS'],
             ['orders/cancelled',   'Order cancelled — releases committed stock'],
             ['fulfillments/create','Order fulfilled — moves stock to fulfilled'],
-            ['refunds/create',     'Refund issued — covers all refund + restock scenarios'],
+            ['refunds/create',     'Refund issued — records the return and reverses eligible loyalty points'],
             ['shopify_payments/payouts/create', 'Payout created — captures settlement data for Xero reconciliation'],
             ['shopify_payments/payouts/update', 'Payout updated — marks paid payouts ready for allocation'],
           ].map(([topic, desc]) => (

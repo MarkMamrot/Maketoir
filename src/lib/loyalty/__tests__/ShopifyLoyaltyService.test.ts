@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockGetMutation, mockApplyTransaction, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockGetMutation, mockApplyTransaction, mockMarkShopifyVoucherUsed, mockReportRuntimeIssue } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockGetMutation: vi.fn(),
   mockApplyTransaction: vi.fn(),
+  mockMarkShopifyVoucherUsed: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mockGetIMSPool }));
 vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   LoyaltyValidationError: class LoyaltyValidationError extends Error {},
-  LoyaltyRepository: { getMutationByIdempotencyKey: mockGetMutation, applyTransaction: mockApplyTransaction },
+  LoyaltyRepository: {
+    getMutationByIdempotencyKey: mockGetMutation,
+    applyTransaction: mockApplyTransaction,
+    markShopifyVoucherUsed: mockMarkShopifyVoucherUsed,
+  },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 
@@ -34,7 +39,24 @@ describe('ShopifyLoyaltyService', () => {
     vi.clearAllMocks();
     mockGetMutation.mockResolvedValue(null);
     mockApplyTransaction.mockResolvedValue({ transactionId: 1, accountId: 2, balanceAfter: 90, duplicate: false });
+    mockMarkShopifyVoucherUsed.mockResolvedValue(false);
     mockReportRuntimeIssue.mockResolvedValue(undefined);
+  });
+
+  it('marks unique loyalty codes used for the exact Shopify customer', async () => {
+    mockMarkShopifyVoucherUsed.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+
+    await expect(ShopifyLoyaltyService.markPaidOrderRedemptionsUsed({
+      businessId: 'business-1',
+      shopifyOrderId: '1001',
+      shopifyCustomerId: '12345',
+      discountCodes: ['solv-55-abc', 'SOLV-55-ABC', 'other-code'],
+    })).resolves.toEqual({ used: 1 });
+
+    expect(mockMarkShopifyVoucherUsed.mock.calls).toEqual([
+      ['business-1', 'SOLV-55-ABC', '12345'],
+      ['business-1', 'OTHER-CODE', '12345'],
+    ]);
   });
 
   it('returns an existing award before recalculating with current settings', async () => {
@@ -84,6 +106,41 @@ describe('ShopifyLoyaltyService', () => {
       businessId: 'business-1', shopifyOrderId: '1002', paidDate: '2026-08-04', eligibleSpend: 90,
     })).resolves.toEqual({ status: 'skipped', reason: 'customer_not_enrolled' });
     expect(unenrolledConnection.commit).toHaveBeenCalledTimes(1);
+    expect(mockApplyTransaction).not.toHaveBeenCalled();
+  });
+
+  it('reverses the cumulative proportional refund delta and permits a negative balance', async () => {
+    const connection = setupConnection([
+      [[{ id: 1, account_id: 2, contact_id: 42, points_delta: 95, eligible_spend_cents: 9500 }]],
+      [[{ id: 3, account_id: 2, points_delta: -30, balance_after: 65, eligible_spend_cents: 3000, idempotency_key: 'prior' }]],
+    ]);
+
+    const result = await ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', shopifyOrderId: '1001', shopifyRefundId: 'refund-2', eligibleRefundSpend: 32,
+    });
+
+    expect(mockApplyTransaction).toHaveBeenCalledWith(connection, expect.objectContaining({
+      contactId: 42,
+      pointsDelta: -32,
+      eligibleSpendCents: 3200,
+      channel: 'shopify',
+      sourceType: 'shopify_order_refund',
+      sourceId: '1001',
+      idempotencyKey: 'shopify:refund:refund-2:earn',
+      allowNegativeBalance: true,
+    }));
+    expect(result).toMatchObject({ status: 'reversed', points: 32 });
+  });
+
+  it('replays a concurrently completed refund after acquiring the earn lock', async () => {
+    setupConnection([
+      [[{ id: 1, account_id: 2, contact_id: 42, points_delta: 95, eligible_spend_cents: 9500 }]],
+      [[{ id: 4, account_id: 2, points_delta: -20, balance_after: 75, eligible_spend_cents: 2000, idempotency_key: 'shopify:refund:refund-1:earn' }]],
+    ]);
+
+    await expect(ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', shopifyOrderId: '1001', shopifyRefundId: 'refund-1', eligibleRefundSpend: 20,
+    })).resolves.toMatchObject({ status: 'reversed', points: null, mutation: { duplicate: true } });
     expect(mockApplyTransaction).not.toHaveBeenCalled();
   });
 });

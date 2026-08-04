@@ -58,6 +58,22 @@ export function calculateShopifyEligibleSpend(input: {
   return Math.max(0, subtotalCents - Math.min(subtotalCents, giftCardCents)) / 100;
 }
 
+export function calculateShopifyRefundEligibleSpend(input: {
+  refundLineItems: Array<{
+    subtotal?: number | string;
+    totalTax?: number | string;
+    giftCard?: boolean;
+  }>;
+}): number {
+  const eligibleCents = input.refundLineItems.reduce((sum, item) => {
+    if (item.giftCard) return sum;
+    return sum
+      + nonNegativeMoney(Number(item.subtotal))
+      + nonNegativeMoney(Number(item.totalTax));
+  }, 0);
+  return eligibleCents / 100;
+}
+
 export function calculatePosReturnEligibleCents(input: {
   originalItems: Array<{
     id: number;

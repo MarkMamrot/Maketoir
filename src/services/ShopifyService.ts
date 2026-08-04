@@ -2,6 +2,16 @@
 import Shopify from 'shopify-api-node';
 import { StandardizedProduct } from '../types/StandardizedData';
 
+export class ShopifyAdminUserError extends Error {
+  readonly userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
+
+  constructor(userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>) {
+    super(userErrors.map(error => error.message).join('; ') || 'Shopify rejected the request.');
+    this.name = 'ShopifyAdminUserError';
+    this.userErrors = userErrors;
+  }
+}
+
 export class ShopifyService {
   private shopify: Shopify;
   private readonly shopName_: string;
@@ -51,6 +61,92 @@ export class ShopifyService {
       throw new Error(`Shopify ${res.status} ${method} ${path}: ${text.slice(0, 300)}`);
     }
     return { body: await res.json(), headers: res.headers };
+  }
+
+  private async adminGraphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const res = await fetch(`https://${this.shopName_}/admin/api/2025-10/graphql.json`, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Shopify ${res.status} POST GraphQL: ${text.slice(0, 300)}`);
+    }
+    const payload = await res.json();
+    if (payload.errors?.length) {
+      throw new Error(`Shopify GraphQL: ${payload.errors.map((error: any) => error.message).join('; ')}`);
+    }
+    return payload.data as T;
+  }
+
+  async findDiscountCode(code: string): Promise<{ id: string; code: string } | null> {
+    const data = await this.adminGraphql<{
+      codeDiscountNodeByCode: { id: string; codeDiscount: { codes: { nodes: Array<{ code: string }> } } } | null;
+    }>(
+      `query FindDiscountCode($code: String!) {
+        codeDiscountNodeByCode(code: $code) {
+          id
+          codeDiscount { ... on DiscountCodeBasic { codes(first: 1) { nodes { code } } } }
+        }
+      }`,
+      { code },
+    );
+    const node = data.codeDiscountNodeByCode;
+    if (!node) return null;
+    return { id: node.id, code: node.codeDiscount.codes.nodes[0]?.code ?? code };
+  }
+
+  async createCustomerDiscountCode(input: {
+    code: string;
+    title: string;
+    amountAud: number;
+    shopifyCustomerId: string;
+    startsAt: string;
+    endsAt: string;
+  }): Promise<{ id: string; code: string }> {
+    const customerId = input.shopifyCustomerId.startsWith('gid://')
+      ? input.shopifyCustomerId
+      : `gid://shopify/Customer/${input.shopifyCustomerId}`;
+    const data = await this.adminGraphql<{
+      discountCodeBasicCreate: {
+        codeDiscountNode: { id: string; codeDiscount: { codes: { nodes: Array<{ code: string }> } } } | null;
+        userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
+      };
+    }>(
+      `mutation CreateLoyaltyDiscount($discount: DiscountCodeBasicInput!) {
+        discountCodeBasicCreate(basicCodeDiscount: $discount) {
+          codeDiscountNode {
+            id
+            codeDiscount { ... on DiscountCodeBasic { codes(first: 1) { nodes { code } } } }
+          }
+          userErrors { field message code }
+        }
+      }`,
+      {
+        discount: {
+          title: input.title,
+          code: input.code,
+          startsAt: input.startsAt,
+          endsAt: input.endsAt,
+          customerSelection: { customers: { add: [customerId] } },
+          customerGets: {
+            value: { discountAmount: { amount: input.amountAud.toFixed(2), appliesOnEachItem: false } },
+            items: { all: true },
+          },
+          usageLimit: 1,
+          appliesOncePerCustomer: true,
+          combinesWith: { orderDiscounts: false, productDiscounts: false, shippingDiscounts: false },
+        },
+      },
+    );
+    const result = data.discountCodeBasicCreate;
+    if (result.userErrors.length) throw new ShopifyAdminUserError(result.userErrors);
+    if (!result.codeDiscountNode) throw new Error('Shopify returned no discount after creating the loyalty code.');
+    return {
+      id: result.codeDiscountNode.id,
+      code: result.codeDiscountNode.codeDiscount.codes.nodes[0]?.code ?? input.code,
+    };
   }
 
   /**

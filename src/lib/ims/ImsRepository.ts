@@ -3804,7 +3804,8 @@ export const ImsShopifyRepo = {
            FROM ims_website_content_attempts
            WHERE outcome = 'no_valid_url'
            GROUP BY business_id, product_id
-         ) wa ON wa.business_id = p.business_id AND wa.product_id = p.product_id
+         ) wa ON wa.business_id COLLATE utf8mb4_general_ci = p.business_id
+           AND wa.product_id COLLATE utf8mb4_general_ci = p.product_id
          WHERE p.is_active = 1 AND p.business_id = ?
          ORDER BY p.name`
       : `SELECT p.*,
@@ -3817,7 +3818,8 @@ export const ImsShopifyRepo = {
            FROM ims_website_content_attempts
            WHERE outcome = 'no_valid_url'
            GROUP BY business_id, product_id
-         ) wa ON wa.business_id = p.business_id AND wa.product_id = p.product_id
+         ) wa ON wa.business_id COLLATE utf8mb4_general_ci = p.business_id
+           AND wa.product_id COLLATE utf8mb4_general_ci = p.product_id
          WHERE p.is_active = 1 AND p.business_id = ?
          ORDER BY p.name`;
 

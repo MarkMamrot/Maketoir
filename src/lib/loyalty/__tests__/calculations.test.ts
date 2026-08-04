@@ -6,6 +6,7 @@ import {
   calculatePosEligibleSpend,
   calculatePosReturnEligibleCents,
   calculateShopifyEligibleSpend,
+  calculateShopifyRefundEligibleSpend,
   calculateProportionalReturnReversal,
   calculateReversalPoints,
   canClaimReward,
@@ -61,6 +62,16 @@ describe('loyalty calculations', () => {
       subtotalPrice: 20,
       lineItems: [{ quantity: 1, price: 50, giftCard: true }],
     })).toBe(0);
+  });
+
+  it('counts only refunded non-gift-card merchandise including tax', () => {
+    expect(calculateShopifyRefundEligibleSpend({
+      refundLineItems: [
+        { subtotal: '36.36', totalTax: '3.64' },
+        { subtotal: '20.00', totalTax: '0.00', giftCard: true },
+      ],
+    })).toBe(40);
+    expect(calculateShopifyRefundEligibleSpend({ refundLineItems: [] })).toBe(0);
   });
 
   it('allocates original order and loyalty discounts across returned eligible lines', () => {

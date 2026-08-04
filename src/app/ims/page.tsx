@@ -17,7 +17,6 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
-import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
@@ -1520,14 +1519,13 @@ const BLANK_CONTACT = {
   store_credit: 0, on_account_limit: '' as string | number,
   date_of_birth: '', gender: '',
   promo_email: 0, promo_sms: 0,
-  loyalty_member: 0,
   price_tier: 'retail', order_frequency_days: 45,
   charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
 };
 const CONTACT_EXPORT_HEADERS = [
   'id', 'type', 'name', 'first_name', 'last_name', 'company', 'customer_code', 'customer_group', 'shopify_customer_id',
   'email', 'phone', 'mobile', 'address', 'address2', 'suburb', 'city', 'state', 'postcode', 'country', 'notes',
-  'is_active', 'store_credit', 'on_account_limit', 'date_of_birth', 'gender', 'promo_email', 'promo_sms', 'loyalty_member',
+  'is_active', 'store_credit', 'on_account_limit', 'date_of_birth', 'gender', 'promo_email', 'promo_sms',
   'price_tier', 'lead_time_days', 'order_frequency_days', 'charges_tax', 'prices_include_tax', 'tax_rate',
   'website_url', 'cin7_supplier_id', 'cin7_contact_id',
 ] as const;
@@ -1561,7 +1559,6 @@ const CONTACT_FIELD_GUIDE: Array<{ key: ContactExportHeader; label: string; desc
   { key: 'gender', label: 'Gender', description: 'Optional gender flag used by the retail contact form.', example: 'F' },
   { key: 'promo_email', label: 'Promo Email', description: 'Marketing email opt-in. Use 1/0 or yes/no.', example: '1' },
   { key: 'promo_sms', label: 'Promo SMS', description: 'Marketing SMS opt-in. Use 1/0 or yes/no.', example: '0' },
-  { key: 'loyalty_member', label: 'Loyalty Member', description: 'Customer loyalty enrollment. Use 1/0 or yes/no. Defaults to opted out.', example: '0' },
   { key: 'price_tier', label: 'Price Tier', description: 'Retail or wholesale pricing tier for the contact.', example: 'retail' },
   { key: 'lead_time_days', label: 'Lead Time Days', description: 'Supplier lead time in days.', example: '14' },
   { key: 'order_frequency_days', label: 'Order Frequency Days', description: 'Supplier reorder cadence in days.', example: '45' },
@@ -1943,7 +1940,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Loyalty', 'Active', '',
+              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Active', '',
             ]}
             rows={visible}
             render={(c) => [
@@ -1963,9 +1960,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               <span style={{ fontSize: 11, display: 'flex', gap: 6 }}>
                 <span title="Promo emails" style={{ color: c.promo_email ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_email ? '✉ on' : '✉ off'}</span>
                 <span title="Promo SMS" style={{ color: c.promo_sms ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_sms ? '📱 on' : '📱 off'}</span>
-              </span>,
-              <span style={{ fontSize: 11, fontWeight: 600, color: c.loyalty_member ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>
-                {c.loyalty_member ? 'Member' : 'Off'}
               </span>,
               <ActiveDot active={c.is_active} />,
               actions(c),
@@ -2117,24 +2111,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                   </Field>
                   <Field label="Date of Birth"><input type="date" value={f.date_of_birth ?? ''} onChange={sf('date_of_birth')} style={inputStyle} /></Field>
                 </Row2>
-                <div style={{ marginTop: 12, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Loyalty member</div>
-                    <div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>
-                      {Number(f.loyalty_member ?? 0) ? 'Opted in' : 'Opted out'}
-                      {Number(f.loyalty_member ?? 0) && f.loyalty_member_enrolled_at ? ` · Since ${String(f.loyalty_member_enrolled_at).slice(0, 10)}` : ''}
-                    </div>
-                  </div>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-main)' }}>
-                    <input
-                      type="checkbox"
-                      checked={Number(f.loyalty_member ?? 0) === 1}
-                      onChange={event => setForm(previous => ({ ...previous, loyalty_member: event.target.checked ? 1 : 0 }))}
-                      style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }}
-                    />
-                    {Number(f.loyalty_member ?? 0) ? 'On' : 'Off'}
-                  </label>
-                </div>
               </div>
             )}
 
@@ -2297,7 +2273,6 @@ function ImportContactsModal({ contacts, onClose, onDone }: {
           gender: raw.gender || undefined,
           promo_email: contactBool(raw.promo_email) ?? 0,
           promo_sms: contactBool(raw.promo_sms) ?? 0,
-          loyalty_member: contactBool(raw.loyalty_member) ?? 0,
           price_tier: raw.price_tier || undefined,
           lead_time_days: contactNum(raw.lead_time_days) ?? undefined,
           order_frequency_days: contactNum(raw.order_frequency_days) ?? undefined,
@@ -15644,7 +15619,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
     enabled: boolean; frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly';
     reliableFrom: string | null;
     nextPeriodStart: string | null;
-    nextEligibleDate: string | null;
     heldReason: string | null;
     heldPeriodStart: string | null;
     heldRunId: number | null;
@@ -15699,7 +15673,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
         heldPeriodStart: null,
         heldRunId: null,
       }) : current);
-      setCogsMessage({ ok: true, text: 'COGS schedule resumed. The next daily check will re-evaluate the held period.' });
+      setCogsMessage({ ok: true, text: 'COGS schedule resumed. The next hourly check will re-evaluate the held period.' });
     } catch (e: any) {
       setCogsMessage({ ok: false, text: e.message });
     } finally { setSavingCogs(false); }
@@ -15895,7 +15869,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
               COGS journals
               <HintBadge text="Posts completed periods to Cost of Goods Sold and Inventory Asset. Missing or zero costs block posting unless you provide an override reason." />
             </h3>
-            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>The scheduler checks once each Sydney morning and posts only after the selected calendar period has closed.</p>
+            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>The scheduler checks hourly and posts only after the selected calendar period has closed.</p>
           </div>
           {cogsSettings && (
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
@@ -15930,7 +15904,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
 
             <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
               <button onClick={saveCogsSettings} disabled={savingCogs} style={{ padding: '7px 14px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{savingCogs ? 'Saving...' : 'Save schedule'}</button>
-              <button onClick={previewCogs} disabled={cogsBusy !== null} style={{ padding: '7px 14px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'preview' ? 'Checking...' : 'Check now (preview)'}</button>
+              <button onClick={previewCogs} disabled={cogsBusy !== null} style={{ padding: '7px 14px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'preview' ? 'Calculating...' : 'Preview completed period'}</button>
             </div>
 
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
@@ -15938,7 +15912,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
                 ? 'Monthly: one journal is posted after each calendar month closes.'
                 : `${cogsSettings.frequency[0].toUpperCase()}${cogsSettings.frequency.slice(1)} journals are posted only after each complete period closes.`}
               {cogsSettings.nextPeriodStart ? ` Next period starts ${cogsSettings.nextPeriodStart}.` : ''}
-              {cogsSettings.nextEligibleDate ? ` Next eligible check: ${cogsSettings.nextEligibleDate}.` : ''}
             </div>
 
             {cogsSettings.heldReason && (
@@ -18620,7 +18593,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -23103,7 +23076,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
-    { id: 'loyalty',         label: 'Loyalty',         icon: '★' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
@@ -24129,9 +24101,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Wholesale Portal ── */}
         {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
 
-        {/* ── Loyalty ── */}
-        {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />}
-
       </div>{/* ─ end right content ─ */}
     </div>
   );
@@ -24559,7 +24528,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>✅ Run <strong>Reconcile products</strong> in the Shopify tab to link your IMS product catalog to Shopify variants by SKU.</li>
           <li>✅ Register the following webhook topics in <strong>Shopify Admin → Settings → Notifications → Webhooks</strong>. Use the URL shown in the Shopify → Orders tab. All webhooks must share the same signing secret, which you then paste into Settings → IMS Settings → Shopify webhook secret.
             <div style={{ marginTop: 8, background: 'var(--sv-bg-0)', borderRadius: 6, padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: 'var(--sv-mint)', lineHeight: 1.9 }}>
-              orders/create<br/>orders/paid<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
+              orders/create<br/>orders/updated<br/>orders/cancelled<br/>fulfillments/create<br/>refunds/create
             </div>
             <div style={{ marginTop: 6, fontSize: 11, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
               <strong>Note:</strong> Shopify's <code style={code}>returns/*</code> webhooks require the <code style={code}>returns</code> access scope and Shopify/Advanced/Plus plan, and must be registered via the API (not the UI). <code style={code}>refunds/create</code> covers all refund + return scenarios without them.
@@ -24574,7 +24543,6 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>Orders arrive in IMS in real time (webhook) or via the manual <strong>Import from Shopify</strong> button, which is useful for a first-time backfill or catching any missed events.</p>
         <TriggerTable rows={[
           { trigger: 'New order placed',        object: 'IMS Sales Order',     status: 'Confirmed',  notes: 'Linked variants are matched by shopify_variant_id. Unmatched line items are silently skipped (run Reconcile if variants are missing). Stock is committed (qty_committed) immediately.' },
-          { trigger: 'Order paid',              object: 'Loyalty ledger',      status: 'Earned',     notes: 'Awards points once to an enrolled customer linked by exact Shopify customer ID. Freight and gift-card products are excluded.' },
           { trigger: 'Order edited',            object: 'IMS Sales Order',     status: 'Updated',    notes: 'Financial totals (price, tax, freight, discount) updated immediately. Line items re-synced only if the SO is still Draft.' },
           { trigger: 'Order fulfilled',         object: 'IMS Sales Order',     status: 'Fulfilled',  notes: 'Stock moved from committed → on hand via a fulfilled movement. Occurs on fulfillments/create or orders/fulfilled topic.' },
           { trigger: 'Order cancelled/voided',  object: 'IMS Sales Order',     status: 'Cancelled',  notes: 'Committed stock released. Triggered by orders/cancelled or financial_status = voided.' },

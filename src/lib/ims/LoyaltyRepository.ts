@@ -9,7 +9,7 @@ import type {
   LoyaltyTransactionType,
 } from '@/lib/loyalty/types';
 import { calculateProportionalReturnReversal } from '@/lib/loyalty/calculations';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 export class LoyaltyValidationError extends Error {
   constructor(message: string) {
@@ -73,6 +73,9 @@ interface RedemptionRow extends RowDataPacket {
   transaction_id: number;
   account_id: number;
   balance_after: number;
+  contact_id?: number;
+  shopify_discount_id?: string | null;
+  voucher_code?: string | null;
 }
 
 interface RewardRow extends RowDataPacket {
@@ -104,12 +107,14 @@ export interface LoyaltyTransactionInput {
   contactId: number;
   type: LoyaltyTransactionType;
   pointsDelta: number;
+  eligibleSpendCents?: number | null;
   channel: LoyaltyChannel;
   sourceType?: string | null;
   sourceId?: string | number | null;
   idempotencyKey: string;
   actorId?: string | number | null;
   reason?: string | null;
+  allowNegativeBalance?: boolean;
 }
 
 export interface LoyaltyRewardReservationInput {
@@ -125,6 +130,12 @@ export interface LoyaltyRewardReservationInput {
 export interface LoyaltyPosSaleReversalResult {
   earnReversals: LoyaltyMutationResult[];
   redemptionReversals: LoyaltyMutationResult[];
+}
+
+export interface LoyaltyIssuedRedemption extends LoyaltyRedemptionResult {
+  contactId: number;
+  shopifyDiscountId: string | null;
+  voucherCode: string | null;
 }
 
 function mapAccount(row: AccountRow): LoyaltyAccount {
@@ -199,6 +210,39 @@ function replayResult(existing: TransactionRow, input: LoyaltyTransactionInput):
 }
 
 export const LoyaltyRepository = {
+  async getRedemptionByIdempotencyKey(
+    businessId: string,
+    idempotencyKey: string,
+  ): Promise<LoyaltyIssuedRedemption | null> {
+    const rows = await imsQuery<RedemptionRow>(
+      `SELECT r.id, r.reward_id, r.points_deducted, rw.value_aud, r.status, r.transaction_id,
+              r.account_id, t.balance_after, a.contact_id, r.shopify_discount_id, r.voucher_code
+         FROM loyalty_redemptions r
+         JOIN loyalty_rewards rw ON rw.id = r.reward_id AND rw.business_id = r.business_id
+         JOIN loyalty_transactions t ON t.id = r.transaction_id AND t.business_id = r.business_id
+         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+        WHERE r.business_id = ? AND r.idempotency_key = ?
+        LIMIT 1`,
+      [businessId, idempotencyKey],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      redemptionId: Number(row.id),
+      rewardId: Number(row.reward_id),
+      pointsDeducted: Number(row.points_deducted),
+      rewardValueAud: Number(row.value_aud),
+      status: row.status,
+      transactionId: Number(row.transaction_id),
+      accountId: Number(row.account_id),
+      balanceAfter: Number(row.balance_after),
+      duplicate: true,
+      contactId: Number(row.contact_id),
+      shopifyDiscountId: row.shopify_discount_id ?? null,
+      voucherCode: row.voucher_code ?? null,
+    };
+  },
+
   async getMutationByIdempotencyKey(businessId: string, idempotencyKey: string): Promise<LoyaltyMutationResult | null> {
     const rows = await imsQuery<TransactionRow>(
       `SELECT t.id, t.account_id, a.contact_id, t.type, t.points_delta, t.balance_after
@@ -227,6 +271,23 @@ export const LoyaltyRepository = {
       [businessId, contactId],
     );
     return rows[0] ? mapAccount(rows[0]) : null;
+  },
+
+  async markShopifyVoucherUsed(
+    businessId: string,
+    voucherCode: string,
+    shopifyCustomerId: string,
+  ): Promise<boolean> {
+    const result = await imsExecute(
+      `UPDATE loyalty_redemptions r
+         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+         JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = r.business_id
+          SET r.status = 'used', r.used_at = COALESCE(r.used_at, NOW())
+        WHERE r.business_id = ? AND r.status = 'issued' AND r.voucher_code = ?
+          AND c.shopify_customer_id = ?`,
+      [businessId, voucherCode.trim().toUpperCase(), shopifyCustomerId],
+    );
+    return Number(result.affectedRows) > 0;
   },
 
   async listRewards(businessId: string, activeOnly = true): Promise<LoyaltyReward[]> {
@@ -284,19 +345,20 @@ export const LoyaltyRepository = {
     if (replay) return replayResult(replay, input);
 
     const balanceAfter = Number(account.balance_points) + input.pointsDelta;
-    if (balanceAfter < 0) throw new LoyaltyValidationError('The customer does not have enough points.');
+    if (balanceAfter < 0 && !input.allowNegativeBalance) throw new LoyaltyValidationError('The customer does not have enough points.');
 
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO loyalty_transactions
-         (business_id, account_id, type, points_delta, balance_after, channel,
+        (business_id, account_id, type, points_delta, balance_after, eligible_spend_cents, channel,
           source_type, source_id, idempotency_key, actor_id, reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.businessId,
         account.id,
         input.type,
         input.pointsDelta,
         balanceAfter,
+        input.eligibleSpendCents == null ? null : Math.max(0, Math.round(input.eligibleSpendCents)),
         input.channel,
         input.sourceType ?? null,
         input.sourceId == null ? null : String(input.sourceId),
@@ -411,6 +473,89 @@ export const LoyaltyRepository = {
       rewardValueAud: Number(reward.value_aud),
       status: input.posSaleId ? 'used' : 'reserved',
     };
+  },
+
+  async prepareRedemptionVoucher(
+    connection: PoolConnection,
+    input: { businessId: string; redemptionId: number; voucherCode: string },
+  ): Promise<string> {
+    const [rows] = await connection.execute<RedemptionRow[]>(
+      `SELECT id, status, voucher_code
+         FROM loyalty_redemptions
+        WHERE id = ? AND business_id = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [input.redemptionId, input.businessId],
+    );
+    const redemption = rows[0];
+    if (!redemption) throw new LoyaltyValidationError('The loyalty redemption does not exist.');
+    if (redemption.status !== 'reserved' && redemption.status !== 'issued') {
+      throw new LoyaltyValidationError('This loyalty redemption can no longer be issued.');
+    }
+    if (redemption.voucher_code) return String(redemption.voucher_code);
+    const voucherCode = input.voucherCode.trim().toUpperCase();
+    if (!voucherCode || voucherCode.length > 100) throw new LoyaltyValidationError('A valid voucher code is required.');
+    await connection.execute(
+      `UPDATE loyalty_redemptions
+          SET voucher_code = ?
+        WHERE id = ? AND business_id = ? AND status = 'reserved' AND voucher_code IS NULL`,
+      [voucherCode, input.redemptionId, input.businessId],
+    );
+    return voucherCode;
+  },
+
+  async markRedemptionIssued(
+    connection: PoolConnection,
+    input: { businessId: string; redemptionId: number; shopifyDiscountId: string; voucherCode: string },
+  ): Promise<void> {
+    const [result] = await connection.execute<ResultSetHeader>(
+      `UPDATE loyalty_redemptions
+          SET status = 'issued', shopify_discount_id = ?, voucher_code = ?
+        WHERE id = ? AND business_id = ? AND status IN ('reserved','issued')`,
+      [input.shopifyDiscountId, input.voucherCode, input.redemptionId, input.businessId],
+    );
+    if (Number(result.affectedRows) !== 1) throw new LoyaltyValidationError('This loyalty redemption can no longer be issued.');
+  },
+
+  async cancelReservedRedemption(
+    connection: PoolConnection,
+    input: { businessId: string; redemptionId: number; actorId?: string | number | null; reason: string },
+  ): Promise<LoyaltyMutationResult> {
+    const [rows] = await connection.execute<RedemptionRow[]>(
+      `SELECT r.id, r.status, r.points_deducted, a.contact_id
+         FROM loyalty_redemptions r
+         JOIN loyalty_accounts a ON a.id = r.account_id AND a.business_id = r.business_id
+        WHERE r.id = ? AND r.business_id = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [input.redemptionId, input.businessId],
+    );
+    const redemption = rows[0];
+    if (!redemption) throw new LoyaltyValidationError('The loyalty redemption does not exist.');
+    if (redemption.status !== 'reserved' && redemption.status !== 'cancelled') {
+      throw new LoyaltyValidationError('Only a reserved loyalty redemption can be cancelled.');
+    }
+    const reversal = await this.applyTransaction(connection, {
+      businessId: input.businessId,
+      contactId: Number(redemption.contact_id),
+      type: 'redeem_reversal',
+      pointsDelta: Number(redemption.points_deducted),
+      channel: 'shopify',
+      sourceType: 'shopify_reward_issue_failure',
+      sourceId: input.redemptionId,
+      idempotencyKey: `shopify:redemption:${input.redemptionId}:reversal`,
+      actorId: input.actorId,
+      reason: input.reason,
+    });
+    if (redemption.status === 'reserved') {
+      await connection.execute(
+        `UPDATE loyalty_redemptions
+            SET status = 'cancelled', cancelled_at = NOW(), cancelled_reason = ?
+          WHERE id = ? AND business_id = ? AND status = 'reserved'`,
+        [input.reason, input.redemptionId, input.businessId],
+      );
+    }
+    return reversal;
   },
 
   async reversePosSale(

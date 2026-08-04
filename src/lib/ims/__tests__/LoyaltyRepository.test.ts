@@ -112,6 +112,29 @@ describe('LoyaltyRepository', () => {
     expect(execute).toHaveBeenCalledTimes(5);
   });
 
+  it('allows an explicitly authorized external correction to take the balance below zero', async () => {
+    const { connection, execute } = connectionWith(
+      [[]],
+      [[enrolledContact]],
+      [[{ ...account, balance_points: 10 }]],
+      [[]],
+      [{ insertId: 102 }],
+      [{ affectedRows: 1 }],
+    );
+
+    await expect(LoyaltyRepository.applyTransaction(connection, {
+      ...earnInput,
+      type: 'earn_reversal',
+      pointsDelta: -20,
+      channel: 'shopify',
+      idempotencyKey: 'shopify:refund:1:earn',
+      reason: 'Shopify refund 1',
+      allowNegativeBalance: true,
+    })).resolves.toEqual({ transactionId: 102, accountId: 7, balanceAfter: -10, duplicate: false });
+
+    expect(execute.mock.calls[5][1]).toEqual([-10, 0, 0, 7, 'business-1']);
+  });
+
   it('rejects new points activity for a customer who has not opted in', async () => {
     const { connection, execute } = connectionWith(
       [[]],

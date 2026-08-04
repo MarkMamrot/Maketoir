@@ -27,7 +27,7 @@ import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayout
 import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
-import { calculateShopifyEligibleSpend } from '@/lib/loyalty/calculations';
+import { calculateShopifyEligibleSpend, calculateShopifyRefundEligibleSpend } from '@/lib/loyalty/calculations';
 import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
 
 export const runtime = 'nodejs';
@@ -70,6 +70,14 @@ function getShopifyGiftCardAmount(lineItems: any[]): number {
 async function awardPaidOrderLoyalty(businessId: string, payload: any) {
   const shopifyOrderId = String(payload.id ?? '').trim();
   if (!shopifyOrderId) return;
+  await ShopifyLoyaltyService.markPaidOrderRedemptionsUsed({
+    businessId,
+    shopifyOrderId,
+    shopifyCustomerId: String(payload.customer?.id ?? '').trim(),
+    discountCodes: Array.isArray(payload.discount_codes)
+      ? payload.discount_codes.map((discount: any) => String(discount?.code ?? ''))
+      : [],
+  });
   const eligibleSpend = calculateShopifyEligibleSpend({
     subtotalPrice: Number(payload.subtotal_price ?? 0),
     lineItems: (payload.line_items ?? []).map((item: any) => ({
@@ -366,6 +374,19 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
               note: `Shopify refund via ${topic}`,
               restockLines: norm.restockLines,
             });
+            const eligibleRefundSpend = calculateShopifyRefundEligibleSpend({
+              refundLineItems: (payload.refund_line_items ?? []).map((item: any) => ({
+                subtotal: item?.subtotal ?? 0,
+                totalTax: item?.total_tax ?? 0,
+                giftCard: Boolean(item?.line_item?.gift_card),
+              })),
+            });
+            await ShopifyLoyaltyService.reverseRefund({
+              businessId,
+              shopifyOrderId: orderId,
+              shopifyRefundId: norm.shopifyRefundId,
+              eligibleRefundSpend,
+            });
             const cnRows = await imsQuery<{ id: number }>(
               `SELECT id FROM ims_credit_notes
                WHERE business_id = ? AND shopify_refund_id = ?
@@ -404,6 +425,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             so_id: existing[0].id,
             shopify_refund_id: String(payload.id ?? ''),
           });
+          return respond({ error: e?.message ?? 'Shopify refund processing failed' }, 500);
         }
       }
     }
