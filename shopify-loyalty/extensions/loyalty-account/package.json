@@ -1,0 +1,18 @@
+{
+  "name": "@solvantis/loyalty-account",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@shopify/ui-extensions": "2026.7.0",
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

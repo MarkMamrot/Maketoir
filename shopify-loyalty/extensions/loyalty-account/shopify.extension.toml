@@ -1,0 +1,16 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "Solvantis loyalty"
+description = "Displays a customer's loyalty balance and available rewards."
+handle = "solvantis-loyalty"
+type = "ui_extension"
+uid = "6a4dfe49-0742-460d-9033-361aa8408aff"
+
+[[extensions.targeting]]
+module = "./src/ProfileBlock.tsx"
+target = "customer-account.profile.block.render"
+
+[[extensions.targeting]]
+module = "./src/LoyaltyPage.tsx"
+target = "customer-account.page.render"

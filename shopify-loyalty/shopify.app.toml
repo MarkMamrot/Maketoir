@@ -1,0 +1,5 @@
+# Run `npm run shopify -- app config link` after signing in to Shopify.
+client_id = ""
+
+[access_scopes]
+scopes = "customer_read_customers"

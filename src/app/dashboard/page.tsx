@@ -4843,7 +4843,10 @@ function ZoomThumb({ src, className }: { src: string; className?: string }) {
           referrerPolicy="no-referrer"
           decoding="async"
           className="w-full h-full object-cover"
-          onLoad={e => setSpec(prev => ({ ...prev, dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }))}
+          onLoad={e => {
+            const dimensions = `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`;
+            setSpec(prev => ({ ...prev, dimensions, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }));
+          }}
           onError={handleImageError}
         />
       )}

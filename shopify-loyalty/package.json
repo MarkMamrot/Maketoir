@@ -1,0 +1,18 @@
+{
+  "name": "solvantis-loyalty-shopify",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "workspaces": [
+    "extensions/*"
+  ],
+  "scripts": {
+    "shopify": "npx @shopify/cli@latest",
+    "build": "npx @shopify/cli@latest app build",
+    "dev": "npx @shopify/cli@latest app dev",
+    "deploy": "npx @shopify/cli@latest app deploy",
+    "info": "npx @shopify/cli@latest app info",
+    "typecheck": "npm run typecheck --workspace=@solvantis/loyalty-account",
+    "test": "npm run test --workspace=@solvantis/loyalty-account"
+  }
+}

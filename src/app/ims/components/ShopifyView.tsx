@@ -1197,6 +1197,16 @@ function ShopifyGiftCardsTab() {
   const [customerSyncError, setCustomerSyncError] = useState<string | null>(null);
   const [customerSyncProgress, setCustomerSyncProgress] = useState<string | null>(null);
   const [customerInactiveMonths, setCustomerInactiveMonths] = useState('60');
+  const [loyaltySyncing, setLoyaltySyncing] = useState(false);
+  const [loyaltySyncProgress, setLoyaltySyncProgress] = useState<string | null>(null);
+  const [loyaltySyncError, setLoyaltySyncError] = useState<string | null>(null);
+  const [loyaltySyncResult, setLoyaltySyncResult] = useState<{
+    processed: number;
+    synced: number;
+    skipped: number;
+    failed: number;
+    batches: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -1295,6 +1305,48 @@ function ShopifyGiftCardsTab() {
     setCustomerSyncing(false);
   }
 
+  async function runLoyaltyMetafieldSync() {
+    setLoyaltySyncing(true);
+    setLoyaltySyncResult(null);
+    setLoyaltySyncError(null);
+    setLoyaltySyncProgress('Preparing loyalty customer catch-up…');
+    const aggregate = { processed: 0, synced: 0, skipped: 0, failed: 0, batches: 0 };
+    try {
+      let afterId = 0;
+      let hasMore = true;
+      while (hasMore) {
+        aggregate.batches += 1;
+        setLoyaltySyncProgress(`Publishing loyalty customer batch ${aggregate.batches}… ${aggregate.synced} synced`);
+        const response = await fetch('/api/ims/loyalty/shopify-metafields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ afterId, limit: 50 }),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok) throw new Error(data.error ?? 'Loyalty customer sync failed');
+        aggregate.processed += Number(data.processed ?? 0);
+        aggregate.synced += Number(data.synced ?? 0);
+        aggregate.skipped += Number(data.skipped ?? 0);
+        aggregate.failed += Number(data.failed ?? 0);
+        hasMore = Boolean(data.hasMore);
+        if (hasMore) {
+          const nextAfterId = Number(data.nextAfterId);
+          if (!Number.isInteger(nextAfterId) || nextAfterId <= afterId) {
+            throw new Error('Loyalty customer sync cursor did not advance. Retry the catch-up.');
+          }
+          afterId = nextAfterId;
+        }
+      }
+      setLoyaltySyncResult(aggregate);
+    } catch (error: any) {
+      setLoyaltySyncError(error.message ?? 'Loyalty customer sync failed');
+      if (aggregate.processed > 0) setLoyaltySyncResult(aggregate);
+    } finally {
+      setLoyaltySyncProgress(null);
+      setLoyaltySyncing(false);
+    }
+  }
+
   const card: React.CSSProperties  = { padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 };
   const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
   const inputStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%', boxSizing: 'border-box' };
@@ -1364,8 +1416,8 @@ function ShopifyGiftCardsTab() {
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <button
             onClick={runCustomerSync}
-            disabled={customerSyncing}
-            style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: customerSyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing ? 0.7 : 1 }}
+            disabled={customerSyncing || loyaltySyncing}
+            style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
           >
             {customerSyncing ? 'Syncing Customers…' : 'Pull Customers From Shopify'}
           </button>
@@ -1375,6 +1427,7 @@ function ShopifyGiftCardsTab() {
               type="number"
               min={0}
               step={1}
+              disabled={customerSyncing || loyaltySyncing}
               value={customerInactiveMonths}
               onChange={e => setCustomerInactiveMonths(e.target.value)}
               style={{ ...inputStyle, width: 84, padding: '6px 8px', margin: 0 }}
@@ -1383,14 +1436,32 @@ function ShopifyGiftCardsTab() {
           </label>
           <button
             onClick={runCustomerPush}
-            disabled={customerSyncing}
-            style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing ? 0.7 : 1 }}
+            disabled={customerSyncing || loyaltySyncing}
+            style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
           >
             {customerSyncing ? 'Syncing Customers…' : 'Push IMS Retail Customers'}
+          </button>
+          <button
+            onClick={runLoyaltyMetafieldSync}
+            disabled={customerSyncing || loyaltySyncing}
+            style={{ padding: '8px 20px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: customerSyncing || loyaltySyncing ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: customerSyncing || loyaltySyncing ? 0.7 : 1 }}
+          >
+            {loyaltySyncing ? 'Publishing Loyalty…' : 'Publish Loyalty to Shopify'}
           </button>
         </div>
         {customerSyncProgress && <p style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>{customerSyncProgress}</p>}
         {customerSyncError && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{customerSyncError}</p>}
+        {loyaltySyncProgress && <p style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>{loyaltySyncProgress}</p>}
+        {loyaltySyncError && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{loyaltySyncError}</p>}
+        {loyaltySyncResult && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: loyaltySyncResult.failed > 0 ? 'rgba(251,191,36,.08)' : 'rgba(16,185,129,.08)', border: `1px solid ${loyaltySyncResult.failed > 0 ? 'rgba(251,191,36,.25)' : 'rgba(16,185,129,.25)'}`, borderRadius: 8, fontSize: 13 }}>
+            <strong style={{ color: loyaltySyncResult.failed > 0 ? '#fbbf24' : '#34d399' }}>Loyalty publish {loyaltySyncResult.failed > 0 ? 'completed with errors' : 'complete'}</strong>
+            <div style={{ marginTop: 6, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+              {loyaltySyncResult.synced} synced, {loyaltySyncResult.skipped} skipped, {loyaltySyncResult.failed} failed across {loyaltySyncResult.batches} batch{loyaltySyncResult.batches === 1 ? '' : 'es'}.
+              {loyaltySyncResult.failed > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-text-dim)' }}>Review Runtime Issues for details.</span>}
+            </div>
+          </div>
+        )}
         {customerSyncResult && (
           <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(16,185,129,.08)', border: '1px solid rgba(16,185,129,.25)', borderRadius: 8, fontSize: 13 }}>
             <strong style={{ color: '#34d399' }}>Customer {customerSyncResult.mode === 'push' ? 'push' : 'pull'} complete</strong>
