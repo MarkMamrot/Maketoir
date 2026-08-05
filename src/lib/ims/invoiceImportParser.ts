@@ -29,6 +29,24 @@ export type ParsedInvoice = {
   line_items: ParsedInvoiceLine[];
 };
 
+export function calculateTaxInclusiveRrp(cost: number, markupPercent: number, salesTaxRate: number): number {
+  const safeCost = Number.isFinite(cost) ? Math.max(0, cost) : 0;
+  const safeMarkup = Number.isFinite(markupPercent) ? Math.max(0, markupPercent) : 0;
+  const safeTaxRate = Number.isFinite(salesTaxRate) ? Math.max(0, salesTaxRate) : 0;
+  return Math.round(safeCost * (1 + safeMarkup / 100) * (1 + safeTaxRate) * 100) / 100;
+}
+
+export function invoiceUnitPriceToProductCost(
+  unitPrice: number,
+  taxTreatment: ParsedInvoice['prices_include_tax'],
+  lineTaxRate: number,
+): number {
+  const safePrice = Number.isFinite(unitPrice) ? Math.max(0, unitPrice) : 0;
+  const safeTaxRate = Number.isFinite(lineTaxRate) ? Math.max(0, lineTaxRate) : 0;
+  const exTaxCost = taxTreatment === 'inc_tax' && safeTaxRate > 0 ? safePrice / (1 + safeTaxRate) : safePrice;
+  return Math.round(exTaxCost * 10000) / 10000;
+}
+
 export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | undefined): ParsedInvoice {
   const rawLines = Array.isArray(raw?.line_items) ? raw.line_items : [];
   const isFreightLine = (line: any) => {

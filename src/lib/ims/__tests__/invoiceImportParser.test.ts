@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeParsedInvoice } from '../invoiceImportParser';
+import { calculateTaxInclusiveRrp, invoiceUnitPriceToProductCost, normalizeParsedInvoice } from '../invoiceImportParser';
+
+describe('calculateTaxInclusiveRrp', () => {
+  it('applies markup before sales tax and rounds to cents', () => {
+    expect(calculateTaxInclusiveRrp(10, 100, 0.1)).toBe(22);
+    expect(calculateTaxInclusiveRrp(12.34, 50, 0.1)).toBe(20.36);
+  });
+
+  it('extracts included tax from invoice cost before markup', () => {
+    const cost = invoiceUnitPriceToProductCost(11, 'inc_tax', 0.1);
+    expect(cost).toBe(10);
+    expect(calculateTaxInclusiveRrp(cost, 100, 0.1)).toBe(22);
+    expect(invoiceUnitPriceToProductCost(10, 'ex_tax', 0.1)).toBe(10);
+  });
+});
 
 describe('normalizeParsedInvoice', () => {
   it('preserves barcode, RRP, and header discount from the parsed invoice', () => {

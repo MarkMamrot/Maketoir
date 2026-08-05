@@ -649,7 +649,7 @@ export const ImsVariantsRepo = {
     const where = businessId ? 'WHERE v.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     return imsQuery<ImsVariant>(
-      `SELECT v.*, p.name AS product_name
+      `SELECT v.*, p.name AS product_name, p.brand AS product_brand
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
        ${where}

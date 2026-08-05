@@ -8,6 +8,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { calculateTaxInclusiveRrp, invoiceUnitPriceToProductCost } from '@/lib/ims/invoiceImportParser';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -7220,7 +7221,7 @@ type InvoiceParseResult = {
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
     invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
-    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
+    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; product_brand?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
     po_line: { id: number; variant_id: string; qty_ordered: number; qty_received: number; unit_cost: number; sku: string; product_name: string; variant_label?: string } | null;
@@ -7229,12 +7230,12 @@ type InvoiceParseResult = {
   }> | null;
 };
 
-function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, poId, pendingFile }: {
+function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, salesTaxRate, poId, pendingFile }: {
   onClose: () => void;
   onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   onVariantCreated?: (variant: any) => void;
-  suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; poId?: number | null; pendingFile?: File | null;
+  suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; salesTaxRate: number; poId?: number | null; pendingFile?: File | null;
 }) {
   const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
   const [dragging, setDragging] = React.useState(false);
@@ -7253,6 +7254,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   const [availableVariants, setAvailableVariants] = React.useState<any[]>(variants);
   const [createLineIndex, setCreateLineIndex] = React.useState<number | null>(null);
   const [createProductForm, setCreateProductForm] = React.useState({ name: '', sku: '', barcode: '', product_type: '', brand: '', rrp: '', cost: '', supplier_id: '' });
+  const [markupPercent, setMarkupPercent] = React.useState('100');
   const [creatingProduct, setCreatingProduct] = React.useState(false);
   const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -7262,6 +7264,11 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   React.useEffect(() => {
     if (pendingFile) processFile(pendingFile);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
+    const savedMarkup = window.localStorage.getItem('ims-invoice-product-markup-percent');
+    if (savedMarkup !== null && Number.isFinite(Number(savedMarkup)) && Number(savedMarkup) >= 0) setMarkupPercent(savedMarkup);
+  }, []);
 
   async function processFile(file: File) {
     setError(null); setStage('uploading');
@@ -7311,6 +7318,28 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   }
 
   function openCreateProduct(i: number, line: InvoiceParseResult['line_results'][0]['invoice_line']) {
+    const normalizeBrand = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const matchCatalogBrand = (value: string | null | undefined) => {
+      const normalized = normalizeBrand(value ?? '');
+      if (!normalized) return '';
+      return brands.find(brand => {
+        const candidate = normalizeBrand(brand.name);
+        return candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate);
+      })?.name ?? '';
+    };
+    let suggestedBrand = matchCatalogBrand(line.brand);
+    for (let distance = 1; !suggestedBrand && result && distance < result.line_results.length; distance += 1) {
+      for (const neighborIndex of [i - distance, i + distance]) {
+        const neighbor = result.line_results[neighborIndex];
+        if (!neighbor) continue;
+        const matchedVariant = neighbor.match ? availableVariants.find((variant: any) => variant.variant_id === neighbor.match?.variant_id) : null;
+        suggestedBrand = matchCatalogBrand(neighbor.invoice_line.brand ?? neighbor.match?.product_brand ?? matchedVariant?.product_brand);
+        if (suggestedBrand) break;
+      }
+    }
+    const selectedSupplier = suppliers.find((supplier: any) => String(supplier.id) === String(supplierId));
+    if (!suggestedBrand) suggestedBrand = matchCatalogBrand(selectedSupplier?.name);
+    const cost = invoiceUnitPriceToProductCost(Number(line.unit_price ?? 0), taxTreatment, Number(line.tax_rate ?? 0));
     setCreateLineIndex(i);
     setCreateProductError(null);
     setCreateProductForm({
@@ -7318,11 +7347,27 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       sku: line.product_code ?? '',
       barcode: line.barcode ?? '',
       product_type: line.product_type ?? '',
-      brand: line.brand ?? '',
-      rrp: line.rrp == null ? '' : String(line.rrp),
-      cost: String(Number(line.unit_price ?? 0)),
+      brand: suggestedBrand,
+      rrp: line.rrp == null ? String(calculateTaxInclusiveRrp(cost, Number(markupPercent), salesTaxRate)) : String(line.rrp),
+      cost: String(cost),
       supplier_id: supplierId ? String(supplierId) : '',
     });
+  }
+
+  function updateMarkup(value: string) {
+    setMarkupPercent(value);
+    if (value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0) {
+      window.localStorage.setItem('ims-invoice-product-markup-percent', value);
+      setCreateProductForm(previous => ({ ...previous, rrp: String(calculateTaxInclusiveRrp(Number(previous.cost), Number(value), salesTaxRate)) }));
+    }
+  }
+
+  function updateCreateCost(value: string) {
+    setCreateProductForm(previous => ({
+      ...previous,
+      cost: value,
+      rrp: value === '' ? '' : String(calculateTaxInclusiveRrp(Number(value), Number(markupPercent), salesTaxRate)),
+    }));
   }
 
   async function createProductFromLine() {
@@ -7632,8 +7677,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
             <Field label="Product name *"><input value={createProductForm.name} onChange={e => setCreateProductForm(p => ({ ...p, name: e.target.value }))} style={inputStyle} /></Field>
             <Field label="SKU *"><input value={createProductForm.sku} onChange={e => setCreateProductForm(p => ({ ...p, sku: e.target.value }))} style={inputStyle} /></Field>
             <Field label="Barcode"><input value={createProductForm.barcode} onChange={e => setCreateProductForm(p => ({ ...p, barcode: e.target.value }))} style={inputStyle} /></Field>
-            <Field label={`Cost (${currency})`}><input type="number" min="0" step="0.0001" value={createProductForm.cost} onChange={e => setCreateProductForm(p => ({ ...p, cost: e.target.value }))} style={inputStyle} /></Field>
-            <Field label={`RRP (${currency})`}><input type="number" min="0" step="0.01" value={createProductForm.rrp} onChange={e => setCreateProductForm(p => ({ ...p, rrp: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={`Cost (${currency}, ex. tax)`}><input type="number" min="0" step="0.0001" value={createProductForm.cost} onChange={e => updateCreateCost(e.target.value)} style={inputStyle} /></Field>
+            <Field label="Markup %"><input type="number" min="0" step="1" value={markupPercent} onChange={e => updateMarkup(e.target.value)} style={inputStyle} /></Field>
+            <Field label={`RRP (${currency}, inc. tax)`}><input type="number" min="0" step="0.01" value={createProductForm.rrp} onChange={e => setCreateProductForm(p => ({ ...p, rrp: e.target.value }))} style={inputStyle} /></Field>
             <Field label="Product type">
               <select value={createProductForm.product_type} onChange={e => setCreateProductForm(p => ({ ...p, product_type: e.target.value }))} style={inputStyle}>
                 <option value="">— None —</option>
@@ -9112,6 +9158,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           variants={variants}
           productTypes={productTypes}
           brands={poBrands}
+          salesTaxRate={Number(settings?.sales_tax_rate ?? 0.1)}
           onVariantCreated={variant => setVariants(prev => [...prev, variant])}
           poId={invoiceImportPoId}
           pendingFile={invoicePendingFile}

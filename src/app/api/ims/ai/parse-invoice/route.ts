@@ -54,6 +54,7 @@ type Variant = {
   cost_foreign?: string | null;
   product_name?: string | null;
   variant_label?: string | null;
+  product_brand?: string | null;
 };
 
 function matchVariant(
@@ -61,7 +62,7 @@ function matchVariant(
   barcode: string | null,
   productName: string | null,
   variants: Variant[],
-): { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; cost_foreign?: string | null; confidence: string; method: string } | null {
+): { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; product_brand?: string | null; cost_aud?: number | null; cost_foreign?: string | null; confidence: string; method: string } | null {
   const pc = productCode?.trim().toLowerCase();
   const bc = barcode?.trim().toLowerCase();
 
@@ -265,8 +266,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
   let variants: Variant[] = [];
   if (matchedSupplier) {
     variants = await imsQuery<Variant>(
-      `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
-              p.name AS product_name,
+            `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
+              p.name AS product_name, p.brand AS product_brand,
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
@@ -277,8 +278,8 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
   } else {
     // No supplier match — search all (capped to avoid huge payloads)
     variants = await imsQuery<Variant>(
-      `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
-              p.name AS product_name,
+            `SELECT v.variant_id, v.sku, v.barcode, v.cost_aud, v.cost_foreign,
+              p.name AS product_name, p.brand AS product_brand,
               CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
