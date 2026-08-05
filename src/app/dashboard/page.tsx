@@ -5596,8 +5596,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Load Products To Website</h2>
-            <p className="text-xs text-gray-500">Find products marked for the online store that aren&apos;t on the shop yet. Find URLs, get images &amp; research, format content, then push to the online shop.</p>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Automated Product Content Studio</h2>
+            <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
           <button
