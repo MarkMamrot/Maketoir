@@ -9,6 +9,7 @@ import {
   type LoyaltyPosSaleReversalResult,
 } from '@/lib/ims/LoyaltyRepository';
 import { calculateEarnedPoints, calculatePosEligibleSpend, calculatePosReturnEligibleCents } from '@/lib/loyalty/calculations';
+import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -597,6 +598,13 @@ export const PosSalesRepo = {
         }
       }
 
+      if (loyaltyWriteAttempted && data.customer_id) {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: data.business_id,
+          contactId: data.customer_id,
+        });
+      }
+
       return { saleId, stockError, loyalty, loyaltyPoints, loyaltyRedemption };
     } catch (err) {
       await conn.rollback();
@@ -770,6 +778,12 @@ export const PosSalesRepo = {
         [id],
       );
       await stockConn.commit();
+      if (sale.customer_id) {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: sale.business_id,
+          contactId: sale.customer_id,
+        });
+      }
       return { giftCardReversals, loyaltyReversals };
     } catch (err) {
       await stockConn.rollback();
@@ -1020,6 +1034,12 @@ export const PosSalesRepo = {
       } finally {
         stockConn.release();
       }
+    }
+    if (loyalty && oldSale.customer_id) {
+      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+        businessId: oldSale.business_id,
+        contactId: oldSale.customer_id,
+      });
     }
     return { stockError, loyalty };
   },

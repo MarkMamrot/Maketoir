@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
@@ -8,6 +8,7 @@ const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosS
   mockReversePosReturn: vi.fn(),
   mockReconcilePosSaleEarn: vi.fn(),
   mockUnwindGiftCards: vi.fn(),
+  mockSyncConfiguredCustomer: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -30,6 +31,9 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
 vi.mock('@/lib/ims/posReturnCreditNote', () => ({ getPosStockQtyChange: vi.fn() }));
 vi.mock('@/lib/pos/giftCardSaleVoid', () => ({ unwindGiftCardTransactionsForSale: mockUnwindGiftCards }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(null) }));
+vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
+  ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mockSyncConfiguredCustomer },
+}));
 
 import { PosSalesRepo } from '@/lib/db/PosRepository';
 
@@ -111,6 +115,7 @@ describe('PosSalesRepo loyalty earning', () => {
     mockReversePosReturn.mockResolvedValue({ transactionId: 12, accountId: 9, balanceAfter: 50, duplicate: false });
     mockReconcilePosSaleEarn.mockResolvedValue({ transactionId: 13, accountId: 9, balanceAfter: 90, duplicate: false });
     mockUnwindGiftCards.mockResolvedValue([]);
+    mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
   });
 
   it('awards enrolled customer points before committing the sale', async () => {
@@ -129,6 +134,8 @@ describe('PosSalesRepo loyalty earning', () => {
       idempotencyKey: 'pos:sale:101:earn',
     }));
     expect(mockApplyTransaction.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
+    expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ saleId: 101, loyaltyPoints: 100, loyalty: { transactionId: 8 } });
   });
 
@@ -339,6 +346,7 @@ describe('PosSalesRepo loyalty earning', () => {
       actorId: 4,
     });
     expect(mockReconcilePosSaleEarn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
+    expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
   });
 
   it('reverses loyalty inside the manager void transaction before commit', async () => {
@@ -373,6 +381,7 @@ describe('PosSalesRepo loyalty earning', () => {
       actorId: 'manager-1',
     });
     expect(mockReversePosSale.mock.invocationCallOrder[0]).toBeLessThan(stockConnection.commit.mock.invocationCallOrder[0]);
+    expect(stockConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(stockConnection.execute.mock.calls[1][0]).toContain("status = 'voided'");
   });
 });

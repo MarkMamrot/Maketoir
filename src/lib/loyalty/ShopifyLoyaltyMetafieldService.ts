@@ -1,7 +1,10 @@
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { decrypt } from '@/lib/encryption';
 import { LoyaltyRepository } from '@/lib/ims/LoyaltyRepository';
 import { LoyaltyService } from '@/lib/loyalty/LoyaltyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { ShopifyService } from '@/services/ShopifyService';
 
 export interface ShopifyCustomerMetafieldClient {
   setCustomerMetafields(
@@ -12,10 +15,44 @@ export interface ShopifyCustomerMetafieldClient {
 
 export type ShopifyLoyaltyMetafieldSyncResult =
   | { status: 'synced'; contactId: number; shopifyCustomerId: string; balancePoints: number }
-  | { status: 'skipped'; contactId: number; reason: 'customer_not_found' | 'shopify_not_linked' }
+  | { status: 'skipped'; contactId: number; reason: 'customer_not_found' | 'shopify_not_linked' | 'shopify_not_configured' }
   | { status: 'failed'; contactId: number; error: string };
 
 export const ShopifyLoyaltyMetafieldService = {
+  async syncConfiguredCustomer(input: {
+    businessId: string;
+    contactId: number;
+  }): Promise<ShopifyLoyaltyMetafieldSyncResult> {
+    try {
+      const connection = await ConnectionsRepository.get(input.businessId);
+      if (!connection?.shopify_shop_id || !connection.shopify_access_token) {
+        return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_configured' };
+      }
+      let accessToken = connection.shopify_access_token;
+      try { accessToken = decrypt(accessToken); } catch { /* Legacy unencrypted token. */ }
+      return this.syncCustomer({
+        businessId: input.businessId,
+        contactId: input.contactId,
+        shopify: new ShopifyService(connection.shopify_shop_id, accessToken),
+      });
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId: input.businessId,
+        source: 'shopify_loyalty',
+        operation: 'prepare_customer_metafield_sync',
+        title: 'Shopify customer loyalty sync could not start',
+        error,
+        context: { contactId: input.contactId },
+        reference: { type: 'ims_contact', id: input.contactId },
+      });
+      return {
+        status: 'failed',
+        contactId: input.contactId,
+        error: error instanceof Error ? error.message : 'Shopify loyalty metafield sync could not start.',
+      };
+    }
+  },
+
   async syncCustomer(input: {
     businessId: string;
     contactId: number;

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockGetMutation, mockApplyTransaction, mockMarkShopifyVoucherUsed, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockGetMutation, mockApplyTransaction, mockMarkShopifyVoucherUsed, mockReportRuntimeIssue, mockSyncConfiguredCustomer } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockGetMutation: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockMarkShopifyVoucherUsed: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockSyncConfiguredCustomer: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mockGetIMSPool }));
@@ -18,6 +19,9 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
+vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
+  ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mockSyncConfiguredCustomer },
+}));
 
 import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
 
@@ -41,6 +45,7 @@ describe('ShopifyLoyaltyService', () => {
     mockApplyTransaction.mockResolvedValue({ transactionId: 1, accountId: 2, balanceAfter: 90, duplicate: false });
     mockMarkShopifyVoucherUsed.mockResolvedValue(false);
     mockReportRuntimeIssue.mockResolvedValue(undefined);
+    mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
   });
 
   it('marks unique loyalty codes used for the exact Shopify customer', async () => {
@@ -87,6 +92,8 @@ describe('ShopifyLoyaltyService', () => {
       idempotencyKey: 'shopify:order:1001:earn',
     }));
     expect(mockApplyTransaction.mock.invocationCallOrder[0]).toBeLessThan(connection.commit.mock.invocationCallOrder[0]);
+    expect(connection.release.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ status: 'awarded', points: 90 });
   });
 
@@ -130,6 +137,8 @@ describe('ShopifyLoyaltyService', () => {
       allowNegativeBalance: true,
     }));
     expect(result).toMatchObject({ status: 'reversed', points: 32 });
+    expect(connection.release.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
   });
 
   it('replays a concurrently completed refund after acquiring the earn lock', async () => {

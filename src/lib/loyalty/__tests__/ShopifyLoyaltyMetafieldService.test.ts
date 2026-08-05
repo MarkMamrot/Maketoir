@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockImsQuery, mockGetSettings, mockGetAccount, mockListRewards, mockReportRuntimeIssue } = vi.hoisted(() => ({
+const { mockImsQuery, mockGetSettings, mockGetAccount, mockListRewards, mockReportRuntimeIssue, mockConnectionsGet } = vi.hoisted(() => ({
   mockImsQuery: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetAccount: vi.fn(),
   mockListRewards: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockConnectionsGet: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
@@ -14,6 +15,8 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
   LoyaltyRepository: { getAccount: mockGetAccount, listRewards: mockListRewards },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
+vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
+vi.mock('@/lib/encryption', () => ({ decrypt: vi.fn(value => value) }));
 
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 
@@ -29,6 +32,15 @@ describe('ShopifyLoyaltyMetafieldService', () => {
       id: 3, rewardCode: 'ten-off', displayName: '$10 off', pointsCost: 100, valueAud: 10,
     }]);
     mockReportRuntimeIssue.mockResolvedValue(null);
+    mockConnectionsGet.mockResolvedValue(null);
+  });
+
+  it('skips configured sync cleanly when the tenant has no Shopify connection', async () => {
+    await expect(ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+      businessId: 'business-1', contactId: 42,
+    })).resolves.toEqual({ status: 'skipped', contactId: 42, reason: 'shopify_not_configured' });
+    expect(mockImsQuery).not.toHaveBeenCalled();
+    expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 
   it('publishes the current member balance, labels, and active rewards', async () => {

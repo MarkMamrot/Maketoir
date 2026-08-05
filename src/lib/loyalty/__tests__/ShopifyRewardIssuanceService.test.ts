@@ -8,6 +8,7 @@ const {
   mockCancelReserved,
   mockReportRuntimeIssue,
   mockGetConnection,
+  mockSyncConfiguredCustomer,
 } = vi.hoisted(() => ({
   mockGetRedemption: vi.fn(),
   mockReserveReward: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockCancelReserved: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
   mockGetConnection: vi.fn(),
+  mockSyncConfiguredCustomer: vi.fn(),
 }));
 
 vi.mock('@/lib/ims/LoyaltyRepository', async importOriginal => {
@@ -34,6 +36,9 @@ vi.mock('@/lib/ims/LoyaltyRepository', async importOriginal => {
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: mockGetConnection }),
+}));
+vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
+  ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mockSyncConfiguredCustomer },
 }));
 
 import { LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
@@ -80,6 +85,7 @@ describe('ShopifyRewardIssuanceService', () => {
     mockMarkIssued.mockResolvedValue(undefined);
     mockCancelReserved.mockResolvedValue({ transactionId: 100, accountId: 7, balanceAfter: 140, duplicate: false });
     mockReportRuntimeIssue.mockResolvedValue(null);
+    mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
   });
 
   it('issues a one-customer Shopify reward and marks the reservation issued', async () => {
@@ -104,6 +110,7 @@ describe('ShopifyRewardIssuanceService', () => {
       shopifyDiscountId: 'gid://shopify/DiscountCodeNode/88',
     }));
     expect(result).toMatchObject({ status: 'issued', voucherCode: 'SOLV-55-ABC' });
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
   });
 
   it('returns an already-issued redemption without calling Shopify or the database pool', async () => {
@@ -155,6 +162,7 @@ describe('ShopifyRewardIssuanceService', () => {
       businessId: 'business-1', contactId: 42, rewardId: 3, idempotencyKey: 'claim-1', shopify,
     })).rejects.toThrow('Missing write_discounts scope');
     expect(mockCancelReserved).toHaveBeenCalledWith(connection, expect.objectContaining({ redemptionId: 55 }));
+    expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'issue_reward_code' }));
   });
 

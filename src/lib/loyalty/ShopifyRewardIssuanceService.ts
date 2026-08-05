@@ -9,6 +9,7 @@ import {
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { ShopifyAdminUserError } from '@/services/ShopifyService';
+import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 
 export interface ShopifyDiscountClient {
   findDiscountCode(code: string): Promise<{ id: string; code: string } | null>;
@@ -168,6 +169,10 @@ export const ShopifyRewardIssuanceService = {
       try {
         recovered = await input.shopify.findDiscountCode(prepared.voucherCode);
       } catch {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: input.businessId,
+          contactId: input.contactId,
+        });
         throw error;
       }
       if (recovered) {
@@ -179,8 +184,16 @@ export const ShopifyRewardIssuanceService = {
           actorId: input.actorId,
           reason: `Shopify rejected reward code creation: ${error.message}`.slice(0, 500),
         }));
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: input.businessId,
+          contactId: input.contactId,
+        });
         throw error;
       } else {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: input.businessId,
+          contactId: input.contactId,
+        });
         throw error;
       }
     }
@@ -191,6 +204,10 @@ export const ShopifyRewardIssuanceService = {
       shopifyDiscountId: discount.id,
       voucherCode: discount.code,
     }));
+    await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+      businessId: input.businessId,
+      contactId: input.contactId,
+    });
     return issuedResult(base, discount);
   },
 };

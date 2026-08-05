@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 
 import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import { calculateEarnedPoints, calculateProportionalReturnReversal, parseLoyaltySettings } from '@/lib/loyalty/calculations';
+import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool } from '@/services/IMSMySQLService';
@@ -59,6 +60,7 @@ export const ShopifyLoyaltyService = {
 
     const pool = getIMSPool();
     const connection = await pool.getConnection();
+    let released = false;
     try {
       await connection.beginTransaction();
       const [orders] = await connection.execute<RowDataPacket[]>(
@@ -129,6 +131,12 @@ export const ShopifyLoyaltyService = {
         reason: `Shopify order ${input.shopifyOrderId} paid`,
       });
       await connection.commit();
+      connection.release();
+      released = true;
+      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+        businessId: input.businessId,
+        contactId,
+      });
       return { status: 'awarded', points, mutation };
     } catch (error) {
       await connection.rollback();
@@ -146,7 +154,7 @@ export const ShopifyLoyaltyService = {
       });
       throw error;
     } finally {
-      connection.release();
+      if (!released) connection.release();
     }
   },
 
@@ -165,6 +173,7 @@ export const ShopifyLoyaltyService = {
 
     const pool = getIMSPool();
     const connection = await pool.getConnection();
+    let released = false;
     try {
       await connection.beginTransaction();
       const [earns] = await connection.execute<RowDataPacket[]>(
@@ -243,6 +252,12 @@ export const ShopifyLoyaltyService = {
         allowNegativeBalance: true,
       });
       await connection.commit();
+      connection.release();
+      released = true;
+      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+        businessId: input.businessId,
+        contactId: Number(earn.contact_id),
+      });
       return { status: 'reversed', points, mutation };
     } catch (error) {
       await connection.rollback();
@@ -257,7 +272,7 @@ export const ShopifyLoyaltyService = {
       });
       throw error;
     } finally {
-      connection.release();
+      if (!released) connection.release();
     }
   },
 };

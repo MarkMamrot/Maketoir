@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
 import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
+import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -34,6 +35,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     await ImsContactsRepo.update(Number(params.id), body);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;
+    if (updated) {
+      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({ businessId, contactId: Number(params.id) });
+    }
     return NextResponse.json({ success: true, shopifySync });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
