@@ -5414,7 +5414,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         } else {
           setContentMap(prev => ({ ...prev, [key]: genData.content }));
           setPreflightMap(prev => { const n = { ...prev }; delete n[key]; return n; });
-          step('✅ Done — review content below, then Save and Push Online');
+          setAutoStepMap(prev => { const next = { ...prev }; delete next[key]; return next; });
           return;
         }
       } catch (e: any) {
@@ -5768,10 +5768,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 </label>
                 {workflowMode === 'auto' ? (
                   <>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) await handleAutomatedRetrieval(p); }} className="px-4 py-2 bg-[#147f95] text-white text-xs font-bold rounded-lg hover:bg-[#106b7e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
                       🤖 Generate Product Descriptions &amp; Images
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
                       Save and Push Online
                     </button>
                   </>
@@ -5786,7 +5786,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '')); for (const p of targets) { const key = p.code || ''; const preflight = preflightMap[key]; await handleGenerateContent(p, preflight); } }} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                       ✨ Format Content
                     </button>
-                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                    <button disabled={selectedKeys.size === 0} onClick={async () => { const targets = processableFiltered.filter(p => selectedKeys.has(p.code || '') && !!contentMap[p.code || '']); for (const p of targets) await handlePushToOnline(p); }} className="px-3 py-1.5 bg-[#164e63] text-white text-xs font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2">
                       Save and Push Online
                     </button>
                   </>
@@ -5794,7 +5794,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
               </div>
 
               {/* Table header — 10 cols: checkbox | SKU | Name/Brand | SOH | Price | Status | Website | Shopify | action btn | expand */}
-              <div className="hidden md:grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_100px_80px_80px_120px_24px] gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
+              <div className="hidden md:grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600">
                 <span></span>
                 <span>SKU</span>
                 <span>Name / Brand</span>
@@ -5846,7 +5846,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 return (
                   <div key={key}>
                     <div
-                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_100px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
                         isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => toggleExpandedProduct(p, key, isExpanded)}
@@ -5877,8 +5877,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       <span className="text-xs text-gray-700 font-medium pl-2">
                         {p.retailPrice ? `$${p.retailPrice}` : '—'}
                       </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${overallStatus.cls}`}>
-                        {overallStatus.icon} {overallStatus.label}
+                      <span className={`flex w-full min-w-0 items-center justify-center gap-1 overflow-hidden rounded-full px-1 py-0.5 text-[11px] font-medium whitespace-nowrap ${overallStatus.cls}`}>
+                        <span className="shrink-0">{overallStatus.icon}</span>
+                        <span className="min-w-0 truncate">{overallStatus.label}</span>
                       </span>
                       {/* Website Product chip */}
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap text-center ${p.is_online === 1 ? 'text-emerald-700 bg-emerald-50' : 'text-gray-500 bg-gray-100'}`}>
@@ -5893,7 +5894,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <button
                           onClick={e => { e.stopPropagation(); handleAutomatedRetrieval(p); }}
                           disabled={isBusy}
-                          className="px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap transition-colors"
+                          className="px-3 py-1.5 bg-[#147f95] text-white text-xs font-semibold rounded-lg hover:bg-[#106b7e] disabled:opacity-50 whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
                           title="Full pipeline: Find URLs → Research → Generate content"
                         >
                           {automatingSet.has(key) ? `⏳ ${autoStepMap[key]?.split(':')[0] ?? 'Running…'}` : '🤖 Generate'}
@@ -5943,7 +5944,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           <button
                             onClick={e => { e.stopPropagation(); handleAutomatedRetrieval(p); }}
                             disabled={isBusy}
-                            className="flex-1 px-4 py-2.5 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                            className="flex-1 px-4 py-2.5 bg-[#147f95] text-white text-sm font-bold rounded-lg hover:bg-[#106b7e] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
                             title="Find URLs → Tavily research per URL → AI judge URLs → Scrape images → Generate content"
                           >
                             {automatingSet.has(key)
@@ -6156,7 +6157,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           <button
                             onClick={() => handlePushToOnline(p)}
                             disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
-                            className="px-5 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                            className="px-5 py-2 bg-[#164e63] text-white text-sm font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
                           >
                             {onlineStatus[key] === 'pushing'
                               ? 'Saving and pushing…'
