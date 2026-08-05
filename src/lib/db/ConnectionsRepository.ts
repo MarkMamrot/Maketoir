@@ -83,6 +83,18 @@ export const ConnectionsRepository = {
     return rows[0] ?? null;
   },
 
+  async getByShopifyShopDomain(shopDomain: string): Promise<ConnectionsRow | null> {
+    const rows = await query<ConnectionsRow>(
+      `SELECT *
+         FROM connections
+        WHERE LOWER(TRIM(TRAILING '/' FROM REPLACE(REPLACE(shopify_shop_id, 'https://', ''), 'http://', ''))) = ?
+        LIMIT 2`,
+      [shopDomain.trim().toLowerCase()],
+    );
+    if (rows.length > 1) throw new Error('Multiple businesses are configured for the same Shopify shop.');
+    return rows[0] ?? null;
+  },
+
   /** Convert legacy camelCase connections object → snake_case upsert */
   async saveFromLegacy(
     businessId: string,

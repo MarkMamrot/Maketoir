@@ -87,6 +87,7 @@ export const ShopifyLoyaltyMetafieldService = {
         : [null, []];
       const balancePoints = account?.balancePoints ?? 0;
       const rewardPayload = rewards.map(reward => ({
+        rewardId: reward.id,
         code: reward.rewardCode,
         name: reward.displayName,
         pointsCost: reward.pointsCost,

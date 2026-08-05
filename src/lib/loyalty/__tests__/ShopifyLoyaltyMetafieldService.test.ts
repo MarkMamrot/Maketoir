@@ -56,7 +56,7 @@ describe('ShopifyLoyaltyMetafieldService', () => {
       expect.objectContaining({ namespace: 'solvantis_loyalty', key: 'member', value: 'true' }),
       expect.objectContaining({ key: 'balance_points', type: 'number_integer', value: '275' }),
       expect.objectContaining({ key: 'program_name', value: 'Club Rewards' }),
-      expect.objectContaining({ key: 'rewards', value: JSON.stringify([{ code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10 }]) }),
+      expect.objectContaining({ key: 'rewards', value: JSON.stringify([{ rewardId: 3, code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10 }]) }),
     ]));
   });
 

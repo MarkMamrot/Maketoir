@@ -1,4 +1,5 @@
 export interface LoyaltyReward {
+  rewardId: number | null;
   code: string;
   name: string;
   pointsCost: number;
@@ -12,6 +13,15 @@ export interface LoyaltyState {
   programName: string;
   pointsLabel: string;
   rewards: LoyaltyReward[];
+}
+
+export interface LoyaltyClaimResult {
+  id: number;
+  status: 'issued';
+  voucherCode: string;
+  rewardName: string;
+  rewardValueAud: number;
+  balanceAfter: number;
 }
 
 interface MetafieldValue {
@@ -71,12 +81,14 @@ function parseRewards(value: string | null | undefined): LoyaltyReward[] {
     return parsed.flatMap(item => {
       if (!item || typeof item !== 'object') return [];
       const reward = item as Record<string, unknown>;
+      const parsedRewardId = Number(reward.rewardId);
+      const rewardId = Number.isInteger(parsedRewardId) && parsedRewardId > 0 ? parsedRewardId : null;
       const code = typeof reward.code === 'string' ? reward.code : '';
       const name = typeof reward.name === 'string' ? reward.name : '';
       const pointsCost = Number(reward.pointsCost);
       const valueAud = Number(reward.valueAud);
       if (!code || !name || !Number.isInteger(pointsCost) || pointsCost <= 0 || !Number.isFinite(valueAud) || valueAud <= 0) return [];
-      return [{code, name, pointsCost, valueAud}];
+      return [{rewardId, code, name, pointsCost, valueAud}];
     });
   } catch {
     return [];
@@ -100,4 +112,35 @@ export async function loadLoyaltyState(client: CustomerAccountQueryClient): Prom
   const result = await client.query<LoyaltyCustomerQuery>(LOYALTY_QUERY);
   if (result.errors?.length) throw new Error('Shopify could not load loyalty details.');
   return parseLoyaltyState(result.data);
+}
+
+export async function claimLoyaltyReward(input: {
+  backendUrl?: string;
+  rewardId: number;
+  idempotencyKey: string;
+  sessionToken: string;
+  fetcher?: typeof fetch;
+}): Promise<LoyaltyClaimResult> {
+  const backendUrl = (input.backendUrl?.trim() || 'https://solvantis.com.au').replace(/\/$/, '');
+  if (!/^https:\/\//i.test(backendUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(backendUrl)) {
+    throw new Error('The loyalty service URL is invalid.');
+  }
+  const response = await (input.fetcher ?? fetch)(`${backendUrl}/api/shopify/loyalty/rewards`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${input.sessionToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({rewardId: input.rewardId, idempotencyKey: input.idempotencyKey}),
+  });
+  let body: {error?: unknown; redemption?: LoyaltyClaimResult};
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error('The loyalty service returned an invalid response.');
+  }
+  if (!response.ok || !body.redemption) {
+    throw new Error(typeof body.error === 'string' ? body.error : 'The reward could not be issued.');
+  }
+  return body.redemption;
 }

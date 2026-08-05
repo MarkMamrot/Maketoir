@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 
-import {createCustomerAccountClient, loadLoyaltyState, parseLoyaltyState} from '../loyalty';
+import {claimLoyaltyReward, createCustomerAccountClient, loadLoyaltyState, parseLoyaltyState} from '../loyalty';
 
 describe('Shopify loyalty customer state', () => {
   it('parses membership, signed balances, labels, and valid rewards', () => {
@@ -12,7 +12,7 @@ describe('Shopify loyalty customer state', () => {
         programName: {value: 'Store Club'},
         pointsLabel: {value: 'Stars'},
         rewards: {value: JSON.stringify([
-          {code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10},
+          {rewardId: 3, code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10},
           {code: '', name: 'Invalid', pointsCost: 0, valueAud: 0},
         ])},
       },
@@ -24,8 +24,15 @@ describe('Shopify loyalty customer state', () => {
       balancePoints: -25,
       programName: 'Store Club',
       pointsLabel: 'Stars',
-      rewards: [{code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10}],
+      rewards: [{rewardId: 3, code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10}],
     });
+  });
+
+  it('keeps legacy rewards visible without making up an internal reward ID', () => {
+    const state = parseLoyaltyState({customer: {rewards: {value: JSON.stringify([
+      {code: 'ten-off', name: '$10 off', pointsCost: 100, valueAud: 10},
+    ])}}});
+    expect(state.rewards[0]).toMatchObject({rewardId: null, code: 'ten-off'});
   });
 
   it('uses safe defaults for absent or malformed metafields', () => {
@@ -60,5 +67,27 @@ describe('Shopify loyalty customer state', () => {
       query: expect.stringContaining('solvantis_loyalty'),
     }));
     expect(state.balancePoints).toBe(125);
+  });
+
+  it('claims a reward with the session token and stable request key', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({redemption: {
+        id: 55, status: 'issued', voucherCode: 'SOLV-55-ABC', rewardName: '$10 off', rewardValueAud: 10, balanceAfter: 175,
+      }}),
+    });
+
+    await expect(claimLoyaltyReward({
+      backendUrl: 'https://solvantis.com.au/', rewardId: 3, idempotencyKey: 'claim_12345678',
+      sessionToken: 'signed-token', fetcher,
+    })).resolves.toMatchObject({voucherCode: 'SOLV-55-ABC', balanceAfter: 175});
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://solvantis.com.au/api/shopify/loyalty/rewards',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({Authorization: 'Bearer signed-token'}),
+        body: JSON.stringify({rewardId: 3, idempotencyKey: 'claim_12345678'}),
+      }),
+    );
   });
 });
