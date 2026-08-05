@@ -1,5 +1,5 @@
 export type ParsedInvoiceLine = {
-  line_type?: 'product' | 'freight';
+  line_type?: 'product' | 'freight' | 'backorder';
   product_code: string | null;
   barcode: string | null;
   product_name: string;
@@ -47,6 +47,18 @@ export function invoiceUnitPriceToProductCost(
   return Math.round(exTaxCost * 10000) / 10000;
 }
 
+export function deriveInvoicePoLine(qty: number, printedLineTotal: number, fallbackUnitPrice: number) {
+  const safeQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
+  const hasPrintedTotal = Number.isFinite(printedLineTotal) && printedLineTotal >= 0;
+  const lineTotal = hasPrintedTotal
+    ? Math.round(printedLineTotal * 100) / 100
+    : Math.round(safeQty * Math.max(0, fallbackUnitPrice || 0) * 100) / 100;
+  return {
+    unitCost: Math.round((lineTotal / safeQty) * 10000) / 10000,
+    lineTotal,
+  };
+}
+
 export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | undefined): ParsedInvoice {
   const rawLines = Array.isArray(raw?.line_items) ? raw.line_items : [];
   const isFreightLine = (line: any) => {
@@ -55,7 +67,7 @@ export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | unde
   };
   const freightLines = rawLines.filter(isFreightLine);
   const line_items = rawLines
-    .filter((line: any) => !isFreightLine(line))
+    .filter((line: any) => !isFreightLine(line) && String(line?.line_type ?? '').toLowerCase() !== 'backorder')
     .map((line: any) => ({
       line_type: 'product' as const,
       product_code: line?.product_code ?? null,

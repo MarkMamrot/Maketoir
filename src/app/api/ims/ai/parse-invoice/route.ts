@@ -166,9 +166,11 @@ CRITICAL — determine the tax treatment of the line item prices FIRST:
 Look for clues: column headers like "Price (incl. GST)", "Inc GST", "Price (ex GST)", "Ex Tax", footnotes like "All prices include GST", or cross-check: if the sum of line_total values equals the invoice subtotal (ex-tax figure) then prices are ex_tax; if it equals the total_amount (inc-tax figure) then prices are inc_tax.
 Set "prices_include_tax" to exactly one of: "inc_tax" (line prices already include tax), "ex_tax" (line prices are before tax), "no_tax" (no tax applies).
 
-Also look for any order-wide discount at the invoice header or footer (for example "Discount", "Less discount", "Trade discount", or a line item subtotal reduction). If present, capture it as "discount_total".
+Also look for any genuinely order-wide discount at the invoice header or footer (for example "Less order discount"). Set "discount_total" only for a discount that is NOT already allocated into the printed product line subtotals. A summary such as "Product Discount" that totals the per-line DISCOUNTS column must NOT be returned as discount_total, because each printed line_total already includes it.
 
-Extract delivery, shipping, postage, or freight charges into "freight_total". If freight is printed as an invoice row, mark that row as "line_type": "freight"; all stock products must use "line_type": "product". Never classify freight as a product.
+Extract the NET delivery, shipping, postage, or freight charge after any shipping discount into "freight_total". For example, Shipping Subtotal $56.58 and Shipping Discount -$56.58 means freight_total is 0. If freight is printed as an invoice row, mark that row as "line_type": "freight"; all supplied stock products must use "line_type": "product". Never classify freight as a product.
+
+Do not import products listed under headings such as "ITEMS ON BACKORDER", "BACKORDERED ITEMS", "TO FOLLOW", or "NOT SUPPLIED". If you return them for completeness, set "line_type": "backorder" so the system excludes them.
 
 Use ONLY values from the business catalog for product_type and brand. If the invoice does not clearly indicate a known value, set those fields to null rather than inventing a new one.
 Allowed product types: ${JSON.stringify(allowedProductTypes.map(r => r.product_type).filter(Boolean))}
@@ -211,9 +213,12 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
 
 Notes:
 - product_code = the supplier's code for the item (often labelled "Item Code", "Part No", "SKU", "Code", "Style" etc.)
-- Extract ALL stock product line items even if there are many
+- Extract ALL supplied stock product line items even if there are many
+- line_type = "product" for supplied items, "freight" for freight rows, or "backorder" for items not supplied on this invoice
 - Freight/delivery/shipping/postage rows must use line_type "freight", not "product"
 - unit_price and line_total = values AS PRINTED on the invoice, never convert
+- line_total is the authoritative amount for each product. Preserve it exactly to two decimal places after line-level dollar or percentage discounts
+- A DISCOUNTS column may contain a dollar amount, not a percentage. Only set discount_pct when the invoice explicitly prints a percentage; otherwise set discount_pct to 0 and preserve the discounted line_total
 - barcode = barcode/EAN/UPC/GTIN printed for that product; preserve leading zeroes and return it as a string
 - rrp = recommended retail price, retail price, MSRP, or SRP if shown for that product; use null if not shown
 - tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)

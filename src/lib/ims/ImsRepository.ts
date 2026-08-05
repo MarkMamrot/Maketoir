@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -1117,8 +1118,8 @@ export const ImsPORepo = {
           }, 0)
         : items.reduce((s, i) => s + Math.round(Number(i.line_total) * Number(i.tax_rate) * 100) / 100, 0)
           + Math.round(Number(data.freight ?? 0) * freightTaxRate * 100) / 100;
-    const freight = Number(data.freight ?? 0);
-    const discount = Number(data.discount ?? 0);
+    const freight = Number(normalizePurchaseOrderField('freight', data.freight));
+    const discount = Number(normalizePurchaseOrderField('discount', data.discount));
     const total_amount = subtotal + tax_amount + freight - discount;
 
     const res = await imsExecute(
@@ -1128,7 +1129,7 @@ export const ImsPORepo = {
          freight,discount,subtotal,tax_amount,total_amount)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
-       data.order_date, data.expected_date ?? null, data.notes ?? null,
+      data.order_date, normalizePurchaseOrderField('expected_date', data.expected_date), data.notes ?? null,
        data.supplier_invoice_number ?? null, data.supplier_invoice_date || null, data.payment_terms ?? null,
        data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
        data.currency_code ?? 'AUD', data.exchange_rate ?? 1,
@@ -1137,7 +1138,8 @@ export const ImsPORepo = {
     const po_id = res.insertId;
     for (const item of items) {
       const discPct = Number(item.discount_pct ?? 0);
-      const line_total = Math.round(Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100) * 10000) / 10000;
+      const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
+      const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
       await imsExecute(
         `INSERT INTO ims_purchase_order_items
            (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
@@ -1171,7 +1173,7 @@ export const ImsPORepo = {
       if (data[f as keyof typeof data] !== undefined) {
         sets.push(`${f} = ?`);
         const value = data[f as keyof typeof data];
-        vals.push(f === 'supplier_invoice_date' && value === '' ? null : value);
+        vals.push(normalizePurchaseOrderField(f, value));
       }
     }
 
@@ -1196,7 +1198,8 @@ export const ImsPORepo = {
         let subtotal = 0, tax_amount = 0;
         for (const item of items) {
           const discPct = Number(item.discount_pct ?? 0);
-          const line_total = Math.round(Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100) * 10000) / 10000;
+          const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
+          const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
           const rate = Number(item.tax_rate ?? 0);
           let item_subtotal: number, item_tax: number;
           if (taxTreatment === 'inc_tax') {

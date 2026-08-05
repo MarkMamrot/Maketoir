@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { calculateTaxInclusiveRrp, invoiceUnitPriceToProductCost, normalizeParsedInvoice } from '../invoiceImportParser';
+import { calculateTaxInclusiveRrp, deriveInvoicePoLine, invoiceUnitPriceToProductCost, normalizeParsedInvoice } from '../invoiceImportParser';
 
 describe('calculateTaxInclusiveRrp', () => {
   it('applies markup before sales tax and rounds to cents', () => {
@@ -13,6 +13,13 @@ describe('calculateTaxInclusiveRrp', () => {
     expect(cost).toBe(10);
     expect(calculateTaxInclusiveRrp(cost, 100, 0.1)).toBe(22);
     expect(invoiceUnitPriceToProductCost(10, 'ex_tax', 0.1)).toBe(10);
+  });
+});
+
+describe('deriveInvoicePoLine', () => {
+  it('makes the printed subtotal authoritative and derives cost to four decimals', () => {
+    expect(deriveInvoicePoLine(10, 61.38, 6.82)).toEqual({ unitCost: 6.138, lineTotal: 61.38 });
+    expect(deriveInvoicePoLine(12, 61.34, 5.68)).toEqual({ unitCost: 5.1117, lineTotal: 61.34 });
   });
 });
 
@@ -88,5 +95,18 @@ describe('normalizeParsedInvoice', () => {
     expect(normalized.freight_total).toBe(12.5);
     expect(normalized.line_items).toHaveLength(1);
     expect(normalized.line_items[0].product_code).toBe('SKU-1');
+  });
+
+  it('excludes products listed only in a backorder section', () => {
+    const normalized = normalizeParsedInvoice({
+      currency: 'AUD',
+      prices_include_tax: 'ex_tax',
+      line_items: [
+        { line_type: 'product', product_code: 'IN-STOCK', barcode: null, product_name: 'In stock', qty: 1, unit_price: 10, discount_pct: 0, line_total: 10, tax_rate: 0.1 },
+        { line_type: 'backorder', product_code: 'BACKORDER', barcode: null, product_name: 'Backordered', qty: 16, unit_price: 5.68, discount_pct: 0, line_total: 81.79, tax_rate: 0.1 },
+      ],
+    });
+
+    expect(normalized.line_items.map(line => line.product_code)).toEqual(['IN-STOCK']);
   });
 });

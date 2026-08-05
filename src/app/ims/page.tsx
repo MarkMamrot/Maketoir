@@ -8,7 +8,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
-import { calculateTaxInclusiveRrp, invoiceUnitPriceToProductCost } from '@/lib/ims/invoiceImportParser';
+import { calculateTaxInclusiveRrp, deriveInvoicePoLine, invoiceUnitPriceToProductCost } from '@/lib/ims/invoiceImportParser';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -7232,7 +7232,7 @@ type InvoiceParseResult = {
 
 function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, salesTaxRate, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; line_total: number; imported_line_total: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   onVariantCreated?: (variant: any) => void;
   suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; salesTaxRate: number; poId?: number | null; pendingFile?: File | null;
@@ -7311,7 +7311,13 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     if (!result || !onImport) return;
     const line_items = result.line_results
       .filter((_, i) => !skipped.has(i))
-      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
+      .map((lr, i) => {
+        const vid = getVid(i, lr);
+        if (!vid) return null;
+        const qty = Number(lr.invoice_line.qty) || 1;
+        const pricing = deriveInvoicePoLine(qty, Number(lr.invoice_line.line_total), Number(lr.invoice_line.unit_price));
+        return { variant_id: vid, qty_ordered: qty, unit_cost: pricing.unitCost, discount_pct: 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, line_total: pricing.lineTotal, imported_line_total: pricing.lineTotal, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null };
+      })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
     onClose();
@@ -7339,7 +7345,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     }
     const selectedSupplier = suppliers.find((supplier: any) => String(supplier.id) === String(supplierId));
     if (!suggestedBrand) suggestedBrand = matchCatalogBrand(selectedSupplier?.name);
-    const cost = invoiceUnitPriceToProductCost(Number(line.unit_price ?? 0), taxTreatment, Number(line.tax_rate ?? 0));
+    const pricing = deriveInvoicePoLine(Number(line.qty), Number(line.line_total), Number(line.unit_price));
+    const cost = invoiceUnitPriceToProductCost(pricing.unitCost, taxTreatment, Number(line.tax_rate ?? 0));
     setCreateLineIndex(i);
     setCreateProductError(null);
     setCreateProductForm({
@@ -8144,7 +8151,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, discount_pct: 0, tax_rate: poDefaultTaxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
-  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? {
+    ...item,
+    [k]: v,
+    ...(['qty_ordered', 'unit_cost', 'discount_pct'].includes(k) ? { imported_line_total: undefined } : {}),
+  } : item));
 
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
@@ -8179,7 +8190,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     }
   };
 
-  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
+  const lineTotal = (item: any) => item.imported_line_total != null
+    ? Number(item.imported_line_total)
+    : Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
