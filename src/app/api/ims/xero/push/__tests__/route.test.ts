@@ -121,7 +121,7 @@ describe('POST /api/ims/xero/push', () => {
 
   it('returns the actual queued result when a PO retry does not sync', async () => {
     mockImsQuery
-      .mockResolvedValueOnce([{ status: 'complete' }])
+      .mockResolvedValueOnce([{ status: 'complete', supplier_invoice_number: 'N68821' }])
       .mockResolvedValueOnce([{ xero_sync_status: 'queued', xero_bill_id: null }]);
 
     const res = await POST(makeRequest({ type: 'po', id: 4860 }));
@@ -129,6 +129,55 @@ describe('POST /api/ims/xero/push', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: false, status: 'queued', xeroId: null });
     expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 4860, 'complete');
+  });
+
+  it('offers a suffix when Xero reports the same invoice number is not modifiable', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ status: 'complete', supplier_invoice_number: 'N68821' }])
+      .mockResolvedValueOnce([{ xero_sync_status: 'queued', xero_bill_id: null }]);
+    mockQuery
+      .mockResolvedValueOnce([{ id: 10 }])
+      .mockResolvedValueOnce([{
+        detail: `Xero API POST /Invoices failed (400): ${JSON.stringify({
+          Elements: [{
+            InvoiceID: 'voided-bill',
+            InvoiceNumber: 'N68821',
+            ValidationErrors: [{ Message: 'Invoice not of valid status for modification' }],
+          }],
+        })}`,
+      }]);
+
+    const res = await POST(makeRequest({ type: 'po', id: 4860 }));
+
+    expect(await res.json()).toEqual(expect.objectContaining({
+      success: false,
+      recovery: expect.objectContaining({
+        type: 'invoice_number_conflict',
+        originalInvoiceNumber: 'N68821',
+        suggestedSuffix: '-R',
+        suggestedInvoiceNumber: 'N68821-R',
+      }),
+    }));
+  });
+
+  it('retries with a validated Xero-only invoice number suffix', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ status: 'complete', supplier_invoice_number: 'N68821' }])
+      .mockResolvedValueOnce([{ xero_sync_status: 'synced', xero_bill_id: 'replacement-bill' }]);
+
+    const res = await POST(makeRequest({ type: 'po', id: 4860, invoiceNumberSuffix: '-R' }));
+
+    expect(await res.json()).toEqual({ success: true, status: 'synced', xeroId: 'replacement-bill' });
+    expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 4860, 'complete', 'N68821-R');
+  });
+
+  it('rejects an unsafe invoice number suffix', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ status: 'complete', supplier_invoice_number: 'N68821' }]);
+
+    const res = await POST(makeRequest({ type: 'po', id: 4860, invoiceNumberSuffix: '../R' }));
+
+    expect(res.status).toBe(400);
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
   it('replays an SO payment only after tenant payment ownership is verified', async () => {

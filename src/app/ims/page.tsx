@@ -9276,19 +9276,55 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const accountingScrollRef = useRef<HTMLDivElement | null>(null);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
+  const [xeroRetryMsg, setXeroRetryMsg] = useState<string | null>(null);
   const [xeroVoiding, setXeroVoiding] = useState(false);
   const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
   const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
   const [xeroBillDetails, setXeroBillDetails] = useState<{ invoiceNumber: string | null; total: number | null } | null>(null);
   const [xeroBillFetching, setXeroBillFetching] = useState(false);
   const doXeroRetry = async () => {
-    setXeroRetrying(true); setXeroRetried(null);
+    setXeroRetrying(true); setXeroRetried(null); setXeroRetryMsg(null);
     try {
-      const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'po', id: po.id }) });
-      const data = await r.json();
-      setXeroRetried(r.ok && data.success === true);
+      let invoiceNumberSuffix: string | undefined;
+      let completed = false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const r = await fetch('/api/ims/xero/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'po', id: po.id, ...(invoiceNumberSuffix ? { invoiceNumberSuffix } : {}) }),
+        });
+        const data = await r.json();
+        if (r.ok && data.success === true) {
+          setXeroRetried(true);
+          completed = true;
+          break;
+        }
+        if (r.ok && data.recovery?.type === 'invoice_number_conflict') {
+          const retry = confirm(
+            `Xero cannot reuse bill number ${data.recovery.attemptedInvoiceNumber}.\n\n` +
+            `Retry as ${data.recovery.suggestedInvoiceNumber}?\n\n` +
+            `This changes only the Xero bill number. The supplier invoice number on the PO remains ${data.recovery.originalInvoiceNumber}.`,
+          );
+          if (!retry) {
+            setXeroRetried(false);
+            setXeroRetryMsg('Replacement bill retry cancelled');
+            completed = true;
+            break;
+          }
+          invoiceNumberSuffix = data.recovery.suggestedSuffix;
+          continue;
+        }
+        setXeroRetried(false);
+        setXeroRetryMsg(data.error || 'Retry failed');
+        completed = true;
+        break;
+      }
+      if (!completed) {
+        setXeroRetried(false);
+        setXeroRetryMsg('Xero invoice number is still unavailable after three replacement attempts');
+      }
       await onVoided?.();
-    } catch { setXeroRetried(false); }
+    } catch { setXeroRetried(false); setXeroRetryMsg('Network error while retrying Xero sync'); }
     setXeroRetrying(false);
   };
   const doXeroVoid = async () => {
@@ -9351,7 +9387,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
             <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
-            {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
+            {xeroRetried === false && <span style={{ color:'#f87171' }}>{xeroRetryMsg || 'Retry failed'}</span>}
             <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
           </div>
         : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>

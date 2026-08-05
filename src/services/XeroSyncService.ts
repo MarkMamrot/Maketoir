@@ -526,7 +526,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
 
   try {
     const idempotencyKey = crypto.createHash('sha256')
-      .update(`${businessId}|po-bill|${po.id}`)
+      .update(`${businessId}|po-bill|${po.id}|${po.supplier_invoice_number ?? ''}`)
       .digest('hex');
     const result = await xeroApiFetch(businessId, '/Invoices?unitdp=4', {
       method: 'POST',

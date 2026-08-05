@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplierCNXeroSync, triggerPOPaymentXeroSync, triggerSOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 import {
   syncGiftCardIssueInvoice,
   syncGiftCardRedemptionReclass,
@@ -14,6 +15,42 @@ import {
   syncStoreCreditRedemptionReclass,
 } from '@/services/XeroSyncService';
 
+type InvoiceNumberConflict = {
+  invoiceNumber: string;
+  xeroId: string | null;
+};
+
+function parseInvoiceNumberConflict(detail: string, attemptedInvoiceNumber: string): InvoiceNumberConflict | null {
+  const raw = String(detail || '');
+  const jsonStart = raw.indexOf('{');
+  if (jsonStart < 0) return null;
+  try {
+    const parsed = JSON.parse(raw.slice(jsonStart));
+    const element = Array.isArray(parsed?.Elements) ? parsed.Elements[0] : null;
+    const invoiceNumber = String(element?.InvoiceNumber ?? '').trim();
+    const validationMessages = Array.isArray(element?.ValidationErrors)
+      ? element.ValidationErrors.map((entry: any) => String(entry?.Message ?? '')).join(' | ')
+      : '';
+    const isConflict = /not of valid status for modification|already been used|must be unique|duplicate/i.test(validationMessages);
+    if (!isConflict || invoiceNumber.toLowerCase() !== attemptedInvoiceNumber.toLowerCase()) return null;
+    return { invoiceNumber, xeroId: element?.InvoiceID ? String(element.InvoiceID) : null };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeInvoiceNumberSuffix(value: unknown): string | null {
+  const trimmed = String(value ?? '').trim().toUpperCase();
+  if (!trimmed) return null;
+  const withDash = trimmed.startsWith('-') ? trimmed : `-${trimmed}`;
+  return /^-[A-Z0-9]{1,10}$/.test(withDash) ? withDash : null;
+}
+
+function nextSuggestedSuffix(attemptedSuffix: string | null): string {
+  if (!attemptedSuffix) return '-R';
+  const match = attemptedSuffix.match(/^(.*?)(\d+)$/);
+  return match ? `${match[1]}${Number(match[2]) + 1}` : `${attemptedSuffix}2`;
+}
 
 export async function POST(req: Request) {
   const session = await getImsSession();
@@ -21,26 +58,79 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
-    const { type, id, parentId } = await req.json() as {
+    const { type, id, parentId, invoiceNumberSuffix } = await req.json() as {
       type: 'po' | 'so' | 'po_payment' | 'so_payment' | 'cn' | 'scn' | 'gift_card_issue' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem';
       id: number;
       parentId?: number;
+      invoiceNumberSuffix?: string;
     };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
     if (type === 'po') {
       // Determine current PO status so we know which sync to run
-      const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_purchase_orders WHERE id = ?`, [id]);
+      const rows = await imsQuery<{ status: string; supplier_invoice_number: string | null }>(
+        `SELECT status, supplier_invoice_number FROM ims_purchase_orders WHERE id = ?`,
+        [id],
+      );
+      if (!rows[0]) return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
       const status = rows[0]?.status ?? 'confirmed';
+      const supplierInvoiceNumber = String(rows[0]?.supplier_invoice_number ?? '').trim();
+      const normalizedSuffix = invoiceNumberSuffix === undefined ? null : normalizeInvoiceNumberSuffix(invoiceNumberSuffix);
+      if (invoiceNumberSuffix !== undefined && !normalizedSuffix) {
+        return NextResponse.json({ error: 'Suffix must contain 1-10 letters or numbers.' }, { status: 400 });
+      }
+      if (normalizedSuffix && !supplierInvoiceNumber) {
+        return NextResponse.json({ error: 'This PO has no supplier invoice number to suffix.' }, { status: 409 });
+      }
+      const attemptedInvoiceNumber = normalizedSuffix
+        ? `${supplierInvoiceNumber}${normalizedSuffix}`
+        : supplierInvoiceNumber;
+      const previousLogs = await query<{ id: number }>(
+        `SELECT id FROM xero_sync_log
+          WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ?
+          ORDER BY id DESC LIMIT 1`,
+        [businessId, id],
+      );
+      const previousLogId = Number(previousLogs[0]?.id ?? 0);
       const syncStatus = status === 'complete' ? 'complete' : 'confirmed';
-      await triggerPOXeroSync(businessId, id, syncStatus);
+      if (normalizedSuffix) {
+        await triggerPOXeroSync(businessId, id, syncStatus, attemptedInvoiceNumber);
+      } else {
+        await triggerPOXeroSync(businessId, id, syncStatus);
+      }
       const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_bill_id: string | null }>(
         `SELECT xero_sync_status, xero_bill_id FROM ims_purchase_orders WHERE id = ? LIMIT 1`,
         [id],
       );
       const result = resultRows[0];
+      const success = result?.xero_sync_status === 'synced' && !!result.xero_bill_id;
+      if (!success && attemptedInvoiceNumber) {
+        const latestLogs = await query<{ detail: string }>(
+          `SELECT detail FROM xero_sync_log
+            WHERE business_id = ? AND sync_type = 'po_bill' AND reference_id = ? AND id > ? AND status = 'error'
+            ORDER BY id DESC LIMIT 1`,
+          [businessId, id, previousLogId],
+        );
+        const conflict = parseInvoiceNumberConflict(latestLogs[0]?.detail ?? '', attemptedInvoiceNumber);
+        if (conflict) {
+          const suggestedSuffix = nextSuggestedSuffix(normalizedSuffix);
+          return NextResponse.json({
+            success: false,
+            status: result?.xero_sync_status ?? 'error',
+            xeroId: null,
+            recovery: {
+              type: 'invoice_number_conflict',
+              originalInvoiceNumber: supplierInvoiceNumber,
+              attemptedInvoiceNumber,
+              conflictingXeroId: conflict.xeroId,
+              suggestedSuffix,
+              suggestedInvoiceNumber: `${supplierInvoiceNumber}${suggestedSuffix}`,
+            },
+          });
+        }
+      }
       return NextResponse.json({
-        success: result?.xero_sync_status === 'synced' && !!result.xero_bill_id,
+        success,
         status: result?.xero_sync_status ?? 'error',
         xeroId: result?.xero_bill_id ?? null,
       });

@@ -94,7 +94,12 @@ async function notifyXeroFinalFailure(
  * - approved → received (no deposits): Approve the Bill directly
  * - approved → received (with deposits): Approve Bill + post received journal
  */
-export async function triggerPOXeroSync(businessId: string, poId: number, newStatus: string): Promise<void> {
+export async function triggerPOXeroSync(
+  businessId: string,
+  poId: number,
+  newStatus: string,
+  supplierInvoiceNumberOverride?: string,
+): Promise<void> {
   if (!await isXeroConnected(businessId)) return;
 
   const policy = await loadDocumentPolicy(businessId);
@@ -104,6 +109,9 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
 
   const po = await ImsPORepo.get(poId, businessId);
   if (!po) return;
+  const poForSync = supplierInvoiceNumberOverride
+    ? { ...po, supplier_invoice_number: supplierInvoiceNumberOverride }
+    : po;
 
   const storedXeroId = (po as any).xero_bill_id ?? null;
   const logRows = storedXeroId ? [] : await query(
@@ -113,10 +121,10 @@ export async function triggerPOXeroSync(businessId: string, poId: number, newSta
   let xeroInvoiceId = storedXeroId ?? logRows[0]?.xero_id ?? null;
 
   if (xeroInvoiceId) {
-    await updateXeroDraftBill(businessId, po as any, xeroInvoiceId);
+    await updateXeroDraftBill(businessId, poForSync as any, xeroInvoiceId);
   } else {
     xeroInvoiceId = await withRetry(
-      () => syncPOAsDraftBill(businessId, po as any),
+      () => syncPOAsDraftBill(businessId, poForSync as any),
       () => markPoXeroStatus(poId, 'queued'),
       (error) => notifyXeroFinalFailure(businessId, 'PO Bill', `PO ${po.po_number}`, error),
     );

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { createHash } from 'crypto';
 
 const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch, mockGetValidAccessToken } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
@@ -216,6 +217,7 @@ describe('PO bill sync', () => {
       location_id: 4,
       order_date: '2026-07-27',
       supplier_invoice_date: '2026-07-29',
+      supplier_invoice_number: 'INV-4851',
       payment_terms: '30 days',
       subtotal: 326.4,
       tax_amount: 32.64,
@@ -244,6 +246,9 @@ describe('PO bill sync', () => {
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
     expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices?unitdp=4');
+    expect(mockXeroApiFetch.mock.calls[0][2].idempotencyKey).toBe(
+      createHash('sha256').update('biz-1|po-bill|4851|INV-4851').digest('hex'),
+    );
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toEqual(
       expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
     );

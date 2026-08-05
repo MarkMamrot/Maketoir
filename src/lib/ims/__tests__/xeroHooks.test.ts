@@ -204,6 +204,25 @@ describe('PO and SO Xero document policies', () => {
     expect(mockSyncPOReceivedJournal).not.toHaveBeenCalled();
   });
 
+  it('uses a confirmed replacement invoice number only for the Xero sync payload', async () => {
+    const po = {
+      id: 12,
+      po_number: 'PO-00012',
+      supplier_invoice_number: 'N68821',
+      xero_bill_id: null,
+      payments: [],
+    };
+    mockPOGet.mockResolvedValue(po);
+    mockSyncPOAsDraftBill.mockResolvedValue('xero-replacement');
+
+    await triggerPOXeroSync('biz-1', 12, 'confirmed', 'N68821-R');
+
+    expect(mockSyncPOAsDraftBill).toHaveBeenCalledWith('biz-1', expect.objectContaining({
+      supplier_invoice_number: 'N68821-R',
+    }));
+    expect(po.supplier_invoice_number).toBe('N68821');
+  });
+
   it('keeps PO payments local when payment sync is disabled', async () => {
     mockGetPolicy.mockResolvedValue({
       ...DEFAULT_XERO_DOCUMENT_POLICY,
