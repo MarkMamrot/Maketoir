@@ -18,7 +18,10 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Authorization, Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
 };
+
+const MAX_REQUEST_BYTES = 2_048;
 
 function json(body: Record<string, unknown>, status: number): NextResponse {
   return NextResponse.json(body, { status, headers: CORS_HEADERS });
@@ -29,6 +32,33 @@ export function OPTIONS() {
 }
 
 export async function POST(request: Request) {
+  const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
+  const contentLength = Number(request.headers.get('content-length') ?? 0);
+  if (!contentType.startsWith('application/json')) {
+    return json({ error: 'Content-Type must be application/json.' }, 415);
+  }
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return json({ error: 'Request body is too large.' }, 413);
+  }
+  let body: unknown;
+  try {
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, 'utf8') > MAX_REQUEST_BYTES) {
+      return json({ error: 'Request body is too large.' }, 413);
+    }
+    body = JSON.parse(rawBody);
+  } catch {
+    return json({ error: 'A JSON request body is required.' }, 400);
+  }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return json({ error: 'A JSON request body is required.' }, 400);
+  }
+  const requestBody = body as Record<string, unknown>;
+  const rewardId = Number(requestBody.rewardId);
+  const requestKey = typeof requestBody.idempotencyKey === 'string' ? requestBody.idempotencyKey.trim() : '';
+  if (!Number.isInteger(rewardId) || rewardId <= 0 || !/^[a-zA-Z0-9_-]{8,80}$/.test(requestKey)) {
+    return json({ error: 'A valid reward and idempotency key are required.' }, 400);
+  }
   const authorization = request.headers.get('authorization') ?? '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
   const clientId = process.env.SHOPIFY_LOYALTY_APP_CLIENT_ID?.trim() ?? '';
@@ -49,22 +79,6 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ShopifyCustomerAccountAuthError) return json({ error: error.message }, 401);
     return json({ error: 'Invalid Shopify session token.' }, 401);
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: 'A JSON request body is required.' }, 400);
-  }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    return json({ error: 'A JSON request body is required.' }, 400);
-  }
-  const requestBody = body as Record<string, unknown>;
-  const rewardId = Number(requestBody.rewardId);
-  const requestKey = typeof requestBody.idempotencyKey === 'string' ? requestBody.idempotencyKey.trim() : '';
-  if (!Number.isInteger(rewardId) || rewardId <= 0 || !/^[a-zA-Z0-9_-]{8,80}$/.test(requestKey)) {
-    return json({ error: 'A valid reward and idempotency key are required.' }, 400);
   }
 
   let connection;

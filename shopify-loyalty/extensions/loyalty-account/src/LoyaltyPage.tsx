@@ -29,9 +29,6 @@ function LoyaltyPage() {
     try {
       const token = await api.sessionToken.get();
       const redemption = await claimLoyaltyReward({
-        backendUrl: typeof api.settings.value.backend_url === 'string'
-          ? api.settings.value.backend_url
-          : undefined,
         rewardId: reward.rewardId,
         idempotencyKey: requestKey,
         sessionToken: token,

@@ -21,8 +21,9 @@ the backend verifies the signed shop and customer identity before resolving a te
 uses the existing loyalty reward issuance service, so points reservation, Shopify discount creation,
 retries, and idempotency remain server-owned.
 
-The extension setting `backend_url` can override the Solvantis origin for development. Production
-should leave it blank. Only HTTPS origins are accepted, except `localhost` during local development.
+Reward claims are hard-bound to `https://solvantis.com.au`. The customer session token is never sent
+to a merchant-configurable or caller-selected origin. Local UI development should mock the claim
+client rather than redirecting authenticated requests to another host.
 
 ## Validate
 

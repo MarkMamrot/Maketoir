@@ -59,6 +59,22 @@ describe('Shopify customer loyalty reward claim route', () => {
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
   });
 
+  it('rejects non-JSON and oversized requests before authentication or database work', async () => {
+    const wrongType = new Request('https://solvantis.com.au/api/shopify/loyalty/rewards', {
+      method: 'POST', headers: {Authorization: 'Bearer signed-token', 'Content-Type': 'text/plain'}, body: '{}',
+    });
+    const oversized = new Request('https://solvantis.com.au/api/shopify/loyalty/rewards', {
+      method: 'POST', headers: {
+        Authorization: 'Bearer signed-token', 'Content-Type': 'application/json',
+      }, body: JSON.stringify({padding: 'x'.repeat(2_048)}),
+    });
+
+    expect((await POST(wrongType)).status).toBe(415);
+    expect((await POST(oversized)).status).toBe(413);
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.getByShop).not.toHaveBeenCalled();
+  });
+
   it('resolves the verified shop and exact customer inside tenant context before issuing', async () => {
     const response = await POST(request({ rewardId: 3, idempotencyKey: 'claim_12345678' }));
     const body = await response.json();

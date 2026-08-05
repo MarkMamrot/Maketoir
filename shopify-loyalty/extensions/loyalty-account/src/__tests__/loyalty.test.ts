@@ -78,7 +78,7 @@ describe('Shopify loyalty customer state', () => {
     });
 
     await expect(claimLoyaltyReward({
-      backendUrl: 'https://solvantis.com.au/', rewardId: 3, idempotencyKey: 'claim_12345678',
+      rewardId: 3, idempotencyKey: 'claim_12345678',
       sessionToken: 'signed-token', fetcher,
     })).resolves.toMatchObject({voucherCode: 'SOLV-55-ABC', balanceAfter: 175});
     expect(fetcher).toHaveBeenCalledWith(

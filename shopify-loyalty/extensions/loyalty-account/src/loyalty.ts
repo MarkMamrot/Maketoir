@@ -46,6 +46,8 @@ export interface CustomerAccountQueryClient {
   }>;
 }
 
+const LOYALTY_CLAIM_URL = 'https://solvantis.com.au/api/shopify/loyalty/rewards';
+
 export function createCustomerAccountClient(fetcher: typeof fetch): CustomerAccountQueryClient {
   return {
     async query<T>(query: string) {
@@ -115,17 +117,12 @@ export async function loadLoyaltyState(client: CustomerAccountQueryClient): Prom
 }
 
 export async function claimLoyaltyReward(input: {
-  backendUrl?: string;
   rewardId: number;
   idempotencyKey: string;
   sessionToken: string;
   fetcher?: typeof fetch;
 }): Promise<LoyaltyClaimResult> {
-  const backendUrl = (input.backendUrl?.trim() || 'https://solvantis.com.au').replace(/\/$/, '');
-  if (!/^https:\/\//i.test(backendUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(backendUrl)) {
-    throw new Error('The loyalty service URL is invalid.');
-  }
-  const response = await (input.fetcher ?? fetch)(`${backendUrl}/api/shopify/loyalty/rewards`, {
+  const response = await (input.fetcher ?? fetch)(LOYALTY_CLAIM_URL, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${input.sessionToken}`,

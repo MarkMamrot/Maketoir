@@ -17,10 +17,3 @@ target = "customer-account.page.render"
 
 [extensions.capabilities]
 network_access = true
-
-[extensions.settings]
-[[extensions.settings.fields]]
-key = "backend_url"
-type = "single_line_text_field"
-name = "Solvantis URL"
-description = "HTTPS URL for the Solvantis service. Leave blank to use https://solvantis.com.au."
