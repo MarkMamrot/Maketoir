@@ -4758,10 +4758,50 @@ function hoverDataUrlBytes(src: string): number | null {
   return decodeURIComponent(payload).length;
 }
 
+function retryableImageSrc(src: string, retryCount: number, retrySeed: number): string {
+  if (retryCount === 0 || !/^https?:/i.test(src)) return src;
+  try {
+    const url = new URL(src);
+    const parameterNames = [...url.searchParams.keys()].map(name => name.toLowerCase());
+    const hasSignature = parameterNames.some(name =>
+      name.includes('signature') || name === 'sig' || name.includes('token') || name === 'expires' || name.startsWith('x-amz-')
+    );
+    if (hasSignature) return src;
+    url.searchParams.set('_solvantis_retry', `${retrySeed}-${retryCount}`);
+    return url.toString();
+  } catch {
+    return src;
+  }
+}
+
 function ZoomThumb({ src, className }: { src: string; className?: string }) {
   const [mouse, setMouse] = React.useState<{ x: number; y: number } | null>(null);
   const [err,   setErr]   = React.useState(false);
+  const [retryCount, setRetryCount] = React.useState(0);
   const [spec, setSpec] = React.useState<HoverImageSpec>({ type: inferHoverImageType(src), dpi: 'Unavailable' });
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retrySeed = React.useRef(Date.now());
+
+  React.useEffect(() => {
+    setErr(false);
+    setRetryCount(0);
+    retrySeed.current = Date.now();
+    setSpec({ type: inferHoverImageType(src), dpi: 'Unavailable' });
+    return () => {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+    };
+  }, [src]);
+
+  const handleImageError = () => {
+    if (retryCount >= 2) {
+      setErr(true);
+      return;
+    }
+    retryTimer.current = setTimeout(() => {
+      setRetryCount(previous => previous + 1);
+    }, 500 * (retryCount + 1));
+  };
+  const displaySrc = retryableImageSrc(src, retryCount, retrySeed.current);
 
   const enrichSpec = async () => {
     if (spec.size && spec.type) return;
@@ -4783,7 +4823,6 @@ function ZoomThumb({ src, className }: { src: string; className?: string }) {
     }
   };
 
-  if (err) return null;
   return (
     <div
       className={className}
@@ -4792,14 +4831,23 @@ function ZoomThumb({ src, className }: { src: string; className?: string }) {
       onMouseMove={e  => setMouse({ x: e.clientX, y: e.clientY })}
       onMouseLeave={() => setMouse(null)}
     >
-      <img
-        src={src}
-        alt=""
-        className="w-full h-full object-cover"
-        onLoad={e => setSpec(prev => ({ ...prev, dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }))}
-        onError={() => setErr(true)}
-      />
-      {mouse && (
+      {err ? (
+        <div className="flex h-full w-full items-center justify-center bg-gray-100 px-3 text-center text-xs font-medium text-gray-500">
+          Image unavailable
+        </div>
+      ) : (
+        <img
+          key={`${displaySrc}-${retryCount}`}
+          src={displaySrc}
+          alt=""
+          referrerPolicy="no-referrer"
+          decoding="async"
+          className="w-full h-full object-cover"
+          onLoad={e => setSpec(prev => ({ ...prev, dimensions: `${e.currentTarget.naturalWidth} × ${e.currentTarget.naturalHeight}px`, type: prev.type ?? inferHoverImageType(src), dpi: prev.dpi ?? 'Unavailable' }))}
+          onError={handleImageError}
+        />
+      )}
+      {mouse && !err && (
         <div style={{
           position: 'fixed',
           left: mouse.x + 18,
@@ -4814,7 +4862,7 @@ function ZoomThumb({ src, className }: { src: string; className?: string }) {
           width: 240,
         }}>
           <div style={{ width: 232, height: 232, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={src} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
+            <img src={src} alt="" referrerPolicy="no-referrer" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block', borderRadius: 6 }} />
           </div>
           <div style={{ marginTop: 4, padding: '6px 7px', borderRadius: 6, background: 'rgba(15,23,42,.92)', color: '#fff', fontSize: 10, lineHeight: 1.45 }}>
             <div>{spec.type ?? inferHoverImageType(src)} · {spec.size ?? 'Size unknown'}</div>
@@ -5939,19 +5987,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     {/* ── Persistent AI Input Panel ─────────────────────── */}
                     {isExpanded && (
                       <div className="border border-gray-200 rounded-xl p-4 mt-2 mb-2 bg-gray-50 space-y-3">
-                        {/* Auto Retrieve button */}
-                        <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                          <button
-                            onClick={e => { e.stopPropagation(); handleAutomatedRetrieval(p); }}
-                            disabled={isBusy}
-                            className="flex-1 px-4 py-2.5 bg-[#147f95] text-white text-sm font-bold rounded-lg hover:bg-[#106b7e] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
-                            title="Find URLs → Tavily research per URL → AI judge URLs → Scrape images → Generate content"
-                          >
-                            {automatingSet.has(key)
-                              ? `⏳ ${autoStepMap[key] ?? 'Running…'}`
-                              : '🤖 Generate Product Descriptions & Images — Full Pipeline'}
-                          </button>
-                        </div>
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
 
                         {urlDecisions.length > 0 && (
