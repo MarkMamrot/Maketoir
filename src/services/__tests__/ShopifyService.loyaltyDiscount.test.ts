@@ -39,4 +39,24 @@ describe('ShopifyService loyalty discounts', () => {
     });
     expect(result).toEqual({ id: 'gid://shopify/DiscountCodeNode/88', code: 'SOLV-55-ABC' });
   });
+
+  it('sets loyalty metafields on the exact Shopify customer GID', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: { metafieldsSet: { metafields: [], userErrors: [] } },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await new ShopifyService('example.myshopify.com', 'secret').setCustomerMetafields('12345', [{
+      namespace: 'solvantis_loyalty', key: 'balance_points', type: 'number_integer', value: '275',
+    }]);
+
+    const request = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(request.variables.metafields).toEqual([{
+      ownerId: 'gid://shopify/Customer/12345',
+      namespace: 'solvantis_loyalty',
+      key: 'balance_points',
+      type: 'number_integer',
+      value: '275',
+    }]);
+  });
 });

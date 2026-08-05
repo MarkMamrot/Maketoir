@@ -149,6 +149,29 @@ export class ShopifyService {
     };
   }
 
+  async setCustomerMetafields(
+    shopifyCustomerId: string,
+    metafields: Array<{ namespace: string; key: string; type: string; value: string }>,
+  ): Promise<void> {
+    const ownerId = shopifyCustomerId.startsWith('gid://')
+      ? shopifyCustomerId
+      : `gid://shopify/Customer/${shopifyCustomerId}`;
+    const data = await this.adminGraphql<{
+      metafieldsSet: {
+        userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
+      };
+    }>(
+      `mutation SetCustomerLoyaltyMetafields($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key type value }
+          userErrors { field message code }
+        }
+      }`,
+      { metafields: metafields.map(metafield => ({ ownerId, ...metafield })) },
+    );
+    if (data.metafieldsSet.userErrors.length) throw new ShopifyAdminUserError(data.metafieldsSet.userErrors);
+  }
+
   /**
    * Creates a new gift card in Shopify.
    * The full `code` is ONLY returned at creation time — store it immediately.

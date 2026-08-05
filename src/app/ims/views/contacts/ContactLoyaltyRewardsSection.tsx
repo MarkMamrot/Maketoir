@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Gift, RefreshCw } from 'lucide-react';
+import { CloudUpload, Copy, Gift, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface LoyaltyReward {
@@ -41,6 +41,7 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [issuingRewardId, setIssuingRewardId] = useState<number | null>(null);
+  const [syncingShopify, setSyncingShopify] = useState(false);
   const [copiedCode, setCopiedCode] = useState('');
   const retryKeys = useRef(new Map<number, string>());
 
@@ -61,6 +62,28 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
 
   useEffect(() => { void load(); }, [load]);
 
+  const syncShopifyMetafields = async () => {
+    setSyncingShopify(true);
+    setError('');
+    try {
+      const response = await fetch('/api/ims/loyalty/shopify-metafields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId }),
+      });
+      const data = await response.json();
+      if (!response.ok || data.failed > 0) {
+        throw new Error(data.results?.find((result: any) => result.status === 'failed')?.error || data.error || 'Shopify loyalty sync failed.');
+      }
+      return true;
+    } catch (syncError) {
+      setError(`The loyalty change was saved, but Shopify could not be updated: ${syncError instanceof Error ? syncError.message : 'Sync failed.'}`);
+      return false;
+    } finally {
+      setSyncingShopify(false);
+    }
+  };
+
   const issueReward = async (reward: LoyaltyReward) => {
     if (!confirm(`Deduct ${reward.pointsCost.toLocaleString()} ${summary?.pointsLabel ?? 'points'} and issue ${reward.displayName} for Shopify?`)) return;
     const idempotencyKey = retryKeys.current.get(reward.id) ?? claimKey(contactId, reward.id);
@@ -80,6 +103,7 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
       }
       retryKeys.current.delete(reward.id);
       await load();
+      await syncShopifyMetafields();
     } catch (issueError) {
       setError(issueError instanceof Error ? issueError.message : 'Could not issue the Shopify reward.');
     } finally {
@@ -108,6 +132,11 @@ export function ContactLoyaltyRewardsSection({ contactId }: { contactId: number 
         <button type="button" onClick={() => void load()} disabled={loading} title="Refresh loyalty rewards" aria-label="Refresh loyalty rewards" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: loading ? 'wait' : 'pointer', padding: 4 }}>
           <RefreshCw size={15} aria-hidden="true" />
         </button>
+        {summary?.member && summary.shopifyLinked && (
+          <button type="button" onClick={() => void syncShopifyMetafields()} disabled={syncingShopify} title="Sync loyalty balance to Shopify" aria-label="Sync loyalty balance to Shopify" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: syncingShopify ? 'wait' : 'pointer', padding: 4 }}>
+            <CloudUpload size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div style={{ padding: '12px 14px' }}>
