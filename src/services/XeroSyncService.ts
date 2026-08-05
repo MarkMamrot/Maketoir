@@ -428,6 +428,26 @@ function calcPoDueDate(po: POForSync): string {
   return calcDueDateFromTerms(base, po.payment_terms);
 }
 
+function appendPoSubtotalAdjustment(
+  lineItems: any[],
+  po: POForSync,
+  accountCode: string,
+  tracking: { TrackingCategoryID: string; TrackingOptionID: string }[],
+  exemptTaxType: string,
+): void {
+  const printedLineSubtotal = (po.items ?? []).reduce((sum, item) => sum + Number(item.line_total || 0), 0);
+  const adjustment = Number((Number(po.subtotal) - printedLineSubtotal).toFixed(2));
+  if (Math.abs(adjustment) < 0.005 || Math.abs(adjustment) > 0.05) return;
+  lineItems.push({
+    Description: 'Supplier invoice total adjustment',
+    Quantity: 1,
+    UnitAmount: adjustment,
+    AccountCode: accountCode,
+    TaxType: exemptTaxType,
+    Tracking: tracking,
+  });
+}
+
 /**
  * Create a Draft Bill in Xero from a PO.
  * Called when a PO is created or first synced.
@@ -453,14 +473,22 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
   const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
 
-  const lineItems = (po.items ?? []).map(item => ({
-    Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
-    Quantity: item.qty_ordered,
-    UnitAmount: Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100),
-    AccountCode: lineAccountCode,
-    ...(lineTaxType ? { TaxType: lineTaxType } : {}),
-    Tracking: tracking,
-  }));
+  const lineItems = (po.items ?? []).map(item => {
+    const quantity = Number(item.qty_ordered);
+    const storedLineTotal = Number(item.line_total);
+    const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
+      ? Number((storedLineTotal / quantity).toFixed(4))
+      : Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100);
+    return {
+      Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
+      Quantity: quantity,
+      UnitAmount: unitAmount,
+      AccountCode: lineAccountCode,
+      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
+      Tracking: tracking,
+    };
+  });
+  appendPoSubtotalAdjustment(lineItems, po, lineAccountCode, tracking, taxTypes.exempt);
 
   // Add freight as a separate line if present.
   // Capitalise → debit the same Inventory Asset account as stock (freight is part of stock value).
@@ -500,7 +528,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     const idempotencyKey = crypto.createHash('sha256')
       .update(`${businessId}|po-bill|${po.id}`)
       .digest('hex');
-    const result = await xeroApiFetch(businessId, '/Invoices', {
+    const result = await xeroApiFetch(businessId, '/Invoices?unitdp=4', {
       method: 'POST',
       idempotencyKey,
       body: { Invoices: [bill] },
@@ -556,14 +584,22 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
   const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
 
-  const lineItems = (po.items ?? []).map(item => ({
-    Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
-    Quantity: item.qty_ordered,
-    UnitAmount: Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100),
-    AccountCode: lineAccountCode,
-    ...(lineTaxType ? { TaxType: lineTaxType } : {}),
-    Tracking: tracking,
-  }));
+  const lineItems = (po.items ?? []).map(item => {
+    const quantity = Number(item.qty_ordered);
+    const storedLineTotal = Number(item.line_total);
+    const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
+      ? Number((storedLineTotal / quantity).toFixed(4))
+      : Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100);
+    return {
+      Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
+      Quantity: quantity,
+      UnitAmount: unitAmount,
+      AccountCode: lineAccountCode,
+      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
+      Tracking: tracking,
+    };
+  });
+  appendPoSubtotalAdjustment(lineItems, po, lineAccountCode, tracking, taxTypes.exempt);
 
   if (po.freight && po.freight > 0) {
     const freightTreatment = await getFreightTreatment(businessId);
@@ -598,7 +634,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   }
 
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [bill] } });
+    await xeroApiFetch(businessId, `/Invoices/${xeroId}?unitdp=4`, { method: 'POST', body: { Invoices: [bill] } });
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill updated: ${po.po_number}`, 'DRAFT');
     await markPoXeroStatus(po.id, 'synced', xeroId);
     return true;
@@ -613,7 +649,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
  */
 export async function approveBill(businessId: string, xeroInvoiceId: string, poId: number): Promise<boolean> {
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}?unitdp=4`, {
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });

@@ -83,6 +83,18 @@ describe('avgCostMath', () => {
     expect(c).toBeCloseTo(17, 10);
   });
 
+  it('applies line discount before tax and currency conversion', () => {
+    const c = computeReceivedUnitCostAud({
+      unitCost: 11,
+      discountPct: 10,
+      taxRate: 0.1,
+      taxTreatment: 'inc_tax',
+      exchangeRate: 1.5,
+      landedCostPerUnitAud: 2,
+    });
+    expect(c).toBeCloseTo(15.5, 10);
+  });
+
   it('computes weighted average on receipt', () => {
     const avg = computeWeightedAverageCost({
       oldQtyOnHand: 10,

@@ -20,6 +20,7 @@ vi.mock('@/services/XeroService', () => ({
 }));
 
 import {
+  approveBill,
   syncPOAsDraftBill,
   syncPOAttachmentsToXero,
   syncGiftCardRedemptionReclass,
@@ -33,6 +34,18 @@ function setupBaseMocks() {
   mockImsQuery.mockResolvedValue([]);
   mockImsExecute.mockResolvedValue({ affectedRows: 1 });
 }
+
+it('preserves four-decimal unit precision when approving a bill', async () => {
+  mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: 'AUTHORISED' }] });
+
+  await approveBill('biz-1', 'bill-4', 4860);
+
+  expect(mockXeroApiFetch).toHaveBeenCalledWith(
+    'biz-1',
+    '/Invoices/bill-4?unitdp=4',
+    expect.objectContaining({ method: 'POST' }),
+  );
+});
 
 describe('Deferred liability lifecycle sync helpers', () => {
   beforeEach(() => {
@@ -230,6 +243,7 @@ describe('PO bill sync', () => {
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0]).toEqual(
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices?unitdp=4');
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toEqual(
       expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
     );
@@ -237,10 +251,70 @@ describe('PO bill sync', () => {
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).toEqual(
       expect.objectContaining({ UnitAmount: 13.6 }),
     );
+    expect(mockXeroApiFetch.mock.calls[2][1]).toBe('/Invoices/bill-1?unitdp=4');
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0]).toEqual(
       expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
     );
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
+  });
+
+  it('derives four-decimal unit amount from the authoritative PO line total', async () => {
+    const po = {
+      id: 4853,
+      po_number: 'PO-2026-0017',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 10,
+      tax_amount: 1,
+      total_amount: 11,
+      items: [{
+        variant_id: 'variant-1',
+        qty_ordered: 3,
+        unit_cost: 4,
+        discount_pct: 0,
+        tax_rate: 0.1,
+        line_total: 10,
+      }],
+    };
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-3', Status: 'DRAFT' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0].UnitAmount).toBe(3.3333);
+  });
+
+  it('adds a non-taxable account adjustment for a small printed-line subtotal difference', async () => {
+    const po = {
+      id: 4854,
+      po_number: 'PO-2026-0018',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 10,
+      tax_amount: 1,
+      total_amount: 11,
+      items: [{
+        variant_id: 'variant-1',
+        qty_ordered: 3,
+        unit_cost: 4,
+        discount_pct: 0,
+        tax_rate: 0.1,
+        line_total: 10.02,
+      }],
+    };
+    mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-4', Status: 'DRAFT' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[1]).toEqual(
+      expect.objectContaining({
+        Description: 'Supplier invoice total adjustment',
+        UnitAmount: -0.02,
+        AccountCode: '630',
+        TaxType: 'NONE',
+      }),
+    );
   });
 
   it('uses the PO order date when no supplier invoice date is saved', async () => {

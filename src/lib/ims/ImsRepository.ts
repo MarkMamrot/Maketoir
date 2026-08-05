@@ -1458,6 +1458,7 @@ export const ImsPORepo = {
           const qty_rcvd  = Number(item.qty_ordered) - alreadyRcvd; // outstanding only
           const true_cost_aud = computeReceivedUnitCostAud({
             unitCost: Number(item.unit_cost),
+            discountPct: Number(item.discount_pct ?? 0),
             taxRate: Number(item.tax_rate ?? 0),
             taxTreatment,
             exchangeRate: effectiveRate,
@@ -1567,6 +1568,7 @@ export const ImsPORepo = {
           const old_soh       = Number(s?.qty_on_hand ?? 0);
           const true_cost_aud = computeReceivedUnitCostAud({
             unitCost: Number(item.unit_cost),
+            discountPct: Number(item.discount_pct ?? 0),
             taxRate: Number(item.tax_rate ?? 0),
             taxTreatment,
             exchangeRate: effectiveRate,

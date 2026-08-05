@@ -119,6 +119,18 @@ describe('POST /api/ims/xero/push', () => {
     expect(mockTriggerCNXeroSync).toHaveBeenCalledWith('biz-1', 13);
   });
 
+  it('returns the actual queued result when a PO retry does not sync', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ status: 'complete' }])
+      .mockResolvedValueOnce([{ xero_sync_status: 'queued', xero_bill_id: null }]);
+
+    const res = await POST(makeRequest({ type: 'po', id: 4860 }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: false, status: 'queued', xeroId: null });
+    expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 4860, 'complete');
+  });
+
   it('replays an SO payment only after tenant payment ownership is verified', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 44 }]);
 

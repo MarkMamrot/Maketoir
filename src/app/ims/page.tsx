@@ -9285,7 +9285,9 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
     setXeroRetrying(true); setXeroRetried(null);
     try {
       const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'po', id: po.id }) });
-      setXeroRetried(r.ok);
+      const data = await r.json();
+      setXeroRetried(r.ok && data.success === true);
+      await onVoided?.();
     } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };
@@ -9369,11 +9371,14 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const lineItems = items.map((item: any) => {
     const qty = Number(item.qty_ordered);
     const cost = Number(item.unit_cost);
+    const discountPct = Math.min(100, Math.max(0, Number(item.discount_pct || 0)));
     const taxRate = Number(item.tax_rate || 0);
-    const lineTotal = qty * cost;
+    const lineTotal = Number.isFinite(Number(item.line_total)) ? Number(item.line_total) : qty * cost * (1 - discountPct / 100);
     const taxAmt = lineTotal * taxRate;           // taxRate is decimal (0.1 = 10%)
     const lcpu = Number(item.landed_cost_per_unit || 0);
-    const trueCostAud = cost * rate + lcpu;
+    const discountedCost = cost * (1 - discountPct / 100);
+    const exTaxCost = po.tax_treatment === 'inc_tax' ? discountedCost / (1 + taxRate) : discountedCost;
+    const trueCostAud = exTaxCost * rate + lcpu;
     return { ...item, qty, cost, taxRate, lineTotal, taxAmt, lcpu, trueCostAud };
   });
 
@@ -9584,7 +9589,9 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
     setXeroRetrying(true); setXeroRetried(null);
     try {
       const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'so', id: so.id }) });
-      setXeroRetried(r.ok);
+      const data = await r.json();
+      setXeroRetried(r.ok && data.success === true);
+      await onVoided?.();
     } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };

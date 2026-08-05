@@ -34,10 +34,30 @@ export async function POST(req: Request) {
       const status = rows[0]?.status ?? 'confirmed';
       const syncStatus = status === 'complete' ? 'complete' : 'confirmed';
       await triggerPOXeroSync(businessId, id, syncStatus);
+      const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_bill_id: string | null }>(
+        `SELECT xero_sync_status, xero_bill_id FROM ims_purchase_orders WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      const result = resultRows[0];
+      return NextResponse.json({
+        success: result?.xero_sync_status === 'synced' && !!result.xero_bill_id,
+        status: result?.xero_sync_status ?? 'error',
+        xeroId: result?.xero_bill_id ?? null,
+      });
     } else if (type === 'so') {
       const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_sales_orders WHERE id = ?`, [id]);
       const status = rows[0]?.status ?? 'confirmed';
       await triggerSOXeroSync(businessId, id, status);
+      const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_invoice_id: string | null }>(
+        `SELECT xero_sync_status, xero_invoice_id FROM ims_sales_orders WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      const result = resultRows[0];
+      return NextResponse.json({
+        success: result?.xero_sync_status === 'synced' && !!result.xero_invoice_id,
+        status: result?.xero_sync_status ?? 'error',
+        xeroId: result?.xero_invoice_id ?? null,
+      });
     } else if (type === 'po_payment' || type === 'so_payment') {
       if (!parentId) return NextResponse.json({ error: 'parentId is required for payment replay.' }, { status: 400 });
       const table = type === 'po_payment' ? 'ims_purchase_order_payments' : 'ims_sales_order_payments';

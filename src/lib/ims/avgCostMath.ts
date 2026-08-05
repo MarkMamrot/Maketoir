@@ -76,13 +76,16 @@ export function computeLandedCostPerUnit(
 
 export function computeReceivedUnitCostAud(params: {
   unitCost: number;
+  discountPct?: number | null;
   taxRate?: number | null;
   taxTreatment: TaxTreatment;
   exchangeRate?: number | null;
   landedCostPerUnitAud?: number;
 }): number {
   const exchangeRate = normalizeExchangeRate(params.exchangeRate);
-  const exTaxUnit = toTaxExclusiveUnitCost(params.unitCost, params.taxRate, params.taxTreatment);
+  const discountPct = Math.min(100, Math.max(0, Number(params.discountPct ?? 0)));
+  const discountedUnitCost = params.unitCost * (1 - discountPct / 100);
+  const exTaxUnit = toTaxExclusiveUnitCost(discountedUnitCost, params.taxRate, params.taxTreatment);
   const landed = Number(params.landedCostPerUnitAud || 0);
   const cost = exTaxUnit * exchangeRate + landed;
   return Number.isFinite(cost) ? cost : 0;
