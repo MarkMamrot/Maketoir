@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
   computeMovementCogs,
   computeReceivedUnitCostAud,
@@ -113,6 +114,40 @@ describe('avgCostMath', () => {
       receivedUnitCostAud: 12,
     });
     expect(avg).toBe(12);
+  });
+
+  it('restores the prior average when reversing a receipt layer', () => {
+    const currentAvg = computeWeightedAverageCost({
+      oldQtyOnHand: 10,
+      oldAvgCost: 8,
+      receivedQty: 5,
+      receivedUnitCostAud: 20,
+    });
+
+    expect(computeAverageCostAfterReversal({
+      currentQtyOnHand: 15,
+      currentAvgCost: currentAvg,
+      reversedQty: 5,
+      reversedUnitCostAud: 20,
+    })).toBeCloseTo(8, 10);
+  });
+
+  it('sets average cost to zero when reversing all stock', () => {
+    expect(computeAverageCostAfterReversal({
+      currentQtyOnHand: 5,
+      currentAvgCost: 20,
+      reversedQty: 5,
+      reversedUnitCostAud: 20,
+    })).toBe(0);
+  });
+
+  it('rejects a reversal larger than current stock', () => {
+    expect(() => computeAverageCostAfterReversal({
+      currentQtyOnHand: 4,
+      currentAvgCost: 20,
+      reversedQty: 5,
+      reversedUnitCostAud: 20,
+    })).toThrow('Cannot reverse more stock than is currently on hand.');
   });
 
   it('computes movement COGS as qty * unit cost using absolute qty', () => {

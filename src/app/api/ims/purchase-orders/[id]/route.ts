@@ -4,6 +4,7 @@ import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerPOXeroSync, triggerPOXeroVoid, triggerPOXeroUpdate } from '@/lib/ims/xeroHooks';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -107,22 +108,40 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    const isReversalConflict = String(e?.message ?? '').startsWith('Cannot reverse PO receipt:');
+    if (!isReversalConflict) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'ims_purchase_orders',
+        operation: 'update',
+        title: 'Purchase order update failed',
+        error: e,
+        reference: { type: 'purchase_order', id: params.id },
+      });
+    }
+    return NextResponse.json({ success: false, error: e.message }, { status: isReversalConflict ? 409 : 500 });
   }
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
   try {
     const existing = await ImsPORepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    if (existing.status !== 'draft') {
+      return NextResponse.json({
+        success: false,
+        error: 'Only draft purchase orders can be deleted. Cancel confirmed orders or reverse received stock instead.',
+      }, { status: 409 });
+    }
 
     // Void the Xero bill before deleting (if one exists)
     const xeroWarning = await triggerPOXeroVoid(businessId, Number(params.id)).catch(() => null);
 
-    await ImsPORepo.delete(Number(params.id));
+    await ImsPORepo.delete(Number(params.id), businessId);
 
     // EVENT-DRIVEN CACHE UPDATE (Deletion reverses incoming stock)
     if (existing && (existing.items?.length ?? 0) > 0) {
@@ -134,6 +153,14 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims_purchase_orders',
+      operation: 'delete',
+      title: 'Purchase order deletion failed',
+      error: e,
+      reference: { type: 'purchase_order', id: params.id },
+    });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

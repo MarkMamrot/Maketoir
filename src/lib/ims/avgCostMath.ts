@@ -110,6 +110,29 @@ export function computeWeightedAverageCost(params: {
   return (oldAvg * oldQty + unit * qty) / denom;
 }
 
+export function computeAverageCostAfterReversal(params: {
+  currentQtyOnHand: number;
+  currentAvgCost: number;
+  reversedQty: number;
+  reversedUnitCostAud: number;
+}): number {
+  const currentQty = Math.max(0, Number(params.currentQtyOnHand || 0));
+  const currentAvg = Number.isFinite(Number(params.currentAvgCost)) ? Number(params.currentAvgCost) : 0;
+  const reversedQty = Math.max(0, Number(params.reversedQty || 0));
+  const reversedUnitCost = Number.isFinite(Number(params.reversedUnitCostAud)) ? Number(params.reversedUnitCostAud) : 0;
+
+  if (reversedQty <= 0) return currentAvg;
+  if (reversedQty > currentQty + 0.0001) {
+    throw new RangeError('Cannot reverse more stock than is currently on hand.');
+  }
+
+  const remainingQty = currentQty - reversedQty;
+  if (remainingQty <= 0.0001) return 0;
+
+  const remainingValue = currentQty * currentAvg - reversedQty * reversedUnitCost;
+  return Math.max(0, remainingValue / remainingQty);
+}
+
 export function computeMovementCogs(qtyChange: number, unitCost: number): number {
   const qty = Math.abs(Number(qtyChange || 0));
   const cost = Number(unitCost || 0);

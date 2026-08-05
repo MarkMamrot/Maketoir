@@ -33,6 +33,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid or empty targets.' }, { status: 400 });
   }
 
+  if (targets.includes('purchase_orders')) {
+    const [[postedPoCount]]: any = await getIMSPool().query(
+      `SELECT COUNT(*) AS count
+         FROM ims_purchase_orders
+        WHERE business_id = ? AND status <> 'draft'`,
+      [businessId],
+    );
+    if (Number(postedPoCount?.count ?? 0) > 0) {
+      return NextResponse.json({
+        error: 'Purchase orders cannot be reset while confirmed, received, complete, or cancelled POs exist. Only draft POs may be permanently deleted.',
+      }, { status: 409 });
+    }
+  }
+
   const summary: Record<string, number> = {};
 
   // Each group is deleted in child-first order to avoid FK violations where

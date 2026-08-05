@@ -8084,7 +8084,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [saving, setSaving] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
   const [importPOsOpen, setImportPOsOpen] = useState(false);
-  const [xeroWarnModal, setXeroWarnModal] = useState<{ action: 'edit' | 'delete'; po: any; onConfirm: () => void } | null>(null);
+  const [xeroWarnModal, setXeroWarnModal] = useState<{ po: any; onConfirm: () => void } | null>(null);
   const [xeroWarnBillNum, setXeroWarnBillNum] = useState<string | null>(null);
   const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -8353,7 +8353,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
   const changeStatus = async (po: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
-    if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
+    const isReceiptReversal = status === 'cancelled' && (po.status === 'complete' || po.status === 'partially_received');
+    const message = isReceiptReversal
+      ? `Reverse all received stock and cancel PO ${po.po_number}? The PO and its movement history will be retained for audit.`
+      : `${labels[status] || status} PO ${po.po_number}?`;
+    if (!confirm(message)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
@@ -8371,8 +8375,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     catch (e: any) { alert(e.message); }
   };
 
-  const showXeroWarnForReceived = (action: 'edit' | 'delete', po: any, onConfirm: () => void) => {
-    setXeroWarnModal({ action, po, onConfirm });
+  const showXeroWarnForReceived = (po: any, onConfirm: () => void) => {
+    setXeroWarnModal({ po, onConfirm });
     setXeroWarnBillNum(null);
     if (po.xero_bill_id) {
       setXeroWarnFetching(true);
@@ -8387,7 +8391,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
     if (po.status === 'complete') {
       beforeAction?.(); // close view modal before showing warning so it renders on top
-      showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
+      showXeroWarnForReceived(po, () => openEdit(po, editOnly));
     } else {
       beforeAction?.();
       openEdit(po, editOnly);
@@ -8395,15 +8399,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   };
 
   const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
-    if (po.status === 'complete') {
-      beforeAction?.(); // close view modal before showing warning so it renders on top
-      showXeroWarnForReceived('delete', po, () => {
-        apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
-      });
-    } else {
-      beforeAction?.();
-      handleDelete(po);
-    }
+    beforeAction?.();
+    handleDelete(po);
   };
 
   const supplierOptions = [...new Set(pos.map((p: any) => p.supplier_name).filter(Boolean))].sort() as string[];
@@ -8461,10 +8458,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col />
               <col style={{ width: 160 }} />
+              <col style={{ width: 140 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
@@ -8473,7 +8471,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {([['po_number','PO #'],['supplier_name','Supplier'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
+                {([['po_number','PO #'],['supplier_name','Supplier'],['supplier_invoice_number','Supplier Invoice #'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
                     style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                     {label}<SortIcon col={col} />
@@ -8489,6 +8487,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                     <button onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
+                  <td title={po.supplier_invoice_number || undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
@@ -8785,31 +8784,23 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         />
       )}
 
-      {/* Xero warning modal for complete PO edit/delete */}
+      {/* Xero warning modal for complete PO edits */}
       {xeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
-            {xeroWarnModal.action === 'edit' ? (
-              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
-            ) : (
-              <p>Deleting <strong>{xeroWarnModal.po.po_number}</strong> will only remove it from IMS. The corresponding Xero bill will remain in Xero and may need to be manually voided.</p>
-            )}
+            <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
             <div style={{ background: 'color-mix(in srgb, var(--sv-amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-amber) 40%, var(--sv-border,#444))', borderRadius: 6, padding: '10px 14px', margin: '14px 0 6px' }}>
               <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
               <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {xeroWarnFetching
                   ? 'Loading Xero bill details…'
-                  : xeroWarnModal.action === 'edit'
-                    ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                    : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
+                  : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
                 }
               </div>
               {!xeroWarnFetching && (
                 <button
                   onClick={() => {
-                    const msg = xeroWarnModal.action === 'edit'
-                      ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
-                      : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
+                    const msg = `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`;
                     navigator.clipboard.writeText(msg).catch(() => {});
                   }}
                   style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
@@ -8820,8 +8811,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <button onClick={() => setXeroWarnModal(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
               <button
                 onClick={() => { const fn = xeroWarnModal.onConfirm; setXeroWarnModal(null); fn(); }}
-                style={btnStyle(xeroWarnModal.action === 'delete' ? 'danger' : 'action', 'sm')}
-              >{xeroWarnModal.action === 'delete' ? 'Delete Anyway' : 'Proceed to Edit'}</button>
+                style={btnStyle('action', 'sm')}
+              >Proceed to Edit</button>
             </div>
           </div>
         </Modal>
@@ -8868,6 +8859,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} /></div>
+            <div><div style={labelStyle}>Supplier Invoice #</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_number || '—'}</div></div>
+            <div><div style={labelStyle}>Supplier Invoice Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
@@ -9244,15 +9237,15 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'complete') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+    if (!isAdvisor) { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>); }
   }
   if (po.status !== 'complete' && po.status !== 'cancelled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')} disabled={isAdvisor}>Receive</button>); }
     if (context !== 'list' && po.status !== 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
-    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
+    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>); }
   }
-  if (po.status === 'cancelled' || po.status === 'draft') {
+  if (po.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
   return (
@@ -22499,7 +22492,7 @@ function StockMinsImportCard() {
 function DataResetCard() {
   const TARGETS = [
     { key: 'stocktakes',      label: 'Stocktakes',             note: 'All stocktake records and their counted items' },
-    { key: 'purchase_orders', label: 'Purchase Orders',        note: 'All POs, items, payments and file records' },
+    { key: 'purchase_orders', label: 'Draft Purchase Orders',  note: 'Draft POs, items, payments and file records; posted POs are retained for audit' },
     { key: 'sales_orders',    label: 'Sales Orders & Online Orders', note: 'All wholesale SOs and Shopify/online orders, items and payments' },
     { key: 'pos_sales',       label: 'POS Sales',              note: 'All POS sales, items, payments, EOD reconciliations and register sessions' },
   ] as const;

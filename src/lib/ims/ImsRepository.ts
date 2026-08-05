@@ -4,6 +4,7 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
+  computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
   computeReceivedUnitCostAud,
   computeWeightedAverageCost,
@@ -1310,14 +1311,15 @@ export const ImsPORepo = {
       await conn.beginTransaction();
 
       const [[po]] = await conn.execute<any[]>(
-        `SELECT * FROM ims_purchase_orders WHERE id = ?`, [id]
+        `SELECT * FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!po) throw new Error('Purchase order not found');
       if (po.is_historical) throw new Error('Cannot modify a historical Cin7 record');
 
-      const items = await imsQuery<ImsPOItem>(
-        `SELECT * FROM ims_purchase_order_items WHERE po_id = ?`, [id]
+      const [itemRows] = await conn.execute<any[]>(
+        `SELECT * FROM ims_purchase_order_items WHERE po_id = ? FOR UPDATE`, [id]
       );
+      const items = itemRows as ImsPOItem[];
 
       // Load landed costs for distribution on receive
       let landedCostRows: LandedCostRow[] = [];
@@ -1332,7 +1334,128 @@ export const ImsPORepo = {
       const includeLandedCosts = avgCostInclusion?.includeLandedCosts !== false;
       const includeFreight = avgCostInclusion?.includeFreight ?? (freightTreatment === 'capitalise');
 
-      if (from === to) return; // no-op
+      const reverseReceivedStock = async (options: { restoreIncoming: boolean; removeOutstandingIncoming: boolean }) => {
+        const grouped = new Map<string, { receivedQty: number; outstandingQty: number }>();
+        for (const item of items) {
+          if (!item.variant_id) continue;
+          const receivedQty = Math.max(0, Number(item.qty_received ?? 0));
+          const outstandingQty = Math.max(0, Number(item.qty_ordered) - receivedQty);
+          const current = grouped.get(item.variant_id) ?? { receivedQty: 0, outstandingQty: 0 };
+          current.receivedQty += receivedQty;
+          current.outstandingQty += outstandingQty;
+          grouped.set(item.variant_id, current);
+        }
+
+        const plans: Array<{ variantId: string; receivedQty: number; outstandingQty: number; newAvg: number; receiptUnitCost: number }> = [];
+        for (const [variantId, quantities] of grouped) {
+          if (quantities.receivedQty <= 0) continue;
+
+          const [stockRows] = await conn.execute<any[]>(
+            `SELECT location_id, qty_on_hand FROM ims_stock WHERE variant_id = ? FOR UPDATE`,
+            [variantId],
+          );
+          const locationQty = Number(stockRows.find((row: any) => Number(row.location_id) === Number(po.location_id))?.qty_on_hand ?? 0);
+          if (locationQty + 0.0001 < quantities.receivedQty) {
+            throw new Error(
+              `Cannot reverse PO receipt: variant ${variantId} has ${locationQty} units at the receiving location, but ${quantities.receivedQty} received units must be reversed. Return or adjust the stock first.`,
+            );
+          }
+
+          const [[variantRow]] = await conn.execute<any[]>(
+            `SELECT COALESCE(avg_cost, 0) AS avg_cost FROM ims_product_variants WHERE variant_id = ? FOR UPDATE`,
+            [variantId],
+          );
+          const totalOrgQty = stockRows.reduce((sum: number, row: any) => sum + Number(row.qty_on_hand ?? 0), 0);
+          if (totalOrgQty + 0.0001 < quantities.receivedQty) {
+            throw new Error(
+              `Cannot reverse PO receipt: variant ${variantId} has ${totalOrgQty} units across the business, but ${quantities.receivedQty} received units must be reversed. Return or adjust the stock first.`,
+            );
+          }
+          const [[receiptRow]] = await conn.execute<any[]>(
+            `SELECT SUM(qty_change) AS receipt_qty,
+                    SUM(qty_change * COALESCE(unit_cost, 0)) / NULLIF(SUM(qty_change), 0) AS receipt_unit_cost
+               FROM ims_stock_movements
+              WHERE reference_type = 'purchase_order'
+                AND reference_id = ?
+                AND movement_type = 'po_received'
+                AND variant_id = ?
+                AND location_id = ?
+                AND id > COALESCE((
+                  SELECT MAX(reversal.id)
+                    FROM ims_stock_movements reversal
+                   WHERE reversal.reference_type = 'purchase_order'
+                     AND reversal.reference_id = ?
+                     AND reversal.movement_type = 'po_unapproved'
+                     AND reversal.variant_id = ?
+                     AND reversal.location_id = ?
+                ), 0)
+                AND qty_change > 0`,
+            [id, variantId, po.location_id, id, variantId, po.location_id],
+          );
+          const movementQty = Number(receiptRow?.receipt_qty ?? 0);
+          if (movementQty + 0.0001 < quantities.receivedQty) {
+            throw new Error(`Cannot reverse PO receipt: the receipt valuation history for variant ${variantId} is incomplete.`);
+          }
+          const receiptUnitCost = Number(receiptRow?.receipt_unit_cost ?? 0);
+          const newAvg = computeAverageCostAfterReversal({
+            currentQtyOnHand: totalOrgQty,
+            currentAvgCost: Number(variantRow?.avg_cost ?? 0),
+            reversedQty: quantities.receivedQty,
+            reversedUnitCostAud: receiptUnitCost,
+          });
+          plans.push({ variantId, receivedQty: quantities.receivedQty, outstandingQty: quantities.outstandingQty, newAvg, receiptUnitCost });
+        }
+
+        for (const plan of plans) {
+          await conn.execute(
+            `UPDATE ims_stock
+                SET qty_on_hand = qty_on_hand - ?
+              WHERE variant_id = ? AND location_id = ?`,
+            [plan.receivedQty, plan.variantId, po.location_id],
+          );
+          await conn.execute(
+            `UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`,
+            [plan.newAvg, plan.variantId],
+          );
+          await conn.execute(
+            `UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`,
+            [plan.newAvg, plan.variantId],
+          );
+          const [[stockRow]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+            [plan.variantId, po.location_id],
+          );
+          await conn.execute(
+            `INSERT INTO ims_stock_movements
+               (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,notes)
+             VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?)`,
+            [po.business_id, plan.variantId, po.location_id, id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'PO receipt reversed'],
+          );
+        }
+
+        for (const [variantId, quantities] of grouped) {
+          const incomingDelta = options.restoreIncoming
+            ? quantities.receivedQty
+            : options.removeOutstandingIncoming
+              ? -quantities.outstandingQty
+              : 0;
+          if (incomingDelta === 0) continue;
+          await conn.execute(
+            `UPDATE ims_stock
+                SET qty_incoming = GREATEST(0, qty_incoming + ?)
+              WHERE variant_id = ? AND location_id = ?`,
+            [incomingDelta, variantId, po.location_id],
+          );
+        }
+
+        await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [id]);
+        await conn.execute(`UPDATE ims_purchase_orders SET received_date = NULL WHERE id = ?`, [id]);
+      };
+
+      if (from === to) {
+        await conn.commit();
+        return;
+      }
 
       // ── draft → confirmed ─────────────────────────────────────
       if (from === 'draft' && to === 'confirmed') {
@@ -1610,63 +1733,12 @@ export const ImsPORepo = {
 
       // ── partially_received → confirmed (revert a partial receive) ───────────────
       if (from === 'partially_received' && to === 'confirmed') {
-        for (const item of items) {
-          const alreadyReceived = Number(item.qty_received ?? 0);
-          if (alreadyReceived <= 0) continue;
-          await conn.execute(
-            `UPDATE ims_stock
-             SET qty_on_hand  = GREATEST(0, qty_on_hand - ?),
-                 qty_incoming = qty_incoming + ?
-             WHERE variant_id=? AND location_id=?`,
-            [alreadyReceived, alreadyReceived, item.variant_id, po.location_id]
-          );
-          const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
-            [item.variant_id, po.location_id]
-          );
-          await conn.execute(
-            `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
-            [item.variant_id, po.location_id, id, -alreadyReceived, s?.qty_on_hand ?? 0]
-          );
-          await conn.execute(
-            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
-            [item.id]
-          );
-        }
+        await reverseReceivedStock({ restoreIncoming: true, removeOutstandingIncoming: false });
       }
 
       // ── complete → confirmed (revert a fully received PO) ─────────────────────
       if (from === 'complete' && to === 'confirmed') {
-        for (const item of items) {
-          const alreadyReceived = Number(item.qty_received ?? 0);
-          if (alreadyReceived <= 0) continue;
-          await conn.execute(
-            `UPDATE ims_stock
-             SET qty_on_hand  = GREATEST(0, qty_on_hand - ?),
-                 qty_incoming = qty_incoming + ?
-             WHERE variant_id=? AND location_id=?`,
-            [alreadyReceived, alreadyReceived, item.variant_id, po.location_id]
-          );
-          const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
-            [item.variant_id, po.location_id]
-          );
-          await conn.execute(
-            `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
-            [item.variant_id, po.location_id, id, -alreadyReceived, s?.qty_on_hand ?? 0]
-          );
-          await conn.execute(
-            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
-            [item.id]
-          );
-        }
-        await conn.execute(
-          `UPDATE ims_purchase_orders SET received_date = NULL WHERE id = ?`, [id]
-        );
+        await reverseReceivedStock({ restoreIncoming: true, removeOutstandingIncoming: false });
       }
 
       // ── any → cancelled ──────────────────────────────────────
@@ -1692,38 +1764,12 @@ export const ImsPORepo = {
 
       // ── partially_received → cancelled ───────────────────────────────────────
       if (to === 'cancelled' && from === 'partially_received') {
-        for (const item of items) {
-          const alreadyReceived = Number(item.qty_received ?? 0);
-          const remainingIncoming = Math.max(0, Number(item.qty_ordered) - alreadyReceived);
-          if (alreadyReceived > 0) {
-            await conn.execute(
-              `UPDATE ims_stock SET qty_on_hand = GREATEST(0, qty_on_hand - ?)
-               WHERE variant_id=? AND location_id=?`,
-              [alreadyReceived, item.variant_id, po.location_id]
-            );
-          }
-          if (remainingIncoming > 0) {
-            await conn.execute(
-              `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
-               WHERE variant_id=? AND location_id=?`,
-              [remainingIncoming, item.variant_id, po.location_id]
-            );
-          }
-          const [[s]] = await conn.execute<any[]>(
-            `SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=?`,
-            [item.variant_id, po.location_id]
-          );
-          await conn.execute(
-            `INSERT INTO ims_stock_movements
-               (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh)
-             VALUES (?,?,'po_unapproved','purchase_order',?,?,?)`,
-            [item.variant_id, po.location_id, id, -(alreadyReceived + remainingIncoming), s?.qty_on_hand ?? 0]
-          );
-          await conn.execute(
-            `UPDATE ims_purchase_order_items SET qty_received = 0 WHERE id = ?`,
-            [item.id]
-          );
-        }
+        await reverseReceivedStock({ restoreIncoming: false, removeOutstandingIncoming: true });
+      }
+
+      // ── complete → cancelled (reverse receipt and retain audit trail) ──────────
+      if (to === 'cancelled' && from === 'complete') {
+        await reverseReceivedStock({ restoreIncoming: false, removeOutstandingIncoming: false });
       }
 
       await conn.execute(
@@ -1738,8 +1784,14 @@ export const ImsPORepo = {
     }
   },
 
-  async delete(id: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_purchase_orders WHERE id = ?`, [id]);
+  async delete(id: number, businessId: string): Promise<void> {
+    const result = await imsExecute(
+      `DELETE FROM ims_purchase_orders WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+    if (!result.affectedRows) {
+      throw new Error('Only draft purchase orders can be deleted.');
+    }
   },
 };
 
