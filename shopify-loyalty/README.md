@@ -23,3 +23,16 @@ retries, and idempotency remain server-owned.
 
 The extension setting `backend_url` can override the Solvantis origin for development. Production
 should leave it blank. Only HTTPS origins are accepted, except `localhost` during local development.
+
+## Validate
+
+Run these commands from this directory before deploying:
+
+```sh
+npm ci
+npm test
+npm run typecheck
+npm run build
+```
+
+The repository CI runs the same extension tests, typecheck, and Shopify production bundle build.

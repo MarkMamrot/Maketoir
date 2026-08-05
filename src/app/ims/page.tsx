@@ -7216,10 +7216,10 @@ function StockView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type InvoiceParseResult = {
-  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null };
+  invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null; freight_total?: number | null };
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
-    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number };
+    invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
     match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
@@ -7229,11 +7229,12 @@ type InvoiceParseResult = {
   }> | null;
 };
 
-function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, variants, poId, pendingFile }: {
+function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
-  suppliers: any[]; variants: any[]; poId?: number | null; pendingFile?: File | null;
+  onVariantCreated?: (variant: any) => void;
+  suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; poId?: number | null; pendingFile?: File | null;
 }) {
   const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
   const [dragging, setDragging] = React.useState(false);
@@ -7249,6 +7250,11 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
   const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
   const [aiMatchLoading, setAiMatchLoading] = React.useState(false);
   const [aiMatchError, setAiMatchError] = React.useState<string | null>(null);
+  const [availableVariants, setAvailableVariants] = React.useState<any[]>(variants);
+  const [createLineIndex, setCreateLineIndex] = React.useState<number | null>(null);
+  const [createProductForm, setCreateProductForm] = React.useState({ name: '', sku: '', barcode: '', product_type: '', brand: '', rrp: '', cost: '', supplier_id: '' });
+  const [creatingProduct, setCreatingProduct] = React.useState(false);
+  const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isPo = !!poId;
 
@@ -7300,8 +7306,58 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
       .filter((_, i) => !skipped.has(i))
       .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, line_items });
+    onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
     onClose();
+  }
+
+  function openCreateProduct(i: number, line: InvoiceParseResult['line_results'][0]['invoice_line']) {
+    setCreateLineIndex(i);
+    setCreateProductError(null);
+    setCreateProductForm({
+      name: line.product_name ?? '',
+      sku: line.product_code ?? '',
+      barcode: line.barcode ?? '',
+      product_type: line.product_type ?? '',
+      brand: line.brand ?? '',
+      rrp: line.rrp == null ? '' : String(line.rrp),
+      cost: String(Number(line.unit_price ?? 0)),
+      supplier_id: supplierId ? String(supplierId) : '',
+    });
+  }
+
+  async function createProductFromLine() {
+    if (createLineIndex == null || !result || !createProductForm.name.trim() || !createProductForm.sku.trim()) return;
+    const line = result.line_results[createLineIndex].invoice_line;
+    setCreatingProduct(true);
+    setCreateProductError(null);
+    try {
+      const product = await apiFetch('/api/ims/products', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: createProductForm.name.trim(), base_sku: createProductForm.sku.trim(),
+          product_type: createProductForm.product_type.trim() || null, brand: createProductForm.brand.trim() || null,
+          supplier_contact_id: createProductForm.supplier_id ? Number(createProductForm.supplier_id) : null, is_active: 1,
+        }),
+      });
+      const created = await apiFetch('/api/ims/variants', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: product.product_id, sku: createProductForm.sku.trim(), barcode: createProductForm.barcode.trim() || null,
+          option1_name: 'Title', option1_value: 'Default', cost_aud: currency === 'AUD' ? Number(createProductForm.cost || 0) : null,
+          cost_foreign: currency !== 'AUD' ? JSON.stringify({ [currency]: Number(createProductForm.cost || 0) }) : null,
+          price_rrp: createProductForm.rrp === '' ? null : Number(createProductForm.rrp), is_active: 1,
+        }),
+      });
+      const variant = { variant_id: created.variant_id, product_id: product.product_id, sku: createProductForm.sku.trim(), barcode: createProductForm.barcode.trim() || null, product_name: createProductForm.name.trim(), variant_label: 'Default', cost_aud: currency === 'AUD' ? Number(createProductForm.cost || 0) : null };
+      setAvailableVariants(prev => [...prev, variant]);
+      onVariantCreated?.(variant);
+      setOverrides(prev => ({ ...prev, [createLineIndex]: created.variant_id }));
+      setCreateLineIndex(null);
+    } catch (e: any) {
+      setCreateProductError(e.message ?? 'Could not create product');
+    } finally {
+      setCreatingProduct(false);
+    }
   }
 
   function handlePreFillReceive() {
@@ -7344,7 +7400,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
           if (existingConf === 'exact_sku' || existingConf === 'exact_barcode') return lr;
           if (i in overrides) return lr; // user has manually set this line
           if (aiM.confidence === 'low') return lr; // skip low-confidence AI matches
-          const imsV = variants.find((v: any) => v.variant_id === aiM.variant_id);
+          const imsV = availableVariants.find((v: any) => v.variant_id === aiM.variant_id);
           return {
             ...lr,
             match: {
@@ -7485,6 +7541,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
         {aiN   > 0 && <span style={{ color: '#818cf8', fontWeight: 600 }}>🤖 {aiN} AI</span>}
         {noneN  > 0 && <span style={{ color: 'var(--sv-red)', fontWeight: 600 }}>✗ {noneN} unmatched</span>}
         {result.invoice.discount_total != null && <span style={{ color: '#f59e0b', fontWeight: 600 }}>Discount: {fmt$(result.invoice.discount_total)}</span>}
+        {result.invoice.freight_total != null && Number(result.invoice.freight_total) > 0 && <span style={{ color: 'var(--sv-action)', fontWeight: 600 }}>Freight: {fmt$(result.invoice.freight_total)}</span>}
         <span style={{ marginLeft: 'auto', color: 'var(--sv-text-muted)' }}>Invoice total: {fmt$(result.invoice.total_amount)}</span>
       </div>
 
@@ -7532,7 +7589,7 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
               const hasOverride = i in overrides;
               const conf = hasOverride ? (overrides[i] ? 'manual' : 'skipped') : (lr.match?.confidence ?? 'none');
               const confLabel = conf === 'exact_sku' ? '✓ SKU' : conf === 'exact_barcode' ? '✓ Barcode' : conf === 'fuzzy_name' ? '~ Name' : conf === 'manual' ? '✎ Manual' : conf === 'ai_high' ? '🤖 AI' : conf === 'ai_match' ? '🤖 AI~' : '✗ None';
-              const imsV = effectiveVid ? variants.find((v: any) => v.variant_id === effectiveVid) : null;
+              const imsV = effectiveVid ? availableVariants.find((v: any) => v.variant_id === effectiveVid) : null;
               const imsLabel = imsV ? `${imsV.product_name}${imsV.variant_label ? ' · ' + imsV.variant_label : ''} (${imsV.sku ?? ''})` : (lr.match && !hasOverride) ? `${lr.match.product_name ?? ''}${lr.match.variant_label ? ' · ' + lr.match.variant_label : ''} (${lr.match.sku ?? ''})` : null;
               return (
                 <tr key={i} style={{ opacity: isSkipped ? 0.4 : 1, borderBottom: '1px solid var(--sv-border)' }}>
@@ -7547,7 +7604,9 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
                   <td style={{ ...tdSt, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{lr.invoice_line.rrp != null ? fmt$(lr.invoice_line.rrp) : '—'}</td>
                   <td style={{ ...tdSt, minWidth: 200 }}>
                     {conf === 'none' || hasOverride
-                      ? <VariantSearch value={effectiveVid ?? ''} variants={variants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
+                      ? <div><VariantSearch value={effectiveVid ?? ''} variants={availableVariants} onChange={vid => setOverrides(p => ({ ...p, [i]: vid }))} style={{ minWidth: 180 }} />
+                          {conf === 'none' && <button type="button" onClick={() => openCreateProduct(i, lr.invoice_line)} style={{ marginTop: 5, padding: 0, background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Create new product</button>}
+                        </div>
                       : <span style={{ fontSize: 12 }}>{imsLabel ?? <em style={{ color: 'var(--sv-text-muted)' }}>No match</em>}</span>}
                   </td>
                   <td style={{ ...tdSt, whiteSpace: 'nowrap' }}>
@@ -7565,6 +7624,42 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, suppliers, va
           </tbody>
         </table>
       </div>
+
+      {createLineIndex != null && (
+        <div style={{ marginBottom: 14, padding: 12, border: '1px solid var(--sv-border)', borderRadius: 6, background: 'var(--sv-bg-subtle)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 10 }}>Create product for unmatched invoice line</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8 }}>
+            <Field label="Product name *"><input value={createProductForm.name} onChange={e => setCreateProductForm(p => ({ ...p, name: e.target.value }))} style={inputStyle} /></Field>
+            <Field label="SKU *"><input value={createProductForm.sku} onChange={e => setCreateProductForm(p => ({ ...p, sku: e.target.value }))} style={inputStyle} /></Field>
+            <Field label="Barcode"><input value={createProductForm.barcode} onChange={e => setCreateProductForm(p => ({ ...p, barcode: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={`Cost (${currency})`}><input type="number" min="0" step="0.0001" value={createProductForm.cost} onChange={e => setCreateProductForm(p => ({ ...p, cost: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={`RRP (${currency})`}><input type="number" min="0" step="0.01" value={createProductForm.rrp} onChange={e => setCreateProductForm(p => ({ ...p, rrp: e.target.value }))} style={inputStyle} /></Field>
+            <Field label="Product type">
+              <select value={createProductForm.product_type} onChange={e => setCreateProductForm(p => ({ ...p, product_type: e.target.value }))} style={inputStyle}>
+                <option value="">— None —</option>
+                {productTypes.map(productType => <option key={productType} value={productType}>{productType}</option>)}
+              </select>
+            </Field>
+            <Field label="Brand">
+              <select value={createProductForm.brand} onChange={e => setCreateProductForm(p => ({ ...p, brand: e.target.value }))} style={inputStyle}>
+                <option value="">— None —</option>
+                {brands.map(brand => <option key={brand.id} value={brand.name}>{brand.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Default supplier">
+              <select value={createProductForm.supplier_id} onChange={e => setCreateProductForm(p => ({ ...p, supplier_id: e.target.value }))} style={inputStyle}>
+                <option value="">— None —</option>
+                {suppliers.map((supplier: any) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+              </select>
+            </Field>
+          </div>
+          {createProductError && <div style={{ color: 'var(--sv-red)', fontSize: 12, marginTop: 8 }}>{createProductError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button type="button" onClick={() => setCreateLineIndex(null)} style={btnStyle('secondary', 'sm')}>Cancel</button>
+            <button type="button" disabled={creatingProduct || !createProductForm.name.trim() || !createProductForm.sku.trim()} onClick={createProductFromLine} style={btnStyle('action', 'sm')}>{creatingProduct ? 'Creating…' : 'Create & match'}</button>
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--sv-border)', flexWrap: 'wrap' }}>
         <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>{importableCount} line{importableCount !== 1 ? 's' : ''} will be added to the PO</div>
@@ -7927,6 +8022,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [poBrands, setPoBrands] = useState<Array<{ id: number; name: string }>>([]);
   const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
@@ -7962,6 +8059,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     fetch('/api/ims/contacts?type=supplier&active=1').then(r => r.json()).then(d => { if (d.success) setSuppliers(d.data); });
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
+    fetch('/api/ims/product-types').then(r => r.json()).then(d => { if (d.success) setProductTypes(d.data); });
+    fetch('/api/ims/brands').then(r => r.json()).then(d => { if (d.success) setPoBrands(d.data); });
     fetch('/api/ims/payment-methods').then(r => r.json()).then(d => { if (d.success) setPaymentMethods(d.data); });
   }, []);
 
@@ -9011,6 +9110,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           onClose={() => { setShowInvoiceImport(false); setInvoiceImportPoId(null); setInvoicePendingFile(null); }}
           suppliers={suppliers}
           variants={variants}
+          productTypes={productTypes}
+          brands={poBrands}
+          onVariantCreated={variant => setVariants(prev => [...prev, variant])}
           poId={invoiceImportPoId}
           pendingFile={invoicePendingFile}
           onImport={data => {
@@ -9025,6 +9127,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               // Apply AI-detected tax treatment so prices are stored exactly as on the invoice
               tax_treatment: data.tax_treatment ?? p.tax_treatment,
               discount: data.discount_total ?? p.discount ?? '',
+              freight: data.freight_total ?? p.freight ?? '',
             }));
             if (data.supplier_id) selectSupplier(String(data.supplier_id));
             if (data.line_items.length > 0) setLineItems(data.line_items);

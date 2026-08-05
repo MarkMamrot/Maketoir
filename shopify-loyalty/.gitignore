@@ -5,6 +5,7 @@ coverage
 output
 extensions/*/build
 extensions/*/dist
+extensions/*/manifest.json
 .shopify/*
 .shopify.lock
 *.log

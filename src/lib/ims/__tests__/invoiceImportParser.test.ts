@@ -25,6 +25,8 @@ describe('normalizeParsedInvoice', () => {
           discount_pct: 0,
           line_total: 20,
           tax_rate: 0.1,
+          product_type: 'Apparel',
+          brand: 'Acme',
         },
       ],
     });
@@ -35,6 +37,42 @@ describe('normalizeParsedInvoice', () => {
       rrp: 15,
       product_code: 'SKU-1',
       qty: 2,
+      product_type: 'Apparel',
+      brand: 'Acme',
     });
+  });
+
+  it('moves freight charges out of product lines', () => {
+    const normalized = normalizeParsedInvoice({
+      currency: 'AUD',
+      prices_include_tax: 'ex_tax',
+      line_items: [
+        {
+          line_type: 'product',
+          product_code: 'SKU-1',
+          barcode: null,
+          product_name: 'Widget',
+          qty: 1,
+          unit_price: 20,
+          discount_pct: 0,
+          line_total: 20,
+          tax_rate: 0.1,
+        },
+        {
+          product_code: null,
+          barcode: null,
+          product_name: 'Freight',
+          qty: 1,
+          unit_price: 12.5,
+          discount_pct: 0,
+          line_total: 12.5,
+          tax_rate: 0.1,
+        },
+      ],
+    });
+
+    expect(normalized.freight_total).toBe(12.5);
+    expect(normalized.line_items).toHaveLength(1);
+    expect(normalized.line_items[0].product_code).toBe('SKU-1');
   });
 });

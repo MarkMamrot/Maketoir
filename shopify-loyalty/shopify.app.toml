@@ -1,5 +1,17 @@
 # Run `npm run shopify -- app config link` after signing in to Shopify.
 client_id = ""
+name = "Solvantis Loyalty"
+application_url = "https://shopify.dev/apps/default-app-home"
+embedded = false
 
 [access_scopes]
 scopes = "customer_read_customers"
+
+[auth]
+redirect_urls = []
+
+[webhooks]
+api_version = "2026-07"
+
+[build]
+automatically_update_urls_on_dev = false

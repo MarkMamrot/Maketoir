@@ -7,12 +7,15 @@
     "extensions/*"
   ],
   "scripts": {
-    "shopify": "npx @shopify/cli@latest",
-    "build": "npx @shopify/cli@latest app build",
-    "dev": "npx @shopify/cli@latest app dev",
-    "deploy": "npx @shopify/cli@latest app deploy",
-    "info": "npx @shopify/cli@latest app info",
+    "shopify": "shopify",
+    "build": "shopify app build",
+    "dev": "shopify app dev",
+    "deploy": "shopify app deploy",
+    "info": "shopify app info",
     "typecheck": "npm run typecheck --workspace=@solvantis/loyalty-account",
     "test": "npm run test --workspace=@solvantis/loyalty-account"
+  },
+  "devDependencies": {
+    "@shopify/cli": "4.6.0"
   }
 }

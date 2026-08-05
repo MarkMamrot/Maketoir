@@ -167,6 +167,8 @@ Set "prices_include_tax" to exactly one of: "inc_tax" (line prices already inclu
 
 Also look for any order-wide discount at the invoice header or footer (for example "Discount", "Less discount", "Trade discount", or a line item subtotal reduction). If present, capture it as "discount_total".
 
+Extract delivery, shipping, postage, or freight charges into "freight_total". If freight is printed as an invoice row, mark that row as "line_type": "freight"; all stock products must use "line_type": "product". Never classify freight as a product.
+
 Use ONLY values from the business catalog for product_type and brand. If the invoice does not clearly indicate a known value, set those fields to null rather than inventing a new one.
 Allowed product types: ${JSON.stringify(allowedProductTypes.map(r => r.product_type).filter(Boolean))}
 Allowed brands: ${JSON.stringify(allowedBrands.map(r => r.name).filter(Boolean))}
@@ -185,12 +187,14 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
   "tax_total": 0.00,
   "total_amount": 0.00,
   "discount_total": 0.00,
+  "freight_total": 0.00,
   "payment_terms": "payment terms text or null",
   "matched_supplier_id": null,
   "line_items": [
     {
+      "line_type": "product",
       "product_code": "supplier's own product code/SKU/item code or null",
-      "barcode": "barcode if visible on invoice or null",
+      "barcode": "barcode, EAN, UPC, or GTIN if visible on invoice or null",
       "product_name": "product name or description from invoice",
       "qty": 0,
       "unit_price": 0.00,
@@ -206,9 +210,11 @@ Return ONLY a valid JSON object — no markdown fences, no extra text:
 
 Notes:
 - product_code = the supplier's code for the item (often labelled "Item Code", "Part No", "SKU", "Code", "Style" etc.)
-- Extract ALL line items even if there are many
+- Extract ALL stock product line items even if there are many
+- Freight/delivery/shipping/postage rows must use line_type "freight", not "product"
 - unit_price and line_total = values AS PRINTED on the invoice, never convert
-- rrp = recommended retail price if shown on the invoice; use null if not shown
+- barcode = barcode/EAN/UPC/GTIN printed for that product; preserve leading zeroes and return it as a string
+- rrp = recommended retail price, retail price, MSRP, or SRP if shown for that product; use null if not shown
 - tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)
 
 IMS Supplier list — set matched_supplier_id to the numeric id of the best match, or null:
@@ -284,7 +290,7 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
   }
 
   // Match each invoice line to IMS variant
-  const lineResults = (parsedInvoice.line_items ?? []).map((line: any) => ({
+  const lineResults = normalizedInvoice.line_items.map((line: any) => ({
     invoice_line: {
       ...line,
       product_type: pickAllowedValue(line?.product_type, allowedProductTypes.map(r => r.product_type).filter(Boolean)) ?? null,
@@ -352,6 +358,7 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       total_amount:       normalizedInvoice.total_amount       ?? null,
       payment_terms:      normalizedInvoice.payment_terms      ?? null,
       discount_total:     normalizedInvoice.discount_total     ?? null,
+      freight_total:      normalizedInvoice.freight_total      ?? null,
     },
     matched_supplier: matchedSupplier,
     line_results:     lineResults,
