@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { FileUp, Megaphone, MessagesSquare, Play, Sparkles } from 'lucide-react';
 import Nav from './_nav';
 
 // ─── Tiny reusable components ──────────────────────────────────────────────────
@@ -207,7 +208,7 @@ export default function Landing() {
             </div>
             <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
               <Image
-                src="/landing/warehouse.jpg"
+                src="/landing/efficient%20warehouse%20operation.jpg"
                 alt="Efficient retail warehouse operations"
                 width={600}
                 height={400}
@@ -310,7 +311,7 @@ export default function Landing() {
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
               <Image
-                src="/landing/warehouse.jpg"
+                src="/landing/efficient%20warehouse%20operation.jpg"
                 alt="Advanced inventory management"
                 width={600}
                 height={400}
@@ -424,6 +425,117 @@ export default function Landing() {
                 ].map((t) => <Bullet key={t} text={t} />)}
               </ul>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          WORKFLOW VIDEOS — dark navy
+      ══════════════════════════════════════════════════════════════════════ */}
+      <section id="workflow-videos" className="bg-slate-900 py-20">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="max-w-3xl mb-12">
+            <Eyebrow light>See Solvantis at Work</Eyebrow>
+            <h2 className="text-4xl font-black text-white tracking-tight leading-tight">
+              Less admin. More work finished.
+            </h2>
+            <p className="text-slate-400 mt-4 text-base leading-relaxed">
+              Short, practical walkthroughs of the everyday jobs Solvantis makes faster, from building product listings to answering customers.
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)] gap-8 lg:gap-12 items-start mb-12">
+            <div className="overflow-hidden rounded-lg border border-white/10 bg-black shadow-2xl shadow-black/40 aspect-video">
+              <video
+                controls
+                preload="metadata"
+                poster="/landing/ai-products.jpg"
+                className="w-full h-full object-cover"
+                aria-label="Automated Product Content Studio walkthrough"
+              >
+                <source src="/landing/Automated%20Content%20Studio.mp4" type="video/mp4" />
+                Your browser does not support embedded video.
+              </video>
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-widest mb-3">
+                <Play className="w-4 h-4" aria-hidden="true" />
+                Now playing
+              </div>
+              <h3 className="text-2xl font-black text-white leading-tight mb-3">Automated Product Content Studio</h3>
+              <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                Stop writing product descriptions from scratch and hunting through supplier websites for usable photos. Start with the product data you already have and Solvantis researches the item, finds relevant supplier imagery, and prepares a complete online listing for review.
+              </p>
+              <ol className="space-y-4">
+                {[
+                  ['Choose the products', 'Select the catalogue items you want to prepare for your online store.'],
+                  ['Research automatically', 'Solvantis checks supplier and brand sources for useful details and relevant images.'],
+                  ['Build the listing', 'AI writes the title and description, then formats the content to suit your store.'],
+                  ['Review and publish', 'Make any final changes and push the finished listing to your connected online shop.'],
+                ].map(([title, description], index) => (
+                  <li key={title} className="flex gap-3">
+                    <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
+                      {index + 1}
+                    </span>
+                    <div>
+                      <p className="text-white text-sm font-bold">{title}</p>
+                      <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              {
+                icon: FileUp,
+                title: 'Invoice to Purchase Order',
+                description: 'Drop in a supplier invoice as a PDF, JPEG, or PNG. AI reads it and pre-fills the purchase order, ready for your team to check and save.',
+                steps: 'Upload invoice → Review extracted details → Save PO',
+                accent: 'text-amber-300 bg-amber-300/10 border-amber-300/20',
+              },
+              {
+                icon: Sparkles,
+                title: 'AI Creative Studio',
+                description: 'Turn a product image into on-brand campaign creative using your saved models, poses, backdrops, scenes, and visual references.',
+                steps: 'Choose product → Apply brand references → Generate creative',
+                accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+              },
+              {
+                icon: Megaphone,
+                title: 'Marketing Assistant',
+                description: 'Bring catalogue, sales, advertising, and website performance into one guided conversation that turns business data into a practical marketing direction.',
+                steps: 'Connect context → Answer key questions → Build your strategy',
+                accent: 'text-blue-300 bg-blue-300/10 border-blue-300/20',
+              },
+              {
+                icon: MessagesSquare,
+                title: 'Customer Service Inbox',
+                description: 'Bring customer emails into one queue, classify enquiries, and prepare informed replies using live product, stock, location, contact, and order data.',
+                steps: 'Sync inbox → Review AI draft → Edit, save, or send',
+                accent: 'text-emerald-300 bg-emerald-300/10 border-emerald-300/20',
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <article key={item.title} className="border border-white/10 rounded-lg overflow-hidden bg-white/[0.04]">
+                  <div className="aspect-video bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                    <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
+                      <Icon className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Video coming soon</span>
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed min-h-[6.5rem]">{item.description}</p>
+                    <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
