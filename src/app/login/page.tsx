@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SolvantisMark } from '@/components/SolvantisMark';
 
 const DESTINATIONS = [
   { key: 'ims',       label: 'IMS',       desc: 'Inventory Management',  path: '/ims',       icon: '📦' },
@@ -60,7 +61,10 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-12 bg-gray-50 text-black">
       <div className="w-full max-w-md p-8 bg-white shadow-xl rounded-2xl border border-gray-200">
-        <h1 className="text-3xl font-extrabold text-blue-600 mb-1 text-center">Solvantis</h1>
+        <div className="mb-1 flex items-center justify-center gap-3">
+          <SolvantisMark size={38} title="Solvantis" />
+          <h1 className="sv-wordmark text-2xl font-extrabold text-slate-900">Solvantis</h1>
+        </div>
         <p className="text-sm text-gray-500 mb-6 text-center">Sign in to your workspace</p>
 
         {justRegistered && (

@@ -8,8 +8,8 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
-import { calculateTaxInclusiveRrp, deriveInvoicePoLine, invoiceUnitPriceToProductCost } from '@/lib/ims/invoiceImportParser';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
+import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -7221,7 +7221,7 @@ type InvoiceParseResult = {
   matched_supplier: { id: number; name: string } | null;
   line_results: Array<{
     invoice_line: { product_code: string | null; barcode?: string | null; product_name: string; qty: number; unit_price: number; rrp?: number | null; discount_pct: number; line_total?: number | null; tax_rate: number; product_type?: string | null; brand?: string | null };
-    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; product_brand?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
+    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; cost_aud?: number | null; confidence: string; method: string } | null;
   }>;
   po_comparison: Array<{
     po_line: { id: number; variant_id: string; qty_ordered: number; qty_received: number; unit_cost: number; sku: string; product_name: string; variant_label?: string } | null;
@@ -7230,12 +7230,12 @@ type InvoiceParseResult = {
   }> | null;
 };
 
-function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, salesTaxRate, poId, pendingFile }: {
+function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCreated, suppliers, variants, productTypes, brands, poId, pendingFile }: {
   onClose: () => void;
-  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; line_total: number; imported_line_total: number; barcode?: string | null; rrp?: number | null }> }) => void;
+  onImport?: (data: { supplier_id: number | ''; invoice_number: string; invoice_date: string; currency: string; payment_terms: string; tax_treatment: 'inc_tax' | 'ex_tax' | 'no_tax'; discount_total?: number | null; freight_total?: number | null; line_items: Array<{ variant_id: string; qty_ordered: number; unit_cost: number; discount_pct: number; tax_rate: number; barcode?: string | null; rrp?: number | null }> }) => void;
   onPreFillReceive?: (qtys: Record<string, number>) => void;
   onVariantCreated?: (variant: any) => void;
-  suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; salesTaxRate: number; poId?: number | null; pendingFile?: File | null;
+  suppliers: any[]; variants: any[]; productTypes: string[]; brands: Array<{ id: number; name: string }>; poId?: number | null; pendingFile?: File | null;
 }) {
   const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
   const [dragging, setDragging] = React.useState(false);
@@ -7254,7 +7254,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   const [availableVariants, setAvailableVariants] = React.useState<any[]>(variants);
   const [createLineIndex, setCreateLineIndex] = React.useState<number | null>(null);
   const [createProductForm, setCreateProductForm] = React.useState({ name: '', sku: '', barcode: '', product_type: '', brand: '', rrp: '', cost: '', supplier_id: '' });
-  const [markupPercent, setMarkupPercent] = React.useState('100');
   const [creatingProduct, setCreatingProduct] = React.useState(false);
   const [createProductError, setCreateProductError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -7264,11 +7263,6 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
   React.useEffect(() => {
     if (pendingFile) processFile(pendingFile);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  React.useEffect(() => {
-    const savedMarkup = window.localStorage.getItem('ims-invoice-product-markup-percent');
-    if (savedMarkup !== null && Number.isFinite(Number(savedMarkup)) && Number(savedMarkup) >= 0) setMarkupPercent(savedMarkup);
-  }, []);
 
   async function processFile(file: File) {
     setError(null); setStage('uploading');
@@ -7311,42 +7305,13 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
     if (!result || !onImport) return;
     const line_items = result.line_results
       .filter((_, i) => !skipped.has(i))
-      .map((lr, i) => {
-        const vid = getVid(i, lr);
-        if (!vid) return null;
-        const qty = Number(lr.invoice_line.qty) || 1;
-        const pricing = deriveInvoicePoLine(qty, Number(lr.invoice_line.line_total), Number(lr.invoice_line.unit_price));
-        return { variant_id: vid, qty_ordered: qty, unit_cost: pricing.unitCost, discount_pct: 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, line_total: pricing.lineTotal, imported_line_total: pricing.lineTotal, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null };
-      })
+      .map((lr, i) => { const vid = getVid(i, lr); return vid ? { variant_id: vid, qty_ordered: Number(lr.invoice_line.qty) || 1, unit_cost: Number(lr.invoice_line.unit_price) || 0, discount_pct: Number(lr.invoice_line.discount_pct) || 0, tax_rate: Number(lr.invoice_line.tax_rate) || 0.1, barcode: lr.invoice_line.barcode ?? null, rrp: lr.invoice_line.rrp ?? null } : null; })
       .filter((x): x is NonNullable<typeof x> => x !== null);
     onImport({ supplier_id: supplierId, invoice_number: invoiceNum, invoice_date: invoiceDate, currency, payment_terms: payTerms, tax_treatment: taxTreatment, discount_total: result.invoice.discount_total ?? null, freight_total: result.invoice.freight_total ?? null, line_items });
     onClose();
   }
 
   function openCreateProduct(i: number, line: InvoiceParseResult['line_results'][0]['invoice_line']) {
-    const normalizeBrand = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const matchCatalogBrand = (value: string | null | undefined) => {
-      const normalized = normalizeBrand(value ?? '');
-      if (!normalized) return '';
-      return brands.find(brand => {
-        const candidate = normalizeBrand(brand.name);
-        return candidate === normalized || candidate.includes(normalized) || normalized.includes(candidate);
-      })?.name ?? '';
-    };
-    let suggestedBrand = matchCatalogBrand(line.brand);
-    for (let distance = 1; !suggestedBrand && result && distance < result.line_results.length; distance += 1) {
-      for (const neighborIndex of [i - distance, i + distance]) {
-        const neighbor = result.line_results[neighborIndex];
-        if (!neighbor) continue;
-        const matchedVariant = neighbor.match ? availableVariants.find((variant: any) => variant.variant_id === neighbor.match?.variant_id) : null;
-        suggestedBrand = matchCatalogBrand(neighbor.invoice_line.brand ?? neighbor.match?.product_brand ?? matchedVariant?.product_brand);
-        if (suggestedBrand) break;
-      }
-    }
-    const selectedSupplier = suppliers.find((supplier: any) => String(supplier.id) === String(supplierId));
-    if (!suggestedBrand) suggestedBrand = matchCatalogBrand(selectedSupplier?.name);
-    const pricing = deriveInvoicePoLine(Number(line.qty), Number(line.line_total), Number(line.unit_price));
-    const cost = invoiceUnitPriceToProductCost(pricing.unitCost, taxTreatment, Number(line.tax_rate ?? 0));
     setCreateLineIndex(i);
     setCreateProductError(null);
     setCreateProductForm({
@@ -7354,27 +7319,11 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
       sku: line.product_code ?? '',
       barcode: line.barcode ?? '',
       product_type: line.product_type ?? '',
-      brand: suggestedBrand,
-      rrp: line.rrp == null ? String(calculateTaxInclusiveRrp(cost, Number(markupPercent), salesTaxRate)) : String(line.rrp),
-      cost: String(cost),
+      brand: line.brand ?? '',
+      rrp: line.rrp == null ? '' : String(line.rrp),
+      cost: String(Number(line.unit_price ?? 0)),
       supplier_id: supplierId ? String(supplierId) : '',
     });
-  }
-
-  function updateMarkup(value: string) {
-    setMarkupPercent(value);
-    if (value !== '' && Number.isFinite(Number(value)) && Number(value) >= 0) {
-      window.localStorage.setItem('ims-invoice-product-markup-percent', value);
-      setCreateProductForm(previous => ({ ...previous, rrp: String(calculateTaxInclusiveRrp(Number(previous.cost), Number(value), salesTaxRate)) }));
-    }
-  }
-
-  function updateCreateCost(value: string) {
-    setCreateProductForm(previous => ({
-      ...previous,
-      cost: value,
-      rrp: value === '' ? '' : String(calculateTaxInclusiveRrp(Number(value), Number(markupPercent), salesTaxRate)),
-    }));
   }
 
   async function createProductFromLine() {
@@ -7684,9 +7633,8 @@ function InvoiceImportModal({ onClose, onImport, onPreFillReceive, onVariantCrea
             <Field label="Product name *"><input value={createProductForm.name} onChange={e => setCreateProductForm(p => ({ ...p, name: e.target.value }))} style={inputStyle} /></Field>
             <Field label="SKU *"><input value={createProductForm.sku} onChange={e => setCreateProductForm(p => ({ ...p, sku: e.target.value }))} style={inputStyle} /></Field>
             <Field label="Barcode"><input value={createProductForm.barcode} onChange={e => setCreateProductForm(p => ({ ...p, barcode: e.target.value }))} style={inputStyle} /></Field>
-            <Field label={`Cost (${currency}, ex. tax)`}><input type="number" min="0" step="0.0001" value={createProductForm.cost} onChange={e => updateCreateCost(e.target.value)} style={inputStyle} /></Field>
-            <Field label="Markup %"><input type="number" min="0" step="1" value={markupPercent} onChange={e => updateMarkup(e.target.value)} style={inputStyle} /></Field>
-            <Field label={`RRP (${currency}, inc. tax)`}><input type="number" min="0" step="0.01" value={createProductForm.rrp} onChange={e => setCreateProductForm(p => ({ ...p, rrp: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={`Cost (${currency})`}><input type="number" min="0" step="0.0001" value={createProductForm.cost} onChange={e => setCreateProductForm(p => ({ ...p, cost: e.target.value }))} style={inputStyle} /></Field>
+            <Field label={`RRP (${currency})`}><input type="number" min="0" step="0.01" value={createProductForm.rrp} onChange={e => setCreateProductForm(p => ({ ...p, rrp: e.target.value }))} style={inputStyle} /></Field>
             <Field label="Product type">
               <select value={createProductForm.product_type} onChange={e => setCreateProductForm(p => ({ ...p, product_type: e.target.value }))} style={inputStyle}>
                 <option value="">— None —</option>
@@ -8084,7 +8032,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [saving, setSaving] = useState(false);
   const [receiveQtys, setReceiveQtys] = useState<Record<string, number>>({});
   const [importPOsOpen, setImportPOsOpen] = useState(false);
-  const [xeroWarnModal, setXeroWarnModal] = useState<{ po: any; onConfirm: () => void } | null>(null);
+  const [xeroWarnModal, setXeroWarnModal] = useState<{ action: 'edit' | 'delete'; po: any; onConfirm: () => void } | null>(null);
   const [xeroWarnBillNum, setXeroWarnBillNum] = useState<string | null>(null);
   const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -8151,11 +8099,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     setLineItems(p => [...p, { variant_id: '', qty_ordered: 1, unit_cost: 0, discount_pct: 0, tax_rate: poDefaultTaxRate }]);
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
-  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? {
-    ...item,
-    [k]: v,
-    ...(['qty_ordered', 'unit_cost', 'discount_pct'].includes(k) ? { imported_line_total: undefined } : {}),
-  } : item));
+  const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
 
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
@@ -8190,9 +8134,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     }
   };
 
-  const lineTotal = (item: any) => item.imported_line_total != null
-    ? Number(item.imported_line_total)
-    : Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
+  const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
   const poSubtotal = taxTreatment === 'inc_tax'
@@ -8353,11 +8295,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
   const changeStatus = async (po: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
-    const isReceiptReversal = status === 'cancelled' && (po.status === 'complete' || po.status === 'partially_received');
-    const message = isReceiptReversal
-      ? `Reverse all received stock and cancel PO ${po.po_number}? The PO and its movement history will be retained for audit.`
-      : `${labels[status] || status} PO ${po.po_number}?`;
-    if (!confirm(message)) return;
+    if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
@@ -8375,8 +8313,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     catch (e: any) { alert(e.message); }
   };
 
-  const showXeroWarnForReceived = (po: any, onConfirm: () => void) => {
-    setXeroWarnModal({ po, onConfirm });
+  const showXeroWarnForReceived = (action: 'edit' | 'delete', po: any, onConfirm: () => void) => {
+    setXeroWarnModal({ action, po, onConfirm });
     setXeroWarnBillNum(null);
     if (po.xero_bill_id) {
       setXeroWarnFetching(true);
@@ -8391,7 +8329,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
     if (po.status === 'complete') {
       beforeAction?.(); // close view modal before showing warning so it renders on top
-      showXeroWarnForReceived(po, () => openEdit(po, editOnly));
+      showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
     } else {
       beforeAction?.();
       openEdit(po, editOnly);
@@ -8399,8 +8337,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   };
 
   const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
-    beforeAction?.();
-    handleDelete(po);
+    if (po.status === 'complete') {
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showXeroWarnForReceived('delete', po, () => {
+        apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
+      });
+    } else {
+      beforeAction?.();
+      handleDelete(po);
+    }
   };
 
   const supplierOptions = [...new Set(pos.map((p: any) => p.supplier_name).filter(Boolean))].sort() as string[];
@@ -8458,11 +8403,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col />
               <col style={{ width: 160 }} />
-              <col style={{ width: 140 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
@@ -8471,7 +8415,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {([['po_number','PO #'],['supplier_name','Supplier'],['supplier_invoice_number','Supplier Invoice #'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
+                {([['po_number','PO #'],['supplier_name','Supplier'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
                     style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                     {label}<SortIcon col={col} />
@@ -8487,7 +8431,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                     <button onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
-                  <td title={po.supplier_invoice_number || undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
@@ -8784,23 +8727,31 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
         />
       )}
 
-      {/* Xero warning modal for complete PO edits */}
+      {/* Xero warning modal for complete PO edit/delete */}
       {xeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
-            <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+            {xeroWarnModal.action === 'edit' ? (
+              <p>This PO (<strong>{xeroWarnModal.po.po_number}</strong>) is marked complete. The Xero bill is <strong>AUTHORISED</strong> and cannot be automatically updated. Any edits saved in IMS <strong>will not sync to Xero</strong> — Xero will need to be updated manually.</p>
+            ) : (
+              <p>Deleting <strong>{xeroWarnModal.po.po_number}</strong> will only remove it from IMS. The corresponding Xero bill will remain in Xero and may need to be manually voided.</p>
+            )}
             <div style={{ background: 'color-mix(in srgb, var(--sv-amber) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--sv-amber) 40%, var(--sv-border,#444))', borderRadius: 6, padding: '10px 14px', margin: '14px 0 6px' }}>
               <div style={{ fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8, color: 'var(--sv-amber)' }}>Draft message for bookkeeper</div>
               <div style={{ fontFamily: 'monospace', fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
                 {xeroWarnFetching
                   ? 'Loading Xero bill details…'
-                  : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                  : xeroWarnModal.action === 'edit'
+                    ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                    : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`
                 }
               </div>
               {!xeroWarnFetching && (
                 <button
                   onClick={() => {
-                    const msg = `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`;
+                    const msg = xeroWarnModal.action === 'edit'
+                      ? `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been updated. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} will need to be manually updated to reflect the changes.`
+                      : `Hi, just a heads up — ${xeroWarnModal.po.po_number} in IMS has been deleted. The corresponding Xero bill${xeroWarnBillNum ? ` (${xeroWarnBillNum})` : ''} may need to be manually voided in Xero.`;
                     navigator.clipboard.writeText(msg).catch(() => {});
                   }}
                   style={{ ...btnStyle('ghost', 'xs'), marginTop: 8 }}
@@ -8811,8 +8762,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               <button onClick={() => setXeroWarnModal(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
               <button
                 onClick={() => { const fn = xeroWarnModal.onConfirm; setXeroWarnModal(null); fn(); }}
-                style={btnStyle('action', 'sm')}
-              >Proceed to Edit</button>
+                style={btnStyle(xeroWarnModal.action === 'delete' ? 'danger' : 'action', 'sm')}
+              >{xeroWarnModal.action === 'delete' ? 'Delete Anyway' : 'Proceed to Edit'}</button>
             </div>
           </div>
         </Modal>
@@ -8859,8 +8810,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} /></div>
-            <div><div style={labelStyle}>Supplier Invoice #</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_number || '—'}</div></div>
-            <div><div style={labelStyle}>Supplier Invoice Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
@@ -9164,7 +9113,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           variants={variants}
           productTypes={productTypes}
           brands={poBrands}
-          salesTaxRate={Number(settings?.sales_tax_rate ?? 0.1)}
           onVariantCreated={variant => setVariants(prev => [...prev, variant])}
           poId={invoiceImportPoId}
           pendingFile={invoicePendingFile}
@@ -9237,15 +9185,15 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'complete') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (!isAdvisor) { btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>); }
+    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
   if (po.status !== 'complete' && po.status !== 'cancelled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')} disabled={isAdvisor}>Receive</button>); }
     if (context !== 'list' && po.status !== 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
-    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>); }
+    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
-  if (po.status === 'draft') {
+  if (po.status === 'cancelled' || po.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
   return (
@@ -9269,55 +9217,17 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const accountingScrollRef = useRef<HTMLDivElement | null>(null);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
-  const [xeroRetryMsg, setXeroRetryMsg] = useState<string | null>(null);
   const [xeroVoiding, setXeroVoiding] = useState(false);
   const [xeroVoidResult, setXeroVoidResult] = useState<'voided' | 'failed' | null>(null);
   const [xeroVoidMsg, setXeroVoidMsg] = useState<string | null>(null);
   const [xeroBillDetails, setXeroBillDetails] = useState<{ invoiceNumber: string | null; total: number | null } | null>(null);
   const [xeroBillFetching, setXeroBillFetching] = useState(false);
   const doXeroRetry = async () => {
-    setXeroRetrying(true); setXeroRetried(null); setXeroRetryMsg(null);
+    setXeroRetrying(true); setXeroRetried(null);
     try {
-      let invoiceNumberSuffix: string | undefined;
-      let completed = false;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const r = await fetch('/api/ims/xero/push', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: 'po', id: po.id, ...(invoiceNumberSuffix ? { invoiceNumberSuffix } : {}) }),
-        });
-        const data = await r.json();
-        if (r.ok && data.success === true) {
-          setXeroRetried(true);
-          completed = true;
-          break;
-        }
-        if (r.ok && data.recovery?.type === 'invoice_number_conflict') {
-          const retry = confirm(
-            `Xero cannot reuse bill number ${data.recovery.attemptedInvoiceNumber}.\n\n` +
-            `Retry as ${data.recovery.suggestedInvoiceNumber}?\n\n` +
-            `This changes only the Xero bill number. The supplier invoice number on the PO remains ${data.recovery.originalInvoiceNumber}.`,
-          );
-          if (!retry) {
-            setXeroRetried(false);
-            setXeroRetryMsg('Replacement bill retry cancelled');
-            completed = true;
-            break;
-          }
-          invoiceNumberSuffix = data.recovery.suggestedSuffix;
-          continue;
-        }
-        setXeroRetried(false);
-        setXeroRetryMsg(data.error || 'Retry failed');
-        completed = true;
-        break;
-      }
-      if (!completed) {
-        setXeroRetried(false);
-        setXeroRetryMsg('Xero invoice number is still unavailable after three replacement attempts');
-      }
-      await onVoided?.();
-    } catch { setXeroRetried(false); setXeroRetryMsg('Network error while retrying Xero sync'); }
+      const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'po', id: po.id }) });
+      setXeroRetried(r.ok);
+    } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };
   const doXeroVoid = async () => {
@@ -9380,7 +9290,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
         ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background:'rgba(251,191,36,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
             <span style={{ color:'#fbbf24', fontWeight:700 }}>⚠ Queued for Xero sync</span>
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>Last attempt: {xeroAt}</span>}
-            {xeroRetried === false && <span style={{ color:'#f87171' }}>{xeroRetryMsg || 'Retry failed'}</span>}
+            {xeroRetried === false && <span style={{ color:'#f87171' }}>Retry failed</span>}
             <button onClick={doXeroRetry} disabled={xeroRetrying} style={{ background:'none', border:'1px solid var(--sv-etch)', borderRadius:4, cursor:'pointer', padding:'2px 8px', fontSize:11, color:'var(--sv-text-dim)' }}>{xeroRetrying ? 'Retrying…' : 'Retry'}</button>
           </div>
         : <div style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', background:'var(--sv-bg-1)', borderRadius:6, fontSize:11, color:'var(--sv-text-dim)', marginBottom:6 }}>
@@ -9400,14 +9310,11 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const lineItems = items.map((item: any) => {
     const qty = Number(item.qty_ordered);
     const cost = Number(item.unit_cost);
-    const discountPct = Math.min(100, Math.max(0, Number(item.discount_pct || 0)));
     const taxRate = Number(item.tax_rate || 0);
-    const lineTotal = Number.isFinite(Number(item.line_total)) ? Number(item.line_total) : qty * cost * (1 - discountPct / 100);
+    const lineTotal = qty * cost;
     const taxAmt = lineTotal * taxRate;           // taxRate is decimal (0.1 = 10%)
     const lcpu = Number(item.landed_cost_per_unit || 0);
-    const discountedCost = cost * (1 - discountPct / 100);
-    const exTaxCost = po.tax_treatment === 'inc_tax' ? discountedCost / (1 + taxRate) : discountedCost;
-    const trueCostAud = exTaxCost * rate + lcpu;
+    const trueCostAud = cost * rate + lcpu;
     return { ...item, qty, cost, taxRate, lineTotal, taxAmt, lcpu, trueCostAud };
   });
 
@@ -9618,9 +9525,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
     setXeroRetrying(true); setXeroRetried(null);
     try {
       const r = await fetch('/api/ims/xero/push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'so', id: so.id }) });
-      const data = await r.json();
-      setXeroRetried(r.ok && data.success === true);
-      await onVoided?.();
+      setXeroRetried(r.ok);
     } catch { setXeroRetried(false); }
     setXeroRetrying(false);
   };
@@ -19271,6 +19176,7 @@ export default function ImsPage() {
       <header style={{ height: 52, background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8, flexShrink: 0 }}>
         {/* App switcher */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexShrink: 0 }}>
+          <SolvantisMark size={24} variant="tile" style={{ marginRight: 7 }} />
           <span style={{ color: 'var(--sv-action)', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
           <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: -.3, color: 'var(--sv-text-strong)', marginLeft: 4 }}>IMS</span>
           <span style={{ color: 'var(--sv-text-muted)', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
@@ -22492,7 +22398,7 @@ function StockMinsImportCard() {
 function DataResetCard() {
   const TARGETS = [
     { key: 'stocktakes',      label: 'Stocktakes',             note: 'All stocktake records and their counted items' },
-    { key: 'purchase_orders', label: 'Draft Purchase Orders',  note: 'Draft POs, items, payments and file records; posted POs are retained for audit' },
+    { key: 'purchase_orders', label: 'Purchase Orders',        note: 'All POs, items, payments and file records' },
     { key: 'sales_orders',    label: 'Sales Orders & Online Orders', note: 'All wholesale SOs and Shopify/online orders, items and payments' },
     { key: 'pos_sales',       label: 'POS Sales',              note: 'All POS sales, items, payments, EOD reconciliations and register sessions' },
   ] as const;

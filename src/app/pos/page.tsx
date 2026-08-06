@@ -7,6 +7,7 @@ import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
+import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -1945,6 +1946,7 @@ function MainPos({
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', ...posTheme } as React.CSSProperties}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
+        <SolvantisMark size={28} variant="tile" />
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
           <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '.95rem', letterSpacing: -.3, lineHeight: 1.2 }}>Solvantis POS</span>
           <span style={{ fontWeight: 500, color: 'var(--sv-text-dim)', fontSize: '.72rem', letterSpacing: .2, lineHeight: 1.2, opacity: .85 }}>{session.location_name}</span>

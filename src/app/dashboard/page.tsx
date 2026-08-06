@@ -14,6 +14,7 @@ import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
+import { SolvantisMark } from '@/components/SolvantisMark';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -8858,10 +8859,7 @@ export default function DashboardPage() {
       <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar">
         <div className="flex items-center gap-0 shrink-0">
           {/* Brand icon */}
-          <svg width="24" height="24" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0 mr-2">
-            <path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="#1ea8c2" fillOpacity="0.15" stroke="#1ea8c2" strokeWidth="1.5"/>
-            <path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="#1ea8c2"/>
-          </svg>
+          <SolvantisMark size={24} variant="reversed" className="mr-2" />
           {/* App switcher */}
           <span style={{ color: '#1ea8c2', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
           <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: 'var(--sv-topbar-text, white)', marginLeft: 4 }}>Foresight</span>

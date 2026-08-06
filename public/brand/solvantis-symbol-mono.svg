@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Solvantis monochrome symbol</title>
+  <desc id="desc">Two connected channels forming an abstract letter S.</desc>
+  <path d="M51 12H27C18.72 12 12 18.72 12 27s6.72 15 15 15h10" fill="none" stroke="#0F172A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M13 52h24c8.28 0 15-6.72 15-15s-6.72-15-15-15H27" fill="none" stroke="#0F172A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="32" r="4.5" fill="#0F172A"/>
+</svg>

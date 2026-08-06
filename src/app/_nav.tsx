@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { SolvantisMark } from '@/components/SolvantisMark';
 
 interface NavProps {
   onDemo?: () => void;
@@ -33,8 +34,9 @@ export default function Nav({ onDemo }: NavProps) {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-baseline gap-2">
-            <span className="text-xl font-black text-blue-600 tracking-tight">Solvantis</span>
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Solvantis home">
+            <SolvantisMark size={30} />
+            <span className="sv-wordmark text-lg font-extrabold text-slate-900">Solvantis</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">

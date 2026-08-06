@@ -3,7 +3,14 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Solvantis',
-  description: 'AI-driven marketing platform',
+  description: 'Multichannel POS, inventory, ecommerce, and retail intelligence.',
+  icons: {
+    icon: [
+      { url: '/brand/solvantis-favicon.svg', type: 'image/svg+xml' },
+      { url: '/brand/png/solvantis-icon-32.png', type: 'image/png', sizes: '32x32' },
+    ],
+    apple: [{ url: '/brand/png/solvantis-icon-192.png', sizes: '192x192', type: 'image/png' }],
+  },
 };
 
 export default function RootLayout({
