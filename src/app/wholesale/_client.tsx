@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { SolvantisMark } from '@/components/SolvantisMark';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -565,9 +566,7 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
       <header style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,.06)', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 34, height: 34, background: '#2563eb', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <svg width="18" height="18" viewBox="0 0 28 28" fill="none"><path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.5"/><path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="white"/></svg>
-            </div>
+            <SolvantisMark size={34} variant="tile" />
             <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{portalTitle}</span>
           </div>
           <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>

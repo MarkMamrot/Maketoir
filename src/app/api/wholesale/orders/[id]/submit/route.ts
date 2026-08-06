@@ -179,6 +179,8 @@ export async function POST(_req: Request, { params }: Ctx) {
         </tr>`).join('');
 
       const hasIndent = items.some((i: any) => i.is_indent);
+      const appUrlRaw = process.env.APP_URL ?? 'https://solvantis.com.au';
+      const appUrl = (/^https?:\/\//i.test(appUrlRaw) ? appUrlRaw : `https://${appUrlRaw}`).replace(/\/$/, '');
 
       resend.emails.send({
         from,
@@ -187,9 +189,7 @@ export async function POST(_req: Request, { params }: Ctx) {
         html: `
           <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto;padding:32px;background:#fff;border-radius:12px;">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-              <div style="width:38px;height:38px;background:#2563eb;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <svg width="20" height="20" viewBox="0 0 28 28" fill="none"><path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="white" fill-opacity="0.15" stroke="white" stroke-width="1.5"/><path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="white"/></svg>
-              </div>
+              <img src="${appUrl}/brand/png/solvantis-icon-192.png" width="38" height="38" alt="Solvantis" style="display:block;border-radius:8px;flex-shrink:0;" />
               <div>
                 <h1 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;">New Wholesale Order</h1>
                 <p style="margin:0;font-size:13px;color:#64748b;">A customer has submitted an order via the Wholesale Portal</p>

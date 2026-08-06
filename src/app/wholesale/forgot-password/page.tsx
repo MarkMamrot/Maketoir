@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { SolvantisMark } from '@/components/SolvantisMark';
 
 export default function WholesaleForgotPasswordPage() {
   const [email,   setEmail]   = useState('');
@@ -33,12 +34,7 @@ export default function WholesaleForgotPasswordPage() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-600 rounded-2xl mb-4 shadow-lg">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="white" fillOpacity="0.15" stroke="white" strokeWidth="1.5"/>
-              <path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="white"/>
-            </svg>
-          </div>
+          <SolvantisMark size={56} variant="tile" className="inline-block mb-4 shadow-lg rounded-2xl" />
           <h1 className="text-2xl font-extrabold text-slate-900">Wholesale Portal</h1>
           <p className="text-sm text-slate-500 mt-1">Reset your password</p>
         </div>

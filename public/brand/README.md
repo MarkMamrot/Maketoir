@@ -2,10 +2,9 @@
 
 ## Idea
 
-The symbol uses two opposing channels to form an abstract `S`. The channels
-represent POS, inventory, ecommerce, and reporting data moving through one
-connected system. Their central junction represents synchronisation and a
-single source of truth.
+The symbol uses two interlocking geometric paths to form a continuous link.
+The nested construction represents Solvantis connecting POS, inventory,
+ecommerce, reporting, and customer operations in one system.
 
 ## Primary Assets
 
@@ -21,7 +20,7 @@ single source of truth.
 | Colour | Hex | Use |
 | --- | --- | --- |
 | Solvantis Teal | `#1EA8C2` | Primary brand colour |
-| Bright Teal | `#35BFD6` | Reversed mark and highlights |
+| Bright Teal | `#35BFD6` | Mark on dark backgrounds and highlights |
 | Solvantis Navy | `#0F172A` | Wordmark and dark surfaces |
 | White | `#FFFFFF` | Reversed wordmark |
 
@@ -42,8 +41,7 @@ optimised for 16 px and 32 px output.
 Use the primary logo on white and pale neutral backgrounds. Use the reversed
 logo on navy, photography, or other dark backgrounds. The monochrome version
 may be recoloured as one solid ink only. Do not rotate the symbol, alter its
-stroke widths, separate the channels, add shadows, or place it on low-contrast
-colours.
+geometry, separate its paths, add shadows, or place it on low-contrast colours.
 
 The SVG lockups contain live Montserrat text so the wordmark remains editable.
 Install or load Montserrat before exporting final outlined artwork in a design
@@ -51,6 +49,7 @@ application.
 
 ## PNG Exports
 
-Run `npm run brand:export` to regenerate all files under `public/brand/png`.
-The export set includes 600 px and 1200 px horizontal logos, 256 px and 512 px
+Run `npm run brand:export` to rebuild the SVG masters from
+`new logo/new logo.svg` and regenerate all files under `public/brand/png`. The
+export set includes 600 px and 1200 px horizontal logos, 256 px and 512 px
 transparent symbols, and navy-backed icons from 16 px through 512 px.

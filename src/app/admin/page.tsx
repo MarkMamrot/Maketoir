@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { SolvantisMark } from '@/components/SolvantisMark';
 import RuntimeIssuesView from './RuntimeIssuesView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -638,7 +639,7 @@ export default function AdminPage() {
     <div style={S.page}>
       {/* Topbar */}
       <div style={S.topbar}>
-        <svg width="20" height="20" viewBox="0 0 28 28" fill="none"><path d="M14 2L24 7.5V20.5L14 26L4 20.5V7.5L14 2Z" fill="#1ea8c2" fillOpacity=".15" stroke="#1ea8c2" strokeWidth="1.5"/><path d="M16.5 8H12L10.5 14H13.5L11.5 20L19 12.5H15L16.5 8Z" fill="#1ea8c2"/></svg>
+        <SolvantisMark size={20} variant="reversed" />
         <span style={{ color: '#1ea8c2', fontWeight: 700, fontSize: 15, letterSpacing: -.3 }}>Solvantis</span>
         <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: '#e2e8f0', marginLeft: 2 }}>Admin</span>
         <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
