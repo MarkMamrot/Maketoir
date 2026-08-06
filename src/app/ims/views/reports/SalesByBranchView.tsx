@@ -17,6 +17,9 @@ interface SalesByBranchViewProps {
 export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) {
   const [rows, setRows]             = useState<any[]>([]);
   const [total, setTotal]           = useState(0);
+  const [totalQty, setTotalQty]     = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [locationTotals, setLocationTotals] = useState<any[]>([]);
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
@@ -32,7 +35,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const [pageSize, setPageSize] = useState(25);
   const [branchFilter, setBranchFilter] = useState<number | null>(null);
 
-  const [sortCol, setSortCol] = useState<string>('sales');
+  const [sortCol, setSortCol] = useState<string>('sales_qty');
   const [sortAsc, setSortAsc] = useState(false);
 
   const totalPages = Math.ceil(total / pageSize) || 1;
@@ -56,6 +59,9 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       const data = await apiFetch(`/api/ims/reports/sales-by-branch?${params}`);
       setRows(data.rows ?? []);
       setTotal(data.total ?? 0);
+      setTotalQty(Number(data.totalQty ?? 0));
+      setTotalAmount(Number(data.totalAmount ?? 0));
+      setLocationTotals(data.locationTotals ?? []);
       setLocations(data.locations ?? []);
       if (data.brands)    setBrandsOptions(data.brands);
       if (data.suppliers) setSuppliersOptions(data.suppliers);
@@ -73,9 +79,16 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const goPage             = (pg: number)       => { setPage(pg); load(pg, filterText, filterBrand, filterSupplier, filterType, dateRange, pageSize, branchFilter); };
   const changePageSize     = (ps: number)       => { setPageSize(ps); setPage(1); load(1, filterText, filterBrand, filterSupplier, filterType, dateRange, ps, branchFilter); };
 
-  const salesKey = dateRange.kind === 'range'
-    ? 'sales_qty_custom'
-    : dateRange.window <= 7 ? 'sales_qty_7d' : dateRange.window <= 90 ? 'sales_qty_90d' : dateRange.window <= 180 ? 'sales_qty_180d' : 'sales_qty_12m';
+  const displayLocations = branchFilter === null
+    ? locations
+    : locations.filter(location => location.id === branchFilter);
+
+  const formatAmount = (amount: number) => amount.toLocaleString('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
   const toggleSort = (col: string) => {
     if (sortCol === col) setSortAsc(a => !a);
@@ -87,30 +100,37 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
     const dir = sortAsc ? 1 : -1;
     r.sort((a, b) => {
       let av: number | string = 0, bv: number | string = 0;
-      if (sortCol === 'sales') { av = Number(a[salesKey] ?? 0); bv = Number(b[salesKey] ?? 0); }
-      else if (sortCol === 'soh') { av = Number(a.global_soh ?? 0); bv = Number(b.global_soh ?? 0); }
+      if (sortCol === 'sales_qty') { av = Number(a.sales_qty ?? 0); bv = Number(b.sales_qty ?? 0); }
+      else if (sortCol === 'sales_amount') { av = Number(a.sales_amount ?? 0); bv = Number(b.sales_amount ?? 0); }
       else if (sortCol === 'product') { av = (a.product_name ?? '') + (a.option_label ?? ''); bv = (b.product_name ?? '') + (b.option_label ?? ''); }
       else if (sortCol === 'sku') { av = a.sku ?? ''; bv = b.sku ?? ''; }
       else if (sortCol === 'brand') { av = a.brand ?? ''; bv = b.brand ?? ''; }
       else if (sortCol === 'supplier') { av = a.supplier_name ?? ''; bv = b.supplier_name ?? ''; }
-      else if (sortCol.startsWith('loc_')) {
-        const lid = Number(sortCol.slice(4));
-        av = Number(a.stock?.find((s: any) => s.location_id === lid)?.soh ?? 0);
-        bv = Number(b.stock?.find((s: any) => s.location_id === lid)?.soh ?? 0);
+      else if (sortCol.startsWith('loc_qty_')) {
+        const locationId = Number(sortCol.slice(8));
+        av = Number(a.location_sales?.find((sale: any) => sale.location_id === locationId)?.sales_qty ?? 0);
+        bv = Number(b.location_sales?.find((sale: any) => sale.location_id === locationId)?.sales_qty ?? 0);
+      }
+      else if (sortCol.startsWith('loc_amount_')) {
+        const locationId = Number(sortCol.slice(11));
+        av = Number(a.location_sales?.find((sale: any) => sale.location_id === locationId)?.sales_amount ?? 0);
+        bv = Number(b.location_sales?.find((sale: any) => sale.location_id === locationId)?.sales_amount ?? 0);
       }
       if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
       return String(av).localeCompare(String(bv)) * dir;
     });
     return r;
-  }, [rows, sortCol, sortAsc, salesKey]);
+  }, [rows, sortCol, sortAsc]);
 
   const downloadCsv = () => {
-    const locHeaders = locations.map(l => l.name);
-    const headers = ['#', 'Product', 'Option', 'SKU', 'Brand', 'Supplier', `Sales (${dateRange.label})`, 'Global SOH', ...locHeaders];
+    const locHeaders = displayLocations.flatMap(location => [`${location.name} Qty`, `${location.name} Sales Amount (inc. GST)`]);
+    const headers = ['#', 'Product', 'Option', 'SKU', 'Brand', 'Supplier', `Sales Qty (${dateRange.label})`, 'Sales Amount (inc. GST)', ...locHeaders];
     const lines = [headers.map(h => `"${h}"`).join(',')];
     displayRows.forEach((row, i) => {
-      const sq = Number(row[salesKey] ?? 0);
-      const locCols = locations.map(l => { const s = row.stock?.find((x: any) => x.location_id === l.id); return String(s ? Number(s.soh) : 0); });
+      const locCols = displayLocations.flatMap(location => {
+        const sale = row.location_sales?.find((item: any) => item.location_id === location.id);
+        return [String(Number(sale?.sales_qty ?? 0)), Number(sale?.sales_amount ?? 0).toFixed(2)];
+      });
       lines.push([
         String((page - 1) * pageSize + i + 1),
         `"${(row.product_name || '').replace(/"/g, '""')}"`,
@@ -118,9 +138,14 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         `"${(row.sku || '').replace(/"/g, '""')}"`,
         `"${(row.brand || '').replace(/"/g, '""')}"`,
         `"${(row.supplier_name || '').replace(/"/g, '""')}"`,
-        String(sq), String(Number(row.global_soh ?? 0)), ...locCols,
+        String(Number(row.sales_qty ?? 0)), Number(row.sales_amount ?? 0).toFixed(2), ...locCols,
       ].join(','));
     });
+    const totalLocationCols = displayLocations.flatMap(location => {
+      const locationTotal = locationTotals.find(item => item.location_id === location.id);
+      return [String(Number(locationTotal?.sales_qty ?? 0)), Number(locationTotal?.sales_amount ?? 0).toFixed(2)];
+    });
+    lines.push(['', '"TOTALS (ALL SELECTED)"', '', '', '', '', String(totalQty), totalAmount.toFixed(2), ...totalLocationCols].join(','));
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
@@ -229,8 +254,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
                 <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
@@ -238,29 +263,32 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
                 {sortTh('supplier', 'Supplier')}
-                <th onClick={() => toggleSort('sales')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                  Sales ({dateRange.label}){sortArrow('sales')}
+                <th onClick={() => toggleSort('sales_qty')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
+                  Sales Qty ({dateRange.label}){sortArrow('sales_qty')}
                 </th>
-                <th onClick={() => toggleSort('soh')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none' }}>
-                  Global SOH{sortArrow('soh')}
+                <th onClick={() => toggleSort('sales_amount')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
+                  Sales Amount (inc. GST){sortArrow('sales_amount')}
                 </th>
-                {locations.map(l => (
-                  <th key={l.id} onClick={() => toggleSort(`loc_${l.id}`)} style={{ ...numHCell, maxWidth: 100, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
-                    {l.name}{sortArrow(`loc_${l.id}`)}
-                  </th>
-                ))}
+                {displayLocations.flatMap(location => [
+                  <th key={`${location.id}-qty`} onClick={() => toggleSort(`loc_qty_${location.id}`)} style={{ ...numHCell, minWidth: 85, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
+                    {location.name} Qty{sortArrow(`loc_qty_${location.id}`)}
+                  </th>,
+                  <th key={`${location.id}-amount`} onClick={() => toggleSort(`loc_amount_${location.id}`)} style={{ ...numHCell, minWidth: 115, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
+                    {location.name} Amount{sortArrow(`loc_amount_${location.id}`)}
+                  </th>,
+                ])}
               </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+                  <tr><td colSpan={7 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
                 )}
                 {!loading && displayRows.length === 0 && (
-                  <tr><td colSpan={7 + locations.length} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
+                  <tr><td colSpan={7 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
                 )}
                 {!loading && displayRows.map((row, i) => {
-                  const salesQty = Number(row[salesKey] ?? 0);
-                  const locStockMap = new Map<number, any>(row.stock.map((s: any) => [s.location_id, s]));
+                  const salesQty = Number(row.sales_qty ?? 0);
+                  const locationSalesMap = new Map<number, any>((row.location_sales ?? []).map((sale: any) => [sale.location_id, sale]));
                   const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
                   const rowNum = (page - 1) * pageSize + i + 1;
                   return (
@@ -276,22 +304,44 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                       <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
                         {salesQty.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
                       </td>
-                      <td style={{ ...numCell, fontWeight: row.global_soh > 0 ? 500 : 400, color: row.global_soh <= 0 ? 'var(--sv-text-dim)' : undefined }}>
-                        {Number(row.global_soh).toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                      <td style={{ ...numCell, fontWeight: row.sales_amount > 0 ? 500 : 400, color: row.sales_amount <= 0 ? 'var(--sv-text-dim)' : undefined }}>
+                        {formatAmount(Number(row.sales_amount ?? 0))}
                       </td>
-                      {locations.map(l => {
-                        const s = locStockMap.get(l.id);
-                        const soh = s ? Number(s.soh) : 0;
-                        return (
-                          <td key={l.id} style={{ ...numCell, color: soh > 0 ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', opacity: soh > 0 ? 1 : 0.45 }}>
-                            {soh > 0 ? soh.toLocaleString('en-AU', { maximumFractionDigits: 0 }) : '—'}
-                          </td>
-                        );
+                      {displayLocations.flatMap(location => {
+                        const sale = locationSalesMap.get(location.id);
+                        const qty = Number(sale?.sales_qty ?? 0);
+                        const amount = Number(sale?.sales_amount ?? 0);
+                        return [
+                          <td key={`${location.id}-qty`} style={{ ...numCell, color: qty ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
+                            {qty ? qty.toLocaleString('en-AU', { maximumFractionDigits: 2 }) : '—'}
+                          </td>,
+                          <td key={`${location.id}-amount`} style={{ ...numCell, color: amount ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
+                            {amount ? formatAmount(amount) : '—'}
+                          </td>,
+                        ];
                       })}
                     </tr>
                   );
                 })}
               </tbody>
+              {!loading && (
+                <tfoot>
+                  <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700 }}>
+                    <td colSpan={5} style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 2, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)' }}>
+                      Totals (all selected variants)
+                    </td>
+                    <td style={numCell}>{totalQty.toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>
+                    <td style={numCell}>{formatAmount(totalAmount)}</td>
+                    {displayLocations.flatMap(location => {
+                      const locationTotal = locationTotals.find(item => item.location_id === location.id);
+                      return [
+                        <td key={`${location.id}-total-qty`} style={numCell}>{Number(locationTotal?.sales_qty ?? 0).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>,
+                        <td key={`${location.id}-total-amount`} style={numCell}>{formatAmount(Number(locationTotal?.sales_amount ?? 0))}</td>,
+                      ];
+                    })}
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
