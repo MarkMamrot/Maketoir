@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
+import { formatReceiptDate } from '@/lib/pos/receiptDate';
 
 function getPosSession() {
   const pos = cookies().get('pos_session')?.value;
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
   const footerText     = printSettings?.pos_receipt_footer ?? 'Thank you for your purchase!';
   const orderNotes     = String(sale.notes ?? '').trim();
 
-  const saleDate = new Date(sale.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' });
+  const saleDate = formatReceiptDate(sale.created_at);
   const saleRef  = sale.id ? `#${sale.id}` : `local:${(sale.local_id ?? '').slice(-8)}`;
   const changeDue = body.changeDue ?? 0;
   const total     = (sale.total ?? 0) + (sale.cash_rounding ?? 0);
