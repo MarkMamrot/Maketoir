@@ -613,6 +613,18 @@ CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
   FOREIGN KEY (backorder_so_item_id) REFERENCES ims_sales_order_items(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_backorder_merges (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  operation_key       VARCHAR(191) NOT NULL,
+  backorder_type      ENUM('customer','supplier') NOT NULL,
+  target_order_id     INT NOT NULL,
+  source_order_ids    JSON NOT NULL,
+  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_backorder_merge_operation (business_id, operation_key),
+  INDEX idx_backorder_merge_target (business_id, backorder_type, target_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Customer Credit Notes / Returns ─────────────────────────
 CREATE TABLE IF NOT EXISTS ims_credit_notes (
   id                  INT AUTO_INCREMENT PRIMARY KEY,

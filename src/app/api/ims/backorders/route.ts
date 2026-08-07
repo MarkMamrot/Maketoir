@@ -26,7 +26,8 @@ export async function GET() {
         `SELECT so.id, so.so_number AS order_number, so.customer_id AS contact_id,
                 COALESCE(c.name, 'Unknown customer') AS contact_name,
                 so.location_id, l.name AS location_name, so.expected_date, so.created_at,
-                so.total_amount, so.currency_code, so.customer_po_number AS external_reference,
+                so.total_amount, so.currency_code, so.exchange_rate, so.tax_treatment, so.tax_code,
+                so.payment_terms, so.price_tier, so.customer_po_number AS external_reference,
                 GROUP_CONCAT(DISTINCT source.so_number ORDER BY source.so_number SEPARATOR ', ') AS source_orders
            FROM ims_sales_orders so
            LEFT JOIN ims_contacts c ON c.id = so.customer_id
@@ -42,7 +43,8 @@ export async function GET() {
         `SELECT po.id, po.po_number AS order_number, po.supplier_id AS contact_id,
                 COALESCE(c.name, po.supplier_name_raw, 'Unknown supplier') AS contact_name,
                 po.location_id, l.name AS location_name, po.expected_date, po.created_at,
-                po.total_amount, po.currency_code, NULL AS external_reference,
+                po.total_amount, po.currency_code, po.exchange_rate, po.tax_treatment, po.tax_code,
+                po.payment_terms, NULL AS price_tier, po.supplier_invoice_number AS external_reference,
                 GROUP_CONCAT(DISTINCT source.po_number ORDER BY source.po_number SEPARATOR ', ') AS source_orders
            FROM ims_purchase_orders po
            LEFT JOIN ims_contacts c ON c.id = po.supplier_id
@@ -57,7 +59,8 @@ export async function GET() {
       imsQuery<BackorderLine>(
         `SELECT i.so_id AS order_id, i.id AS item_id, i.variant_id, v.sku, p.name AS product_name,
                 CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label,
-                i.qty_ordered, COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
+                i.qty_ordered, i.unit_price AS unit_amount, i.discount_pct, i.tax_rate, i.notes,
+                COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
                 COALESCE(st.qty_committed, 0) AS qty_committed, COALESCE(st.qty_incoming, 0) AS qty_incoming
            FROM ims_sales_order_items i
            JOIN ims_sales_orders so ON so.id = i.so_id AND so.business_id = ? AND so.status = 'backordered'
@@ -70,7 +73,8 @@ export async function GET() {
       imsQuery<BackorderLine>(
         `SELECT i.po_id AS order_id, i.id AS item_id, i.variant_id, v.sku, p.name AS product_name,
                 CONCAT_WS(' / ', NULLIF(v.option1_value,''), NULLIF(v.option2_value,''), NULLIF(v.option3_value,'')) AS variant_label,
-                i.qty_ordered, COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
+                i.qty_ordered, i.unit_cost AS unit_amount, i.discount_pct, i.tax_rate, i.notes,
+                COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
                 COALESCE(st.qty_committed, 0) AS qty_committed, COALESCE(st.qty_incoming, 0) AS qty_incoming
            FROM ims_purchase_order_items i
            JOIN ims_purchase_orders po ON po.id = i.po_id AND po.business_id = ? AND po.status = 'backordered'

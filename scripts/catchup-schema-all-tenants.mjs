@@ -21,6 +21,17 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_backorder_merges (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    operation_key VARCHAR(191) NOT NULL,
+    backorder_type ENUM('customer','supplier') NOT NULL,
+    target_order_id INT NOT NULL,
+    source_order_ids JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_backorder_merge_operation (business_id, operation_key),
+    INDEX idx_backorder_merge_target (business_id, backorder_type, target_order_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,

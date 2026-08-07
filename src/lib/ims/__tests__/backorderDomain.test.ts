@@ -58,13 +58,17 @@ describe('backorder domain', () => {
       contactId: 12,
       locationId: 4,
       currencyCode: 'aud',
+      exchangeRate: 1,
       taxTreatment: 'inc_tax',
+      taxCode: 'OUTPUT',
       paymentTerms: 'Net 30',
       priceTier: 'wholesale',
       externalReference: 'PO-99',
     };
     expect(getBackorderMergeConflict(target, { ...target, currencyCode: 'AUD' })).toBeNull();
     expect(getBackorderMergeConflict(target, { ...target, locationId: 5 })).toBe('location does not match.');
+    expect(getBackorderMergeConflict(target, { ...target, exchangeRate: 0.7 })).toBe('exchange rate does not match.');
+    expect(getBackorderMergeConflict(target, { ...target, taxCode: 'GST FREE' })).toBe('tax code does not match.');
   });
 
   it('holds backorders out of Xero', () => {

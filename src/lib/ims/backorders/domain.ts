@@ -19,7 +19,9 @@ export type BackorderMergeDocument = {
   contactId: number | null;
   locationId: number;
   currencyCode: string;
+  exchangeRate?: number | null;
   taxTreatment: string;
+  taxCode?: string | null;
   paymentTerms?: string | null;
   priceTier?: string | null;
   externalReference?: string | null;
@@ -84,7 +86,9 @@ export function getBackorderMergeConflict(
     ['contact', target.contactId, candidate.contactId],
     ['location', target.locationId, candidate.locationId],
     ['currency', target.currencyCode.toUpperCase(), candidate.currencyCode.toUpperCase()],
+    ['exchange rate', Number(target.exchangeRate ?? 1), Number(candidate.exchangeRate ?? 1)],
     ['tax treatment', target.taxTreatment, candidate.taxTreatment],
+    ['tax code', normalizeOptional(target.taxCode), normalizeOptional(candidate.taxCode)],
     ['payment terms', normalizeOptional(target.paymentTerms), normalizeOptional(candidate.paymentTerms)],
     ['price tier', normalizeOptional(target.priceTier), normalizeOptional(candidate.priceTier)],
     ['external reference', normalizeOptional(target.externalReference), normalizeOptional(candidate.externalReference)],
