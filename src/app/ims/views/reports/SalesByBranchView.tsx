@@ -170,6 +170,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top', position: 'sticky', top: 0, zIndex: 2 };
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right' };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
+  const frozenDivider = '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)';
 
   const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
     <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
@@ -254,12 +255,12 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', maxHeight: 'calc(100vh - 250px)' }}>
           <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-                {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
+                <th style={{ ...hCell, left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44, textAlign: 'right' }}>#</th>
+                {sortTh('product', 'Product', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
                 {sortTh('supplier', 'Supplier')}
@@ -289,12 +290,12 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                 {!loading && displayRows.map((row, i) => {
                   const salesQty = Number(row.sales_qty ?? 0);
                   const locationSalesMap = new Map<number, any>((row.location_sales ?? []).map((sale: any) => [sale.location_id, sale]));
-                  const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+                  const rowBg = i % 2 === 0 ? 'var(--sv-bg-1)' : 'color-mix(in srgb, var(--sv-bg-1) 88%, var(--sv-etch))';
                   const rowNum = (page - 1) * pageSize + i + 1;
                   return (
                     <tr key={row.variant_id} style={{ background: rowBg }}>
-                      <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                      <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
+                      <td style={{ ...numCell, position: 'sticky', left: 0, zIndex: 1, width: 44, minWidth: 44, maxWidth: 44, background: rowBg, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
+                      <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: frozenDivider }}>
                         <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                         {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                       </td>
@@ -325,18 +326,20 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                 })}
               </tbody>
               {!loading && (
-                <tfoot>
-                  <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700 }}>
-                    <td colSpan={5} style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 2, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)' }}>
+                <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 3 }}>
+                  <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44, background: 'var(--sv-bg-2)' }} />
+                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
                       Totals (all selected variants)
                     </td>
-                    <td style={numCell}>{totalQty.toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>
-                    <td style={numCell}>{formatAmount(totalAmount)}</td>
+                    <td colSpan={3} style={{ ...cellStyle, background: 'var(--sv-bg-2)' }} />
+                    <td style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{totalQty.toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>
+                    <td style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{formatAmount(totalAmount)}</td>
                     {displayLocations.flatMap(location => {
                       const locationTotal = locationTotals.find(item => item.location_id === location.id);
                       return [
-                        <td key={`${location.id}-total-qty`} style={numCell}>{Number(locationTotal?.sales_qty ?? 0).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>,
-                        <td key={`${location.id}-total-amount`} style={numCell}>{formatAmount(Number(locationTotal?.sales_amount ?? 0))}</td>,
+                        <td key={`${location.id}-total-qty`} style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{Number(locationTotal?.sales_qty ?? 0).toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>,
+                        <td key={`${location.id}-total-amount`} style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{formatAmount(Number(locationTotal?.sales_amount ?? 0))}</td>,
                       ];
                     })}
                   </tr>
