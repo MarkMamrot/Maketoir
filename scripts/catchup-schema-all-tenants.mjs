@@ -781,6 +781,20 @@ async function migrateSchema(schema) {
   console.log(`✓ ${schema}: added ${added} columns, skipped ${skipped}, added ${indexesAdded} indexes, skipped ${indexesSkipped}`);
 }
 
+async function verifyBackorderMergeSchema(schema) {
+  const [rows] = await conn.query(
+    `SELECT INDEX_NAME
+       FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_backorder_merges'`,
+    [schema],
+  );
+  const indexes = new Set(rows.map(row => row.INDEX_NAME));
+  for (const required of ['PRIMARY', 'uq_backorder_merge_operation', 'idx_backorder_merge_target']) {
+    if (!indexes.has(required)) throw new Error(`${schema}.ims_backorder_merges is missing ${required}`);
+  }
+  console.log(`  verified ${schema}.ims_backorder_merges`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -792,7 +806,10 @@ try {
     for (const r of rows) if (r.ims_db_name) schemas.add(r.ims_db_name);
   }
   console.log(`Schemas: ${[...schemas].join(', ')}`);
-  for (const schema of schemas) await migrateSchema(schema);
+  for (const schema of schemas) {
+    await migrateSchema(schema);
+    await verifyBackorderMergeSchema(schema);
+  }
   console.log('Done.');
 } finally {
   await conn.end();

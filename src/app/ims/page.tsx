@@ -8,6 +8,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
@@ -8254,30 +8255,44 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
+    const effectiveQtys = receiveQtysOverride ?? receiveQtys;
+    const receivePlan = isReceiving ? planPurchaseOrderReceive(lineItems.filter(item => item.variant_id).map(item => {
+      const stored = Number(modal.edit?.items?.find((existing: any) => existing.variant_id === item.variant_id)?.qty_received ?? 0);
+      return {
+        variantId: String(item.variant_id),
+        orderedQuantity: Number(item.qty_ordered),
+        alreadyReceivedQuantity: stored,
+        enteredQuantity: Number(effectiveQtys[item.variant_id] ?? stored),
+      };
+    }), targetStatus) : null;
+    if (receivePlan?.createBackorderPo && !confirm(
+      `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} still have outstanding quantities.\n\nComplete this PO and create a held supplier backorder for the shortfall?`,
+    )) return;
     setSaving(true);
     try {
       let savedPoId: number | null = modal.edit?.id ?? null;
+      let backorderPoNumber: string | null = null;
       const resultingPoStatus = targetStatus ?? (andOrder ? 'confirmed' : (modal.edit?.status ?? 'draft'));
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         // Also record any receiving deltas
-        if (isReceiving) {
-          const effectiveQtys = receiveQtysOverride ?? receiveQtys;
-          const received_items = lineItems
-            .filter(item => item.variant_id)
-            .map(item => {
-              const stored = Number(modal.edit!.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
-              const entered = Number(effectiveQtys[item.variant_id] ?? stored);
-              return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
-            })
-            .filter(item => item.qty_received > 0);
-          if (received_items.length > 0) {
-            await apiFetch('/api/ims/receive/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ po_id: modal.edit.id, location_id: modal.edit.location_id, received_items, mark_po_received: false }) });
-          }
+        if (isReceiving && receivePlan?.shouldCallBatch) {
+          const receiveResult = await apiFetch('/api/ims/receive/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              po_id: modal.edit.id,
+              location_id: modal.edit.location_id,
+              received_items: receivePlan.receivedItems,
+              mark_po_received: receivePlan.markPoReceived,
+              create_backorder_po: receivePlan.createBackorderPo,
+            }),
+          });
+          backorderPoNumber = receiveResult?.backorderPoNumber ?? null;
         }
-        if (targetStatus) {
+        if (targetStatus && !isReceiving) {
           await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: targetStatus }) });
         }
       } else {
@@ -8291,6 +8306,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       setModal({ open: false, edit: null });
       setLandedCosts([]);
       setLcForm(null);
+      if (backorderPoNumber) alert(`Supplier backorder ${backorderPoNumber} was created and is now held in Backorders.`);
       if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
@@ -8582,11 +8598,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                         </td>
                         )}
                         {isReceiving && (() => {
-                          const received = Number(receiveQtys[item.variant_id] ?? 0);
+                          const storedReceived = Number(modal.edit?.items?.find((existing: any) => existing.variant_id === item.variant_id)?.qty_received ?? 0);
+                          const received = Math.max(storedReceived, Number(receiveQtys[item.variant_id] ?? storedReceived));
                           const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
                           return (<>
                             <td style={{ padding: 4, width: 80 }}>
-                              <input type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
+                              <input type="number" min={storedReceived} max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.max(storedReceived, Math.min(Number(e.target.value), Number(item.qty_ordered))) }))} style={{ ...inputStyle, fontSize: 12 }} />
                             </td>
                             <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
                               {awaiting}
