@@ -3,7 +3,7 @@ import React from 'react';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
@@ -28,6 +28,7 @@ interface OrdersSectionProps {
   setCnPrefill: (v: any) => void;
   PurchaseOrdersView: any;
   SalesOrdersView: any;
+  BackordersView: any;
   CreditNotesView: any;
   SupplierCreditNotesView: any;
   BranchTransfersView: any;
@@ -56,6 +57,7 @@ export function OrdersSection({
   setCnPrefill,
   PurchaseOrdersView,
   SalesOrdersView,
+  BackordersView,
   CreditNotesView,
   SupplierCreditNotesView,
   BranchTransfersView,
@@ -81,6 +83,15 @@ export function OrdersSection({
           pendingOpenPosSaleId={pendingOpenPosSale}
           onPendingPosSaleHandled={() => setPendingOpenPosSale(null)}
           onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }}
+        />
+      )}
+      {view === 'backorders' && (
+        <BackordersView
+          isAdvisor={isAdvisor}
+          onOpenOrder={(type: 'customer' | 'supplier', id: number) => {
+            if (type === 'customer') { setPendingOpenSO(id); setView('sales-orders'); }
+            else { setPendingOpenPO(id); setView('purchase-orders'); }
+          }}
         />
       )}
       {view === 'credit-notes' && (

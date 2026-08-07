@@ -18,6 +18,7 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { BackordersView } from './views/backorders/BackordersView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
@@ -39,7 +40,7 @@ import {
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
@@ -63,6 +64,7 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'backorders',       label: 'Backorders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
     { id: 'smart-device-receive', label: 'Smart Device Receive' },
@@ -11518,6 +11520,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [fulfilModal, setFulfilModal] = useState<{ so: any; quantities: Record<number, number> } | null>(null);
+  const [fulfilSaving, setFulfilSaving] = useState(false);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [posVoiding, setPosVoiding] = useState(false);
   const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
@@ -11846,9 +11850,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     finally { setSaving(false); }
   };
 
-  const changeStatus = async (so: any, status: string) => {
+  const changeStatus = async (so: any, status: string, skipConfirm = false) => {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
-    if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
+    if (!skipConfirm && !confirm(`${labels[status] || status} SO ${so.so_number}?`)) return false;
     try {
       const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
@@ -11857,7 +11861,71 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         setViewModal({ open: true, so: d.data });
       }
       if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
-    } catch (e: any) { alert(e.message); }
+      return true;
+    } catch (e: any) { alert(e.message); return false; }
+  };
+
+  const beginFulfil = async (so: any) => {
+    if (so.shopify_order_id) {
+      await changeStatus(so, 'fulfilled');
+      return;
+    }
+    try {
+      const response = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+      const detail = response.data ?? response;
+      const quantities: Record<number, number> = {};
+      for (const item of detail.items ?? []) quantities[Number(item.id)] = Number(item.qty_ordered);
+      setFulfilModal({ so: detail, quantities });
+    } catch (e: any) {
+      alert(e.message || 'Failed to load fulfilment quantities.');
+    }
+  };
+
+  const submitFulfil = async () => {
+    if (!fulfilModal) return;
+    const items = fulfilModal.so.items ?? [];
+    const fulfilQuantities = items.map((item: any) => ({
+      itemId: Number(item.id),
+      quantity: Number(fulfilModal.quantities[Number(item.id)] ?? 0),
+    }));
+    const hasInvalid = fulfilQuantities.some((line: any, index: number) =>
+      !Number.isFinite(line.quantity) || line.quantity < 0 || line.quantity > Number(items[index].qty_ordered),
+    );
+    if (hasInvalid) {
+      alert('Fulfil quantities must be between zero and the ordered quantity.');
+      return;
+    }
+    const totalFulfilled = fulfilQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
+    if (totalFulfilled <= 0) {
+      alert('Enter a fulfilled quantity for at least one line.');
+      return;
+    }
+    const isFull = fulfilQuantities.every((line: any, index: number) => line.quantity === Number(items[index].qty_ordered));
+    setFulfilSaving(true);
+    try {
+      if (isFull) {
+        const succeeded = await changeStatus(fulfilModal.so, 'fulfilled', true);
+        if (!succeeded) return;
+      } else {
+        const operationKey = typeof crypto?.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/backorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operationKey, fulfilQuantities }),
+        });
+        load();
+        if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
+          await refreshSoView(fulfilModal.so.id);
+        }
+      }
+      setFulfilModal(null);
+    } catch (e: any) {
+      alert(e.message || 'Fulfilment failed.');
+    } finally {
+      setFulfilSaving(false);
+    }
   };
 
   const handleDelete = async (so: any) => {
@@ -12101,7 +12169,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
                       </div>
                     ) : (
-                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} />
+                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onFulfil={() => beginFulfil(so)} onReturn={() => handleReturn(so)} />
                     )}
                   </td>
                 </tr>
@@ -12306,7 +12374,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12621,18 +12689,63 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           onDone={() => load()}
         />
       )}
+
+      {fulfilModal && (
+        <Modal title={`Fulfil ${fulfilModal.so.so_number}`} onClose={() => { if (!fulfilSaving) setFulfilModal(null); }} wide>
+          <div style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 14 }}>
+            Enter the quantity dispatching now. Any remainder will become a held customer backorder.
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', border: '1px solid var(--sv-etch)' }}>
+              <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
+                {['SKU', 'Product', 'Variant', 'Ordered', 'Fulfil now', 'Backorder'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
+              </tr></thead>
+              <tbody>{(fulfilModal.so.items ?? []).map((item: any) => {
+                const itemId = Number(item.id);
+                const ordered = Number(item.qty_ordered);
+                const fulfilled = Number(fulfilModal.quantities[itemId] ?? 0);
+                return <tr key={itemId} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '9px 10px' }}><code style={{ color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
+                  <td style={{ padding: '9px 10px' }}>{item.product_name || 'Unknown product'}</td>
+                  <td style={{ padding: '9px 10px' }}>{item.variant_label || 'Default'}</td>
+                  <td style={{ padding: '9px 10px' }}>{fmtQty(ordered)}</td>
+                  <td style={{ padding: '9px 10px' }}>
+                    <input
+                      type="number"
+                      min={0}
+                      max={ordered}
+                      step="any"
+                      value={fulfilled}
+                      onChange={event => setFulfilModal(current => current ? {
+                        ...current,
+                        quantities: { ...current.quantities, [itemId]: Number(event.target.value) },
+                      } : current)}
+                      style={{ ...inputStyle, width: 92 }}
+                    />
+                  </td>
+                  <td style={{ padding: '9px 10px', fontWeight: ordered - fulfilled > 0 ? 700 : 400, color: ordered - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, ordered - fulfilled))}</td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button onClick={() => setFulfilModal(null)} disabled={fulfilSaving} style={btnStyle('ghost', 'sm')}>Cancel</button>
+            <button onClick={submitFulfil} disabled={fulfilSaving} style={btnStyle('mint', 'sm')}>{fulfilSaving ? 'Processing...' : 'Confirm fulfilment'}</button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={() => onStatus(so, 'fulfilled')} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
+  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
   if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (so.status === 'fulfilled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
@@ -19013,7 +19126,7 @@ export default function ImsPage() {
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
-    'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
+    'purchase-orders','sales-orders','backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
     'reports','report-sales-by-branch','report-sales-summary','report-sales-search',
@@ -19494,6 +19607,7 @@ export default function ImsPage() {
             LocationsView={LocationsView}
             PurchaseOrdersView={PurchaseOrdersView}
             SalesOrdersView={SalesOrdersView}
+            BackordersView={BackordersView}
             CreditNotesView={CreditNotesView}
             SupplierCreditNotesView={SupplierCreditNotesView}
             BranchTransfersView={BranchTransfersView}
