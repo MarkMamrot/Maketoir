@@ -60,6 +60,15 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     expect(mockSOChangeStatus).not.toHaveBeenCalled();
   });
 
+  it('returns a conflict when customer stock is no longer ready at release time', async () => {
+    mockSOGet.mockResolvedValue({ id: 11, status: 'backordered', items: [{ variant_id: 'v-1' }] });
+    mockSOChangeStatus.mockRejectedValue(new Error('Customer backorder stock is not ready for release.'));
+
+    const response = await POST(request('release'), { params: { type: 'customer', id: '11' } });
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('not ready');
+  });
+
   it('rejects stale and Advisor actions', async () => {
     mockSOGet.mockResolvedValue({ id: 11, status: 'confirmed', items: [] });
     expect((await POST(request('release'), { params: { type: 'customer', id: '11' } })).status).toBe(409);

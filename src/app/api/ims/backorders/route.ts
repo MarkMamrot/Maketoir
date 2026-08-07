@@ -90,7 +90,10 @@ export async function GET() {
       const orderLines = lines.filter(line => Number(line.order_id) === Number(order.id));
       const ready = type === 'customer'
         && orderLines.length > 0
-        && orderLines.every(line => Number(line.qty_on_hand) >= Number(line.qty_committed));
+        && orderLines.every(line =>
+          Number(line.qty_committed) >= Number(line.qty_ordered)
+          && Number(line.qty_on_hand) >= Number(line.qty_committed),
+        );
       return {
         ...order,
         type,

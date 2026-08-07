@@ -36,4 +36,16 @@ describe('GET /api/ims/backorders', () => {
     expect(mockImsQuery).toHaveBeenCalledTimes(4);
     expect(mockImsQuery.mock.calls.every(([, params]) => params[0] === 'biz-1')).toBe(true);
   });
+
+  it('does not mark a customer backorder ready when its commitment is missing', async () => {
+    mockSession.mockResolvedValue({ businessId: 'biz-1' });
+    mockImsQuery
+      .mockResolvedValueOnce([{ id: 11, order_number: 'SO-11', contact_name: 'Acme' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ order_id: 11, item_id: 1, qty_ordered: 2, qty_on_hand: 5, qty_committed: 0 }])
+      .mockResolvedValueOnce([]);
+
+    const body = await (await GET()).json();
+    expect(body.data.customer[0].ready).toBe(false);
+  });
 });

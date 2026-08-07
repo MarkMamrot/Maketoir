@@ -77,6 +77,23 @@ export function isOrderXeroEligible(status: string): boolean {
   return status !== 'backordered';
 }
 
+export function getCustomerBackorderReadinessConflict(lines: Array<{
+  requiredQuantity: number;
+  quantityOnHand: number;
+  quantityCommitted: number;
+}>): string | null {
+  if (!lines.length) return 'Customer backorder has no stock lines.';
+  const unavailable = lines.find(line =>
+    !Number.isFinite(line.requiredQuantity)
+    || !Number.isFinite(line.quantityOnHand)
+    || !Number.isFinite(line.quantityCommitted)
+    || line.requiredQuantity <= 0
+    || line.quantityCommitted < line.requiredQuantity
+    || line.quantityOnHand < line.quantityCommitted,
+  );
+  return unavailable ? 'Customer backorder stock is not ready for release.' : null;
+}
+
 export function getBackorderMergeConflict(
   target: BackorderMergeDocument,
   candidate: BackorderMergeDocument,

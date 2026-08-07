@@ -3,6 +3,7 @@ import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getCustomerBackorderReadinessConflict } from './backorders/domain';
 import {
   computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
@@ -2182,9 +2183,12 @@ export const ImsSORepo = {
       // qty_committed reflects the OLD lines at the OLD location; replacing the
       // lines below would strand that commitment, so we rebalance it here.
       const [[preEdit]] = await conn.execute<any[]>(
-        `SELECT status, location_id, business_id, tax_treatment FROM ims_sales_orders WHERE id = ?`, [id]
+        `SELECT status, location_id, business_id, tax_treatment FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
       );
-      const rebalanceCommitted = !!items && (preEdit?.status === 'confirmed' || preEdit?.status === 'backordered');
+      if (items && preEdit?.status === 'backordered') {
+        throw new Error('Release this customer backorder before changing its quantities.');
+      }
+      const rebalanceCommitted = !!items && preEdit?.status === 'confirmed';
       let oldCommitItems: any[] = [];
       if (rebalanceCommitted) {
         [oldCommitItems] = await conn.execute<any[]>(
@@ -2262,13 +2266,13 @@ export const ImsSORepo = {
       await conn.beginTransaction();
 
       const [[so]] = await conn.execute<any[]>(
-        `SELECT * FROM ims_sales_orders WHERE id = ?`, [id]
+        `SELECT * FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!so) throw new Error('Sales order not found');
       if (so.is_historical) throw new Error('Cannot modify a historical Cin7 record');
 
-      const items = await imsQuery<ImsSOItem>(
-        `SELECT * FROM ims_sales_order_items WHERE so_id = ?`, [id]
+      const [items] = await conn.execute<ImsSOItem[]>(
+        `SELECT * FROM ims_sales_order_items WHERE so_id = ? FOR UPDATE`, [id]
       );
 
       const from = so.status as SOStatus;
@@ -2280,6 +2284,26 @@ export const ImsSORepo = {
       }
       if (from === 'backordered' && to !== 'confirmed' && to !== 'cancelled') {
         throw new Error('A customer backorder can only be released or cancelled.');
+      }
+      if (from === 'backordered' && to === 'confirmed') {
+        const readinessLines = [];
+        for (const item of items) {
+          if (!item.variant_id) throw new Error('Customer backorder stock is not ready for release.');
+          const [[stock]] = await conn.execute<any[]>(
+            `SELECT qty_on_hand, qty_committed
+               FROM ims_stock
+              WHERE variant_id = ? AND location_id = ?
+              FOR UPDATE`,
+            [item.variant_id, so.location_id],
+          );
+          readinessLines.push({
+            requiredQuantity: Number(item.qty_ordered),
+            quantityOnHand: Number(stock?.qty_on_hand ?? 0),
+            quantityCommitted: Number(stock?.qty_committed ?? 0),
+          });
+        }
+        const conflict = getCustomerBackorderReadinessConflict(readinessLines);
+        if (conflict) throw new Error(conflict);
       }
 
       // ── draft → confirmed ────────────────────────────────────

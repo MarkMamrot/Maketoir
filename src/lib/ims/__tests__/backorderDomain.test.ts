@@ -3,6 +3,7 @@ import {
   calculateBackorderSplit,
   commercialLineKey,
   getBackorderMergeConflict,
+  getCustomerBackorderReadinessConflict,
   isOrderXeroEligible,
   nextBackorderNumber,
 } from '../backorders/domain';
@@ -75,5 +76,17 @@ describe('backorder domain', () => {
     expect(isOrderXeroEligible('backordered')).toBe(false);
     expect(isOrderXeroEligible('confirmed')).toBe(true);
     expect(isOrderXeroEligible('complete')).toBe(true);
+  });
+
+  it('releases customer backorders only when commitments exist and all committed stock is covered', () => {
+    expect(getCustomerBackorderReadinessConflict([{
+      requiredQuantity: 2, quantityCommitted: 5, quantityOnHand: 5,
+    }])).toBeNull();
+    expect(getCustomerBackorderReadinessConflict([{
+      requiredQuantity: 2, quantityCommitted: 1, quantityOnHand: 5,
+    }])).toContain('not ready');
+    expect(getCustomerBackorderReadinessConflict([{
+      requiredQuantity: 2, quantityCommitted: 5, quantityOnHand: 4,
+    }])).toContain('not ready');
   });
 });
