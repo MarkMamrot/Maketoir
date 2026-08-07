@@ -5,6 +5,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   addLocationAllRollups,
   attachedCogsMetrics,
+  completeSalesSummaryCombinations,
   dayOfWeekLabel,
   hourOfDayLabel,
   parseSalesSummaryDimensions,
@@ -124,6 +125,15 @@ type RawSummaryRow = Record<string, unknown> & {
   current_soh: number;
 };
 
+function uniqueDomainValues(rows: RawSummaryRow[], keys: string[]): Array<Record<string, unknown>> {
+  const values = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    const value = Object.fromEntries(keys.map(key => [key, row[key] ?? null]));
+    values.set(JSON.stringify(keys.map(key => value[key])), value);
+  }
+  return [...values.values()].sort((left, right) => String(left[keys.at(-1) ?? ''] ?? '').localeCompare(String(right[keys.at(-1) ?? ''] ?? ''), 'en-AU'));
+}
+
 export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -216,10 +226,30 @@ export async function GET(req: Request) {
     }));
     const groupingKeys = dimensions.flatMap(dimension => DIMENSIONS[dimension].keys);
     const metricKeys = ['sales_qty', 'sales_amount', 'attached_cogs', 'covered_qty', 'covered_amount', 'current_soh'];
-    const allRows = (dimensions.includes('location') && requestedLocationIds.length === 0
+    const rolledUpRows = (dimensions.includes('location') && requestedLocationIds.length === 0
       ? addLocationAllRollups(baseRows, groupingKeys, metricKeys)
       : baseRows
-    ).sort((a, b) => Number(b.sales_amount) - Number(a.sales_amount));
+    );
+    const domains = dimensions.map(dimension => {
+      const keys = DIMENSIONS[dimension].keys;
+      if (dimension === 'day_of_week') {
+        return { keys, values: [2, 3, 4, 5, 6, 7, 1].map(day => ({ day_of_week: day })) };
+      }
+      if (dimension === 'hour_of_day') {
+        const hours: Array<number | null> = Array.from({ length: 24 }, (_, hour) => hour);
+        if (baseRows.some(row => row.hour_of_day == null)) hours.push(null);
+        return { keys, values: hours.map(hour => ({ hour_of_day: hour })) };
+      }
+      if (dimension === 'location') {
+        const values = locationRows
+          .filter((location: any) => selectedLocationIds.includes(Number(location.id)))
+          .map((location: any) => ({ location_id: Number(location.id), location_name: location.name }));
+        if (requestedLocationIds.length === 0) values.unshift({ location_id: null, location_name: 'ALL' });
+        return { keys, values };
+      }
+      return { keys, values: uniqueDomainValues(baseRows, keys) };
+    });
+    const allRows = completeSalesSummaryCombinations(rolledUpRows, domains, metricKeys);
     const additiveRows = baseRows;
     const totalsBase = additiveRows.reduce((totals, row) => ({
       sales_qty: totals.sales_qty + row.sales_qty,

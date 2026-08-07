@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   addLocationAllRollups,
   attachedCogsMetrics,
+  completeSalesSummaryCombinations,
   dayOfWeekLabel,
   hourOfDayLabel,
   parseSalesSummaryDimensions,
@@ -36,6 +37,23 @@ describe('sales summary helpers', () => {
 
     expect(rows).toContainEqual({ location_id: null, location_name: 'ALL', brand: 'A', sales_amount: 30, current_soh: 5 });
     expect(rows).toHaveLength(5);
+  });
+
+  it('completes combinations in first-heading then second-heading order', () => {
+    const rows = completeSalesSummaryCombinations([
+      { day_of_week: 2, brand: 'B1', sales_amount: 10 },
+      { day_of_week: 3, brand: 'B2', sales_amount: 20 },
+    ], [
+      { keys: ['day_of_week'], values: [{ day_of_week: 2 }, { day_of_week: 3 }] },
+      { keys: ['brand'], values: [{ brand: 'B1' }, { brand: 'B2' }] },
+    ], ['sales_amount']);
+
+    expect(rows).toEqual([
+      { day_of_week: 2, brand: 'B1', sales_amount: 10 },
+      { day_of_week: 2, brand: 'B2', sales_amount: 0 },
+      { day_of_week: 3, brand: 'B1', sales_amount: 0 },
+      { day_of_week: 3, brand: 'B2', sales_amount: 20 },
+    ]);
   });
 
   it('calculates GP only from sales covered by attached COGS', () => {

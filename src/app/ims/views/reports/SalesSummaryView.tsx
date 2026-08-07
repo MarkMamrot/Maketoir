@@ -75,10 +75,13 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
 
   useEffect(() => { load(1); }, [load]);
 
-  const toggleDimension = (dimension: SalesSummaryDimension) => {
-    setDimensions(current => current.includes(dimension)
-      ? (current.length === 1 ? current : current.filter(item => item !== dimension))
-      : [...current, dimension]);
+  const setFirstDimension = (dimension: SalesSummaryDimension) => {
+    setDimensions(current => [dimension, ...current.slice(1).filter(item => item !== dimension)]);
+    setPage(1);
+  };
+
+  const setSecondDimension = (dimension: SalesSummaryDimension | '') => {
+    setDimensions(current => dimension ? [current[0], dimension] : [current[0]]);
     setPage(1);
   };
 
@@ -145,12 +148,19 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
 
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 0', marginBottom: 10, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)' }}>
       <SBDatePicker value={dateRange} onChange={value => { setDateRange(value); setPage(1); }} />
-      <details style={{ position: 'relative' }}>
-        <summary style={{ ...control, display: 'flex', alignItems: 'center', cursor: 'pointer', listStyle: 'none' }}>Group by: {dimensions.map(salesSummaryDimensionLabel).join(', ')}</summary>
-        <div style={{ position: 'absolute', top: 38, left: 0, zIndex: 20, minWidth: 190, padding: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', boxShadow: '0 8px 22px rgba(0,0,0,.18)' }}>
-          {SALES_SUMMARY_DIMENSIONS.map(dimension => <label key={dimension} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={dimensions.includes(dimension)} onChange={() => toggleDimension(dimension)} />{salesSummaryDimensionLabel(dimension)}</label>)}
-        </div>
-      </details>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-dim)', fontSize: 11 }}>
+        First heading
+        <select value={dimensions[0]} onChange={event => setFirstDimension(event.target.value as SalesSummaryDimension)} style={{ ...control, cursor: 'pointer' }}>
+          {SALES_SUMMARY_DIMENSIONS.map(dimension => <option key={dimension} value={dimension}>{salesSummaryDimensionLabel(dimension)}</option>)}
+        </select>
+      </label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-dim)', fontSize: 11 }}>
+        Second heading
+        <select value={dimensions[1] ?? ''} onChange={event => setSecondDimension(event.target.value as SalesSummaryDimension | '')} style={{ ...control, cursor: 'pointer' }}>
+          <option value="">None</option>
+          {SALES_SUMMARY_DIMENSIONS.filter(dimension => dimension !== dimensions[0]).map(dimension => <option key={dimension} value={dimension}>{salesSummaryDimensionLabel(dimension)}</option>)}
+        </select>
+      </label>
       <details style={{ position: 'relative' }}>
         <summary style={{ ...control, display: 'flex', alignItems: 'center', cursor: 'pointer', listStyle: 'none' }}>{allLocations ? 'All Locations' : `${selectedLocationIds.length} Locations`}</summary>
         <div style={{ position: 'absolute', top: 38, left: 0, zIndex: 20, minWidth: 210, maxHeight: 300, overflowY: 'auto', padding: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', boxShadow: '0 8px 22px rgba(0,0,0,.18)' }}>

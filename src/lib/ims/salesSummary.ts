@@ -65,6 +65,38 @@ export function addLocationAllRollups<T extends Record<string, unknown>>(
   return [...rollups.values() as Iterable<T>, ...rows];
 }
 
+export interface SalesSummaryDimensionDomain {
+  keys: string[];
+  values: Array<Record<string, unknown>>;
+}
+
+export function completeSalesSummaryCombinations<T extends Record<string, unknown>>(
+  rows: T[],
+  domains: SalesSummaryDimensionDomain[],
+  metricKeys: string[],
+): T[] {
+  if (domains.length < 2) return rows;
+
+  const rowsByCombination = new Map<string, T>();
+  const allKeys = domains.flatMap(domain => domain.keys);
+  for (const row of rows) {
+    rowsByCombination.set(JSON.stringify(allKeys.map(key => row[key] ?? null)), row);
+  }
+
+  const combinations = domains.reduce<Array<Record<string, unknown>>>(
+    (current, domain) => current.flatMap(combination => domain.values.map(value => ({ ...combination, ...value }))),
+    [{}],
+  );
+
+  return combinations.map(combination => {
+    const key = JSON.stringify(allKeys.map(field => combination[field] ?? null));
+    return rowsByCombination.get(key) ?? {
+      ...combination,
+      ...Object.fromEntries(metricKeys.map(metric => [metric, 0])),
+    } as T;
+  });
+}
+
 export interface AttachedCogsMetricsInput {
   salesAmountIncTax: number;
   coveredSalesAmountIncTax: number;
