@@ -48,3 +48,42 @@ export const WINDOW_OPTS = [
 export type SBDateRange =
   | { kind: 'window'; window: number; label: string }
   | { kind: 'range'; from: string; to: string; label: string };
+
+export type PreviousPeriod = 'week' | 'month' | 'quarter' | 'year';
+
+function localIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function previousCalendarPeriod(period: PreviousPeriod, now = new Date()): SBDateRange {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  let from: Date;
+  let to: Date;
+  let label: string;
+
+  if (period === 'week') {
+    const mondayOffset = (now.getDay() + 6) % 7;
+    from = new Date(year, month, now.getDate() - mondayOffset - 7);
+    to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 6);
+    label = 'Previous Week';
+  } else if (period === 'month') {
+    from = new Date(year, month - 1, 1);
+    to = new Date(year, month, 0);
+    label = 'Previous Month';
+  } else if (period === 'quarter') {
+    const currentQuarterStartMonth = Math.floor(month / 3) * 3;
+    from = new Date(year, currentQuarterStartMonth - 3, 1);
+    to = new Date(year, currentQuarterStartMonth, 0);
+    label = 'Previous Quarter';
+  } else {
+    from = new Date(year - 1, 0, 1);
+    to = new Date(year - 1, 11, 31);
+    label = 'Previous Year';
+  }
+
+  return { kind: 'range', from: localIsoDate(from), to: localIsoDate(to), label };
+}

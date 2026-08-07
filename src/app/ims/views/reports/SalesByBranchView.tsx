@@ -149,7 +149,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url;
-    a.download = `sales-by-branch-${new Date().toLocaleDateString('sv-SE')}.csv`; a.click();
+    a.download = `sales-detail-${new Date().toLocaleDateString('sv-SE')}.csv`; a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -192,7 +192,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Reports
         </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales - Detail</h1>
         <button
           onClick={downloadCsv}
           disabled={displayRows.length === 0}

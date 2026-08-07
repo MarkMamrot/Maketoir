@@ -19,6 +19,7 @@ import {
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
+import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
   EMPTY_MULTI,
@@ -41,7 +42,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -14927,9 +14928,15 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 const REPORT_CATALOG = [
   {
     id: 'report-sales-by-branch' as ImsView,
-    title: 'Sales',
-    description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
+    title: 'Sales - Detail',
+    description: 'Product-level sales quantity and value by location for the selected period.',
     icon: '📊',
+  },
+  {
+    id: 'report-sales-summary' as ImsView,
+    title: 'Sales - Summary',
+    description: 'Group sales by location, supplier, brand, product type, day, or hour with attached COGS, GP, and current SOH.',
+    icon: '📈',
   },
   {
     id: 'report-sales-search' as ImsView,
@@ -15061,6 +15068,10 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SalesByBranchView({ onBack }: { onBack: () => void }) {
   return <SalesByBranchViewComponent onBack={onBack} apiFetch={apiFetch} />;
+}
+
+function SalesSummaryView({ onBack }: { onBack: () => void }) {
+  return <SalesSummaryViewComponent onBack={onBack} apiFetch={apiFetch} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19005,7 +19016,7 @@ export default function ImsPage() {
     'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch','report-sales-search',
+    'reports','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -19494,6 +19505,7 @@ export default function ImsPage() {
             StocktakesView={StocktakesView}
             ReportsView={ReportsView}
             SalesByBranchView={SalesByBranchView}
+            SalesSummaryView={SalesSummaryView}
             SalesSearchView={SalesSearchView}
             InventoryValuationView={InventoryValuationView}
             ProductMarginView={ProductMarginView}

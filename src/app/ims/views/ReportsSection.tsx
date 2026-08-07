@@ -6,7 +6,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface ReportsSectionProps {
@@ -14,6 +14,7 @@ interface ReportsSectionProps {
   setView: (v: ImsView) => void;
   ReportsView: any;
   SalesByBranchView: any;
+  SalesSummaryView: any;
   SalesSearchView: any;
   InventoryValuationView: any;
   ProductMarginView: any;
@@ -27,6 +28,7 @@ export function ReportsSection({
   setView,
   ReportsView,
   SalesByBranchView,
+  SalesSummaryView,
   SalesSearchView,
   InventoryValuationView,
   ProductMarginView,
@@ -38,6 +40,7 @@ export function ReportsSection({
     <>
       {view === 'reports' && <ReportsView onNav={setView} />}
       {view === 'report-sales-by-branch' && <SalesByBranchView onBack={() => setView('reports')} />}
+      {view === 'report-sales-summary' && <SalesSummaryView onBack={() => setView('reports')} />}
       {view === 'report-sales-search' && <SalesSearchView onBack={() => setView('reports')} />}
       {view === 'report-inventory-valuation' && <InventoryValuationView onBack={() => setView('reports')} />}
       {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}

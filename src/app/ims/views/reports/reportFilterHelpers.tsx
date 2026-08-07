@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { FilterSelection, MultiFilter, SBDateRange } from './reportFilterUtils';
+import { previousCalendarPeriod, type FilterSelection, type MultiFilter, type SBDateRange } from './reportFilterUtils';
 
 export type { FilterSelection, MultiFilter, SBDateRange } from './reportFilterUtils';
 export { EMPTY_MULTI, hasMultiFilter, multiFilterParams, WINDOW_OPTS } from './reportFilterUtils';
@@ -346,7 +346,14 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const presets: { label: string; make: () => SBDateRange }[] = [
+  const previousPresets: { label: string; make: () => SBDateRange }[] = [
+    { label: 'Previous Week',    make: () => previousCalendarPeriod('week') },
+    { label: 'Previous Month',   make: () => previousCalendarPeriod('month') },
+    { label: 'Previous Quarter', make: () => previousCalendarPeriod('quarter') },
+    { label: 'Previous Year',    make: () => previousCalendarPeriod('year') },
+  ];
+
+  const rollingPresets: { label: string; make: () => SBDateRange }[] = [
     { label: 'Today',         make: () => ({ kind: 'range' as const, from: todaySB(), to: todaySB(), label: 'Today' }) },
     { label: 'Yesterday',     make: () => { const y = daysAgo(1); return { kind: 'range' as const, from: y, to: y, label: 'Yesterday' }; } },
     { label: 'Last 7 days',   make: () => ({ kind: 'window' as const, window: 7,   label: '7 Days' }) },
@@ -376,7 +383,7 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: 248, overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)' }}>
             {(['presets', 'custom'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, background: tab === t ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: tab === t ? '#fff' : 'var(--sv-text-dim)' }}>
@@ -386,15 +393,23 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
           </div>
 
           {tab === 'presets' ? (
-            <div style={{ padding: 6 }}>
-              {presets.map(p => {
-                const active = value.label === p.label;
-                return (
-                  <button key={p.label} onClick={() => apply(p.make())} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 12px', border: 'none', borderRadius: 6, background: active ? 'color-mix(in srgb, var(--sv-action) 15%, transparent)' : 'none', color: active ? 'var(--sv-action)' : 'var(--sv-text-main)', fontWeight: active ? 600 : 400, cursor: 'pointer', fontSize: 13 }}>
-                    {p.label}{active && <span style={{ float: 'right', fontSize: 10 }}>✓</span>}
-                  </button>
-                );
-              })}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', padding: 6 }}>
+              {[
+                { heading: 'Previous Period', presets: previousPresets },
+                { heading: 'Current & Rolling', presets: rollingPresets },
+              ].map((group, groupIndex) => (
+                <div key={group.heading} style={{ padding: '4px 6px 6px', borderRight: groupIndex === 0 ? '1px solid var(--sv-etch)' : 'none' }}>
+                  <p style={{ margin: '0 8px 5px', fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: 0 }}>{group.heading}</p>
+                  {group.presets.map(p => {
+                    const active = value.label === p.label || value.label === p.make().label;
+                    return (
+                      <button key={p.label} onClick={() => apply(p.make())} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, width: '100%', textAlign: 'left', padding: '7px 8px', border: 'none', borderRadius: 6, background: active ? 'color-mix(in srgb, var(--sv-action) 15%, transparent)' : 'none', color: active ? 'var(--sv-action)' : 'var(--sv-text-main)', fontWeight: active ? 600 : 400, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' }}>
+                        <span>{p.label}</span>{active && <span style={{ fontSize: 10 }}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           ) : (
             <div style={{ padding: '12px 14px' }}>

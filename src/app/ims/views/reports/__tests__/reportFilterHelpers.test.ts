@@ -4,6 +4,7 @@ import {
   WINDOW_OPTS,
   hasMultiFilter,
   multiFilterParams,
+  previousCalendarPeriod,
   type FilterSelection,
   type MultiFilter,
 } from '../reportFilterUtils';
@@ -91,6 +92,33 @@ describe('reportFilterHelpers', () => {
         { value: 180, label: '180 Days' },
         { value: 365, label: '12 Months' },
       ]);
+    });
+  });
+
+  describe('previousCalendarPeriod', () => {
+    it('returns the previous Monday-to-Sunday week', () => {
+      expect(previousCalendarPeriod('week', new Date(2026, 7, 7))).toEqual({
+        kind: 'range',
+        from: '2026-07-27',
+        to: '2026-08-02',
+        label: 'Previous Week',
+      });
+    });
+
+    it('handles month and quarter rollover into the prior year', () => {
+      const now = new Date(2026, 0, 15);
+      expect(previousCalendarPeriod('month', now)).toEqual({
+        kind: 'range', from: '2025-12-01', to: '2025-12-31', label: 'Previous Month',
+      });
+      expect(previousCalendarPeriod('quarter', now)).toEqual({
+        kind: 'range', from: '2025-10-01', to: '2025-12-31', label: 'Previous Quarter',
+      });
+    });
+
+    it('returns the complete previous calendar year', () => {
+      expect(previousCalendarPeriod('year', new Date(2026, 7, 7))).toEqual({
+        kind: 'range', from: '2025-01-01', to: '2025-12-31', label: 'Previous Year',
+      });
     });
   });
 });
