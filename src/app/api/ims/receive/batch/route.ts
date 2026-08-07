@@ -3,6 +3,9 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
+import { createHash } from 'crypto';
 import {
   computeLandedCostPerUnit,
   computeReceivedUnitCostAud,
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
       const [[poRow]] = await conn.execute<any[]>(
-        `SELECT status, is_historical, exchange_rate, tax_treatment, freight
+        `SELECT status, is_historical, exchange_rate, tax_treatment, freight, discount, xero_bill_id
          FROM ims_purchase_orders
          WHERE id = ? FOR UPDATE`,
         [po_id]
@@ -85,6 +88,19 @@ export async function POST(req: Request) {
       if (poRow.status === 'complete') {
         await conn.rollback();
         return NextResponse.json({ error: 'This purchase order is already fully received.' }, { status: 409 });
+      }
+      if (poRow.status === 'backordered') {
+        await conn.rollback();
+        return NextResponse.json({ error: 'Release this supplier backorder before receiving it.' }, { status: 409 });
+      }
+      if (create_backorder_po && poRow.xero_bill_id) {
+        const xeroStatus = await getXeroInvoiceStatus(businessId, String(poRow.xero_bill_id));
+        if (xeroStatus !== 'DRAFT') {
+          await conn.rollback();
+          return NextResponse.json({
+            error: `The linked Xero bill is ${xeroStatus ?? 'unavailable'} and cannot be split.`,
+          }, { status: 409 });
+        }
       }
 
       let productUpdatesCount = 0;
@@ -132,6 +148,10 @@ export async function POST(req: Request) {
       const totLocal = Number(paymentAgg.tot_local ?? 0);
       if (totForeign > 0 && Number.isFinite(totLocal / totForeign)) {
         effectiveRate = totLocal / totForeign;
+      }
+      if (create_backorder_po && totForeign > 0) {
+        await conn.rollback();
+        return NextResponse.json({ error: 'Purchase orders with payments cannot be split into backorders.' }, { status: 409 });
       }
 
       const taxTreatment = (poRow.tax_treatment ?? 'ex_tax') as TaxTreatment;
@@ -290,7 +310,7 @@ export async function POST(req: Request) {
       // ─── 4. Determine final PO status ────────────────────────────────────
       // Re-read current qty_received for all items to check for shortfall
       const allItems = await conn.execute<any[]>(
-        `SELECT variant_id, qty_ordered, qty_received
+        `SELECT id, variant_id, qty_ordered, qty_received
          FROM ims_purchase_order_items WHERE po_id = ?`,
         [po_id]
       );
@@ -299,6 +319,7 @@ export async function POST(req: Request) {
       const shortfallItems = poItems.filter(
         (i: any) => Number(i.qty_received) < Number(i.qty_ordered)
       ).map((i: any) => ({
+        id: i.id,
         variant_id: i.variant_id,
         product_name: i.product_name,
         sku: i.sku,
@@ -360,7 +381,7 @@ export async function POST(req: Request) {
                 expected_date, notes, supplier_invoice_number, payment_terms,
                 tax_treatment, tax_code, currency_code, exchange_rate,
                 freight, discount, subtotal, tax_amount, total_amount)
-             VALUES (?,?,?,?,'draft',CURDATE(),?,?,?,?,?,?,?,?,0,0,0,0,0)`,
+             VALUES (?,?,?,?,'backordered',CURDATE(),?,?,NULL,?,?,?,?,?,0,0,0,0,0)`,
             [
               businessId,
               backorderPoNumber,
@@ -368,7 +389,6 @@ export async function POST(req: Request) {
               origPo.location_id,
               origPo.expected_date ?? null,
               `Backorder from ${origPo.po_number}`,
-              origPo.supplier_invoice_number ? `${origPo.supplier_invoice_number}-B` : null,
               origPo.payment_terms ?? null,
               origPo.tax_treatment ?? 'ex_tax',
               origPo.tax_code ?? null,
@@ -381,14 +401,23 @@ export async function POST(req: Request) {
           // Insert shortfall items into the backorder PO
           let bkSubtotal = 0;
           let bkTax = 0;
+          const operationKey = createHash('sha256')
+            .update(`${businessId}|po-backorder|${po_id}|${shortfallItems.map((item: any) => `${item.id}:${item.qty_received}`).join('|')}`)
+            .digest('hex');
           for (const sf of shortfallItems) {
-            const origItem = origItems.find((i: any) => i.variant_id === sf.variant_id);
+            const origItem = origItems.find((i: any) => Number(i.id) === Number(sf.id));
             if (!origItem) continue;
             const lineTotal = sf.shortfall * Number(origItem.unit_cost) * (1 - Number(origItem.discount_pct ?? 0) / 100);
-            const lineTax = lineTotal * Number(origItem.tax_rate ?? 0);
-            bkSubtotal += lineTotal;
-            bkTax += lineTax;
-            await conn.execute(
+            const rate = Number(origItem.tax_rate ?? 0);
+            if (origPo.tax_treatment === 'inc_tax' && rate > 0) {
+              const exTax = lineTotal / (1 + rate);
+              bkSubtotal += exTax;
+              bkTax += lineTotal - exTax;
+            } else {
+              bkSubtotal += lineTotal;
+              if (origPo.tax_treatment === 'ex_tax') bkTax += lineTotal * rate;
+            }
+            const [backorderItemResult] = await conn.execute<any>(
               `INSERT INTO ims_purchase_order_items
                  (po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
                VALUES (?,?,?,0,?,?,?,?,?)`,
@@ -403,6 +432,12 @@ export async function POST(req: Request) {
                 origItem.notes ?? null,
               ]
             );
+            await conn.execute(
+              `INSERT INTO ims_po_backorder_lines
+                (business_id, operation_key, source_po_id, source_po_item_id, backorder_po_id, backorder_po_item_id, transferred_qty)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`,
+              [businessId, operationKey, po_id, origItem.id, backorderPoId, backorderItemResult.insertId, sf.shortfall],
+            );
           }
           // Update backorder PO totals
           await conn.execute(
@@ -410,6 +445,42 @@ export async function POST(req: Request) {
              SET subtotal = ?, tax_amount = ?, total_amount = ?
              WHERE id = ?`,
             [bkSubtotal, bkTax, bkSubtotal + bkTax, backorderPoId]
+          );
+
+          let actualSubtotal = 0;
+          let actualTax = 0;
+          for (const origItem of origItems) {
+            const currentItem = poItems.find((item: any) => Number(item.id) === Number(origItem.id));
+            const actualQty = Number(currentItem?.qty_received ?? 0);
+            if (actualQty <= 0) {
+              await conn.execute(`DELETE FROM ims_purchase_order_items WHERE id = ?`, [origItem.id]);
+              continue;
+            }
+            const lineTotal = actualQty * Number(origItem.unit_cost) * (1 - Number(origItem.discount_pct ?? 0) / 100);
+            const rate = Number(origItem.tax_rate ?? 0);
+            if (origPo.tax_treatment === 'inc_tax' && rate > 0) {
+              const exTax = lineTotal / (1 + rate);
+              actualSubtotal += exTax;
+              actualTax += lineTotal - exTax;
+            } else {
+              actualSubtotal += lineTotal;
+              if (origPo.tax_treatment === 'ex_tax') actualTax += lineTotal * rate;
+            }
+            await conn.execute(
+              `UPDATE ims_purchase_order_items SET qty_ordered = ?, line_total = ? WHERE id = ?`,
+              [actualQty, lineTotal, origItem.id],
+            );
+          }
+          actualSubtotal = Math.round(actualSubtotal * 100) / 100;
+          if (origPo.tax_treatment === 'ex_tax') {
+            const freightTaxRate = Number(origItems.find((item: any) => Number(item.tax_rate) > 0)?.tax_rate ?? 0);
+            actualTax += Number(origPo.freight ?? 0) * freightTaxRate;
+          }
+          actualTax = origPo.tax_treatment === 'no_tax' ? 0 : Math.round(actualTax * 100) / 100;
+          const actualTotal = Math.round((actualSubtotal + actualTax + Number(origPo.freight ?? 0) - Number(origPo.discount ?? 0)) * 100) / 100;
+          await conn.execute(
+            `UPDATE ims_purchase_orders SET subtotal = ?, tax_amount = ?, total_amount = ? WHERE id = ?`,
+            [actualSubtotal, actualTax, actualTotal, po_id],
           );
         }
       }
@@ -449,6 +520,13 @@ export async function POST(req: Request) {
     }
   } catch (e: any) {
     console.error('Batch receive error:', e);
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims_purchase_orders',
+      operation: 'receive_purchase_order',
+      title: 'Purchase order receive failed',
+      error: e,
+    });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

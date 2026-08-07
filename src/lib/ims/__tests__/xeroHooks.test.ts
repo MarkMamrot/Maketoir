@@ -160,6 +160,22 @@ describe('PO and SO Xero document policies', () => {
     expect(mockSyncPOAsDraftBill).not.toHaveBeenCalled();
   });
 
+  it('does not load Xero configuration for a supplier backorder', async () => {
+    await triggerPOXeroSync('biz-1', 12, 'backordered');
+
+    expect(mockConnectionsGet).not.toHaveBeenCalled();
+    expect(mockGetPolicy).not.toHaveBeenCalled();
+    expect(mockPOGet).not.toHaveBeenCalled();
+  });
+
+  it('does not load Xero configuration for a customer backorder', async () => {
+    await triggerSOXeroSync('biz-1', 8, 'backordered');
+
+    expect(mockConnectionsGet).not.toHaveBeenCalled();
+    expect(mockGetPolicy).not.toHaveBeenCalled();
+    expect(mockSOGet).not.toHaveBeenCalled();
+  });
+
   it('reports a policy storage failure and skips Xero mutation', async () => {
     mockGetPolicy.mockRejectedValue(new Error('policy table unavailable'));
 

@@ -67,8 +67,8 @@ async function setOrgAvgCost(conn: any, variantId: string, newAvg: number): Prom
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'b2b_customer' | 'retail_customer' | 'lead' | 'both';
-export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'complete' | 'cancelled';
-export type SOStatus    = 'draft' | 'confirmed' | 'fulfilled' | 'cancelled';
+export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'backordered' | 'complete' | 'cancelled';
+export type SOStatus    = 'draft' | 'confirmed' | 'backordered' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
   id: number; type: ContactType;
@@ -1183,6 +1183,15 @@ export const ImsPORepo = {
     try {
       await conn.beginTransaction();
 
+      if (items) {
+        const [[currentPo]] = await conn.execute<any[]>(
+          `SELECT status FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+        );
+        if (currentPo?.status === 'backordered') {
+          throw new Error('Release this supplier backorder before changing its quantities.');
+        }
+      }
+
       if (sets.length) {
         vals.push(id);
         await conn.execute(`UPDATE ims_purchase_orders SET ${sets.join(', ')} WHERE id = ?`, vals);
@@ -1455,6 +1464,12 @@ export const ImsPORepo = {
       if (from === to) {
         await conn.commit();
         return;
+      }
+      if (to === 'backordered') {
+        throw new Error('Backorders must be created through partial receipt.');
+      }
+      if (from === 'backordered' && to !== 'confirmed' && to !== 'cancelled') {
+        throw new Error('A supplier backorder can only be released or cancelled.');
       }
 
       // ── draft → confirmed ─────────────────────────────────────
@@ -1761,6 +1776,20 @@ export const ImsPORepo = {
           );
         }
       }
+
+      // ── backordered → cancelled (release retained incoming quantity) ─────
+      if (to === 'cancelled' && from === 'backordered') {
+        for (const item of items) {
+          await conn.execute(
+            `UPDATE ims_stock SET qty_incoming = GREATEST(0, qty_incoming - ?)
+             WHERE variant_id=? AND location_id=?`,
+            [item.qty_ordered, item.variant_id, po.location_id]
+          );
+        }
+      }
+
+      // backordered → confirmed is a manual release. The held PO already owns
+      // qty_incoming, so this state change intentionally has no stock delta.
 
       // ── partially_received → cancelled ───────────────────────────────────────
       if (to === 'cancelled' && from === 'partially_received') {
@@ -2155,7 +2184,7 @@ export const ImsSORepo = {
       const [[preEdit]] = await conn.execute<any[]>(
         `SELECT status, location_id, business_id, tax_treatment FROM ims_sales_orders WHERE id = ?`, [id]
       );
-      const rebalanceCommitted = !!items && preEdit?.status === 'confirmed';
+      const rebalanceCommitted = !!items && (preEdit?.status === 'confirmed' || preEdit?.status === 'backordered');
       let oldCommitItems: any[] = [];
       if (rebalanceCommitted) {
         [oldCommitItems] = await conn.execute<any[]>(
@@ -2246,6 +2275,12 @@ export const ImsSORepo = {
       const to   = newStatus;
 
       if (from === to) return;
+      if (to === 'backordered') {
+        throw new Error('Backorders must be created through partial fulfilment.');
+      }
+      if (from === 'backordered' && to !== 'confirmed' && to !== 'cancelled') {
+        throw new Error('A customer backorder can only be released or cancelled.');
+      }
 
       // ── draft → confirmed ────────────────────────────────────
       if (from === 'draft' && to === 'confirmed') {
@@ -2342,6 +2377,20 @@ export const ImsSORepo = {
           );
         }
       }
+
+      // ── backordered → cancelled (release retained commitment) ─
+      if (to === 'cancelled' && from === 'backordered') {
+        for (const item of items) {
+          await conn.execute(
+            `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+             WHERE variant_id=? AND location_id=?`,
+            [item.qty_ordered, item.variant_id, so.location_id]
+          );
+        }
+      }
+
+      // backordered → confirmed is a manual release. The backorder already owns
+      // the commitment, so changing state must not mutate qty_committed.
 
       await conn.execute(
         `UPDATE ims_sales_orders SET status = ? WHERE id = ?`, [to, id]

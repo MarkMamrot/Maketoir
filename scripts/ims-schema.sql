@@ -468,7 +468,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   po_number     VARCHAR(50) NOT NULL UNIQUE,
   supplier_id   INT,
   location_id   INT NOT NULL,
-  status        ENUM('draft','approved','received','cancelled') NOT NULL DEFAULT 'draft',
+  status        ENUM('draft','confirmed','partially_received','backordered','complete','cancelled') NOT NULL DEFAULT 'draft',
   order_date    DATE NOT NULL,
   expected_date DATE,
   received_date DATE,
@@ -484,6 +484,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
+  INDEX idx_po_backorder_queue (business_id, status, supplier_id, created_at),
   FOREIGN KEY (supplier_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -536,7 +537,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
   location_id      INT NOT NULL,
-  status           ENUM('draft','confirmed','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
+  status           ENUM('draft','confirmed','backordered','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
   order_date       DATE NOT NULL,
   expected_date    DATE,
   fulfilled_date   DATE,
@@ -549,6 +550,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
+  INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -571,6 +573,44 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_soi_so (so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Backorder Line Provenance ───────────────────────────────
+-- A destination backorder may contain quantities from multiple source orders.
+CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  operation_key       VARCHAR(191) NOT NULL,
+  source_po_id        INT NOT NULL,
+  source_po_item_id   INT NOT NULL,
+  backorder_po_id     INT NOT NULL,
+  backorder_po_item_id INT NOT NULL,
+  transferred_qty     DECIMAL(12,4) NOT NULL,
+  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_po_backorder_operation_line (business_id, operation_key, source_po_item_id),
+  INDEX idx_po_backorder_source (business_id, source_po_id),
+  INDEX idx_po_backorder_destination (business_id, backorder_po_id),
+  FOREIGN KEY (source_po_id) REFERENCES ims_purchase_orders(id),
+  FOREIGN KEY (backorder_po_id) REFERENCES ims_purchase_orders(id),
+  FOREIGN KEY (backorder_po_item_id) REFERENCES ims_purchase_order_items(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  operation_key       VARCHAR(191) NOT NULL,
+  source_so_id        INT NOT NULL,
+  source_so_item_id   INT NOT NULL,
+  backorder_so_id     INT NOT NULL,
+  backorder_so_item_id INT NOT NULL,
+  transferred_qty     DECIMAL(12,4) NOT NULL,
+  created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_so_backorder_operation_line (business_id, operation_key, source_so_item_id),
+  INDEX idx_so_backorder_source (business_id, source_so_id),
+  INDEX idx_so_backorder_destination (business_id, backorder_so_id),
+  FOREIGN KEY (source_so_id) REFERENCES ims_sales_orders(id),
+  FOREIGN KEY (backorder_so_id) REFERENCES ims_sales_orders(id),
+  FOREIGN KEY (backorder_so_item_id) REFERENCES ims_sales_order_items(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Customer Credit Notes / Returns ─────────────────────────

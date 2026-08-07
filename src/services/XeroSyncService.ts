@@ -644,6 +644,12 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   }
 }
 
+export async function getXeroInvoiceStatus(businessId: string, xeroId: string): Promise<string | null> {
+  const current = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(xeroId)}`, { method: 'GET' });
+  const status = current?.Invoices?.[0]?.Status;
+  return typeof status === 'string' ? status : null;
+}
+
 /**
  * Approve a Bill in Xero (when PO is received or has a payment).
  */

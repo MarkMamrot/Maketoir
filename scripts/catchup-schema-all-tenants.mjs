@@ -21,6 +21,40 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_po_backorder_lines (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    operation_key VARCHAR(191) NOT NULL,
+    source_po_id INT NOT NULL,
+    source_po_item_id INT NOT NULL,
+    backorder_po_id INT NOT NULL,
+    backorder_po_item_id INT NOT NULL,
+    transferred_qty DECIMAL(12,4) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_po_backorder_operation_line (business_id, operation_key, source_po_item_id),
+    INDEX idx_po_backorder_source (business_id, source_po_id),
+    INDEX idx_po_backorder_destination (business_id, backorder_po_id),
+    CONSTRAINT fk_po_backorder_source_order FOREIGN KEY (source_po_id) REFERENCES ims_purchase_orders(id),
+    CONSTRAINT fk_po_backorder_destination_order FOREIGN KEY (backorder_po_id) REFERENCES ims_purchase_orders(id),
+    CONSTRAINT fk_po_backorder_destination_item FOREIGN KEY (backorder_po_item_id) REFERENCES ims_purchase_order_items(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_so_backorder_lines (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    operation_key VARCHAR(191) NOT NULL,
+    source_so_id INT NOT NULL,
+    source_so_item_id INT NOT NULL,
+    backorder_so_id INT NOT NULL,
+    backorder_so_item_id INT NOT NULL,
+    transferred_qty DECIMAL(12,4) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_so_backorder_operation_line (business_id, operation_key, source_so_item_id),
+    INDEX idx_so_backorder_source (business_id, source_so_id),
+    INDEX idx_so_backorder_destination (business_id, backorder_so_id),
+    CONSTRAINT fk_so_backorder_source_order FOREIGN KEY (source_so_id) REFERENCES ims_sales_orders(id),
+    CONSTRAINT fk_so_backorder_destination_order FOREIGN KEY (backorder_so_id) REFERENCES ims_sales_orders(id),
+    CONSTRAINT fk_so_backorder_destination_item FOREIGN KEY (backorder_so_item_id) REFERENCES ims_sales_order_items(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS pos_chat_messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     location_id INT NOT NULL,
@@ -594,6 +628,8 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
+  ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
+  ['ims_sales_orders', 'idx_so_backorder_queue', 'INDEX `idx_so_backorder_queue` (`business_id`, `status`, `customer_id`, `created_at`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
@@ -717,6 +753,8 @@ async function migrateSchema(schema) {
   }
 
   try {
+    await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
+    await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'backordered', 'fulfilled', 'cancelled']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned']);

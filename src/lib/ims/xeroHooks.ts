@@ -8,6 +8,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { isOrderXeroEligible } from '@/lib/ims/backorders/domain';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
@@ -100,6 +101,7 @@ export async function triggerPOXeroSync(
   newStatus: string,
   supplierInvoiceNumberOverride?: string,
 ): Promise<void> {
+  if (!isOrderXeroEligible(newStatus)) return;
   if (!await isXeroConnected(businessId)) return;
 
   const policy = await loadDocumentPolicy(businessId);
@@ -108,7 +110,7 @@ export async function triggerPOXeroSync(
   if (action === 'none') return;
 
   const po = await ImsPORepo.get(poId, businessId);
-  if (!po) return;
+  if (!po || !isOrderXeroEligible(String((po as any).status ?? newStatus))) return;
   const poForSync = supplierInvoiceNumberOverride
     ? { ...po, supplier_invoice_number: supplierInvoiceNumberOverride }
     : po;
@@ -149,7 +151,7 @@ export async function triggerPOXeroUpdate(businessId: string, poId: number): Pro
   if (!await isXeroConnected(businessId)) return;
 
   const po = await ImsPORepo.get(poId, businessId);
-  if (!po) return;
+  if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return;
 
   const xeroId = (po as any).xero_bill_id ?? null;
   if (!xeroId) return; // No Xero bill exists yet — nothing to update
@@ -170,7 +172,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
   if (!policy.poPaymentSyncEnabled) return;
 
   const po = await ImsPORepo.get(poId, businessId);
-  if (!po) return;
+  if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return;
 
   const payment = (po as any).payments?.find((candidate: any) => candidate.id === paymentId);
   if (!payment?.payment_method_id) return;
@@ -217,7 +219,7 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
   if (!policy.soPaymentSyncEnabled) return;
 
   const so = await ImsSORepo.get(soId, businessId);
-  if (!so) return;
+  if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return;
 
   const payment = (so as any).payments?.find((p: any) => p.id === paymentId);
   if (!payment) return;
@@ -251,6 +253,7 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
  * - confirmed: Create Xero Invoice (wholesale orders only)
  */
 export async function triggerSOXeroSync(businessId: string, soId: number, newStatus: string): Promise<void> {
+  if (!isOrderXeroEligible(newStatus)) return;
   if (!await isXeroConnected(businessId)) return;
 
   const policy = await loadDocumentPolicy(businessId);
@@ -259,7 +262,7 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
   if (action === 'none') return;
 
   const so = await ImsSORepo.get(soId, businessId);
-  if (!so) return;
+  if (!so || !isOrderXeroEligible(String((so as any).status ?? newStatus))) return;
   let xeroInvoiceId = (so as any).xero_invoice_id ?? null;
   if (xeroInvoiceId) {
     await updateXeroDraftInvoice(businessId, so as any, xeroInvoiceId);
@@ -284,7 +287,7 @@ export async function triggerSOXeroUpdate(businessId: string, soId: number): Pro
   if (!await isXeroConnected(businessId)) return;
 
   const so = await ImsSORepo.get(soId, businessId);
-  if (!so) return;
+  if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return;
 
   const xeroId = (so as any).xero_invoice_id ?? null;
   if (!xeroId) return;

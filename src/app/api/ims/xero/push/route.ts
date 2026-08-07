@@ -74,6 +74,9 @@ export async function POST(req: Request) {
       );
       if (!rows[0]) return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
       const status = rows[0]?.status ?? 'confirmed';
+      if (status === 'backordered') {
+        return NextResponse.json({ error: 'Release this supplier backorder before syncing it to Xero.' }, { status: 409 });
+      }
       const supplierInvoiceNumber = String(rows[0]?.supplier_invoice_number ?? '').trim();
       const normalizedSuffix = invoiceNumberSuffix === undefined ? null : normalizeInvoiceNumberSuffix(invoiceNumberSuffix);
       if (invoiceNumberSuffix !== undefined && !normalizedSuffix) {
@@ -136,7 +139,11 @@ export async function POST(req: Request) {
       });
     } else if (type === 'so') {
       const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_sales_orders WHERE id = ?`, [id]);
+      if (!rows[0]) return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
       const status = rows[0]?.status ?? 'confirmed';
+      if (status === 'backordered') {
+        return NextResponse.json({ error: 'Release this customer backorder before syncing it to Xero.' }, { status: 409 });
+      }
       await triggerSOXeroSync(businessId, id, status);
       const resultRows = await imsQuery<{ xero_sync_status: string | null; xero_invoice_id: string | null }>(
         `SELECT xero_sync_status, xero_invoice_id FROM ims_sales_orders WHERE id = ? LIMIT 1`,

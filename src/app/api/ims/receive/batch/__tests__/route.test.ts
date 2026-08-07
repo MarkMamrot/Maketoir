@@ -62,6 +62,10 @@ function buildFakeConnection(state: {
       return [[state.po]];
     }
 
+    if (s.startsWith('select * from ims_purchase_orders where id = ?')) {
+      return [[state.po]];
+    }
+
     if (s.includes('from ims_settings') && s.includes('freight_treatment') && s.includes('landed_cost_treatment')) {
       return [state.settings];
     }
@@ -158,14 +162,33 @@ function buildFakeConnection(state: {
       return [{ affectedRows: 1 }];
     }
 
-    if (s.includes('select variant_id, qty_ordered, qty_received from ims_purchase_order_items where po_id = ?')) {
+    if (s.includes('select id, variant_id, qty_ordered, qty_received from ims_purchase_order_items where po_id = ?')) {
       const [poId] = params;
       return [state.items.filter((i) => i.po_id === poId).map((i) => ({
+        id: i.id,
         variant_id: i.variant_id,
         qty_ordered: i.qty_ordered,
         qty_received: i.qty_received,
       }))];
     }
+
+    if (s.startsWith('select id from ims_purchase_orders where po_number = ?')) return [[]];
+
+    if (s.startsWith('select * from ims_purchase_order_items where po_id = ?')) {
+      return [state.items.map((item) => ({ ...item, discount_pct: item.discount_pct ?? 0 }))];
+    }
+
+    if (s.startsWith('insert into ims_purchase_orders')) return [{ insertId: 91 }];
+    if (s.startsWith('insert into ims_purchase_order_items')) return [{ insertId: 301 }];
+    if (s.startsWith('insert into ims_po_backorder_lines')) return [{ affectedRows: 1 }];
+    if (s.startsWith('update ims_purchase_order_items set qty_ordered = ?, line_total = ? where id = ?')) {
+      const [qtyOrdered, lineTotal, itemId] = params;
+      const row = state.items.find((item) => item.id === itemId);
+      if (row) { row.qty_ordered = qtyOrdered; row.line_total = lineTotal; }
+      return [{ affectedRows: row ? 1 : 0 }];
+    }
+    if (s.startsWith('delete from ims_purchase_order_items where id = ?')) return [{ affectedRows: 1 }];
+    if (s.startsWith('update ims_purchase_orders set subtotal = ?, tax_amount = ?, total_amount = ?')) return [{ affectedRows: 1 }];
 
     if (s.startsWith("update ims_purchase_orders set status = 'complete', received_date = curdate() where id = ?")) {
       state.po.status = 'complete';
@@ -321,5 +344,72 @@ describe('POST /api/ims/receive/batch', () => {
     expect(state.movements[0].unit_cost).toBeCloseTo(15, 8);
 
     expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
+  });
+
+  it('moves supplier shortfalls to a held PO and resizes the original to actual receipts', async () => {
+    const state = {
+      po: {
+        id: 33,
+        business_id: 'biz-1',
+        po_number: 'PO-2026-0033',
+        supplier_id: 8,
+        location_id: 4,
+        status: 'confirmed',
+        is_historical: 0,
+        exchange_rate: 1,
+        tax_treatment: 'inc_tax',
+        freight: 0,
+        discount: 0,
+        xero_bill_id: null,
+      },
+      settings: [],
+      items: [{
+        id: 303,
+        po_id: 33,
+        variant_id: 'v-3',
+        qty_ordered: 10,
+        qty_received: 0,
+        unit_cost: 11,
+        discount_pct: 0,
+        tax_rate: 0.1,
+        line_total: 110,
+      }],
+      stockByVariant: new Map<string, Row>([
+        ['v-3|4', { variant_id: 'v-3', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 10, avg_cost: 0 }],
+      ]),
+      landedRows: [],
+      paymentAgg: { tot_foreign: 0, tot_local: 0 },
+      movements: [] as Row[],
+      variantAvgById: new Map<string, number>([['v-3', 0]]),
+    };
+    const connection = buildFakeConnection(state);
+    mockGetConnection.mockResolvedValue(connection);
+
+    const res = await POST(makeRequest({
+      po_id: 33,
+      location_id: 4,
+      received_items: [{ variant_id: 'v-3', qty_received: 3 }],
+      mark_po_received: true,
+      create_backorder_po: true,
+    }));
+
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.backorderPoId).toBe(91);
+    expect(json.backorderPoNumber).toBe('PO-2026-0033-B');
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("'backordered'"),
+      expect.arrayContaining(['biz-1', 'PO-2026-0033-B']),
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_po_backorder_lines'),
+      expect.arrayContaining(['biz-1', 33, 303, 91, 301, 7]),
+    );
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_ordered = ?, line_total = ?'),
+      [3, 33, 303],
+    );
+    expect(state.stockByVariant.get('v-3|4')?.qty_incoming).toBe(7);
+    expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 33, 'complete');
   });
 });
