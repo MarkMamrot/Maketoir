@@ -167,21 +167,23 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   };
 
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
-  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top', position: 'sticky', top: 0, zIndex: 2 };
+  const hCell: React.CSSProperties    = { ...cellStyle, height: 52, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0, background: 'var(--sv-bg-2)', verticalAlign: 'middle', textAlign: 'center', position: 'sticky', top: 0, zIndex: 2 };
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right' };
-  const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
+  const numHCell: React.CSSProperties = { ...hCell, textAlign: 'center' };
   const frozenDivider = '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)';
 
-  const sortTh = (col: string, label: string, extra?: React.CSSProperties) => (
-    <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
-      {label}
-      <SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />
-    </th>
+  const headingLabel = (primary: React.ReactNode, secondary: React.ReactNode, col?: string) => (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, lineHeight: 1.05, whiteSpace: 'normal' }}>
+      <span>{primary}{col && <SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />}</span>
+      <span style={{ fontSize: 9, fontWeight: 500, color: 'var(--sv-text-dim)', opacity: 0.85 }}>{secondary}</span>
+    </span>
   );
 
-  function sortArrow(col: string) {
-    return <SortArrowIcon col={col} sortCol={sortCol} sortAsc={sortAsc} />;
-  }
+  const sortTh = (col: string, primary: React.ReactNode, secondary: React.ReactNode, extra?: React.CSSProperties) => (
+    <th onClick={() => toggleSort(col)} style={{ ...hCell, cursor: 'pointer', userSelect: 'none', ...extra }}>
+      {headingLabel(primary, secondary, col)}
+    </th>
+  );
 
   return (
     <div>
@@ -259,23 +261,23 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ ...hCell, left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44, textAlign: 'right' }}>#</th>
-                {sortTh('product', 'Product', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
-                {sortTh('sku', 'SKU')}
-                {sortTh('brand', 'Brand')}
-                {sortTh('supplier', 'Supplier')}
+                <th style={{ ...hCell, left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44 }}>{headingLabel('Row', 'No.')}</th>
+                {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
+                {sortTh('sku', 'Product', 'SKU')}
+                {sortTh('brand', 'Product', 'Brand')}
+                {sortTh('supplier', 'Primary', 'Supplier')}
                 <th onClick={() => toggleSort('sales_qty')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                  Sales Qty ({dateRange.label}){sortArrow('sales_qty')}
+                  {headingLabel('Sales Qty', dateRange.label, 'sales_qty')}
                 </th>
                 <th onClick={() => toggleSort('sales_amount')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
-                  Sales Amount (inc. GST){sortArrow('sales_amount')}
+                  {headingLabel('Sales Amount', 'Inc. GST', 'sales_amount')}
                 </th>
                 {displayLocations.flatMap(location => [
                   <th key={`${location.id}-qty`} onClick={() => toggleSort(`loc_qty_${location.id}`)} style={{ ...numHCell, minWidth: 85, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
-                    {location.name} Qty{sortArrow(`loc_qty_${location.id}`)}
+                    {headingLabel(location.name, 'Qty', `loc_qty_${location.id}`)}
                   </th>,
                   <th key={`${location.id}-amount`} onClick={() => toggleSort(`loc_amount_${location.id}`)} style={{ ...numHCell, minWidth: 115, whiteSpace: 'normal', lineHeight: 1.3, cursor: 'pointer', userSelect: 'none' }}>
-                    {location.name} Amount{sortArrow(`loc_amount_${location.id}`)}
+                    {headingLabel(location.name, 'Amount · Inc. GST', `loc_amount_${location.id}`)}
                   </th>,
                 ])}
               </tr>

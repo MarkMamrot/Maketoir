@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 // Nano Banana models that support image output via Interactions API
 const IMAGE_MODELS = new Set([
@@ -26,9 +27,21 @@ const CATEGORY_RENDER_RULES: Record<string, string> = {
   templates: 'Render only the requested reusable composition structure. Do not invent products, logos, readable text, or a campaign narrative.',
 };
 
+const REFERENCE_INSTRUCTIONS: Record<string, string> = {
+  models: 'MODEL reference — use this person\'s exact face, body, skin tone, and identity. Do not retain their clothing unless requested:',
+  poses: 'POSE reference — reproduce the body position, stance, limb placement, head angle, and weight distribution. Do not retain the person\'s identity or clothing:',
+  backdrops: 'BACKDROP reference — use the background, setting, lighting, surfaces, and perspective. Do not retain people, products, logos, or text:',
+  scenes: 'SCENE reference — use the environmental context, composition, mood, lighting, and atmosphere. Do not retain people, products, logos, or text:',
+};
+
 export async function POST(req: Request) {
   const sessionCookie = cookies().get('marketoir_session');
   if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  let businessId = '';
+  try {
+    const session = JSON.parse(sessionCookie.value);
+    businessId = session.businessId ?? session.databaseId ?? '';
+  } catch {}
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
@@ -56,13 +69,14 @@ export async function POST(req: Request) {
   }
 
   const model = IMAGE_MODELS.has(imageModel) ? imageModel : 'gemini-3.1-flash-image';
+  const normalizedCategory = String(category ?? '').toLowerCase();
 
   const ai = new GoogleGenAI({ apiKey });
 
   // Build multimodal input when a reference image is supplied
   const inputPayload: any = (referenceImageData && referenceImageMime)
     ? [
-        { type: 'text', text: 'MODEL reference — use this person\'s exact face, body, skin tone, and identity as the model in the generated image. Do NOT keep any clothing worn in this photo:' },
+        { type: 'text', text: REFERENCE_INSTRUCTIONS[normalizedCategory] ?? 'REFERENCE image — use this image only to guide the requested reusable asset:' },
         { type: 'image', data: referenceImageData, mime_type: referenceImageMime },
         { type: 'text', text: prompt },
       ]
@@ -102,8 +116,17 @@ export async function POST(req: Request) {
     }
 
     // Nothing found — return debug info so we can see what came back
+    const noImageError = new Error('No image returned by the model.');
+    await reportRuntimeIssue({
+      businessId,
+      source: 'brand-assets',
+      operation: 'generate-image',
+      title: 'Brand asset image generation returned no image',
+      error: noImageError,
+      context: { category: normalizedCategory, model, hasReferenceImage: !!referenceImageData },
+    });
     return NextResponse.json({
-      error: 'No image returned by the model.',
+      error: noImageError.message,
       debug: {
         hasOutputImage: !!interaction?.output_image,
         outputText: interaction?.output_text?.slice(0, 200) ?? null,
@@ -113,6 +136,14 @@ export async function POST(req: Request) {
 
   } catch (e: any) {
     const msg = e?.message ?? String(e);
+    await reportRuntimeIssue({
+      businessId,
+      source: 'brand-assets',
+      operation: 'generate-image',
+      title: 'Brand asset image generation failed',
+      error: e,
+      context: { category: normalizedCategory, model, hasReferenceImage: !!referenceImageData },
+    });
     return NextResponse.json({
       error: msg.length > 300 ? msg.slice(0, 300) + '…' : msg,
     }, { status: 500 });
