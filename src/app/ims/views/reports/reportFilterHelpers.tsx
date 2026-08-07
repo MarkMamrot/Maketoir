@@ -383,7 +383,7 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden' }}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)' }}>
             {(['presets', 'custom'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, background: tab === t ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: tab === t ? '#fff' : 'var(--sv-text-dim)' }}>
