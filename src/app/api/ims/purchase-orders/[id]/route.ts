@@ -5,6 +5,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerPOXeroSync, triggerPOXeroVoid, triggerPOXeroUpdate } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -92,6 +93,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     } else {
       const existing = await ImsPORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+      if (existing.status === 'complete' && existing.xero_bill_id) {
+        const xeroStatus = await getXeroInvoiceStatus(businessId, existing.xero_bill_id);
+        if (xeroStatus !== 'DRAFT') {
+          return NextResponse.json({
+            success: false,
+            error: xeroStatus
+              ? `This purchase order cannot be edited because its Xero bill is ${xeroStatus}. Reverse or correct the transaction through the supported workflow instead.`
+              : 'This purchase order cannot be edited because the linked Xero bill status could not be verified.',
+          }, { status: 409 });
+        }
+      }
       const { landed_costs, ...cleanPoData } = poData;
       await ImsPORepo.update(Number(params.id), cleanPoData, items, landed_costs);
 

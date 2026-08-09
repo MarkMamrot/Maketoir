@@ -32,6 +32,9 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 - [x] Cin7 product/stock sync to IMS
 - [x] Order Planner (reorder suggestions → Draft Orders sheet → Cin7 PO)
 - [x] AI Helper chat (Professor KnowItAll persona, chat history, save to Drive)
+- [x] Customer SO incremental partial fulfilment (delta stock/commitment movements, idempotent retries, final-only Xero approval)
+- [x] Resolve Outstanding Orders (customer/supplier cancel or held child, evidence-backed no-stock credits, Xero refund/unapplied/deferred allocation)
+- [x] Deploy partial-fulfilment and resolution schema to all active tenants
 
 ### 🔲 In Progress / Next
 - [ ] **Cin7 product_type sync** — map `cin7Product.Type` → `product_type` in IMS cache (see project_memory.md TODO)
@@ -59,3 +62,11 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 - POS returns automatically create completed `source='pos'` IMS credit notes. Store-credit returns issue credit through that note; cash/card refunds create the note without changing store credit.
 - POS-sourced credit notes remain in the existing POS/EOD Xero accounting flow and are not posted as separate Xero credit notes. Shopify credit notes remain externally settled by Shopify.
 - `ims_contacts.store_credit` is a read-only cached balance. Runtime mutations must be recorded through `store_credit_transactions`; generic contact updates must never replace it.
+
+### Order Shortfalls and Backorders
+- Customer SOs support repeated incremental shipments. A short shipment leaves the original SO `partially_fulfilled`; stock on hand and commitments decrease only by each shipped delta.
+- Example: 100 units ordered and 70 shipped leaves 30 committed on the original SO. Shipping the final 30 completes the SO and triggers the configured fulfilled Xero action.
+- From a partial order, **Resolve Outstanding** can leave the remainder open, cancel it, or transfer it to a held child without repeating shipment/receipt stock movements.
+- Unpaid editable Draft/Authorised Xero documents are resized. Paid/part-paid value starts with an Authorised no-restock credit note, then refund, unapplied credit, or a child-order reservation is recorded durably.
+- Reserved credit is allocated only after the held child invoice/bill is Authorised. Held orders owning reserved/allocated credit cannot be merged or cancelled casually.
+- Supplier financial correction requires a supplier credit reference or evidence note; Solvantis never invents supplier credit.

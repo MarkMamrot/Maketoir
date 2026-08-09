@@ -10,6 +10,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { isOrderXeroEligible } from '@/lib/ims/backorders/domain';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
+import { allocateReservedCustomerCredit, allocateReservedSupplierCredit } from '@/lib/ims/orderResolution/reservedCreditAllocation';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
@@ -137,6 +138,7 @@ export async function triggerPOXeroSync(
   if (action !== 'authorised') return;
 
   const approved = await approveBill(businessId, xeroInvoiceId, poId);
+  if (approved) await allocateReservedSupplierCredit(businessId, poId);
   if (approved && newStatus === 'complete' && (po.payments?.length ?? 0) > 0) {
     await syncPOReceivedJournal(businessId, poId, po.po_number, po.total_amount, po.location_id);
   }
@@ -274,7 +276,8 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
     );
   }
   if (xeroInvoiceId && action === 'authorised') {
-    await approveInvoice(businessId, xeroInvoiceId, Number(soId));
+    const approved = await approveInvoice(businessId, xeroInvoiceId, Number(soId));
+    if (approved) await allocateReservedCustomerCredit(businessId, soId);
   }
 }
 

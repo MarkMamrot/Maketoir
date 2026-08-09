@@ -526,7 +526,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
 
 -- ── Sales Orders ─────────────────────────────────────────────
 -- draft     → confirmed  (adds qty_committed)
--- confirmed → fulfilled  (deducts qty_on_hand + qty_committed, snapshots unit_cost)
+-- confirmed → partially_fulfilled → fulfilled (deducts shipped qty from on-hand + committed)
 -- confirmed → draft      (reverses qty_committed)
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_sales_orders (
@@ -537,7 +537,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
   location_id      INT NOT NULL,
-  status           ENUM('draft','confirmed','backordered','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
+  status           ENUM('draft','confirmed','partially_fulfilled','backordered','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
   order_date       DATE NOT NULL,
   expected_date    DATE,
   fulfilled_date   DATE,
@@ -573,6 +573,108 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_soi_so (so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
+  id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id    VARCHAR(100) NOT NULL,
+  operation_key  VARCHAR(191) NOT NULL,
+  request_hash   CHAR(64) NOT NULL,
+  so_id          INT NOT NULL,
+  status         ENUM('processing','complete') NOT NULL DEFAULT 'processing',
+  response_json  JSON NULL,
+  created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at   DATETIME NULL,
+  UNIQUE KEY uq_so_fulfilment_operation (business_id, operation_key),
+  INDEX idx_so_fulfilment_order (business_id, so_id, created_at),
+  FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_so_shortfall_resolutions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  operation_key VARCHAR(191) NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  source_so_id INT NOT NULL,
+  outcome ENUM('leave_partial','cancel_remainder','create_backorder') NOT NULL,
+  settlement ENUM('none','refund','leave_unapplied','reserve_for_backorder') NOT NULL DEFAULT 'none',
+  child_so_id INT NULL,
+  credit_note_id INT NULL,
+  outstanding_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  accounting_action ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none',
+  state ENUM('processing','xero_pending','complete','failed','unknown') NOT NULL DEFAULT 'processing',
+  safe_error VARCHAR(500) NULL,
+  response_json JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_so_shortfall_operation (business_id, operation_key),
+  INDEX idx_so_shortfall_source (business_id, source_so_id, created_at),
+  INDEX idx_so_shortfall_child (business_id, child_so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_customer_credit_settlements (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  resolution_id BIGINT NOT NULL,
+  action_key VARCHAR(191) NOT NULL,
+  action_type ENUM('refund','leave_unapplied','reserve_for_order','allocate_to_invoice','allocate_to_source') NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  target_so_id INT NULL,
+  target_xero_document_id VARCHAR(100) NULL,
+  account_code VARCHAR(50) NULL,
+  status ENUM('planned','running','succeeded','failed','unknown','released') NOT NULL DEFAULT 'planned',
+  xero_id VARCHAR(100) NULL,
+  safe_error VARCHAR(500) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_customer_credit_action (business_id, action_key),
+  INDEX idx_customer_credit_resolution (business_id, resolution_id),
+  INDEX idx_customer_credit_target (business_id, target_so_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_po_shortfall_resolutions (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  operation_key VARCHAR(191) NOT NULL,
+  request_hash CHAR(64) NOT NULL,
+  source_po_id INT NOT NULL,
+  outcome ENUM('leave_partial','cancel_remainder','create_backorder') NOT NULL,
+  settlement ENUM('none','supplier_refund','leave_unapplied','reserve_for_new_po') NOT NULL DEFAULT 'none',
+  child_po_id INT NULL,
+  supplier_credit_note_id INT NULL,
+  supplier_credit_ref VARCHAR(255) NULL,
+  evidence_note VARCHAR(500) NULL,
+  outstanding_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+  currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  state ENUM('processing','xero_pending','complete','failed','unknown') NOT NULL DEFAULT 'processing',
+  safe_error VARCHAR(500) NULL,
+  response_json JSON NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_po_shortfall_operation (business_id, operation_key),
+  INDEX idx_po_shortfall_source (business_id, source_po_id, created_at),
+  INDEX idx_po_shortfall_child (business_id, child_po_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_supplier_credit_settlements (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  resolution_id BIGINT NOT NULL,
+  action_key VARCHAR(191) NOT NULL,
+  action_type ENUM('supplier_refund','leave_unapplied','reserve_for_order','allocate_to_bill','allocate_to_source') NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  target_po_id INT NULL,
+  target_xero_document_id VARCHAR(100) NULL,
+  account_code VARCHAR(50) NULL,
+  status ENUM('planned','running','succeeded','failed','unknown','released') NOT NULL DEFAULT 'planned',
+  xero_id VARCHAR(100) NULL,
+  safe_error VARCHAR(500) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_supplier_credit_action (business_id, action_key),
+  INDEX idx_supplier_credit_resolution (business_id, resolution_id),
+  INDEX idx_supplier_credit_target (business_id, target_po_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Backorder Line Provenance ───────────────────────────────
@@ -635,7 +737,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   original_so_number  VARCHAR(100) NULL,
   location_id         INT          NOT NULL,
   status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
-  source              ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual',
+  source              ENUM('manual','shopify','pos','so_shortfall') NOT NULL DEFAULT 'manual',
   pos_sale_id         INT          NULL,
   settlement_method   ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit',
   settlement_status   ENUM('pending','complete','error') NOT NULL DEFAULT 'pending',

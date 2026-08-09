@@ -133,3 +133,58 @@ describe('ImsSORepo.changeStatus customer backorder release', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 });
+
+describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('fulfils only the outstanding quantity from a partially fulfilled order', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{
+          id: 42, status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', so_type: 'b2b', is_historical: 0,
+        }]];
+      }
+      if (sql.includes('SELECT * FROM ims_sales_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 10, qty_fulfilled: 7, unit_cost: 4 }]];
+      }
+      if (sql.includes('COALESCE(pv.avg_cost')) {
+        return [[{ qty_on_hand: 8, qty_committed: 3, avg_cost: 5 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.changeStatus(42, 'fulfilled');
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_committed = GREATEST(0, qty_committed - ?)'),
+      [5, 3, 'v-1', 4],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("VALUES (?,?,'so_fulfilled'"),
+      ['v-1', 4, 'wholesale', 42, -3, 5, 5],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('releases only outstanding commitment when cancelling a partial order', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{ id: 42, status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', is_historical: 0 }]];
+      }
+      if (sql.includes('SELECT * FROM ims_sales_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 10, qty_fulfilled: 7 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.changeStatus(42, 'cancelled');
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_committed = GREATEST(0, qty_committed - ?)'),
+      [3, 'v-1', 4],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+});

@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function POST(
   req: Request,
@@ -32,6 +33,12 @@ export async function POST(
     if (!order) return NextResponse.json({ error: 'Backorder not found.' }, { status: 404 });
     if (order.status !== 'backordered') {
       return NextResponse.json({ error: 'This order is no longer backordered.' }, { status: 409 });
+    }
+    if (action === 'cancel') {
+      const table = type === 'customer' ? 'ims_customer_credit_settlements' : 'ims_supplier_credit_settlements';
+      const target = type === 'customer' ? 'target_so_id' : 'target_po_id';
+      const reserved = await imsQuery<{ id: number }>(`SELECT id FROM ${table} WHERE business_id=? AND ${target}=? AND action_type='reserve_for_order' AND status IN ('planned','running','succeeded') LIMIT 1`, [businessId, id]);
+      if (Array.isArray(reserved) && reserved.length) return NextResponse.json({ error: 'This backorder owns reserved Xero credit. Release, reassign, or reverse that credit before cancelling it.' }, { status: 409 });
     }
 
     const targetStatus = action === 'release' ? 'confirmed' : 'cancelled';

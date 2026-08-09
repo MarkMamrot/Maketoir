@@ -22,6 +22,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     const so = await ImsSORepo.get(Number(params.id), session.businessId);
     if (!so) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    if (so.status === 'backordered') {
+      return NextResponse.json({
+        success: false,
+        error: 'Release this customer backorder before recording a payment.',
+      }, { status: 409 });
+    }
     const body = await req.json();
     const { payment_date, amount, currency_code, exchange_rate, notes, payment_method_id } = body;
     if (!payment_date || !amount) {

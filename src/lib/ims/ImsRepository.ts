@@ -69,7 +69,7 @@ async function setOrgAvgCost(conn: any, variantId: string, newAvg: number): Prom
 
 export type ContactType = 'supplier' | 'b2b_customer' | 'retail_customer' | 'lead' | 'both';
 export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'backordered' | 'complete' | 'cancelled';
-export type SOStatus    = 'draft' | 'confirmed' | 'backordered' | 'fulfilled' | 'cancelled';
+export type SOStatus    = 'draft' | 'confirmed' | 'partially_fulfilled' | 'backordered' | 'fulfilled' | 'cancelled';
 
 export interface ImsContact {
   id: number; type: ContactType;
@@ -2282,6 +2282,12 @@ export const ImsSORepo = {
       if (to === 'backordered') {
         throw new Error('Backorders must be created through partial fulfilment.');
       }
+      if (to === 'partially_fulfilled') {
+        throw new Error('Partial fulfilment requires shipment quantities.');
+      }
+      if (from === 'partially_fulfilled' && !['fulfilled', 'cancelled'].includes(to)) {
+        throw new Error('A partially fulfilled order can only be completed or cancelled.');
+      }
       if (from === 'backordered' && to !== 'confirmed' && to !== 'cancelled') {
         throw new Error('A customer backorder can only be released or cancelled.');
       }
@@ -2349,24 +2355,35 @@ export const ImsSORepo = {
         }
       }
 
-      // ── confirmed → fulfilled ────────────────────────────────
-      if (from === 'confirmed' && to === 'fulfilled') {
+      // ── confirmed/partially fulfilled → fulfilled ────────────
+      if (['confirmed', 'partially_fulfilled'].includes(from) && to === 'fulfilled') {
         for (const item of items) {
+          const fulfilledQty = Number(item.qty_fulfilled ?? 0);
+          const qty = Math.max(0, Number(item.qty_ordered) - fulfilledQty);
+          if (qty === 0) continue;
           await conn.execute(
             `INSERT IGNORE INTO ims_stock (variant_id, location_id, business_id) VALUES (?, ?, ?)`,
             [item.variant_id, so.location_id, so.business_id]
           );
           const [[s]] = await conn.execute<any[]>(
-            `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
+            `SELECT s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost
              FROM ims_stock s
              JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
-             WHERE s.variant_id = ? AND s.location_id = ?`,
+             WHERE s.variant_id = ? AND s.location_id = ?
+             FOR UPDATE`,
             [item.variant_id, so.location_id]
           );
           const old_soh  = Number(s?.qty_on_hand ?? 0);
           const avg_cost = Number(s?.avg_cost ?? 0);
-          const qty      = Number(item.qty_ordered);
+          if (old_soh < qty) throw new Error(`Insufficient stock to fulfil sales order item ${item.id}.`);
+          if (Number(s?.qty_committed ?? 0) < qty) {
+            throw new Error(`Insufficient committed stock to fulfil sales order item ${item.id}.`);
+          }
           const new_soh  = old_soh - qty;
+          const previousCost = Number(item.unit_cost ?? 0);
+          const weightedCost = Number(item.qty_ordered) > 0
+            ? ((fulfilledQty * previousCost) + (qty * avg_cost)) / Number(item.qty_ordered)
+            : avg_cost;
 
           await conn.execute(
             `UPDATE ims_stock
@@ -2377,7 +2394,7 @@ export const ImsSORepo = {
           );
           await conn.execute(
             `UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = ? WHERE id = ?`,
-            [avg_cost, item.id]
+            [weightedCost, item.id]
           );
           await conn.execute(
             `INSERT INTO ims_stock_movements
@@ -2391,13 +2408,15 @@ export const ImsSORepo = {
         );
       }
 
-      // ── any → cancelled (reverse committed if was confirmed) ─
-      if (to === 'cancelled' && from === 'confirmed') {
+      // ── confirmed/partially fulfilled → cancelled ───────────
+      if (to === 'cancelled' && ['confirmed', 'partially_fulfilled'].includes(from)) {
         for (const item of items) {
+          const outstandingQty = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled ?? 0));
+          if (outstandingQty === 0) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
              WHERE variant_id=? AND location_id=?`,
-            [item.qty_ordered, item.variant_id, so.location_id]
+            [outstandingQty, item.variant_id, so.location_id]
           );
         }
       }
@@ -4142,7 +4161,7 @@ export interface ImsCN {
   original_so_number?: string | null;
   location_id: number;
   status: CNStatus;
-  source?: 'manual' | 'shopify' | 'pos';
+  source?: 'manual' | 'shopify' | 'pos' | 'so_shortfall';
   pos_sale_id?: number | null;
   settlement_method?: 'store_credit' | 'refund' | 'external';
   settlement_status?: 'pending' | 'complete' | 'error';

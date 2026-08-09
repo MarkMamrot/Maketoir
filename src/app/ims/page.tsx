@@ -20,6 +20,7 @@ import {
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { BackordersView } from './views/backorders/BackordersView';
+import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
@@ -325,6 +326,7 @@ function useImsSettings() {
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
   confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
+  partially_fulfilled:'background:rgba(251,146,60,.18);color:#f97316',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   complete:           'background:rgba(16,185,129,.18);color:#34d399',
@@ -8021,6 +8023,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
+  const [resolveOutstandingPo, setResolveOutstandingPo] = useState<any | null>(null);
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
@@ -8216,6 +8219,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
   const handleAddPoPayment = async () => {
     if (!viewModal.po || !poPayForm || !poPayForm.date || !poPayForm.amount) return;
+    if (poPayForm.method && ['confirmed', 'partially_received'].includes(viewModal.po.status)) {
+      const proceed = confirm(
+        'This purchase order is not fully received. Recording a mapped payment will Authorise its Xero bill, after which quantities cannot be changed and a supplier backorder cannot be split from it.\n\nOnly continue if the ordered and received quantities are final.'
+      );
+      if (!proceed) return;
+    }
     const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
     const rate = Number(poPayForm.rate || 1);
     try {
@@ -8345,10 +8354,23 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     }
   };
 
-  const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
+  const editPoWithWarn = async (po: any, beforeAction?: () => void, editOnly = false) => {
     if (po.status === 'complete') {
-      beforeAction?.(); // close view modal before showing warning so it renders on top
-      showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
+      beforeAction?.();
+      if (!po.xero_bill_id) {
+        openEdit(po, editOnly);
+        return;
+      }
+      try {
+        const details = await apiFetch(`/api/ims/xero/bill-details?poId=${po.id}`);
+        if (details.status !== 'DRAFT') {
+          alert(`This PO cannot be edited because its Xero bill is ${details.status || 'not verifiable'}. Reverse or correct the transaction through the supported workflow instead.`);
+          return;
+        }
+        openEdit(po, editOnly);
+      } catch (e: any) {
+        alert(e.message || 'The linked Xero bill status could not be verified, so this PO cannot be edited.');
+      }
     } else {
       beforeAction?.();
       openEdit(po, editOnly);
@@ -8793,7 +8815,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onResolve={() => setResolveOutstandingPo(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -9173,11 +9195,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           onDone={() => load()}
         />
       )}
+      {resolveOutstandingPo && <ResolveOutstandingModal kind="supplier" order={resolveOutstandingPo} onClose={() => setResolveOutstandingPo(null)} onResolved={async () => { await load(); await refreshPoView(resolveOutstandingPo.id); }} />}
     </div>
   );
 }
 
-function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onDelete, onStatus, onResolve, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onResolve?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
@@ -9203,6 +9226,7 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
   if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
   if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
+  if (po.status === 'partially_received' && context === 'view' && onResolve && !isAdvisor) { btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('action', 'xs')}>Resolve Outstanding</button>); }
   if (po.status === 'complete') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
@@ -11541,6 +11565,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [resolveOutstandingSo, setResolveOutstandingSo] = useState<any | null>(null);
   const [fulfilModal, setFulfilModal] = useState<{ so: any; quantities: Record<number, number> } | null>(null);
   const [fulfilSaving, setFulfilSaving] = useState(false);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
@@ -11784,6 +11809,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const handleAddSoPayment = async () => {
     if (!viewModal.so || !soPayForm || !soPayForm.date || !soPayForm.amount) return;
+    if (soPayForm.method && ['confirmed', 'partially_fulfilled'].includes(viewModal.so.status)) {
+      const proceed = confirm(
+        'This sales order is not fulfilled. Recording a mapped payment will Authorise its Xero invoice, after which quantities cannot be changed and a customer backorder cannot be split from it.\n\nOnly continue if the fulfilment quantities are final.'
+      );
+      if (!proceed) return;
+    }
     const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
     const rate = Number(soPayForm.rate || 1);
     try {
@@ -11866,7 +11897,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       }
       load();
       setModal({ open: false, edit: null });
-      if (savedSoId && ['confirmed', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
+      if (savedSoId && ['confirmed', 'partially_fulfilled', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -11895,7 +11926,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const response = await apiFetch(`/api/ims/sales-orders/${so.id}`);
       const detail = response.data ?? response;
       const quantities: Record<number, number> = {};
-      for (const item of detail.items ?? []) quantities[Number(item.id)] = Number(item.qty_ordered);
+      for (const item of detail.items ?? []) {
+        quantities[Number(item.id)] = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled ?? 0));
+      }
       setFulfilModal({ so: detail, quantities });
     } catch (e: any) {
       alert(e.message || 'Failed to load fulfilment quantities.');
@@ -11905,41 +11938,37 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const submitFulfil = async () => {
     if (!fulfilModal) return;
     const items = fulfilModal.so.items ?? [];
-    const fulfilQuantities = items.map((item: any) => ({
+    const shipmentQuantities = items.map((item: any) => ({
       itemId: Number(item.id),
       quantity: Number(fulfilModal.quantities[Number(item.id)] ?? 0),
     }));
-    const hasInvalid = fulfilQuantities.some((line: any, index: number) =>
-      !Number.isFinite(line.quantity) || line.quantity < 0 || line.quantity > Number(items[index].qty_ordered),
+    const hasInvalid = shipmentQuantities.some((line: any, index: number) =>
+      !Number.isFinite(line.quantity)
+      || line.quantity < 0
+      || line.quantity > Math.max(0, Number(items[index].qty_ordered) - Number(items[index].qty_fulfilled ?? 0)),
     );
     if (hasInvalid) {
-      alert('Fulfil quantities must be between zero and the ordered quantity.');
+      alert('Ship-now quantities must be between zero and the outstanding quantity.');
       return;
     }
-    const totalFulfilled = fulfilQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
+    const totalFulfilled = shipmentQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
     if (totalFulfilled <= 0) {
       alert('Enter a fulfilled quantity for at least one line.');
       return;
     }
-    const isFull = fulfilQuantities.every((line: any, index: number) => line.quantity === Number(items[index].qty_ordered));
     setFulfilSaving(true);
     try {
-      if (isFull) {
-        const succeeded = await changeStatus(fulfilModal.so, 'fulfilled', true);
-        if (!succeeded) return;
-      } else {
-        const operationKey = typeof crypto?.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/backorder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operationKey, fulfilQuantities }),
-        });
-        load();
-        if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
-          await refreshSoView(fulfilModal.so.id);
-        }
+      const operationKey = typeof crypto?.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/fulfil`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, shipmentQuantities }),
+      });
+      load();
+      if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
+        await refreshSoView(fulfilModal.so.id);
       }
       setFulfilModal(null);
     } catch (e: any) {
@@ -11968,10 +11997,23 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     }
   };
 
-  const editSoWithWarn = (so: any, beforeAction?: () => void) => {
+  const editSoWithWarn = async (so: any, beforeAction?: () => void) => {
     if (so.status === 'fulfilled') {
-      beforeAction?.(); // close view modal before showing warning so it renders on top
-      showSoXeroWarnForFulfilled('edit', so, () => openEdit(so));
+      beforeAction?.();
+      if (!so.xero_invoice_id) {
+        openEdit(so);
+        return;
+      }
+      try {
+        const details = await apiFetch(`/api/ims/xero/invoice-details?soId=${so.id}`);
+        if (details.status !== 'DRAFT') {
+          alert(`This SO cannot be edited because its Xero invoice is ${details.status || 'not verifiable'}. Use a return or credit note to correct it instead.`);
+          return;
+        }
+        openEdit(so);
+      } catch (e: any) {
+        alert(e.message || 'The linked Xero invoice status could not be verified, so this SO cannot be edited.');
+      }
     } else {
       beforeAction?.();
       openEdit(so);
@@ -12033,6 +12075,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     '': 'All',
     draft: 'Draft',
     confirmed: 'Confirmed',
+    partially_fulfilled: 'Partially fulfilled',
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
@@ -12125,6 +12168,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <option value="">All</option>
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
+                    <option value="partially_fulfilled">Partially fulfilled</option>
                     <option value="fulfilled">Fulfilled</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -12395,7 +12439,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onResolve={() => setResolveOutstandingSo(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12714,27 +12758,28 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {fulfilModal && (
         <Modal title={`Fulfil ${fulfilModal.so.so_number}`} onClose={() => { if (!fulfilSaving) setFulfilModal(null); }} wide>
           <div style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 14 }}>
-            Enter the quantity dispatching now. Any remainder will become a held customer backorder.
+            Enter the quantity dispatching now. Any remainder stays on this order as outstanding.
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', border: '1px solid var(--sv-etch)' }}>
               <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
-                {['SKU', 'Product', 'Variant', 'Ordered', 'Fulfil now', 'Backorder'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
+                {['SKU', 'Product', 'Variant', 'Outstanding', 'Ship now', 'Remaining'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
               </tr></thead>
               <tbody>{(fulfilModal.so.items ?? []).map((item: any) => {
                 const itemId = Number(item.id);
                 const ordered = Number(item.qty_ordered);
+                const outstanding = Math.max(0, ordered - Number(item.qty_fulfilled ?? 0));
                 const fulfilled = Number(fulfilModal.quantities[itemId] ?? 0);
                 return <tr key={itemId} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '9px 10px' }}><code style={{ color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
                   <td style={{ padding: '9px 10px' }}>{item.product_name || 'Unknown product'}</td>
                   <td style={{ padding: '9px 10px' }}>{item.variant_label || 'Default'}</td>
-                  <td style={{ padding: '9px 10px' }}>{fmtQty(ordered)}</td>
+                  <td style={{ padding: '9px 10px' }}>{fmtQty(outstanding)}</td>
                   <td style={{ padding: '9px 10px' }}>
                     <input
                       type="number"
                       min={0}
-                      max={ordered}
+                      max={outstanding}
                       step="any"
                       value={fulfilled}
                       onChange={event => setFulfilModal(current => current ? {
@@ -12744,7 +12789,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                       style={{ ...inputStyle, width: 92 }}
                     />
                   </td>
-                  <td style={{ padding: '9px 10px', fontWeight: ordered - fulfilled > 0 ? 700 : 400, color: ordered - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, ordered - fulfilled))}</td>
+                  <td style={{ padding: '9px 10px', fontWeight: outstanding - fulfilled > 0 ? 700 : 400, color: outstanding - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, outstanding - fulfilled))}</td>
                 </tr>;
               })}</tbody>
             </table>
@@ -12755,24 +12800,26 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           </div>
         </Modal>
       )}
+      {resolveOutstandingSo && <ResolveOutstandingModal kind="customer" order={resolveOutstandingSo} onClose={() => setResolveOutstandingSo(null)} onResolved={async () => { await load(); await refreshSoView(resolveOutstandingSo.id); }} />}
     </div>
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onResolve, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onResolve?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
+  if (so.status === 'confirmed' || so.status === 'partially_fulfilled') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
+  if (so.status === 'partially_fulfilled' && onResolve && !isAdvisor) { btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('action', 'xs')}>Resolve Outstanding</button>); }
   if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (so.status === 'fulfilled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
-  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft') {
+  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft' && so.status !== 'partially_fulfilled') {
     if (so.status !== 'backordered') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
     }
@@ -18848,7 +18895,7 @@ type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orde
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
-  if (v === 'sales-orders')    return 'sales-orders';
+  if (v === 'sales-orders' || v === 'backorders') return 'sales-orders';
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales')       return 'pos';
   if (v === 'online-sales')    return 'shopify';
@@ -24540,9 +24587,17 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
           <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
-          <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
-          <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (e.g. <span style={code}>PO-2025-0042-B</span>) and start in <em>Draft</em> status, ready to approve and track separately.</li>
-          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal — this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
+          <li><strong>Save and Complete</strong> — Finalises the received quantities. If items are short, you can create a held <strong>Supplier Backorder</strong> for the missing stock.</li>
+          <li>Supplier backorders are named <span style={code}>{'{original}-B'}</span> (for example <span style={code}>PO-2026-0042-B</span>) and remain held until deliberately released.</li>
+          <li>Never record missing stock as received. Stock on hand and average cost change only for quantities that physically arrived.</li>
+        </ul>
+
+        <h3 style={h3}>Example: 100 ordered, 70 received</h3>
+        <ul style={ul}>
+          <li><strong>Supplier expects to send 30 soon:</strong> receive 70 and choose <em>Save Progress</em>. The PO remains <em>Partially Received</em>, with 30 still incoming.</li>
+          <li><strong>Supplier confirms a separate shipment:</strong> receive 70 and create a supplier backorder for 30. The original PO records the 70 received and the held child tracks the remaining 30.</li>
+          <li><strong>Supplier cancels the 30:</strong> open the PO and click <em>Resolve Outstanding</em>. Cancel the remainder or create a held child PO. If a supplier credit is financially required, enter its reference or an evidence note; Solvantis never invents supplier credit.</li>
+          <li><strong>Paid $100 supplier bill:</strong> resolving the $30 remainder creates a no-stock $30 supplier credit. Record a supplier refund, leave it unapplied, or reserve it for the held child bill. Reserved credit allocates only after that bill is Authorised.</li>
         </ul>
 
         <h3 style={h3}>Reverting a partially received PO</h3>
@@ -24571,13 +24626,33 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
-          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
-          <li><strong>Fulfilled</strong> — Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
-          <li><strong>Closed</strong> — Fully processed and paid.</li>
+          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Commits stock and, under the default Xero policy, creates a <em>Draft Invoice</em>.</li>
+          <li><strong>Partially Fulfilled</strong> — Some goods dispatched. Stock on hand and committed stock decrease only by the quantity shipped. The Xero invoice is not Authorised by the partial shipment.</li>
+          <li><strong>Fulfilled</strong> — All goods dispatched. The final shipment moves the SO to <em>Fulfilled</em> and, under the default Xero policy, Authorises the invoice.</li>
+          <li><strong>Cancelled</strong> — Order cancelled through an allowed order action. Financially settled orders may require Xero reconciliation.</li>
         </ul>
+
+        <h3 style={h3}>Recording a partial shipment</h3>
+        <ul style={ul}>
+          <li>Open a <em>Confirmed</em> or <em>Partially Fulfilled</em> SO and click <strong>Fulfill</strong>.</li>
+          <li>Enter the quantity shipping now on each line. The input is a shipment quantity, not the cumulative fulfilled total.</li>
+          <li>Any unshipped quantity stays outstanding on the original SO. Reopen <strong>Fulfill</strong> when the next shipment is ready.</li>
+          <li>Each submission has replay protection: retrying the same request cannot deduct stock twice.</li>
+        </ul>
+
+        <h3 style={h3}>Example: $100 ordered, $70 shipped</h3>
+        <ul style={ul}>
+          <li><strong>Ship the remaining $30 soon:</strong> enter the quantities worth $70 in <em>Ship now</em>. The SO becomes <em>Partially Fulfilled</em>; the original invoice and order value remain $100, and the remaining stock stays committed.</li>
+          <li><strong>Second shipment:</strong> reopen <em>Fulfill</em>. Only the outstanding quantities are shown. Shipping the final $30 moves the SO to <em>Fulfilled</em> and triggers the final Xero status action.</li>
+          <li><strong>Do not ship the remainder:</strong> click <em>Resolve Outstanding</em>, then cancel the remainder or create a held child backorder. Unpaid editable Xero invoices are resized; paid value is corrected with a no-restock credit note.</li>
+          <li><strong>Paid $100 invoice:</strong> the $30 credit can be refunded, left unapplied in Xero, or reserved for the child. A reservation is allocated only after the child invoice is Authorised.</li>
+        </ul>
+
+        <h3 style={h3}>Resolving the remainder</h3>
+        <p style={p}>Open a Partially Fulfilled order and choose <strong>Resolve Outstanding</strong>. The preview shows outstanding quantities, commercial value, Xero treatment, and only valid settlement choices. The operation is replay-protected; stock is never shipped twice.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
-          <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
+          <li><strong>Wholesale SOs</strong> — Individual invoices. Confirmation follows the configured document policy; by default it creates a Draft invoice and final fulfilment Authorises it.</li>
           <li><strong>POS sales</strong> — Each sale remains visible and opens normally in IMS. For Xero, the daily location batch syncs as one summary invoice; the individual POS sale does not sync.</li>
           <li><strong>Online sales</strong> — Each Shopify/e-commerce order remains visible and opens normally in IMS. For Xero, the combined daily online batch syncs as one invoice; the individual online order does not sync.</li>
         </ul>

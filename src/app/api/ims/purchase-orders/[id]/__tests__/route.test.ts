@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   mockGetImsSession,
   mockGet,
+  mockUpdate,
   mockChangeStatus,
   mockDelete,
   mockImsQuery,
@@ -11,9 +12,11 @@ const {
   mockTriggerPOXeroVoid,
   mockTriggerPOXeroUpdate,
   mockReportRuntimeIssue,
+  mockGetXeroInvoiceStatus,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
+  mockUpdate: vi.fn(),
   mockChangeStatus: vi.fn(),
   mockDelete: vi.fn(),
   mockImsQuery: vi.fn(),
@@ -22,12 +25,14 @@ const {
   mockTriggerPOXeroVoid: vi.fn(),
   mockTriggerPOXeroUpdate: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockGetXeroInvoiceStatus: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsPORepo: {
     get: mockGet,
+    update: mockUpdate,
     changeStatus: mockChangeStatus,
     delete: mockDelete,
   },
@@ -40,6 +45,7 @@ vi.mock('@/lib/ims/xeroHooks', () => ({
   triggerPOXeroUpdate: mockTriggerPOXeroUpdate,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
+vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceStatus: mockGetXeroInvoiceStatus }));
 
 import { DELETE, PUT } from '../route';
 
@@ -62,6 +68,8 @@ describe('/api/ims/purchase-orders/[id]', () => {
     mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
     mockReportRuntimeIssue.mockResolvedValue(null);
+    mockUpdate.mockResolvedValue(undefined);
+    mockTriggerPOXeroUpdate.mockResolvedValue(undefined);
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {
@@ -112,5 +120,28 @@ describe('/api/ims/purchase-orders/[id]', () => {
       includeFreight: false,
     });
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('blocks edits when a completed PO has an Authorised Xero bill', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceStatus.mockResolvedValue('AUTHORISED');
+
+    const response = await PUT(putRequest({ notes: 'changed' }), params);
+
+    expect(response.status).toBe(409);
+    expect(mockGetXeroInvoiceStatus).toHaveBeenCalledWith('biz-1', 'xero-bill-1');
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockTriggerPOXeroUpdate).not.toHaveBeenCalled();
+  });
+
+  it('allows edits when a completed PO Xero bill is still Draft', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceStatus.mockResolvedValue('DRAFT');
+
+    const response = await PUT(putRequest({ notes: 'changed' }), params);
+
+    expect(response.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockTriggerPOXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
   });
 });

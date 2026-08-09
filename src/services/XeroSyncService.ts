@@ -650,6 +650,131 @@ export async function getXeroInvoiceStatus(businessId: string, xeroId: string): 
   return typeof status === 'string' ? status : null;
 }
 
+export async function getXeroInvoiceFinancialState(businessId: string, xeroId: string): Promise<{
+  status: string | null;
+  total: number;
+  amountPaid: number;
+  amountCredited: number;
+  amountDue: number;
+  currencyCode: string | null;
+  invoiceNumber: string | null;
+  contactId: string | null;
+}> {
+  const current = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(xeroId)}`, { method: 'GET' });
+  const invoice = current?.Invoices?.[0];
+  if (!invoice) throw new Error('The linked Xero invoice was not found.');
+  return {
+    status: typeof invoice.Status === 'string' ? invoice.Status : null,
+    total: Number(invoice.Total ?? 0),
+    amountPaid: Number(invoice.AmountPaid ?? 0),
+    amountCredited: Number(invoice.AmountCredited ?? 0),
+    amountDue: Number(invoice.AmountDue ?? 0),
+    currencyCode: typeof invoice.CurrencyCode === 'string' ? invoice.CurrencyCode : null,
+    invoiceNumber: typeof invoice.InvoiceNumber === 'string' ? invoice.InvoiceNumber : null,
+    contactId: typeof invoice.Contact?.ContactID === 'string' ? invoice.Contact.ContactID : null,
+  };
+}
+
+export async function getXeroCreditNoteFinancialState(businessId: string, xeroId: string): Promise<{
+  status: string | null;
+  total: number;
+  remainingCredit: number;
+  currencyCode: string | null;
+  contactId: string | null;
+}> {
+  const current = await xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}`, { method: 'GET' });
+  const creditNote = current?.CreditNotes?.[0];
+  if (!creditNote) throw new Error('The linked Xero credit note was not found.');
+  return {
+    status: typeof creditNote.Status === 'string' ? creditNote.Status : null,
+    total: Number(creditNote.Total ?? 0),
+    remainingCredit: Number(creditNote.RemainingCredit ?? 0),
+    currencyCode: typeof creditNote.CurrencyCode === 'string' ? creditNote.CurrencyCode : null,
+    contactId: typeof creditNote.Contact?.ContactID === 'string' ? creditNote.Contact.ContactID : null,
+  };
+}
+
+export async function refundXeroCreditNote(input: {
+  businessId: string;
+  creditNoteId: string;
+  amount: number;
+  accountCode: string;
+  date: string;
+  reference: string;
+  actionKey: string;
+}): Promise<string> {
+  const state = await getXeroCreditNoteFinancialState(input.businessId, input.creditNoteId);
+  if (!['AUTHORISED', 'PAID'].includes(String(state.status ?? '').toUpperCase())) {
+    throw new Error('The Xero credit note must be Authorised before it can be refunded.');
+  }
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  if (!(amount > 0) || amount - state.remainingCredit > 0.01) {
+    throw new Error('The requested refund exceeds the Xero credit note remaining balance.');
+  }
+  const body = { Payments: [{
+    CreditNote: { CreditNoteID: input.creditNoteId },
+    Account: { Code: input.accountCode },
+    Date: input.date,
+    Amount: amount,
+    Reference: input.reference,
+  }] };
+  const idempotencyKey = crypto.createHash('sha256')
+    .update(`${input.businessId}|credit-refund|${input.actionKey}|${JSON.stringify(body)}`)
+    .digest('hex');
+  const response = await xeroApiFetch(input.businessId, '/Payments', { method: 'POST', idempotencyKey, body });
+  const paymentId = response?.Payments?.[0]?.PaymentID;
+  if (!paymentId) throw new Error('Xero did not return a PaymentID for the credit-note refund.');
+  return String(paymentId);
+}
+
+export async function allocateXeroCreditNote(input: {
+  businessId: string;
+  creditNoteId: string;
+  invoiceId: string;
+  amount: number;
+  actionKey: string;
+}): Promise<string> {
+  const credit = await getXeroCreditNoteFinancialState(input.businessId, input.creditNoteId);
+  const invoice = await getXeroInvoiceFinancialState(input.businessId, input.invoiceId);
+  if (String(credit.status ?? '').toUpperCase() !== 'AUTHORISED') {
+    throw new Error('The Xero credit note must be Authorised before allocation.');
+  }
+  const amount = Math.round(Number(input.amount) * 100) / 100;
+  if (!(amount > 0) || amount - credit.remainingCredit > 0.01 || amount - invoice.amountDue > 0.01) {
+    throw new Error('The requested allocation exceeds the available credit or invoice amount due.');
+  }
+  if (credit.currencyCode && invoice.currencyCode && credit.currencyCode !== invoice.currencyCode) {
+    throw new Error('The Xero credit note and invoice currencies do not match.');
+  }
+  if (credit.contactId && invoice.contactId && credit.contactId !== invoice.contactId) {
+    throw new Error('The Xero credit note and invoice contacts do not match.');
+  }
+  const body = { Amount: amount, Invoice: { InvoiceID: input.invoiceId } };
+  const idempotencyKey = crypto.createHash('sha256')
+    .update(`${input.businessId}|credit-allocation|${input.actionKey}|${JSON.stringify(body)}`)
+    .digest('hex');
+  const response = await xeroApiFetch(
+    input.businessId,
+    `/CreditNotes/${encodeURIComponent(input.creditNoteId)}/Allocations`,
+    { method: 'PUT', idempotencyKey, body },
+  );
+  const allocationId = response?.Allocations?.[0]?.AllocationID ?? response?.AllocationID;
+  if (!allocationId) throw new Error('Xero did not return an AllocationID.');
+  return String(allocationId);
+}
+
+export async function deleteXeroCreditNoteAllocation(
+  businessId: string,
+  creditNoteId: string,
+  allocationId: string,
+): Promise<void> {
+  await xeroApiFetch(
+    businessId,
+    `/CreditNotes/${encodeURIComponent(creditNoteId)}/Allocations/${encodeURIComponent(allocationId)}`,
+    { method: 'DELETE' },
+  );
+}
+
 /**
  * Approve a Bill in Xero (when PO is received or has a payment).
  */
@@ -865,8 +990,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
 }
 
 /**
- * Update an existing DRAFT Invoice in Xero with the current SO data.
- * Skips silently if the invoice is no longer DRAFT (e.g. already AUTHORISED).
+ * Update an existing unpaid DRAFT or AUTHORISED Invoice with the current SO data.
  */
 export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, xeroId: string): Promise<boolean> {
   const accounts = await getAccountMappings(businessId);
@@ -878,10 +1002,14 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     return false;
   }
 
+  let currentStatus: string | null = null;
   try {
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
-    const currentStatus = current.Invoices?.[0]?.Status;
-    if (currentStatus !== 'DRAFT') {
+    const currentInvoice = current.Invoices?.[0];
+    currentStatus = typeof currentInvoice?.Status === 'string' ? currentInvoice.Status : null;
+    const amountPaid = Number(currentInvoice?.AmountPaid ?? 0);
+    const amountCredited = Number(currentInvoice?.AmountCredited ?? 0);
+    if (!['DRAFT', 'AUTHORISED'].includes(currentStatus ?? '') || amountPaid !== 0 || amountCredited !== 0) {
       await logSync(businessId, 'so_invoice', so.id, xeroId, 'skipped', `Invoice is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
       return false;
     }
@@ -921,7 +1049,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     Date: so.order_date,
     DueDate: calcDueDateFromTerms(so.expected_date || so.order_date, so.payment_terms),
     Reference: so.so_number,
-    Status: 'DRAFT',
+    Status: currentStatus,
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
     CurrencyCode: so.currency_code || 'AUD',
     LineItems: lineItems,
@@ -929,7 +1057,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
 
   try {
     await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
-    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Draft Invoice updated: ${so.so_number}`, 'DRAFT');
+    await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice updated: ${so.so_number}`, currentStatus ?? undefined);
     await markSoXeroStatus(so.id, 'synced', xeroId);
     return true;
   } catch (err: any) {

@@ -7,6 +7,7 @@ const {
   mockPOGet,
   mockPOChangeStatus,
   mockRefresh,
+  mockImsQuery,
 } = vi.hoisted(() => ({
   mockSession: vi.fn(),
   mockSOGet: vi.fn(),
@@ -14,6 +15,7 @@ const {
   mockPOGet: vi.fn(),
   mockPOChangeStatus: vi.fn(),
   mockRefresh: vi.fn(),
+  mockImsQuery: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
@@ -23,6 +25,7 @@ vi.mock('@/lib/ims/ImsRepository', () => ({
 }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mockRefresh }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 
 import { POST } from '../route';
 
@@ -37,6 +40,7 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     vi.clearAllMocks();
     mockSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin' });
     mockRefresh.mockResolvedValue(undefined);
+    mockImsQuery.mockResolvedValue([]);
   });
 
   it('releases a customer backorder without using the supplier repository', async () => {
@@ -58,6 +62,16 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     expect(response.status).toBe(200);
     expect(mockPOChangeStatus).toHaveBeenCalledWith(22, 'cancelled');
     expect(mockSOChangeStatus).not.toHaveBeenCalled();
+  });
+
+  it('blocks cancellation when a held backorder owns reserved Xero credit', async () => {
+    mockPOGet.mockResolvedValue({ id: 22, status: 'backordered', items: [] });
+    mockImsQuery.mockResolvedValue([{ id: 7 }]);
+
+    const response = await POST(request('cancel'), { params: { type: 'supplier', id: '22' } });
+
+    expect(response.status).toBe(409);
+    expect(mockPOChangeStatus).not.toHaveBeenCalled();
   });
 
   it('returns a conflict when customer stock is no longer ready at release time', async () => {

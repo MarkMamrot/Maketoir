@@ -3,6 +3,8 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerSOXeroSync, triggerSOXeroVoid, triggerSOXeroUpdate } from '@/lib/ims/xeroHooks';
+import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -52,6 +54,17 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     } else {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+      if (existing.status === 'fulfilled' && existing.xero_invoice_id) {
+        const xeroStatus = await getXeroInvoiceStatus(businessId, existing.xero_invoice_id);
+        if (xeroStatus !== 'DRAFT') {
+          return NextResponse.json({
+            success: false,
+            error: xeroStatus
+              ? `This sales order cannot be edited because its Xero invoice is ${xeroStatus}. Use a return or credit note to correct it instead.`
+              : 'This sales order cannot be edited because the linked Xero invoice status could not be verified.',
+          }, { status: 409 });
+        }
+      }
       await ImsSORepo.update(Number(params.id), soData, items);
 
       // EVENT-DRIVEN CACHE UPDATE
@@ -67,6 +80,14 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims_sales_orders',
+      operation: 'update',
+      title: 'Sales order update failed',
+      error: e,
+      reference: { type: 'sales_order', id: params.id },
+    });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
