@@ -35,6 +35,19 @@ CREATE TABLE IF NOT EXISTS xero_document_policies (
   updated_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS xero_document_policy_events (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(255) NOT NULL,
+  actor_id      VARCHAR(100) DEFAULT NULL,
+  actor_name    VARCHAR(255) DEFAULT NULL,
+  preset_source VARCHAR(40)  DEFAULT NULL,
+  before_policy JSON         NOT NULL,
+  after_policy  JSON         NOT NULL,
+  changed_fields JSON        NOT NULL,
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_xero_document_policy_event_business (business_id, created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- Tracking category mapping: links IMS locations/channels → Xero Tracking Category options
 CREATE TABLE IF NOT EXISTS xero_tracking_mappings (
   id                      INT AUTO_INCREMENT PRIMARY KEY,

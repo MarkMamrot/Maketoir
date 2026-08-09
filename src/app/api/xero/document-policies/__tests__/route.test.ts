@@ -39,10 +39,10 @@ function putRequest(body: unknown): Request {
 describe('/api/xero/document-policies', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1' } });
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Admin', userId: 7, name: 'Alex' } });
     mockAssertBusinessAccess.mockReturnValue(null);
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
-    mockSavePolicy.mockResolvedValue(undefined);
+    mockSavePolicy.mockResolvedValue({ before: DEFAULT_XERO_DOCUMENT_POLICY, changedFields: [] });
     mockReportRuntimeIssue.mockResolvedValue(null);
   });
 
@@ -63,7 +63,9 @@ describe('/api/xero/document-policies', () => {
     };
     const response = await PUT(putRequest({ databaseId: 'biz-1', policy }));
     expect(response.status).toBe(200);
-    expect(mockSavePolicy).toHaveBeenCalledWith('biz-1', policy);
+    expect(mockSavePolicy).toHaveBeenCalledWith({
+      businessId: 'biz-1', policy, actorId: 7, actorName: 'Alex', presetSource: null,
+    });
   });
 
   it('rejects a backwards document transition', async () => {
@@ -79,12 +81,32 @@ describe('/api/xero/document-policies', () => {
     expect(mockSavePolicy).not.toHaveBeenCalled();
   });
 
-  it('rejects online Draft with immediate payment sync enabled', async () => {
+  it('allows online Draft with immediate payment sync and returns its consequence warning', async () => {
     const response = await PUT(putRequest({
       databaseId: 'biz-1',
       policy: { ...DEFAULT_XERO_DOCUMENT_POLICY, onlineBatchAction: 'draft' },
     }));
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(200);
+    expect((await response.json()).warnings).toContain('Online clearing payments will authorise the daily online invoice before applying payment.');
+  });
+
+  it('attributes only an exact known preset', async () => {
+    const response = await PUT(putRequest({
+      databaseId: 'biz-1', policy: DEFAULT_XERO_DOCUMENT_POLICY, presetSource: 'balanced_automation',
+    }));
+    expect(response.status).toBe(200);
+    expect(mockSavePolicy).toHaveBeenCalledWith(expect.objectContaining({ presetSource: 'balanced_automation' }));
+
+    const mismatch = await PUT(putRequest({
+      databaseId: 'biz-1', policy: { ...DEFAULT_XERO_DOCUMENT_POLICY, poPaymentSyncEnabled: false }, presetSource: 'balanced_automation',
+    }));
+    expect(mismatch.status).toBe(400);
+  });
+
+  it('blocks Advisor policy mutations before persistence', async () => {
+    mockRequireAdminSession.mockReturnValue({ user: { businessId: 'biz-1', tier: 'Advisor', userId: 8, name: 'Advisor' } });
+    const response = await PUT(putRequest({ databaseId: 'biz-1', policy: DEFAULT_XERO_DOCUMENT_POLICY }));
+    expect(response.status).toBe(403);
     expect(mockSavePolicy).not.toHaveBeenCalled();
   });
 

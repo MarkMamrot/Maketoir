@@ -1,6 +1,7 @@
-import { execute, query } from '@/services/MySQLService';
+import { getPool, query } from '@/services/MySQLService';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
+  diffXeroDocumentPolicy,
   type XeroDocumentAction,
   type XeroDocumentPolicy,
 } from './documentPolicies';
@@ -22,22 +23,8 @@ type XeroDocumentPolicyRow = {
   shopify_payout_auto_post_enabled: number | boolean;
 };
 
-export async function getXeroDocumentPolicy(businessId: string): Promise<XeroDocumentPolicy> {
-  const rows = await query<XeroDocumentPolicyRow>(
-    `SELECT po_approved_action, po_completed_action, po_payment_sync_enabled,
-          so_approved_action, so_completed_action, so_payment_sync_enabled,
-          manual_customer_cn_action, supplier_cn_action, shortfall_credit_draft_first,
-          pos_batch_sync_enabled, pos_batch_payment_sync_enabled,
-          online_batch_action, online_batch_payment_sync_enabled,
-          shopify_payout_auto_post_enabled
-       FROM xero_document_policies
-      WHERE business_id = ?
-      LIMIT 1`,
-    [businessId],
-  );
-  const row = rows[0];
+function policyFromRow(row: XeroDocumentPolicyRow | undefined): XeroDocumentPolicy {
   if (!row) return { ...DEFAULT_XERO_DOCUMENT_POLICY };
-
   return {
     poApprovedAction: row.po_approved_action,
     poCompletedAction: row.po_completed_action,
@@ -56,11 +43,43 @@ export async function getXeroDocumentPolicy(businessId: string): Promise<XeroDoc
   };
 }
 
+const POLICY_SELECT = `SELECT po_approved_action, po_completed_action, po_payment_sync_enabled,
+          so_approved_action, so_completed_action, so_payment_sync_enabled,
+          manual_customer_cn_action, supplier_cn_action, shortfall_credit_draft_first,
+          pos_batch_sync_enabled, pos_batch_payment_sync_enabled,
+          online_batch_action, online_batch_payment_sync_enabled,
+          shopify_payout_auto_post_enabled
+       FROM xero_document_policies
+      WHERE business_id = ?`;
+
+export async function getXeroDocumentPolicy(businessId: string): Promise<XeroDocumentPolicy> {
+  const rows = await query<XeroDocumentPolicyRow>(
+    `${POLICY_SELECT} LIMIT 1`,
+    [businessId],
+  );
+  return policyFromRow(rows[0]);
+}
+
 export async function saveXeroDocumentPolicy(
-  businessId: string,
-  policy: XeroDocumentPolicy,
-): Promise<void> {
-  await execute(
+  input: {
+    businessId: string;
+    policy: XeroDocumentPolicy;
+    actorId?: string | number | null;
+    actorName?: string | null;
+    presetSource?: string | null;
+  },
+): Promise<{ before: XeroDocumentPolicy; changedFields: ReturnType<typeof diffXeroDocumentPolicy> }> {
+  const connection = await getPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows]: any = await connection.execute(`${POLICY_SELECT} LIMIT 1 FOR UPDATE`, [input.businessId]);
+    const before = policyFromRow(rows[0]);
+    const changedFields = diffXeroDocumentPolicy(before, input.policy);
+    if (changedFields.length === 0) {
+      await connection.rollback();
+      return { before, changedFields };
+    }
+    await connection.execute(
     `INSERT INTO xero_document_policies
        (business_id, po_approved_action, po_completed_action, po_payment_sync_enabled,
         so_approved_action, so_completed_action, so_payment_sync_enabled,
@@ -85,21 +104,38 @@ export async function saveXeroDocumentPolicy(
       shopify_payout_auto_post_enabled = VALUES(shopify_payout_auto_post_enabled),
        updated_at = NOW()`,
     [
-      businessId,
-      policy.poApprovedAction,
-      policy.poCompletedAction,
-      policy.poPaymentSyncEnabled ? 1 : 0,
-      policy.soApprovedAction,
-      policy.soCompletedAction,
-      policy.soPaymentSyncEnabled ? 1 : 0,
-      policy.manualCustomerCreditNoteAction,
-      policy.supplierCreditNoteAction,
-      policy.shortfallCreditDraftFirst ? 1 : 0,
-      policy.posBatchSyncEnabled ? 1 : 0,
-      policy.posBatchPaymentSyncEnabled ? 1 : 0,
-      policy.onlineBatchAction,
-      policy.onlineBatchPaymentSyncEnabled ? 1 : 0,
-      policy.shopifyPayoutAutoPostEnabled ? 1 : 0,
+      input.businessId,
+      input.policy.poApprovedAction,
+      input.policy.poCompletedAction,
+      input.policy.poPaymentSyncEnabled ? 1 : 0,
+      input.policy.soApprovedAction,
+      input.policy.soCompletedAction,
+      input.policy.soPaymentSyncEnabled ? 1 : 0,
+      input.policy.manualCustomerCreditNoteAction,
+      input.policy.supplierCreditNoteAction,
+      input.policy.shortfallCreditDraftFirst ? 1 : 0,
+      input.policy.posBatchSyncEnabled ? 1 : 0,
+      input.policy.posBatchPaymentSyncEnabled ? 1 : 0,
+      input.policy.onlineBatchAction,
+      input.policy.onlineBatchPaymentSyncEnabled ? 1 : 0,
+      input.policy.shopifyPayoutAutoPostEnabled ? 1 : 0,
     ],
-  );
+    );
+    await connection.execute(
+      `INSERT INTO xero_document_policy_events
+         (business_id, actor_id, actor_name, preset_source, before_policy, after_policy, changed_fields)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.businessId, input.actorId == null ? null : String(input.actorId), input.actorName ?? null,
+        input.presetSource ?? null, JSON.stringify(before), JSON.stringify(input.policy), JSON.stringify(changedFields),
+      ],
+    );
+    await connection.commit();
+    return { before, changedFields };
+  } catch (error) {
+    await connection.rollback().catch(() => {});
+    throw error;
+  } finally {
+    connection.release();
+  }
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
+  XERO_DOCUMENT_POLICY_PRESETS,
+  diffXeroDocumentPolicy,
+  getXeroDocumentPolicyPreset,
+  getXeroDocumentPolicyWarnings,
   parseXeroDocumentPolicy,
   resolvePODocumentAction,
   resolveSODocumentAction,
@@ -61,16 +65,33 @@ describe('Xero document policies', () => {
     })).toContain('POS clearing payments require');
   });
 
-  it('requires an Authorised online invoice for immediate clearing payments', () => {
-    expect(validateXeroDocumentPolicy({
+  it('allows Draft online invoices because payment sync authorises before posting and returns a warning', () => {
+    const policy = {
       ...DEFAULT_XERO_DOCUMENT_POLICY,
       onlineBatchAction: 'draft',
-    })).toContain('Online clearing payments require');
-    expect(validateXeroDocumentPolicy({
-      ...DEFAULT_XERO_DOCUMENT_POLICY,
-      onlineBatchAction: 'draft',
-      onlineBatchPaymentSyncEnabled: false,
-      shopifyPayoutAutoPostEnabled: true,
-    })).toBeNull();
+    } as const;
+    expect(validateXeroDocumentPolicy(policy)).toBeNull();
+    expect(getXeroDocumentPolicyWarnings(policy)).toContain('Online clearing payments will authorise the daily online invoice before applying payment.');
+    expect(validateXeroDocumentPolicy({ ...policy, onlineBatchAction: 'none' })).toContain('require daily online invoice sync');
+  });
+
+  it('exposes valid transparent presets without storing a mode', () => {
+    expect(Object.keys(XERO_DOCUMENT_POLICY_PRESETS)).toEqual(['bookkeeper_review', 'balanced_automation', 'higher_automation']);
+    expect(getXeroDocumentPolicyPreset('balanced_automation')).toEqual(DEFAULT_XERO_DOCUMENT_POLICY);
+    expect(getXeroDocumentPolicyPreset('bookkeeper_review')).toMatchObject({
+      poCompletedAction: 'draft', soCompletedAction: 'draft', poPaymentSyncEnabled: false,
+      soPaymentSyncEnabled: false, onlineBatchPaymentSyncEnabled: false,
+    });
+    for (const preset of Object.values(XERO_DOCUMENT_POLICY_PRESETS)) {
+      expect(validateXeroDocumentPolicy(preset.policy)).toBeNull();
+    }
+  });
+
+  it('returns exact field-level preset differences', () => {
+    expect(diffXeroDocumentPolicy(DEFAULT_XERO_DOCUMENT_POLICY, getXeroDocumentPolicyPreset('higher_automation'))).toEqual([
+      { field: 'poApprovedAction', before: 'draft', after: 'authorised' },
+      { field: 'soApprovedAction', before: 'draft', after: 'authorised' },
+      { field: 'supplierCreditNoteAction', before: 'draft', after: 'authorised' },
+    ]);
   });
 });

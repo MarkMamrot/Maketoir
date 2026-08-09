@@ -13,8 +13,13 @@ import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
+  XERO_DOCUMENT_POLICY_PRESETS,
+  diffXeroDocumentPolicy,
+  getXeroDocumentPolicyPreset,
+  getXeroDocumentPolicyWarnings,
   type XeroDocumentAction,
   type XeroDocumentPolicy,
+  type XeroDocumentPolicyPresetKey,
   validateXeroDocumentPolicy,
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
@@ -16429,7 +16434,14 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [presetSource, setPresetSource] = useState<XeroDocumentPolicyPresetKey | null>(null);
+  const [pendingPreset, setPendingPreset] = useState<XeroDocumentPolicyPresetKey | null>(null);
   const validationError = validateXeroDocumentPolicy(policy);
+  const warnings = getXeroDocumentPolicyWarnings(policy);
+  const updatePolicy = (updater: (previous: XeroDocumentPolicy) => XeroDocumentPolicy) => {
+    setPresetSource(null);
+    setPolicy(updater);
+  };
 
   useEffect(() => {
     const businessId = getBusinessId();
@@ -16453,12 +16465,13 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
       const response = await fetch('/api/xero/document-policies', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), policy }),
+        body: JSON.stringify({ databaseId: getBusinessId(), policy, presetSource }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Failed to save document policy');
       setPolicy(data.policy);
       setSavedPolicy(data.policy);
+      setPresetSource(null);
     } catch (saveError) {
       setPolicy(savedPolicy);
       setError(saveError instanceof Error ? saveError.message : 'Failed to save document policy');
@@ -16475,7 +16488,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
       {label}
       <select
         value={policy[field]}
-        onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.value as XeroDocumentAction }))}
+        onChange={event => updatePolicy(previous => ({ ...previous, [field]: event.target.value as XeroDocumentAction }))}
         style={{ width: '100%', padding: '7px 9px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
       >
         <option value="none">No sync</option>
@@ -16508,7 +16521,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           <input
             type="checkbox"
             checked={policy[paymentField]}
-            onChange={event => setPolicy(previous => ({ ...previous, [paymentField]: event.target.checked }))}
+            onChange={event => updatePolicy(previous => ({ ...previous, [paymentField]: event.target.checked }))}
           />
           Sync {isPO ? 'PO' : 'SO'} payments to Xero
         </label>
@@ -16533,7 +16546,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           type="checkbox"
           checked={policy[field]}
           disabled={disabled}
-          onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.checked }))}
+          onChange={event => updatePolicy(previous => ({ ...previous, [field]: event.target.checked }))}
         />
         {label}
       </label>
@@ -16542,15 +16555,33 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   );
 
   const blockStyle = { padding: 14, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7 };
+  const fieldLabel = (field: string) => ({
+    poApprovedAction: 'PO confirmed action', poCompletedAction: 'PO completed action', poPaymentSyncEnabled: 'PO payment sync',
+    soApprovedAction: 'SO confirmed action', soCompletedAction: 'SO fulfilled action', soPaymentSyncEnabled: 'SO payment sync',
+    manualCustomerCreditNoteAction: 'Customer credit-note action', supplierCreditNoteAction: 'Supplier credit-note action',
+    shortfallCreditDraftFirst: 'Draft-first shortfall credits', posBatchSyncEnabled: 'POS batch sync',
+    posBatchPaymentSyncEnabled: 'POS clearing payments', onlineBatchAction: 'Online batch action',
+    onlineBatchPaymentSyncEnabled: 'Online clearing payments', shopifyPayoutAutoPostEnabled: 'Shopify payout auto-post',
+  }[field] ?? field);
+  const valueLabel = (value: string | boolean) => typeof value === 'boolean' ? (value ? 'Enabled' : 'Disabled') : value === 'none' ? 'No sync' : value[0].toUpperCase() + value.slice(1);
+  const presetDiff = pendingPreset ? diffXeroDocumentPolicy(policy, getXeroDocumentPolicyPreset(pendingPreset)) : [];
 
   return (
     <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Document Status &amp; Payments</h3>
       <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Choose which IMS accounting events reach Xero and whether they remain Draft or become Authorised. Existing documents are never moved backwards.
+        Choose which future IMS accounting events reach Xero and whether they remain Draft or become Authorised. Saving does not rewrite existing Xero documents.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading document policy...</div> : (
         <>
+          <div style={{ ...blockStyle, marginBottom: 12 }}>
+            <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Starting presets</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {(Object.entries(XERO_DOCUMENT_POLICY_PRESETS) as Array<[XeroDocumentPolicyPresetKey, typeof XERO_DOCUMENT_POLICY_PRESETS[XeroDocumentPolicyPresetKey]]>).map(([key, preset]) => (
+                <button key={key} type="button" onClick={() => setPendingPreset(key)} style={{ padding: '6px 10px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12 }}>{preset.label}</button>
+              ))}
+            </div>
+          </div>
           <div style={{ display: 'grid', gap: 12 }}>
             {policyBlock('po')}{policyBlock('so')}
             <div style={blockStyle}>
@@ -16577,7 +16608,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online sales</div>
               <div style={{ display: 'grid', gap: 10 }}>
                 {actionSelect('onlineBatchAction', 'Completed daily online batch')}
-                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'Available only for Authorised invoices. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction !== 'authorised')}
+                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'A Draft invoice is Authorised before payment. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction === 'none')}
                 {toggle('shopifyPayoutAutoPostEnabled', 'Automatically post planned Shopify payouts', 'After a paid payout balances and its actions are planned, Authorises linked Draft invoices and posts payments, fees, refunds, and adjustments. Failures remain blocked or partial for review.')}
               </div>
             </div>
@@ -16585,6 +16616,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           {(validationError || error) && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-red)' }}>{validationError || error}</div>
           )}
+          {warnings.map(warning => <div key={warning} style={{ marginTop: 8, padding: '7px 9px', borderLeft: '3px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 11 }}>{warning}</div>)}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <button
               type="button"
@@ -16595,6 +16627,14 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               {saving ? 'Saving...' : 'Save document policy'}
             </button>
           </div>
+          {pendingPreset && <div role="dialog" aria-modal="true" aria-labelledby="policy-preset-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
+            <div style={{ width: 'min(620px, 100%)', maxHeight: '80vh', overflow: 'auto', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 20 }}>
+              <h3 id="policy-preset-title" style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 17 }}>{XERO_DOCUMENT_POLICY_PRESETS[pendingPreset].label}</h3>
+              <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12 }}>Review the exact changes. Applying fills the ordinary settings below; nothing is saved until you choose Save document policy.</p>
+              {presetDiff.length === 0 ? <div style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>These settings already match this preset.</div> : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr style={{ textAlign: 'left', color: 'var(--sv-text-dim)' }}><th style={{ padding: 7 }}>Setting</th><th style={{ padding: 7 }}>Current</th><th style={{ padding: 7 }}>Preset</th></tr></thead><tbody>{presetDiff.map(change => <tr key={change.field} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 7 }}>{fieldLabel(change.field)}</td><td style={{ padding: 7 }}>{valueLabel(change.before)}</td><td style={{ padding: 7, color: 'var(--sv-mint)' }}>{valueLabel(change.after)}</td></tr>)}</tbody></table>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}><button type="button" onClick={() => setPendingPreset(null)} style={{ padding: '6px 12px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button><button type="button" onClick={() => { setPolicy(getXeroDocumentPolicyPreset(pendingPreset)); setPresetSource(pendingPreset); setPendingPreset(null); }} style={{ padding: '6px 12px', border: 0, borderRadius: 5, background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Apply preset</button></div>
+            </div>
+          </div>}
         </>
       )}
     </div>

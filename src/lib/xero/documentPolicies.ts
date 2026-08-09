@@ -36,6 +36,58 @@ export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
   shopifyPayoutAutoPostEnabled: false,
 });
 
+export const XERO_DOCUMENT_POLICY_PRESETS = {
+  bookkeeper_review: {
+    label: 'Bookkeeper review',
+    policy: {
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      poCompletedAction: 'draft',
+      poPaymentSyncEnabled: false,
+      soCompletedAction: 'draft',
+      soPaymentSyncEnabled: false,
+      manualCustomerCreditNoteAction: 'draft',
+      shortfallCreditDraftFirst: true,
+      posBatchPaymentSyncEnabled: false,
+      onlineBatchAction: 'draft',
+      onlineBatchPaymentSyncEnabled: false,
+    } satisfies XeroDocumentPolicy,
+  },
+  balanced_automation: {
+    label: 'Balanced automation',
+    policy: { ...DEFAULT_XERO_DOCUMENT_POLICY },
+  },
+  higher_automation: {
+    label: 'Higher automation',
+    policy: {
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      poApprovedAction: 'authorised',
+      soApprovedAction: 'authorised',
+      supplierCreditNoteAction: 'authorised',
+    } satisfies XeroDocumentPolicy,
+  },
+} as const;
+
+export type XeroDocumentPolicyPresetKey = keyof typeof XERO_DOCUMENT_POLICY_PRESETS;
+export type XeroDocumentPolicyField = keyof XeroDocumentPolicy;
+
+export function isXeroDocumentPolicyPresetKey(value: unknown): value is XeroDocumentPolicyPresetKey {
+  return typeof value === 'string' && value in XERO_DOCUMENT_POLICY_PRESETS;
+}
+
+export function getXeroDocumentPolicyPreset(key: XeroDocumentPolicyPresetKey): XeroDocumentPolicy {
+  return { ...XERO_DOCUMENT_POLICY_PRESETS[key].policy };
+}
+
+export function diffXeroDocumentPolicy(before: XeroDocumentPolicy, after: XeroDocumentPolicy): Array<{
+  field: XeroDocumentPolicyField;
+  before: XeroDocumentPolicy[XeroDocumentPolicyField];
+  after: XeroDocumentPolicy[XeroDocumentPolicyField];
+}> {
+  return (Object.keys(DEFAULT_XERO_DOCUMENT_POLICY) as XeroDocumentPolicyField[])
+    .filter(field => before[field] !== after[field])
+    .map(field => ({ field, before: before[field], after: after[field] }));
+}
+
 const actionRank: Record<Exclude<XeroDocumentAction, 'none'>, number> = {
   draft: 1,
   authorised: 2,
@@ -64,11 +116,24 @@ export function validateXeroDocumentPolicy(policy: XeroDocumentPolicy): string |
   if (!policy.posBatchSyncEnabled && policy.posBatchPaymentSyncEnabled) {
     return 'POS clearing payments require POS batch invoice sync to be enabled.';
   }
-  if (policy.onlineBatchAction !== 'authorised' && policy.onlineBatchPaymentSyncEnabled) {
-    return 'Online clearing payments require the daily online invoice to be Authorised.';
+  if (policy.onlineBatchAction === 'none' && policy.onlineBatchPaymentSyncEnabled) {
+    return 'Online clearing payments require daily online invoice sync to be enabled.';
   }
-
   return null;
+}
+
+export function getXeroDocumentPolicyWarnings(policy: XeroDocumentPolicy): string[] {
+  const warnings: string[] = [];
+  if (policy.onlineBatchAction !== 'authorised' && policy.onlineBatchPaymentSyncEnabled) {
+    warnings.push('Online clearing payments will authorise the daily online invoice before applying payment.');
+  }
+  if (policy.shopifyPayoutAutoPostEnabled) {
+    warnings.push('Shopify payout actions will post automatically after reconciliation succeeds.');
+  }
+  if (policy.poApprovedAction === 'authorised' || policy.soApprovedAction === 'authorised') {
+    warnings.push('Confirmed orders may become Authorised in Xero before completion or fulfilment.');
+  }
+  return warnings;
 }
 
 export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
