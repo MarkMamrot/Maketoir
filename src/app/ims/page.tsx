@@ -2,30 +2,23 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Download, ExternalLink, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
+import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
-import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
-  XERO_DOCUMENT_POLICY_PRESETS,
-  diffXeroDocumentPolicy,
-  getXeroDocumentPolicyPreset,
-  getXeroDocumentPolicyWarnings,
   type XeroDocumentAction,
   type XeroDocumentPolicy,
-  type XeroDocumentPolicyPresetKey,
   validateXeroDocumentPolicy,
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { BackordersView } from './views/backorders/BackordersView';
-import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
@@ -271,27 +264,8 @@ function calcDueDate(orderDate: string | undefined, terms: string | undefined): 
 async function apiFetch(url: string, opts?: RequestInit) {
   const res = await fetch(url, opts);
   const json = await res.json();
-  if (!json.success && json.error) {
-    const error = Object.assign(new Error(json.error), json, { status: res.status });
-    throw error;
-  }
+  if (!json.success && json.error) throw new Error(json.error);
   return json;
-}
-
-async function saveDocumentWithXeroOverride(url: string, payload: Record<string, unknown>) {
-  const options = (body: Record<string, unknown>): RequestInit => ({
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  try {
-    return await apiFetch(url, options(payload));
-  } catch (error: any) {
-    if (!error?.xeroOverrideAvailable) throw error;
-    const reason = window.prompt(`${error.message}\n\nEnter the reason for saving this change in IMS without changing Xero:`)?.trim();
-    if (!reason) throw error;
-    return apiFetch(url, options({ ...payload, xeroOverrideReason: reason }));
-  }
 }
 
 function CostSummaryPills({ items }: { items: Array<{ label: string; value: string; tone?: 'default' | 'good' | 'warn' | 'bad' }> }) {
@@ -350,7 +324,6 @@ function useImsSettings() {
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
   confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
-  partially_fulfilled:'background:rgba(251,146,60,.18);color:#f97316',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   complete:           'background:rgba(16,185,129,.18);color:#34d399',
@@ -690,7 +663,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [openOnlineSalesModalOpen, setOpenOnlineSalesModalOpen] = useState(false);
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
-  const [onboardingError, setOnboardingError] = useState('');
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
@@ -736,15 +708,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   const loadOnboarding = useCallback(() => {
     setOnboardingLoading(true);
-    setOnboardingError('');
     fetch('/api/onboarding')
-      .then(async r => {
-        const body = await r.json().catch(() => ({}));
-        if (!r.ok || !body?.success) throw new Error(body?.error || 'Onboarding progress could not be loaded.');
-        return body;
-      })
-      .then(d => { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); })
-      .catch(error => setOnboardingError(error instanceof Error ? error.message : 'Onboarding progress could not be loaded.'))
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
+      .catch(() => {})
       .finally(() => setOnboardingLoading(false));
   }, []);
 
@@ -875,14 +842,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   return (
     <div>
-      {onboardingError && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', marginBottom: 20, border: '1px solid var(--sv-red)', borderRadius: 7, background: 'var(--sv-bg-1)', color: 'var(--sv-text-strong)' }}>
-          <span>{onboardingError}</span>
-          <button type="button" onClick={loadOnboarding} disabled={onboardingLoading} style={{ ...btnStyle('ghost', 'sm'), flexShrink: 0 }}>
-            {onboardingLoading ? 'Retrying…' : 'Retry'}
-          </button>
-        </div>
-      )}
       {/* ─ Onboarding panel (hidden once all steps complete) ───────────────────── */}
       {onboarding && !onboarding.complete && (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 24, marginBottom: 28 }}>
@@ -1079,7 +1038,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               })}
             </div>
           </div>
-          <style>{`@media (max-width: 900px) { .onboarding-grid { grid-template-columns: minmax(0, 1fr) !important; } }`}</style>
         </div>
       )}
 
@@ -8062,7 +8020,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
-  const [resolveOutstandingPo, setResolveOutstandingPo] = useState<any | null>(null);
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
@@ -8258,12 +8215,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
 
   const handleAddPoPayment = async () => {
     if (!viewModal.po || !poPayForm || !poPayForm.date || !poPayForm.amount) return;
-    if (poPayForm.method && ['confirmed', 'partially_received'].includes(viewModal.po.status)) {
-      const proceed = confirm(
-        'This purchase order is not fully received. Recording a mapped payment will Authorise its Xero bill, after which quantities cannot be changed and a supplier backorder cannot be split from it.\n\nOnly continue if the ordered and received quantities are final.'
-      );
-      if (!proceed) return;
-    }
     const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
     const rate = Number(poPayForm.rate || 1);
     try {
@@ -8303,45 +8254,30 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
-    const effectiveQtys = receiveQtysOverride ?? receiveQtys;
-    const receivePlan = isReceiving ? planPurchaseOrderReceive(lineItems.filter(item => item.variant_id).map(item => {
-      const stored = Number(modal.edit?.items?.find((existing: any) => existing.variant_id === item.variant_id)?.qty_received ?? 0);
-      return {
-        variantId: String(item.variant_id),
-        orderedQuantity: Number(item.qty_ordered),
-        alreadyReceivedQuantity: stored,
-        enteredQuantity: Number(effectiveQtys[item.variant_id] ?? stored),
-      };
-    }), targetStatus) : null;
-    if (receivePlan?.createBackorderPo && !confirm(
-      `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} still have outstanding quantities.\n\nComplete this PO and create a held supplier backorder for the shortfall?`,
-    )) return;
     setSaving(true);
     try {
       let savedPoId: number | null = modal.edit?.id ?? null;
-      let backorderPoNumber: string | null = null;
       const resultingPoStatus = targetStatus ?? (andOrder ? 'confirmed' : (modal.edit?.status ?? 'draft'));
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        const saved = await saveDocumentWithXeroOverride(`/api/ims/purchase-orders/${modal.edit.id}`, { ...form, items, landed_costs });
-        if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
+        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         // Also record any receiving deltas
-        if (isReceiving && receivePlan?.shouldCallBatch) {
-          const receiveResult = await apiFetch('/api/ims/receive/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              po_id: modal.edit.id,
-              location_id: modal.edit.location_id,
-              received_items: receivePlan.receivedItems,
-              mark_po_received: receivePlan.markPoReceived,
-              create_backorder_po: receivePlan.createBackorderPo,
-            }),
-          });
-          backorderPoNumber = receiveResult?.backorderPoNumber ?? null;
+        if (isReceiving) {
+          const effectiveQtys = receiveQtysOverride ?? receiveQtys;
+          const received_items = lineItems
+            .filter(item => item.variant_id)
+            .map(item => {
+              const stored = Number(modal.edit!.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
+              const entered = Number(effectiveQtys[item.variant_id] ?? stored);
+              return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
+            })
+            .filter(item => item.qty_received > 0);
+          if (received_items.length > 0) {
+            await apiFetch('/api/ims/receive/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ po_id: modal.edit.id, location_id: modal.edit.location_id, received_items, mark_po_received: false }) });
+          }
         }
-        if (targetStatus && !isReceiving) {
+        if (targetStatus) {
           await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: targetStatus }) });
         }
       } else {
@@ -8355,7 +8291,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       setModal({ open: false, edit: null });
       setLandedCosts([]);
       setLcForm(null);
-      if (backorderPoNumber) alert(`Supplier backorder ${backorderPoNumber} was created and is now held in Backorders.`);
       if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
@@ -8394,23 +8329,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     }
   };
 
-  const editPoWithWarn = async (po: any, beforeAction?: () => void, editOnly = false) => {
+  const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
     if (po.status === 'complete') {
-      beforeAction?.();
-      if (!po.xero_bill_id) {
-        openEdit(po, editOnly);
-        return;
-      }
-      try {
-        const details = await apiFetch(`/api/ims/xero/bill-details?poId=${po.id}`);
-        if (details.status !== 'DRAFT') {
-          alert(`This PO cannot be edited because its Xero bill is ${details.status || 'not verifiable'}. Reverse or correct the transaction through the supported workflow instead.`);
-          return;
-        }
-        openEdit(po, editOnly);
-      } catch (e: any) {
-        alert(e.message || 'The linked Xero bill status could not be verified, so this PO cannot be edited.');
-      }
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
     } else {
       beforeAction?.();
       openEdit(po, editOnly);
@@ -8660,12 +8582,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                         </td>
                         )}
                         {isReceiving && (() => {
-                          const storedReceived = Number(modal.edit?.items?.find((existing: any) => existing.variant_id === item.variant_id)?.qty_received ?? 0);
-                          const received = Math.max(storedReceived, Number(receiveQtys[item.variant_id] ?? storedReceived));
+                          const received = Number(receiveQtys[item.variant_id] ?? 0);
                           const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
                           return (<>
                             <td style={{ padding: 4, width: 80 }}>
-                              <input type="number" min={storedReceived} max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.max(storedReceived, Math.min(Number(e.target.value), Number(item.qty_ordered))) }))} style={{ ...inputStyle, fontSize: 12 }} />
+                              <input type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
                             </td>
                             <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
                               {awaiting}
@@ -8855,7 +8776,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onResolve={() => setResolveOutstandingPo(viewModal.po)} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -9125,7 +9046,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               </div>
             );
           })()}
-          <OrderResolutionFinancials order={viewModal.po} side="supplier" isAdvisor={isAdvisor} onRefresh={() => refreshPoView(viewModal.po.id)} />
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
 
           {/* ── Supplier Invoices / Attachments ── */}
@@ -9236,12 +9156,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           onDone={() => load()}
         />
       )}
-      {resolveOutstandingPo && <ResolveOutstandingModal kind="supplier" order={resolveOutstandingPo} onClose={() => setResolveOutstandingPo(null)} onResolved={async () => { await load(); await refreshPoView(resolveOutstandingPo.id); }} />}
     </div>
   );
 }
 
-function POActions({ po, onEdit, onReceive, onDelete, onStatus, onResolve, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onResolve?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024);
@@ -9265,20 +9184,17 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, onResolve, conte
   if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
+  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
-  if (po.status === 'partially_received' && context === 'view' && onResolve && !isAdvisor) { btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('action', 'xs')}>Resolve Outstanding</button>); }
   if (po.status === 'complete') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
   if (po.status !== 'complete' && po.status !== 'cancelled') {
-    if (po.status === 'backordered') {
-      if (context !== 'list' && !isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
-    } else {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')} disabled={isAdvisor}>Receive</button>); }
     if (context !== 'list' && po.status !== 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
-    }
+    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
   if (po.status === 'cancelled' || po.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
@@ -10059,8 +9975,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         })),
       };
       if (modal.edit) {
-        const saved = await saveDocumentWithXeroOverride(`/api/ims/credit-notes/${modal.edit.id}`, body);
-        if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
+        await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       } else {
         const created = await apiFetch('/api/ims/credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         savedCnId = Number(created?.data?.id ?? created?.id ?? 0) || null;
@@ -10829,7 +10744,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         })),
       };
       const saved = modal.edit
-        ? await saveDocumentWithXeroOverride(`/api/ims/supplier-credit-notes/${modal.edit.id}`, body)
+        ? await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
         : await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setModal({ open: false, edit: null });
       load();
@@ -11605,7 +11520,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
-  const [resolveOutstandingSo, setResolveOutstandingSo] = useState<any | null>(null);
   const [fulfilModal, setFulfilModal] = useState<{ so: any; quantities: Record<number, number> } | null>(null);
   const [fulfilSaving, setFulfilSaving] = useState(false);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
@@ -11849,12 +11763,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const handleAddSoPayment = async () => {
     if (!viewModal.so || !soPayForm || !soPayForm.date || !soPayForm.amount) return;
-    if (soPayForm.method && ['confirmed', 'partially_fulfilled'].includes(viewModal.so.status)) {
-      const proceed = confirm(
-        'This sales order is not fulfilled. Recording a mapped payment will Authorise its Xero invoice, after which quantities cannot be changed and a customer backorder cannot be split from it.\n\nOnly continue if the fulfilment quantities are final.'
-      );
-      if (!proceed) return;
-    }
     const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
     const rate = Number(soPayForm.rate || 1);
     try {
@@ -11930,15 +11838,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
-        const saved = await saveDocumentWithXeroOverride(`/api/ims/sales-orders/${modal.edit.id}`, { ...form, items });
-        if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
+        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
       } else {
         const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
         savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
       }
       load();
       setModal({ open: false, edit: null });
-      if (savedSoId && ['confirmed', 'partially_fulfilled', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
+      if (savedSoId && ['confirmed', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
   };
@@ -11967,9 +11874,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const response = await apiFetch(`/api/ims/sales-orders/${so.id}`);
       const detail = response.data ?? response;
       const quantities: Record<number, number> = {};
-      for (const item of detail.items ?? []) {
-        quantities[Number(item.id)] = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled ?? 0));
-      }
+      for (const item of detail.items ?? []) quantities[Number(item.id)] = Number(item.qty_ordered);
       setFulfilModal({ so: detail, quantities });
     } catch (e: any) {
       alert(e.message || 'Failed to load fulfilment quantities.');
@@ -11979,37 +11884,41 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const submitFulfil = async () => {
     if (!fulfilModal) return;
     const items = fulfilModal.so.items ?? [];
-    const shipmentQuantities = items.map((item: any) => ({
+    const fulfilQuantities = items.map((item: any) => ({
       itemId: Number(item.id),
       quantity: Number(fulfilModal.quantities[Number(item.id)] ?? 0),
     }));
-    const hasInvalid = shipmentQuantities.some((line: any, index: number) =>
-      !Number.isFinite(line.quantity)
-      || line.quantity < 0
-      || line.quantity > Math.max(0, Number(items[index].qty_ordered) - Number(items[index].qty_fulfilled ?? 0)),
+    const hasInvalid = fulfilQuantities.some((line: any, index: number) =>
+      !Number.isFinite(line.quantity) || line.quantity < 0 || line.quantity > Number(items[index].qty_ordered),
     );
     if (hasInvalid) {
-      alert('Ship-now quantities must be between zero and the outstanding quantity.');
+      alert('Fulfil quantities must be between zero and the ordered quantity.');
       return;
     }
-    const totalFulfilled = shipmentQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
+    const totalFulfilled = fulfilQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
     if (totalFulfilled <= 0) {
       alert('Enter a fulfilled quantity for at least one line.');
       return;
     }
+    const isFull = fulfilQuantities.every((line: any, index: number) => line.quantity === Number(items[index].qty_ordered));
     setFulfilSaving(true);
     try {
-      const operationKey = typeof crypto?.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/fulfil`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operationKey, shipmentQuantities }),
-      });
-      load();
-      if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
-        await refreshSoView(fulfilModal.so.id);
+      if (isFull) {
+        const succeeded = await changeStatus(fulfilModal.so, 'fulfilled', true);
+        if (!succeeded) return;
+      } else {
+        const operationKey = typeof crypto?.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/backorder`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operationKey, fulfilQuantities }),
+        });
+        load();
+        if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
+          await refreshSoView(fulfilModal.so.id);
+        }
       }
       setFulfilModal(null);
     } catch (e: any) {
@@ -12038,23 +11947,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     }
   };
 
-  const editSoWithWarn = async (so: any, beforeAction?: () => void) => {
+  const editSoWithWarn = (so: any, beforeAction?: () => void) => {
     if (so.status === 'fulfilled') {
-      beforeAction?.();
-      if (!so.xero_invoice_id) {
-        openEdit(so);
-        return;
-      }
-      try {
-        const details = await apiFetch(`/api/ims/xero/invoice-details?soId=${so.id}`);
-        if (details.status !== 'DRAFT') {
-          alert(`This SO cannot be edited because its Xero invoice is ${details.status || 'not verifiable'}. Use a return or credit note to correct it instead.`);
-          return;
-        }
-        openEdit(so);
-      } catch (e: any) {
-        alert(e.message || 'The linked Xero invoice status could not be verified, so this SO cannot be edited.');
-      }
+      beforeAction?.(); // close view modal before showing warning so it renders on top
+      showSoXeroWarnForFulfilled('edit', so, () => openEdit(so));
     } else {
       beforeAction?.();
       openEdit(so);
@@ -12116,7 +12012,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     '': 'All',
     draft: 'Draft',
     confirmed: 'Confirmed',
-    partially_fulfilled: 'Partially fulfilled',
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
@@ -12209,7 +12104,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <option value="">All</option>
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
-                    <option value="partially_fulfilled">Partially fulfilled</option>
                     <option value="fulfilled">Fulfilled</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -12480,7 +12374,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onResolve={() => setResolveOutstandingSo(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12684,7 +12578,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </div>
             );
           })()}
-          <OrderResolutionFinancials order={viewModal.so} side="customer" isAdvisor={isAdvisor} onRefresh={() => refreshSoView(viewModal.so.id)} />
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
         </Modal>
       )}
@@ -12800,28 +12693,27 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {fulfilModal && (
         <Modal title={`Fulfil ${fulfilModal.so.so_number}`} onClose={() => { if (!fulfilSaving) setFulfilModal(null); }} wide>
           <div style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 14 }}>
-            Enter the quantity dispatching now. Any remainder stays on this order as outstanding.
+            Enter the quantity dispatching now. Any remainder will become a held customer backorder.
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', border: '1px solid var(--sv-etch)' }}>
               <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
-                {['SKU', 'Product', 'Variant', 'Outstanding', 'Ship now', 'Remaining'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
+                {['SKU', 'Product', 'Variant', 'Ordered', 'Fulfil now', 'Backorder'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
               </tr></thead>
               <tbody>{(fulfilModal.so.items ?? []).map((item: any) => {
                 const itemId = Number(item.id);
                 const ordered = Number(item.qty_ordered);
-                const outstanding = Math.max(0, ordered - Number(item.qty_fulfilled ?? 0));
                 const fulfilled = Number(fulfilModal.quantities[itemId] ?? 0);
                 return <tr key={itemId} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '9px 10px' }}><code style={{ color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
                   <td style={{ padding: '9px 10px' }}>{item.product_name || 'Unknown product'}</td>
                   <td style={{ padding: '9px 10px' }}>{item.variant_label || 'Default'}</td>
-                  <td style={{ padding: '9px 10px' }}>{fmtQty(outstanding)}</td>
+                  <td style={{ padding: '9px 10px' }}>{fmtQty(ordered)}</td>
                   <td style={{ padding: '9px 10px' }}>
                     <input
                       type="number"
                       min={0}
-                      max={outstanding}
+                      max={ordered}
                       step="any"
                       value={fulfilled}
                       onChange={event => setFulfilModal(current => current ? {
@@ -12831,7 +12723,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                       style={{ ...inputStyle, width: 92 }}
                     />
                   </td>
-                  <td style={{ padding: '9px 10px', fontWeight: outstanding - fulfilled > 0 ? 700 : 400, color: outstanding - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, outstanding - fulfilled))}</td>
+                  <td style={{ padding: '9px 10px', fontWeight: ordered - fulfilled > 0 ? 700 : 400, color: ordered - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, ordered - fulfilled))}</td>
                 </tr>;
               })}</tbody>
             </table>
@@ -12842,29 +12734,25 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           </div>
         </Modal>
       )}
-      {resolveOutstandingSo && <ResolveOutstandingModal kind="customer" order={resolveOutstandingSo} onClose={() => setResolveOutstandingSo(null)} onResolved={async () => { await load(); await refreshSoView(resolveOutstandingSo.id); }} />}
     </div>
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onResolve, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onResolve?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (so.status === 'confirmed' || so.status === 'partially_fulfilled') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
-  if (so.status === 'partially_fulfilled' && onResolve && !isAdvisor) { btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('action', 'xs')}>Resolve Outstanding</button>); }
+  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
   if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (so.status === 'fulfilled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
   }
-  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft' && so.status !== 'partially_fulfilled') {
-    if (so.status !== 'backordered') {
+  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    }
     if (!isAdvisor) { btns.push(<button key="x" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
   }
   if (so.status === 'draft') {
@@ -15784,7 +15672,6 @@ function SettingsView() {
 function XeroView({
   businessId,
   isAdvisor = false,
-  canMutateAccounting = false,
   advisorMappingEnabled = false,
   onOpenPurchaseOrder,
   onOpenSalesOrder,
@@ -15794,7 +15681,6 @@ function XeroView({
 }: {
   businessId: string;
   isAdvisor?: boolean;
-  canMutateAccounting?: boolean;
   advisorMappingEnabled?: boolean;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
@@ -15804,9 +15690,7 @@ function XeroView({
 }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(() => (
-    isAdvisor || (typeof window !== 'undefined' && window.location.hash === '#xero/sync') ? 'sync' : 'overview'
-  ));
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -15829,6 +15713,45 @@ function XeroView({
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
 
+  // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
+  // only when an administrator has granted access in Xero → Overview.
+  if (isAdvisor) {
+    const titleBar = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
+        {status?.connected && (
+          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
+        )}
+      </div>
+    );
+    if (!advisorMappingEnabled) {
+      return (
+        <div>
+          {titleBar}
+          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
+            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
+          </div>
+        </div>
+      );
+    }
+    if (!status?.connected) {
+      return (
+        <div>
+          {titleBar}
+          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)' }}>
+            Xero is not connected. Ask an administrator to connect Xero before configuring mappings.
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div>
+        {titleBar}
+        <XeroMappingTab getBusinessId={getBusinessId} />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -15842,7 +15765,7 @@ function XeroView({
         </span>
       </div>
 
-      {!status?.connected && !isAdvisor ? (
+      {!status?.connected ? (
         <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 520 }}>
           <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
             Connect your Xero organisation to sync purchase orders, sales, and monthly COGS journals automatically.
@@ -15862,10 +15785,10 @@ function XeroView({
         <>
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            {!isAdvisor && <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>}
-            {(!isAdvisor || advisorMappingEnabled) && <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>}
-            {!isAdvisor && <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>}
-            {!isAdvisor && <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>}
+            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
+            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
+            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
+            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
             <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
           </div>
 
@@ -15876,7 +15799,6 @@ function XeroView({
           {tab === 'sync' && (
             <XeroSyncTab
               getBusinessId={getBusinessId}
-              canMutateAccounting={canMutateAccounting}
               onOpenPurchaseOrder={onOpenPurchaseOrder}
               onOpenSalesOrder={onOpenSalesOrder}
               onOpenCreditNote={onOpenCreditNote}
@@ -16449,14 +16371,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [presetSource, setPresetSource] = useState<XeroDocumentPolicyPresetKey | null>(null);
-  const [pendingPreset, setPendingPreset] = useState<XeroDocumentPolicyPresetKey | null>(null);
   const validationError = validateXeroDocumentPolicy(policy);
-  const warnings = getXeroDocumentPolicyWarnings(policy);
-  const updatePolicy = (updater: (previous: XeroDocumentPolicy) => XeroDocumentPolicy) => {
-    setPresetSource(null);
-    setPolicy(updater);
-  };
 
   useEffect(() => {
     const businessId = getBusinessId();
@@ -16480,13 +16395,12 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
       const response = await fetch('/api/xero/document-policies', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), policy, presetSource }),
+        body: JSON.stringify({ databaseId: getBusinessId(), policy }),
       });
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Failed to save document policy');
       setPolicy(data.policy);
       setSavedPolicy(data.policy);
-      setPresetSource(null);
     } catch (saveError) {
       setPolicy(savedPolicy);
       setError(saveError instanceof Error ? saveError.message : 'Failed to save document policy');
@@ -16503,7 +16417,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
       {label}
       <select
         value={policy[field]}
-        onChange={event => updatePolicy(previous => ({ ...previous, [field]: event.target.value as XeroDocumentAction }))}
+        onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.value as XeroDocumentAction }))}
         style={{ width: '100%', padding: '7px 9px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
       >
         <option value="none">No sync</option>
@@ -16536,7 +16450,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           <input
             type="checkbox"
             checked={policy[paymentField]}
-            onChange={event => updatePolicy(previous => ({ ...previous, [paymentField]: event.target.checked }))}
+            onChange={event => setPolicy(previous => ({ ...previous, [paymentField]: event.target.checked }))}
           />
           Sync {isPO ? 'PO' : 'SO'} payments to Xero
         </label>
@@ -16550,7 +16464,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   };
 
   const toggle = (
-    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled' | 'shortfallCreditDraftFirst',
+    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled',
     label: string,
     help: string,
     disabled = false,
@@ -16561,7 +16475,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           type="checkbox"
           checked={policy[field]}
           disabled={disabled}
-          onChange={event => updatePolicy(previous => ({ ...previous, [field]: event.target.checked }))}
+          onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.checked }))}
         />
         {label}
       </label>
@@ -16570,33 +16484,15 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   );
 
   const blockStyle = { padding: 14, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7 };
-  const fieldLabel = (field: string) => ({
-    poApprovedAction: 'PO confirmed action', poCompletedAction: 'PO completed action', poPaymentSyncEnabled: 'PO payment sync',
-    soApprovedAction: 'SO confirmed action', soCompletedAction: 'SO fulfilled action', soPaymentSyncEnabled: 'SO payment sync',
-    manualCustomerCreditNoteAction: 'Customer credit-note action', supplierCreditNoteAction: 'Supplier credit-note action',
-    shortfallCreditDraftFirst: 'Draft-first shortfall credits', posBatchSyncEnabled: 'POS batch sync',
-    posBatchPaymentSyncEnabled: 'POS clearing payments', onlineBatchAction: 'Online batch action',
-    onlineBatchPaymentSyncEnabled: 'Online clearing payments', shopifyPayoutAutoPostEnabled: 'Shopify payout auto-post',
-  }[field] ?? field);
-  const valueLabel = (value: string | boolean) => typeof value === 'boolean' ? (value ? 'Enabled' : 'Disabled') : value === 'none' ? 'No sync' : value[0].toUpperCase() + value.slice(1);
-  const presetDiff = pendingPreset ? diffXeroDocumentPolicy(policy, getXeroDocumentPolicyPreset(pendingPreset)) : [];
 
   return (
     <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Document Status &amp; Payments</h3>
       <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Choose which future IMS accounting events reach Xero and whether they remain Draft or become Authorised. Saving does not rewrite existing Xero documents.
+        Choose which IMS accounting events reach Xero and whether they remain Draft or become Authorised. Existing documents are never moved backwards.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading document policy...</div> : (
         <>
-          <div style={{ ...blockStyle, marginBottom: 12 }}>
-            <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Starting presets</div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {(Object.entries(XERO_DOCUMENT_POLICY_PRESETS) as Array<[XeroDocumentPolicyPresetKey, typeof XERO_DOCUMENT_POLICY_PRESETS[XeroDocumentPolicyPresetKey]]>).map(([key, preset]) => (
-                <button key={key} type="button" onClick={() => setPendingPreset(key)} style={{ padding: '6px 10px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 12 }}>{preset.label}</button>
-              ))}
-            </div>
-          </div>
           <div style={{ display: 'grid', gap: 12 }}>
             {policyBlock('po')}{policyBlock('so')}
             <div style={blockStyle}>
@@ -16608,9 +16504,6 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               <p style={{ margin: '8px 0 0', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>
                 POS returns stay in POS/EOD accounting. Shopify refunds always require an Authorised Xero credit note for payout reconciliation.
               </p>
-              <div style={{ marginTop: 12 }}>
-                {toggle('shortfallCreditDraftFirst', 'Review shortfall credits as Draft in Xero', 'Off by default. When enabled, customer and supplier shortfall credits wait in Sync History for an administrator to Authorise and continue the selected refund, unapplied-credit, or backorder-reservation action.')}
-              </div>
             </div>
             <div style={blockStyle}>
               <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>POS sales batches</div>
@@ -16623,7 +16516,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online sales</div>
               <div style={{ display: 'grid', gap: 10 }}>
                 {actionSelect('onlineBatchAction', 'Completed daily online batch')}
-                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'A Draft invoice is Authorised before payment. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction === 'none')}
+                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'Available only for Authorised invoices. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction !== 'authorised')}
                 {toggle('shopifyPayoutAutoPostEnabled', 'Automatically post planned Shopify payouts', 'After a paid payout balances and its actions are planned, Authorises linked Draft invoices and posts payments, fees, refunds, and adjustments. Failures remain blocked or partial for review.')}
               </div>
             </div>
@@ -16631,7 +16524,6 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           {(validationError || error) && (
             <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-red)' }}>{validationError || error}</div>
           )}
-          {warnings.map(warning => <div key={warning} style={{ marginTop: 8, padding: '7px 9px', borderLeft: '3px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 11 }}>{warning}</div>)}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <button
               type="button"
@@ -16642,96 +16534,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               {saving ? 'Saving...' : 'Save document policy'}
             </button>
           </div>
-          {pendingPreset && <div role="dialog" aria-modal="true" aria-labelledby="policy-preset-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
-            <div style={{ width: 'min(620px, 100%)', maxHeight: '80vh', overflow: 'auto', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 20 }}>
-              <h3 id="policy-preset-title" style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 17 }}>{XERO_DOCUMENT_POLICY_PRESETS[pendingPreset].label}</h3>
-              <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12 }}>Review the exact changes. Applying fills the ordinary settings below; nothing is saved until you choose Save document policy.</p>
-              {presetDiff.length === 0 ? <div style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>These settings already match this preset.</div> : <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}><thead><tr style={{ textAlign: 'left', color: 'var(--sv-text-dim)' }}><th style={{ padding: 7 }}>Setting</th><th style={{ padding: 7 }}>Current</th><th style={{ padding: 7 }}>Preset</th></tr></thead><tbody>{presetDiff.map(change => <tr key={change.field} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 7 }}>{fieldLabel(change.field)}</td><td style={{ padding: 7 }}>{valueLabel(change.before)}</td><td style={{ padding: 7, color: 'var(--sv-mint)' }}>{valueLabel(change.after)}</td></tr>)}</tbody></table>}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}><button type="button" onClick={() => setPendingPreset(null)} style={{ padding: '6px 12px', border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}>Cancel</button><button type="button" onClick={() => { setPolicy(getXeroDocumentPolicyPreset(pendingPreset)); setPresetSource(pendingPreset); setPendingPreset(null); }} style={{ padding: '6px 12px', border: 0, borderRadius: 5, background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Apply preset</button></div>
-            </div>
-          </div>}
         </>
-      )}
-    </div>
-  );
-}
-
-function OrderResolutionFinancials({ order, side, isAdvisor, onRefresh }: { order: any; side: 'customer' | 'supplier'; isAdvisor: boolean; onRefresh: () => Promise<void> }) {
-  const [working, setWorking] = useState<number | null>(null);
-  const [dialog, setDialog] = useState<{ row: any; action: 'refund' | 'allocate'; amount: string; accountCode: string; targetOrderId: string } | null>(null);
-  const [accounts, setAccounts] = useState<Array<{ code: string; name: string; type: string; enablePaymentsToAccount?: boolean }>>([]);
-  const [actionError, setActionError] = useState('');
-  const rows = Array.isArray(order?.resolution_financials) ? order.resolution_financials : [];
-  if (!rows.length) return null;
-
-  const money = (amount: number, currency: string) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: currency || 'AUD' }).format(Number(amount || 0));
-  const settlementLabel = (value: string | null) => ({ refund: 'Refunded', supplier_refund: 'Supplier refund', leave_unapplied: 'Unapplied credit', reserve_for_order: 'Reserved for backorder', allocate_to_invoice: 'Allocated to sales order', allocate_to_bill: 'Allocated to purchase order' }[String(value)] ?? String(value || 'No settlement'));
-
-  const openAction = async (row: any, action: 'refund' | 'allocate') => {
-    setActionError('');
-    setDialog({ row, action, amount: String(row.amount), accountCode: '', targetOrderId: '' });
-    if (action === 'refund' && accounts.length === 0 && order?.business_id) {
-      try {
-        const response = await fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(order.business_id)}`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Unable to load Xero accounts');
-        setAccounts((data.accounts ?? []).filter((account: any) => account.type === 'BANK' || account.enablePaymentsToAccount === true));
-      } catch (error) {
-        setActionError(error instanceof Error ? error.message : 'Unable to load Xero accounts');
-      }
-    }
-  };
-
-  const act = async (row: any, action: 'unallocate' | 'refund' | 'allocate', values?: { amount: number; accountCode?: string; targetOrderId?: number }) => {
-    const amount = values?.amount ?? 0;
-    if (action === 'unallocate' && !confirm('Remove this exact Xero allocation? The credit becomes available for another allocation or refund.')) return;
-    setWorking(Number(row.resolutionId));
-    setActionError('');
-    try {
-      const response = await fetch(`/api/ims/order-resolutions/${side}/${row.resolutionId}/settlement`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, amount, accountCode: values?.accountCode, targetOrderId: values?.targetOrderId, operationKey: crypto.randomUUID() }) });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Credit action failed');
-      setDialog(null);
-      await onRefresh();
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Credit action failed');
-    } finally {
-      setWorking(null);
-    }
-  };
-
-  return (
-    <div style={{ marginTop: 20, border: '1px solid var(--sv-etch)', borderRadius: 7, overflow: 'hidden' }}>
-      <div style={{ padding: '9px 12px', background: 'var(--sv-bg-1)', fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shortfall financial settlement</div>
-      {rows.map((row: any) => {
-        const activeAllocation = row.settlementStatus === 'succeeded' && !!row.settlementXeroId && ['reserve_for_order', 'allocate_to_invoice', 'allocate_to_bill'].includes(row.settlementType);
-        return (
-          <div key={`${row.resolutionId}-${row.settlementId ?? 'none'}`} style={{ padding: 12, borderTop: '1px solid var(--sv-etch)', display: 'grid', gap: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div><strong style={{ color: 'var(--sv-text-main)' }}>{row.role === 'source' ? 'Credit raised from this order' : 'Credit linked from the source order'}</strong><div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>{row.creditNoteNumber || 'Credit note pending'} · {settlementLabel(row.settlementType)} · {String(row.settlementStatus || row.resolutionState).replaceAll('_', ' ')}</div></div>
-              <strong style={{ color: 'var(--sv-mint)' }}>{money(row.amount, row.currencyCode)}</strong>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>The order total and this separate credit together show the net financial position.</div>
-            {row.settlementError && <div style={{ fontSize: 11, color: 'var(--sv-red)' }}>{row.settlementError}</div>}
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-              {row.xeroCreditNoteId && <a href={side === 'customer' ? `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${row.xeroCreditNoteId}` : `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${row.xeroCreditNoteId}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>Open credit note in Xero</a>}
-              {!isAdvisor && row.resolutionState === 'complete' && row.xeroCreditNoteId && <>{activeAllocation && <button onClick={() => act(row, 'unallocate')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Unallocate</button>}{!activeAllocation && <button onClick={() => openAction(row, 'refund')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Refund available credit</button>}{!activeAllocation && <button onClick={() => openAction(row, 'allocate')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Allocate to another order</button>}</>}
-            </div>
-          </div>
-        );
-      })}
-      {actionError && !dialog && <div style={{ padding: '8px 12px', color: 'var(--sv-red)', fontSize: 12 }}>{actionError}</div>}
-      {dialog && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10020, display: 'grid', placeItems: 'center', padding: 16, background: 'rgba(0,0,0,.65)' }} onMouseDown={event => { if (event.target === event.currentTarget && !working) setDialog(null); }}>
-          <div style={{ width: 'min(440px, 100%)', padding: 18, borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', boxShadow: '0 20px 60px rgba(0,0,0,.4)' }}>
-            <h3 style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 16 }}>{dialog.action === 'refund' ? 'Refund available credit' : `Allocate to another ${side === 'customer' ? 'sales' : 'purchase'} order`}</h3>
-            <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12 }}>Credit note {dialog.row.creditNoteNumber} has a recorded shortfall value of {money(dialog.row.amount, dialog.row.currencyCode)}. Xero validates the remaining available balance before posting.</p>
-            <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Amount ({dialog.row.currencyCode || 'AUD'})<input type="number" min="0.01" step="0.01" value={dialog.amount} onChange={event => setDialog(current => current ? { ...current, amount: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }} /></label>
-            {dialog.action === 'refund' ? <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Xero refund account<select value={dialog.accountCode} onChange={event => setDialog(current => current ? { ...current, accountCode: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}><option value="">Choose an active account</option>{accounts.map(account => <option key={`${account.code}-${account.name}`} value={account.code}>{account.name} ({account.code})</option>)}</select></label> : <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Target {side === 'customer' ? 'sales' : 'purchase'} order ID<input type="number" min="1" step="1" value={dialog.targetOrderId} onChange={event => setDialog(current => current ? { ...current, targetOrderId: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }} /></label>}
-            {actionError && <div style={{ marginBottom: 10, color: 'var(--sv-red)', fontSize: 12 }}>{actionError}</div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button onClick={() => setDialog(null)} disabled={!!working} style={btnStyle('ghost', 'sm')}>Cancel</button><button onClick={() => act(dialog.row, dialog.action, { amount: Number(dialog.amount), accountCode: dialog.accountCode, targetOrderId: Number(dialog.targetOrderId) })} disabled={!!working || !(Number(dialog.amount) > 0) || (dialog.action === 'refund' ? !dialog.accountCode : !(Number(dialog.targetOrderId) > 0))} style={btnStyle('mint', 'sm')}>{working ? 'Posting...' : dialog.action === 'refund' ? 'Post refund' : 'Post allocation'}</button></div>
-          </div>
-        </div>
       )}
     </div>
   );
@@ -17016,26 +16819,6 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [freightTreatment, setFreightTreatment] = useState<'expense' | 'capitalise'>('expense');
-  const [readiness, setReadiness] = useState<{ summary: { required: number; ready: number; missing: number; stale: number; optional: number }; items: Array<{ category: string; key: string; label: string; requirement: 'required' | 'optional'; status: 'ready' | 'missing' | 'stale' | 'optional'; summary: string }>; checkedAt: string } | null>(null);
-  const [readinessLoading, setReadinessLoading] = useState(false);
-  const [readinessError, setReadinessError] = useState('');
-
-  const loadReadiness = async () => {
-    const bid = getBusinessId();
-    if (!bid) return;
-    setReadinessLoading(true);
-    setReadinessError('');
-    try {
-      const response = await fetch(`/api/xero/mapping-readiness?databaseId=${encodeURIComponent(bid)}`);
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Mapping readiness could not be checked');
-      setReadiness({ summary: data.summary, items: data.items, checkedAt: data.checkedAt });
-    } catch (error) {
-      setReadinessError(error instanceof Error ? error.message : 'Mapping readiness could not be checked');
-    } finally {
-      setReadinessLoading(false);
-    }
-  };
 
   const ROLE_DEFS: MappingRoleDef[] = [
     { key: 'inventory_asset', label: 'Inventory Asset', help: 'Stock on hand after goods are received. Used for inventory value on the balance sheet.', example: 'Receive $800 of stock: Inventory Asset goes up by $800.', filter: (a: any) => a.class === 'ASSET' },
@@ -17078,7 +16861,6 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         setLocations(locs);
       } catch {}
       setLoading(false);
-      loadReadiness();
     })();
   }, []);
 
@@ -17140,29 +16922,6 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   return (
     <div style={{ maxWidth: 800 }}>
       <XeroDocumentPolicySection getBusinessId={getBusinessId} />
-      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div><h3 style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--sv-text-strong)' }}>Mapping readiness</h3><p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>Required mappings follow the enabled document and payment policy. Saved mappings are checked against live Xero accounts and tracking options.</p></div>
-          <button type="button" onClick={loadReadiness} disabled={readinessLoading} style={{ padding: '6px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: readinessLoading ? 'wait' : 'pointer', fontSize: 12 }}>{readinessLoading ? 'Checking...' : 'Recheck mappings'}</button>
-        </div>
-        {readiness && <>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, fontSize: 11 }}>
-            <span style={{ color: readiness.summary.ready === readiness.summary.required ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{readiness.summary.ready} of {readiness.summary.required} required ready</span>
-            {readiness.summary.missing > 0 && <span style={{ color: 'var(--sv-amber)' }}>{readiness.summary.missing} missing</span>}
-            {readiness.summary.stale > 0 && <span style={{ color: 'var(--sv-red)' }}>{readiness.summary.stale} stale</span>}
-            <span style={{ color: 'var(--sv-text-dim)' }}>{readiness.summary.optional} optional not configured</span>
-          </div>
-          <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
-            {readiness.items.filter(item => item.status !== 'ready').map(item => <div key={`${item.category}:${item.key}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) auto minmax(220px, 2fr)', gap: 10, alignItems: 'center', padding: '7px 9px', border: '1px solid var(--sv-etch)', borderRadius: 5, fontSize: 11 }}>
-              <strong style={{ color: 'var(--sv-text-main)' }}>{item.label}</strong>
-              <span style={{ color: item.requirement === 'required' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{item.requirement === 'required' ? 'Required' : 'Optional'}</span>
-              <span style={{ color: item.status === 'stale' ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>{item.summary}</span>
-            </div>)}
-          </div>
-          <div style={{ marginTop: 8, color: 'var(--sv-text-dim)', fontSize: 10 }}>Missing POS clearing affects only that method&apos;s Xero posting; it never blocks POS EOD closure.</div>
-        </>}
-        {readinessError && <div style={{ marginTop: 10, color: 'var(--sv-red)', fontSize: 11 }}>{readinessError}</div>}
-      </div>
       {/* Account mapping */}
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
@@ -17561,8 +17320,6 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
-  resolution_id?: number; resolution_side?: 'customer' | 'supplier'; resolution_state?: string;
-  credit_note_id?: number | null; settlement_action?: string | null; settlement_status?: string | null;
   payout_id?: string; payout_status?: string;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
@@ -18078,387 +17835,21 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
   );
 }
 
-type XeroWorkspaceProps = {
-  getBusinessId: () => string;
-  canMutateAccounting?: boolean;
-  onOpenPurchaseOrder?: (id: number) => void;
-  onOpenSalesOrder?: (id: number) => void;
-  onOpenCreditNote?: (id: number) => void;
-  onOpenPosSale?: (id: number) => void;
-  onOpenPosSalesDay?: (date: string) => void;
-};
-
-type XeroReconciliationIssue = {
-  id: number; targetId: number; targetType: string; referenceId: string; xeroId: string | null;
-  ruleKey: string; severity: 'warning' | 'error' | 'critical'; status: 'open' | 'ignored' | 'resolved';
-  summary: string; expected: Record<string, unknown> | null; actual: Record<string, unknown> | null;
-  firstSeenAt: string; lastCheckedAt: string | null; occurrenceCount: number; recommendedNextStep: string;
-  reference: string; contactName: string | null; amount: number | null; itemDate: string | null;
-};
-
-function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, onOpenPurchaseOrder, onOpenSalesOrder, onOpenCreditNote }: XeroWorkspaceProps) {
-  const [items, setItems] = useState<XeroReconciliationIssue[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [rechecking, setRechecking] = useState(false);
-  const [ignoreIssue, setIgnoreIssue] = useState<XeroReconciliationIssue | null>(null);
-  const [ignoreReason, setIgnoreReason] = useState('');
-  const [ignoring, setIgnoring] = useState(false);
-  const [ignoreError, setIgnoreError] = useState('');
-  const [authoriseIssue, setAuthoriseIssue] = useState<XeroReconciliationIssue | null>(null);
-  const [authoriseReason, setAuthoriseReason] = useState('');
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [actionError, setActionError] = useState('');
-  const [recipients, setRecipients] = useState<string[]>([]);
-  const [recipientInput, setRecipientInput] = useState('');
-  const [savingRecipients, setSavingRecipients] = useState(false);
-  const [recipientError, setRecipientError] = useState('');
-  const [digestFrequency, setDigestFrequency] = useState<'off' | 'daily' | 'weekly'>('off');
-  const [digestTimeZone, setDigestTimeZone] = useState('Australia/Sydney');
-  const [digestHour, setDigestHour] = useState(8);
-  const [digestWeeklyDay, setDigestWeeklyDay] = useState(1);
-  const [lastDigestCompletedAt, setLastDigestCompletedAt] = useState<string | null>(null);
-  const [selectedIssueIds, setSelectedIssueIds] = useState<number[]>([]);
-  const [sendIssueIds, setSendIssueIds] = useState<number[]>([]);
-  const [deliveryKey, setDeliveryKey] = useState('');
-  const [sending, setSending] = useState(false);
-  const [sendError, setSendError] = useState('');
-  const [sendNotice, setSendNotice] = useState('');
-  const [filters, setFilters] = useState({ status: 'open', ruleKey: '', targetType: '', severity: '', minimumAgeDays: '' });
-
-  const queryString = (format?: 'csv') => {
-    const params = new URLSearchParams({ databaseId: getBusinessId(), status: filters.status, limit: '200' });
-    if (filters.ruleKey) params.set('ruleKey', filters.ruleKey);
-    if (filters.targetType) params.set('targetType', filters.targetType);
-    if (filters.severity) params.set('severity', filters.severity);
-    if (filters.minimumAgeDays) params.set('minimumAgeDays', filters.minimumAgeDays);
-    if (format) params.set('format', format);
-    return params.toString();
-  };
-
-  const loadIssues = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/xero/reconciliation/issues?${queryString()}`);
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Reconciliation issues could not be loaded.');
-      const nextItems = Array.isArray(data.items) ? data.items : [];
-      setItems(nextItems);
-      setSelectedIssueIds(current => current.filter(id => nextItems.some((item: XeroReconciliationIssue) => item.id === id && item.status === 'open')));
-      setTotal(Number(data.total) || 0);
-    } catch (error) {
-      setItems([]);
-      setTotal(0);
-      alert(error instanceof Error ? error.message : 'Reconciliation issues could not be loaded.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { void loadIssues(); }, [filters.status, filters.ruleKey, filters.targetType, filters.severity, filters.minimumAgeDays]);
-  useEffect(() => {
-    fetch(`/api/xero/reconciliation/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
-      .then(async response => ({ response, data: await response.json() }))
-      .then(({ response, data }) => {
-        if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be loaded.');
-        const settings = data.settings ?? {};
-        const nextRecipients = Array.isArray(settings.recipients) ? settings.recipients.map(String) : [];
-        setRecipients(nextRecipients);
-        setRecipientInput(nextRecipients.join(', '));
-        setDigestFrequency(['daily', 'weekly'].includes(settings.digestFrequency) ? settings.digestFrequency : 'off');
-        setDigestTimeZone(String(settings.digestTimeZone || 'Australia/Sydney'));
-        setDigestHour(Number(settings.digestHour ?? 8));
-        setDigestWeeklyDay(Number(settings.digestWeeklyDay ?? 1));
-        setLastDigestCompletedAt(settings.lastDigestCompletedAt ? String(settings.lastDigestCompletedAt) : null);
-      })
-      .catch(error => setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be loaded.'));
-  }, []);
-
-  const saveRecipients = async () => {
-    setSavingRecipients(true);
-    setRecipientError('');
-    try {
-      const response = await fetch('/api/xero/reconciliation/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId: getBusinessId(), recipients: recipientInput,
-          digestFrequency, digestTimeZone, digestHour, digestWeeklyDay,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be saved.');
-      const settings = data.settings ?? {};
-      const nextRecipients = Array.isArray(settings.recipients) ? settings.recipients.map(String) : [];
-      setRecipients(nextRecipients);
-      setRecipientInput(nextRecipients.join(', '));
-      setDigestFrequency(['daily', 'weekly'].includes(settings.digestFrequency) ? settings.digestFrequency : 'off');
-      setDigestTimeZone(String(settings.digestTimeZone || 'Australia/Sydney'));
-      setDigestHour(Number(settings.digestHour ?? 8));
-      setDigestWeeklyDay(Number(settings.digestWeeklyDay ?? 1));
-    } catch (error) {
-      setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be saved.');
-    } finally {
-      setSavingRecipients(false);
-    }
-  };
-
-  const openSendDialog = (issueIds: number[]) => {
-    setSendIssueIds(issueIds);
-    setDeliveryKey(crypto.randomUUID());
-    setSendError('');
-    setSendNotice('');
-  };
-
-  const sendToAccounts = async () => {
-    if (!sendIssueIds.length || !deliveryKey) return;
-    setSending(true);
-    setSendError('');
-    try {
-      const response = await fetch('/api/xero/reconciliation/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), issueIds: sendIssueIds, deliveryKey }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Issues could not be sent to accounts.');
-      setSendNotice(`${sendIssueIds.length} issue${sendIssueIds.length === 1 ? '' : 's'} sent to ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`);
-      setSelectedIssueIds(current => current.filter(id => !sendIssueIds.includes(id)));
-      setSendIssueIds([]);
-      setDeliveryKey('');
-    } catch (error) {
-      setSendError(error instanceof Error ? error.message : 'Issues could not be sent to accounts.');
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const recheck = async () => {
-    setRechecking(true);
-    try {
-      const response = await fetch('/api/xero/reconciliation/scan', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), limit: 500 }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Recheck failed.');
-      await loadIssues();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Recheck failed.');
-    } finally {
-      setRechecking(false);
-    }
-  };
-
-  const ignore = async () => {
-    if (!ignoreIssue || !ignoreReason.trim()) return;
-    setIgnoring(true);
-    setIgnoreError('');
-    try {
-      const response = await fetch(`/api/xero/reconciliation/issues/${ignoreIssue.id}/ignore`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), reason: ignoreReason.trim() }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'The issue could not be ignored.');
-      setIgnoreIssue(null);
-      setIgnoreReason('');
-      await loadIssues();
-    } catch (error) {
-      setIgnoreError(error instanceof Error ? error.message : 'The issue could not be ignored.');
-    } finally {
-      setIgnoring(false);
-    }
-  };
-
-  const runAccountingAction = async (item: XeroReconciliationIssue, action: 'retry' | 'authorise', reason = '') => {
-    const key = `${item.id}:${action}`;
-    setActionLoading(key);
-    setActionError('');
-    try {
-      const response = await fetch(`/api/xero/reconciliation/issues/${item.id}/action`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), action, reason }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'The Xero accounting action failed.');
-      await fetch('/api/xero/reconciliation/scan', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), afterId: Math.max(0, item.targetId - 1), limit: 1 }),
-      });
-      setAuthoriseIssue(null);
-      setAuthoriseReason('');
-      await loadIssues();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'The Xero accounting action failed.';
-      if (action === 'authorise') setActionError(message);
-      else alert(message);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const openSource = (item: XeroReconciliationIssue) => {
-    const id = Number(item.referenceId);
-    if (item.targetType === 'purchase_order') return onOpenPurchaseOrder?.(id);
-    if (item.targetType === 'sales_order') return onOpenSalesOrder?.(id);
-    return onOpenCreditNote?.(id);
-  };
-  const xeroUrl = (item: XeroReconciliationIssue) => {
-    if (!item.xeroId) return null;
-    if (item.targetType === 'purchase_order') return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${item.xeroId}`;
-    if (item.targetType === 'supplier_credit_note') return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${item.xeroId}`;
-    if (item.targetType === 'customer_credit_note') return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${item.xeroId}`;
-    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${item.xeroId}`;
-  };
-  const age = (value: string) => Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000));
-  const compactSnapshot = (value: Record<string, unknown> | null) => value
-    ? Object.entries(value).filter(([, child]) => child != null).map(([key, child]) => `${key}: ${Array.isArray(child) ? child.join(' / ') : child}`).join(' · ') || 'Unknown'
-    : 'Unknown';
-  const label = (value: string) => ({
-    purchase_order: 'Purchase order', sales_order: 'Sales order', customer_credit_note: 'Customer credit note', supplier_credit_note: 'Supplier credit note', mapping: 'Ledger mapping',
-    missing_document: 'Missing document', linked_document: 'Wrong link', document_type: 'Document type', total: 'Total', currency: 'Currency', contact: 'Contact', lifecycle_state: 'Lifecycle state', amount_due: 'Amount due', amount_paid: 'Amount paid', amount_credited: 'Amount credited', remaining_credit: 'Remaining credit', admin_edit_override: 'Admin override', mapping_missing: 'Missing mapping', mapping_stale: 'Stale mapping',
-  }[value] ?? value.replace(/_/g, ' '));
-  const filterStyle: React.CSSProperties = { background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '6px 8px', fontSize: 12, color: 'var(--sv-text-main)' };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-        <label style={{ flex: '1 1 360px', color: 'var(--sv-text-dim)', fontSize: 11 }}>ACCOUNTS RECIPIENTS
-          <input value={recipientInput} onChange={event => setRecipientInput(event.target.value)} disabled={!canMutateAccounting} placeholder="accounts@example.com" style={{ ...filterStyle, display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4 }} />
-        </label>
-        <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>DIGEST
-          <select value={digestFrequency} onChange={event => setDigestFrequency(event.target.value as 'off' | 'daily' | 'weekly')} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}><option value="off">Off</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
-        </label>
-        {digestFrequency !== 'off' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>LOCAL HOUR
-          <select value={digestHour} onChange={event => setDigestHour(Number(event.target.value))} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select>
-        </label>}
-        {digestFrequency === 'weekly' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>DAY
-          <select value={digestWeeklyDay} onChange={event => setDigestWeeklyDay(Number(event.target.value))} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option key={day} value={index}>{day}</option>)}</select>
-        </label>}
-        {digestFrequency !== 'off' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>TIMEZONE
-          <input value={digestTimeZone} onChange={event => setDigestTimeZone(event.target.value)} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', width: 150, marginTop: 4 }} />
-        </label>}
-        {canMutateAccounting && <button type="button" onClick={() => void saveRecipients()} disabled={savingRecipients} style={{ ...filterStyle, cursor: 'pointer' }}>{savingRecipients ? 'Saving…' : 'Save email settings'}</button>}
-        {selectedIssueIds.length > 0 && <button type="button" onClick={() => openSendDialog(selectedIssueIds)} disabled={!recipients.length} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: recipients.length ? 'pointer' : 'not-allowed', color: '#38bdf8' }}><Mail size={14} /> Send to Accounts ({selectedIssueIds.length})</button>}
-      </div>
-      {lastDigestCompletedAt && digestFrequency !== 'off' && <div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Last digest period completed {new Date(lastDigestCompletedAt).toLocaleString('en-AU')}.</div>}
-      {recipientError && <div role="alert" style={{ color: '#f87171', fontSize: 12 }}>{recipientError}</div>}
-      {sendNotice && <div role="status" style={{ color: '#34d399', fontSize: 12 }}>{sendNotice}</div>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} style={filterStyle} aria-label="Issue state">
-          <option value="open">Open</option><option value="ignored">Ignored</option><option value="resolved">Resolved</option><option value="all">All states</option>
-        </select>
-        <select value={filters.ruleKey} onChange={event => setFilters(current => ({ ...current, ruleKey: event.target.value }))} style={filterStyle} aria-label="Discrepancy type">
-          <option value="">All discrepancies</option>
-          {['missing_document','linked_document','document_type','total','currency','contact','lifecycle_state','amount_due','amount_paid','amount_credited','remaining_credit','admin_edit_override','mapping_missing','mapping_stale'].map(value => <option key={value} value={value}>{label(value)}</option>)}
-        </select>
-        <select value={filters.targetType} onChange={event => setFilters(current => ({ ...current, targetType: event.target.value }))} style={filterStyle} aria-label="Document type">
-          <option value="">All documents</option>
-          {['purchase_order','sales_order','customer_credit_note','supplier_credit_note','mapping'].map(value => <option key={value} value={value}>{label(value)}</option>)}
-        </select>
-        <select value={filters.severity} onChange={event => setFilters(current => ({ ...current, severity: event.target.value }))} style={filterStyle} aria-label="Severity">
-          <option value="">All severities</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option>
-        </select>
-        <select value={filters.minimumAgeDays} onChange={event => setFilters(current => ({ ...current, minimumAgeDays: event.target.value }))} style={filterStyle} aria-label="Minimum age">
-          <option value="">Any age</option><option value="7">7+ days</option><option value="30">30+ days</option><option value="90">90+ days</option>
-        </select>
-        <span style={{ flex: 1 }} />
-        <a href={`/api/xero/reconciliation/issues?${queryString('csv')}`} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} /> Export CSV</a>
-        <button type="button" onClick={recheck} disabled={rechecking} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}><RefreshCw size={14} className={rechecking ? 'animate-spin' : undefined} /> {rechecking ? 'Checking…' : 'Recheck'}</button>
-      </div>
-
-      <div style={{ border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', borderRadius: 8, overflow: 'auto' }}>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--sv-etch)', fontWeight: 700, color: 'var(--sv-text-strong)' }}>Needs attention ({total})</div>
-        {loading ? <div style={{ padding: 28, color: 'var(--sv-text-dim)', textAlign: 'center' }}>Loading…</div>
-          : items.length === 0 ? <div style={{ padding: 32, color: 'var(--sv-text-dim)', textAlign: 'center' }}>No reconciliation issues match these filters.</div>
-          : <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead><tr style={{ background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', textAlign: 'left' }}>
-              <th style={{ padding: '8px 10px' }}><input type="checkbox" aria-label="Select all open issues" checked={items.some(item => item.status === 'open') && items.filter(item => item.status === 'open').every(item => selectedIssueIds.includes(item.id))} onChange={event => setSelectedIssueIds(event.target.checked ? items.filter(item => item.status === 'open').map(item => item.id) : [])} /></th>
-              {['Severity','Discrepancy','Reference / contact','Amount','Age','Expected','Xero actual','Last check','Recommended next step',''].map(value => <th key={value} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{value}</th>)}
-            </tr></thead>
-            <tbody>{items.map(item => {
-              const severityColor = item.severity === 'critical' ? '#ef4444' : item.severity === 'error' ? '#f87171' : '#fbbf24';
-              const link = xeroUrl(item);
-              return <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
-                <td style={{ padding: 10 }}><input type="checkbox" aria-label={`Select ${item.reference}`} disabled={item.status !== 'open'} checked={selectedIssueIds.includes(item.id)} onChange={event => setSelectedIssueIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /></td>
-                <td style={{ padding: 10 }}><span style={{ color: severityColor, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={14} /> {item.severity}</span></td>
-                <td style={{ padding: 10 }}><strong>{label(item.ruleKey)}</strong><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{label(item.targetType)}</div></td>
-                <td style={{ padding: 10 }}>{item.targetType === 'mapping' ? <strong style={{ color: 'var(--sv-text-main)' }}>{item.reference}</strong> : <button type="button" onClick={() => openSource(item)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontWeight: 700 }}>{item.reference}</button>}<div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{item.contactName || '—'}</div></td>
-                <td style={{ padding: 10, fontVariantNumeric: 'tabular-nums' }}>{item.amount == null ? '—' : `$${Number(item.amount).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
-                <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{age(item.firstSeenAt)}d</td>
-                <td title={JSON.stringify(item.expected)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.expected)}</td>
-                <td title={JSON.stringify(item.actual)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.actual)}</td>
-                <td style={{ padding: 10, whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleDateString('en-AU') : 'Never'}</td>
-                <td style={{ padding: 10, maxWidth: 220 }}>{item.recommendedNextStep}</td>
-                <td style={{ padding: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
-                  {link && <a href={link} target="_blank" rel="noopener noreferrer" title="Open in Xero" style={{ color: '#38bdf8' }}><ExternalLink size={15} /></a>}
-                  {item.status === 'open' && canMutateAccounting && <button type="button" onClick={() => void runAccountingAction(item, 'retry')} disabled={actionLoading === `${item.id}:retry`} style={{ border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, background: 'rgba(56,189,248,.1)', color: '#38bdf8', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>{actionLoading === `${item.id}:retry` ? 'Working…' : 'Retry'}</button>}
-                  {item.status === 'open' && canMutateAccounting && item.ruleKey === 'lifecycle_state' && item.xeroId && <button type="button" onClick={() => { setAuthoriseIssue(item); setAuthoriseReason(''); setActionError(''); }} style={{ border: '1px solid rgba(251,191,36,.35)', borderRadius: 5, background: 'rgba(251,191,36,.1)', color: '#fbbf24', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Authorise</button>}
-                  {item.status === 'open' && <button type="button" onClick={() => openSendDialog([item.id])} disabled={!recipients.length} title="Send to Accounts" style={{ border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, background: 'rgba(56,189,248,.1)', color: '#38bdf8', padding: '3px 6px', cursor: recipients.length ? 'pointer' : 'not-allowed', opacity: recipients.length ? 1 : .45 }}><Mail size={14} /></button>}
-                  {item.status === 'open' && <button type="button" onClick={() => { setIgnoreIssue(item); setIgnoreReason(''); setIgnoreError(''); }} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Ignore</button>}
-                </div></td>
-              </tr>;
-            })}</tbody>
-          </table>}
-      </div>
-      {ignoreIssue && <div role="dialog" aria-modal="true" aria-labelledby="ignore-xero-issue-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
-        <form onSubmit={event => { event.preventDefault(); void ignore(); }} style={{ width: 'min(480px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
-          <h3 id="ignore-xero-issue-title" style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Ignore {ignoreIssue.reference}</h3>
-          <div style={{ color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 14 }}>{label(ignoreIssue.ruleKey)} · {ignoreIssue.summary}</div>
-          <label style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, marginBottom: 6 }} htmlFor="xero-ignore-reason">Reason</label>
-          <textarea id="xero-ignore-reason" autoFocus value={ignoreReason} onChange={event => setIgnoreReason(event.target.value)} maxLength={1000} rows={4} style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 9, font: 'inherit' }} />
-          {ignoreError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{ignoreError}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <button type="button" onClick={() => setIgnoreIssue(null)} disabled={ignoring} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
-            <button type="submit" disabled={ignoring || !ignoreReason.trim()} style={{ border: 0, borderRadius: 5, background: '#b45309', color: '#fff', padding: '6px 12px', cursor: ignoring || !ignoreReason.trim() ? 'not-allowed' : 'pointer', opacity: ignoring || !ignoreReason.trim() ? .55 : 1, fontWeight: 700 }}>{ignoring ? 'Saving…' : 'Ignore issue'}</button>
-          </div>
-        </form>
-      </div>}
-      {sendIssueIds.length > 0 && <div role="dialog" aria-modal="true" aria-labelledby="send-xero-issues-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
-        <form onSubmit={event => { event.preventDefault(); void sendToAccounts(); }} style={{ width: 'min(500px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid rgba(56,189,248,.35)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
-          <h3 id="send-xero-issues-title" style={{ margin: '0 0 8px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Send {sendIssueIds.length} issue{sendIssueIds.length === 1 ? '' : 's'} to Accounts</h3>
-          <div style={{ color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>Recipients: {recipients.join(', ')}</div>
-          {sendError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 10 }}>{sendError}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
-            <button type="button" onClick={() => { setSendIssueIds([]); setDeliveryKey(''); }} disabled={sending} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
-            <button type="submit" disabled={sending} style={{ border: 0, borderRadius: 5, background: 'var(--sv-action)', color: '#fff', padding: '6px 12px', cursor: sending ? 'not-allowed' : 'pointer', fontWeight: 700 }}>{sending ? 'Sending…' : 'Send email'}</button>
-          </div>
-        </form>
-      </div>}
-      {authoriseIssue && <div role="dialog" aria-modal="true" aria-labelledby="authorise-xero-issue-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
-        <form onSubmit={event => { event.preventDefault(); void runAccountingAction(authoriseIssue, 'authorise', authoriseReason.trim()); }} style={{ width: 'min(500px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
-          <h3 id="authorise-xero-issue-title" style={{ margin: '0 0 8px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Authorise {authoriseIssue.reference} in Xero</h3>
-          <div style={{ color: '#fbbf24', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>This changes the linked Xero document from Draft to Authorised. Xero may lock financial fields and allow payments or allocations against it.</div>
-          <label style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, marginBottom: 6 }} htmlFor="xero-authorise-reason">Reason</label>
-          <textarea id="xero-authorise-reason" autoFocus value={authoriseReason} onChange={event => setAuthoriseReason(event.target.value)} maxLength={1000} rows={4} style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 9, font: 'inherit' }} />
-          {actionError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{actionError}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <button type="button" onClick={() => setAuthoriseIssue(null)} disabled={actionLoading === `${authoriseIssue.id}:authorise`} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
-            <button type="submit" disabled={actionLoading === `${authoriseIssue.id}:authorise` || !authoriseReason.trim()} style={{ border: 0, borderRadius: 5, background: '#b45309', color: '#fff', padding: '6px 12px', cursor: !authoriseReason.trim() ? 'not-allowed' : 'pointer', opacity: !authoriseReason.trim() ? .55 : 1, fontWeight: 700 }}>{actionLoading === `${authoriseIssue.id}:authorise` ? 'Authorising…' : 'Authorise in Xero'}</button>
-          </div>
-        </form>
-      </div>}
-    </div>
-  );
-}
-
-function XeroSyncTab(props: XeroWorkspaceProps) {
-  const [view, setView] = useState<'attention' | 'activity'>('attention');
-  return <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 14 }}>
-    <div style={{ display: 'inline-flex', alignSelf: 'flex-start', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
-      {([['attention', 'Needs attention'], ['activity', 'All activity']] as const).map(([value, text]) => <button key={value} type="button" onClick={() => setView(value)} style={{ padding: '7px 14px', border: 0, borderRight: value === 'attention' ? '1px solid var(--sv-etch)' : 0, background: view === value ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: view === value ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>{text}</button>)}
-    </div>
-    {view === 'attention' ? <XeroNeedsAttentionView {...props} /> : <XeroAllActivityTab {...props} />}
-  </div>;
-}
-
-function XeroAllActivityTab({
+function XeroSyncTab({
   getBusinessId,
   onOpenPurchaseOrder,
   onOpenSalesOrder,
   onOpenCreditNote,
   onOpenPosSale,
   onOpenPosSalesDay,
-}: XeroWorkspaceProps) {
+}: {
+  getBusinessId: () => string;
+  onOpenPurchaseOrder?: (id: number) => void;
+  onOpenSalesOrder?: (id: number) => void;
+  onOpenCreditNote?: (id: number) => void;
+  onOpenPosSale?: (id: number) => void;
+  onOpenPosSalesDay?: (date: string) => void;
+}) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18498,26 +17889,6 @@ function XeroAllActivityTab({
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
-  const retryResolution = async (entry: XeroSyncEntry, key: string) => {
-    if (!entry.resolution_id || !entry.resolution_side || entry.resolution_state === 'unknown') return;
-    const authoriseDraft = entry.resolution_state === 'xero_pending' || !!entry.xero_id;
-    setRetrying(r => ({ ...r, [key]: true }));
-    try {
-      const response = await fetch(`/api/ims/order-resolutions/${entry.resolution_side}/${entry.resolution_id}/retry`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authoriseDraft }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Xero reconciliation failed');
-      await loadData();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Xero reconciliation failed');
-    } finally {
-      setRetrying(r => ({ ...r, [key]: false }));
-    }
-  };
-
   const dismiss = async (type: 'po' | 'so' | 'cn' | 'scn', id: number, reference: string, key: string) => {
     if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it — it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
@@ -18552,12 +17923,10 @@ function XeroAllActivityTab({
 
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', customer_order_resolution: 'Customer Shortfall', supplier_order_resolution: 'Supplier Shortfall', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
   const typeStyle = (t: string) => ({
     po_bill: { color: '#818cf8', background: 'rgba(129,140,248,.14)' },
     so_invoice: { color: '#34d399', background: 'rgba(52,211,153,.14)' },
-    customer_order_resolution: { color: '#fb7185', background: 'rgba(251,113,133,.14)' },
-    supplier_order_resolution: { color: '#f59e0b', background: 'rgba(245,158,11,.14)' },
     cn_credit_note: { color: '#38bdf8', background: 'rgba(56,189,248,.14)' },
     cn_credit_note_void: { color: '#fb7185', background: 'rgba(251,113,133,.14)' },
     scn_credit_note: { color: '#fbbf24', background: 'rgba(251,191,36,.14)' },
@@ -18579,9 +17948,7 @@ function XeroAllActivityTab({
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
     if (syncType === 'scn_credit_note' || syncType === 'scn_credit_note_void')
       return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
-    if (syncType === 'supplier_order_resolution')
-      return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
-    if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void' || syncType === 'customer_order_resolution')
+    if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void')
       return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${id}`;
     if (syncType === 'stocktake_journal' || syncType === 'cogs_journal' || syncType === 'gift_card_liability' || syncType === 'gift_card_redeem' || syncType === 'store_credit_issue' || syncType === 'store_credit_redeem')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
@@ -18590,9 +17957,7 @@ function XeroAllActivityTab({
 
   const openEntry = (entry: any) => {
     if (entry.sync_type === 'po_bill' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
-    if (entry.sync_type === 'supplier_order_resolution' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
     if (entry.sync_type === 'so_invoice' && entry.reference_id && onOpenSalesOrder) return onOpenSalesOrder(Number(entry.reference_id));
-    if (entry.sync_type === 'customer_order_resolution' && entry.reference_id && onOpenSalesOrder) return onOpenSalesOrder(Number(entry.reference_id));
     if (entry.sync_type === 'cn_credit_note' && entry.reference_id) {
       if (entry.source === 'pos' && entry.pos_sale_id && onOpenPosSale) return onOpenPosSale(Number(entry.pos_sale_id));
       if (onOpenCreditNote) return onOpenCreditNote(Number(entry.reference_id));
@@ -18745,7 +18110,6 @@ function XeroAllActivityTab({
                 const isSo = entry.sync_type === 'so_invoice';
                 const isCn = entry.sync_type === 'cn_credit_note';
                 const isScn = entry.sync_type === 'scn_credit_note';
-                const isResolution = entry.sync_type === 'customer_order_resolution' || entry.sync_type === 'supplier_order_resolution';
                 const isGiftCardIssue = entry.sync_type === 'gift_card_issue';
                 const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
                 const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
@@ -18755,9 +18119,7 @@ function XeroAllActivityTab({
                 const isPosCn = entry.sync_type === 'cn_credit_note' && String(entry.source ?? '') === 'pos';
                 const canOpenEntry =
                   (entry.sync_type === 'po_bill' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
-                  (entry.sync_type === 'supplier_order_resolution' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
                   (entry.sync_type === 'so_invoice' && !!entry.reference_id && !!onOpenSalesOrder) ||
-                  (entry.sync_type === 'customer_order_resolution' && !!entry.reference_id && !!onOpenSalesOrder) ||
                   (entry.sync_type === 'cn_credit_note' && !!entry.reference_id && (!!onOpenCreditNote || (entry.source === 'pos' && !!entry.pos_sale_id && !!onOpenPosSale))) ||
                   (entry.sync_type === 'eod_reconciliation' && !!entry.item_date && !!onOpenPosSalesDay) ||
                   (entry.sync_type === 'online_batch' && !!entry.item_date && !!onOpenPosSalesDay) ||
@@ -18815,19 +18177,6 @@ function XeroAllActivityTab({
                       <td style={td}>{isPosCn ? <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>POS / EOD</span> : <XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} />}</td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
-                        {isResolution && entry.resolution_state !== 'unknown' && (
-                          <button
-                            onClick={() => retryResolution(entry, retryKey)}
-                            disabled={retrying[retryKey]}
-                            title={entry.resolution_state === 'xero_pending' ? 'Authorise the Draft credit note in Xero and continue the saved settlement' : 'Retry only unfinished Xero steps using the original idempotency keys'}
-                            style={{ background: entry.resolution_state === 'xero_pending' ? 'rgba(251,191,36,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${entry.resolution_state === 'xero_pending' ? 'rgba(251,191,36,.3)' : 'rgba(248,113,113,.3)'}`, borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: entry.resolution_state === 'xero_pending' ? '#fbbf24' : '#f87171', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? 'Working...' : entry.resolution_state === 'xero_pending' ? 'Authorise & continue' : 'Retry Xero'}
-                          </button>
-                        )}
-                        {isResolution && entry.resolution_state === 'unknown' && (
-                          <span title="Check the linked credit note in Xero before changing this resolution." style={{ fontSize: 11, color: '#fbbf24' }}>Check Xero</span>
-                        )}
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
                           <button
                             onClick={() => retry(
@@ -19473,19 +18822,14 @@ function BulkEditView() {
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
 type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
-type HelpSection = SettingsSection | 'backorders';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
-  if (v === 'sales-orders' || v === 'backorders') return 'sales-orders';
+  if (v === 'sales-orders')    return 'sales-orders';
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales')       return 'pos';
   if (v === 'online-sales')    return 'shopify';
   return 'general';
-}
-
-function helpSectionFromView(v: ImsView): HelpSection {
-  return v === 'backorders' ? 'backorders' : sectionFromView(v);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19689,14 +19033,13 @@ export default function ImsPage() {
   const [advisorSyncEnabled, setAdvisorSyncEnabled] = useState(false);
   const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
-  const canMutateXeroAccounting = user?.tier === 'Admin' || user?.tier === 'SuperAdmin';
   const [view, setView] = useState<ImsView>('dashboard');
   const [hasRestoredInitialHash, setHasRestoredInitialHash] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
-  const [helpSection, setHelpSection] = useState<HelpSection>('general');
+  const [helpSection, setHelpSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
@@ -19804,7 +19147,6 @@ export default function ImsPage() {
       }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
-      if (h === 'xero/sync') return 'xero' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
@@ -19979,7 +19321,7 @@ export default function ImsPage() {
           </span>
         )}
         <button
-          onClick={() => { setHelpSection(helpSectionFromView(view)); setHelpOpen(true); }}
+          onClick={() => { setHelpSection(sectionFromView(view)); setHelpOpen(true); }}
           title="Help"
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
@@ -20239,7 +19581,6 @@ export default function ImsPage() {
           <MainSections
             view={view}
             isAdvisor={isAdvisor}
-            canMutateXeroAccounting={canMutateXeroAccounting}
             advisorMappingEnabled={advisorXeroMappingEnabled}
             businessId={user?.businessId ?? ''}
             hasForesight={user?.hasForesight ?? false}
@@ -25003,17 +24344,16 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 // HelpModal — context-aware documentation, mirrors SettingsModal structure
 // ─────────────────────────────────────────────────────────────────────────────
 
-function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: HelpSection }) {
-  const [active, setActive] = useState<HelpSection>(defaultSection);
+function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: SettingsSection }) {
+  const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
 
   if (!isOpen) return null;
 
-  const NAV_ITEMS: { id: HelpSection; label: string; icon: string }[] = [
+  const NAV_ITEMS: { id: SettingsSection; label: string; icon: string }[] = [
     { id: 'general',         label: 'General',         icon: '📖' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
-    { id: 'backorders',      label: 'Backorders',      icon: '⏳' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'shopify',         label: 'Shopify',         icon: '🛒' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
@@ -25054,7 +24394,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     </div>
   );
 
-  type AccRow = { role: string; type: string; description: string; requirement: 'Feature-based' | 'Optional' };
+  type AccRow = { role: string; type: string; description: string; required: boolean };
   const AccountTable = ({ rows }: { rows: AccRow[] }) => (
     <div style={{ overflowX: 'auto', marginTop: 10 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -25071,7 +24411,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
               <td style={{ padding: '7px 10px' }}><code style={code}>{r.role}</code></td>
               <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.type}</td>
               <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.description}</td>
-              <td style={{ padding: '7px 10px' }}>{r.requirement === 'Feature-based' ? <span style={{ ...tag, background: 'rgba(245,158,11,.15)', color: '#f59e0b' }}>Feature-based</span> : <span style={{ ...tag, background: 'rgba(99,179,117,.10)', color: '#6dbf7e' }}>Optional</span>}</td>
+              <td style={{ padding: '7px 10px' }}>{r.required ? <span style={{ ...tag, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Required</span> : <span style={{ ...tag, background: 'rgba(99,179,117,.10)', color: '#6dbf7e' }}>Optional</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -25158,69 +24498,6 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
       </div>
     );
 
-    // ── Backorders ───────────────────────────────────────────────────────────
-    if (active === 'backorders') return (
-      <div style={{ padding: 32, maxWidth: 780 }}>
-        <h2 style={h2}>Backorders</h2>
-        <p style={p}>Backorders separate a delayed remainder from goods already shipped or received. The Backorders workspace lists held customer and supplier child orders. A held order does not create a new Xero document until you deliberately release it.</p>
-
-        <h3 style={h3}>Choose the correct pathway</h3>
-        <ul style={ul}>
-          <li><strong>Short delay:</strong> leave the source SO <em>Partially Fulfilled</em> or PO <em>Partially Received</em>. Continue recording only the quantities that physically move.</li>
-          <li><strong>Remainder will never arrive:</strong> open the partial order and choose <strong>Resolve Outstanding → Cancel outstanding remainder</strong>.</li>
-          <li><strong>Remainder needs a clean future order:</strong> choose <strong>Resolve Outstanding → Create held backorder</strong>. The outstanding quantity moves to a child such as <span style={code}>SO-1042-B</span> or <span style={code}>PO-1042-B</span>.</li>
-          <li><strong>Never use a second fulfil/receive to imitate a cancellation.</strong> Stock changes only when goods physically ship or arrive.</li>
-        </ul>
-
-        <h3 style={h3}>Customer example: 100 ordered, 70 shipped</h3>
-        <ol style={ul}>
-          <li>Use <strong>Fulfill</strong> and enter <strong>70</strong> as <em>Ship now</em>. The SO becomes Partially Fulfilled; 30 remains committed.</li>
-          <li>If the final 30 will ship soon, do nothing else. Reopen Fulfill later and enter 30.</li>
-          <li>If the 30 is cancelled, choose Resolve Outstanding → Cancel remainder. The source closes at 70 and the remaining commitment is released.</li>
-          <li>If the 30 will be supplied separately, choose Create held backorder. The source closes at 70 and the child owns the same 30-unit commitment; no second stock movement occurs.</li>
-        </ol>
-        <p style={p}><strong>$100 paid / $70 supplied:</strong> the $30 merchandise shortfall starts with a no-restock Xero credit note. Choose a refund, leave the credit unapplied, or reserve it for the held child. Reserved credit is allocated only after the child invoice is Authorised. The order detail shows the $30 separately so staff can read the original payment and net correction together.</p>
-
-        <h3 style={h3}>Supplier example: 100 ordered, 70 received</h3>
-        <ol style={ul}>
-          <li>Receive only the 70 that arrived. The PO becomes Partially Received; 30 remains incoming.</li>
-          <li>If the supplier will send 30 soon, leave the PO partial and continue receiving later.</li>
-          <li>If the supplier cancels 30, use Resolve Outstanding → Cancel remainder. The source closes at 70 and 30 is removed from incoming stock.</li>
-          <li>If the supplier will send 30 on a separate order, create a held supplier backorder. The child owns the existing 30 incoming units; stock on hand and average cost do not change.</li>
-        </ol>
-        <p style={p}><strong>$100 bill paid / $70 received:</strong> enter the supplier's credit-note reference or an evidence note. Solvantis creates a no-stock supplier credit for $30. Record the supplier refund, leave it unapplied, or reserve it for the child bill.</p>
-
-        <h3 style={h3}>What happens in Xero</h3>
-        <ul style={ul}>
-          <li><strong>No linked document:</strong> only IMS order and stock ownership change.</li>
-          <li><strong>Unpaid editable Draft or Authorised document:</strong> the existing invoice or bill is resized to the fulfilled/received merchandise.</li>
-          <li><strong>Paid, part-paid, or otherwise uneditable:</strong> the original document stays intact and a no-restock credit note corrects the outstanding merchandise value.</li>
-          <li><strong>Default policy:</strong> the shortfall credit is Authorised so the selected refund or allocation can proceed immediately.</li>
-          <li><strong>Optional Draft review:</strong> enable <em>Xero → Ledger Mapping → Review shortfall credits as Draft in Xero</em>. The credit appears in Sync History; inspect it and choose <em>Authorise &amp; continue</em> to finish the saved settlement.</li>
-          <li><strong>Release held order:</strong> the child becomes Confirmed and follows the normal Xero policy, usually creating a Draft invoice or bill.</li>
-          <li><strong>Freight and order-level discount:</strong> remain on the source order. The child and shortfall credit contain only the delayed merchandise lines, preserving total value without charging freight twice.</li>
-        </ul>
-
-        <h3 style={h3}>Backorders workspace actions</h3>
-        <ul style={ul}>
-          <li><strong>Release:</strong> makes the held order active. Customer stock readiness is checked first; the normal Xero Draft document is then created under your configured policy.</li>
-          <li><strong>Cancel:</strong> releases the held commitment/incoming quantity. A child with reserved or allocated Xero credit cannot be cancelled until that credit is explicitly reconciled.</li>
-          <li><strong>Merge:</strong> combines compatible held orders for the same customer/supplier, location, currency, tax treatment, and commercial terms. Xero-linked or credit-reserved children cannot be merged.</li>
-        </ul>
-
-        <h3 style={h3}>If an accounting step fails</h3>
-        <ol style={ul}>
-          <li>Do not create another manual refund, credit note, or replacement backorder.</li>
-          <li>Open <strong>Xero → Sync History</strong> and filter for Customer Shortfall or Supplier Shortfall.</li>
-          <li>Read the failed attempt, fix the named Xero account/document problem, then choose <strong>Retry Xero</strong>. The original idempotency keys are reused and completed steps are not repeated.</li>
-          <li>If the row says <strong>Check Xero</strong>, inspect the linked document before retrying because the previous result was not confirmed.</li>
-        </ol>
-
-        <h3 style={h3}>Changing a reserved credit</h3>
-        <p style={p}>Open the source order or held backorder and find <strong>Shortfall financial settlement</strong>. Use <strong>Unallocate</strong> to remove the exact Xero allocation. Once available, use <strong>Refund available credit</strong> or <strong>Allocate to another order</strong>. For example, unallocate a $30 credit from cancelled backorder SO-1042-B, then allocate $20 to SO-1088 and refund the remaining $10. Use these controls instead of changing Xero alone so Solvantis keeps an append-only record of every action.</p>
-      </div>
-    );
-
     // ── Purchase Orders ───────────────────────────────────────────────────────
     if (active === 'purchase-orders') return (
       <div style={{ padding: 32, maxWidth: 760 }}>
@@ -25240,17 +24517,9 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
           <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
-          <li><strong>Save and Complete</strong> — Finalises the received quantities. If items are short, you can create a held <strong>Supplier Backorder</strong> for the missing stock.</li>
-          <li>Supplier backorders are named <span style={code}>{'{original}-B'}</span> (for example <span style={code}>PO-2026-0042-B</span>) and remain held until deliberately released.</li>
-          <li>Never record missing stock as received. Stock on hand and average cost change only for quantities that physically arrived.</li>
-        </ul>
-
-        <h3 style={h3}>Example: 100 ordered, 70 received</h3>
-        <ul style={ul}>
-          <li><strong>Supplier expects to send 30 soon:</strong> receive 70 and choose <em>Save Progress</em>. The PO remains <em>Partially Received</em>, with 30 still incoming.</li>
-          <li><strong>Supplier confirms a separate shipment:</strong> receive 70 and create a supplier backorder for 30. The original PO records the 70 received and the held child tracks the remaining 30.</li>
-          <li><strong>Supplier cancels the 30:</strong> open the PO and click <em>Resolve Outstanding</em>. Cancel the remainder or create a held child PO. If a supplier credit is financially required, enter its reference or an evidence note; Solvantis never invents supplier credit.</li>
-          <li><strong>Paid $100 supplier bill:</strong> resolving the $30 remainder creates a no-stock $30 supplier credit. Record a supplier refund, leave it unapplied, or reserve it for the held child bill. Reserved credit allocates only after that bill is Authorised.</li>
+          <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
+          <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (e.g. <span style={code}>PO-2025-0042-B</span>) and start in <em>Draft</em> status, ready to approve and track separately.</li>
+          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal — this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
         </ul>
 
         <h3 style={h3}>Reverting a partially received PO</h3>
@@ -25279,33 +24548,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
-          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Commits stock and, under the default Xero policy, creates a <em>Draft Invoice</em>.</li>
-          <li><strong>Partially Fulfilled</strong> — Some goods dispatched. Stock on hand and committed stock decrease only by the quantity shipped. The Xero invoice is not Authorised by the partial shipment.</li>
-          <li><strong>Fulfilled</strong> — All goods dispatched. The final shipment moves the SO to <em>Fulfilled</em> and, under the default Xero policy, Authorises the invoice.</li>
-          <li><strong>Cancelled</strong> — Order cancelled through an allowed order action. Financially settled orders may require Xero reconciliation.</li>
+          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
+          <li><strong>Fulfilled</strong> — Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
+          <li><strong>Closed</strong> — Fully processed and paid.</li>
         </ul>
-
-        <h3 style={h3}>Recording a partial shipment</h3>
-        <ul style={ul}>
-          <li>Open a <em>Confirmed</em> or <em>Partially Fulfilled</em> SO and click <strong>Fulfill</strong>.</li>
-          <li>Enter the quantity shipping now on each line. The input is a shipment quantity, not the cumulative fulfilled total.</li>
-          <li>Any unshipped quantity stays outstanding on the original SO. Reopen <strong>Fulfill</strong> when the next shipment is ready.</li>
-          <li>Each submission has replay protection: retrying the same request cannot deduct stock twice.</li>
-        </ul>
-
-        <h3 style={h3}>Example: $100 ordered, $70 shipped</h3>
-        <ul style={ul}>
-          <li><strong>Ship the remaining $30 soon:</strong> enter the quantities worth $70 in <em>Ship now</em>. The SO becomes <em>Partially Fulfilled</em>; the original invoice and order value remain $100, and the remaining stock stays committed.</li>
-          <li><strong>Second shipment:</strong> reopen <em>Fulfill</em>. Only the outstanding quantities are shown. Shipping the final $30 moves the SO to <em>Fulfilled</em> and triggers the final Xero status action.</li>
-          <li><strong>Do not ship the remainder:</strong> click <em>Resolve Outstanding</em>, then cancel the remainder or create a held child backorder. Unpaid editable Xero invoices are resized; paid value is corrected with a no-restock credit note.</li>
-          <li><strong>Paid $100 invoice:</strong> the $30 credit can be refunded, left unapplied in Xero, or reserved for the child. A reservation is allocated only after the child invoice is Authorised.</li>
-        </ul>
-
-        <h3 style={h3}>Resolving the remainder</h3>
-        <p style={p}>Open a Partially Fulfilled order and choose <strong>Resolve Outstanding</strong>. The preview shows outstanding quantities, commercial value, Xero treatment, and only valid settlement choices. The operation is replay-protected; stock is never shipped twice.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
-          <li><strong>Wholesale SOs</strong> — Individual invoices. Confirmation follows the configured document policy; by default it creates a Draft invoice and final fulfilment Authorises it.</li>
+          <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>
           <li><strong>POS sales</strong> — Each sale remains visible and opens normally in IMS. For Xero, the daily location batch syncs as one summary invoice; the individual POS sale does not sync.</li>
           <li><strong>Online sales</strong> — Each Shopify/e-commerce order remains visible and opens normally in IMS. For Xero, the combined daily online batch syncs as one invoice; the individual online order does not sync.</li>
         </ul>
@@ -25379,7 +24628,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     if (active === 'xero') return (
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Xero Integration</h2>
-        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). Accounting writes flow from IMS into Xero. Solvantis also performs read-only Xero checks for document state, balances, lock dates, accounts, tracking, and reconciliation; Xero never directly mutates IMS operational records.</p>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). The integration is <strong>unidirectional</strong> — data flows from IMS into Xero only. Xero does not push data back into IMS.</p>
 
         <h3 style={h3}>Connection</h3>
         <p style={p}>Connect your Xero organisation from the <strong>Xero</strong> tab in IMS. You'll be redirected to Xero to authorise. Once connected, the integration stores an access token and refresh token. Tokens are automatically refreshed — you won't need to reconnect unless you explicitly disconnect or revoke access in Xero.</p>
@@ -25398,7 +24647,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'POS EOD batch',                  object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised invoice plus clearing payment. Invoice sync and payment sync can be disabled independently.' },
-          { trigger: 'Daily online batch',             object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised. A clearing payment promotes a Draft before applying payment.' },
+          { trigger: 'Daily online batch',             object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised; immediate gateway payments require Authorised.' },
           { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'Policy', notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised. POS returns remain in POS EOD accounting.' },
           { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised.' },
           { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
@@ -25407,51 +24656,28 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Document status and payment policy</h3>
         <p style={p}>Configure these controls in <strong>Xero → Ledger Mapping → Document Status &amp; Payments</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
         <ul style={ul}>
-          <li><strong>Payments require Authorised documents.</strong> A mapped PO, SO, or online clearing payment may promote its linked Draft when payment sync is enabled. Choosing Draft therefore remains valid; the policy screen shows the consequence before save.</li>
+          <li><strong>Payments require Authorised documents.</strong> A mapped PO or SO payment may promote its linked Draft when payment sync is enabled. Online immediate clearing payments can only be enabled with an Authorised daily invoice.</li>
           <li><strong>POS EOD invoice-only mode</strong> does not fund the Xero clearing account. Those cash reconciliations remain unavailable to Cash Banking, preventing a transfer of money that Xero never received.</li>
           <li><strong>Source ownership is fixed.</strong> POS returns remain in EOD accounting. Shopify refunds always use an Authorised credit note because the paid payout must settle it.</li>
         </ul>
 
-        <h3 style={h3}>Policy presets and change history</h3>
-        <p style={p}>Ledger Mapping offers three transparent starting points. <strong>Bookkeeper review</strong> is Draft-first with payment posting off, <strong>Balanced automation</strong> is the standard default, and <strong>Higher automation</strong> Authorises earlier. Selecting a preset first shows every changed setting; applying it only fills the ordinary controls, and nothing changes until <em>Save document policy</em> is chosen.</p>
-        <ul style={ul}>
-          <li>There is no hidden preset mode. Editing one field after applying a preset simply creates a custom visible policy.</li>
-          <li>Every saved change records the actor, time, before/after policy, changed fields, and matching preset source when applicable.</li>
-          <li>Policy changes govern future transitions. They do not rewrite, downgrade, void, or Authorise existing Xero documents.</li>
-        </ul>
-
-        <h3 style={h3}>Editing records already linked to Xero</h3>
-        <TriggerTable rows={[
-          { trigger: 'Draft or Submitted document', object: 'PO, SO, customer/supplier credit note', status: 'Allowed', notes: 'Xero-visible edits are synchronously mirrored to the linked document.' },
-          { trigger: 'Authorised and unpaid, outside lock date', object: 'PO or wholesale SO', status: 'Allowed', notes: 'Supported financial edits are mirrored after live state and organisation lock-date checks.' },
-          { trigger: 'Part-paid, paid, credited, voided, deleted, or locked', object: 'Linked accounting document', status: 'Blocked', notes: 'Use the supported credit, refund, cancellation, or reconciliation workflow instead of overwriting accounting history.' },
-          { trigger: 'Local-only field', object: 'IMS record', status: 'Allowed', notes: 'Fields with no Xero effect remain editable.' },
-          { trigger: 'Admin override', object: 'Blocked PO/SO edit', status: 'Review required', notes: 'Requires a reason, saves the local change, and immediately creates a Needs attention issue. It never implies Xero matches.' },
-        ]} />
-
         <h3 style={h3}>PO Bill Due Date</h3>
         <p style={p}>The Xero Bill <strong>Date</strong> is the PO's <strong>Supplier Invoice Date</strong>. Its <strong>Due Date</strong> is calculated as Supplier Invoice Date + Payment Terms days (for example, +30 days for "30 days" terms). If no Supplier Invoice Date is set, both calculations fall back to the PO Order Date.</p>
 
-        <h3 style={h3}>Account mappings and readiness</h3>
-        <p style={p}>Open <strong>Xero → Ledger Mapping</strong> to see live readiness. Required labels follow the enabled policy: for example, PO payment accounts are required only while PO payment sync is enabled. Saved account and tracking references are checked against live Xero; archived, deleted, renamed-code, or incompatible values are marked stale.</p>
+        <h3 style={h3}>Account mappings</h3>
+        <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>
         <AccountTable rows={[
-          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', requirement: 'Feature-based' },
-          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', requirement: 'Feature-based' },
-          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', requirement: 'Feature-based' },
-          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', requirement: 'Feature-based' },
-          { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', requirement: 'Optional' },
-          { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Used for POS till and cash-banking discrepancies; entries are posted without GST', requirement: 'Feature-based' },
-          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', requirement: 'Feature-based' },
-          { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. If not mapped, the credit note uses sales_revenue.', requirement: 'Optional' },
-          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used for non-stock supplier credit lines. Returned-stock lines post to inventory_asset; non-stock lines fall back to cogs when unmapped.', requirement: 'Optional' },
-          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', requirement: 'Feature-based' },
+          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
+          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
+          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', required: true },
+          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
+          { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
+          { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Required for POS till and cash-banking discrepancies; entries are posted without GST', required: true },
+          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
+          { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note. If not mapped, the credit note uses sales_revenue.', required: false },
+          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to inventory_asset instead. If not mapped, non-stock lines fall back to cogs.', required: false },
+          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
         ]} />
-        <ul style={ul}>
-          <li><strong>Missing required</strong> means an enabled feature cannot complete its Xero posting until the mapping is supplied.</li>
-          <li><strong>Optional</strong> means the owning feature is disabled or the dimension has a supported fallback. Unused optional mappings do not create errors.</li>
-          <li><strong>Stale</strong> means a saved reference no longer matches an active compatible Xero value. Stale optional mappings are still shown because enabling the feature later would fail.</li>
-          <li><strong>POS exception:</strong> a missing location/payment clearing account blocks only that method&apos;s Xero payment. The register and EOD closure continue, and other mapped methods can post.</li>
-        </ul>
 
         <h3 style={h3}>Tracking categories</h3>
         <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
@@ -25476,27 +24702,16 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>This correctly moves the cost from a transit holding account to on-hand stock at the moment goods arrive</li>
         </ul>
 
-        <h3 style={h3}>Sync History: Needs attention and All activity</h3>
-        <p style={p}><strong>All activity</strong> is the immutable event history. <strong>Needs attention</strong> is the current reconciliation workspace built from expected IMS facts, live Xero facts, mapping readiness, and durable action outcomes. Ignoring or resolving an issue never deletes the underlying activity.</p>
+        <h3 style={h3}>Queued / retry system</h3>
+        <p style={p}>All Xero syncs are <strong>non-blocking</strong> — a sync failure never interrupts IMS operations. The retry flow:</p>
         <ul style={ul}>
-          <li><strong>Recheck</strong> reads current Xero state and mapping readiness. It does not post, Authorise, pay, retry, or change accounting documents.</li>
-          <li><strong>Retry Xero</strong> resumes the existing replay-protected operation and skips completed steps. Admin/SuperAdmin only. An <em>unknown</em> outcome must be checked in Xero first and is never blindly retried.</li>
-          <li><strong>Authorise &amp; continue</strong> promotes a deliberately Draft shortfall credit and continues its already selected settlement. Admin/SuperAdmin only.</li>
-          <li><strong>Ignore</strong> accepts the current exact mismatch with a required reason. If its fingerprint changes, it automatically reopens.</li>
-          <li><strong>Send to Accounts</strong> emails safe summaries of selected open issues to configured recipients. It does not change issue or accounting state.</li>
+          <li><strong>Attempt 1</strong> — Sync fires immediately on the triggering action</li>
+          <li><strong>2 second wait</strong> — If attempt 1 fails</li>
+          <li><strong>Attempt 2</strong> — One automatic retry</li>
+          <li><strong>Queued</strong> — If both attempts fail, the item is marked as queued in the database</li>
+          <li><strong>Manual retry</strong> — From the Xero tab: click <em>Retry</em> on a single item, or <em>Push All</em> to retry all queued items at once</li>
         </ul>
-        <p style={p}>Admins and Advisors may inspect, Recheck, Ignore, export, and Send to Accounts. Only Admin/SuperAdmin may change policy/mappings or perform accounting mutations such as Retry, Authorise, and override.</p>
-
-        <h3 style={h3}>Accounts escalation and digests</h3>
-        <p style={p}>Configure up to 20 accounts recipients in Needs attention. Selected issues can be sent immediately, or an optional daily/weekly digest can run at the configured local hour, weekday, and IANA timezone. Digests include only currently open issues, cap each email at 200, suppress repeated cadence periods, and never mutate accounting state.</p>
-
-        <h3 style={h3}>Bookkeeping examples</h3>
-        <ul style={ul}>
-          <li><strong>Xero total differs:</strong> choose Recheck first. If it remains different, compare IMS and Xero, correct the true source, then Recheck. Ignore only when the exact difference is intentional and record why.</li>
-          <li><strong>Archived clearing account:</strong> open Ledger Mapping, select an active account that accepts payments, save, then Recheck. Do not retry the payment before correcting the mapping.</li>
-          <li><strong>Unknown payment result:</strong> open the linked Xero document and bank account to determine whether the payment exists. Do not create a second payment; follow the issue guidance after verification.</li>
-          <li><strong>Admin-edited paid invoice:</strong> the local override remains visible as an issue because Solvantis does not rewrite settled Xero history. Resolve with the bookkeeper using a supported credit/reversal, then Recheck.</li>
-        </ul>
+        <p style={p}>The sync log (accessible from the Xero tab) shows every attempt with status, timestamp, and error detail for diagnosis.</p>
 
         <h3 style={h3}>Reversals &amp; cancellations</h3>
         <p style={p}>When a PO or SO is reverted to Draft or Cancelled, IMS automatically attempts to void the corresponding Xero document:</p>

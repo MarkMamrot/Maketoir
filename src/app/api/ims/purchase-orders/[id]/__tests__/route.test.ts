@@ -14,6 +14,7 @@ const {
   mockReportRuntimeIssue,
   mockGetXeroInvoiceEditState,
   mockRecordXeroReconciliationIssue,
+  mockGetOrderResolutionFinancialSummaries,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockReportRuntimeIssue: vi.fn(),
   mockGetXeroInvoiceEditState: vi.fn(),
   mockRecordXeroReconciliationIssue: vi.fn(),
+  mockGetOrderResolutionFinancialSummaries: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
@@ -49,8 +51,9 @@ vi.mock('@/lib/ims/xeroHooks', () => ({
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mockGetXeroInvoiceEditState }));
 vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mockRecordXeroReconciliationIssue }));
+vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
 
-import { DELETE, PUT } from '../route';
+import { DELETE, GET, PUT } from '../route';
 
 const params = { params: { id: '42' } };
 
@@ -74,6 +77,26 @@ describe('/api/ims/purchase-orders/[id]', () => {
     mockUpdate.mockResolvedValue(undefined);
     mockTriggerPOXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
+    mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
+  });
+
+  it('returns core PO detail when optional shortfall financials fail', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ id: 1 }] });
+    mockGetOrderResolutionFinancialSummaries.mockRejectedValue(new Error('Illegal mix of collations'));
+
+    const response = await GET(new Request('http://localhost'), params);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toMatchObject({
+      success: true,
+      data: { id: 42, status: 'confirmed', resolution_financials: [] },
+      warning: 'Shortfall financial details are temporarily unavailable. The purchase order can still be viewed and received.',
+    });
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', operation: 'load_resolution_financials',
+      reference: { type: 'purchase_order', id: '42' },
+    }));
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {

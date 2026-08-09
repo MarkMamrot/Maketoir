@@ -847,6 +847,10 @@ async function migrateSchema(schema) {
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
+    await ensureColumnCollationMatches(schema, 'ims_po_shortfall_resolutions', 'business_id', 'ims_purchase_orders', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_supplier_credit_settlements', 'business_id', 'ims_purchase_orders', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_so_shortfall_resolutions', 'business_id', 'ims_sales_orders', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_customer_credit_settlements', 'business_id', 'ims_sales_orders', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'product_id', 'ims_products', 'product_id');
   } catch (e) {
@@ -884,6 +888,22 @@ async function verifyOutstandingResolutionSchema(schema) {
   }
   const [sourceRows] = await conn.query(`SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='ims_credit_notes' AND COLUMN_NAME='source'`, [schema]);
   if (!String(sourceRows[0]?.COLUMN_TYPE ?? '').includes("'so_shortfall'")) throw new Error(`${schema}.ims_credit_notes.source is missing so_shortfall`);
+  for (const [table, referenceTable] of [
+    ['ims_po_shortfall_resolutions', 'ims_purchase_orders'],
+    ['ims_supplier_credit_settlements', 'ims_purchase_orders'],
+    ['ims_so_shortfall_resolutions', 'ims_sales_orders'],
+    ['ims_customer_credit_settlements', 'ims_sales_orders'],
+  ]) {
+    const [collationRows] = await conn.query(
+      `SELECT TABLE_NAME, COLLATION_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA=? AND COLUMN_NAME='business_id' AND TABLE_NAME IN (?, ?)`,
+      [schema, table, referenceTable],
+    );
+    const collations = new Map(collationRows.map(row => [row.TABLE_NAME, row.COLLATION_NAME]));
+    if (!collations.get(table) || collations.get(table) !== collations.get(referenceTable)) {
+      throw new Error(`${schema}.${table}.business_id collation does not match ${referenceTable}`);
+    }
+  }
   console.log(`  verified ${schema} outstanding-resolution schema`);
 }
 

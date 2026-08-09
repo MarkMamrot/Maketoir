@@ -18,8 +18,23 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsPORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    const resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'supplier', Number(params.id));
-    return NextResponse.json({ success: true, data: { ...data, resolution_financials } });
+    let resolution_financials: Awaited<ReturnType<typeof getOrderResolutionFinancialSummaries>> = [];
+    let resolutionFinancialsWarning: string | null = null;
+    try {
+      resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'supplier', Number(params.id));
+    } catch (error) {
+      resolutionFinancialsWarning = 'Shortfall financial details are temporarily unavailable. The purchase order can still be viewed and received.';
+      await reportRuntimeIssue({
+        businessId, source: 'ims_purchase_orders', operation: 'load_resolution_financials',
+        title: 'Purchase order shortfall financial details could not be loaded', error,
+        reference: { type: 'purchase_order', id: params.id },
+      }).catch(() => {});
+    }
+    return NextResponse.json({
+      success: true,
+      data: { ...data, resolution_financials },
+      ...(resolutionFinancialsWarning ? { warning: resolutionFinancialsWarning } : {}),
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
