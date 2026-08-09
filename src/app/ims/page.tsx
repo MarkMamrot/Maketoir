@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, Wrench } from 'lucide-react';
+import { AlertTriangle, Download, ExternalLink, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
@@ -18013,21 +18013,172 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
   );
 }
 
-function XeroSyncTab({
-  getBusinessId,
-  onOpenPurchaseOrder,
-  onOpenSalesOrder,
-  onOpenCreditNote,
-  onOpenPosSale,
-  onOpenPosSalesDay,
-}: {
+type XeroWorkspaceProps = {
   getBusinessId: () => string;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
   onOpenCreditNote?: (id: number) => void;
   onOpenPosSale?: (id: number) => void;
   onOpenPosSalesDay?: (date: string) => void;
-}) {
+};
+
+type XeroReconciliationIssue = {
+  id: number; targetType: string; referenceId: string; xeroId: string | null;
+  ruleKey: string; severity: 'warning' | 'error' | 'critical'; status: 'open' | 'ignored' | 'resolved';
+  summary: string; expected: Record<string, unknown> | null; actual: Record<string, unknown> | null;
+  firstSeenAt: string; lastCheckedAt: string | null; occurrenceCount: number; recommendedNextStep: string;
+  reference: string; contactName: string | null; amount: number | null; itemDate: string | null;
+};
+
+function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSalesOrder, onOpenCreditNote }: XeroWorkspaceProps) {
+  const [items, setItems] = useState<XeroReconciliationIssue[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [rechecking, setRechecking] = useState(false);
+  const [filters, setFilters] = useState({ status: 'open', ruleKey: '', targetType: '', severity: '', minimumAgeDays: '' });
+
+  const queryString = (format?: 'csv') => {
+    const params = new URLSearchParams({ databaseId: getBusinessId(), status: filters.status, limit: '200' });
+    if (filters.ruleKey) params.set('ruleKey', filters.ruleKey);
+    if (filters.targetType) params.set('targetType', filters.targetType);
+    if (filters.severity) params.set('severity', filters.severity);
+    if (filters.minimumAgeDays) params.set('minimumAgeDays', filters.minimumAgeDays);
+    if (format) params.set('format', format);
+    return params.toString();
+  };
+
+  const loadIssues = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/xero/reconciliation/issues?${queryString()}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Reconciliation issues could not be loaded.');
+      setItems(Array.isArray(data.items) ? data.items : []);
+      setTotal(Number(data.total) || 0);
+    } catch (error) {
+      setItems([]);
+      setTotal(0);
+      alert(error instanceof Error ? error.message : 'Reconciliation issues could not be loaded.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadIssues(); }, [filters.status, filters.ruleKey, filters.targetType, filters.severity, filters.minimumAgeDays]);
+
+  const recheck = async () => {
+    setRechecking(true);
+    try {
+      const response = await fetch('/api/xero/reconciliation/scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), limit: 500 }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Recheck failed.');
+      await loadIssues();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Recheck failed.');
+    } finally {
+      setRechecking(false);
+    }
+  };
+
+  const openSource = (item: XeroReconciliationIssue) => {
+    const id = Number(item.referenceId);
+    if (item.targetType === 'purchase_order') return onOpenPurchaseOrder?.(id);
+    if (item.targetType === 'sales_order') return onOpenSalesOrder?.(id);
+    return onOpenCreditNote?.(id);
+  };
+  const xeroUrl = (item: XeroReconciliationIssue) => {
+    if (!item.xeroId) return null;
+    if (item.targetType === 'purchase_order') return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${item.xeroId}`;
+    if (item.targetType === 'supplier_credit_note') return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${item.xeroId}`;
+    if (item.targetType === 'customer_credit_note') return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${item.xeroId}`;
+    return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${item.xeroId}`;
+  };
+  const age = (value: string) => Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86400000));
+  const compactSnapshot = (value: Record<string, unknown> | null) => value
+    ? Object.entries(value).filter(([, child]) => child != null).map(([key, child]) => `${key}: ${Array.isArray(child) ? child.join(' / ') : child}`).join(' · ') || 'Unknown'
+    : 'Unknown';
+  const label = (value: string) => ({
+    purchase_order: 'Purchase order', sales_order: 'Sales order', customer_credit_note: 'Customer credit note', supplier_credit_note: 'Supplier credit note',
+    missing_document: 'Missing document', linked_document: 'Wrong link', document_type: 'Document type', total: 'Total', currency: 'Currency', contact: 'Contact', lifecycle_state: 'Lifecycle state', amount_due: 'Amount due', amount_paid: 'Amount paid', amount_credited: 'Amount credited', remaining_credit: 'Remaining credit', admin_edit_override: 'Admin override',
+  }[value] ?? value.replace(/_/g, ' '));
+  const filterStyle: React.CSSProperties = { background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '6px 8px', fontSize: 12, color: 'var(--sv-text-main)' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} style={filterStyle} aria-label="Issue state">
+          <option value="open">Open</option><option value="ignored">Ignored</option><option value="resolved">Resolved</option><option value="all">All states</option>
+        </select>
+        <select value={filters.ruleKey} onChange={event => setFilters(current => ({ ...current, ruleKey: event.target.value }))} style={filterStyle} aria-label="Discrepancy type">
+          <option value="">All discrepancies</option>
+          {['missing_document','linked_document','document_type','total','currency','contact','lifecycle_state','amount_due','amount_paid','amount_credited','remaining_credit','admin_edit_override'].map(value => <option key={value} value={value}>{label(value)}</option>)}
+        </select>
+        <select value={filters.targetType} onChange={event => setFilters(current => ({ ...current, targetType: event.target.value }))} style={filterStyle} aria-label="Document type">
+          <option value="">All documents</option>
+          {['purchase_order','sales_order','customer_credit_note','supplier_credit_note'].map(value => <option key={value} value={value}>{label(value)}</option>)}
+        </select>
+        <select value={filters.severity} onChange={event => setFilters(current => ({ ...current, severity: event.target.value }))} style={filterStyle} aria-label="Severity">
+          <option value="">All severities</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option>
+        </select>
+        <select value={filters.minimumAgeDays} onChange={event => setFilters(current => ({ ...current, minimumAgeDays: event.target.value }))} style={filterStyle} aria-label="Minimum age">
+          <option value="">Any age</option><option value="7">7+ days</option><option value="30">30+ days</option><option value="90">90+ days</option>
+        </select>
+        <span style={{ flex: 1 }} />
+        <a href={`/api/xero/reconciliation/issues?${queryString('csv')}`} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}><Download size={14} /> Export CSV</a>
+        <button type="button" onClick={recheck} disabled={rechecking} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}><RefreshCw size={14} className={rechecking ? 'animate-spin' : undefined} /> {rechecking ? 'Checking…' : 'Recheck'}</button>
+      </div>
+
+      <div style={{ border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', borderRadius: 8, overflow: 'auto' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--sv-etch)', fontWeight: 700, color: 'var(--sv-text-strong)' }}>Needs attention ({total})</div>
+        {loading ? <div style={{ padding: 28, color: 'var(--sv-text-dim)', textAlign: 'center' }}>Loading…</div>
+          : items.length === 0 ? <div style={{ padding: 32, color: 'var(--sv-text-dim)', textAlign: 'center' }}>No reconciliation issues match these filters.</div>
+          : <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead><tr style={{ background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', textAlign: 'left' }}>
+              {['Severity','Discrepancy','Reference / contact','Amount','Age','Expected','Xero actual','Last check','Recommended next step',''].map(value => <th key={value} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{value}</th>)}
+            </tr></thead>
+            <tbody>{items.map(item => {
+              const severityColor = item.severity === 'critical' ? '#ef4444' : item.severity === 'error' ? '#f87171' : '#fbbf24';
+              const link = xeroUrl(item);
+              return <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
+                <td style={{ padding: 10 }}><span style={{ color: severityColor, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={14} /> {item.severity}</span></td>
+                <td style={{ padding: 10 }}><strong>{label(item.ruleKey)}</strong><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{label(item.targetType)}</div></td>
+                <td style={{ padding: 10 }}><button type="button" onClick={() => openSource(item)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontWeight: 700 }}>{item.reference}</button><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{item.contactName || '—'}</div></td>
+                <td style={{ padding: 10, fontVariantNumeric: 'tabular-nums' }}>{item.amount == null ? '—' : `$${Number(item.amount).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
+                <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{age(item.firstSeenAt)}d</td>
+                <td title={JSON.stringify(item.expected)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.expected)}</td>
+                <td title={JSON.stringify(item.actual)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.actual)}</td>
+                <td style={{ padding: 10, whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleDateString('en-AU') : 'Never'}</td>
+                <td style={{ padding: 10, maxWidth: 220 }}>{item.recommendedNextStep}</td>
+                <td style={{ padding: 10 }}>{link && <a href={link} target="_blank" rel="noopener noreferrer" title="Open in Xero" style={{ color: '#38bdf8' }}><ExternalLink size={15} /></a>}</td>
+              </tr>;
+            })}</tbody>
+          </table>}
+      </div>
+    </div>
+  );
+}
+
+function XeroSyncTab(props: XeroWorkspaceProps) {
+  const [view, setView] = useState<'attention' | 'activity'>('attention');
+  return <div style={{ maxWidth: 1400, display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'inline-flex', alignSelf: 'flex-start', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+      {([['attention', 'Needs attention'], ['activity', 'All activity']] as const).map(([value, text]) => <button key={value} type="button" onClick={() => setView(value)} style={{ padding: '7px 14px', border: 0, borderRight: value === 'attention' ? '1px solid var(--sv-etch)' : 0, background: view === value ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: view === value ? '#fff' : 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: 700, fontSize: 12 }}>{text}</button>)}
+    </div>
+    {view === 'attention' ? <XeroNeedsAttentionView {...props} /> : <XeroAllActivityTab {...props} />}
+  </div>;
+}
+
+function XeroAllActivityTab({
+  getBusinessId,
+  onOpenPurchaseOrder,
+  onOpenSalesOrder,
+  onOpenCreditNote,
+  onOpenPosSale,
+  onOpenPosSalesDay,
+}: XeroWorkspaceProps) {
   const [entries, setEntries] = useState<XeroSyncEntry[]>([]);
   const [queued, setQueued] = useState<{ id: number; reference: string; type: 'po' | 'so' | 'cn' | 'scn'; status: string; total_amount: number; xero_synced_at: string | null; contact_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
