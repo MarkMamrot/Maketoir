@@ -70,6 +70,11 @@ async function main() {
 
   const reconciliationSettingColumns = [
     ['recipients_json', 'JSON NULL AFTER enabled'],
+    ['digest_frequency', "VARCHAR(10) NOT NULL DEFAULT 'off' COMMENT 'off | daily | weekly' AFTER recipients_json"],
+    ['digest_timezone', "VARCHAR(100) NOT NULL DEFAULT 'Australia/Sydney' AFTER digest_frequency"],
+    ['digest_hour', 'TINYINT NOT NULL DEFAULT 8 AFTER digest_timezone'],
+    ['digest_weekly_day', "TINYINT NOT NULL DEFAULT 1 COMMENT '0 Sunday through 6 Saturday' AFTER digest_hour"],
+    ['last_digest_completed_at', 'DATETIME NULL AFTER digest_weekly_day'],
     ['bootstrap_po_id', 'BIGINT NOT NULL DEFAULT 0 AFTER scan_limit'],
     ['bootstrap_so_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_po_id'],
     ['bootstrap_cn_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_so_id'],

@@ -463,6 +463,58 @@ export async function saveXeroReconciliationRecipients(
   );
 }
 
+export type XeroReconciliationEmailSettings = {
+  recipients: string[];
+  digestFrequency: 'off' | 'daily' | 'weekly';
+  digestTimeZone: string;
+  digestHour: number;
+  digestWeeklyDay: number;
+  lastDigestCompletedAt: string | Date | null;
+};
+
+export async function getXeroReconciliationEmailSettings(
+  businessId: string,
+  dependencies: Dependencies = defaultDependencies,
+): Promise<XeroReconciliationEmailSettings> {
+  const rows = await dependencies.query<any>(
+    `SELECT recipients_json, digest_frequency, digest_timezone, digest_hour,
+            digest_weekly_day, last_digest_completed_at
+       FROM xero_reconciliation_settings WHERE business_id = ? LIMIT 1`,
+    [businessId],
+  );
+  const row = rows[0];
+  const rawRecipients = row?.recipients_json;
+  const recipients = rawRecipients
+    ? (typeof rawRecipients === 'string' ? JSON.parse(rawRecipients) : rawRecipients)
+    : [];
+  return {
+    recipients: Array.isArray(recipients) ? recipients.map(String) : [],
+    digestFrequency: ['daily', 'weekly'].includes(row?.digest_frequency) ? row.digest_frequency : 'off',
+    digestTimeZone: String(row?.digest_timezone || 'Australia/Sydney'),
+    digestHour: Math.max(0, Math.min(23, Number(row?.digest_hour ?? 8))),
+    digestWeeklyDay: Math.max(0, Math.min(6, Number(row?.digest_weekly_day ?? 1))),
+    lastDigestCompletedAt: row?.last_digest_completed_at ?? null,
+  };
+}
+
+export async function saveXeroReconciliationEmailSettings(
+  input: Omit<XeroReconciliationEmailSettings, 'lastDigestCompletedAt'> & { businessId: string },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `INSERT INTO xero_reconciliation_settings
+       (business_id, recipients_json, digest_frequency, digest_timezone, digest_hour, digest_weekly_day)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE recipients_json = VALUES(recipients_json),
+       digest_frequency = VALUES(digest_frequency), digest_timezone = VALUES(digest_timezone),
+       digest_hour = VALUES(digest_hour), digest_weekly_day = VALUES(digest_weekly_day), updated_at = NOW()`,
+    [
+      input.businessId, JSON.stringify(input.recipients), input.digestFrequency,
+      input.digestTimeZone, input.digestHour, input.digestWeeklyDay,
+    ],
+  );
+}
+
 export type XeroReconciliationEmailIssue = {
   id: number;
   severity: string;
@@ -472,7 +524,21 @@ export type XeroReconciliationEmailIssue = {
   summary: string;
   amount: number | null;
   recommendedNextStep: string;
+  mismatchFingerprint?: string;
 };
+
+function mapEmailIssue(row: any): XeroReconciliationEmailIssue {
+  const expected = parseJsonObject(row.expected_summary);
+  const actual = parseJsonObject(row.actual_summary);
+  const amountValue = expected?.total ?? actual?.total ?? null;
+  return {
+    id: Number(row.id), severity: String(row.severity), targetType: String(row.target_type),
+    referenceId: String(row.reference_id), ruleKey: String(row.rule_key), summary: String(row.summary),
+    amount: amountValue == null || !Number.isFinite(Number(amountValue)) ? null : Number(amountValue),
+    recommendedNextStep: reconciliationRecommendation(String(row.rule_key)),
+    mismatchFingerprint: row.mismatch_fingerprint ? String(row.mismatch_fingerprint) : undefined,
+  };
+}
 
 export async function getXeroReconciliationIssuesForEmail(
   input: { businessId: string; issueIds: number[] },
@@ -489,17 +555,24 @@ export async function getXeroReconciliationIssuesForEmail(
       WHERE issue.business_id = ? AND issue.status = 'open' AND issue.id IN (${placeholders})`,
     [input.businessId, ...issueIds],
   );
-  return rows.map(row => {
-    const expected = parseJsonObject(row.expected_summary);
-    const actual = parseJsonObject(row.actual_summary);
-    const amountValue = expected?.total ?? actual?.total ?? null;
-    return {
-      id: Number(row.id), severity: String(row.severity), targetType: String(row.target_type),
-      referenceId: String(row.reference_id), ruleKey: String(row.rule_key), summary: String(row.summary),
-      amount: amountValue == null || !Number.isFinite(Number(amountValue)) ? null : Number(amountValue),
-      recommendedNextStep: reconciliationRecommendation(String(row.rule_key)),
-    };
-  });
+  return rows.map(mapEmailIssue);
+}
+
+export async function listOpenXeroReconciliationIssuesForDigest(
+  businessId: string,
+  dependencies: Dependencies = defaultDependencies,
+): Promise<XeroReconciliationEmailIssue[]> {
+  const rows = await dependencies.query<any>(
+    `SELECT issue.id, issue.severity, issue.rule_key, issue.summary, issue.expected_summary,
+            issue.actual_summary, issue.mismatch_fingerprint, target.target_type, target.reference_id
+       FROM xero_reconciliation_issues issue
+       JOIN xero_reconciliation_targets target ON target.id = issue.target_id
+      WHERE issue.business_id = ? AND issue.status = 'open'
+      ORDER BY FIELD(issue.severity, 'critical', 'error', 'warning'), issue.first_seen_at, issue.id
+      LIMIT 200`,
+    [businessId],
+  );
+  return rows.map(mapEmailIssue);
 }
 
 export async function claimXeroReconciliationDelivery(
@@ -511,6 +584,7 @@ export async function claimXeroReconciliationDelivery(
     issueIds: number[];
     actorId?: string | number | null;
     actorName?: string | null;
+    deliveryType?: 'manual' | 'digest';
   },
   dependencies: Dependencies = defaultDependencies,
 ): Promise<'claimed' | 'already_sent' | 'in_progress'> {
@@ -518,9 +592,9 @@ export async function claimXeroReconciliationDelivery(
     `INSERT IGNORE INTO xero_reconciliation_deliveries
        (business_id, delivery_key, delivery_type, status, payload_fingerprint, recipients_json,
         issue_ids_json, actor_id, actor_name)
-     VALUES (?, ?, 'manual', 'sending', ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, 'sending', ?, ?, ?, ?, ?)`,
     [
-      input.businessId, input.deliveryKey, input.payloadFingerprint,
+      input.businessId, input.deliveryKey, input.deliveryType ?? 'manual', input.payloadFingerprint,
       JSON.stringify(input.recipients), JSON.stringify(input.issueIds),
       input.actorId == null ? null : String(input.actorId), input.actorName ?? null,
     ],
@@ -529,7 +603,8 @@ export async function claimXeroReconciliationDelivery(
   const retried = await dependencies.execute(
     `UPDATE xero_reconciliation_deliveries
         SET status = 'sending', error_detail = NULL, attempt_count = attempt_count + 1, attempted_at = NOW()
-      WHERE business_id = ? AND delivery_key = ? AND payload_fingerprint = ? AND status = 'failed'`,
+      WHERE business_id = ? AND delivery_key = ? AND payload_fingerprint = ?
+        AND (status = 'failed' OR (status = 'sending' AND attempted_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)))`,
     [input.businessId, input.deliveryKey, input.payloadFingerprint],
   );
   if (retried.affectedRows > 0) return 'claimed';
@@ -542,6 +617,17 @@ export async function claimXeroReconciliationDelivery(
     throw new Error('The delivery key was already used for different reconciliation issues.');
   }
   return rows[0]?.status === 'sent' ? 'already_sent' : 'in_progress';
+}
+
+export async function markXeroReconciliationDigestCompleted(
+  businessId: string,
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `UPDATE xero_reconciliation_settings SET last_digest_completed_at = NOW(), updated_at = NOW()
+      WHERE business_id = ?`,
+    [businessId],
+  );
 }
 
 export async function completeXeroReconciliationDelivery(

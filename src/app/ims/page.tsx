@@ -18014,6 +18014,11 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
   const [recipientInput, setRecipientInput] = useState('');
   const [savingRecipients, setSavingRecipients] = useState(false);
   const [recipientError, setRecipientError] = useState('');
+  const [digestFrequency, setDigestFrequency] = useState<'off' | 'daily' | 'weekly'>('off');
+  const [digestTimeZone, setDigestTimeZone] = useState('Australia/Sydney');
+  const [digestHour, setDigestHour] = useState(8);
+  const [digestWeeklyDay, setDigestWeeklyDay] = useState(1);
+  const [lastDigestCompletedAt, setLastDigestCompletedAt] = useState<string | null>(null);
   const [selectedIssueIds, setSelectedIssueIds] = useState<number[]>([]);
   const [sendIssueIds, setSendIssueIds] = useState<number[]>([]);
   const [deliveryKey, setDeliveryKey] = useState('');
@@ -18057,9 +18062,15 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
       .then(async response => ({ response, data: await response.json() }))
       .then(({ response, data }) => {
         if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be loaded.');
-        const nextRecipients = Array.isArray(data.recipients) ? data.recipients.map(String) : [];
+        const settings = data.settings ?? {};
+        const nextRecipients = Array.isArray(settings.recipients) ? settings.recipients.map(String) : [];
         setRecipients(nextRecipients);
         setRecipientInput(nextRecipients.join(', '));
+        setDigestFrequency(['daily', 'weekly'].includes(settings.digestFrequency) ? settings.digestFrequency : 'off');
+        setDigestTimeZone(String(settings.digestTimeZone || 'Australia/Sydney'));
+        setDigestHour(Number(settings.digestHour ?? 8));
+        setDigestWeeklyDay(Number(settings.digestWeeklyDay ?? 1));
+        setLastDigestCompletedAt(settings.lastDigestCompletedAt ? String(settings.lastDigestCompletedAt) : null);
       })
       .catch(error => setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be loaded.'));
   }, []);
@@ -18070,13 +18081,21 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
     try {
       const response = await fetch('/api/xero/reconciliation/settings', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), recipients: recipientInput }),
+        body: JSON.stringify({
+          databaseId: getBusinessId(), recipients: recipientInput,
+          digestFrequency, digestTimeZone, digestHour, digestWeeklyDay,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be saved.');
-      const nextRecipients = Array.isArray(data.recipients) ? data.recipients.map(String) : [];
+      const settings = data.settings ?? {};
+      const nextRecipients = Array.isArray(settings.recipients) ? settings.recipients.map(String) : [];
       setRecipients(nextRecipients);
       setRecipientInput(nextRecipients.join(', '));
+      setDigestFrequency(['daily', 'weekly'].includes(settings.digestFrequency) ? settings.digestFrequency : 'off');
+      setDigestTimeZone(String(settings.digestTimeZone || 'Australia/Sydney'));
+      setDigestHour(Number(settings.digestHour ?? 8));
+      setDigestWeeklyDay(Number(settings.digestWeeklyDay ?? 1));
     } catch (error) {
       setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be saved.');
     } finally {
@@ -18207,9 +18226,22 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
         <label style={{ flex: '1 1 360px', color: 'var(--sv-text-dim)', fontSize: 11 }}>ACCOUNTS RECIPIENTS
           <input value={recipientInput} onChange={event => setRecipientInput(event.target.value)} disabled={!canMutateAccounting} placeholder="accounts@example.com" style={{ ...filterStyle, display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4 }} />
         </label>
-        {canMutateAccounting && <button type="button" onClick={() => void saveRecipients()} disabled={savingRecipients} style={{ ...filterStyle, cursor: 'pointer' }}>{savingRecipients ? 'Saving…' : 'Save recipients'}</button>}
+        <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>DIGEST
+          <select value={digestFrequency} onChange={event => setDigestFrequency(event.target.value as 'off' | 'daily' | 'weekly')} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}><option value="off">Off</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select>
+        </label>
+        {digestFrequency !== 'off' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>LOCAL HOUR
+          <select value={digestHour} onChange={event => setDigestHour(Number(event.target.value))} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}>{Array.from({ length: 24 }, (_, hour) => <option key={hour} value={hour}>{String(hour).padStart(2, '0')}:00</option>)}</select>
+        </label>}
+        {digestFrequency === 'weekly' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>DAY
+          <select value={digestWeeklyDay} onChange={event => setDigestWeeklyDay(Number(event.target.value))} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', marginTop: 4 }}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option key={day} value={index}>{day}</option>)}</select>
+        </label>}
+        {digestFrequency !== 'off' && <label style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>TIMEZONE
+          <input value={digestTimeZone} onChange={event => setDigestTimeZone(event.target.value)} disabled={!canMutateAccounting} style={{ ...filterStyle, display: 'block', width: 150, marginTop: 4 }} />
+        </label>}
+        {canMutateAccounting && <button type="button" onClick={() => void saveRecipients()} disabled={savingRecipients} style={{ ...filterStyle, cursor: 'pointer' }}>{savingRecipients ? 'Saving…' : 'Save email settings'}</button>}
         {selectedIssueIds.length > 0 && <button type="button" onClick={() => openSendDialog(selectedIssueIds)} disabled={!recipients.length} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: recipients.length ? 'pointer' : 'not-allowed', color: '#38bdf8' }}><Mail size={14} /> Send to Accounts ({selectedIssueIds.length})</button>}
       </div>
+      {lastDigestCompletedAt && digestFrequency !== 'off' && <div style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Last digest period completed {new Date(lastDigestCompletedAt).toLocaleString('en-AU')}.</div>}
       {recipientError && <div role="alert" style={{ color: '#f87171', fontSize: 12 }}>{recipientError}</div>}
       {sendNotice && <div role="status" style={{ color: '#34d399', fontSize: 12 }}>{sendNotice}</div>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

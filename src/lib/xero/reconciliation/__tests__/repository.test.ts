@@ -6,16 +6,42 @@ import {
   getXeroReconciliationIssuesForEmail,
   getXeroReconciliationRecipients,
   getXeroReconciliationIssueActionContext,
+  getXeroReconciliationEmailSettings,
+  listOpenXeroReconciliationIssuesForDigest,
   ignoreXeroReconciliationIssue,
   insertXeroReconciliationTargetIfAbsent,
   recordXeroReconciliationActionEvent,
   recordXeroReconciliationEmailEvents,
   recordXeroReconciliationIssue,
   resolveXeroReconciliationIssue,
+  saveXeroReconciliationEmailSettings,
   saveXeroReconciliationRecipients,
 } from '../repository';
 
 describe('reconciliation email persistence', () => {
+  it('loads typed digest settings and persists the complete email schedule', async () => {
+    const query = vi.fn().mockResolvedValue([{
+      recipients_json: '["accounts@example.com"]', digest_frequency: 'weekly',
+      digest_timezone: 'Australia/Perth', digest_hour: 9, digest_weekly_day: 5,
+      last_digest_completed_at: '2026-08-08 01:00:00',
+    }]);
+    const execute = vi.fn().mockResolvedValue({ affectedRows: 1 });
+    const dependencies = { query: query as any, execute: execute as any };
+
+    await expect(getXeroReconciliationEmailSettings('biz-1', dependencies)).resolves.toEqual({
+      recipients: ['accounts@example.com'], digestFrequency: 'weekly', digestTimeZone: 'Australia/Perth',
+      digestHour: 9, digestWeeklyDay: 5, lastDigestCompletedAt: '2026-08-08 01:00:00',
+    });
+    await saveXeroReconciliationEmailSettings({
+      businessId: 'biz-1', recipients: ['accounts@example.com'], digestFrequency: 'daily',
+      digestTimeZone: 'Australia/Sydney', digestHour: 8, digestWeeklyDay: 1,
+    }, dependencies);
+    expect(execute.mock.calls[0][1]).toEqual([
+      'biz-1', '["accounts@example.com"]', 'daily', 'Australia/Sydney', 8, 1,
+    ]);
+    expect(String(execute.mock.calls[0][0])).toContain('digest_frequency = VALUES(digest_frequency)');
+  });
+
   it('stores recipients and loads selected open issues within the tenant', async () => {
     const execute = vi.fn().mockResolvedValue({ affectedRows: 1 });
     const query = vi.fn()
@@ -52,6 +78,7 @@ describe('reconciliation email persistence', () => {
     await recordXeroReconciliationEmailEvents(claim, dependencies);
 
     expect(String(execute.mock.calls[0][0])).toContain('INSERT IGNORE');
+    expect(execute.mock.calls[0][1][2]).toBe('manual');
     expect(String(execute.mock.calls[1][0])).toContain("status = 'sent'");
     expect(String(execute.mock.calls[2][0])).toContain("'emailed'");
     expect(JSON.parse(execute.mock.calls[2][1][4])).toEqual({ deliveryKey: 'manual-request-123', recipients: ['accounts@example.com'] });
@@ -60,6 +87,19 @@ describe('reconciliation email persistence', () => {
     execute.mockResolvedValueOnce({ affectedRows: 0 }).mockResolvedValueOnce({ affectedRows: 0 });
     query.mockResolvedValueOnce([{ status: 'sent', payload_fingerprint: 'fingerprint' }]);
     await expect(claimXeroReconciliationDelivery(claim, dependencies)).resolves.toBe('already_sent');
+  });
+
+  it('lists only open digest issues with their mismatch fingerprints', async () => {
+    const query = vi.fn().mockResolvedValue([{
+      id: 9, severity: 'error', rule_key: 'total', summary: 'Totals differ.',
+      expected_summary: '{"total":12.5}', actual_summary: null, mismatch_fingerprint: 'mismatch-9',
+      target_type: 'sales_order', reference_id: '42',
+    }]);
+    await expect(listOpenXeroReconciliationIssuesForDigest('biz-1', { query: query as any, execute: vi.fn() as any })).resolves.toEqual([
+      expect.objectContaining({ id: 9, mismatchFingerprint: 'mismatch-9', amount: 12.5 }),
+    ]);
+    expect(query.mock.calls[0][1]).toEqual(['biz-1']);
+    expect(String(query.mock.calls[0][0])).toContain("issue.status = 'open'");
   });
 });
 
