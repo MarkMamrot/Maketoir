@@ -23,6 +23,13 @@ import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import {
+  getXeroHash,
+  getXeroWorkspaceSection,
+  isXeroHash,
+  parseXeroHash,
+  type XeroDestination,
+} from './views/xero/navigation';
+import {
   EMPTY_MULTI,
   MultiFilter,
   ReportMultiFilter,
@@ -9007,7 +9014,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                 {poPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                     <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Ledger Mapping. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
+                      Xero payment behaviour follows Setup → Automation and Payment Routing. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
@@ -12539,7 +12546,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 {soPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                     <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Ledger Mapping. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
+                      Xero payment behaviour follows Setup → Automation and Payment Routing. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
@@ -13686,8 +13693,8 @@ function CashBankingView() {
       {loading && <div style={{ padding: 36, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading cash days...</div>}
       {data && !loading && <>
         {(!data.cashClearingAccount || !data.defaultDestinationAccount) && <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 6, border: '1px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 12 }}>
-          {!data.cashClearingAccount ? 'Map the branch Cash clearing account in Xero settings. ' : ''}
-          {!data.defaultDestinationAccount ? 'Set the branch default Cash Deposit Bank in Xero settings.' : ''}
+          {!data.cashClearingAccount ? 'Map the branch Cash clearing account in Xero → Setup → Payment Routing. ' : ''}
+          {!data.defaultDestinationAccount ? 'Set the branch default Cash Deposit Bank in Xero → Setup → Payment Routing.' : ''}
         </div>}
         <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
           <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -15692,7 +15699,17 @@ function XeroView({
 }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
+  const [destination, setDestination] = useState<XeroDestination>(() => {
+    if (isAdvisor) return 'setup-ledger';
+    return typeof window === 'undefined' ? 'overview' : parseXeroHash(window.location.hash);
+  });
+
+  useEffect(() => {
+    if (isAdvisor) return;
+    const onPopState = () => setDestination(parseXeroHash(window.location.hash));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [isAdvisor]);
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -15708,6 +15725,15 @@ function XeroView({
 
   const getBusinessId = () => businessId;
 
+  const navigate = (next: XeroDestination) => {
+    if (isAdvisor && next !== 'setup-ledger') return;
+    setDestination(next);
+    const hash = getXeroHash(next);
+    if (window.location.hash !== hash) window.history.pushState(window.history.state, '', hash);
+  };
+
+  const workspaceSection = getXeroWorkspaceSection(destination);
+
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
     background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: active ? '#fff' : 'var(--sv-text-main)',
@@ -15715,12 +15741,12 @@ function XeroView({
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
 
-  // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
-  // only when an administrator has granted access in Xero → Overview.
+  // Advisor accounts are restricted to Accounts & Tracking, and only when an
+  // administrator has granted access in Settings → Xero Access.
   if (isAdvisor) {
     const titleBar = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Accounts &amp; Tracking</h1>
         {status?.connected && (
           <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
         )}
@@ -15731,7 +15757,7 @@ function XeroView({
         <div>
           {titleBar}
           <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
+            Your account doesn&apos;t have access to Xero setup. Ask an administrator to enable <strong>Advisor Access</strong> in Settings → Xero Access.
           </div>
         </div>
       );
@@ -15749,7 +15775,7 @@ function XeroView({
     return (
       <div>
         {titleBar}
-        <XeroMappingTab getBusinessId={getBusinessId} />
+        <XeroMappingTab getBusinessId={getBusinessId} mode="ledger" />
       </div>
     );
   }
@@ -15785,20 +15811,34 @@ function XeroView({
         </div>
       ) : (
         <>
-          {/* Tab bar */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
-            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
-            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
-            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: workspaceSection === 'overview' ? 24 : 12, flexWrap: 'wrap' }}>
+            <button style={tabBtnStyle(workspaceSection === 'overview')} onClick={() => navigate('overview')}>Overview</button>
+            <button style={tabBtnStyle(workspaceSection === 'setup')} onClick={() => navigate('setup-automation')}>Setup</button>
+            <button style={tabBtnStyle(workspaceSection === 'activity')} onClick={() => navigate('activity-history')}>Activity</button>
           </div>
 
-          {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
-          {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
-          {tab === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
-          {tab === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
-          {tab === 'sync' && (
+          {workspaceSection === 'setup' && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 12 }}>
+              <button style={tabBtnStyle(destination === 'setup-automation')} onClick={() => navigate('setup-automation')}>Automation</button>
+              <button style={tabBtnStyle(destination === 'setup-ledger')} onClick={() => navigate('setup-ledger')}>Accounts &amp; Tracking</button>
+              <button style={tabBtnStyle(destination === 'setup-payments')} onClick={() => navigate('setup-payments')}>Payment Routing</button>
+            </div>
+          )}
+          {workspaceSection === 'activity' && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 12 }}>
+              <button style={tabBtnStyle(destination === 'activity-history')} onClick={() => navigate('activity-history')}>Sync History</button>
+              <button style={tabBtnStyle(destination === 'activity-cogs')} onClick={() => navigate('activity-cogs')}>COGS Reconciliation</button>
+              <button style={tabBtnStyle(destination === 'activity-payouts')} onClick={() => navigate('activity-payouts')}>Shopify Payouts</button>
+            </div>
+          )}
+
+          {destination === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {destination === 'setup-automation' && <XeroDocumentPolicySection getBusinessId={getBusinessId} />}
+          {destination === 'setup-ledger' && <XeroMappingTab getBusinessId={getBusinessId} mode="ledger" />}
+          {destination === 'setup-payments' && <XeroMappingTab getBusinessId={getBusinessId} mode="payments" />}
+          {destination === 'activity-cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
+          {destination === 'activity-payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
+          {destination === 'activity-history' && (
             <XeroSyncTab
               getBusinessId={getBusinessId}
               onOpenPurchaseOrder={onOpenPurchaseOrder}
@@ -16745,7 +16785,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
   );
 }
 
-function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
+function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; mode: 'ledger' | 'payments' }) {
   type MappingRoleDef = {
     key: string;
     label: string;
@@ -16835,7 +16875,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'gift_card_liability', label: 'Gift Card Liability', help: 'Liability account for unused gift card balances until they are redeemed.', example: 'Sell a $100 gift card: Gift Card Liability increases by $100 until the customer spends it.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'store_credit_liability', label: 'Store Credit Liability', help: 'Liability account for customer store credit that has been issued but not used yet.', example: 'Issue $60 store credit on a return: Store Credit Liability increases by $60 until the customer redeems it.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes (Non-stock lines)', help: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to Inventory Asset instead.', example: 'Supplier gives a $75 rebate with no stock movement: that line posts here. If physical goods are returned, those lines post to Inventory Asset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
-  ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
+  ];
 
   useEffect(() => {
     (async () => {
@@ -16844,10 +16884,10 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       try {
         const [accRes, trackRes, locRes] = await Promise.all([
           fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { accounts: [], mappings: [] }),
-          fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }),
-          fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []),
+          mode === 'ledger' ? fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }) : Promise.resolve({ categories: [], mappings: [] }),
+          mode === 'ledger' ? fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []) : Promise.resolve([]),
         ]);
-        try {
+        if (mode === 'ledger') try {
           const settingsRes = await fetch('/api/ims/settings').then(r => r.ok ? r.json() : null);
           if (settingsRes?.data?.freight_treatment === 'capitalise') setFreightTreatment('capitalise');
         } catch {}
@@ -16864,7 +16904,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
       } catch {}
       setLoading(false);
     })();
-  }, []);
+  }, [mode]);
 
   async function saveAccountMapping(roleKey: string, accountId: string) {
     const acc = accounts.find(a => a.accountId === accountId);
@@ -16923,8 +16963,8 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
 
   return (
     <div style={{ maxWidth: 800 }}>
-      <XeroDocumentPolicySection getBusinessId={getBusinessId} />
       {/* Account mapping */}
+      {mode === 'ledger' && <>
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -16937,6 +16977,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {ROLE_DEFS.map(role => {
+            const disabled = role.key === 'freight' && freightTreatment === 'capitalise';
             const filtered = accounts.filter(role.filter);
             const current = mappings[role.key];
             // Always keep the currently-mapped account selectable, even if the live
@@ -16954,8 +16995,9 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
                 <select
                   value={current?.xero_account_id ?? ''}
                   onChange={e => saveAccountMapping(role.key, e.target.value)}
-                  disabled={saving === role.key}
-                  style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                  disabled={disabled || saving === role.key}
+                  title={disabled ? 'Freight is capitalised into Inventory Asset, so this mapping is currently inactive.' : undefined}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13, opacity: disabled ? 0.6 : 1 }}
                 >
                   <option value="">— Select account —</option>
                   {options.map(a => (
@@ -17017,14 +17059,17 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
           <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>No tracking categories found in Xero. Create them in Xero first.</p>
         )}
       </div>
+      </>}
 
       {/* Payment Methods */}
+      {mode === 'payments' && <>
       <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPosPaymentMappingSection accounts={accounts} getBusinessId={getBusinessId} />
 
       {/* Online Gateway Clearing Accounts */}
       <XeroGatewayClearingSection accounts={accounts} getBusinessId={getBusinessId} />
+      </>}
     </div>
   );
 }
@@ -19149,6 +19194,7 @@ export default function ImsPage() {
       }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
+      if (isXeroHash(h)) return 'xero' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
@@ -19575,6 +19621,12 @@ export default function ImsPage() {
         setSalesMonthsInput={setSalesMonthsInput}
         poMonthsInput={poMonthsInput}
         setPoMonthsInput={setPoMonthsInput}
+        onNavigateXero={(destination) => {
+          setSettingsOpen(false);
+          window.history.pushState(window.history.state, '', getXeroHash(destination));
+          window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+          setView('xero');
+        }}
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -22660,6 +22712,7 @@ interface SettingsModalProps {
   setSalesMonthsInput: (v: number) => void;
   poMonthsInput: number;
   setPoMonthsInput: (v: number) => void;
+  onNavigateXero: (destination: XeroDestination) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23118,7 +23171,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
-function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput, onNavigateXero }: SettingsModalProps) {
   const { settings, saveSettings, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
@@ -23158,7 +23211,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
   const [taxSaving, setTaxSaving] = useState(false);
-  const [xeroSettingsTab, setXeroSettingsTab] = useState<'setup' | 'mapping'>('setup');
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
@@ -23315,7 +23367,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
-    { id: 'xero',            label: 'Xero',            icon: '🔗' },
+    { id: 'xero',            label: 'Xero Access',     icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
     { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
   ];
@@ -23400,108 +23452,52 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Xero ── */}
         {active === 'xero' && (
-          <div style={{ padding: 32, maxWidth: 980 }}>
-            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
+          <div style={{ padding: 32, maxWidth: 820 }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -&gt; Xero.
+              Manage who can configure Xero. Accounting automation, mappings, payment routing, and activity have one authoritative home in the Xero workspace.
             </p>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button
-                onClick={() => setXeroSettingsTab('setup')}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  border: '1px solid var(--sv-etch)',
-                  background: xeroSettingsTab === 'setup' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                  color: xeroSettingsTab === 'setup' ? '#fff' : 'var(--sv-text-main)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Accounting Setup
-              </button>
-              <button
-                onClick={() => setXeroSettingsTab('mapping')}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  border: '1px solid var(--sv-etch)',
-                  background: xeroSettingsTab === 'mapping' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                  color: xeroSettingsTab === 'mapping' ? '#fff' : 'var(--sv-text-main)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Ledger Mapping
-              </button>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                Advisor Access
+                <HintBadge text="When enabled, Advisor users can manage Accounts & Tracking only. They cannot change automation, payment routing, connection controls, or accounting activity." />
+              </h3>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={xeroAdvisorEnabled}
+                  disabled={xeroAdvisorSaving}
+                  onChange={e => saveXeroAdvisorAccess(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'inherit' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                  {xeroAdvisorEnabled
+                    ? 'Enabled - Advisors can manage Accounts & Tracking'
+                    : 'Disabled - Advisors cannot access Xero setup'}
+                </span>
+                {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
+              </label>
             </div>
 
-            {xeroSettingsTab === 'setup' ? (
-              <>
-                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
-                  <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
-                    Advisor Access
-                    <HintBadge text="When enabled, Advisor users can only access Xero mapping screens. They cannot run sync actions or change connection controls." />
-                  </h3>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={xeroAdvisorEnabled}
-                      disabled={xeroAdvisorSaving}
-                      onChange={e => saveXeroAdvisorAccess(e.target.checked)}
-                      style={{ width: 16, height: 16, cursor: 'inherit' }}
-                    />
-                    <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-                      {xeroAdvisorEnabled
-                        ? 'Enabled - Advisors can manage account/tracking mappings'
-                        : 'Disabled - Advisors cannot access Xero mappings'}
-                    </span>
-                    {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
-                  </label>
-                </div>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Open Xero Workspace</h3>
+              <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: 'var(--sv-text-dim)' }}>Each accounting control appears in one place so changes cannot drift between duplicate screens.</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <button type="button" onClick={() => onNavigateXero('overview')} style={btnStyle('ghost', 'sm')}>Overview</button>
+                <button type="button" onClick={() => onNavigateXero('setup-automation')} style={btnStyle('ghost', 'sm')}>Automation</button>
+                <button type="button" onClick={() => onNavigateXero('setup-ledger')} style={btnStyle('ghost', 'sm')}>Accounts &amp; Tracking</button>
+                <button type="button" onClick={() => onNavigateXero('setup-payments')} style={btnStyle('ghost', 'sm')}>Payment Routing</button>
+                <button type="button" onClick={() => onNavigateXero('activity-history')} style={btnStyle('ghost', 'sm')}>Sync History</button>
+              </div>
+            </div>
 
-                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
-                    Tax Type Defaults
-                    <HintBadge text="For an Australian GST-registered business, taxable sales use OUTPUT, taxable purchases use INPUT, and transactions with no GST use NONE." />
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-                    <div>
-                      <label style={labelStyle}>GST on Sales</label>
-                      <input
-                        style={{ ...inputStyle, opacity: 0.75 }}
-                        value="OUTPUT"
-                        readOnly
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>GST on Purchases</label>
-                      <input
-                        style={{ ...inputStyle, opacity: 0.75 }}
-                        value="INPUT"
-                        readOnly
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>No GST</label>
-                      <input
-                        style={{ ...inputStyle, opacity: 0.75 }}
-                        value="NONE"
-                        readOnly
-                      />
-                    </div>
-                  </div>
-                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>
-                    {taxSaving ? 'Saving…' : 'Save Xero Settings'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <XeroMappingTab getBusinessId={() => businessId} />
-            )}
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Australian GST Reference</h3>
+              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: 'var(--sv-text-main)' }}>
+                Taxable sales use <code>OUTPUT</code>, taxable purchases use <code>INPUT</code>, and transactions with no GST use <code>NONE</code>. GST-free sales or purchases use their transaction-specific Xero classification.
+              </p>
+            </div>
           </div>
         )}
 
@@ -24639,13 +24635,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
+          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Xero → Setup → Automation.' },
           { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Authorised. If deposits exist, the inventory journal still transfers In Transit → Inventory Asset.' },
           { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
-          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
+          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Xero → Setup → Automation.' },
           { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Existing Xero documents are never moved backwards.' },
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
@@ -24658,7 +24654,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         ]} />
 
         <h3 style={h3}>Document status and payment policy</h3>
-        <p style={p}>Configure these controls in <strong>Xero → Ledger Mapping → Document Status &amp; Payments</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
+        <p style={p}>Configure these controls in <strong>Xero → Setup → Automation</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
         <ul style={ul}>
           <li><strong>Payments require Authorised documents.</strong> A mapped PO or SO payment may promote its linked Draft when payment sync is enabled. Online immediate clearing payments can only be enabled with an Authorised daily invoice.</li>
           <li><strong>POS EOD invoice-only mode</strong> does not fund the Xero clearing account. Those cash reconciliations remain unavailable to Cash Banking, preventing a transfer of money that Xero never received.</li>
@@ -24684,7 +24680,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         ]} />
 
         <h3 style={h3}>Tracking categories</h3>
-        <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
+        <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel in <strong>Xero → Setup → Accounts &amp; Tracking</strong>.</p>
         <ul style={ul}>
           <li><strong>Both location and channel</strong> tracking are applied simultaneously when mapped to <em>different</em> Xero Tracking Categories (Xero allows up to 2 per line). If both resolve to the same category, location takes priority.</li>
           <li><strong>Channels:</strong> <span style={code}>pos</span>, <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
@@ -24812,7 +24808,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>Invoice payments are posted gross. Processing fees are separate Xero bank transactions from Shopify clearing to the configured fee expense account. Fee GST treatment is configured per merchant.</li>
           <li>Shopify refunds settle their completed Xero customer credit notes from Shopify clearing. Reserves, disputes, fee reversals, and other adjustments post separately with their signed effect.</li>
           <li>The payout row must balance exactly before it can be planned. Missing invoices, mappings, or Xero credit notes block it without partial fallback posting.</li>
-          <li>Posting is manually confirmed in <em>Xero → Shopify Payouts</em> by default. You can opt into automatic posting under <em>Xero → Ledger Mapping → Document Status &amp; Payments</em>. Auto-post runs only after a payout balances and has a complete durable plan; it Authorises linked Draft invoices before payment and leaves failures blocked or partial for review.</li>
+          <li>Posting is manually confirmed in <em>Xero → Activity → Shopify Payouts</em> by default. You can opt into automatic posting under <em>Xero → Setup → Automation</em>. Auto-post runs only after a payout balances and has a complete durable plan; it Authorises linked Draft invoices before payment and leaves failures blocked or partial for review.</li>
           <li>After posting, match the real Shopify deposit as a transfer from Shopify clearing to the bank account in Xero; IMS does not create that bank transfer.</li>
           <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>
