@@ -15521,7 +15521,12 @@ function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true); setSaved(false);
-    await saveSettings(draft);
+    await saveSettings({
+      ...draft,
+      xero_tax_type_sales: 'OUTPUT',
+      xero_tax_type_purchases: 'INPUT',
+      xero_tax_type_exempt: 'NONE',
+    });
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -15622,36 +15627,33 @@ function SettingsView() {
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Xero Tax Type Mapping</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
-          Enter the exact Xero <strong>TaxType</strong> codes (e.g. <code>OUTPUT</code>, <code>INPUT</code>, <code>NONE</code>, <code>EXEMPTOUTPUT</code>). These are sent on invoice &amp; bill lines so Xero applies the correct tax.
+          Standard taxable sales use <code>OUTPUT</code> and taxable purchases use <code>INPUT</code>. <code>NONE</code> is used when no GST applies; GST-free sales or purchases require their appropriate Xero tax classification.
         </p>
 
-        <Field label="Sales (ACCREC) Tax Type">
+        <Field label="GST on Sales">
           <input
             type="text"
-            value={draft.xero_tax_type_sales ?? ''}
-            onChange={sd('xero_tax_type_sales')}
-            style={{ ...inputStyle, width: 200 }}
-            placeholder="e.g. OUTPUT"
+            value="OUTPUT"
+            readOnly
+            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
           />
         </Field>
 
-        <Field label="Purchases (ACCPAY) Tax Type">
+        <Field label="GST on Purchases">
           <input
             type="text"
-            value={draft.xero_tax_type_purchases ?? ''}
-            onChange={sd('xero_tax_type_purchases')}
-            style={{ ...inputStyle, width: 200 }}
-            placeholder="e.g. INPUT"
+            value="INPUT"
+            readOnly
+            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
           />
         </Field>
 
-        <Field label="Tax-Exempt / Zero-Rated Tax Type">
+        <Field label="No GST">
           <input
             type="text"
-            value={draft.xero_tax_type_exempt ?? ''}
-            onChange={sd('xero_tax_type_exempt')}
-            style={{ ...inputStyle, width: 200 }}
-            placeholder="e.g. NONE or EXEMPTOUTPUT"
+            value="NONE"
+            readOnly
+            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
           />
         </Field>
       </div>
@@ -23179,7 +23181,12 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   }, [settings]);
   const saveTaxSettings = async () => {
     setTaxSaving(true);
-    await saveSettings(taxDraft);
+    await saveSettings({
+      ...taxDraft,
+      xero_tax_type_sales: 'OUTPUT',
+      xero_tax_type_purchases: 'INPUT',
+      xero_tax_type_exempt: 'NONE',
+    });
     setTaxSaving(false);
   };
   useEffect(() => {
@@ -23459,34 +23466,31 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
                   <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
                     Tax Type Defaults
-                    <HintBadge text="These are raw Xero TaxType values sent on lines. Typical AU values: OUTPUT, INPUT, NONE." />
+                    <HintBadge text="For an Australian GST-registered business, taxable sales use OUTPUT, taxable purchases use INPUT, and transactions with no GST use NONE." />
                   </h3>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
                     <div>
-                      <label style={labelStyle}>Sales (ACCREC)</label>
+                      <label style={labelStyle}>GST on Sales</label>
                       <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_sales'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_sales: e.target.value }))}
-                        placeholder="e.g. OUTPUT"
+                        style={{ ...inputStyle, opacity: 0.75 }}
+                        value="OUTPUT"
+                        readOnly
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>Purchases (ACCPAY)</label>
+                      <label style={labelStyle}>GST on Purchases</label>
                       <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_purchases'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_purchases: e.target.value }))}
-                        placeholder="e.g. INPUT"
+                        style={{ ...inputStyle, opacity: 0.75 }}
+                        value="INPUT"
+                        readOnly
                       />
                     </div>
                     <div>
-                      <label style={labelStyle}>Tax-Exempt / Zero-Rated</label>
+                      <label style={labelStyle}>No GST</label>
                       <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_exempt'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_exempt: e.target.value }))}
-                        placeholder="e.g. NONE"
+                        style={{ ...inputStyle, opacity: 0.75 }}
+                        value="NONE"
+                        readOnly
                       />
                     </div>
                   </div>
