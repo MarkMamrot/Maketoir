@@ -9,8 +9,13 @@
 import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
-import { execute } from '@/services/MySQLService';
+import { execute, getPool, query } from '@/services/MySQLService';
 import { invalidateImsDbCache } from '@/lib/db/BusinessRegistry';
+import {
+  IMS_SCHEMA_REQUIRED_COLUMNS,
+  IMS_SCHEMA_REQUIRED_INDEXES,
+  IMS_SCHEMA_REQUIRED_TABLES,
+} from '@/lib/ims/schemaContract';
 
 /** MySQL identifiers can't be parameterised — allow only safe characters. */
 function safeDbName(name: string): string {
@@ -27,7 +32,7 @@ export function deriveImsDbName(businessName: string): string {
   return safeDbName(`${prefix}${slug}IMS`);
 }
 
-function deriveProvisionedImsDbName(businessName: string, businessId: string): string {
+export function deriveProvisionedImsDbName(businessName: string, businessId: string): string {
   const prefix = process.env.IMS_DB_PREFIX ?? 'readyedu_';
   const slug = String(businessName).replace(/[^a-zA-Z0-9]/g, '') || 'Business';
   const suffix = String(businessId).replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
@@ -35,6 +40,18 @@ function deriveProvisionedImsDbName(businessName: string, businessId: string): s
   const maxSlugLength = 60 - prefix.length - suffix.length - '_IMS'.length;
   const truncatedSlug = slug.slice(0, Math.max(1, maxSlugLength));
   return safeDbName(`${prefix}${truncatedSlug}_${suffix}IMS`);
+}
+
+export class ImsProvisioningError extends Error {
+  constructor(
+    message: string,
+    public readonly imsDbName: string,
+    public readonly schemaCreated: boolean,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'ImsProvisioningError';
+  }
 }
 
 /** A raw connection to the MySQL server (no specific schema bound). */
@@ -106,10 +123,79 @@ export async function createImsDatabase(dbName: string): Promise<void> {
   }
 }
 
+async function schemaExists(dbName: string): Promise<boolean> {
+  const connection = await serverConnection();
+  try {
+    const [rows] = await connection.query<mysql.RowDataPacket[]>(
+      'SELECT 1 FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ? LIMIT 1',
+      [dbName],
+    );
+    return rows.length > 0;
+  } finally {
+    await connection.end();
+  }
+}
+
+async function createNewImsDatabase(dbName: string): Promise<void> {
+  const db = safeDbName(dbName);
+  const connection = await serverConnection();
+  try {
+    await connection.query(`CREATE DATABASE \`${db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function validateImsSchema(dbName: string): Promise<void> {
+  const db = safeDbName(dbName);
+  const connection = await serverConnection();
+  try {
+    const [columnRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT TABLE_NAME, COLUMN_NAME
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ?`,
+      [db],
+    );
+    const columns = new Set(columnRows.map(row => `${row.TABLE_NAME}.${row.COLUMN_NAME}`));
+    const tables = new Set(columnRows.map(row => String(row.TABLE_NAME)));
+    const missingTables = IMS_SCHEMA_REQUIRED_TABLES.filter(table => !tables.has(table));
+    const missingColumns = Object.entries(IMS_SCHEMA_REQUIRED_COLUMNS).flatMap(([table, required]) =>
+      required.filter(column => !columns.has(`${table}.${column}`)).map(column => `${table}.${column}`),
+    );
+
+    const [indexRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT TABLE_NAME, INDEX_NAME
+         FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ?`,
+      [db],
+    );
+    const indexes = new Set(indexRows.map(row => `${row.TABLE_NAME}.${row.INDEX_NAME}`));
+    const missingIndexes = Object.entries(IMS_SCHEMA_REQUIRED_INDEXES).flatMap(([table, required]) =>
+      required.filter(index => !indexes.has(`${table}.${index}`)).map(index => `${table}.${index}`),
+    );
+
+    const [triggerRows] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT TRIGGER_NAME
+         FROM information_schema.TRIGGERS
+        WHERE TRIGGER_SCHEMA = ?`,
+      [db],
+    );
+    const triggers = new Set(triggerRows.map(row => String(row.TRIGGER_NAME)));
+    const missingTriggers = ['trg_ims_stock_bizid', 'trg_ims_sales_cache_bizid']
+      .filter(trigger => !triggers.has(trigger));
+
+    const gaps = [...missingTables, ...missingColumns, ...missingIndexes, ...missingTriggers];
+    if (gaps.length > 0) throw new Error(`IMS schema validation failed: ${gaps.join(', ')}`);
+  } finally {
+    await connection.end();
+  }
+}
+
 export interface ProvisionResult {
   businessId: string;
   imsDbName: string;
   created: boolean;
+  schemaCreated: boolean;
 }
 
 /**
@@ -123,14 +209,96 @@ export async function provisionBusinessIms(opts: {
   imsDbName?: string;
 }): Promise<ProvisionResult> {
   const dbName = safeDbName(opts.imsDbName ?? deriveProvisionedImsDbName(opts.businessName, opts.businessId));
+  let schemaCreated = false;
+  try {
+    if (await schemaExists(dbName)) {
+      throw new Error(`IMS schema already exists: ${dbName}`);
+    }
+    await createNewImsDatabase(dbName);
+    schemaCreated = true;
 
-  await createImsDatabase(dbName);
+    const connection = await serverConnection(dbName);
+    try {
+      for (const statement of loadSchemaStatements()) await connection.query(statement);
+      await installBusinessIdTriggers(connection);
+    } finally {
+      await connection.end();
+    }
+    await validateImsSchema(dbName);
 
-  await execute(
-    `UPDATE businesses SET ims_db_name = ?, has_ims = 1 WHERE business_id = ?`,
-    [dbName, opts.businessId],
-  );
-  invalidateImsDbCache(opts.businessId);
+    await execute(
+      `UPDATE businesses SET ims_db_name = ?, has_ims = 1 WHERE business_id = ?`,
+      [dbName, opts.businessId],
+    );
+    invalidateImsDbCache(opts.businessId);
+    return { businessId: opts.businessId, imsDbName: dbName, created: true, schemaCreated };
+  } catch (error) {
+    throw new ImsProvisioningError(
+      error instanceof Error ? error.message : 'IMS provisioning failed',
+      dbName,
+      schemaCreated,
+      { cause: error },
+    );
+  }
+}
 
-  return { businessId: opts.businessId, imsDbName: dbName, created: true };
+export interface ProvisionCleanupResult {
+  schemaDropped: boolean;
+  businessDeleted: boolean;
+  errors: string[];
+}
+
+export async function cleanupFailedBusinessProvision(input: {
+  businessId: string;
+  imsDbName?: string | null;
+  schemaCreated: boolean;
+  businessCreated: boolean;
+}): Promise<ProvisionCleanupResult> {
+  const result: ProvisionCleanupResult = { schemaDropped: false, businessDeleted: false, errors: [] };
+
+  if (input.schemaCreated && input.imsDbName) {
+    try {
+      const dbName = safeDbName(input.imsDbName);
+      const references = await query<{ business_id: string }>(
+        `SELECT business_id FROM businesses
+          WHERE ims_db_name = ? AND business_id <> ? AND deleted_at IS NULL
+          LIMIT 1`,
+        [dbName, input.businessId],
+      );
+      if (references.length > 0) throw new Error('IMS schema is referenced by another active business');
+      const connection = await serverConnection();
+      try {
+        await connection.query(`DROP DATABASE IF EXISTS \`${dbName}\``);
+        result.schemaDropped = true;
+      } finally {
+        await connection.end();
+      }
+    } catch (error) {
+      result.errors.push(`schema: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  if (input.businessCreated) {
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      for (const table of ['config', 'business_info', 'users']) {
+        await connection.execute(`DELETE FROM ${table} WHERE business_id = ?`, [input.businessId]);
+      }
+      const [deletion] = await connection.execute<mysql.ResultSetHeader>(
+        'DELETE FROM businesses WHERE business_id = ?',
+        [input.businessId],
+      );
+      await connection.commit();
+      result.businessDeleted = deletion.affectedRows > 0;
+      invalidateImsDbCache(input.businessId);
+    } catch (error) {
+      await connection.rollback().catch(() => {});
+      result.errors.push(`business: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      connection.release();
+    }
+  }
+
+  return result;
 }

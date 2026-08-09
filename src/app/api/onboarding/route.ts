@@ -3,6 +3,7 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const PROGRESS_KEY = 'onboarding_completed_steps';
 
@@ -33,12 +34,12 @@ function parseCompleted(raw: string | undefined): string[] {
 }
 
 async function countMain(sql: string, params: unknown[]) {
-  const rows = await query<{ c: number }>(sql, params).catch(() => [{ c: 0 }]);
+  const rows = await query<{ c: number }>(sql, params);
   return Number(rows[0]?.c ?? 0);
 }
 
 async function countIms(sql: string, params: unknown[] = []) {
-  const rows = await imsQuery<{ c: number }>(sql, params).catch(() => [{ c: 0 }]);
+  const rows = await imsQuery<{ c: number }>(sql, params);
   return Number(rows[0]?.c ?? 0);
 }
 
@@ -47,28 +48,29 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId = session.businessId;
-  const [settingsRows, businessInfo, counts] = await Promise.all([
-    imsQuery<{ key: string; value: string }>('SELECT `key`, value FROM ims_settings WHERE business_id = ?', [businessId]),
-    BusinessInfoRepository.get(businessId).catch(() => null),
-    Promise.all([
-      countMain('SELECT COUNT(*) AS c FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]),
-      countIms('SELECT COUNT(*) AS c FROM ims_locations WHERE business_id = ? AND is_active = 1', [businessId]),
-      countIms('SELECT COUNT(*) AS c FROM ims_products WHERE business_id = ? AND is_active = 1', [businessId]),
-      countIms('SELECT COUNT(*) AS c FROM ims_sales_orders WHERE business_id = ?', [businessId]),
-      countIms('SELECT COUNT(*) AS c FROM ims_purchase_orders WHERE business_id = ?', [businessId]),
-      countIms('SELECT COUNT(*) AS c FROM ims_stock WHERE qty_on_hand <> 0 OR qty_incoming <> 0'),
-    ]),
-  ]);
+  try {
+    const [settingsRows, businessInfo, counts] = await Promise.all([
+      imsQuery<{ key: string; value: string }>('SELECT `key`, value FROM ims_settings WHERE business_id = ?', [businessId]),
+      BusinessInfoRepository.get(businessId),
+      Promise.all([
+        countMain('SELECT COUNT(*) AS c FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_locations WHERE business_id = ? AND is_active = 1', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_products WHERE business_id = ? AND is_active = 1', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_sales_orders WHERE business_id = ?', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_purchase_orders WHERE business_id = ?', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_stock WHERE qty_on_hand <> 0 OR qty_incoming <> 0'),
+      ]),
+    ]);
 
-  const settings = { ...SETTING_DEFAULTS };
-  for (const row of settingsRows) settings[row.key] = row.value ?? '';
-  if (!settings.business_name && businessInfo?.brand_name) settings.business_name = businessInfo.brand_name;
-  if (!settings.business_abn && businessInfo?.abn) settings.business_abn = businessInfo.abn;
+    const settings = { ...SETTING_DEFAULTS };
+    for (const row of settingsRows) settings[row.key] = row.value ?? '';
+    if (!settings.business_name && businessInfo?.brand_name) settings.business_name = businessInfo.brand_name;
+    if (!settings.business_abn && businessInfo?.abn) settings.business_abn = businessInfo.abn;
 
-  const completed = new Set(parseCompleted(settings[PROGRESS_KEY]));
-  const [userCount, locationCount, productCount, salesOrderCount, purchaseOrderCount, stockCount] = counts;
+    const completed = new Set(parseCompleted(settings[PROGRESS_KEY]));
+    const [userCount, locationCount, productCount, salesOrderCount, purchaseOrderCount, stockCount] = counts;
 
-  const autoDone: Record<string, boolean> = {
+    const autoDone: Record<string, boolean> = {
     business_profile: Boolean(settings.business_name?.trim() && settings.business_abn?.trim()),
     operations_tax: Boolean(
       settings.use_multiple_locations && settings.use_zones_bins && settings.use_categories &&
@@ -81,9 +83,9 @@ export async function GET() {
     sales_orders: salesOrderCount > 0,
     purchase_orders: purchaseOrderCount > 0,
     opening_stock: stockCount > 0,
-  };
+    };
 
-  const steps = [
+    const steps = [
     { id: 'business_profile', title: 'Confirm business profile', autoCompleted: autoDone.business_profile },
     { id: 'operations_tax', title: 'Confirm operations and tax settings', autoCompleted: autoDone.operations_tax },
     { id: 'online_shop', title: 'Connect online shop', autoCompleted: settings.connect_online_shop === 'no' || Boolean(settings.shopify_order_sync_enabled === '1' || completed.has('online_shop')) },
@@ -95,16 +97,26 @@ export async function GET() {
     { id: 'purchase_orders', title: 'Import purchase orders', autoCompleted: autoDone.purchase_orders },
     { id: 'opening_stock', title: 'Make opening stock adjustments', autoCompleted: autoDone.opening_stock },
     { id: 'pos_ready', title: 'Review POS setup', autoCompleted: completed.has('pos_ready') },
-  ].map(step => ({ ...step, completed: completed.has(step.id) || step.autoCompleted }));
+    ].map(step => ({ ...step, completed: completed.has(step.id) || step.autoCompleted }));
 
-  return NextResponse.json({
-    success: true,
-    settings,
-    counts: { users: userCount, locations: locationCount, products: productCount, salesOrders: salesOrderCount, purchaseOrders: purchaseOrderCount, stockRows: stockCount },
-    completedSteps: Array.from(completed),
-    steps,
-    complete: steps.every(s => s.completed),
-  });
+    return NextResponse.json({
+      success: true,
+      settings,
+      counts: { users: userCount, locations: locationCount, products: productCount, salesOrders: salesOrderCount, purchaseOrders: purchaseOrderCount, stockRows: stockCount },
+      completedSteps: Array.from(completed),
+      steps,
+      complete: steps.every(s => s.completed),
+    });
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'onboarding',
+      operation: 'load_progress',
+      title: 'Business onboarding progress failed to load',
+      error,
+    });
+    return NextResponse.json({ success: false, error: 'Onboarding progress could not be loaded.' }, { status: 500 });
+  }
 }
 
 export async function PUT(req: Request) {

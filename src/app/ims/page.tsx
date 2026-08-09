@@ -690,6 +690,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [openOnlineSalesModalOpen, setOpenOnlineSalesModalOpen] = useState(false);
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
@@ -735,10 +736,15 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   const loadOnboarding = useCallback(() => {
     setOnboardingLoading(true);
+    setOnboardingError('');
     fetch('/api/onboarding')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
-      .catch(() => {})
+      .then(async r => {
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok || !body?.success) throw new Error(body?.error || 'Onboarding progress could not be loaded.');
+        return body;
+      })
+      .then(d => { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); })
+      .catch(error => setOnboardingError(error instanceof Error ? error.message : 'Onboarding progress could not be loaded.'))
       .finally(() => setOnboardingLoading(false));
   }, []);
 
@@ -869,6 +875,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   return (
     <div>
+      {onboardingError && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '12px 16px', marginBottom: 20, border: '1px solid var(--sv-red)', borderRadius: 7, background: 'var(--sv-bg-1)', color: 'var(--sv-text-strong)' }}>
+          <span>{onboardingError}</span>
+          <button type="button" onClick={loadOnboarding} disabled={onboardingLoading} style={{ ...btnStyle('ghost', 'sm'), flexShrink: 0 }}>
+            {onboardingLoading ? 'Retrying…' : 'Retry'}
+          </button>
+        </div>
+      )}
       {/* ─ Onboarding panel (hidden once all steps complete) ───────────────────── */}
       {onboarding && !onboarding.complete && (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 24, marginBottom: 28 }}>
@@ -1065,6 +1079,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               })}
             </div>
           </div>
+          <style>{`@media (max-width: 900px) { .onboarding-grid { grid-template-columns: minmax(0, 1fr) !important; } }`}</style>
         </div>
       )}
 

@@ -12,7 +12,12 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { execute } from '@/services/MySQLService';
 import { UsersRepository } from '@/lib/db/UsersRepository';
-import { provisionBusinessIms, deriveImsDbName } from '@/lib/ims/provisionBusiness';
+import {
+  cleanupFailedBusinessProvision,
+  ImsProvisioningError,
+  provisionBusinessIms,
+} from '@/lib/ims/provisionBusiness';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getSuperAdminSession() {
   const raw = cookies().get('marketoir_session')?.value;
@@ -42,16 +47,15 @@ export async function POST(req: Request) {
   if (ownerEmail && !ownerPassword) {
     return NextResponse.json({ error: 'Owner password is required when an owner email is given.' }, { status: 400 });
   }
-  // Validate derived/explicit schema name up front so we fail before creating rows.
-  let resolvedDbName: string | null = null;
-  if (hasIms) {
-    try { resolvedDbName = imsDbName ? imsDbName.replace(/[^a-zA-Z0-9_]/g, '') : deriveImsDbName(name); }
-    catch (e: any) { return NextResponse.json({ error: e?.message ?? 'Invalid IMS schema name.' }, { status: 400 }); }
-    if (!resolvedDbName) return NextResponse.json({ error: 'Could not derive a valid IMS schema name.' }, { status: 400 });
+  if (imsDbName && !/^[a-zA-Z0-9_]{1,60}$/.test(imsDbName)) {
+    return NextResponse.json({ error: 'IMS schema name may contain only letters, numbers, and underscores.' }, { status: 400 });
   }
 
   const businessId = `biz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const steps: string[] = [];
+  let businessCreated = false;
+  let provisionedDbName: string | null = null;
+  let schemaCreated = false;
 
   try {
     // 1. Business row.
@@ -60,12 +64,15 @@ export async function POST(req: Request) {
        VALUES (?, ?, ?, ?, ?)`,
       [businessId, name, hasForesight ? 1 : 0, hasIms ? 1 : 0, hasPos ? 1 : 0],
     );
+    businessCreated = true;
     steps.push(`Created business "${name}"`);
 
     // 2. IMS schema.
     let imsResult: { imsDbName: string } | null = null;
-    if (hasIms && resolvedDbName) {
-      imsResult = await provisionBusinessIms({ businessId, businessName: name, imsDbName: resolvedDbName });
+    if (hasIms) {
+      imsResult = await provisionBusinessIms({ businessId, businessName: name, imsDbName });
+      provisionedDbName = imsResult.imsDbName;
+      schemaCreated = imsResult.schemaCreated;
       steps.push(`Provisioned IMS schema ${imsResult.imsDbName}`);
     }
 
@@ -98,11 +105,45 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error('[onboard] error:', err?.message, err?.stack);
+    if (err instanceof ImsProvisioningError) {
+      provisionedDbName = err.imsDbName;
+      schemaCreated = err.schemaCreated;
+    }
+    const cleanup = await cleanupFailedBusinessProvision({
+      businessId,
+      imsDbName: provisionedDbName,
+      schemaCreated,
+      businessCreated,
+    });
+    await reportRuntimeIssue({
+      businessId,
+      source: 'admin_onboard',
+      operation: cleanup.errors.length > 0 ? 'provision_cleanup_failed' : 'provision_failed',
+      severity: cleanup.errors.length > 0 ? 'critical' : 'error',
+      title: cleanup.errors.length > 0
+        ? 'Admin business provisioning cleanup failed'
+        : 'Admin business provisioning failed',
+      error: err,
+      context: {
+        imsDbName: provisionedDbName,
+        schemaCreated,
+        businessCreated,
+        completedSteps: steps,
+        schemaDropped: cleanup.schemaDropped,
+        businessDeleted: cleanup.businessDeleted,
+        cleanupErrors: cleanup.errors,
+      },
+    });
     return NextResponse.json({
       success: false,
       businessId,
       steps,
-      error: `${err?.message ?? 'Onboarding failed'}${steps.length ? ` (completed: ${steps.join('; ')})` : ''}`,
+      cleanup: {
+        schemaDropped: cleanup.schemaDropped,
+        businessDeleted: cleanup.businessDeleted,
+        complete: cleanup.errors.length === 0,
+      },
+      error: err?.message ?? 'Onboarding failed',
     }, { status: 500 });
   }
 }

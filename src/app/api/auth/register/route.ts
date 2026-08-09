@@ -4,9 +4,14 @@ import { UsersRepository } from '@/lib/db/UsersRepository';
 import { execute } from '@/services/MySQLService';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { getPasswordValidation } from '@/lib/auth/passwordPolicy';
-import { provisionBusinessIms } from '@/lib/ims/provisionBusiness';
+import {
+  cleanupFailedBusinessProvision,
+  ImsProvisioningError,
+  provisionBusinessIms,
+} from '@/lib/ims/provisionBusiness';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { imsExecute } from '@/services/IMSMySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function POST(req: Request) {
   try {
@@ -40,6 +45,9 @@ export async function POST(req: Request) {
     );
 
     // 2. Register business + user in MySQL — clean up Drive if this fails
+    let businessCreated = false;
+    let imsDbName: string | null = null;
+    let schemaCreated = false;
     try {
       await execute(
         `INSERT INTO businesses (business_id, name, drive_folder_id)
@@ -47,8 +55,11 @@ export async function POST(req: Request) {
          ON DUPLICATE KEY UPDATE name = VALUES(name), drive_folder_id = VALUES(drive_folder_id)`,
         [businessId, businessName, folderId ?? null],
       );
+      businessCreated = true;
 
       const ims = await provisionBusinessIms({ businessId, businessName });
+      imsDbName = ims.imsDbName;
+      schemaCreated = ims.schemaCreated;
 
       await Promise.all([
         BusinessInfoRepository.upsert(businessId, { brand_name: businessName }),
@@ -68,9 +79,36 @@ export async function POST(req: Request) {
         await ConfigRepository.set(businessId, 'FolderID', folderId);
       }
     } catch (dbError: unknown) {
-      // MySQL failed — delete the orphaned Drive spreadsheet and folder
+      if (dbError instanceof ImsProvisioningError) {
+        imsDbName = dbError.imsDbName;
+        schemaCreated = dbError.schemaCreated;
+      }
+      const cleanup = await cleanupFailedBusinessProvision({
+        businessId,
+        imsDbName,
+        schemaCreated,
+        businessCreated,
+      });
       await sheetsService.deleteFile(businessId).catch(() => {});
       if (folderId) await sheetsService.deleteFile(folderId).catch(() => {});
+      await reportRuntimeIssue({
+        businessId,
+        source: 'registration',
+        operation: cleanup.errors.length > 0 ? 'provision_cleanup_failed' : 'provision_failed',
+        severity: cleanup.errors.length > 0 ? 'critical' : 'error',
+        title: cleanup.errors.length > 0
+          ? 'New business provisioning cleanup failed'
+          : 'New business provisioning failed',
+        error: dbError,
+        context: {
+          imsDbName,
+          schemaCreated,
+          businessCreated,
+          schemaDropped: cleanup.schemaDropped,
+          businessDeleted: cleanup.businessDeleted,
+          cleanupErrors: cleanup.errors,
+        },
+      });
       throw dbError;
     }
 

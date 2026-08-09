@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 // GET /api/ims/online-sales/open
 // Returns online sales orders that are still open (draft/confirmed), with line items.
@@ -56,6 +57,13 @@ export async function GET() {
 
     return NextResponse.json({ success: true, orders: result });
   } catch (e: any) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'online-sales',
+      operation: 'list_open_orders',
+      title: 'Open online sales failed to load',
+      error: e,
+    });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
