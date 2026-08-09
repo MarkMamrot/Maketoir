@@ -55,6 +55,9 @@ function nextSuggestedSuffix(attemptedSuffix: string | null): string {
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') {
+    return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
+  }
   const businessId: string = session.businessId;
 
   try {

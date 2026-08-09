@@ -69,6 +69,7 @@ async function main() {
   }
 
   const reconciliationSettingColumns = [
+    ['recipients_json', 'JSON NULL AFTER enabled'],
     ['bootstrap_po_id', 'BIGINT NOT NULL DEFAULT 0 AFTER scan_limit'],
     ['bootstrap_so_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_po_id'],
     ['bootstrap_cn_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_so_id'],
@@ -182,6 +183,7 @@ async function main() {
   console.log('✔ xero_accounting_actions created');
   console.log('✔ xero_reconciliation targets/issues/events created');
   console.log('✔ xero_reconciliation_settings created');
+  console.log('✔ xero_reconciliation_deliveries created');
   console.log('✔ xero_cogs_settings created/updated');
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Download, ExternalLink, RefreshCw, Search, Wrench } from 'lucide-react';
+import { AlertTriangle, Download, ExternalLink, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
@@ -15764,6 +15764,7 @@ function SettingsView() {
 function XeroView({
   businessId,
   isAdvisor = false,
+  canMutateAccounting = false,
   advisorMappingEnabled = false,
   onOpenPurchaseOrder,
   onOpenSalesOrder,
@@ -15773,6 +15774,7 @@ function XeroView({
 }: {
   businessId: string;
   isAdvisor?: boolean;
+  canMutateAccounting?: boolean;
   advisorMappingEnabled?: boolean;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
@@ -15782,7 +15784,9 @@ function XeroView({
 }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(() => (
+    isAdvisor || (typeof window !== 'undefined' && window.location.hash === '#xero/sync') ? 'sync' : 'overview'
+  ));
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -15805,45 +15809,6 @@ function XeroView({
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
 
-  // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
-  // only when an administrator has granted access in Xero → Overview.
-  if (isAdvisor) {
-    const titleBar = (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
-        {status?.connected && (
-          <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
-        )}
-      </div>
-    );
-    if (!advisorMappingEnabled) {
-      return (
-        <div>
-          {titleBar}
-          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
-          </div>
-        </div>
-      );
-    }
-    if (!status?.connected) {
-      return (
-        <div>
-          {titleBar}
-          <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)' }}>
-            Xero is not connected. Ask an administrator to connect Xero before configuring mappings.
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div>
-        {titleBar}
-        <XeroMappingTab getBusinessId={getBusinessId} />
-      </div>
-    );
-  }
-
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -15857,7 +15822,7 @@ function XeroView({
         </span>
       </div>
 
-      {!status?.connected ? (
+      {!status?.connected && !isAdvisor ? (
         <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 520 }}>
           <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
             Connect your Xero organisation to sync purchase orders, sales, and monthly COGS journals automatically.
@@ -15877,10 +15842,10 @@ function XeroView({
         <>
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
-            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
-            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
+            {!isAdvisor && <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>}
+            {(!isAdvisor || advisorMappingEnabled) && <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>}
+            {!isAdvisor && <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>}
+            {!isAdvisor && <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>}
             <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
           </div>
 
@@ -15891,6 +15856,7 @@ function XeroView({
           {tab === 'sync' && (
             <XeroSyncTab
               getBusinessId={getBusinessId}
+              canMutateAccounting={canMutateAccounting}
               onOpenPurchaseOrder={onOpenPurchaseOrder}
               onOpenSalesOrder={onOpenSalesOrder}
               onOpenCreditNote={onOpenCreditNote}
@@ -18015,6 +17981,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
 
 type XeroWorkspaceProps = {
   getBusinessId: () => string;
+  canMutateAccounting?: boolean;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
   onOpenCreditNote?: (id: number) => void;
@@ -18023,14 +17990,14 @@ type XeroWorkspaceProps = {
 };
 
 type XeroReconciliationIssue = {
-  id: number; targetType: string; referenceId: string; xeroId: string | null;
+  id: number; targetId: number; targetType: string; referenceId: string; xeroId: string | null;
   ruleKey: string; severity: 'warning' | 'error' | 'critical'; status: 'open' | 'ignored' | 'resolved';
   summary: string; expected: Record<string, unknown> | null; actual: Record<string, unknown> | null;
   firstSeenAt: string; lastCheckedAt: string | null; occurrenceCount: number; recommendedNextStep: string;
   reference: string; contactName: string | null; amount: number | null; itemDate: string | null;
 };
 
-function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSalesOrder, onOpenCreditNote }: XeroWorkspaceProps) {
+function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, onOpenPurchaseOrder, onOpenSalesOrder, onOpenCreditNote }: XeroWorkspaceProps) {
   const [items, setItems] = useState<XeroReconciliationIssue[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -18039,6 +18006,20 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
   const [ignoreReason, setIgnoreReason] = useState('');
   const [ignoring, setIgnoring] = useState(false);
   const [ignoreError, setIgnoreError] = useState('');
+  const [authoriseIssue, setAuthoriseIssue] = useState<XeroReconciliationIssue | null>(null);
+  const [authoriseReason, setAuthoriseReason] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [recipientInput, setRecipientInput] = useState('');
+  const [savingRecipients, setSavingRecipients] = useState(false);
+  const [recipientError, setRecipientError] = useState('');
+  const [selectedIssueIds, setSelectedIssueIds] = useState<number[]>([]);
+  const [sendIssueIds, setSendIssueIds] = useState<number[]>([]);
+  const [deliveryKey, setDeliveryKey] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [sendNotice, setSendNotice] = useState('');
   const [filters, setFilters] = useState({ status: 'open', ruleKey: '', targetType: '', severity: '', minimumAgeDays: '' });
 
   const queryString = (format?: 'csv') => {
@@ -18057,7 +18038,9 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
       const response = await fetch(`/api/xero/reconciliation/issues?${queryString()}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Reconciliation issues could not be loaded.');
-      setItems(Array.isArray(data.items) ? data.items : []);
+      const nextItems = Array.isArray(data.items) ? data.items : [];
+      setItems(nextItems);
+      setSelectedIssueIds(current => current.filter(id => nextItems.some((item: XeroReconciliationIssue) => item.id === id && item.status === 'open')));
       setTotal(Number(data.total) || 0);
     } catch (error) {
       setItems([]);
@@ -18069,6 +18052,66 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
   };
 
   useEffect(() => { void loadIssues(); }, [filters.status, filters.ruleKey, filters.targetType, filters.severity, filters.minimumAgeDays]);
+  useEffect(() => {
+    fetch(`/api/xero/reconciliation/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
+      .then(async response => ({ response, data: await response.json() }))
+      .then(({ response, data }) => {
+        if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be loaded.');
+        const nextRecipients = Array.isArray(data.recipients) ? data.recipients.map(String) : [];
+        setRecipients(nextRecipients);
+        setRecipientInput(nextRecipients.join(', '));
+      })
+      .catch(error => setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be loaded.'));
+  }, []);
+
+  const saveRecipients = async () => {
+    setSavingRecipients(true);
+    setRecipientError('');
+    try {
+      const response = await fetch('/api/xero/reconciliation/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), recipients: recipientInput }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Accounts recipients could not be saved.');
+      const nextRecipients = Array.isArray(data.recipients) ? data.recipients.map(String) : [];
+      setRecipients(nextRecipients);
+      setRecipientInput(nextRecipients.join(', '));
+    } catch (error) {
+      setRecipientError(error instanceof Error ? error.message : 'Accounts recipients could not be saved.');
+    } finally {
+      setSavingRecipients(false);
+    }
+  };
+
+  const openSendDialog = (issueIds: number[]) => {
+    setSendIssueIds(issueIds);
+    setDeliveryKey(crypto.randomUUID());
+    setSendError('');
+    setSendNotice('');
+  };
+
+  const sendToAccounts = async () => {
+    if (!sendIssueIds.length || !deliveryKey) return;
+    setSending(true);
+    setSendError('');
+    try {
+      const response = await fetch('/api/xero/reconciliation/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), issueIds: sendIssueIds, deliveryKey }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Issues could not be sent to accounts.');
+      setSendNotice(`${sendIssueIds.length} issue${sendIssueIds.length === 1 ? '' : 's'} sent to ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}.`);
+      setSelectedIssueIds(current => current.filter(id => !sendIssueIds.includes(id)));
+      setSendIssueIds([]);
+      setDeliveryKey('');
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Issues could not be sent to accounts.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const recheck = async () => {
     setRechecking(true);
@@ -18108,6 +18151,33 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
     }
   };
 
+  const runAccountingAction = async (item: XeroReconciliationIssue, action: 'retry' | 'authorise', reason = '') => {
+    const key = `${item.id}:${action}`;
+    setActionLoading(key);
+    setActionError('');
+    try {
+      const response = await fetch(`/api/xero/reconciliation/issues/${item.id}/action`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), action, reason }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'The Xero accounting action failed.');
+      await fetch('/api/xero/reconciliation/scan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), afterId: Math.max(0, item.targetId - 1), limit: 1 }),
+      });
+      setAuthoriseIssue(null);
+      setAuthoriseReason('');
+      await loadIssues();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The Xero accounting action failed.';
+      if (action === 'authorise') setActionError(message);
+      else alert(message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const openSource = (item: XeroReconciliationIssue) => {
     const id = Number(item.referenceId);
     if (item.targetType === 'purchase_order') return onOpenPurchaseOrder?.(id);
@@ -18133,6 +18203,15 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <label style={{ flex: '1 1 360px', color: 'var(--sv-text-dim)', fontSize: 11 }}>ACCOUNTS RECIPIENTS
+          <input value={recipientInput} onChange={event => setRecipientInput(event.target.value)} disabled={!canMutateAccounting} placeholder="accounts@example.com" style={{ ...filterStyle, display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4 }} />
+        </label>
+        {canMutateAccounting && <button type="button" onClick={() => void saveRecipients()} disabled={savingRecipients} style={{ ...filterStyle, cursor: 'pointer' }}>{savingRecipients ? 'Saving…' : 'Save recipients'}</button>}
+        {selectedIssueIds.length > 0 && <button type="button" onClick={() => openSendDialog(selectedIssueIds)} disabled={!recipients.length} style={{ ...filterStyle, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: recipients.length ? 'pointer' : 'not-allowed', color: '#38bdf8' }}><Mail size={14} /> Send to Accounts ({selectedIssueIds.length})</button>}
+      </div>
+      {recipientError && <div role="alert" style={{ color: '#f87171', fontSize: 12 }}>{recipientError}</div>}
+      {sendNotice && <div role="status" style={{ color: '#34d399', fontSize: 12 }}>{sendNotice}</div>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={filters.status} onChange={event => setFilters(current => ({ ...current, status: event.target.value }))} style={filterStyle} aria-label="Issue state">
           <option value="open">Open</option><option value="ignored">Ignored</option><option value="resolved">Resolved</option><option value="all">All states</option>
@@ -18162,12 +18241,14 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
           : items.length === 0 ? <div style={{ padding: 32, color: 'var(--sv-text-dim)', textAlign: 'center' }}>No reconciliation issues match these filters.</div>
           : <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr style={{ background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', textAlign: 'left' }}>
+              <th style={{ padding: '8px 10px' }}><input type="checkbox" aria-label="Select all open issues" checked={items.some(item => item.status === 'open') && items.filter(item => item.status === 'open').every(item => selectedIssueIds.includes(item.id))} onChange={event => setSelectedIssueIds(event.target.checked ? items.filter(item => item.status === 'open').map(item => item.id) : [])} /></th>
               {['Severity','Discrepancy','Reference / contact','Amount','Age','Expected','Xero actual','Last check','Recommended next step',''].map(value => <th key={value} style={{ padding: '8px 10px', whiteSpace: 'nowrap' }}>{value}</th>)}
             </tr></thead>
             <tbody>{items.map(item => {
               const severityColor = item.severity === 'critical' ? '#ef4444' : item.severity === 'error' ? '#f87171' : '#fbbf24';
               const link = xeroUrl(item);
               return <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
+                <td style={{ padding: 10 }}><input type="checkbox" aria-label={`Select ${item.reference}`} disabled={item.status !== 'open'} checked={selectedIssueIds.includes(item.id)} onChange={event => setSelectedIssueIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /></td>
                 <td style={{ padding: 10 }}><span style={{ color: severityColor, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={14} /> {item.severity}</span></td>
                 <td style={{ padding: 10 }}><strong>{label(item.ruleKey)}</strong><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{label(item.targetType)}</div></td>
                 <td style={{ padding: 10 }}><button type="button" onClick={() => openSource(item)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontWeight: 700 }}>{item.reference}</button><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{item.contactName || '—'}</div></td>
@@ -18177,8 +18258,11 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
                 <td title={JSON.stringify(item.actual)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.actual)}</td>
                 <td style={{ padding: 10, whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleDateString('en-AU') : 'Never'}</td>
                 <td style={{ padding: 10, maxWidth: 220 }}>{item.recommendedNextStep}</td>
-                <td style={{ padding: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <td style={{ padding: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end' }}>
                   {link && <a href={link} target="_blank" rel="noopener noreferrer" title="Open in Xero" style={{ color: '#38bdf8' }}><ExternalLink size={15} /></a>}
+                  {item.status === 'open' && canMutateAccounting && <button type="button" onClick={() => void runAccountingAction(item, 'retry')} disabled={actionLoading === `${item.id}:retry`} style={{ border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, background: 'rgba(56,189,248,.1)', color: '#38bdf8', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>{actionLoading === `${item.id}:retry` ? 'Working…' : 'Retry'}</button>}
+                  {item.status === 'open' && canMutateAccounting && item.ruleKey === 'lifecycle_state' && item.xeroId && <button type="button" onClick={() => { setAuthoriseIssue(item); setAuthoriseReason(''); setActionError(''); }} style={{ border: '1px solid rgba(251,191,36,.35)', borderRadius: 5, background: 'rgba(251,191,36,.1)', color: '#fbbf24', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Authorise</button>}
+                  {item.status === 'open' && <button type="button" onClick={() => openSendDialog([item.id])} disabled={!recipients.length} title="Send to Accounts" style={{ border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, background: 'rgba(56,189,248,.1)', color: '#38bdf8', padding: '3px 6px', cursor: recipients.length ? 'pointer' : 'not-allowed', opacity: recipients.length ? 1 : .45 }}><Mail size={14} /></button>}
                   {item.status === 'open' && <button type="button" onClick={() => { setIgnoreIssue(item); setIgnoreReason(''); setIgnoreError(''); }} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Ignore</button>}
                 </div></td>
               </tr>;
@@ -18195,6 +18279,30 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
             <button type="button" onClick={() => setIgnoreIssue(null)} disabled={ignoring} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
             <button type="submit" disabled={ignoring || !ignoreReason.trim()} style={{ border: 0, borderRadius: 5, background: '#b45309', color: '#fff', padding: '6px 12px', cursor: ignoring || !ignoreReason.trim() ? 'not-allowed' : 'pointer', opacity: ignoring || !ignoreReason.trim() ? .55 : 1, fontWeight: 700 }}>{ignoring ? 'Saving…' : 'Ignore issue'}</button>
+          </div>
+        </form>
+      </div>}
+      {sendIssueIds.length > 0 && <div role="dialog" aria-modal="true" aria-labelledby="send-xero-issues-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
+        <form onSubmit={event => { event.preventDefault(); void sendToAccounts(); }} style={{ width: 'min(500px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid rgba(56,189,248,.35)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
+          <h3 id="send-xero-issues-title" style={{ margin: '0 0 8px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Send {sendIssueIds.length} issue{sendIssueIds.length === 1 ? '' : 's'} to Accounts</h3>
+          <div style={{ color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>Recipients: {recipients.join(', ')}</div>
+          {sendError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 10 }}>{sendError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
+            <button type="button" onClick={() => { setSendIssueIds([]); setDeliveryKey(''); }} disabled={sending} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" disabled={sending} style={{ border: 0, borderRadius: 5, background: 'var(--sv-action)', color: '#fff', padding: '6px 12px', cursor: sending ? 'not-allowed' : 'pointer', fontWeight: 700 }}>{sending ? 'Sending…' : 'Send email'}</button>
+          </div>
+        </form>
+      </div>}
+      {authoriseIssue && <div role="dialog" aria-modal="true" aria-labelledby="authorise-xero-issue-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
+        <form onSubmit={event => { event.preventDefault(); void runAccountingAction(authoriseIssue, 'authorise', authoriseReason.trim()); }} style={{ width: 'min(500px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid rgba(251,191,36,.35)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
+          <h3 id="authorise-xero-issue-title" style={{ margin: '0 0 8px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Authorise {authoriseIssue.reference} in Xero</h3>
+          <div style={{ color: '#fbbf24', fontSize: 12, lineHeight: 1.5, marginBottom: 14 }}>This changes the linked Xero document from Draft to Authorised. Xero may lock financial fields and allow payments or allocations against it.</div>
+          <label style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, marginBottom: 6 }} htmlFor="xero-authorise-reason">Reason</label>
+          <textarea id="xero-authorise-reason" autoFocus value={authoriseReason} onChange={event => setAuthoriseReason(event.target.value)} maxLength={1000} rows={4} style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 9, font: 'inherit' }} />
+          {actionError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{actionError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button type="button" onClick={() => setAuthoriseIssue(null)} disabled={actionLoading === `${authoriseIssue.id}:authorise`} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" disabled={actionLoading === `${authoriseIssue.id}:authorise` || !authoriseReason.trim()} style={{ border: 0, borderRadius: 5, background: '#b45309', color: '#fff', padding: '6px 12px', cursor: !authoriseReason.trim() ? 'not-allowed' : 'pointer', opacity: !authoriseReason.trim() ? .55 : 1, fontWeight: 700 }}>{actionLoading === `${authoriseIssue.id}:authorise` ? 'Authorising…' : 'Authorise in Xero'}</button>
           </div>
         </form>
       </div>}
@@ -19450,6 +19558,7 @@ export default function ImsPage() {
   const [advisorSyncEnabled, setAdvisorSyncEnabled] = useState(false);
   const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
+  const canMutateXeroAccounting = user?.tier === 'Admin' || user?.tier === 'SuperAdmin';
   const [view, setView] = useState<ImsView>('dashboard');
   const [hasRestoredInitialHash, setHasRestoredInitialHash] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -19564,6 +19673,7 @@ export default function ImsPage() {
       }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
+      if (h === 'xero/sync') return 'xero' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
@@ -19998,6 +20108,7 @@ export default function ImsPage() {
           <MainSections
             view={view}
             isAdvisor={isAdvisor}
+            canMutateXeroAccounting={canMutateXeroAccounting}
             advisorMappingEnabled={advisorXeroMappingEnabled}
             businessId={user?.businessId ?? ''}
             hasForesight={user?.hasForesight ?? false}

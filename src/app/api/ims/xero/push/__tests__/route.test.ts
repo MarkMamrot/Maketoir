@@ -95,6 +95,15 @@ describe('POST /api/ims/xero/push', () => {
     expect(await res.json()).toEqual({ error: 'Not authenticated' });
   });
 
+  it('blocks Advisor from retrying Xero side effects', async () => {
+    mockGetImsSession.mockResolvedValueOnce({ businessId: 'biz-1', tier: 'Advisor' });
+
+    const res = await POST(makeRequest({ type: 'po', id: 11 }));
+
+    expect(res.status).toBe(403);
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
+  });
+
   it('skips CN retry when already synced with stored Xero id', async () => {
     mockImsQuery.mockResolvedValueOnce([
       { xero_sync_status: 'synced', xero_credit_note_id: 'xero-cn-1' },

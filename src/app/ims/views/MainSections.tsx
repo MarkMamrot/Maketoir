@@ -15,6 +15,7 @@ type ImsView =
 interface MainSectionsProps {
   view: ImsView;
   isAdvisor: boolean;
+  canMutateXeroAccounting: boolean;
   advisorMappingEnabled: boolean;
   businessId: string;
   hasForesight: boolean;
@@ -80,6 +81,7 @@ export function MainSections(props: MainSectionsProps) {
   const {
     view,
     isAdvisor,
+    canMutateXeroAccounting,
     advisorMappingEnabled,
     businessId,
     hasForesight,
@@ -216,6 +218,7 @@ export function MainSections(props: MainSectionsProps) {
         <XeroView
           businessId={businessId}
           isAdvisor={isAdvisor}
+          canMutateAccounting={canMutateXeroAccounting}
           advisorMappingEnabled={advisorMappingEnabled}
           onOpenPurchaseOrder={onOpenPurchaseOrder}
           onOpenSalesOrder={onOpenSalesOrder}

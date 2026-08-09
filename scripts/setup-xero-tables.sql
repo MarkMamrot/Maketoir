@@ -145,6 +145,7 @@ CREATE TABLE IF NOT EXISTS xero_reconciliation_issue_events (
 CREATE TABLE IF NOT EXISTS xero_reconciliation_settings (
   business_id       VARCHAR(255) NOT NULL PRIMARY KEY,
   enabled           TINYINT(1)   NOT NULL DEFAULT 1,
+  recipients_json   JSON         DEFAULT NULL,
   next_target_id    BIGINT       NOT NULL DEFAULT 0,
   scan_limit        INT          NOT NULL DEFAULT 100,
   bootstrap_po_id   BIGINT       NOT NULL DEFAULT 0,
@@ -158,6 +159,30 @@ CREATE TABLE IF NOT EXISTS xero_reconciliation_settings (
   created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_xero_reconciliation_schedule (enabled, last_completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Manual and scheduled accounts-email attempts. delivery_key is also passed
+-- to the provider, preventing duplicate sends when a request is replayed.
+CREATE TABLE IF NOT EXISTS xero_reconciliation_deliveries (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(255) NOT NULL,
+  delivery_key        VARCHAR(100) NOT NULL,
+  delivery_type       VARCHAR(20)  NOT NULL DEFAULT 'manual',
+  status              VARCHAR(20)  NOT NULL DEFAULT 'sending' COMMENT 'sending | sent | failed',
+  payload_fingerprint CHAR(64)     NOT NULL,
+  recipients_json     JSON         NOT NULL,
+  issue_ids_json      JSON         NOT NULL,
+  actor_id            VARCHAR(100) DEFAULT NULL,
+  actor_name          VARCHAR(255) DEFAULT NULL,
+  provider_message_id VARCHAR(255) DEFAULT NULL,
+  error_detail        VARCHAR(500) DEFAULT NULL,
+  attempt_count       INT          NOT NULL DEFAULT 1,
+  attempted_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at             DATETIME     DEFAULT NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_reconciliation_delivery (business_id, delivery_key),
+  INDEX idx_xero_reconciliation_delivery_status (business_id, status, attempted_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- COGS schedule configuration. Period calculation is performed in the stored

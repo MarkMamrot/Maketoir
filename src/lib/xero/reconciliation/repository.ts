@@ -385,6 +385,217 @@ export async function ignoreXeroReconciliationIssue(
   return true;
 }
 
+export async function getXeroReconciliationIssueActionContext(
+  input: { businessId: string; issueId: number },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<{
+  issueId: number;
+  status: 'open' | 'ignored' | 'resolved';
+  ruleKey: string;
+  targetType: string;
+  referenceId: string;
+  xeroId: string | null;
+} | null> {
+  const rows = await dependencies.query<any>(
+    `SELECT issue.id, issue.status, issue.rule_key, target.target_type, target.reference_id, target.xero_id
+       FROM xero_reconciliation_issues issue
+       JOIN xero_reconciliation_targets target ON target.id = issue.target_id
+      WHERE issue.business_id = ? AND issue.id = ? LIMIT 1`,
+    [input.businessId, input.issueId],
+  );
+  const row = rows[0];
+  return row ? {
+    issueId: Number(row.id), status: row.status, ruleKey: row.rule_key,
+    targetType: row.target_type, referenceId: String(row.reference_id),
+    xeroId: row.xero_id ? String(row.xero_id) : null,
+  } : null;
+}
+
+export async function recordXeroReconciliationActionEvent(
+  input: {
+    businessId: string;
+    issueId: number;
+    actorId?: string | number | null;
+    actorName?: string | null;
+    action: 'retry' | 'authorise';
+    reason?: string | null;
+    targetType: string;
+    referenceId: string | number;
+    xeroId?: string | null;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `INSERT INTO xero_reconciliation_issue_events
+       (business_id, issue_id, event_type, actor_id, actor_name, reason, snapshot)
+     VALUES (?, ?, 'retried', ?, ?, ?, ?)`,
+    [
+      input.businessId, input.issueId, input.actorId == null ? null : String(input.actorId),
+      input.actorName ?? null, input.reason?.trim().slice(0, 1000) || null,
+      JSON.stringify({ action: input.action, targetType: input.targetType, referenceId: String(input.referenceId), xeroId: input.xeroId ?? null }),
+    ],
+  );
+}
+
+export async function getXeroReconciliationRecipients(
+  businessId: string,
+  dependencies: Dependencies = defaultDependencies,
+): Promise<string[]> {
+  const rows = await dependencies.query<{ recipients_json: string | string[] | null }>(
+    `SELECT recipients_json FROM xero_reconciliation_settings WHERE business_id = ? LIMIT 1`,
+    [businessId],
+  );
+  const value = rows[0]?.recipients_json;
+  if (!value) return [];
+  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+  return Array.isArray(parsed) ? parsed.map(String) : [];
+}
+
+export async function saveXeroReconciliationRecipients(
+  input: { businessId: string; recipients: string[] },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `INSERT INTO xero_reconciliation_settings (business_id, recipients_json)
+     VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE recipients_json = VALUES(recipients_json), updated_at = NOW()`,
+    [input.businessId, JSON.stringify(input.recipients)],
+  );
+}
+
+export type XeroReconciliationEmailIssue = {
+  id: number;
+  severity: string;
+  targetType: string;
+  referenceId: string;
+  ruleKey: string;
+  summary: string;
+  amount: number | null;
+  recommendedNextStep: string;
+};
+
+export async function getXeroReconciliationIssuesForEmail(
+  input: { businessId: string; issueIds: number[] },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<XeroReconciliationEmailIssue[]> {
+  const issueIds = Array.from(new Set(input.issueIds)).filter(id => Number.isSafeInteger(id) && id > 0).slice(0, 50);
+  if (!issueIds.length) return [];
+  const placeholders = issueIds.map(() => '?').join(',');
+  const rows = await dependencies.query<any>(
+    `SELECT issue.id, issue.severity, issue.rule_key, issue.summary, issue.expected_summary,
+            issue.actual_summary, target.target_type, target.reference_id
+       FROM xero_reconciliation_issues issue
+       JOIN xero_reconciliation_targets target ON target.id = issue.target_id
+      WHERE issue.business_id = ? AND issue.status = 'open' AND issue.id IN (${placeholders})`,
+    [input.businessId, ...issueIds],
+  );
+  return rows.map(row => {
+    const expected = parseJsonObject(row.expected_summary);
+    const actual = parseJsonObject(row.actual_summary);
+    const amountValue = expected?.total ?? actual?.total ?? null;
+    return {
+      id: Number(row.id), severity: String(row.severity), targetType: String(row.target_type),
+      referenceId: String(row.reference_id), ruleKey: String(row.rule_key), summary: String(row.summary),
+      amount: amountValue == null || !Number.isFinite(Number(amountValue)) ? null : Number(amountValue),
+      recommendedNextStep: reconciliationRecommendation(String(row.rule_key)),
+    };
+  });
+}
+
+export async function claimXeroReconciliationDelivery(
+  input: {
+    businessId: string;
+    deliveryKey: string;
+    payloadFingerprint: string;
+    recipients: string[];
+    issueIds: number[];
+    actorId?: string | number | null;
+    actorName?: string | null;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<'claimed' | 'already_sent' | 'in_progress'> {
+  const inserted = await dependencies.execute(
+    `INSERT IGNORE INTO xero_reconciliation_deliveries
+       (business_id, delivery_key, delivery_type, status, payload_fingerprint, recipients_json,
+        issue_ids_json, actor_id, actor_name)
+     VALUES (?, ?, 'manual', 'sending', ?, ?, ?, ?, ?)`,
+    [
+      input.businessId, input.deliveryKey, input.payloadFingerprint,
+      JSON.stringify(input.recipients), JSON.stringify(input.issueIds),
+      input.actorId == null ? null : String(input.actorId), input.actorName ?? null,
+    ],
+  );
+  if (inserted.affectedRows > 0) return 'claimed';
+  const retried = await dependencies.execute(
+    `UPDATE xero_reconciliation_deliveries
+        SET status = 'sending', error_detail = NULL, attempt_count = attempt_count + 1, attempted_at = NOW()
+      WHERE business_id = ? AND delivery_key = ? AND payload_fingerprint = ? AND status = 'failed'`,
+    [input.businessId, input.deliveryKey, input.payloadFingerprint],
+  );
+  if (retried.affectedRows > 0) return 'claimed';
+  const rows = await dependencies.query<{ status: string; payload_fingerprint: string }>(
+    `SELECT status, payload_fingerprint FROM xero_reconciliation_deliveries
+      WHERE business_id = ? AND delivery_key = ? LIMIT 1`,
+    [input.businessId, input.deliveryKey],
+  );
+  if (rows[0]?.payload_fingerprint !== input.payloadFingerprint) {
+    throw new Error('The delivery key was already used for different reconciliation issues.');
+  }
+  return rows[0]?.status === 'sent' ? 'already_sent' : 'in_progress';
+}
+
+export async function completeXeroReconciliationDelivery(
+  input: {
+    businessId: string;
+    deliveryKey: string;
+    providerMessageId?: string | null;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `UPDATE xero_reconciliation_deliveries
+        SET status = 'sent', provider_message_id = ?, sent_at = NOW(), error_detail = NULL
+      WHERE business_id = ? AND delivery_key = ? AND status = 'sending'`,
+    [input.providerMessageId ?? null, input.businessId, input.deliveryKey],
+  );
+}
+
+export async function recordXeroReconciliationEmailEvents(
+  input: {
+    businessId: string;
+    deliveryKey: string;
+    issueIds: number[];
+    actorId?: string | number | null;
+    actorName?: string | null;
+    recipients: string[];
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  for (const issueId of input.issueIds) {
+    await dependencies.execute(
+      `INSERT INTO xero_reconciliation_issue_events
+         (business_id, issue_id, event_type, actor_id, actor_name, snapshot)
+       VALUES (?, ?, 'emailed', ?, ?, ?)`,
+      [
+        input.businessId, issueId, input.actorId == null ? null : String(input.actorId), input.actorName ?? null,
+        JSON.stringify({ deliveryKey: input.deliveryKey, recipients: input.recipients }),
+      ],
+    );
+  }
+}
+
+export async function failXeroReconciliationDelivery(
+  input: { businessId: string; deliveryKey: string; error: string },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<void> {
+  await dependencies.execute(
+    `UPDATE xero_reconciliation_deliveries
+        SET status = 'failed', error_detail = ?
+      WHERE business_id = ? AND delivery_key = ? AND status = 'sending'`,
+    [input.error.slice(0, 500), input.businessId, input.deliveryKey],
+  );
+}
+
 export async function resolveXeroReconciliationIssue(
   input: {
     businessId: string;
