@@ -236,8 +236,8 @@ describe('PO bill sync', () => {
     };
     mockXeroApiFetch
       .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] })
-      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] })
-      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'DRAFT' }] });
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'AUTHORISED', AmountPaid: 0, AmountCredited: 0 }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-1', Status: 'AUTHORISED' }] });
 
     await syncPOAsDraftBill('biz-1', po);
     await updateXeroDraftBill('biz-1', po, 'bill-1');
@@ -258,9 +258,16 @@ describe('PO bill sync', () => {
     );
     expect(mockXeroApiFetch.mock.calls[2][1]).toBe('/Invoices/bill-1?unitdp=4');
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0]).toEqual(
-      expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28' }),
+      expect.objectContaining({ Date: '2026-07-29', DueDate: '2026-08-28', Status: 'AUTHORISED' }),
     );
     expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0].LineItems[0]).not.toHaveProperty('DiscountRate');
+
+    mockXeroApiFetch.mockClear();
+    mockXeroApiFetch.mockResolvedValueOnce({
+      Invoices: [{ InvoiceID: 'bill-1', Status: 'AUTHORISED', AmountPaid: 1, AmountCredited: 0 }],
+    });
+    await expect(updateXeroDraftBill('biz-1', po, 'bill-1')).resolves.toBe(false);
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
   });
 
   it('derives four-decimal unit amount from the authoritative PO line total', async () => {

@@ -63,6 +63,83 @@ CREATE TABLE IF NOT EXISTS xero_sync_log (
   INDEX idx_business_created (business_id, created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Durable claims for Xero side effects such as payments and manual journals.
+-- Unknown outcomes require live reconciliation and must never be blindly replayed.
+CREATE TABLE IF NOT EXISTS xero_accounting_actions (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(255) NOT NULL,
+  operation_key       VARCHAR(191) NOT NULL,
+  action_type         VARCHAR(50)  NOT NULL,
+  source_type         VARCHAR(50)  NOT NULL,
+  source_id           VARCHAR(100) NOT NULL,
+  request_fingerprint CHAR(64)     NOT NULL,
+  status              VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT 'pending | running | succeeded | failed | unknown',
+  xero_id             VARCHAR(100) DEFAULT NULL,
+  safe_error          TEXT         DEFAULT NULL,
+  attempt_count       INT          NOT NULL DEFAULT 0,
+  last_attempt_at     DATETIME     DEFAULT NULL,
+  completed_at        DATETIME     DEFAULT NULL,
+  created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_accounting_action (business_id, operation_key),
+  INDEX idx_xero_accounting_action_status (business_id, status, updated_at),
+  INDEX idx_xero_accounting_action_source (business_id, source_type, source_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Current expected/live linkage for documents checked by the reconciliation workspace.
+CREATE TABLE IF NOT EXISTS xero_reconciliation_targets (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(255) NOT NULL,
+  target_type           VARCHAR(50)  NOT NULL,
+  reference_id          VARCHAR(100) NOT NULL,
+  xero_id               VARCHAR(100) DEFAULT NULL,
+  expected_snapshot     JSON         DEFAULT NULL,
+  expected_fingerprint  CHAR(64)     DEFAULT NULL,
+  live_snapshot         JSON         DEFAULT NULL,
+  live_fingerprint      CHAR(64)     DEFAULT NULL,
+  last_checked_at       DATETIME     DEFAULT NULL,
+  created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_reconciliation_target (business_id, target_type, reference_id),
+  INDEX idx_xero_reconciliation_target_check (business_id, last_checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- One current issue per reconciliation rule. History lives in the events table.
+CREATE TABLE IF NOT EXISTS xero_reconciliation_issues (
+  id                    BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id           VARCHAR(255) NOT NULL,
+  target_id             BIGINT       NOT NULL,
+  rule_key              VARCHAR(80)  NOT NULL,
+  severity              VARCHAR(20)  NOT NULL DEFAULT 'warning',
+  status                VARCHAR(20)  NOT NULL DEFAULT 'open' COMMENT 'open | ignored | resolved',
+  summary               VARCHAR(500) NOT NULL,
+  expected_summary      JSON         DEFAULT NULL,
+  actual_summary        JSON         DEFAULT NULL,
+  mismatch_fingerprint  CHAR(64)     NOT NULL,
+  ignored_fingerprint   CHAR(64)     DEFAULT NULL,
+  first_seen_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  resolved_at           DATETIME     DEFAULT NULL,
+  occurrence_count      INT          NOT NULL DEFAULT 1,
+  created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_reconciliation_issue (business_id, target_id, rule_key),
+  INDEX idx_xero_reconciliation_issue_queue (business_id, status, severity, last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS xero_reconciliation_issue_events (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(255) NOT NULL,
+  issue_id        BIGINT       NOT NULL,
+  event_type      VARCHAR(30)  NOT NULL COMMENT 'detected | reopened | ignored | resolved | retried | emailed | override',
+  actor_id        VARCHAR(100) DEFAULT NULL,
+  actor_name      VARCHAR(255) DEFAULT NULL,
+  reason          VARCHAR(1000) DEFAULT NULL,
+  snapshot        JSON         DEFAULT NULL,
+  created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_xero_reconciliation_event_issue (business_id, issue_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- COGS schedule configuration. Period calculation is performed in the stored
 -- IANA timezone; reliable_from marks the first trustworthy live IMS ledger day.
 CREATE TABLE IF NOT EXISTS xero_cogs_settings (

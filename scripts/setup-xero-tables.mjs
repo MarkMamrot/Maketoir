@@ -161,6 +161,8 @@ async function main() {
   console.log('✔ xero_document_policies created/updated');
   console.log('✔ xero_tracking_mappings created');
   console.log('✔ xero_sync_log created');
+  console.log('✔ xero_accounting_actions created');
+  console.log('✔ xero_reconciliation targets/issues/events created');
   console.log('✔ xero_cogs_settings created/updated');
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');

@@ -140,27 +140,38 @@ export async function triggerPOXeroSync(
   const approved = await approveBill(businessId, xeroInvoiceId, poId);
   if (approved) await allocateReservedSupplierCredit(businessId, poId);
   if (approved && newStatus === 'complete' && (po.payments?.length ?? 0) > 0) {
-    await syncPOReceivedJournal(businessId, poId, po.po_number, po.total_amount, po.location_id);
+    await syncPOReceivedJournal(businessId, poId, po.po_number, xeroInvoiceId, po.total_amount, po.location_id);
   }
 }
 
 /**
  * Triggered when a PO's fields/items are edited without a status change.
- * Updates the existing Xero Draft Bill if one exists.
- * Silently skips if no bill exists, Xero is not connected, or bill is no longer DRAFT.
+ * Updates the existing eligible Xero Bill if one exists.
  */
-export async function triggerPOXeroUpdate(businessId: string, poId: number): Promise<void> {
-  if (!await isXeroConnected(businessId)) return;
-
-  const po = await ImsPORepo.get(poId, businessId);
-  if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return;
-
-  const xeroId = (po as any).xero_bill_id ?? null;
-  if (!xeroId) return; // No Xero bill exists yet — nothing to update
-
+export async function triggerPOXeroUpdate(businessId: string, poId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
   try {
-    await updateXeroDraftBill(businessId, po as any, xeroId);
-  } catch { /* non-critical */ }
+    if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
+    const po = await ImsPORepo.get(poId, businessId);
+    if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return { attempted: false, updated: false, warning: null };
+    const xeroId = (po as any).xero_bill_id ?? null;
+    if (!xeroId) return { attempted: false, updated: false, warning: null };
+    const updated = await updateXeroDraftBill(businessId, po as any, xeroId);
+    return {
+      attempted: true,
+      updated,
+      warning: updated ? null : `Purchase order ${(po as any).po_number} was saved, but its linked Xero bill could not be updated.`,
+    };
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'XeroHooks',
+      operation: 'update_po_bill_after_edit',
+      title: 'Purchase order was saved but its Xero bill update failed',
+      error,
+      reference: { type: 'purchase_order', id: poId },
+    }).catch(() => {});
+    return { attempted: true, updated: false, warning: `Purchase order ${poId} was saved, but Xero could not be updated right now.` };
+  }
 }
 
 /**
@@ -207,7 +218,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
   const approved = await approveBill(businessId, xeroInvoiceId, poId);
   if (!approved) return;
 
-  await syncPOPayment(businessId, xeroInvoiceId, poId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  await syncPOPayment(businessId, xeroInvoiceId, poId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
 }
 
 /**
@@ -247,7 +258,7 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
   const approved = await approveInvoice(businessId, xeroInvoiceId, Number(soId));
   if (!approved) return;
 
-  await syncSOPayment(businessId, xeroInvoiceId, soId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  await syncSOPayment(businessId, xeroInvoiceId, soId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
 }
 
 /**
@@ -283,21 +294,32 @@ export async function triggerSOXeroSync(businessId: string, soId: number, newSta
 
 /**
  * Triggered when a SO's fields/items are edited without a status change.
- * Updates the existing Xero Draft Invoice if one exists.
- * Silently skips if no invoice exists, Xero is not connected, or invoice is no longer DRAFT.
+ * Updates the existing eligible Xero Invoice if one exists.
  */
-export async function triggerSOXeroUpdate(businessId: string, soId: number): Promise<void> {
-  if (!await isXeroConnected(businessId)) return;
-
-  const so = await ImsSORepo.get(soId, businessId);
-  if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return;
-
-  const xeroId = (so as any).xero_invoice_id ?? null;
-  if (!xeroId) return;
-
+export async function triggerSOXeroUpdate(businessId: string, soId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
   try {
-    await updateXeroDraftInvoice(businessId, so as any, xeroId);
-  } catch { /* non-critical */ }
+    if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
+    const so = await ImsSORepo.get(soId, businessId);
+    if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return { attempted: false, updated: false, warning: null };
+    const xeroId = (so as any).xero_invoice_id ?? null;
+    if (!xeroId) return { attempted: false, updated: false, warning: null };
+    const updated = await updateXeroDraftInvoice(businessId, so as any, xeroId);
+    return {
+      attempted: true,
+      updated,
+      warning: updated ? null : `Sales order ${(so as any).so_number} was saved, but its linked Xero invoice could not be updated.`,
+    };
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'XeroHooks',
+      operation: 'update_so_invoice_after_edit',
+      title: 'Sales order was saved but its Xero invoice update failed',
+      error,
+      reference: { type: 'sales_order', id: soId },
+    }).catch(() => {});
+    return { attempted: true, updated: false, warning: `Sales order ${soId} was saved, but Xero could not be updated right now.` };
+  }
 }
 
 /**

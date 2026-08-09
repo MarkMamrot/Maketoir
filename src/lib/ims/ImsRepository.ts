@@ -2447,8 +2447,14 @@ export const ImsSORepo = {
     }
   },
 
-  async delete(id: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_sales_orders WHERE id = ?`, [id]);
+  async delete(id: number, businessId: string): Promise<void> {
+    const result = await imsExecute(
+      `DELETE FROM ims_sales_orders WHERE id = ? AND business_id = ? AND status = 'draft'`,
+      [id, businessId],
+    );
+    if (result.affectedRows === 0) {
+      throw new Error('Only draft sales orders can be deleted.');
+    }
   },
 
   /**

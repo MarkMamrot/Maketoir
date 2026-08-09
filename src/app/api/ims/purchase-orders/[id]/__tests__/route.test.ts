@@ -12,7 +12,8 @@ const {
   mockTriggerPOXeroVoid,
   mockTriggerPOXeroUpdate,
   mockReportRuntimeIssue,
-  mockGetXeroInvoiceStatus,
+  mockGetXeroInvoiceEditState,
+  mockRecordXeroReconciliationIssue,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
@@ -25,7 +26,8 @@ const {
   mockTriggerPOXeroVoid: vi.fn(),
   mockTriggerPOXeroUpdate: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
-  mockGetXeroInvoiceStatus: vi.fn(),
+  mockGetXeroInvoiceEditState: vi.fn(),
+  mockRecordXeroReconciliationIssue: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
@@ -45,7 +47,8 @@ vi.mock('@/lib/ims/xeroHooks', () => ({
   triggerPOXeroUpdate: mockTriggerPOXeroUpdate,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
-vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceStatus: mockGetXeroInvoiceStatus }));
+vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mockGetXeroInvoiceEditState }));
+vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mockRecordXeroReconciliationIssue }));
 
 import { DELETE, PUT } from '../route';
 
@@ -62,14 +65,15 @@ function putRequest(body: unknown): Request {
 describe('/api/ims/purchase-orders/[id]', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin' });
+    mockGetImsSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin', userId: 7, name: 'Alex' });
     mockImsQuery.mockResolvedValue([]);
     mockTriggerPOXeroVoid.mockResolvedValue(null);
     mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
     mockReportRuntimeIssue.mockResolvedValue(null);
     mockUpdate.mockResolvedValue(undefined);
-    mockTriggerPOXeroUpdate.mockResolvedValue(undefined);
+    mockTriggerPOXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
+    mockRecordXeroReconciliationIssue.mockResolvedValue(9);
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {
@@ -122,26 +126,69 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 
-  it('blocks edits when a completed PO has an Authorised Xero bill', async () => {
-    mockGet.mockResolvedValue({ id: 42, status: 'complete', xero_bill_id: 'xero-bill-1', items: [] });
-    mockGetXeroInvoiceStatus.mockResolvedValue('AUTHORISED');
-
-    const response = await PUT(putRequest({ notes: 'changed' }), params);
-
-    expect(response.status).toBe(409);
-    expect(mockGetXeroInvoiceStatus).toHaveBeenCalledWith('biz-1', 'xero-bill-1');
-    expect(mockUpdate).not.toHaveBeenCalled();
-    expect(mockTriggerPOXeroUpdate).not.toHaveBeenCalled();
-  });
-
-  it('allows edits when a completed PO Xero bill is still Draft', async () => {
-    mockGet.mockResolvedValue({ id: 42, status: 'complete', xero_bill_id: 'xero-bill-1', items: [] });
-    mockGetXeroInvoiceStatus.mockResolvedValue('DRAFT');
+  it('does not contact Xero for local-only edits', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
 
     const response = await PUT(putRequest({ notes: 'changed' }), params);
 
     expect(response.status).toBe(200);
+    expect(mockGetXeroInvoiceEditState).not.toHaveBeenCalled();
+    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockTriggerPOXeroUpdate).not.toHaveBeenCalled();
+  });
+
+  it('updates an unpaid Authorised bill after a Xero-visible edit', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'AUTHORISED', amountPaid: 0, amountCredited: 0, documentDate: '2026-08-09', periodLockDate: '2026-06-30',
+    });
+
+    const response = await PUT(putRequest({ supplier_id: 4 }), params);
+
+    expect(response.status).toBe(200);
     expect(mockUpdate).toHaveBeenCalled();
     expect(mockTriggerPOXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
+  });
+
+  it('blocks a settled Xero-visible edit without a reasoned Admin override', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'AUTHORISED', amountPaid: 10, amountCredited: 0, documentDate: '2026-08-09',
+    });
+
+    const response = await PUT(putRequest({ supplier_id: 4 }), params);
+
+    expect(response.status).toBe(409);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('records a reasoned Admin override without updating Xero', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'PAID', amountPaid: 25, amountCredited: 0, documentDate: '2026-08-09',
+    });
+
+    const response = await PUT(putRequest({ supplier_id: 4, xeroOverrideReason: 'Bookkeeper approved correction' }), params);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.xeroWarning).toContain('Admin override');
+    expect(mockTriggerPOXeroUpdate).not.toHaveBeenCalled();
+    expect(mockRecordXeroReconciliationIssue).toHaveBeenCalledWith(expect.objectContaining({
+      ruleKey: 'admin_edit_override', eventType: 'override', actorId: 7, reason: 'Bookkeeper approved correction',
+    }));
+  });
+
+  it('returns and records a warning when the post-save Xero update fails', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'DRAFT', amountPaid: 0, amountCredited: 0, documentDate: '2026-08-09',
+    });
+    mockTriggerPOXeroUpdate.mockResolvedValue({ attempted: true, updated: false, warning: 'Saved, but Xero failed.' });
+
+    const response = await PUT(putRequest({ supplier_id: 4 }), params);
+
+    expect(await response.json()).toMatchObject({ success: true, xeroWarning: 'Saved, but Xero failed.' });
+    expect(mockRecordXeroReconciliationIssue).toHaveBeenCalledWith(expect.objectContaining({ ruleKey: 'post_edit_sync_failed' }));
   });
 });

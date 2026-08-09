@@ -23,6 +23,11 @@ import { buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import {
+  claimXeroAccountingAction,
+  completeXeroAccountingAction,
+  failXeroAccountingAction,
+} from '@/lib/xero/accountingActionRepository';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import fs from 'fs';
 import path from 'path';
@@ -548,9 +553,8 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
 }
 
 /**
- * Update an existing DRAFT Bill in Xero with the current PO data.
+ * Update an existing unpaid DRAFT, SUBMITTED, or AUTHORISED Bill in Xero.
  * Called when a PO is edited (items, supplier, dates, freight) without a status change.
- * Skips silently if the bill is no longer DRAFT (e.g. already AUTHORISED).
  */
 export async function updateXeroDraftBill(businessId: string, po: POForSync, xeroId: string): Promise<boolean> {
   const accounts = await getAccountMappings(businessId);
@@ -562,11 +566,14 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     return false;
   }
 
-  // Only DRAFT bills can be updated via the Xero API — check current status first
+  let currentStatus: string | null = null;
   try {
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'GET' });
-    const currentStatus = current.Invoices?.[0]?.Status;
-    if (currentStatus !== 'DRAFT') {
+    const currentInvoice = current.Invoices?.[0];
+    currentStatus = typeof currentInvoice?.Status === 'string' ? currentInvoice.Status : null;
+    const amountPaid = Number(currentInvoice?.AmountPaid ?? 0);
+    const amountCredited = Number(currentInvoice?.AmountCredited ?? 0);
+    if (!['DRAFT', 'SUBMITTED', 'AUTHORISED'].includes(currentStatus ?? '') || amountPaid !== 0 || amountCredited !== 0) {
       await logSync(businessId, 'po_bill', po.id, xeroId, 'skipped', `Bill is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
       return false;
     }
@@ -623,7 +630,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     Date: po.supplier_invoice_date || po.order_date,
     DueDate: calcPoDueDate(po),
     Reference: po.po_number,
-    Status: 'DRAFT',
+    Status: currentStatus,
     LineAmountTypes: taxTreatment === 'inc_tax' ? 'Inclusive' : 'Exclusive',
     CurrencyCode: po.currency_code || 'AUD',
     LineItems: lineItems,
@@ -635,7 +642,7 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
 
   try {
     await xeroApiFetch(businessId, `/Invoices/${xeroId}?unitdp=4`, { method: 'POST', body: { Invoices: [bill] } });
-    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill updated: ${po.po_number}`, 'DRAFT');
+    await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Bill updated: ${po.po_number}`, currentStatus ?? undefined);
     await markPoXeroStatus(po.id, 'synced', xeroId);
     return true;
   } catch (err: any) {
@@ -648,6 +655,44 @@ export async function getXeroInvoiceStatus(businessId: string, xeroId: string): 
   const current = await xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(xeroId)}`, { method: 'GET' });
   const status = current?.Invoices?.[0]?.Status;
   return typeof status === 'string' ? status : null;
+}
+
+function xeroDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const iso = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  const milliseconds = value.match(/^\/Date\((\d+)/)?.[1];
+  return milliseconds ? new Date(Number(milliseconds)).toISOString().slice(0, 10) : null;
+}
+
+export async function getXeroInvoiceEditState(businessId: string, xeroId: string): Promise<{
+  status: string | null;
+  amountPaid: number;
+  amountCredited: number;
+  documentDate: string | null;
+  currencyCode: string | null;
+  contactId: string | null;
+  periodLockDate: string | null;
+  endOfYearLockDate: string | null;
+}> {
+  const [invoiceResponse, organisationResponse] = await Promise.all([
+    xeroApiFetch(businessId, `/Invoices/${encodeURIComponent(xeroId)}`, { method: 'GET' }),
+    xeroApiFetch(businessId, '/Organisation', { method: 'GET' }),
+  ]);
+  const invoice = invoiceResponse?.Invoices?.[0];
+  if (!invoice) throw new Error('The linked Xero invoice or bill was not found.');
+  const organisation = organisationResponse?.Organisations?.[0];
+  if (!organisation) throw new Error('The Xero organisation lock dates could not be verified.');
+  return {
+    status: typeof invoice.Status === 'string' ? invoice.Status : null,
+    amountPaid: Number(invoice.AmountPaid ?? 0),
+    amountCredited: Number(invoice.AmountCredited ?? 0),
+    documentDate: xeroDate(invoice.DateString ?? invoice.Date),
+    currencyCode: typeof invoice.CurrencyCode === 'string' ? invoice.CurrencyCode : null,
+    contactId: typeof invoice.Contact?.ContactID === 'string' ? invoice.Contact.ContactID : null,
+    periodLockDate: xeroDate(organisation.PeriodLockDate),
+    endOfYearLockDate: xeroDate(organisation.EndOfYearLockDate),
+  };
 }
 
 export async function getXeroInvoiceFinancialState(businessId: string, xeroId: string): Promise<{
@@ -801,54 +846,121 @@ export async function syncPOPayment(
   businessId: string,
   xeroInvoiceId: string,
   poId: number,
+  paymentId: number,
   amount: number,
   paymentDate: string,
   currencyCode: string = 'AUD',
   xeroAccountCode: string,
 ): Promise<string | null> {
-  const payment = {
-    Invoice: { InvoiceID: xeroInvoiceId },
-    Account: { Code: xeroAccountCode },
-    Amount: amount,
-    Date: paymentDate,
-    CurrencyRate: 1,
-  };
-
-  try {
-    const result = await xeroApiFetch(businessId, '/Payments', { method: 'POST', body: { Payments: [payment] } });
-    const paymentId = result.Payments?.[0]?.PaymentID ?? null;
-    await logSync(businessId, 'po_payment', poId, paymentId, 'success', `Payment $${amount} on ${paymentDate}`);
-    return paymentId;
-  } catch (err: any) {
-    await logSync(businessId, 'po_payment', poId, null, 'error', err.message);
-    return null;
-  }
+  return syncOrderPayment({
+    businessId, xeroInvoiceId, orderId: poId, paymentId, amount, paymentDate,
+    currencyCode, xeroAccountCode, orderType: 'po', expectedInvoiceType: 'ACCPAY',
+  });
 }
 
 export async function syncSOPayment(
   businessId: string,
   xeroInvoiceId: string,
   soId: number,
+  paymentId: number,
   amount: number,
   paymentDate: string,
   currencyCode: string = 'AUD',
   xeroAccountCode: string,
 ): Promise<string | null> {
+  return syncOrderPayment({
+    businessId, xeroInvoiceId, orderId: soId, paymentId, amount, paymentDate,
+    currencyCode, xeroAccountCode, orderType: 'so', expectedInvoiceType: 'ACCREC',
+  });
+}
+
+function isAmbiguousXeroWriteError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return error instanceof TypeError
+    || /failed \(5\d\d\)/i.test(message)
+    || /fetch failed|network|socket|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i.test(message);
+}
+
+async function syncOrderPayment(input: {
+  businessId: string;
+  xeroInvoiceId: string;
+  orderId: number;
+  paymentId: number;
+  amount: number;
+  paymentDate: string;
+  currencyCode: string;
+  xeroAccountCode: string;
+  orderType: 'po' | 'so';
+  expectedInvoiceType: 'ACCPAY' | 'ACCREC';
+}): Promise<string | null> {
+  const amount = Math.round(Number(input.amount) * 100) / 100;
   const payment = {
-    Invoice: { InvoiceID: xeroInvoiceId },
-    Account: { Code: xeroAccountCode },
+    Invoice: { InvoiceID: input.xeroInvoiceId },
+    Account: { Code: input.xeroAccountCode },
     Amount: amount,
-    Date: paymentDate,
+    Date: input.paymentDate,
     CurrencyRate: 1,
   };
+  const body = { Payments: [payment] };
+  const operationKey = `${input.orderType}-payment:${input.orderId}:${input.paymentId}`;
+  const requestFingerprint = crypto.createHash('sha256')
+    .update(JSON.stringify({ operationKey, body, currencyCode: input.currencyCode }))
+    .digest('hex');
+  const claim = await claimXeroAccountingAction({
+    businessId: input.businessId,
+    operationKey,
+    actionType: `${input.orderType}_payment`,
+    sourceType: `${input.orderType}_payment`,
+    sourceId: input.paymentId,
+    requestFingerprint,
+  });
+  if (!claim.claimed) {
+    return claim.action.status === 'succeeded' ? claim.action.xeroId : null;
+  }
+
+  const syncType = `${input.orderType}_payment`;
+  try {
+    const current = await xeroApiFetch(
+      input.businessId,
+      `/Invoices/${encodeURIComponent(input.xeroInvoiceId)}`,
+      { method: 'GET' },
+    );
+    const invoice = current?.Invoices?.[0];
+    if (!invoice) throw new Error('The linked Xero invoice or bill was not found.');
+    if (String(invoice.Type ?? '').toUpperCase() !== input.expectedInvoiceType) {
+      throw new Error(`The linked Xero document is not an ${input.expectedInvoiceType} document.`);
+    }
+    if (String(invoice.Status ?? '').toUpperCase() !== 'AUTHORISED') {
+      throw new Error('The linked Xero document must be Authorised before payment.');
+    }
+    const liveCurrency = String(invoice.CurrencyCode ?? '').toUpperCase();
+    if (liveCurrency && liveCurrency !== String(input.currencyCode).toUpperCase()) {
+      throw new Error(`The Xero document currency ${liveCurrency} does not match payment currency ${input.currencyCode}.`);
+    }
+    const amountDue = Math.round(Number(invoice.AmountDue ?? 0) * 100) / 100;
+    if (!(amount > 0) || amount - amountDue > 0.01) {
+      throw new Error(`The Xero document has ${amountDue.toFixed(2)} due, below payment ${amount.toFixed(2)}.`);
+    }
+  } catch (error: any) {
+    await failXeroAccountingAction(claim.action.id, 'failed', error?.message ?? String(error));
+    await logSync(input.businessId, syncType, input.orderId, null, 'error', `Payment preflight failed: ${error?.message ?? error}`);
+    return null;
+  }
 
   try {
-    const result = await xeroApiFetch(businessId, '/Payments', { method: 'POST', body: { Payments: [payment] } });
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${input.businessId}|${operationKey}|${requestFingerprint}`)
+      .digest('hex');
+    const result = await xeroApiFetch(input.businessId, '/Payments', { method: 'POST', idempotencyKey, body });
     const paymentId = result.Payments?.[0]?.PaymentID ?? null;
-    await logSync(businessId, 'so_payment', soId, paymentId, 'success', `Payment $${amount} on ${paymentDate}`);
-    return paymentId;
+    if (!paymentId) throw new TypeError('Xero accepted the payment request but did not return a PaymentID.');
+    await completeXeroAccountingAction(claim.action.id, String(paymentId));
+    await logSync(input.businessId, syncType, input.orderId, paymentId, 'success', `Payment $${amount} on ${input.paymentDate}`);
+    return String(paymentId);
   } catch (err: any) {
-    await logSync(businessId, 'so_payment', soId, null, 'error', err.message);
+    const actionStatus = isAmbiguousXeroWriteError(err) ? 'unknown' : 'failed';
+    await failXeroAccountingAction(claim.action.id, actionStatus, err?.message ?? String(err));
+    await logSync(input.businessId, syncType, input.orderId, null, 'error', `${actionStatus === 'unknown' ? 'Outcome unknown; check Xero before retrying. ' : ''}${err.message}`);
     return null;
   }
 }
@@ -863,6 +975,7 @@ export async function syncPOReceivedJournal(
   businessId: string,
   poId: number,
   poNumber: string,
+  xeroInvoiceId: string,
   amount: number,
   locationId: number,
 ): Promise<string | null> {
@@ -879,18 +992,39 @@ export async function syncPOReceivedJournal(
   const journal = {
     Narration: `PO ${poNumber} received — transfer from In Transit to Inventory Asset`,
     JournalLines: [
-      { AccountCode: accounts.inventory_asset, DebitAmount: amount, Tracking: tracking },
-      { AccountCode: accounts.inventory_in_transit, CreditAmount: amount, Tracking: tracking },
+      { AccountCode: accounts.inventory_asset, LineAmount: amount, Tracking: tracking },
+      { AccountCode: accounts.inventory_in_transit, LineAmount: -amount, Tracking: tracking },
     ],
   };
+  const body = { ManualJournals: [journal] };
+  const operationKey = `po-received-journal:${poId}:${xeroInvoiceId}`;
+  const requestFingerprint = crypto.createHash('sha256').update(JSON.stringify(body)).digest('hex');
+  const claim = await claimXeroAccountingAction({
+    businessId,
+    operationKey,
+    actionType: 'po_received_journal',
+    sourceType: 'purchase_order',
+    sourceId: poId,
+    requestFingerprint,
+  });
+  if (!claim.claimed) {
+    return claim.action.status === 'succeeded' ? claim.action.xeroId : null;
+  }
 
   try {
-    const result = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', body: { ManualJournals: [journal] } });
+    const idempotencyKey = crypto.createHash('sha256')
+      .update(`${businessId}|${operationKey}|${requestFingerprint}`)
+      .digest('hex');
+    const result = await xeroApiFetch(businessId, '/ManualJournals', { method: 'POST', idempotencyKey, body });
     const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
-    await logSync(businessId, 'po_bill', poId, journalId, 'success', `Received journal posted: $${amount}`);
-    return journalId;
+    if (!journalId) throw new TypeError('Xero accepted the journal request but did not return a ManualJournalID.');
+    await completeXeroAccountingAction(claim.action.id, String(journalId));
+    await logSync(businessId, 'po_received_journal', poId, journalId, 'success', `Received journal posted: $${amount}`);
+    return String(journalId);
   } catch (err: any) {
-    await logSync(businessId, 'po_bill', poId, null, 'error', `Received journal failed: ${err.message}`);
+    const actionStatus = isAmbiguousXeroWriteError(err) ? 'unknown' : 'failed';
+    await failXeroAccountingAction(claim.action.id, actionStatus, err?.message ?? String(err));
+    await logSync(businessId, 'po_received_journal', poId, null, 'error', `Received journal ${actionStatus}: ${err.message}`);
     return null;
   }
 }
