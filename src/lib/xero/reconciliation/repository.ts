@@ -133,6 +133,117 @@ export async function getXeroReconciliationTargetExpected(
   return typeof snapshot === 'string' ? JSON.parse(snapshot) as Record<string, unknown> : snapshot;
 }
 
+export type XeroReconciliationIssueListItem = {
+  id: number;
+  targetId: number;
+  targetType: string;
+  referenceId: string;
+  xeroId: string | null;
+  ruleKey: string;
+  severity: 'warning' | 'error' | 'critical';
+  status: 'open' | 'ignored' | 'resolved';
+  summary: string;
+  expected: Record<string, unknown> | null;
+  actual: Record<string, unknown> | null;
+  firstSeenAt: string | Date;
+  lastSeenAt: string | Date;
+  lastCheckedAt: string | Date | null;
+  occurrenceCount: number;
+  recommendedNextStep: string;
+};
+
+const ISSUE_STATUSES = new Set(['open', 'ignored', 'resolved']);
+const ISSUE_SEVERITIES = new Set(['warning', 'error', 'critical']);
+const ISSUE_TARGET_TYPES = new Set(['purchase_order', 'sales_order', 'customer_credit_note', 'supplier_credit_note']);
+const ISSUE_RULES = new Set([
+  'missing_document', 'linked_document', 'document_type', 'total', 'currency', 'contact',
+  'lifecycle_state', 'amount_due', 'amount_paid', 'amount_credited', 'remaining_credit',
+  'admin_edit_override',
+]);
+
+function parseJsonObject(value: string | Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!value) return null;
+  return typeof value === 'string' ? JSON.parse(value) as Record<string, unknown> : value;
+}
+
+export function reconciliationRecommendation(ruleKey: string): string {
+  if (ruleKey === 'missing_document' || ruleKey === 'linked_document') return 'Check the stored link and the document in Xero, then recheck.';
+  if (ruleKey === 'document_type' || ruleKey === 'contact') return 'Confirm the correct Xero document and contact before changing the link.';
+  if (ruleKey === 'lifecycle_state') return 'Review the document state in Xero and complete or reverse the pending workflow.';
+  if (ruleKey === 'admin_edit_override') return 'Ask an Admin to review the local override and its Xero impact.';
+  return 'Compare the local and Xero amounts, correct the source of truth, then recheck.';
+}
+
+export async function listXeroReconciliationIssues(
+  input: {
+    businessId: string;
+    status?: string;
+    severity?: string;
+    targetType?: string;
+    ruleKey?: string;
+    minimumAgeDays?: number;
+    limit?: number;
+    offset?: number;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<{ items: XeroReconciliationIssueListItem[]; total: number }> {
+  const where = ['issue.business_id = ?'];
+  const params: unknown[] = [input.businessId];
+  if (input.status !== 'all') {
+    const status = ISSUE_STATUSES.has(input.status ?? '') ? input.status! : 'open';
+    where.push('issue.status = ?');
+    params.push(status);
+  }
+  if (ISSUE_SEVERITIES.has(input.severity ?? '')) {
+    where.push('issue.severity = ?');
+    params.push(input.severity);
+  }
+  if (ISSUE_TARGET_TYPES.has(input.targetType ?? '')) {
+    where.push('target.target_type = ?');
+    params.push(input.targetType);
+  }
+  if (ISSUE_RULES.has(input.ruleKey ?? '')) {
+    where.push('issue.rule_key = ?');
+    params.push(input.ruleKey);
+  }
+  const minimumAgeDays = Math.max(0, Math.min(3650, Math.floor(input.minimumAgeDays ?? 0)));
+  if (minimumAgeDays > 0) {
+    where.push('issue.first_seen_at <= DATE_SUB(NOW(), INTERVAL ? DAY)');
+    params.push(minimumAgeDays);
+  }
+  const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
+  const offset = Math.max(0, Math.floor(input.offset ?? 0));
+  const fromSql = `FROM xero_reconciliation_issues issue
+      JOIN xero_reconciliation_targets target ON target.id = issue.target_id
+     WHERE ${where.join(' AND ')}`;
+  const rows = await dependencies.query<any>(
+    `SELECT issue.id, issue.target_id, issue.rule_key, issue.severity, issue.status, issue.summary,
+            issue.expected_summary, issue.actual_summary, issue.first_seen_at, issue.last_seen_at,
+            issue.occurrence_count, target.target_type, target.reference_id, target.xero_id,
+            target.last_checked_at
+       ${fromSql}
+      ORDER BY FIELD(issue.severity, 'critical', 'error', 'warning'), issue.first_seen_at ASC, issue.id ASC
+      LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+  const countRows = await dependencies.query<{ total: number | string }>(
+    `SELECT COUNT(*) AS total ${fromSql}`,
+    params,
+  );
+  return {
+    total: Number(countRows[0]?.total ?? 0),
+    items: rows.map((row: any) => ({
+      id: Number(row.id), targetId: Number(row.target_id), targetType: row.target_type,
+      referenceId: String(row.reference_id), xeroId: row.xero_id ? String(row.xero_id) : null,
+      ruleKey: row.rule_key, severity: row.severity, status: row.status, summary: row.summary,
+      expected: parseJsonObject(row.expected_summary), actual: parseJsonObject(row.actual_summary),
+      firstSeenAt: row.first_seen_at, lastSeenAt: row.last_seen_at,
+      lastCheckedAt: row.last_checked_at, occurrenceCount: Number(row.occurrence_count),
+      recommendedNextStep: reconciliationRecommendation(row.rule_key),
+    })),
+  };
+}
+
 export async function recordXeroReconciliationIssue(
   input: {
     businessId: string;
