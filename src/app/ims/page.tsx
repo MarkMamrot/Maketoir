@@ -9085,6 +9085,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
               </div>
             );
           })()}
+          <OrderResolutionFinancials order={viewModal.po} side="supplier" isAdvisor={isAdvisor} onRefresh={() => refreshPoView(viewModal.po.id)} />
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
 
           {/* ── Supplier Invoices / Attachments ── */}
@@ -9224,7 +9225,6 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, onResolve, conte
   if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
-  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
   if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
   if (po.status === 'partially_received' && context === 'view' && onResolve && !isAdvisor) { btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('action', 'xs')}>Resolve Outstanding</button>); }
   if (po.status === 'complete') {
@@ -9238,7 +9238,6 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, onResolve, conte
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
     if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')} disabled={isAdvisor}>Receive</button>); }
     if (context !== 'list' && po.status !== 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
-    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
     }
   }
   if (po.status === 'cancelled' || po.status === 'draft') {
@@ -12643,6 +12642,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </div>
             );
           })()}
+          <OrderResolutionFinancials order={viewModal.so} side="customer" isAdvisor={isAdvisor} onRefresh={() => refreshSoView(viewModal.so.id)} />
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
         </Modal>
       )}
@@ -16534,7 +16534,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   };
 
   const toggle = (
-    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled',
+    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled' | 'shortfallCreditDraftFirst',
     label: string,
     help: string,
     disabled = false,
@@ -16574,6 +16574,9 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               <p style={{ margin: '8px 0 0', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>
                 POS returns stay in POS/EOD accounting. Shopify refunds always require an Authorised Xero credit note for payout reconciliation.
               </p>
+              <div style={{ marginTop: 12 }}>
+                {toggle('shortfallCreditDraftFirst', 'Review shortfall credits as Draft in Xero', 'Off by default. When enabled, customer and supplier shortfall credits wait in Sync History for an administrator to Authorise and continue the selected refund, unapplied-credit, or backorder-reservation action.')}
+              </div>
             </div>
             <div style={blockStyle}>
               <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>POS sales batches</div>
@@ -16605,6 +16608,87 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
             </button>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function OrderResolutionFinancials({ order, side, isAdvisor, onRefresh }: { order: any; side: 'customer' | 'supplier'; isAdvisor: boolean; onRefresh: () => Promise<void> }) {
+  const [working, setWorking] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<{ row: any; action: 'refund' | 'allocate'; amount: string; accountCode: string; targetOrderId: string } | null>(null);
+  const [accounts, setAccounts] = useState<Array<{ code: string; name: string; type: string; enablePaymentsToAccount?: boolean }>>([]);
+  const [actionError, setActionError] = useState('');
+  const rows = Array.isArray(order?.resolution_financials) ? order.resolution_financials : [];
+  if (!rows.length) return null;
+
+  const money = (amount: number, currency: string) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: currency || 'AUD' }).format(Number(amount || 0));
+  const settlementLabel = (value: string | null) => ({ refund: 'Refunded', supplier_refund: 'Supplier refund', leave_unapplied: 'Unapplied credit', reserve_for_order: 'Reserved for backorder', allocate_to_invoice: 'Allocated to sales order', allocate_to_bill: 'Allocated to purchase order' }[String(value)] ?? String(value || 'No settlement'));
+
+  const openAction = async (row: any, action: 'refund' | 'allocate') => {
+    setActionError('');
+    setDialog({ row, action, amount: String(row.amount), accountCode: '', targetOrderId: '' });
+    if (action === 'refund' && accounts.length === 0 && order?.business_id) {
+      try {
+        const response = await fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(order.business_id)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Unable to load Xero accounts');
+        setAccounts((data.accounts ?? []).filter((account: any) => account.type === 'BANK' || account.enablePaymentsToAccount === true));
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : 'Unable to load Xero accounts');
+      }
+    }
+  };
+
+  const act = async (row: any, action: 'unallocate' | 'refund' | 'allocate', values?: { amount: number; accountCode?: string; targetOrderId?: number }) => {
+    const amount = values?.amount ?? 0;
+    if (action === 'unallocate' && !confirm('Remove this exact Xero allocation? The credit becomes available for another allocation or refund.')) return;
+    setWorking(Number(row.resolutionId));
+    setActionError('');
+    try {
+      const response = await fetch(`/api/ims/order-resolutions/${side}/${row.resolutionId}/settlement`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, amount, accountCode: values?.accountCode, targetOrderId: values?.targetOrderId, operationKey: crypto.randomUUID() }) });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Credit action failed');
+      setDialog(null);
+      await onRefresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Credit action failed');
+    } finally {
+      setWorking(null);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 20, border: '1px solid var(--sv-etch)', borderRadius: 7, overflow: 'hidden' }}>
+      <div style={{ padding: '9px 12px', background: 'var(--sv-bg-1)', fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Shortfall financial settlement</div>
+      {rows.map((row: any) => {
+        const activeAllocation = row.settlementStatus === 'succeeded' && !!row.settlementXeroId && ['reserve_for_order', 'allocate_to_invoice', 'allocate_to_bill'].includes(row.settlementType);
+        return (
+          <div key={`${row.resolutionId}-${row.settlementId ?? 'none'}`} style={{ padding: 12, borderTop: '1px solid var(--sv-etch)', display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div><strong style={{ color: 'var(--sv-text-main)' }}>{row.role === 'source' ? 'Credit raised from this order' : 'Credit linked from the source order'}</strong><div style={{ marginTop: 3, fontSize: 12, color: 'var(--sv-text-dim)' }}>{row.creditNoteNumber || 'Credit note pending'} · {settlementLabel(row.settlementType)} · {String(row.settlementStatus || row.resolutionState).replaceAll('_', ' ')}</div></div>
+              <strong style={{ color: 'var(--sv-mint)' }}>{money(row.amount, row.currencyCode)}</strong>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>The order total and this separate credit together show the net financial position.</div>
+            {row.settlementError && <div style={{ fontSize: 11, color: 'var(--sv-red)' }}>{row.settlementError}</div>}
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+              {row.xeroCreditNoteId && <a href={side === 'customer' ? `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${row.xeroCreditNoteId}` : `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${row.xeroCreditNoteId}`} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle('ghost', 'xs') as any, textDecoration: 'none' }}>Open credit note in Xero</a>}
+              {!isAdvisor && row.resolutionState === 'complete' && row.xeroCreditNoteId && <>{activeAllocation && <button onClick={() => act(row, 'unallocate')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Unallocate</button>}{!activeAllocation && <button onClick={() => openAction(row, 'refund')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Refund available credit</button>}{!activeAllocation && <button onClick={() => openAction(row, 'allocate')} disabled={working === Number(row.resolutionId)} style={btnStyle('ghost', 'xs')}>Allocate to another order</button>}</>}
+            </div>
+          </div>
+        );
+      })}
+      {actionError && !dialog && <div style={{ padding: '8px 12px', color: 'var(--sv-red)', fontSize: 12 }}>{actionError}</div>}
+      {dialog && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 10020, display: 'grid', placeItems: 'center', padding: 16, background: 'rgba(0,0,0,.65)' }} onMouseDown={event => { if (event.target === event.currentTarget && !working) setDialog(null); }}>
+          <div style={{ width: 'min(440px, 100%)', padding: 18, borderRadius: 8, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', boxShadow: '0 20px 60px rgba(0,0,0,.4)' }}>
+            <h3 style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 16 }}>{dialog.action === 'refund' ? 'Refund available credit' : `Allocate to another ${side === 'customer' ? 'sales' : 'purchase'} order`}</h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12 }}>Credit note {dialog.row.creditNoteNumber} has a recorded shortfall value of {money(dialog.row.amount, dialog.row.currencyCode)}. Xero validates the remaining available balance before posting.</p>
+            <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Amount ({dialog.row.currencyCode || 'AUD'})<input type="number" min="0.01" step="0.01" value={dialog.amount} onChange={event => setDialog(current => current ? { ...current, amount: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }} /></label>
+            {dialog.action === 'refund' ? <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Xero refund account<select value={dialog.accountCode} onChange={event => setDialog(current => current ? { ...current, accountCode: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}><option value="">Choose an active account</option>{accounts.map(account => <option key={`${account.code}-${account.name}`} value={account.code}>{account.name} ({account.code})</option>)}</select></label> : <label style={{ display: 'grid', gap: 5, marginBottom: 12, color: 'var(--sv-text-main)', fontSize: 12 }}>Target {side === 'customer' ? 'sales' : 'purchase'} order ID<input type="number" min="1" step="1" value={dialog.targetOrderId} onChange={event => setDialog(current => current ? { ...current, targetOrderId: event.target.value } : current)} style={{ padding: '8px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }} /></label>}
+            {actionError && <div style={{ marginBottom: 10, color: 'var(--sv-red)', fontSize: 12 }}>{actionError}</div>}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}><button onClick={() => setDialog(null)} disabled={!!working} style={btnStyle('ghost', 'sm')}>Cancel</button><button onClick={() => act(dialog.row, dialog.action, { amount: Number(dialog.amount), accountCode: dialog.accountCode, targetOrderId: Number(dialog.targetOrderId) })} disabled={!!working || !(Number(dialog.amount) > 0) || (dialog.action === 'refund' ? !dialog.accountCode : !(Number(dialog.targetOrderId) > 0))} style={btnStyle('mint', 'sm')}>{working ? 'Posting...' : dialog.action === 'refund' ? 'Post refund' : 'Post allocation'}</button></div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -17390,6 +17474,8 @@ function XeroGatewayClearingSection({ accounts, getBusinessId }: { accounts: any
 
 type XeroSyncEntry = {
   sync_type: string; reference_id: number | null; reference: string;
+  resolution_id?: number; resolution_side?: 'customer' | 'supplier'; resolution_state?: string;
+  credit_note_id?: number | null; settlement_action?: string | null; settlement_status?: string | null;
   payout_id?: string; payout_status?: string;
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
@@ -17959,6 +18045,26 @@ function XeroSyncTab({
     setRetrying(r => ({ ...r, [key]: false }));
   };
 
+  const retryResolution = async (entry: XeroSyncEntry, key: string) => {
+    if (!entry.resolution_id || !entry.resolution_side || entry.resolution_state === 'unknown') return;
+    const authoriseDraft = entry.resolution_state === 'xero_pending' || !!entry.xero_id;
+    setRetrying(r => ({ ...r, [key]: true }));
+    try {
+      const response = await fetch(`/api/ims/order-resolutions/${entry.resolution_side}/${entry.resolution_id}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authoriseDraft }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Xero reconciliation failed');
+      await loadData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Xero reconciliation failed');
+    } finally {
+      setRetrying(r => ({ ...r, [key]: false }));
+    }
+  };
+
   const dismiss = async (type: 'po' | 'so' | 'cn' | 'scn', id: number, reference: string, key: string) => {
     if (!confirm(`Remove "${reference}" from the Xero sync queue?\n\nThis will not sync it — it will be marked as dismissed. You can retry manually from the sync history if needed.`)) return;
     setRetrying(r => ({ ...r, [key]: true }));
@@ -17993,10 +18099,12 @@ function XeroSyncTab({
 
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
+  const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', customer_order_resolution: 'Customer Shortfall', supplier_order_resolution: 'Supplier Shortfall', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
   const typeStyle = (t: string) => ({
     po_bill: { color: '#818cf8', background: 'rgba(129,140,248,.14)' },
     so_invoice: { color: '#34d399', background: 'rgba(52,211,153,.14)' },
+    customer_order_resolution: { color: '#fb7185', background: 'rgba(251,113,133,.14)' },
+    supplier_order_resolution: { color: '#f59e0b', background: 'rgba(245,158,11,.14)' },
     cn_credit_note: { color: '#38bdf8', background: 'rgba(56,189,248,.14)' },
     cn_credit_note_void: { color: '#fb7185', background: 'rgba(251,113,133,.14)' },
     scn_credit_note: { color: '#fbbf24', background: 'rgba(251,191,36,.14)' },
@@ -18018,7 +18126,9 @@ function XeroSyncTab({
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
     if (syncType === 'scn_credit_note' || syncType === 'scn_credit_note_void')
       return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
-    if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void')
+    if (syncType === 'supplier_order_resolution')
+      return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
+    if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void' || syncType === 'customer_order_resolution')
       return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${id}`;
     if (syncType === 'stocktake_journal' || syncType === 'cogs_journal' || syncType === 'gift_card_liability' || syncType === 'gift_card_redeem' || syncType === 'store_credit_issue' || syncType === 'store_credit_redeem')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
@@ -18027,7 +18137,9 @@ function XeroSyncTab({
 
   const openEntry = (entry: any) => {
     if (entry.sync_type === 'po_bill' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
+    if (entry.sync_type === 'supplier_order_resolution' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
     if (entry.sync_type === 'so_invoice' && entry.reference_id && onOpenSalesOrder) return onOpenSalesOrder(Number(entry.reference_id));
+    if (entry.sync_type === 'customer_order_resolution' && entry.reference_id && onOpenSalesOrder) return onOpenSalesOrder(Number(entry.reference_id));
     if (entry.sync_type === 'cn_credit_note' && entry.reference_id) {
       if (entry.source === 'pos' && entry.pos_sale_id && onOpenPosSale) return onOpenPosSale(Number(entry.pos_sale_id));
       if (onOpenCreditNote) return onOpenCreditNote(Number(entry.reference_id));
@@ -18180,6 +18292,7 @@ function XeroSyncTab({
                 const isSo = entry.sync_type === 'so_invoice';
                 const isCn = entry.sync_type === 'cn_credit_note';
                 const isScn = entry.sync_type === 'scn_credit_note';
+                const isResolution = entry.sync_type === 'customer_order_resolution' || entry.sync_type === 'supplier_order_resolution';
                 const isGiftCardIssue = entry.sync_type === 'gift_card_issue';
                 const isGiftCardRedeem = entry.sync_type === 'gift_card_redeem';
                 const isStoreCreditIssue = entry.sync_type === 'store_credit_issue';
@@ -18189,7 +18302,9 @@ function XeroSyncTab({
                 const isPosCn = entry.sync_type === 'cn_credit_note' && String(entry.source ?? '') === 'pos';
                 const canOpenEntry =
                   (entry.sync_type === 'po_bill' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
+                  (entry.sync_type === 'supplier_order_resolution' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
                   (entry.sync_type === 'so_invoice' && !!entry.reference_id && !!onOpenSalesOrder) ||
+                  (entry.sync_type === 'customer_order_resolution' && !!entry.reference_id && !!onOpenSalesOrder) ||
                   (entry.sync_type === 'cn_credit_note' && !!entry.reference_id && (!!onOpenCreditNote || (entry.source === 'pos' && !!entry.pos_sale_id && !!onOpenPosSale))) ||
                   (entry.sync_type === 'eod_reconciliation' && !!entry.item_date && !!onOpenPosSalesDay) ||
                   (entry.sync_type === 'online_batch' && !!entry.item_date && !!onOpenPosSalesDay) ||
@@ -18247,6 +18362,19 @@ function XeroSyncTab({
                       <td style={td}>{isPosCn ? <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>POS / EOD</span> : <XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} />}</td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
+                        {isResolution && entry.resolution_state !== 'unknown' && (
+                          <button
+                            onClick={() => retryResolution(entry, retryKey)}
+                            disabled={retrying[retryKey]}
+                            title={entry.resolution_state === 'xero_pending' ? 'Authorise the Draft credit note in Xero and continue the saved settlement' : 'Retry only unfinished Xero steps using the original idempotency keys'}
+                            style={{ background: entry.resolution_state === 'xero_pending' ? 'rgba(251,191,36,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${entry.resolution_state === 'xero_pending' ? 'rgba(251,191,36,.3)' : 'rgba(248,113,113,.3)'}`, borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: entry.resolution_state === 'xero_pending' ? '#fbbf24' : '#f87171', fontWeight: 600 }}
+                          >
+                            {retrying[retryKey] ? 'Working...' : entry.resolution_state === 'xero_pending' ? 'Authorise & continue' : 'Retry Xero'}
+                          </button>
+                        )}
+                        {isResolution && entry.resolution_state === 'unknown' && (
+                          <span title="Check the linked credit note in Xero before changing this resolution." style={{ fontSize: 11, color: '#fbbf24' }}>Check Xero</span>
+                        )}
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
                           <button
                             onClick={() => retry(
@@ -18892,6 +19020,7 @@ function BulkEditView() {
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
 type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type HelpSection = SettingsSection | 'backorders';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -18900,6 +19029,10 @@ function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'pos-sales')       return 'pos';
   if (v === 'online-sales')    return 'shopify';
   return 'general';
+}
+
+function helpSectionFromView(v: ImsView): HelpSection {
+  return v === 'backorders' ? 'backorders' : sectionFromView(v);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19109,7 +19242,7 @@ export default function ImsPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
-  const [helpSection, setHelpSection] = useState<SettingsSection>('general');
+  const [helpSection, setHelpSection] = useState<HelpSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
@@ -19391,7 +19524,7 @@ export default function ImsPage() {
           </span>
         )}
         <button
-          onClick={() => { setHelpSection(sectionFromView(view)); setHelpOpen(true); }}
+          onClick={() => { setHelpSection(helpSectionFromView(view)); setHelpOpen(true); }}
           title="Help"
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
@@ -24414,16 +24547,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 // HelpModal — context-aware documentation, mirrors SettingsModal structure
 // ─────────────────────────────────────────────────────────────────────────────
 
-function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: SettingsSection }) {
-  const [active, setActive] = useState<SettingsSection>(defaultSection);
+function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClose: () => void; defaultSection: HelpSection }) {
+  const [active, setActive] = useState<HelpSection>(defaultSection);
   useEffect(() => { if (isOpen) setActive(defaultSection); }, [defaultSection, isOpen]);
 
   if (!isOpen) return null;
 
-  const NAV_ITEMS: { id: SettingsSection; label: string; icon: string }[] = [
+  const NAV_ITEMS: { id: HelpSection; label: string; icon: string }[] = [
     { id: 'general',         label: 'General',         icon: '📖' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'backorders',      label: 'Backorders',      icon: '⏳' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'shopify',         label: 'Shopify',         icon: '🛒' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
@@ -24565,6 +24699,69 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <h3 style={h3}>Context-aware Help &amp; Settings</h3>
         <p style={p}>Both the <strong>Help</strong> (?) and <strong>Settings</strong> (⚙) buttons in the top-right header open to the section most relevant to your current view. For example: clicking Help or Settings while in the Purchase Orders view opens directly to the Purchase Orders tab.</p>
+      </div>
+    );
+
+    // ── Backorders ───────────────────────────────────────────────────────────
+    if (active === 'backorders') return (
+      <div style={{ padding: 32, maxWidth: 780 }}>
+        <h2 style={h2}>Backorders</h2>
+        <p style={p}>Backorders separate a delayed remainder from goods already shipped or received. The Backorders workspace lists held customer and supplier child orders. A held order does not create a new Xero document until you deliberately release it.</p>
+
+        <h3 style={h3}>Choose the correct pathway</h3>
+        <ul style={ul}>
+          <li><strong>Short delay:</strong> leave the source SO <em>Partially Fulfilled</em> or PO <em>Partially Received</em>. Continue recording only the quantities that physically move.</li>
+          <li><strong>Remainder will never arrive:</strong> open the partial order and choose <strong>Resolve Outstanding → Cancel outstanding remainder</strong>.</li>
+          <li><strong>Remainder needs a clean future order:</strong> choose <strong>Resolve Outstanding → Create held backorder</strong>. The outstanding quantity moves to a child such as <span style={code}>SO-1042-B</span> or <span style={code}>PO-1042-B</span>.</li>
+          <li><strong>Never use a second fulfil/receive to imitate a cancellation.</strong> Stock changes only when goods physically ship or arrive.</li>
+        </ul>
+
+        <h3 style={h3}>Customer example: 100 ordered, 70 shipped</h3>
+        <ol style={ul}>
+          <li>Use <strong>Fulfill</strong> and enter <strong>70</strong> as <em>Ship now</em>. The SO becomes Partially Fulfilled; 30 remains committed.</li>
+          <li>If the final 30 will ship soon, do nothing else. Reopen Fulfill later and enter 30.</li>
+          <li>If the 30 is cancelled, choose Resolve Outstanding → Cancel remainder. The source closes at 70 and the remaining commitment is released.</li>
+          <li>If the 30 will be supplied separately, choose Create held backorder. The source closes at 70 and the child owns the same 30-unit commitment; no second stock movement occurs.</li>
+        </ol>
+        <p style={p}><strong>$100 paid / $70 supplied:</strong> the $30 merchandise shortfall starts with a no-restock Xero credit note. Choose a refund, leave the credit unapplied, or reserve it for the held child. Reserved credit is allocated only after the child invoice is Authorised. The order detail shows the $30 separately so staff can read the original payment and net correction together.</p>
+
+        <h3 style={h3}>Supplier example: 100 ordered, 70 received</h3>
+        <ol style={ul}>
+          <li>Receive only the 70 that arrived. The PO becomes Partially Received; 30 remains incoming.</li>
+          <li>If the supplier will send 30 soon, leave the PO partial and continue receiving later.</li>
+          <li>If the supplier cancels 30, use Resolve Outstanding → Cancel remainder. The source closes at 70 and 30 is removed from incoming stock.</li>
+          <li>If the supplier will send 30 on a separate order, create a held supplier backorder. The child owns the existing 30 incoming units; stock on hand and average cost do not change.</li>
+        </ol>
+        <p style={p}><strong>$100 bill paid / $70 received:</strong> enter the supplier's credit-note reference or an evidence note. Solvantis creates a no-stock supplier credit for $30. Record the supplier refund, leave it unapplied, or reserve it for the child bill.</p>
+
+        <h3 style={h3}>What happens in Xero</h3>
+        <ul style={ul}>
+          <li><strong>No linked document:</strong> only IMS order and stock ownership change.</li>
+          <li><strong>Unpaid editable Draft or Authorised document:</strong> the existing invoice or bill is resized to the fulfilled/received merchandise.</li>
+          <li><strong>Paid, part-paid, or otherwise uneditable:</strong> the original document stays intact and a no-restock credit note corrects the outstanding merchandise value.</li>
+          <li><strong>Default policy:</strong> the shortfall credit is Authorised so the selected refund or allocation can proceed immediately.</li>
+          <li><strong>Optional Draft review:</strong> enable <em>Xero → Ledger Mapping → Review shortfall credits as Draft in Xero</em>. The credit appears in Sync History; inspect it and choose <em>Authorise &amp; continue</em> to finish the saved settlement.</li>
+          <li><strong>Release held order:</strong> the child becomes Confirmed and follows the normal Xero policy, usually creating a Draft invoice or bill.</li>
+          <li><strong>Freight and order-level discount:</strong> remain on the source order. The child and shortfall credit contain only the delayed merchandise lines, preserving total value without charging freight twice.</li>
+        </ul>
+
+        <h3 style={h3}>Backorders workspace actions</h3>
+        <ul style={ul}>
+          <li><strong>Release:</strong> makes the held order active. Customer stock readiness is checked first; the normal Xero Draft document is then created under your configured policy.</li>
+          <li><strong>Cancel:</strong> releases the held commitment/incoming quantity. A child with reserved or allocated Xero credit cannot be cancelled until that credit is explicitly reconciled.</li>
+          <li><strong>Merge:</strong> combines compatible held orders for the same customer/supplier, location, currency, tax treatment, and commercial terms. Xero-linked or credit-reserved children cannot be merged.</li>
+        </ul>
+
+        <h3 style={h3}>If an accounting step fails</h3>
+        <ol style={ul}>
+          <li>Do not create another manual refund, credit note, or replacement backorder.</li>
+          <li>Open <strong>Xero → Sync History</strong> and filter for Customer Shortfall or Supplier Shortfall.</li>
+          <li>Read the failed attempt, fix the named Xero account/document problem, then choose <strong>Retry Xero</strong>. The original idempotency keys are reused and completed steps are not repeated.</li>
+          <li>If the row says <strong>Check Xero</strong>, inspect the linked document before retrying because the previous result was not confirmed.</li>
+        </ol>
+
+        <h3 style={h3}>Changing a reserved credit</h3>
+        <p style={p}>Open the source order or held backorder and find <strong>Shortfall financial settlement</strong>. Use <strong>Unallocate</strong> to remove the exact Xero allocation. Once available, use <strong>Refund available credit</strong> or <strong>Allocate to another order</strong>. For example, unallocate a $30 credit from cancelled backorder SO-1042-B, then allocate $20 to SO-1088 and refund the remaining $10. Use these controls instead of changing Xero alone so Solvantis keeps an append-only record of every action.</p>
       </div>
     );
 

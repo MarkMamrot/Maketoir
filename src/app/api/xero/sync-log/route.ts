@@ -185,6 +185,44 @@ export async function GET(req: Request) {
       imsDbName,
     );
 
+    const customerResolutions = await imsQuery<any>(
+      `SELECT r.id AS resolution_id, r.source_so_id AS reference_id, r.outstanding_amount,
+              r.state, r.safe_error, r.created_at, r.completed_at, r.credit_note_id,
+              so.so_number AS reference, COALESCE(c.name, '') AS contact_name,
+              cn.xero_credit_note_id AS xero_id,
+              s.action_type, s.status AS settlement_status
+         FROM ims_so_shortfall_resolutions r
+         JOIN ims_sales_orders so ON so.id = r.source_so_id AND so.business_id = r.business_id
+         LEFT JOIN ims_contacts c ON c.id = so.customer_id
+         LEFT JOIN ims_credit_notes cn ON cn.id = r.credit_note_id AND cn.business_id = r.business_id
+         LEFT JOIN ims_customer_credit_settlements s ON s.resolution_id = r.id AND s.business_id = r.business_id
+          AND s.id = (SELECT MAX(current_s.id) FROM ims_customer_credit_settlements current_s WHERE current_s.business_id = r.business_id AND current_s.resolution_id = r.id)
+        WHERE r.business_id = ? AND r.state IN ('xero_pending','failed','unknown')
+        ORDER BY r.created_at DESC
+        LIMIT ${limit}`,
+      [databaseId],
+      imsDbName,
+    );
+
+    const supplierResolutions = await imsQuery<any>(
+      `SELECT r.id AS resolution_id, r.source_po_id AS reference_id, r.outstanding_amount,
+              r.state, r.safe_error, r.created_at, r.completed_at, r.supplier_credit_note_id AS credit_note_id,
+              po.po_number AS reference, COALESCE(c.name, po.supplier_name_raw, '') AS contact_name,
+              scn.xero_credit_note_id AS xero_id,
+              s.action_type, s.status AS settlement_status
+         FROM ims_po_shortfall_resolutions r
+         JOIN ims_purchase_orders po ON po.id = r.source_po_id AND po.business_id = r.business_id
+         LEFT JOIN ims_contacts c ON c.id = po.supplier_id
+         LEFT JOIN ims_supplier_credit_notes scn ON scn.id = r.supplier_credit_note_id AND scn.business_id = r.business_id
+         LEFT JOIN ims_supplier_credit_settlements s ON s.resolution_id = r.id AND s.business_id = r.business_id
+          AND s.id = (SELECT MAX(current_s.id) FROM ims_supplier_credit_settlements current_s WHERE current_s.business_id = r.business_id AND current_s.resolution_id = r.id)
+        WHERE r.business_id = ? AND r.state IN ('xero_pending','failed','unknown')
+        ORDER BY r.created_at DESC
+        LIMIT ${limit}`,
+      [databaseId],
+      imsDbName,
+    );
+
     // ── 3. Online daily batches from ims_sales_orders WHERE so_type='online' ──
     //    Exclude today (incomplete day — cannot be synced to Xero until the day is closed).
     //    Uses the business timezone so an AEST business isn't shown a 'today' row based on UTC.
@@ -766,8 +804,38 @@ export async function GET(req: Request) {
       };
     });
 
+    const resolutionEntries = [
+      ...customerResolutions.map((resolution: any) => ({ ...resolution, resolution_side: 'customer' })),
+      ...supplierResolutions.map((resolution: any) => ({ ...resolution, resolution_side: 'supplier' })),
+    ].map((resolution: any) => ({
+      sync_type: `${resolution.resolution_side}_order_resolution`,
+      resolution_id: Number(resolution.resolution_id),
+      resolution_side: resolution.resolution_side,
+      reference_id: Number(resolution.reference_id),
+      reference: `${resolution.reference} shortfall`,
+      contact_name: resolution.contact_name || null,
+      amount: Number(resolution.outstanding_amount),
+      item_date: resolution.created_at,
+      is_historical: 0,
+      xero_sync_status: null,
+      log_id: null,
+      xero_id: resolution.xero_id ?? null,
+      credit_note_id: resolution.credit_note_id ? Number(resolution.credit_note_id) : null,
+      settlement_action: resolution.action_type ?? null,
+      settlement_status: resolution.settlement_status ?? null,
+      resolution_state: resolution.state,
+      last_sync_status: resolution.state === 'xero_pending' ? 'pending' : 'error',
+      last_xero_state: resolution.xero_id && resolution.state === 'xero_pending' ? 'DRAFT' : null,
+      last_sync_detail: resolution.safe_error
+        || (resolution.state === 'xero_pending'
+          ? 'Draft shortfall credit is waiting for review. Authorise it to continue the selected settlement.'
+          : 'The Xero result is unknown. Check Xero before making another attempt.'),
+      last_sync_at: resolution.completed_at ?? resolution.created_at,
+      payments: [],
+    }));
+
     // Merge + sort by item_date DESC, then slice to limit
-    const entries = [...poEntries, ...soEntries, ...cnEntries, ...scnEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries, ...payoutEntries]
+    const entries = [...resolutionEntries, ...poEntries, ...soEntries, ...cnEntries, ...scnEntries, ...onlineBatchEntries, ...eventEntries, ...cogsEntries, ...payoutEntries]
       .sort((a, b) => {
         const da = a.item_date ? new Date(a.item_date).getTime() : 0;
         const db2 = b.item_date ? new Date(b.item_date).getTime() : 0;
@@ -786,7 +854,7 @@ export async function GET(req: Request) {
         .filter(e => e.xero_id && ['po_bill', 'so_invoice', 'eod_reconciliation', 'online_batch'].includes(e.sync_type))
         .map(e => e.xero_id as string);
       const creditNoteXeroIds = entries
-        .filter(e => e.xero_id && ['cn_credit_note', 'scn_credit_note'].includes(e.sync_type))
+        .filter(e => e.xero_id && ['cn_credit_note', 'scn_credit_note', 'customer_order_resolution', 'supplier_order_resolution'].includes(e.sync_type))
         .map(e => e.xero_id as string);
       const uniqueIds = [...new Set(invoiceXeroIds)];
       const uniqueCreditNoteIds = [...new Set(creditNoteXeroIds)];

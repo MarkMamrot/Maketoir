@@ -8,6 +8,7 @@ const OUTCOMES = new Set<OrderResolutionOutcome>(['leave_partial', 'cancel_remai
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const soId = Number(params.id);
   if (!Number.isInteger(soId) || soId <= 0) return NextResponse.json({ error: 'Invalid sales order ID.' }, { status: 400 });
   try {

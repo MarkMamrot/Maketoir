@@ -8,6 +8,8 @@ const {
   mockPOChangeStatus,
   mockRefresh,
   mockImsQuery,
+  mockSOXeroSync,
+  mockPOXeroSync,
 } = vi.hoisted(() => ({
   mockSession: vi.fn(),
   mockSOGet: vi.fn(),
@@ -16,6 +18,8 @@ const {
   mockPOChangeStatus: vi.fn(),
   mockRefresh: vi.fn(),
   mockImsQuery: vi.fn(),
+  mockSOXeroSync: vi.fn(),
+  mockPOXeroSync: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
@@ -26,6 +30,7 @@ vi.mock('@/lib/ims/ImsRepository', () => ({
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mockRefresh }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
+vi.mock('@/lib/ims/xeroHooks', () => ({ triggerSOXeroSync: mockSOXeroSync, triggerPOXeroSync: mockPOXeroSync }));
 
 import { POST } from '../route';
 
@@ -41,6 +46,8 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     mockSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin' });
     mockRefresh.mockResolvedValue(undefined);
     mockImsQuery.mockResolvedValue([]);
+    mockSOXeroSync.mockResolvedValue(undefined);
+    mockPOXeroSync.mockResolvedValue(undefined);
   });
 
   it('releases a customer backorder without using the supplier repository', async () => {
@@ -52,6 +59,7 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     expect(mockSOChangeStatus).toHaveBeenCalledWith(11, 'confirmed');
     expect(mockPOChangeStatus).not.toHaveBeenCalled();
     expect(mockRefresh).toHaveBeenCalledWith(['v-1']);
+    expect(mockSOXeroSync).toHaveBeenCalledWith('biz-1', 11, 'confirmed');
   });
 
   it('cancels a supplier backorder', async () => {
@@ -62,6 +70,16 @@ describe('POST /api/ims/backorders/[type]/[id]', () => {
     expect(response.status).toBe(200);
     expect(mockPOChangeStatus).toHaveBeenCalledWith(22, 'cancelled');
     expect(mockSOChangeStatus).not.toHaveBeenCalled();
+  });
+
+  it('releases a supplier backorder through the normal Xero policy hook', async () => {
+    mockPOGet.mockResolvedValue({ id: 22, status: 'backordered', items: [{ variant_id: 'v-2' }] });
+
+    const response = await POST(request('release'), { params: { type: 'supplier', id: '22' } });
+
+    expect(response.status).toBe(200);
+    expect(mockPOChangeStatus).toHaveBeenCalledWith(22, 'confirmed');
+    expect(mockPOXeroSync).toHaveBeenCalledWith('biz-1', 22, 'confirmed');
   });
 
   it('blocks cancellation when a held backorder owns reserved Xero credit', async () => {

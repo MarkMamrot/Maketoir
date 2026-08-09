@@ -48,6 +48,7 @@ const TABLE_DDLS = [
     settlement ENUM('none','supplier_refund','leave_unapplied','reserve_for_new_po') NOT NULL DEFAULT 'none', child_po_id INT NULL,
     supplier_credit_note_id INT NULL, supplier_credit_ref VARCHAR(255) NULL, evidence_note VARCHAR(500) NULL,
     outstanding_amount DECIMAL(12,2) NOT NULL DEFAULT 0, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+    accounting_action ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none',
     state ENUM('processing','xero_pending','complete','failed','unknown') NOT NULL DEFAULT 'processing', safe_error VARCHAR(500) NULL,
     response_json JSON NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
     UNIQUE KEY uq_po_shortfall_operation (business_id, operation_key), INDEX idx_po_shortfall_source (business_id, source_po_id, created_at),
@@ -96,6 +97,7 @@ const TABLE_DDLS = [
     backorder_po_id INT NOT NULL,
     backorder_po_item_id INT NOT NULL,
     transferred_qty DECIMAL(12,4) NOT NULL,
+    source_item_snapshot JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_po_backorder_operation_line (business_id, operation_key, source_po_item_id),
     INDEX idx_po_backorder_source (business_id, source_po_id),
@@ -113,6 +115,7 @@ const TABLE_DDLS = [
     backorder_so_id INT NOT NULL,
     backorder_so_item_id INT NOT NULL,
     transferred_qty DECIMAL(12,4) NOT NULL,
+    source_item_snapshot JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_so_backorder_operation_line (business_id, operation_key, source_so_item_id),
     INDEX idx_so_backorder_source (business_id, source_so_id),
@@ -691,6 +694,9 @@ const COLUMNS = [
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
   ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
   ['loyalty_transactions', 'eligible_spend_cents', 'INT UNSIGNED NULL'],
+  ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
+  ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
+  ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
 ];
 
 const INDEXES = [
@@ -805,6 +811,20 @@ async function migrateSchema(schema) {
     } catch (e) {
       console.error(`  ✗ ${schema}.${table}.${col}: ${e.message}`);
     }
+  }
+
+  try {
+    await conn.query(
+      `UPDATE \`${schema}\`.ims_po_shortfall_resolutions
+          SET accounting_action = CASE
+            WHEN supplier_credit_note_id IS NOT NULL THEN 'credit_note'
+            WHEN state IN ('xero_pending','failed','unknown') THEN 'resize_document'
+            ELSE accounting_action
+          END
+        WHERE accounting_action = 'none'`,
+    );
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_po_shortfall_resolutions accounting backfill: ${e.message}`);
   }
 
   let indexesAdded = 0, indexesSkipped = 0;

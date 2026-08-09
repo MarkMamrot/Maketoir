@@ -4,6 +4,7 @@ import { ImsPORepo, ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { triggerPOXeroSync, triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 
 export async function POST(
   req: Request,
@@ -37,13 +38,18 @@ export async function POST(
     if (action === 'cancel') {
       const table = type === 'customer' ? 'ims_customer_credit_settlements' : 'ims_supplier_credit_settlements';
       const target = type === 'customer' ? 'target_so_id' : 'target_po_id';
-      const reserved = await imsQuery<{ id: number }>(`SELECT id FROM ${table} WHERE business_id=? AND ${target}=? AND action_type='reserve_for_order' AND status IN ('planned','running','succeeded') LIMIT 1`, [businessId, id]);
+      const reserved = await imsQuery<{ id: number }>(`SELECT id FROM ${table} WHERE business_id=? AND ${target}=? AND action_type='reserve_for_order' AND status <> 'released' LIMIT 1`, [businessId, id]);
       if (Array.isArray(reserved) && reserved.length) return NextResponse.json({ error: 'This backorder owns reserved Xero credit. Release, reassign, or reverse that credit before cancelling it.' }, { status: 409 });
     }
 
     const targetStatus = action === 'release' ? 'confirmed' : 'cancelled';
     if (type === 'customer') await ImsSORepo.changeStatus(id, targetStatus);
     else await ImsPORepo.changeStatus(id, targetStatus);
+
+    if (action === 'release') {
+      if (type === 'customer') await triggerSOXeroSync(businessId, id, 'confirmed');
+      else await triggerPOXeroSync(businessId, id, 'confirmed');
+    }
 
     const variantIds = (order.items ?? []).map(item => item.variant_id).filter(Boolean) as string[];
     if (variantIds.length) refreshVariantCache(variantIds).catch(() => {});

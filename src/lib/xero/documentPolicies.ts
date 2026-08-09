@@ -11,6 +11,7 @@ export type XeroDocumentPolicy = {
   soPaymentSyncEnabled: boolean;
   manualCustomerCreditNoteAction: XeroDocumentAction;
   supplierCreditNoteAction: XeroDocumentAction;
+  shortfallCreditDraftFirst: boolean;
   posBatchSyncEnabled: boolean;
   posBatchPaymentSyncEnabled: boolean;
   onlineBatchAction: XeroDocumentAction;
@@ -27,6 +28,7 @@ export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
   soPaymentSyncEnabled: true,
   manualCustomerCreditNoteAction: 'authorised',
   supplierCreditNoteAction: 'draft',
+  shortfallCreditDraftFirst: false,
   posBatchSyncEnabled: true,
   posBatchPaymentSyncEnabled: true,
   onlineBatchAction: 'authorised',
@@ -97,6 +99,7 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     'posBatchPaymentSyncEnabled',
     'onlineBatchPaymentSyncEnabled',
     'shopifyPayoutAutoPostEnabled',
+    'shortfallCreditDraftFirst',
   ] as const;
   for (const field of booleanFields) {
     if (typeof input[field] !== 'boolean') {
@@ -113,6 +116,7 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     soPaymentSyncEnabled: input.soPaymentSyncEnabled as boolean,
     manualCustomerCreditNoteAction: input.manualCustomerCreditNoteAction as XeroDocumentAction,
     supplierCreditNoteAction: input.supplierCreditNoteAction as XeroDocumentAction,
+    shortfallCreditDraftFirst: input.shortfallCreditDraftFirst as boolean,
     posBatchSyncEnabled: input.posBatchSyncEnabled as boolean,
     posBatchPaymentSyncEnabled: input.posBatchPaymentSyncEnabled as boolean,
     onlineBatchAction: input.onlineBatchAction as XeroDocumentAction,

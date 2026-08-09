@@ -71,7 +71,8 @@ async function main() {
   const documentPolicyColumns = [
     ['manual_customer_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER so_payment_sync_enabled"],
     ['supplier_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'draft' AFTER manual_customer_cn_action"],
-    ['pos_batch_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER supplier_cn_action'],
+    ['shortfall_credit_draft_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER supplier_cn_action'],
+    ['pos_batch_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER shortfall_credit_draft_first'],
     ['pos_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER pos_batch_sync_enabled'],
     ['online_batch_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER pos_batch_payment_sync_enabled"],
     ['online_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER online_batch_action'],

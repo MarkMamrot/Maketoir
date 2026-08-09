@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS xero_document_policies (
   so_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
   manual_customer_cn_action  VARCHAR(20)  NOT NULL DEFAULT 'authorised',
   supplier_cn_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
+  shortfall_credit_draft_first TINYINT(1) NOT NULL DEFAULT 0,
   pos_batch_sync_enabled     TINYINT(1)   NOT NULL DEFAULT 1,
   pos_batch_payment_sync_enabled TINYINT(1) NOT NULL DEFAULT 1,
   online_batch_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',

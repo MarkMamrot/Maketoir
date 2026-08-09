@@ -52,7 +52,7 @@ function totals(items: any[], treatment: string, freight: number, discount: numb
 
 export async function resolveCustomerOutstanding(input: {
   businessId: string; soId: number; operationKey: string; outcome: OrderResolutionOutcome;
-  settlement: CreditSettlement; preview: Awaited<ReturnType<typeof previewCustomerResolution>>; createdBy?: string;
+  settlement: CreditSettlement; accountCode?: string; preview: Awaited<ReturnType<typeof previewCustomerResolution>>; createdBy?: string;
 }) {
   const requestHash = createHash('sha256').update(JSON.stringify({ soId: input.soId, outcome: input.outcome, settlement: input.settlement, lines: input.preview.lines.map(l => [l.itemId, l.actualQuantity]) })).digest('hex');
   const conn = await getIMSPool().getConnection();
@@ -72,6 +72,9 @@ export async function resolveCustomerOutstanding(input: {
     const [items] = await conn.execute<any[]>(`SELECT * FROM ims_sales_order_items WHERE so_id=? ORDER BY id FOR UPDATE`, [input.soId]);
     const outstanding = items.filter(i => Number(i.qty_ordered) - Number(i.qty_fulfilled ?? 0) > 0);
     if (!outstanding.length) throw new Error('The sales order has no outstanding quantity.');
+    const lockedFingerprint = outstanding.map(item => [Number(item.id),Number(item.qty_ordered),Number(item.qty_fulfilled??0),Number(item.unit_price),Number(item.discount_pct??0),Number(item.tax_rate??0)]);
+    const previewFingerprint = input.preview.lines.map(line => [line.itemId,line.orderedQuantity,line.actualQuantity,line.unitAmount,line.discountPct,line.taxRate]);
+    if (JSON.stringify(lockedFingerprint) !== JSON.stringify(previewFingerprint)) throw new Error('The outstanding quantities or prices changed after preview. Refresh and try again.');
 
     if (input.outcome === 'leave_partial') {
       const response = { resolutionId, sourceSoId: input.soId, outcome: input.outcome, state: 'complete' };
@@ -92,8 +95,20 @@ export async function resolveCustomerOutstanding(input: {
         const line = item.qty_ordered * Number(item.unit_price) * (1-Number(item.discount_pct??0)/100);
         const [created] = await conn.execute<any>(`INSERT INTO ims_sales_order_items (so_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes) VALUES (?,?,?,?,?,?,?,?)`,
           [childSoId,item.variant_id,item.qty_ordered,item.unit_price,item.discount_pct??0,item.tax_rate??0,line,item.notes??null]);
-        await conn.execute(`INSERT INTO ims_so_backorder_lines (business_id,operation_key,source_so_id,source_so_item_id,backorder_so_id,backorder_so_item_id,transferred_qty) VALUES (?,?,?,?,?,?,?)`,
-          [input.businessId,input.operationKey,input.soId,item.id,childSoId,created.insertId,item.qty_ordered]);
+        const sourceSnapshot = JSON.stringify({
+          variantId: item.variant_id ?? null,
+          sku: item.sku ?? null,
+          name: item.product_name ?? item.name ?? 'Outstanding item',
+          orderedQuantity: Number(item.qty_ordered),
+          fulfilledQuantity: Number(item.qty_fulfilled ?? 0),
+          transferredQuantity: Number(item.qty_ordered) - Number(item.qty_fulfilled ?? 0),
+          unitPrice: Number(item.unit_price),
+          discountPct: Number(item.discount_pct ?? 0),
+          taxRate: Number(item.tax_rate ?? 0),
+          notes: item.notes ?? null,
+        });
+        await conn.execute(`INSERT INTO ims_so_backorder_lines (business_id,operation_key,source_so_id,source_so_item_id,backorder_so_id,backorder_so_item_id,transferred_qty,source_item_snapshot) VALUES (?,?,?,?,?,?,?,?)`,
+          [input.businessId,input.operationKey,input.soId,item.id,childSoId,created.insertId,item.qty_ordered,sourceSnapshot]);
       }
     } else {
       for (const item of outstanding) {
@@ -129,8 +144,8 @@ export async function resolveCustomerOutstanding(input: {
     await finish.beginTransaction();
     if (creditNoteId) {
       await finish.execute(`UPDATE ims_so_shortfall_resolutions SET credit_note_id=? WHERE id=?`,[creditNoteId,resolutionId]);
-      await finish.execute(`INSERT IGNORE INTO ims_customer_credit_settlements (business_id,resolution_id,action_key,action_type,amount,target_so_id,status) VALUES (?,?,?,?,?,?,'planned')`,
-        [input.businessId,resolutionId,`${input.operationKey}:${actionType}`,actionType,input.preview.totals.totalAmount,childSoId]);
+      await finish.execute(`INSERT IGNORE INTO ims_customer_credit_settlements (business_id,resolution_id,action_key,action_type,amount,target_so_id,account_code,status) VALUES (?,?,?,?,?,?,?,'planned')`,
+        [input.businessId,resolutionId,`${input.operationKey}:${actionType}`,actionType,input.preview.totals.totalAmount,childSoId,input.accountCode?.trim() || null]);
     }
     await finish.execute(`UPDATE ims_so_shortfall_resolutions SET response_json=? WHERE id=?`,[JSON.stringify(response),resolutionId]); await finish.commit();
   } catch(e){await finish.rollback();throw e;} finally{finish.release();}

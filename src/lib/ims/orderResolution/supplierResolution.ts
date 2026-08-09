@@ -2,40 +2,434 @@ import { createHash } from 'crypto';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { ImsPORepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { getXeroInvoiceFinancialState } from '@/services/XeroSyncService';
-import { calculateOutstandingLines, calculateOutstandingTotals, classifyAccountingResolution, type OrderResolutionOutcome } from './domain';
+import {
+  calculateOutstandingLines,
+  calculateOutstandingTotals,
+  classifyAccountingResolution,
+  type OrderResolutionOutcome,
+} from './domain';
 import { nextBackorderNumber } from '../backorders/domain';
 
-export type SupplierSettlement = 'none'|'supplier_refund'|'leave_unapplied'|'reserve_for_new_po';
+export type SupplierSettlement =
+  | 'none'
+  | 'supplier_refund'
+  | 'leave_unapplied'
+  | 'reserve_for_new_po';
 
-export async function previewSupplierResolution(businessId:string,poId:number,outcome:OrderResolutionOutcome){
-  const po:any=await ImsPORepo.get(poId,businessId); if(!po)throw new Error('Purchase order not found.');
-  if(po.status!=='partially_received')throw new Error('Only partially received purchase orders have an outstanding remainder to resolve.');
-  const raw=calculateOutstandingLines((po.items??[]).map((i:any)=>({itemId:Number(i.id),orderedQuantity:Number(i.qty_ordered),actualQuantity:Number(i.qty_received??0),unitAmount:Number(i.unit_cost),discountPct:Number(i.discount_pct??0),taxRate:Number(i.tax_rate??0)})),po.tax_treatment??'ex_tax');
-  if(!raw.length)throw new Error('This purchase order has no outstanding quantity.');
-  const lines=raw.map(l=>{const i=(po.items??[]).find((x:any)=>Number(x.id)===l.itemId);return{...l,variantId:i?.variant_id??null,code:i?.sku??null,name:i?.product_name??i?.name??'Outstanding item'};});
-  const totals=calculateOutstandingTotals(lines); let xero:any=null;
-  if(po.xero_bill_id)xero=await getXeroInvoiceFinancialState(businessId,String(po.xero_bill_id));
-  const accounting=classifyAccountingResolution(outcome,{documentId:po.xero_bill_id??null,status:xero?.status??null,amountPaid:Number(xero?.amountPaid??0),amountCredited:Number(xero?.amountCredited??0),quantitiesEditable:['DRAFT','AUTHORISED'].includes(String(xero?.status??'').toUpperCase())});
-  const settlements:SupplierSettlement[]=accounting.kind==='create_credit_note'?['supplier_refund','leave_unapplied',...(outcome==='create_backorder'?['reserve_for_new_po' as const]:[])]:['none'];
-  return{poId,outcome,lines,totals,xero,accounting,settlements,currencyCode:String(po.currency_code??xero?.currencyCode??'AUD').toUpperCase()};
+export async function previewSupplierResolution(
+  businessId: string,
+  poId: number,
+  outcome: OrderResolutionOutcome,
+) {
+  const po: any = await ImsPORepo.get(poId, businessId);
+  if (!po) throw new Error('Purchase order not found.');
+  if (po.status !== 'partially_received')
+    throw new Error(
+      'Only partially received purchase orders have an outstanding remainder to resolve.',
+    );
+  const raw = calculateOutstandingLines(
+    (po.items ?? []).map((i: any) => ({
+      itemId: Number(i.id),
+      orderedQuantity: Number(i.qty_ordered),
+      actualQuantity: Number(i.qty_received ?? 0),
+      unitAmount: Number(i.unit_cost),
+      discountPct: Number(i.discount_pct ?? 0),
+      taxRate: Number(i.tax_rate ?? 0),
+    })),
+    po.tax_treatment ?? 'ex_tax',
+  );
+  if (!raw.length)
+    throw new Error('This purchase order has no outstanding quantity.');
+  const lines = raw.map((l) => {
+    const i = (po.items ?? []).find((x: any) => Number(x.id) === l.itemId);
+    return {
+      ...l,
+      variantId: i?.variant_id ?? null,
+      code: i?.sku ?? null,
+      name: i?.product_name ?? i?.name ?? 'Outstanding item',
+    };
+  });
+  const totals = calculateOutstandingTotals(lines);
+  let xero: any = null;
+  if (po.xero_bill_id)
+    xero = await getXeroInvoiceFinancialState(
+      businessId,
+      String(po.xero_bill_id),
+    );
+  const accounting = classifyAccountingResolution(outcome, {
+    documentId: po.xero_bill_id ?? null,
+    status: xero?.status ?? null,
+    amountPaid: Number(xero?.amountPaid ?? 0),
+    amountCredited: Number(xero?.amountCredited ?? 0),
+    quantitiesEditable: ['DRAFT', 'AUTHORISED'].includes(
+      String(xero?.status ?? '').toUpperCase(),
+    ),
+  });
+  const settlements: SupplierSettlement[] =
+    accounting.kind === 'create_credit_note'
+      ? [
+          'supplier_refund',
+          'leave_unapplied',
+          ...(outcome === 'create_backorder'
+            ? ['reserve_for_new_po' as const]
+            : []),
+        ]
+      : ['none'];
+  return {
+    poId,
+    outcome,
+    lines,
+    totals,
+    xero,
+    accounting,
+    settlements,
+    currencyCode: String(
+      po.currency_code ?? xero?.currencyCode ?? 'AUD',
+    ).toUpperCase(),
+  };
 }
 
-function sum(items:any[],treatment:string){let subtotal=0,tax=0;for(const i of items){const line=Number(i.qty_ordered)*Number(i.unit_cost)*(1-Number(i.discount_pct??0)/100);const rate=Number(i.tax_rate??0);if(treatment==='inc_tax'&&rate>0){const ex=line/(1+rate);subtotal+=ex;tax+=line-ex;}else{subtotal+=line;if(treatment==='ex_tax')tax+=line*rate;}}subtotal=Math.round(subtotal*100)/100;tax=Math.round(tax*100)/100;return{subtotal,tax,total:Math.round((subtotal+tax)*100)/100};}
+function sum(items: any[], treatment: string) {
+  let subtotal = 0,
+    tax = 0;
+  for (const i of items) {
+    const line =
+      Number(i.qty_ordered) *
+      Number(i.unit_cost) *
+      (1 - Number(i.discount_pct ?? 0) / 100);
+    const rate = Number(i.tax_rate ?? 0);
+    if (treatment === 'inc_tax' && rate > 0) {
+      const ex = line / (1 + rate);
+      subtotal += ex;
+      tax += line - ex;
+    } else {
+      subtotal += line;
+      if (treatment === 'ex_tax') tax += line * rate;
+    }
+  }
+  subtotal = Math.round(subtotal * 100) / 100;
+  tax = Math.round(tax * 100) / 100;
+  return { subtotal, tax, total: Math.round((subtotal + tax) * 100) / 100 };
+}
 
-export async function resolveSupplierOutstanding(input:{businessId:string;poId:number;operationKey:string;outcome:OrderResolutionOutcome;settlement:SupplierSettlement;supplierCreditRef?:string;evidenceNote?:string;preview:Awaited<ReturnType<typeof previewSupplierResolution>>;createdBy?:string}){
-  if(input.preview.accounting.kind==='create_credit_note'&&!String(input.supplierCreditRef??'').trim()&&!String(input.evidenceNote??'').trim())throw new Error('A supplier credit reference or evidence note is required.');
-  const requestHash=createHash('sha256').update(JSON.stringify({poId:input.poId,outcome:input.outcome,settlement:input.settlement,ref:input.supplierCreditRef??'',lines:input.preview.lines.map(l=>[l.itemId,l.actualQuantity])})).digest('hex');
-  const conn=await getIMSPool().getConnection();let resolutionId=0,childPoId:number|null=null,childPoNumber:string|null=null;
-  try{await conn.beginTransaction();await conn.execute(`INSERT IGNORE INTO ims_po_shortfall_resolutions (business_id,operation_key,request_hash,source_po_id,outcome,settlement,supplier_credit_ref,evidence_note,outstanding_amount,currency_code) VALUES (?,?,?,?,?,?,?,?,?,?)`,[input.businessId,input.operationKey,requestHash,input.poId,input.outcome,input.settlement,input.supplierCreditRef??null,input.evidenceNote??null,input.preview.totals.totalAmount,input.preview.currencyCode]);
-    const [[resolution]]=await conn.execute<any[]>(`SELECT * FROM ims_po_shortfall_resolutions WHERE business_id=? AND operation_key=? FOR UPDATE`,[input.businessId,input.operationKey]);if(!resolution||resolution.request_hash!==requestHash)throw new Error('The operation key was already used with different resolution choices.');if(resolution.state==='complete'&&resolution.response_json){await conn.commit();return typeof resolution.response_json==='string'?JSON.parse(resolution.response_json):resolution.response_json;}resolutionId=Number(resolution.id);
-    const [[po]]=await conn.execute<any[]>(`SELECT * FROM ims_purchase_orders WHERE id=? AND business_id=? FOR UPDATE`,[input.poId,input.businessId]);if(!po||po.status!=='partially_received')throw new Error('The purchase order is no longer partially received. Refresh and preview again.');
-    const [items]=await conn.execute<any[]>(`SELECT * FROM ims_purchase_order_items WHERE po_id=? ORDER BY id FOR UPDATE`,[input.poId]);const outstanding=items.filter(i=>Number(i.qty_ordered)-Number(i.qty_received??0)>0);if(!outstanding.length)throw new Error('The purchase order has no outstanding quantity.');
-    if(input.outcome==='leave_partial'){const response={resolutionId,sourcePoId:input.poId,outcome:input.outcome,state:'complete'};await conn.execute(`UPDATE ims_po_shortfall_resolutions SET state='complete',response_json=?,completed_at=NOW() WHERE id=?`,[JSON.stringify(response),resolutionId]);await conn.commit();return response;}
-    if(input.outcome==='create_backorder'){const [numbers]=await conn.execute<any[]>(`SELECT po_number FROM ims_purchase_orders WHERE po_number LIKE ?`,[`${po.po_number}-B%`]);childPoNumber=nextBackorderNumber(po.po_number,numbers.map(n=>n.po_number));const childItems=outstanding.map(i=>({...i,qty_ordered:Number(i.qty_ordered)-Number(i.qty_received??0)}));const childTotals=sum(childItems,po.tax_treatment??'ex_tax');const [child]=await conn.execute<any>(`INSERT INTO ims_purchase_orders (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,payment_terms,subtotal,tax_amount,freight,discount,total_amount) VALUES (?,?,?,?, 'backordered',CURDATE(),?,?,?,?,?,0,0,?)`,[input.businessId,childPoNumber,po.supplier_id,po.location_id,po.expected_date,`Outstanding remainder from ${po.po_number}`,po.payment_terms,childTotals.subtotal,childTotals.tax,childTotals.total]);childPoId=Number(child.insertId);
-      for(const item of childItems){const line=item.qty_ordered*Number(item.unit_cost)*(1-Number(item.discount_pct??0)/100);const [created]=await conn.execute<any>(`INSERT INTO ims_purchase_order_items (business_id,po_id,variant_id,qty_ordered,qty_received,unit_cost,tax_rate,line_total,notes) VALUES (?,?,?,?,0,?,?,?,?)`,[input.businessId,childPoId,item.variant_id,item.qty_ordered,item.unit_cost,item.tax_rate??0,line,item.notes??null]);await conn.execute(`INSERT INTO ims_po_backorder_lines (business_id,operation_key,source_po_id,source_po_item_id,backorder_po_id,backorder_po_item_id,transferred_qty) VALUES (?,?,?,?,?,?,?)`,[input.businessId,input.operationKey,input.poId,item.id,childPoId,created.insertId,item.qty_ordered]);}}
-    const received:any[]=[];for(const item of items){const qty=Number(item.qty_received??0);if(qty<=0)await conn.execute(`DELETE FROM ims_purchase_order_items WHERE id=?`,[item.id]);else{const line=qty*Number(item.unit_cost)*(1-Number(item.discount_pct??0)/100);await conn.execute(`UPDATE ims_purchase_order_items SET qty_ordered=?,line_total=? WHERE id=?`,[qty,line,item.id]);received.push({...item,qty_ordered:qty});}}
-    const sourceTotals=sum(received,po.tax_treatment??'ex_tax');await conn.execute(`UPDATE ims_purchase_orders SET status='complete',received_date=COALESCE(received_date,CURDATE()),subtotal=?,tax_amount=?,total_amount=? WHERE id=?`,[sourceTotals.subtotal,sourceTotals.tax,sourceTotals.total,input.poId]);await conn.execute(`UPDATE ims_po_shortfall_resolutions SET child_po_id=?,state='xero_pending' WHERE id=?`,[childPoId,resolutionId]);await conn.commit();
-  }catch(e){await conn.rollback();throw e;}finally{conn.release();}
-  let supplierCreditNoteId:number|null=null;if(input.preview.accounting.kind==='create_credit_note'){const po:any=await ImsPORepo.get(input.poId,input.businessId);supplierCreditNoteId=await ImsSupplierCNRepo.create({location_id:po.location_id,scn_date:new Date().toISOString().slice(0,10),tax_treatment:po.tax_treatment??'ex_tax',supplier_id:po.supplier_id,po_id:input.poId,reference:`Outstanding remainder ${po.po_number}`,supplier_credit_ref:input.supplierCreditRef,currency_code:input.preview.currencyCode,notes:input.evidenceNote??'No-stock supplier shortfall credit'},input.preview.lines.map((l:any)=>({variant_id:l.variantId,code:l.code,name:l.name,qty:l.outstandingQuantity,unit_cost:l.unitAmount*(1-l.discountPct/100),restock:false,tax_rate:l.taxRate})),input.businessId,input.createdBy);await ImsSupplierCNRepo.complete(supplierCreditNoteId,input.businessId);}
-  const actionType=input.settlement==='reserve_for_new_po'?'reserve_for_order':input.settlement;const response={resolutionId,sourcePoId:input.poId,childPoId,childPoNumber,supplierCreditNoteId,outcome:input.outcome,settlement:input.settlement,state:'xero_pending'};const finish=await getIMSPool().getConnection();try{await finish.beginTransaction();if(supplierCreditNoteId){await finish.execute(`UPDATE ims_po_shortfall_resolutions SET supplier_credit_note_id=? WHERE id=?`,[supplierCreditNoteId,resolutionId]);await finish.execute(`INSERT IGNORE INTO ims_supplier_credit_settlements (business_id,resolution_id,action_key,action_type,amount,target_po_id,status) VALUES (?,?,?,?,?,?,'planned')`,[input.businessId,resolutionId,`${input.operationKey}:${actionType}`,actionType,input.preview.totals.totalAmount,childPoId]);}await finish.execute(`UPDATE ims_po_shortfall_resolutions SET response_json=? WHERE id=?`,[JSON.stringify(response),resolutionId]);await finish.commit();}catch(e){await finish.rollback();throw e;}finally{finish.release();}return response;
+export async function resolveSupplierOutstanding(input: {
+  businessId: string;
+  poId: number;
+  operationKey: string;
+  outcome: OrderResolutionOutcome;
+  settlement: SupplierSettlement;
+  accountCode?: string;
+  supplierCreditRef?: string;
+  evidenceNote?: string;
+  preview: Awaited<ReturnType<typeof previewSupplierResolution>>;
+  createdBy?: string;
+}) {
+  if (
+    input.preview.accounting.kind === 'create_credit_note' &&
+    !String(input.supplierCreditRef ?? '').trim() &&
+    !String(input.evidenceNote ?? '').trim()
+  )
+    throw new Error(
+      'A supplier credit reference or evidence note is required.',
+    );
+  const requestHash = createHash('sha256')
+    .update(
+      JSON.stringify({
+        poId: input.poId,
+        outcome: input.outcome,
+        settlement: input.settlement,
+        ref: input.supplierCreditRef ?? '',
+        lines: input.preview.lines.map((l) => [l.itemId, l.actualQuantity]),
+      }),
+    )
+    .digest('hex');
+  const conn = await getIMSPool().getConnection();
+  let resolutionId = 0,
+    childPoId: number | null = null,
+    childPoNumber: string | null = null;
+  try {
+    await conn.beginTransaction();
+    await conn.execute(
+      `INSERT IGNORE INTO ims_po_shortfall_resolutions (business_id,operation_key,request_hash,source_po_id,outcome,settlement,supplier_credit_ref,evidence_note,outstanding_amount,currency_code,accounting_action) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        input.businessId,
+        input.operationKey,
+        requestHash,
+        input.poId,
+        input.outcome,
+        input.settlement,
+        input.supplierCreditRef ?? null,
+        input.evidenceNote ?? null,
+        input.preview.totals.totalAmount,
+        input.preview.currencyCode,
+        input.preview.accounting.kind === 'create_credit_note'
+          ? 'credit_note'
+          : input.preview.accounting.kind === 'resize_xero_document'
+            ? 'resize_document'
+            : 'none',
+      ],
+    );
+    const [[resolution]] = await conn.execute<any[]>(
+      `SELECT * FROM ims_po_shortfall_resolutions WHERE business_id=? AND operation_key=? FOR UPDATE`,
+      [input.businessId, input.operationKey],
+    );
+    if (!resolution || resolution.request_hash !== requestHash)
+      throw new Error(
+        'The operation key was already used with different resolution choices.',
+      );
+    if (resolution.state === 'complete' && resolution.response_json) {
+      await conn.commit();
+      return typeof resolution.response_json === 'string'
+        ? JSON.parse(resolution.response_json)
+        : resolution.response_json;
+    }
+    resolutionId = Number(resolution.id);
+    const [[po]] = await conn.execute<any[]>(
+      `SELECT * FROM ims_purchase_orders WHERE id=? AND business_id=? FOR UPDATE`,
+      [input.poId, input.businessId],
+    );
+    if (!po || po.status !== 'partially_received')
+      throw new Error(
+        'The purchase order is no longer partially received. Refresh and preview again.',
+      );
+    const [items] = await conn.execute<any[]>(
+      `SELECT * FROM ims_purchase_order_items WHERE po_id=? ORDER BY id FOR UPDATE`,
+      [input.poId],
+    );
+    const outstanding = items.filter(
+      (i) => Number(i.qty_ordered) - Number(i.qty_received ?? 0) > 0,
+    );
+    if (!outstanding.length)
+      throw new Error('The purchase order has no outstanding quantity.');
+    const lockedFingerprint = outstanding.map((i) => [
+      Number(i.id),
+      Number(i.qty_ordered),
+      Number(i.qty_received ?? 0),
+      Number(i.unit_cost),
+      Number(i.discount_pct ?? 0),
+      Number(i.tax_rate ?? 0),
+    ]);
+    const previewFingerprint = input.preview.lines.map((l) => [
+      l.itemId,
+      l.orderedQuantity,
+      l.actualQuantity,
+      l.unitAmount,
+      l.discountPct,
+      l.taxRate,
+    ]);
+    if (
+      JSON.stringify(lockedFingerprint) !== JSON.stringify(previewFingerprint)
+    )
+      throw new Error(
+        'The outstanding quantities or costs changed after preview. Refresh and try again.',
+      );
+    if (input.outcome === 'leave_partial') {
+      const response = {
+        resolutionId,
+        sourcePoId: input.poId,
+        outcome: input.outcome,
+        state: 'complete',
+      };
+      await conn.execute(
+        `UPDATE ims_po_shortfall_resolutions SET state='complete',response_json=?,completed_at=NOW() WHERE id=?`,
+        [JSON.stringify(response), resolutionId],
+      );
+      await conn.commit();
+      return response;
+    }
+    if (input.outcome === 'create_backorder') {
+      const [numbers] = await conn.execute<any[]>(
+        `SELECT po_number FROM ims_purchase_orders WHERE po_number LIKE ?`,
+        [`${po.po_number}-B%`],
+      );
+      childPoNumber = nextBackorderNumber(
+        po.po_number,
+        numbers.map((n) => n.po_number),
+      );
+      const childItems = outstanding.map((i) => ({
+        ...i,
+        qty_ordered: Number(i.qty_ordered) - Number(i.qty_received ?? 0),
+      }));
+      const childTotals = sum(childItems, po.tax_treatment ?? 'ex_tax');
+      const [child] = await conn.execute<any>(
+        `INSERT INTO ims_purchase_orders (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,payment_terms,subtotal,tax_amount,freight,discount,total_amount) VALUES (?,?,?,?, 'backordered',CURDATE(),?,?,?,?,?,0,0,?)`,
+        [
+          input.businessId,
+          childPoNumber,
+          po.supplier_id,
+          po.location_id,
+          po.expected_date,
+          `Outstanding remainder from ${po.po_number}`,
+          po.payment_terms,
+          childTotals.subtotal,
+          childTotals.tax,
+          childTotals.total,
+        ],
+      );
+      childPoId = Number(child.insertId);
+      for (const item of childItems) {
+        const line =
+          item.qty_ordered *
+          Number(item.unit_cost) *
+          (1 - Number(item.discount_pct ?? 0) / 100);
+        const [created] = await conn.execute<any>(
+          `INSERT INTO ims_purchase_order_items (business_id,po_id,variant_id,qty_ordered,qty_received,unit_cost,tax_rate,line_total,notes) VALUES (?,?,?,?,0,?,?,?,?)`,
+          [
+            input.businessId,
+            childPoId,
+            item.variant_id,
+            item.qty_ordered,
+            item.unit_cost,
+            item.tax_rate ?? 0,
+            line,
+            item.notes ?? null,
+          ],
+        );
+        const sourceSnapshot = JSON.stringify({
+          variantId: item.variant_id ?? null,
+          sku: item.sku ?? null,
+          name: item.product_name ?? item.name ?? 'Outstanding item',
+          orderedQuantity:
+            Number(item.qty_ordered) + Number(item.qty_received ?? 0),
+          receivedQuantity: Number(item.qty_received ?? 0),
+          transferredQuantity: Number(item.qty_ordered),
+          unitCost: Number(item.unit_cost),
+          discountPct: Number(item.discount_pct ?? 0),
+          taxRate: Number(item.tax_rate ?? 0),
+          notes: item.notes ?? null,
+        });
+        await conn.execute(
+          `INSERT INTO ims_po_backorder_lines (business_id,operation_key,source_po_id,source_po_item_id,backorder_po_id,backorder_po_item_id,transferred_qty,source_item_snapshot) VALUES (?,?,?,?,?,?,?,?)`,
+          [
+            input.businessId,
+            input.operationKey,
+            input.poId,
+            item.id,
+            childPoId,
+            created.insertId,
+            item.qty_ordered,
+            sourceSnapshot,
+          ],
+        );
+      }
+    } else {
+      for (const item of outstanding) {
+        const qty = Number(item.qty_ordered) - Number(item.qty_received ?? 0);
+        await conn.execute(
+          `UPDATE ims_stock SET qty_incoming=GREATEST(0,qty_incoming-?) WHERE variant_id=? AND location_id=?`,
+          [qty, item.variant_id, po.location_id],
+        );
+      }
+    }
+    const received: any[] = [];
+    for (const item of items) {
+      const qty = Number(item.qty_received ?? 0);
+      if (qty <= 0)
+        await conn.execute(`DELETE FROM ims_purchase_order_items WHERE id=?`, [
+          item.id,
+        ]);
+      else {
+        const line =
+          qty *
+          Number(item.unit_cost) *
+          (1 - Number(item.discount_pct ?? 0) / 100);
+        await conn.execute(
+          `UPDATE ims_purchase_order_items SET qty_ordered=?,line_total=? WHERE id=?`,
+          [qty, line, item.id],
+        );
+        received.push({ ...item, qty_ordered: qty });
+      }
+    }
+    const sourceTotals = sum(received, po.tax_treatment ?? 'ex_tax');
+    await conn.execute(
+      `UPDATE ims_purchase_orders SET status='complete',received_date=COALESCE(received_date,CURDATE()),subtotal=?,tax_amount=?,total_amount=? WHERE id=?`,
+      [sourceTotals.subtotal, sourceTotals.tax, sourceTotals.total, input.poId],
+    );
+    await conn.execute(
+      `UPDATE ims_po_shortfall_resolutions SET child_po_id=?,state='xero_pending' WHERE id=?`,
+      [childPoId, resolutionId],
+    );
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+  let supplierCreditNoteId: number | null = null;
+  if (input.preview.accounting.kind === 'create_credit_note') {
+    const po: any = await ImsPORepo.get(input.poId, input.businessId);
+    supplierCreditNoteId = await ImsSupplierCNRepo.create(
+      {
+        location_id: po.location_id,
+        scn_date: new Date().toISOString().slice(0, 10),
+        tax_treatment: po.tax_treatment ?? 'ex_tax',
+        supplier_id: po.supplier_id,
+        po_id: input.poId,
+        reference: `Outstanding remainder ${po.po_number}`,
+        supplier_credit_ref: input.supplierCreditRef,
+        currency_code: input.preview.currencyCode,
+        notes: input.evidenceNote ?? 'No-stock supplier shortfall credit',
+      },
+      input.preview.lines.map((l: any) => ({
+        variant_id: l.variantId,
+        code: l.code,
+        name: l.name,
+        qty: l.outstandingQuantity,
+        unit_cost: l.unitAmount * (1 - l.discountPct / 100),
+        restock: false,
+        tax_rate: l.taxRate,
+      })),
+      input.businessId,
+      input.createdBy,
+    );
+    await ImsSupplierCNRepo.complete(supplierCreditNoteId, input.businessId);
+  }
+  const actionType =
+    input.settlement === 'reserve_for_new_po'
+      ? 'reserve_for_order'
+      : input.settlement;
+  const response = {
+    resolutionId,
+    sourcePoId: input.poId,
+    childPoId,
+    childPoNumber,
+    supplierCreditNoteId,
+    outcome: input.outcome,
+    settlement: input.settlement,
+    state: 'xero_pending',
+  };
+  const finish = await getIMSPool().getConnection();
+  try {
+    await finish.beginTransaction();
+    if (supplierCreditNoteId) {
+      await finish.execute(
+        `UPDATE ims_po_shortfall_resolutions SET supplier_credit_note_id=? WHERE id=?`,
+        [supplierCreditNoteId, resolutionId],
+      );
+      await finish.execute(
+        `INSERT IGNORE INTO ims_supplier_credit_settlements (business_id,resolution_id,action_key,action_type,amount,target_po_id,account_code,status) VALUES (?,?,?,?,?,?,?,'planned')`,
+        [
+          input.businessId,
+          resolutionId,
+          `${input.operationKey}:${actionType}`,
+          actionType,
+          input.preview.totals.totalAmount,
+          childPoId,
+          input.accountCode?.trim() || null,
+        ],
+      );
+    }
+    await finish.execute(
+      `UPDATE ims_po_shortfall_resolutions SET response_json=? WHERE id=?`,
+      [JSON.stringify(response), resolutionId],
+    );
+    await finish.commit();
+  } catch (e) {
+    await finish.rollback();
+    throw e;
+  } finally {
+    finish.release();
+  }
+  return response;
 }

@@ -6,6 +6,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { triggerPOXeroSync, triggerPOXeroVoid, triggerPOXeroUpdate } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
+import { getOrderResolutionFinancialSummaries } from '@/lib/ims/orderResolution/financialSummary';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -15,7 +16,8 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsPORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ success: true, data });
+    const resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'supplier', Number(params.id));
+    return NextResponse.json({ success: true, data: { ...data, resolution_financials } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

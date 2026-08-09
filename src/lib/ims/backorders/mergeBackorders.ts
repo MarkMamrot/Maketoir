@@ -154,7 +154,7 @@ async function mergeBackorders(input: {
     const settlementTable = input.type === 'customer' ? 'ims_customer_credit_settlements' : 'ims_supplier_credit_settlements';
     const targetColumn = input.type === 'customer' ? 'target_so_id' : 'target_po_id';
     const [reserved] = await conn.execute<any[]>(
-      `SELECT id FROM ${settlementTable} WHERE business_id=? AND ${targetColumn} IN (${placeholders}) AND action_type='reserve_for_order' AND status IN ('planned','running','succeeded') LIMIT 1 FOR UPDATE`,
+      `SELECT id FROM ${settlementTable} WHERE business_id=? AND ${targetColumn} IN (${placeholders}) AND action_type='reserve_for_order' AND status <> 'released' LIMIT 1 FOR UPDATE`,
       [input.businessId, ...orderIds],
     );
     if (reserved.length) throw new Error('Backorders with reserved or allocated Xero credit cannot be merged.');
