@@ -84,7 +84,7 @@ describe('/api/ims/purchase-orders/[id]', () => {
     mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ id: 1 }] });
     mockGetOrderResolutionFinancialSummaries.mockRejectedValue(new Error('Illegal mix of collations'));
 
-    const response = await GET(new Request('http://localhost'), params);
+    const response = await GET(new Request('http://localhost?include=resolutionFinancials'), params);
     const json = await response.json();
 
     expect(response.status).toBe(200);
@@ -97,6 +97,19 @@ describe('/api/ims/purchase-orders/[id]', () => {
       businessId: 'biz-1', operation: 'load_resolution_financials',
       reference: { type: 'purchase_order', id: '42' },
     }));
+  });
+
+  it('skips shortfall financials for ordinary PO detail requests', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ id: 1 }] });
+
+    const response = await GET(new Request('http://localhost'), params);
+
+    expect(response.status).toBe(200);
+    expect(mockGetOrderResolutionFinancialSummaries).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({
+      success: true,
+      data: { id: 42, resolution_financials: [] },
+    });
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {

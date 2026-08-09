@@ -11,7 +11,7 @@ import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEd
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
@@ -20,15 +20,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     let resolution_financials: Awaited<ReturnType<typeof getOrderResolutionFinancialSummaries>> = [];
     let resolutionFinancialsWarning: string | null = null;
-    try {
-      resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'supplier', Number(params.id));
-    } catch (error) {
-      resolutionFinancialsWarning = 'Shortfall financial details are temporarily unavailable. The purchase order can still be viewed and received.';
-      await reportRuntimeIssue({
-        businessId, source: 'ims_purchase_orders', operation: 'load_resolution_financials',
-        title: 'Purchase order shortfall financial details could not be loaded', error,
-        reference: { type: 'purchase_order', id: params.id },
-      }).catch(() => {});
+    if (new URL(req.url).searchParams.get('include') === 'resolutionFinancials') {
+      try {
+        resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'supplier', Number(params.id));
+      } catch (error) {
+        resolutionFinancialsWarning = 'Shortfall financial details are temporarily unavailable. The purchase order can still be viewed and received.';
+        await reportRuntimeIssue({
+          businessId, source: 'ims_purchase_orders', operation: 'load_resolution_financials',
+          title: 'Purchase order shortfall financial details could not be loaded', error,
+          reference: { type: 'purchase_order', id: params.id },
+        }).catch(() => {});
+      }
     }
     return NextResponse.json({
       success: true,

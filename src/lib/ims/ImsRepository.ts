@@ -964,7 +964,6 @@ export const ImsPORepo = {
     const bizFilter = businessId ? ' AND po.business_id = ?' : '';
     const bizParam = businessId ? [businessId] : [];
     let rows: ImsPO[];
-    let payments: ImsPayment[] = [];
     try {
       rows = await imsQuery<ImsPO>(
         `SELECT po.*,
@@ -983,14 +982,11 @@ export const ImsPORepo = {
                   SUM(amount) AS amount_paid,
                   SUM(amount_local) AS amount_paid_local
            FROM ims_purchase_order_payments
+           WHERE po_id = ?
            GROUP BY po_id
          ) pay ON pay.po_id = po.id
          WHERE po.id = ?${bizFilter}`,
-        [id, ...bizParam]
-      );
-      payments = await imsQuery<ImsPayment>(
-        `SELECT * FROM ims_purchase_order_payments WHERE po_id = ? ORDER BY payment_date ASC, id ASC`,
-        [id]
+        [id, id, ...bizParam]
       );
     } catch {
       rows = await imsQuery<ImsPO>(
@@ -1006,9 +1002,11 @@ export const ImsPORepo = {
       );
     }
     if (!rows[0]) return null;
-    let items: ImsPOItem[];
-    try {
-      items = await imsQuery<ImsPOItem>(
+    const paymentsPromise = imsQuery<ImsPayment>(
+      `SELECT * FROM ims_purchase_order_payments WHERE po_id = ? ORDER BY payment_date ASC, id ASC`,
+      [id],
+    ).catch(() => []);
+    const itemsPromise = imsQuery<ImsPOItem>(
         `SELECT i.*,
                 COALESCE(v.sku, i.sku_raw)       AS sku,
                 v.barcode                        AS barcode,
@@ -1029,10 +1027,9 @@ export const ImsPORepo = {
          LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
-      );
-    } catch {
+      ).catch(() =>
       // sku_raw / name_raw columns not yet migrated — fall back
-      items = await imsQuery<ImsPOItem>(
+      imsQuery<ImsPOItem>(
         `SELECT i.*,
                 v.sku                            AS sku,
                 v.barcode                        AS barcode,
@@ -1053,22 +1050,21 @@ export const ImsPORepo = {
          LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id
          WHERE i.po_id = ?`,
         [id]
-      );
-    }
-    let landed_costs: LandedCostRow[] = [];
-    try {
-      landed_costs = await imsQuery<LandedCostRow>(
+      ));
+    const landedCostsPromise = imsQuery<LandedCostRow>(
         `SELECT id, po_id, label, reference, amount, sort_order FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order ASC, id ASC`,
         [id]
-      );
-    } catch { /* table not yet migrated */ }
-    let files: ImsPoFile[] = [];
-    try {
-      files = await imsQuery<ImsPoFile>(
+      ).catch(() => []);
+    const filesPromise = imsQuery<ImsPoFile>(
         `SELECT * FROM ims_po_files WHERE po_id = ? ORDER BY uploaded_at ASC`,
         [id]
-      );
-    } catch { /* table not yet migrated */ }
+      ).catch(() => []);
+    const [payments, items, landed_costs, files] = await Promise.all([
+      paymentsPromise,
+      itemsPromise,
+      landedCostsPromise,
+      filesPromise,
+    ]);
     return { ...rows[0], items, payments, landed_costs, files };
   },
 
@@ -1207,6 +1203,7 @@ export const ImsPORepo = {
           taxTreatment = poMeta?.tax_treatment ?? 'ex_tax';
         }
         let subtotal = 0, tax_amount = 0;
+        const itemRows: unknown[][] = [];
         for (const item of items) {
           const discPct = Number(item.discount_pct ?? 0);
           const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
@@ -1225,12 +1222,17 @@ export const ImsPORepo = {
           }
           subtotal   += item_subtotal;
           tax_amount += item_tax;
+          itemRows.push([
+            id, item.variant_id, item.qty_ordered, item.unit_cost,
+            discPct, item.tax_rate ?? 0, line_total, item.notes ?? null,
+          ]);
+        }
+        if (itemRows.length > 0) {
           await conn.execute(
             `INSERT INTO ims_purchase_order_items
                (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?)`,
-            [id, item.variant_id, item.qty_ordered, item.unit_cost,
-             discPct, item.tax_rate ?? 0, line_total, item.notes ?? null]
+             VALUES ${itemRows.map(() => '(?,?,?,?,?,?,?,?)').join(',')}`,
+            itemRows.flat(),
           );
         }
 
