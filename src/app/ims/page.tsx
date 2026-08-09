@@ -25039,7 +25039,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     </div>
   );
 
-  type AccRow = { role: string; type: string; description: string; required: boolean };
+  type AccRow = { role: string; type: string; description: string; requirement: 'Feature-based' | 'Optional' };
   const AccountTable = ({ rows }: { rows: AccRow[] }) => (
     <div style={{ overflowX: 'auto', marginTop: 10 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -25056,7 +25056,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
               <td style={{ padding: '7px 10px' }}><code style={code}>{r.role}</code></td>
               <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.type}</td>
               <td style={{ padding: '7px 10px', color: 'var(--sv-text-dim)' }}>{r.description}</td>
-              <td style={{ padding: '7px 10px' }}>{r.required ? <span style={{ ...tag, background: 'rgba(248,113,113,.15)', color: '#f87171' }}>Required</span> : <span style={{ ...tag, background: 'rgba(99,179,117,.10)', color: '#6dbf7e' }}>Optional</span>}</td>
+              <td style={{ padding: '7px 10px' }}>{r.requirement === 'Feature-based' ? <span style={{ ...tag, background: 'rgba(245,158,11,.15)', color: '#f59e0b' }}>Feature-based</span> : <span style={{ ...tag, background: 'rgba(99,179,117,.10)', color: '#6dbf7e' }}>Optional</span>}</td>
             </tr>
           ))}
         </tbody>
@@ -25364,7 +25364,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
     if (active === 'xero') return (
       <div style={{ padding: 32, maxWidth: 820 }}>
         <h2 style={h2}>Xero Integration</h2>
-        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). The integration is <strong>unidirectional</strong> — data flows from IMS into Xero only. Xero does not push data back into IMS.</p>
+        <p style={{ ...p, color: 'var(--sv-text-dim)', fontSize: 13 }}>IMS connects to Xero via OAuth 2.0 (PKCE). Accounting writes flow from IMS into Xero. Solvantis also performs read-only Xero checks for document state, balances, lock dates, accounts, tracking, and reconciliation; Xero never directly mutates IMS operational records.</p>
 
         <h3 style={h3}>Connection</h3>
         <p style={p}>Connect your Xero organisation from the <strong>Xero</strong> tab in IMS. You'll be redirected to Xero to authorise. Once connected, the integration stores an access token and refresh token. Tokens are automatically refreshed — you won't need to reconnect unless you explicitly disconnect or revoke access in Xero.</p>
@@ -25383,7 +25383,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },
           { trigger: 'POS EOD batch',                  object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised invoice plus clearing payment. Invoice sync and payment sync can be disabled independently.' },
-          { trigger: 'Daily online batch',             object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised; immediate gateway payments require Authorised.' },
+          { trigger: 'Daily online batch',             object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised. A clearing payment promotes a Draft before applying payment.' },
           { trigger: 'Manual customer credit note completed', object: 'Credit Note (ACCREC)', status: 'Policy', notes: 'Default: Authorised. Configurable as No sync, Draft, or Authorised. POS returns remain in POS EOD accounting.' },
           { trigger: 'Supplier credit note completed', object: 'Credit Note (ACCPAY)', status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised.' },
           { trigger: 'COGS (scheduled or manual)',     object: 'Manual Journal',       status: 'Posted',       notes: 'DR Cost of Goods Sold / CR Inventory Asset with reconciliation and adjustment support' },
@@ -25392,28 +25392,51 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Document status and payment policy</h3>
         <p style={p}>Configure these controls in <strong>Xero → Ledger Mapping → Document Status &amp; Payments</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
         <ul style={ul}>
-          <li><strong>Payments require Authorised documents.</strong> A mapped PO or SO payment may promote its linked Draft when payment sync is enabled. Online immediate clearing payments can only be enabled with an Authorised daily invoice.</li>
+          <li><strong>Payments require Authorised documents.</strong> A mapped PO, SO, or online clearing payment may promote its linked Draft when payment sync is enabled. Choosing Draft therefore remains valid; the policy screen shows the consequence before save.</li>
           <li><strong>POS EOD invoice-only mode</strong> does not fund the Xero clearing account. Those cash reconciliations remain unavailable to Cash Banking, preventing a transfer of money that Xero never received.</li>
           <li><strong>Source ownership is fixed.</strong> POS returns remain in EOD accounting. Shopify refunds always use an Authorised credit note because the paid payout must settle it.</li>
         </ul>
 
+        <h3 style={h3}>Policy presets and change history</h3>
+        <p style={p}>Ledger Mapping offers three transparent starting points. <strong>Bookkeeper review</strong> is Draft-first with payment posting off, <strong>Balanced automation</strong> is the standard default, and <strong>Higher automation</strong> Authorises earlier. Selecting a preset first shows every changed setting; applying it only fills the ordinary controls, and nothing changes until <em>Save document policy</em> is chosen.</p>
+        <ul style={ul}>
+          <li>There is no hidden preset mode. Editing one field after applying a preset simply creates a custom visible policy.</li>
+          <li>Every saved change records the actor, time, before/after policy, changed fields, and matching preset source when applicable.</li>
+          <li>Policy changes govern future transitions. They do not rewrite, downgrade, void, or Authorise existing Xero documents.</li>
+        </ul>
+
+        <h3 style={h3}>Editing records already linked to Xero</h3>
+        <TriggerTable rows={[
+          { trigger: 'Draft or Submitted document', object: 'PO, SO, customer/supplier credit note', status: 'Allowed', notes: 'Xero-visible edits are synchronously mirrored to the linked document.' },
+          { trigger: 'Authorised and unpaid, outside lock date', object: 'PO or wholesale SO', status: 'Allowed', notes: 'Supported financial edits are mirrored after live state and organisation lock-date checks.' },
+          { trigger: 'Part-paid, paid, credited, voided, deleted, or locked', object: 'Linked accounting document', status: 'Blocked', notes: 'Use the supported credit, refund, cancellation, or reconciliation workflow instead of overwriting accounting history.' },
+          { trigger: 'Local-only field', object: 'IMS record', status: 'Allowed', notes: 'Fields with no Xero effect remain editable.' },
+          { trigger: 'Admin override', object: 'Blocked PO/SO edit', status: 'Review required', notes: 'Requires a reason, saves the local change, and immediately creates a Needs attention issue. It never implies Xero matches.' },
+        ]} />
+
         <h3 style={h3}>PO Bill Due Date</h3>
         <p style={p}>The Xero Bill <strong>Date</strong> is the PO's <strong>Supplier Invoice Date</strong>. Its <strong>Due Date</strong> is calculated as Supplier Invoice Date + Payment Terms days (for example, +30 days for "30 days" terms). If no Supplier Invoice Date is set, both calculations fall back to the PO Order Date.</p>
 
-        <h3 style={h3}>Account mappings</h3>
-        <p style={p}>Five account roles must be mapped to accounts in your Xero chart of accounts. All are required for full sync functionality. If a required mapping is missing, the affected sync is skipped and logged as "skipped".</p>
+        <h3 style={h3}>Account mappings and readiness</h3>
+        <p style={p}>Open <strong>Xero → Ledger Mapping</strong> to see live readiness. Required labels follow the enabled policy: for example, PO payment accounts are required only while PO payment sync is enabled. Saved account and tracking references are checked against live Xero; archived, deleted, renamed-code, or incompatible values are marked stale.</p>
         <AccountTable rows={[
-          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', required: true },
-          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', required: true },
-          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', required: true },
-          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
-          { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
-          { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Required for POS till and cash-banking discrepancies; entries are posted without GST', required: true },
-          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
-          { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note. If not mapped, the credit note uses sales_revenue.', required: false },
-          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to inventory_asset instead. If not mapped, non-stock lines fall back to cogs.', required: false },
-          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', required: false },
+          { role: 'inventory_asset',       type: 'Asset',   description: 'Stock on hand — used for PO bill lines and inventory journals', requirement: 'Feature-based' },
+          { role: 'inventory_in_transit',  type: 'Asset',   description: 'Goods ordered but not yet received — used when a PO has deposits/prepayments', requirement: 'Feature-based' },
+          { role: 'cogs',                  type: 'Expense', description: 'Cost of goods sold — debited in scheduled COGS journals', requirement: 'Feature-based' },
+          { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', requirement: 'Feature-based' },
+          { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', requirement: 'Optional' },
+          { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Used for POS till and cash-banking discrepancies; entries are posted without GST', requirement: 'Feature-based' },
+          { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', requirement: 'Feature-based' },
+          { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. If not mapped, the credit note uses sales_revenue.', requirement: 'Optional' },
+          { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used for non-stock supplier credit lines. Returned-stock lines post to inventory_asset; non-stock lines fall back to cogs when unmapped.', requirement: 'Optional' },
+          { role: 'stock_adjustment',      type: 'Expense', description: 'Stocktake variance account — debited on write-offs, credited on surpluses', requirement: 'Feature-based' },
         ]} />
+        <ul style={ul}>
+          <li><strong>Missing required</strong> means an enabled feature cannot complete its Xero posting until the mapping is supplied.</li>
+          <li><strong>Optional</strong> means the owning feature is disabled or the dimension has a supported fallback. Unused optional mappings do not create errors.</li>
+          <li><strong>Stale</strong> means a saved reference no longer matches an active compatible Xero value. Stale optional mappings are still shown because enabling the feature later would fail.</li>
+          <li><strong>POS exception:</strong> a missing location/payment clearing account blocks only that method&apos;s Xero payment. The register and EOD closure continue, and other mapped methods can post.</li>
+        </ul>
 
         <h3 style={h3}>Tracking categories</h3>
         <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
@@ -25438,16 +25461,27 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>This correctly moves the cost from a transit holding account to on-hand stock at the moment goods arrive</li>
         </ul>
 
-        <h3 style={h3}>Queued / retry system</h3>
-        <p style={p}>All Xero syncs are <strong>non-blocking</strong> — a sync failure never interrupts IMS operations. The retry flow:</p>
+        <h3 style={h3}>Sync History: Needs attention and All activity</h3>
+        <p style={p}><strong>All activity</strong> is the immutable event history. <strong>Needs attention</strong> is the current reconciliation workspace built from expected IMS facts, live Xero facts, mapping readiness, and durable action outcomes. Ignoring or resolving an issue never deletes the underlying activity.</p>
         <ul style={ul}>
-          <li><strong>Attempt 1</strong> — Sync fires immediately on the triggering action</li>
-          <li><strong>2 second wait</strong> — If attempt 1 fails</li>
-          <li><strong>Attempt 2</strong> — One automatic retry</li>
-          <li><strong>Queued</strong> — If both attempts fail, the item is marked as queued in the database</li>
-          <li><strong>Manual retry</strong> — From the Xero tab: click <em>Retry</em> on a single item, or <em>Push All</em> to retry all queued items at once</li>
+          <li><strong>Recheck</strong> reads current Xero state and mapping readiness. It does not post, Authorise, pay, retry, or change accounting documents.</li>
+          <li><strong>Retry Xero</strong> resumes the existing replay-protected operation and skips completed steps. Admin/SuperAdmin only. An <em>unknown</em> outcome must be checked in Xero first and is never blindly retried.</li>
+          <li><strong>Authorise &amp; continue</strong> promotes a deliberately Draft shortfall credit and continues its already selected settlement. Admin/SuperAdmin only.</li>
+          <li><strong>Ignore</strong> accepts the current exact mismatch with a required reason. If its fingerprint changes, it automatically reopens.</li>
+          <li><strong>Send to Accounts</strong> emails safe summaries of selected open issues to configured recipients. It does not change issue or accounting state.</li>
         </ul>
-        <p style={p}>The sync log (accessible from the Xero tab) shows every attempt with status, timestamp, and error detail for diagnosis.</p>
+        <p style={p}>Admins and Advisors may inspect, Recheck, Ignore, export, and Send to Accounts. Only Admin/SuperAdmin may change policy/mappings or perform accounting mutations such as Retry, Authorise, and override.</p>
+
+        <h3 style={h3}>Accounts escalation and digests</h3>
+        <p style={p}>Configure up to 20 accounts recipients in Needs attention. Selected issues can be sent immediately, or an optional daily/weekly digest can run at the configured local hour, weekday, and IANA timezone. Digests include only currently open issues, cap each email at 200, suppress repeated cadence periods, and never mutate accounting state.</p>
+
+        <h3 style={h3}>Bookkeeping examples</h3>
+        <ul style={ul}>
+          <li><strong>Xero total differs:</strong> choose Recheck first. If it remains different, compare IMS and Xero, correct the true source, then Recheck. Ignore only when the exact difference is intentional and record why.</li>
+          <li><strong>Archived clearing account:</strong> open Ledger Mapping, select an active account that accepts payments, save, then Recheck. Do not retry the payment before correcting the mapping.</li>
+          <li><strong>Unknown payment result:</strong> open the linked Xero document and bank account to determine whether the payment exists. Do not create a second payment; follow the issue guidance after verification.</li>
+          <li><strong>Admin-edited paid invoice:</strong> the local override remains visible as an issue because Solvantis does not rewrite settled Xero history. Resolve with the bookkeeper using a supported credit/reversal, then Recheck.</li>
+        </ul>
 
         <h3 style={h3}>Reversals &amp; cancellations</h3>
         <p style={p}>When a PO or SO is reverted to Draft or Cancelled, IMS automatically attempts to void the corresponding Xero document:</p>
