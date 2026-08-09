@@ -23,6 +23,8 @@ function document(id: number, credit = false) {
 }
 
 describe('scanXeroReconciliationTargets', () => {
+  const noMappings = () => vi.fn().mockResolvedValue({ items: [] });
+
   it('caps Xero fetches at 20 IDs and reconciles every successful target', async () => {
     const targets = Array.from({ length: 21 }, (_, index) => target(index + 1));
     const xeroFetch = vi.fn().mockImplementation(async (_businessId: string, endpoint: string) => {
@@ -33,6 +35,7 @@ describe('scanXeroReconciliationTargets', () => {
 
     const result = await scanXeroReconciliationTargets({ businessId: 'biz-1', limit: 100 }, {
       listTargets: vi.fn().mockResolvedValue(targets) as any, xeroFetch: xeroFetch as any, reconcile: reconcile as any,
+      mappingReadiness: noMappings() as any,
     });
 
     expect(xeroFetch).toHaveBeenCalledTimes(2);
@@ -52,6 +55,7 @@ describe('scanXeroReconciliationTargets', () => {
     const result = await scanXeroReconciliationTargets({ businessId: 'biz-1' }, {
       listTargets: vi.fn().mockResolvedValue(targets) as any, xeroFetch: xeroFetch as any,
       reconcile: reconcile as any, reportIssue: reportIssue as any,
+      mappingReadiness: noMappings() as any,
     });
 
     expect(reconcile).toHaveBeenCalledTimes(1);
@@ -68,10 +72,32 @@ describe('scanXeroReconciliationTargets', () => {
       listTargets: vi.fn().mockResolvedValue(targets) as any,
       xeroFetch: vi.fn().mockResolvedValue({ CreditNotes: [document(1, true)] }) as any,
       reconcile: reconcile as any,
+      mappingReadiness: noMappings() as any,
     });
 
     expect(reconcile.mock.calls[0][0].actual).toEqual(expect.objectContaining({ xeroId: 'xero-1', documentType: 'ACCRECCREDIT' }));
     expect(reconcile.mock.calls[1][0].actual).toBeNull();
     expect(result).toMatchObject({ checkedCount: 2, mismatchCount: 2, failedBatches: 0 });
+  });
+
+  it('records stale mapping issues and resolves recovered mapping rules', async () => {
+    const recordMappingIssue = vi.fn().mockResolvedValue(1);
+    const resolveMappingIssue = vi.fn().mockResolvedValue(true);
+    const result = await scanXeroReconciliationTargets({ businessId: 'biz-1' }, {
+      listTargets: vi.fn().mockResolvedValue([]) as any,
+      mappingReadiness: vi.fn().mockResolvedValue({ items: [
+        { category: 'account', key: 'sales_revenue', label: 'Sales Revenue', requirement: 'required', status: 'stale', summary: 'Archived account.' },
+        { category: 'tracking', key: 'channel:online', label: 'Online Sales', requirement: 'optional', status: 'ready', summary: 'Ready.' },
+      ] }) as any,
+      recordMappingIssue: recordMappingIssue as any,
+      resolveMappingIssue: resolveMappingIssue as any,
+    });
+
+    expect(recordMappingIssue).toHaveBeenCalledWith(expect.objectContaining({
+      targetType: 'mapping', referenceId: 'account:sales_revenue', ruleKey: 'mapping_stale', severity: 'error',
+    }));
+    expect(resolveMappingIssue).toHaveBeenCalledWith(expect.objectContaining({ referenceId: 'account:sales_revenue', ruleKey: 'mapping_missing' }));
+    expect(resolveMappingIssue).toHaveBeenCalledWith(expect.objectContaining({ referenceId: 'tracking:channel:online', ruleKey: 'mapping_stale' }));
+    expect(result.mappingIssueCount).toBe(1);
   });
 });

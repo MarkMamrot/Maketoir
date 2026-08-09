@@ -1,7 +1,8 @@
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { xeroApiFetch } from '@/services/XeroService';
 import { canonicalDocumentSnapshot, type ReconciliationDocumentSnapshot } from './domain';
-import { listXeroReconciliationTargets } from './repository';
+import { getXeroMappingReadiness } from '../mappingReadinessService';
+import { listXeroReconciliationTargets, recordXeroReconciliationIssue, resolveXeroReconciliationIssue } from './repository';
 import { reconcileXeroDocument } from './service';
 
 type ScanTarget = Awaited<ReturnType<typeof listXeroReconciliationTargets>>[number];
@@ -43,6 +44,9 @@ export async function scanXeroReconciliationTargets(
     xeroFetch?: typeof xeroApiFetch;
     reconcile?: typeof reconcileXeroDocument;
     reportIssue?: typeof reportRuntimeIssue;
+    mappingReadiness?: typeof getXeroMappingReadiness;
+    recordMappingIssue?: typeof recordXeroReconciliationIssue;
+    resolveMappingIssue?: typeof resolveXeroReconciliationIssue;
   } = {},
 ): Promise<{
   targetCount: number;
@@ -50,6 +54,7 @@ export async function scanXeroReconciliationTargets(
   mismatchCount: number;
   failedBatches: number;
   unsupportedCount: number;
+  mappingIssueCount: number;
   nextCursor: number | null;
   hasMore: boolean;
 }> {
@@ -57,10 +62,38 @@ export async function scanXeroReconciliationTargets(
   const xeroFetch = dependencies.xeroFetch ?? xeroApiFetch;
   const reconcile = dependencies.reconcile ?? reconcileXeroDocument;
   const reportIssue = dependencies.reportIssue ?? reportRuntimeIssue;
+  const mappingReadiness = dependencies.mappingReadiness ?? getXeroMappingReadiness;
+  const recordMappingIssue = dependencies.recordMappingIssue ?? recordXeroReconciliationIssue;
+  const resolveMappingIssue = dependencies.resolveMappingIssue ?? resolveXeroReconciliationIssue;
   const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
   const targets = await listTargets({ businessId: input.businessId, afterId: input.afterId, limit });
   const grouped = new Map<EndpointKind, ScanTarget[]>([['Invoices', []], ['CreditNotes', []]]);
   let unsupportedCount = 0;
+  let mappingIssueCount = 0;
+  try {
+    const readiness = await mappingReadiness(input.businessId);
+    for (const item of readiness.items) {
+      const referenceId = `${item.category}:${item.key}`;
+      const activeRule = item.status === 'missing' ? 'mapping_missing' : item.status === 'stale' ? 'mapping_stale' : null;
+      for (const ruleKey of ['mapping_missing', 'mapping_stale'] as const) {
+        if (ruleKey === activeRule) {
+          await recordMappingIssue({
+            businessId: input.businessId, targetType: 'mapping', referenceId, ruleKey,
+            severity: item.status === 'stale' ? 'error' : 'warning', summary: item.summary,
+            expected: { label: item.label, requirement: item.requirement }, actual: { status: item.status },
+          });
+          mappingIssueCount += 1;
+        } else {
+          await resolveMappingIssue({ businessId: input.businessId, targetType: 'mapping', referenceId, ruleKey, actual: { status: item.status }, reason: 'Mapping readiness recovered during Xero recheck.' });
+        }
+      }
+    }
+  } catch (error) {
+    await reportIssue({
+      businessId: input.businessId, source: 'xero_reconciliation', operation: 'scan_mapping_readiness',
+      title: 'Xero mapping readiness could not be checked', error,
+    }).catch(() => {});
+  }
   for (const target of targets) {
     const endpoint = TARGET_ENDPOINTS[target.targetType];
     if (!endpoint) unsupportedCount += 1;
@@ -120,6 +153,7 @@ export async function scanXeroReconciliationTargets(
     mismatchCount,
     failedBatches,
     unsupportedCount,
+    mappingIssueCount,
     nextCursor: targets.at(-1)?.id ?? null,
     hasMore: targets.length === limit,
   };

@@ -17001,6 +17001,26 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [freightTreatment, setFreightTreatment] = useState<'expense' | 'capitalise'>('expense');
+  const [readiness, setReadiness] = useState<{ summary: { required: number; ready: number; missing: number; stale: number; optional: number }; items: Array<{ category: string; key: string; label: string; requirement: 'required' | 'optional'; status: 'ready' | 'missing' | 'stale' | 'optional'; summary: string }>; checkedAt: string } | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
+
+  const loadReadiness = async () => {
+    const bid = getBusinessId();
+    if (!bid) return;
+    setReadinessLoading(true);
+    setReadinessError('');
+    try {
+      const response = await fetch(`/api/xero/mapping-readiness?databaseId=${encodeURIComponent(bid)}`);
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Mapping readiness could not be checked');
+      setReadiness({ summary: data.summary, items: data.items, checkedAt: data.checkedAt });
+    } catch (error) {
+      setReadinessError(error instanceof Error ? error.message : 'Mapping readiness could not be checked');
+    } finally {
+      setReadinessLoading(false);
+    }
+  };
 
   const ROLE_DEFS: MappingRoleDef[] = [
     { key: 'inventory_asset', label: 'Inventory Asset', help: 'Stock on hand after goods are received. Used for inventory value on the balance sheet.', example: 'Receive $800 of stock: Inventory Asset goes up by $800.', filter: (a: any) => a.class === 'ASSET' },
@@ -17043,6 +17063,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         setLocations(locs);
       } catch {}
       setLoading(false);
+      loadReadiness();
     })();
   }, []);
 
@@ -17104,6 +17125,29 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   return (
     <div style={{ maxWidth: 800 }}>
       <XeroDocumentPolicySection getBusinessId={getBusinessId} />
+      <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div><h3 style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--sv-text-strong)' }}>Mapping readiness</h3><p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>Required mappings follow the enabled document and payment policy. Saved mappings are checked against live Xero accounts and tracking options.</p></div>
+          <button type="button" onClick={loadReadiness} disabled={readinessLoading} style={{ padding: '6px 10px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: readinessLoading ? 'wait' : 'pointer', fontSize: 12 }}>{readinessLoading ? 'Checking...' : 'Recheck mappings'}</button>
+        </div>
+        {readiness && <>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, fontSize: 11 }}>
+            <span style={{ color: readiness.summary.ready === readiness.summary.required ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{readiness.summary.ready} of {readiness.summary.required} required ready</span>
+            {readiness.summary.missing > 0 && <span style={{ color: 'var(--sv-amber)' }}>{readiness.summary.missing} missing</span>}
+            {readiness.summary.stale > 0 && <span style={{ color: 'var(--sv-red)' }}>{readiness.summary.stale} stale</span>}
+            <span style={{ color: 'var(--sv-text-dim)' }}>{readiness.summary.optional} optional not configured</span>
+          </div>
+          <div style={{ display: 'grid', gap: 6, marginTop: 12 }}>
+            {readiness.items.filter(item => item.status !== 'ready').map(item => <div key={`${item.category}:${item.key}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px, 1fr) auto minmax(220px, 2fr)', gap: 10, alignItems: 'center', padding: '7px 9px', border: '1px solid var(--sv-etch)', borderRadius: 5, fontSize: 11 }}>
+              <strong style={{ color: 'var(--sv-text-main)' }}>{item.label}</strong>
+              <span style={{ color: item.requirement === 'required' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{item.requirement === 'required' ? 'Required' : 'Optional'}</span>
+              <span style={{ color: item.status === 'stale' ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>{item.summary}</span>
+            </div>)}
+          </div>
+          <div style={{ marginTop: 8, color: 'var(--sv-text-dim)', fontSize: 10 }}>Missing POS clearing affects only that method&apos;s Xero posting; it never blocks POS EOD closure.</div>
+        </>}
+        {readinessError && <div style={{ marginTop: 10, color: 'var(--sv-red)', fontSize: 11 }}>{readinessError}</div>}
+      </div>
       {/* Account mapping */}
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
@@ -18255,8 +18299,8 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
     ? Object.entries(value).filter(([, child]) => child != null).map(([key, child]) => `${key}: ${Array.isArray(child) ? child.join(' / ') : child}`).join(' · ') || 'Unknown'
     : 'Unknown';
   const label = (value: string) => ({
-    purchase_order: 'Purchase order', sales_order: 'Sales order', customer_credit_note: 'Customer credit note', supplier_credit_note: 'Supplier credit note',
-    missing_document: 'Missing document', linked_document: 'Wrong link', document_type: 'Document type', total: 'Total', currency: 'Currency', contact: 'Contact', lifecycle_state: 'Lifecycle state', amount_due: 'Amount due', amount_paid: 'Amount paid', amount_credited: 'Amount credited', remaining_credit: 'Remaining credit', admin_edit_override: 'Admin override',
+    purchase_order: 'Purchase order', sales_order: 'Sales order', customer_credit_note: 'Customer credit note', supplier_credit_note: 'Supplier credit note', mapping: 'Ledger mapping',
+    missing_document: 'Missing document', linked_document: 'Wrong link', document_type: 'Document type', total: 'Total', currency: 'Currency', contact: 'Contact', lifecycle_state: 'Lifecycle state', amount_due: 'Amount due', amount_paid: 'Amount paid', amount_credited: 'Amount credited', remaining_credit: 'Remaining credit', admin_edit_override: 'Admin override', mapping_missing: 'Missing mapping', mapping_stale: 'Stale mapping',
   }[value] ?? value.replace(/_/g, ' '));
   const filterStyle: React.CSSProperties = { background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 5, padding: '6px 8px', fontSize: 12, color: 'var(--sv-text-main)' };
 
@@ -18290,11 +18334,11 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
         </select>
         <select value={filters.ruleKey} onChange={event => setFilters(current => ({ ...current, ruleKey: event.target.value }))} style={filterStyle} aria-label="Discrepancy type">
           <option value="">All discrepancies</option>
-          {['missing_document','linked_document','document_type','total','currency','contact','lifecycle_state','amount_due','amount_paid','amount_credited','remaining_credit','admin_edit_override'].map(value => <option key={value} value={value}>{label(value)}</option>)}
+          {['missing_document','linked_document','document_type','total','currency','contact','lifecycle_state','amount_due','amount_paid','amount_credited','remaining_credit','admin_edit_override','mapping_missing','mapping_stale'].map(value => <option key={value} value={value}>{label(value)}</option>)}
         </select>
         <select value={filters.targetType} onChange={event => setFilters(current => ({ ...current, targetType: event.target.value }))} style={filterStyle} aria-label="Document type">
           <option value="">All documents</option>
-          {['purchase_order','sales_order','customer_credit_note','supplier_credit_note'].map(value => <option key={value} value={value}>{label(value)}</option>)}
+          {['purchase_order','sales_order','customer_credit_note','supplier_credit_note','mapping'].map(value => <option key={value} value={value}>{label(value)}</option>)}
         </select>
         <select value={filters.severity} onChange={event => setFilters(current => ({ ...current, severity: event.target.value }))} style={filterStyle} aria-label="Severity">
           <option value="">All severities</option><option value="critical">Critical</option><option value="error">Error</option><option value="warning">Warning</option>
@@ -18323,7 +18367,7 @@ function XeroNeedsAttentionView({ getBusinessId, canMutateAccounting = false, on
                 <td style={{ padding: 10 }}><input type="checkbox" aria-label={`Select ${item.reference}`} disabled={item.status !== 'open'} checked={selectedIssueIds.includes(item.id)} onChange={event => setSelectedIssueIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} /></td>
                 <td style={{ padding: 10 }}><span style={{ color: severityColor, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={14} /> {item.severity}</span></td>
                 <td style={{ padding: 10 }}><strong>{label(item.ruleKey)}</strong><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{label(item.targetType)}</div></td>
-                <td style={{ padding: 10 }}><button type="button" onClick={() => openSource(item)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontWeight: 700 }}>{item.reference}</button><div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{item.contactName || '—'}</div></td>
+                <td style={{ padding: 10 }}>{item.targetType === 'mapping' ? <strong style={{ color: 'var(--sv-text-main)' }}>{item.reference}</strong> : <button type="button" onClick={() => openSource(item)} style={{ padding: 0, border: 0, background: 'none', color: 'var(--sv-action)', cursor: 'pointer', fontWeight: 700 }}>{item.reference}</button>}<div style={{ color: 'var(--sv-text-dim)', marginTop: 3 }}>{item.contactName || '—'}</div></td>
                 <td style={{ padding: 10, fontVariantNumeric: 'tabular-nums' }}>{item.amount == null ? '—' : `$${Number(item.amount).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
                 <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{age(item.firstSeenAt)}d</td>
                 <td title={JSON.stringify(item.expected)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.expected)}</td>

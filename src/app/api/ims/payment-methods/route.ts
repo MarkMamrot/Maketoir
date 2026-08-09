@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ImsPaymentMethodsRepo } from '@/lib/ims/ImsRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { xeroApiFetch } from '@/services/XeroService';
 
 export async function GET(_req: NextRequest) {
   const session = await getImsSession();
@@ -37,6 +38,15 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, ...data } = body;
     if (!id) return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
+    if (typeof data.xero_account_code === 'string' && data.xero_account_code.trim()) {
+      const accountResponse = await xeroApiFetch(session.businessId, '/Accounts');
+      const account = (accountResponse?.Accounts ?? []).find((candidate: any) => String(candidate.Code ?? '') === data.xero_account_code.trim());
+      const acceptsPayments = account?.Type === 'BANK' || account?.EnablePaymentsToAccount === true;
+      if (!account || account.Status !== 'ACTIVE' || !acceptsPayments) {
+        return NextResponse.json({ success: false, error: 'Select an active Xero account that accepts payments.' }, { status: 400 });
+      }
+      data.xero_account_code = String(account.Code);
+    }
     await ImsPaymentMethodsRepo.update(Number(id), session.businessId, data);
     return NextResponse.json({ success: true });
   } catch (e: any) {

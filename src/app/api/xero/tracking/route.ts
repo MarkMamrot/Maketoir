@@ -62,6 +62,12 @@ export async function POST(req: Request) {
   }
 
   try {
+    const liveResponse = await xeroApiFetch(databaseId!, '/TrackingCategories');
+    const category = (liveResponse?.TrackingCategories ?? []).find((candidate: any) => candidate.TrackingCategoryID === xeroCategoryId);
+    const option = (category?.Options ?? []).find((candidate: any) => candidate.TrackingOptionID === xeroOptionId);
+    if (!category || category.Status !== 'ACTIVE' || !option || option.Status !== 'ACTIVE') {
+      return NextResponse.json({ error: 'Select an active Xero tracking category and option.' }, { status: 400 });
+    }
     await execute(
       `INSERT INTO xero_tracking_mappings
         (business_id, ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id, xero_tracking_option_name)
@@ -71,7 +77,7 @@ export async function POST(req: Request) {
         xero_tracking_option_id = VALUES(xero_tracking_option_id),
         xero_tracking_option_name = VALUES(xero_tracking_option_name),
         updated_at = NOW()`,
-      [databaseId, imsLocationId ?? null, imsChannel ?? null, xeroCategoryId, xeroOptionId, xeroOptionName ?? null],
+      [databaseId, imsLocationId ?? null, imsChannel ?? null, category.TrackingCategoryID, option.TrackingOptionID, option.Name],
     );
     return NextResponse.json({ success: true });
   } catch (err: any) {

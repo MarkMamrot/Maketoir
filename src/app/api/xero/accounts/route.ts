@@ -72,6 +72,11 @@ export async function POST(req: Request) {
   }
 
   try {
+    const accountResponse = await xeroApiFetch(databaseId!, `/Accounts/${encodeURIComponent(String(xeroAccountId ?? ''))}`);
+    const account = (accountResponse?.Accounts ?? []).find((candidate: any) => candidate.AccountID === xeroAccountId);
+    if (!account || account.Status !== 'ACTIVE' || String(account.Code ?? '') !== String(xeroAccountCode ?? '') || String(account.Name ?? '') !== String(xeroAccountName ?? '')) {
+      return NextResponse.json({ error: 'Select an active Xero account and try again.' }, { status: 400 });
+    }
     await execute(
       `INSERT INTO xero_account_mappings (business_id, role_key, xero_account_id, xero_account_code, xero_account_name)
        VALUES (?, ?, ?, ?, ?)
@@ -79,7 +84,7 @@ export async function POST(req: Request) {
          xero_account_code = VALUES(xero_account_code),
          xero_account_name = VALUES(xero_account_name),
          updated_at = NOW()`,
-      [databaseId, roleKey, xeroAccountId, xeroAccountCode, xeroAccountName],
+      [databaseId, roleKey, account.AccountID, String(account.Code), account.Name],
     );
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, execute } from '@/services/MySQLService';
 import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
+import { xeroApiFetch } from '@/services/XeroService';
 
 const FEE_TAX_TYPES = new Set(['INPUT', 'NONE']);
 
@@ -65,6 +66,17 @@ export async function POST(req: NextRequest) {
     if (deductFeeEnabled && !fee_account_code) {
       throw new Error('fee_account_code is required when fee deduction is enabled');
     }
+    const accountResponse = await xeroApiFetch(bid, '/Accounts');
+    const liveAccounts = accountResponse?.Accounts ?? [];
+    const clearingAccount = liveAccounts.find((account: any) => String(account.Code ?? '') === String(clearing_account_code ?? ''));
+    const clearingAcceptsPayments = clearingAccount?.Type === 'BANK' || clearingAccount?.EnablePaymentsToAccount === true;
+    if (!clearingAccount || clearingAccount.Status !== 'ACTIVE' || !clearingAcceptsPayments) {
+      throw new Error('clearing_account_code must reference an active Xero account that accepts payments');
+    }
+    const feeAccount = fee_account_code ? liveAccounts.find((account: any) => String(account.Code ?? '') === String(fee_account_code)) : null;
+    if (deductFeeEnabled && (!feeAccount || feeAccount.Status !== 'ACTIVE')) {
+      throw new Error('fee_account_code must reference an active Xero account');
+    }
     await execute(
       `INSERT INTO xero_gateway_mappings
          (business_id, gateway_name, display_name, clearing_account_code, clearing_account_name,
@@ -81,13 +93,13 @@ export async function POST(req: NextRequest) {
          fixed_fee_amount = VALUES(fixed_fee_amount),
          percentage_fee_rate = VALUES(percentage_fee_rate)`,
       [bid, normalizedGateway, display_name ?? gateway_name,
-       clearing_account_code ?? null, clearing_account_name ?? null,
-       fee_account_code ?? null, fee_account_name ?? null, feeTaxType,
+       String(clearingAccount.Code), clearingAccount.Name ?? clearing_account_name ?? null,
+       feeAccount ? String(feeAccount.Code) : null, feeAccount?.Name ?? fee_account_name ?? null, feeTaxType,
        deductFeeEnabled ? 1 : 0, fixedFeeAmount, percentageFeeRate],
     );
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    const status = /^(fee_tax_type|fixed_fee_amount|percentage_fee_rate|fee_account_code)/.test(e.message ?? '') ? 400 : 500;
+    const status = /^(fee_tax_type|fixed_fee_amount|percentage_fee_rate|fee_account_code|clearing_account_code)/.test(e.message ?? '') ? 400 : 500;
     return NextResponse.json({ success: false, error: e.message }, { status });
   }
 }

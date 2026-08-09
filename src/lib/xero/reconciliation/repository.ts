@@ -154,11 +154,12 @@ export type XeroReconciliationIssueListItem = {
 
 const ISSUE_STATUSES = new Set(['open', 'ignored', 'resolved']);
 const ISSUE_SEVERITIES = new Set(['warning', 'error', 'critical']);
-const ISSUE_TARGET_TYPES = new Set(['purchase_order', 'sales_order', 'customer_credit_note', 'supplier_credit_note']);
+const ISSUE_TARGET_TYPES = new Set(['purchase_order', 'sales_order', 'customer_credit_note', 'supplier_credit_note', 'mapping']);
 const ISSUE_RULES = new Set([
   'missing_document', 'linked_document', 'document_type', 'total', 'currency', 'contact',
   'lifecycle_state', 'amount_due', 'amount_paid', 'amount_credited', 'remaining_credit',
   'admin_edit_override',
+  'mapping_missing', 'mapping_stale',
 ]);
 
 function parseJsonObject(value: string | Record<string, unknown> | null): Record<string, unknown> | null {
@@ -171,6 +172,7 @@ export function reconciliationRecommendation(ruleKey: string): string {
   if (ruleKey === 'document_type' || ruleKey === 'contact') return 'Confirm the correct Xero document and contact before changing the link.';
   if (ruleKey === 'lifecycle_state') return 'Review the document state in Xero and complete or reverse the pending workflow.';
   if (ruleKey === 'admin_edit_override') return 'Ask an Admin to review the local override and its Xero impact.';
+  if (ruleKey === 'mapping_missing' || ruleKey === 'mapping_stale') return 'Open Xero Ledger Mapping, select an active Xero value, then recheck.';
   return 'Compare the local and Xero amounts, correct the source of truth, then recheck.';
 }
 

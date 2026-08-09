@@ -45,7 +45,13 @@ describe('POST /api/xero/accounts', () => {
     mockAssertBusinessAccess.mockReturnValue(null);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);
-    mockXeroApiFetch.mockResolvedValue({ Accounts: [] });
+    mockXeroApiFetch.mockResolvedValue({ Accounts: [
+      { AccountID: 'acc-123', Code: '230', Name: 'Gift Card Liability', Status: 'ACTIVE' },
+      { AccountID: 'acc-124', Code: '231', Name: 'Store Credit Liability', Status: 'ACTIVE' },
+      { AccountID: 'acc-789', Code: '899', Name: 'Cash Rounding', Status: 'ACTIVE' },
+      { AccountID: 'acc-790', Code: '898', Name: 'Cash Over and Short', Status: 'ACTIVE' },
+      { AccountID: 'acc-2', Code: '200', Name: 'Sales', Status: 'ACTIVE' },
+    ] });
   });
 
   it('accepts gift_card_liability as a valid role and upserts mapping', async () => {
@@ -139,6 +145,13 @@ describe('POST /api/xero/accounts', () => {
 
     expect(res.status).toBe(400);
     expect(String(json.error)).toContain('Invalid role_key: not_a_real_role');
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('rejects an archived Xero account before persistence', async () => {
+    mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [{ AccountID: 'acc-old', Code: '200', Name: 'Old Sales', Status: 'ARCHIVED' }] });
+    const res = await POST(makeRequest({ databaseId: 'biz-1', roleKey: 'sales_revenue', xeroAccountId: 'acc-old', xeroAccountCode: '200', xeroAccountName: 'Old Sales' }));
+    expect(res.status).toBe(400);
     expect(mockExecute).not.toHaveBeenCalled();
   });
 

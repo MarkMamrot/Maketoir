@@ -6,11 +6,13 @@ const {
   mockAssertBusinessAccess,
   mockExecute,
   mockQuery,
+  mockXeroApiFetch,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockExecute: vi.fn(),
   mockQuery: vi.fn(),
+  mockXeroApiFetch: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -22,6 +24,8 @@ vi.mock('@/services/MySQLService', () => ({
   execute: mockExecute,
   query: mockQuery,
 }));
+
+vi.mock('@/services/XeroService', () => ({ xeroApiFetch: mockXeroApiFetch }));
 
 import { GET, POST } from '../route';
 
@@ -40,6 +44,11 @@ describe('/api/xero/gateway-mappings', () => {
     mockAssertBusinessAccess.mockReturnValue(null);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);
+    mockXeroApiFetch.mockResolvedValue({ Accounts: [
+      { AccountID: 'bank-91', Code: '091', Name: null, Status: 'ACTIVE', Type: 'BANK' },
+      { AccountID: 'bank-92', Code: '092', Name: null, Status: 'ACTIVE', Type: 'BANK' },
+      { AccountID: 'fee-404', Code: '404', Name: null, Status: 'ACTIVE', Type: 'EXPENSE' },
+    ] });
   });
 
   it('returns fee tax treatment with each mapping', async () => {
@@ -113,6 +122,14 @@ describe('/api/xero/gateway-mappings', () => {
 
     expect(response.status).toBe(400);
     expect((await response.json()).error).toContain('fee_account_code');
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('rejects an archived clearing account before persistence', async () => {
+    mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [{ Code: '092', Status: 'ARCHIVED', Type: 'BANK' }] });
+    const response = await POST(postRequest({ gateway_name: 'afterpay', clearing_account_code: '092' }) as any);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('active Xero account');
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
