@@ -67,7 +67,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (existing.xero_invoice_id && hasXeroChanges) {
         try {
           xeroState = await getXeroInvoiceEditState(businessId, existing.xero_invoice_id);
-        } catch {}
+        } catch (error) {
+          await reportRuntimeIssue({
+            businessId, source: 'ims_sales_orders', operation: 'xero_edit_preflight',
+            title: 'Sales order Xero edit preflight failed', error,
+            reference: { type: 'sales_order', id: params.id },
+          });
+        }
         const assessment = assessXeroDocumentEdit(true, xeroState);
         if (!assessment.allowed) {
           const overrideReason = typeof xeroOverrideReason === 'string' ? xeroOverrideReason.trim() : '';

@@ -14,7 +14,7 @@ import { allocateReservedCustomerCredit, allocateReservedSupplierCredit } from '
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
-import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftSupplierCreditNote, approveCreditNote } from '@/services/XeroSyncService';
+import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftCustomerCreditNote, updateXeroDraftSupplierCreditNote, approveCreditNote } from '@/services/XeroSyncService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -323,29 +323,60 @@ export async function triggerSOXeroUpdate(businessId: string, soId: number): Pro
 }
 
 /**
- * Triggered when a supplier credit note's fields/items are edited without a status change.
- * Updates the existing Xero Draft Credit Note if one exists.
- * Silently skips if no Xero credit note exists, Xero is not connected, or the note is no longer DRAFT.
+ * Triggered when a customer credit note's fields/items are edited without a status change.
  */
-export async function triggerSupplierCNXeroUpdate(businessId: string, scnId: number): Promise<string | null> {
-  if (!await isXeroConnected(businessId)) return null;
-
-  const scn = await ImsSupplierCNRepo.get(scnId, businessId);
-  if (!scn) return null;
-
-  const xeroId = (scn as any).xero_credit_note_id ?? null;
-  if (!xeroId) {
-    return `Supplier credit note ${(scn as any).scn_number} has not been synced to Xero yet, so there is no draft credit note to update.`;
-  }
-
+export async function triggerCNXeroUpdate(businessId: string, cnId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
   try {
+    if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
+    const cn = await ImsCNRepo.get(cnId, businessId);
+    if (!cn || cn.status !== 'draft') return { attempted: false, updated: false, warning: null };
+    const xeroId = (cn as any).xero_credit_note_id ?? null;
+    if (!xeroId) return { attempted: false, updated: false, warning: null };
+    const updated = await updateXeroDraftCustomerCreditNote(businessId, cn as any, xeroId);
+    return {
+      attempted: true,
+      updated,
+      warning: updated ? null : `Customer credit note ${(cn as any).cn_number} was saved, but its linked Xero credit note could not be updated.`,
+    };
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'XeroHooks',
+      operation: 'update_customer_credit_note_after_edit',
+      title: 'Customer credit note was saved but its Xero update failed',
+      error,
+      reference: { type: 'credit_note', id: cnId },
+    }).catch(() => {});
+    return { attempted: true, updated: false, warning: `Customer credit note ${cnId} was saved, but Xero could not be updated right now.` };
+  }
+}
+
+/**
+ * Triggered when a supplier credit note's fields/items are edited without a status change.
+ */
+export async function triggerSupplierCNXeroUpdate(businessId: string, scnId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
+  try {
+    if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
+    const scn = await ImsSupplierCNRepo.get(scnId, businessId);
+    if (!scn || scn.status !== 'draft') return { attempted: false, updated: false, warning: null };
+    const xeroId = (scn as any).xero_credit_note_id ?? null;
+    if (!xeroId) return { attempted: false, updated: false, warning: null };
     const updated = await updateXeroDraftSupplierCreditNote(businessId, scn as any, xeroId);
-    if (!updated) {
-      return `Supplier credit note ${(scn as any).scn_number} could not be updated in Xero because the linked credit note is no longer DRAFT or could not be found.`;
-    }
-    return null;
-  } catch {
-    return `Supplier credit note ${(scn as any).scn_number} could not be updated in Xero right now.`;
+    return {
+      attempted: true,
+      updated,
+      warning: updated ? null : `Supplier credit note ${(scn as any).scn_number} was saved, but its linked Xero credit note could not be updated.`,
+    };
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'XeroHooks',
+      operation: 'update_supplier_credit_note_after_edit',
+      title: 'Supplier credit note was saved but its Xero update failed',
+      error,
+      reference: { type: 'supplier_credit_note', id: scnId },
+    }).catch(() => {});
+    return { attempted: true, updated: false, warning: `Supplier credit note ${scnId} was saved, but Xero could not be updated right now.` };
   }
 }
 

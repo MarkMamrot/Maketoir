@@ -105,7 +105,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (existing.xero_bill_id && hasXeroChanges) {
         try {
           xeroState = await getXeroInvoiceEditState(businessId, existing.xero_bill_id);
-        } catch {}
+        } catch (error) {
+          await reportRuntimeIssue({
+            businessId, source: 'ims_purchase_orders', operation: 'xero_edit_preflight',
+            title: 'Purchase order Xero edit preflight failed', error,
+            reference: { type: 'purchase_order', id: params.id },
+          });
+        }
         const assessment = assessXeroDocumentEdit(true, xeroState);
         if (!assessment.allowed) {
           const overrideReason = typeof xeroOverrideReason === 'string' ? xeroOverrideReason.trim() : '';

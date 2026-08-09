@@ -18,6 +18,7 @@ const {
   mockSyncSOAsInvoice,
   mockUpdateXeroDraftInvoice,
   mockApproveInvoice,
+  mockUpdateXeroDraftCustomerCreditNote,
   mockUpdateXeroDraftSupplierCreditNote,
   mockCNGet,
   mockSyncCNAsCreditNote,
@@ -41,6 +42,7 @@ const {
   mockSyncSOAsInvoice: vi.fn(),
   mockUpdateXeroDraftInvoice: vi.fn(),
   mockApproveInvoice: vi.fn(),
+  mockUpdateXeroDraftCustomerCreditNote: vi.fn(),
   mockUpdateXeroDraftSupplierCreditNote: vi.fn(),
   mockCNGet: vi.fn(),
   mockSyncCNAsCreditNote: vi.fn(),
@@ -80,6 +82,7 @@ vi.mock('@/services/XeroSyncService', () => ({
   markSupplierCNXeroStatus: vi.fn(),
   voidXeroCreditNote: vi.fn(),
   voidXeroSupplierCreditNote: vi.fn(),
+  updateXeroDraftCustomerCreditNote: mockUpdateXeroDraftCustomerCreditNote,
   updateXeroDraftSupplierCreditNote: mockUpdateXeroDraftSupplierCreditNote,
   approveCreditNote: mockApproveCreditNote,
 }));
@@ -90,6 +93,7 @@ import {
   triggerPOPaymentXeroSync,
   triggerPOXeroSync,
   triggerSOXeroSync,
+  triggerCNXeroUpdate,
   triggerCNXeroSync,
   triggerSupplierCNXeroSync,
   triggerSupplierCNXeroUpdate,
@@ -114,9 +118,9 @@ describe('triggerSupplierCNXeroUpdate', () => {
     mockSupplierCNGet.mockResolvedValue({ id: 42, scn_number: 'SCN-00001', xero_credit_note_id: 'xero-123', status: 'draft' });
     mockUpdateXeroDraftSupplierCreditNote.mockResolvedValue(true);
 
-    const warning = await triggerSupplierCNXeroUpdate('biz-1', 42);
+    const result = await triggerSupplierCNXeroUpdate('biz-1', 42);
 
-    expect(warning).toBeNull();
+    expect(result).toEqual({ attempted: true, updated: true, warning: null });
     expect(mockUpdateXeroDraftSupplierCreditNote).toHaveBeenCalledWith(
       'biz-1',
       expect.objectContaining({ id: 42, scn_number: 'SCN-00001' }),
@@ -124,14 +128,28 @@ describe('triggerSupplierCNXeroUpdate', () => {
     );
   });
 
-  it('returns a warning when no Xero draft credit note exists yet', async () => {
+  it('does nothing when no linked Xero credit note exists yet', async () => {
     mockConnectionsGet.mockResolvedValue({ xero_tenant_id: 'tenant', xero_refresh_token: 'token' });
     mockSupplierCNGet.mockResolvedValue({ id: 42, scn_number: 'SCN-00001', xero_credit_note_id: null, status: 'draft' });
 
-    const warning = await triggerSupplierCNXeroUpdate('biz-1', 42);
+    const result = await triggerSupplierCNXeroUpdate('biz-1', 42);
 
-    expect(warning).toContain('not been synced to Xero yet');
+    expect(result).toEqual({ attempted: false, updated: false, warning: null });
     expect(mockUpdateXeroDraftSupplierCreditNote).not.toHaveBeenCalled();
+  });
+
+  it('updates the linked Xero Draft for an edited customer credit note', async () => {
+    mockCNGet.mockResolvedValue({ id: 41, cn_number: 'CN-00001', xero_credit_note_id: 'xero-122', status: 'draft' });
+    mockUpdateXeroDraftCustomerCreditNote.mockResolvedValue(true);
+
+    const result = await triggerCNXeroUpdate('biz-1', 41);
+
+    expect(result).toEqual({ attempted: true, updated: true, warning: null });
+    expect(mockUpdateXeroDraftCustomerCreditNote).toHaveBeenCalledWith(
+      'biz-1',
+      expect.objectContaining({ id: 41, cn_number: 'CN-00001' }),
+      'xero-122',
+    );
   });
 });
 

@@ -273,7 +273,7 @@ async function apiFetch(url: string, opts?: RequestInit) {
   return json;
 }
 
-async function saveOrderWithXeroOverride(url: string, payload: Record<string, unknown>) {
+async function saveDocumentWithXeroOverride(url: string, payload: Record<string, unknown>) {
   const options = (body: Record<string, unknown>): RequestInit => ({
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -8304,7 +8304,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        const saved = await saveOrderWithXeroOverride(`/api/ims/purchase-orders/${modal.edit.id}`, { ...form, items, landed_costs });
+        const saved = await saveDocumentWithXeroOverride(`/api/ims/purchase-orders/${modal.edit.id}`, { ...form, items, landed_costs });
         if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
         // Also record any receiving deltas
         if (isReceiving && receivePlan?.shouldCallBatch) {
@@ -10039,7 +10039,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         })),
       };
       if (modal.edit) {
-        await apiFetch(`/api/ims/credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const saved = await saveDocumentWithXeroOverride(`/api/ims/credit-notes/${modal.edit.id}`, body);
+        if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
       } else {
         const created = await apiFetch('/api/ims/credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         savedCnId = Number(created?.data?.id ?? created?.id ?? 0) || null;
@@ -10808,7 +10809,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         })),
       };
       const saved = modal.edit
-        ? await apiFetch(`/api/ims/supplier-credit-notes/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        ? await saveDocumentWithXeroOverride(`/api/ims/supplier-credit-notes/${modal.edit.id}`, body)
         : await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setModal({ open: false, edit: null });
       load();
@@ -11909,7 +11910,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
-        const saved = await saveOrderWithXeroOverride(`/api/ims/sales-orders/${modal.edit.id}`, { ...form, items });
+        const saved = await saveDocumentWithXeroOverride(`/api/ims/sales-orders/${modal.edit.id}`, { ...form, items });
         if (saved?.xeroWarning) alert(`Xero notice:\n\n${saved.xeroWarning}`);
       } else {
         const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });

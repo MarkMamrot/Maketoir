@@ -739,6 +739,36 @@ export async function getXeroCreditNoteFinancialState(businessId: string, xeroId
   };
 }
 
+export async function getXeroCreditNoteEditState(businessId: string, xeroId: string): Promise<{
+  status: string | null;
+  total: number;
+  remainingCredit: number;
+  documentDate: string | null;
+  currencyCode: string | null;
+  contactId: string | null;
+  periodLockDate: string | null;
+  endOfYearLockDate: string | null;
+}> {
+  const [creditNoteResponse, organisationResponse] = await Promise.all([
+    xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}`, { method: 'GET' }),
+    xeroApiFetch(businessId, '/Organisation', { method: 'GET' }),
+  ]);
+  const creditNote = creditNoteResponse?.CreditNotes?.[0];
+  if (!creditNote) throw new Error('The linked Xero credit note was not found.');
+  const organisation = organisationResponse?.Organisations?.[0];
+  if (!organisation) throw new Error('The Xero organisation lock dates could not be verified.');
+  return {
+    status: typeof creditNote.Status === 'string' ? creditNote.Status : null,
+    total: Number(creditNote.Total ?? 0),
+    remainingCredit: Number(creditNote.RemainingCredit ?? 0),
+    documentDate: xeroDate(creditNote.DateString ?? creditNote.Date),
+    currencyCode: typeof creditNote.CurrencyCode === 'string' ? creditNote.CurrencyCode : null,
+    contactId: typeof creditNote.Contact?.ContactID === 'string' ? creditNote.Contact.ContactID : null,
+    periodLockDate: xeroDate(organisation.PeriodLockDate),
+    endOfYearLockDate: xeroDate(organisation.EndOfYearLockDate),
+  };
+}
+
 export async function refundXeroCreditNote(input: {
   businessId: string;
   creditNoteId: string;
@@ -1196,6 +1226,66 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     return true;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'error', `Update failed: ${err.message}`);
+    return false;
+  }
+}
+
+export async function updateXeroDraftCustomerCreditNote(businessId: string, cn: CNForSync, xeroId: string): Promise<boolean> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  const taxTypes = getTaxTypes(businessId);
+  const accountCode = accounts.credit_note || accounts.sales_revenue;
+  if (!accountCode) {
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'skipped', 'No credit_note or sales_revenue account mapped');
+    return false;
+  }
+
+  try {
+    const current = await xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}`, { method: 'GET' });
+    const currentStatus = current.CreditNotes?.[0]?.Status;
+    if (currentStatus !== 'DRAFT') {
+      await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'skipped', `Credit note is ${currentStatus ?? 'unknown'}, cannot update`, currentStatus ?? undefined);
+      return false;
+    }
+  } catch (err: any) {
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'error', `Failed to fetch credit note status: ${err.message}`);
+    return false;
+  }
+
+  const tracking = getTrackingForLocation(trackingMappings, cn.location_id, 'wholesale');
+  const lineAmountType = cn.tax_treatment === 'inc_tax' ? 'Inclusive' : 'Exclusive';
+  const lineItems = (cn.items ?? []).map(item => ({
+    Description: `${item.code || ''} ${item.name || ''}`.trim() || 'Return',
+    Quantity: item.qty,
+    UnitAmount: item.unit_price,
+    AccountCode: accountCode,
+    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt)
+      ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt }
+      : {}),
+    Tracking: tracking,
+  }));
+
+  const creditNote = {
+    CreditNoteID: xeroId,
+    Type: 'ACCRECCREDIT',
+    Contact: { Name: cn.customer_name || `Customer #${cn.customer_id}` },
+    Date: cn.cn_date,
+    CreditNoteNumber: cn.cn_number,
+    Reference: cn.reference || cn.cn_number,
+    Status: 'DRAFT',
+    LineAmountTypes: lineAmountType,
+    LineItems: lineItems,
+  };
+  try {
+    await xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}?unitdp=4`, {
+      method: 'POST',
+      body: { CreditNotes: [creditNote] },
+    });
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Draft customer credit note updated: ${cn.cn_number}`, 'DRAFT');
+    await markCNXeroStatus(cn.id, 'synced', xeroId);
+    return true;
+  } catch (err: any) {
+    await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'error', `Update failed: ${err.message}`);
     return false;
   }
 }

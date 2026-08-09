@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges } from '../documentEditPolicy';
+import {
+  assessXeroCreditNoteEdit,
+  assessXeroDocumentEdit,
+  hasXeroVisibleCreditNoteChanges,
+  hasXeroVisibleOrderChanges,
+} from '../documentEditPolicy';
 
 describe('hasXeroVisibleOrderChanges', () => {
   const existing = {
@@ -40,5 +45,42 @@ describe('assessXeroDocumentEdit', () => {
     expect(assessXeroDocumentEdit(true, { status: 'AUTHORISED', amountPaid: 0, amountCredited: 1, documentDate: '2026-08-09' }).reason).toBe('settled');
     expect(assessXeroDocumentEdit(true, { status: 'VOIDED', amountPaid: 0, amountCredited: 0, documentDate: '2026-08-09' }).reason).toBe('terminal_status');
     expect(assessXeroDocumentEdit(true, { status: 'AUTHORISED', amountPaid: 0, amountCredited: 0, documentDate: '2026-06-30', periodLockDate: '2026-06-30' }).reason).toBe('locked_period');
+  });
+});
+
+describe('credit-note edit policy', () => {
+  const existing = {
+    customer_id: 3,
+    location_id: 4,
+    cn_date: '2026-08-09',
+    reference: 'Return',
+    notes: 'internal',
+    so_id: 9,
+    items: [{ variant_id: 'v1', code: 'SKU-1', qty: 2, unit_price: 10, tax_rate: 0.1, restock: true }],
+  };
+
+  it('keeps notes and source linkage local while detecting Xero-visible changes', () => {
+    expect(hasXeroVisibleCreditNoteChanges('customer_credit_note', existing, { notes: 'changed', so_id: 10 }, undefined)).toBe(false);
+    expect(hasXeroVisibleCreditNoteChanges('customer_credit_note', existing, { customer_id: 5 }, undefined)).toBe(true);
+    expect(hasXeroVisibleCreditNoteChanges('customer_credit_note', existing, {}, [
+      { variant_id: 'v1', code: 'SKU-1', qty: 3, unit_price: 10, tax_rate: 0.1, restock: true },
+    ])).toBe(true);
+  });
+
+  it('allows only an unallocated Xero Draft outside lock dates', () => {
+    expect(assessXeroCreditNoteEdit(true, {
+      status: 'DRAFT', total: 20, remainingCredit: 20, documentDate: '2026-08-09', periodLockDate: '2026-06-30',
+    }).allowed).toBe(true);
+    expect(assessXeroCreditNoteEdit(false, null).reason).toBe('local_only');
+    expect(assessXeroCreditNoteEdit(true, null).reason).toBe('unverifiable');
+    expect(assessXeroCreditNoteEdit(true, {
+      status: 'AUTHORISED', total: 20, remainingCredit: 20, documentDate: '2026-08-09',
+    }).reason).toBe('terminal_status');
+    expect(assessXeroCreditNoteEdit(true, {
+      status: 'AUTHORISED', total: 20, remainingCredit: 10, documentDate: '2026-08-09',
+    }).reason).toBe('settled');
+    expect(assessXeroCreditNoteEdit(true, {
+      status: 'DRAFT', total: 20, remainingCredit: 20, documentDate: '2026-06-30', periodLockDate: '2026-06-30',
+    }).reason).toBe('locked_period');
   });
 });

@@ -22,11 +22,13 @@ vi.mock('@/services/XeroService', () => ({
 
 import {
   approveBill,
+  getXeroCreditNoteEditState,
   syncPOAsDraftBill,
   syncPOAttachmentsToXero,
   syncGiftCardRedemptionReclass,
   syncGiftCardRedemptionReversal,
   syncStoreCreditIssueReclass,
+  updateXeroDraftCustomerCreditNote,
   updateXeroDraftBill,
 } from '../XeroSyncService';
 
@@ -46,6 +48,54 @@ it('preserves four-decimal unit precision when approving a bill', async () => {
     '/Invoices/bill-4?unitdp=4',
     expect.objectContaining({ method: 'POST' }),
   );
+});
+
+describe('credit-note edit helpers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setupBaseMocks();
+  });
+
+  it('loads live credit-note settlement state and organisation lock dates', async () => {
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ CreditNotes: [{
+        Status: 'DRAFT', Total: 22, RemainingCredit: 22, DateString: '2026-08-09T00:00:00',
+        CurrencyCode: 'AUD', Contact: { ContactID: 'contact-1' },
+      }] })
+      .mockResolvedValueOnce({ Organisations: [{ PeriodLockDate: '2026-06-30', EndOfYearLockDate: '2025-06-30' }] });
+
+    await expect(getXeroCreditNoteEditState('biz-1', 'credit-1')).resolves.toEqual({
+      status: 'DRAFT', total: 22, remainingCredit: 22, documentDate: '2026-08-09',
+      currencyCode: 'AUD', contactId: 'contact-1', periodLockDate: '2026-06-30', endOfYearLockDate: '2025-06-30',
+    });
+  });
+
+  it('updates only a linked Xero Draft customer credit note at four-decimal precision', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'credit_note', xero_account_code: '201' }]);
+      if (sql.includes('xero_tracking_mappings')) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    const cn = {
+      id: 41, cn_number: 'CN-00041', customer_id: 3, customer_name: 'Customer', location_id: 4,
+      cn_date: '2026-08-09', reference: 'Return', tax_treatment: 'inc_tax' as const, total_amount: 22,
+      items: [{ code: 'SKU-1', name: 'Item', qty: 2, unit_price: 11, tax_rate: 0.1, line_total: 22 }],
+    };
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'credit-1', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'credit-1', Status: 'DRAFT' }] });
+
+    await expect(updateXeroDraftCustomerCreditNote('biz-1', cn, 'credit-1')).resolves.toBe(true);
+    expect(mockXeroApiFetch.mock.calls[1][1]).toBe('/CreditNotes/credit-1?unitdp=4');
+    expect(mockXeroApiFetch.mock.calls[1][2].body.CreditNotes[0]).toEqual(expect.objectContaining({
+      CreditNoteID: 'credit-1', Status: 'DRAFT', Type: 'ACCRECCREDIT', LineAmountTypes: 'Inclusive',
+    }));
+
+    mockXeroApiFetch.mockClear();
+    mockXeroApiFetch.mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'credit-1', Status: 'AUTHORISED' }] });
+    await expect(updateXeroDraftCustomerCreditNote('biz-1', cn, 'credit-1')).resolves.toBe(false);
+    expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('Deferred liability lifecycle sync helpers', () => {
