@@ -61,6 +61,56 @@ export async function listXeroReconciliationIssueRules(
   return rows.map(row => ({ ruleKey: row.rule_key, status: row.status }));
 }
 
+export async function listXeroReconciliationTargets(
+  input: { businessId: string; afterId?: number; limit?: number },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<Array<{
+  id: number;
+  targetType: string;
+  referenceId: string;
+  xeroId: string;
+  expected: Record<string, unknown>;
+}>> {
+  const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)));
+  const rows = await dependencies.query<{
+    id: number;
+    target_type: string;
+    reference_id: string;
+    xero_id: string;
+    expected_snapshot: string | Record<string, unknown>;
+  }>(
+    `SELECT id, target_type, reference_id, xero_id, expected_snapshot
+       FROM xero_reconciliation_targets
+      WHERE business_id = ? AND id > ? AND xero_id IS NOT NULL AND expected_snapshot IS NOT NULL
+      ORDER BY id ASC
+      LIMIT ?`,
+    [input.businessId, Math.max(0, Math.floor(input.afterId ?? 0)), limit],
+  );
+  return rows.map(row => ({
+    id: Number(row.id),
+    targetType: row.target_type,
+    referenceId: String(row.reference_id),
+    xeroId: row.xero_id,
+    expected: typeof row.expected_snapshot === 'string'
+      ? JSON.parse(row.expected_snapshot) as Record<string, unknown>
+      : row.expected_snapshot,
+  }));
+}
+
+export async function getXeroReconciliationTargetExpected(
+  input: { businessId: string; targetType: string; referenceId: string | number },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<Record<string, unknown> | null> {
+  const rows = await dependencies.query<{ expected_snapshot: string | Record<string, unknown> | null }>(
+    `SELECT expected_snapshot FROM xero_reconciliation_targets
+      WHERE business_id = ? AND target_type = ? AND reference_id = ? LIMIT 1`,
+    [input.businessId, input.targetType, String(input.referenceId)],
+  );
+  const snapshot = rows[0]?.expected_snapshot;
+  if (!snapshot) return null;
+  return typeof snapshot === 'string' ? JSON.parse(snapshot) as Record<string, unknown> : snapshot;
+}
+
 export async function recordXeroReconciliationIssue(
   input: {
     businessId: string;

@@ -29,6 +29,7 @@ import {
   failXeroAccountingAction,
 } from '@/lib/xero/accountingActionRepository';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { recordExpectedXeroDocument } from '@/lib/xero/reconciliation/expectedSnapshots';
 import fs from 'fs';
 import path from 'path';
 
@@ -545,6 +546,10 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     }
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Draft Bill created: ${po.po_number}`, inv?.Status ?? 'DRAFT');
     await markPoXeroStatus(po.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'purchase_order', referenceId: po.id, xeroId,
+      total: po.total_amount, status: inv?.Status ?? 'DRAFT', currencyCode: po.currency_code, xeroDocument: inv,
+    });
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', po.id, null, 'error', err.message);
@@ -641,9 +646,14 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
   }
 
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroId}?unitdp=4`, { method: 'POST', body: { Invoices: [bill] } });
+    const result = await xeroApiFetch(businessId, `/Invoices/${xeroId}?unitdp=4`, { method: 'POST', body: { Invoices: [bill] } });
+    const updatedInvoice = result?.Invoices?.[0];
     await logSync(businessId, 'po_bill', po.id, xeroId, 'success', `Bill updated: ${po.po_number}`, currentStatus ?? undefined);
     await markPoXeroStatus(po.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'purchase_order', referenceId: po.id, xeroId,
+      total: po.total_amount, status: currentStatus, currencyCode: po.currency_code, xeroDocument: updatedInvoice,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', po.id, xeroId, 'error', `Update failed: ${err.message}`);
@@ -855,11 +865,16 @@ export async function deleteXeroCreditNoteAllocation(
  */
 export async function approveBill(businessId: string, xeroInvoiceId: string, poId: number): Promise<boolean> {
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}?unitdp=4`, {
+    const result = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}?unitdp=4`, {
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });
+    const invoice = result?.Invoices?.[0];
     await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'success', 'Bill approved', 'AUTHORISED');
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'purchase_order', referenceId: poId, xeroId: xeroInvoiceId,
+      total: invoice?.Total, status: invoice?.Status ?? 'AUTHORISED', currencyCode: invoice?.CurrencyCode, xeroDocument: invoice,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'po_bill', poId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
@@ -1145,6 +1160,10 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     const xeroId = inv?.InvoiceID ?? null;
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`, inv?.Status ?? 'DRAFT');
     await markSoXeroStatus(so.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'sales_order', referenceId: so.id, xeroId,
+      total: so.total_amount, status: inv?.Status ?? 'DRAFT', currencyCode: so.currency_code, xeroDocument: inv,
+    });
     return xeroId;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', so.id, null, 'error', err.message);
@@ -1220,9 +1239,14 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
   };
 
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
+    const result = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
+    const updatedInvoice = result?.Invoices?.[0];
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice updated: ${so.so_number}`, currentStatus ?? undefined);
     await markSoXeroStatus(so.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'sales_order', referenceId: so.id, xeroId,
+      total: so.total_amount, status: currentStatus, currencyCode: so.currency_code, xeroDocument: updatedInvoice,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'error', `Update failed: ${err.message}`);
@@ -1277,12 +1301,17 @@ export async function updateXeroDraftCustomerCreditNote(businessId: string, cn: 
     LineItems: lineItems,
   };
   try {
-    await xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}?unitdp=4`, {
+    const result = await xeroApiFetch(businessId, `/CreditNotes/${encodeURIComponent(xeroId)}?unitdp=4`, {
       method: 'POST',
       body: { CreditNotes: [creditNote] },
     });
+    const updatedCreditNote = result?.CreditNotes?.[0];
     await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Draft customer credit note updated: ${cn.cn_number}`, 'DRAFT');
     await markCNXeroStatus(cn.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'customer_credit_note', referenceId: cn.id, xeroId,
+      total: cn.total_amount, status: 'DRAFT', xeroDocument: updatedCreditNote,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'error', `Update failed: ${err.message}`);
@@ -1343,9 +1372,14 @@ export async function updateXeroDraftSupplierCreditNote(businessId: string, scn:
   };
 
   try {
-    await xeroApiFetch(businessId, `/CreditNotes/${xeroId}`, { method: 'POST', body: { CreditNotes: [creditNote] } });
+    const result = await xeroApiFetch(businessId, `/CreditNotes/${xeroId}`, { method: 'POST', body: { CreditNotes: [creditNote] } });
+    const updatedCreditNote = result?.CreditNotes?.[0];
     await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Draft supplier credit note updated: ${scn.scn_number}`, 'DRAFT');
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'supplier_credit_note', referenceId: scn.id, xeroId,
+      total: scn.total_amount, status: 'DRAFT', xeroDocument: updatedCreditNote,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'error', `Update failed: ${err.message}`);
@@ -1358,11 +1392,16 @@ export async function updateXeroDraftSupplierCreditNote(businessId: string, scn:
  */
 export async function approveInvoice(businessId: string, xeroInvoiceId: string, soId: number): Promise<boolean> {
   try {
-    await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
+    const result = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, {
       method: 'POST',
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });
+    const invoice = result?.Invoices?.[0];
     await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'success', 'Invoice approved', 'AUTHORISED');
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'sales_order', referenceId: soId, xeroId: xeroInvoiceId,
+      total: invoice?.Total, status: invoice?.Status ?? 'AUTHORISED', currencyCode: invoice?.CurrencyCode, xeroDocument: invoice,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'error', `Approve failed: ${err.message}`);
@@ -3117,6 +3156,11 @@ export async function syncCNAsCreditNote(
     const xeroId = result.CreditNotes?.[0]?.CreditNoteID ?? null;
     await logSync(businessId, 'cn_credit_note', cn.id, xeroId, 'success', `Credit note created: ${cn.cn_number}`, result.CreditNotes?.[0]?.Status ?? targetStatus);
     await markCNXeroStatus(cn.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'customer_credit_note', referenceId: cn.id, xeroId,
+      total: cn.total_amount, status: result.CreditNotes?.[0]?.Status ?? targetStatus,
+      xeroDocument: result.CreditNotes?.[0],
+    });
     return xeroId;
   } catch (err: any) {
     const parsed = parseXeroValidationDetails(err.message);
@@ -3142,6 +3186,11 @@ export async function syncCNAsCreditNote(
           retry.CreditNotes?.[0]?.Status ?? targetStatus,
         );
         await markCNXeroStatus(cn.id, 'synced', xeroId);
+        await recordExpectedXeroDocument({
+          businessId, targetType: 'customer_credit_note', referenceId: cn.id, xeroId,
+          total: cn.total_amount, status: retry.CreditNotes?.[0]?.Status ?? targetStatus,
+          xeroDocument: retry.CreditNotes?.[0],
+        });
         return xeroId;
       } catch (retryErr: any) {
         await logSync(businessId, 'cn_credit_note', cn.id, null, 'error', parseXeroValidationDetails(retryErr.message).summary);
@@ -3160,11 +3209,22 @@ export async function approveCreditNote(
   syncType: 'cn_credit_note' | 'scn_credit_note',
 ): Promise<boolean> {
   try {
-    await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
+    const result = await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
       method: 'POST',
       body: { CreditNotes: [{ CreditNoteID: xeroCreditNoteId, Status: 'AUTHORISED' }] },
     });
+    const creditNote = result?.CreditNotes?.[0];
     await logSync(businessId, syncType, referenceId, xeroCreditNoteId, 'success', 'Credit note authorised', 'AUTHORISED');
+    await recordExpectedXeroDocument({
+      businessId,
+      targetType: syncType === 'cn_credit_note' ? 'customer_credit_note' : 'supplier_credit_note',
+      referenceId,
+      xeroId: xeroCreditNoteId,
+      total: creditNote?.Total,
+      status: creditNote?.Status ?? 'AUTHORISED',
+      currencyCode: creditNote?.CurrencyCode,
+      xeroDocument: creditNote,
+    });
     return true;
   } catch (err: any) {
     await logSync(businessId, syncType, referenceId, xeroCreditNoteId, 'error', `Authorise failed: ${err.message}`);
@@ -3522,6 +3582,11 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
     }
     await logSync(businessId, 'scn_credit_note', scn.id, xeroId, 'success', `Supplier credit note created: ${scn.scn_number}`, result.CreditNotes?.[0]?.Status ?? 'DRAFT');
     await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+    await recordExpectedXeroDocument({
+      businessId, targetType: 'supplier_credit_note', referenceId: scn.id, xeroId,
+      total: scn.total_amount, status: result.CreditNotes?.[0]?.Status ?? 'DRAFT',
+      xeroDocument: result.CreditNotes?.[0],
+    });
     return xeroId;
   } catch (err: any) {
     const parsed = parseXeroValidationDetails(err.message);
@@ -3553,6 +3618,11 @@ export async function syncSupplierCNAsCreditNote(businessId: string, scn: Suppli
           retry.CreditNotes?.[0]?.Status ?? 'DRAFT',
         );
         await markSupplierCNXeroStatus(scn.id, 'synced', xeroId);
+        await recordExpectedXeroDocument({
+          businessId, targetType: 'supplier_credit_note', referenceId: scn.id, xeroId,
+          total: scn.total_amount, status: retry.CreditNotes?.[0]?.Status ?? 'DRAFT',
+          xeroDocument: retry.CreditNotes?.[0],
+        });
         return xeroId;
       } catch (retryErr: any) {
         const retryParsed = parseXeroValidationDetails(retryErr.message);

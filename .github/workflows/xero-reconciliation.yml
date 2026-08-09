@@ -1,0 +1,20 @@
+name: Xero Reconciliation Scan
+
+on:
+  schedule:
+    - cron: '47 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scan bounded Xero reconciliation pages
+        run: |
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/xero/reconciliation/cron")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1

@@ -163,6 +163,7 @@ async function main() {
   console.log('✔ xero_sync_log created');
   console.log('✔ xero_accounting_actions created');
   console.log('✔ xero_reconciliation targets/issues/events created');
+  console.log('✔ xero_reconciliation_settings created');
   console.log('✔ xero_cogs_settings created/updated');
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');

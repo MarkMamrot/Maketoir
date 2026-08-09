@@ -140,6 +140,22 @@ CREATE TABLE IF NOT EXISTS xero_reconciliation_issue_events (
   INDEX idx_xero_reconciliation_event_issue (business_id, issue_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Durable bounded-scan cursor. Each cron invocation checks at most one page per
+-- connected business, then wraps to the first target after reaching the end.
+CREATE TABLE IF NOT EXISTS xero_reconciliation_settings (
+  business_id       VARCHAR(255) NOT NULL PRIMARY KEY,
+  enabled           TINYINT(1)   NOT NULL DEFAULT 1,
+  next_target_id    BIGINT       NOT NULL DEFAULT 0,
+  scan_limit        INT          NOT NULL DEFAULT 100,
+  last_started_at   DATETIME     DEFAULT NULL,
+  last_completed_at DATETIME     DEFAULT NULL,
+  last_error_at     DATETIME     DEFAULT NULL,
+  last_error        VARCHAR(500) DEFAULT NULL,
+  created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_xero_reconciliation_schedule (enabled, last_completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- COGS schedule configuration. Period calculation is performed in the stored
 -- IANA timezone; reliable_from marks the first trustworthy live IMS ledger day.
 CREATE TABLE IF NOT EXISTS xero_cogs_settings (
