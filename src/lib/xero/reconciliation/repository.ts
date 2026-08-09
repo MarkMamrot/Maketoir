@@ -47,6 +47,28 @@ export async function upsertXeroReconciliationTarget(
   return targets[0].id;
 }
 
+export async function insertXeroReconciliationTargetIfAbsent(
+  input: {
+    businessId: string;
+    targetType: string;
+    referenceId: string | number;
+    xeroId: string;
+    expected: Record<string, unknown>;
+  },
+  dependencies: Dependencies = defaultDependencies,
+): Promise<boolean> {
+  const result = await dependencies.execute(
+    `INSERT IGNORE INTO xero_reconciliation_targets
+       (business_id, target_type, reference_id, xero_id, expected_snapshot, expected_fingerprint)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      input.businessId, input.targetType, String(input.referenceId), input.xeroId,
+      JSON.stringify(input.expected), fingerprintReconciliationValue(input.expected),
+    ],
+  );
+  return result.affectedRows > 0;
+}
+
 export async function listXeroReconciliationIssueRules(
   input: { businessId: string; targetType: string; referenceId: string | number },
   dependencies: Dependencies = defaultDependencies,

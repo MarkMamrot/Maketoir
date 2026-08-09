@@ -68,6 +68,24 @@ async function main() {
     }
   }
 
+  const reconciliationSettingColumns = [
+    ['bootstrap_po_id', 'BIGINT NOT NULL DEFAULT 0 AFTER scan_limit'],
+    ['bootstrap_so_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_po_id'],
+    ['bootstrap_cn_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_so_id'],
+    ['bootstrap_scn_id', 'BIGINT NOT NULL DEFAULT 0 AFTER bootstrap_cn_id'],
+  ];
+  for (const [columnName, definition] of reconciliationSettingColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_reconciliation_settings'
+          AND COLUMN_NAME = ? LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE xero_reconciliation_settings ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+
   const documentPolicyColumns = [
     ['manual_customer_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER so_payment_sync_enabled"],
     ['supplier_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'draft' AFTER manual_customer_cn_action"],

@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockQuery, mockExecute, mockScan, mockReportIssue } = vi.hoisted(() => ({
-  mockQuery: vi.fn(), mockExecute: vi.fn(), mockScan: vi.fn(), mockReportIssue: vi.fn(),
+const { mockQuery, mockExecute, mockRunIms, mockBootstrap, mockScan, mockReportIssue } = vi.hoisted(() => ({
+  mockQuery: vi.fn(), mockExecute: vi.fn(), mockRunIms: vi.fn(), mockBootstrap: vi.fn(),
+  mockScan: vi.fn(), mockReportIssue: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
+vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunIms }));
+vi.mock('@/lib/xero/reconciliation/bootstrap', () => ({ bootstrapHistoricalXeroTargets: mockBootstrap }));
 vi.mock('@/lib/xero/reconciliation/scanner', () => ({ scanXeroReconciliationTargets: mockScan }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportIssue }));
 
@@ -21,6 +24,11 @@ describe('POST /api/xero/reconciliation/cron', () => {
     vi.clearAllMocks();
     process.env.CRON_SECRET = 'test-secret';
     mockExecute.mockResolvedValue({ affectedRows: 1 });
+    mockRunIms.mockImplementation(async (_businessId, callback) => callback());
+    mockBootstrap.mockResolvedValue({
+      discovered: 4, inserted: 4,
+      cursors: { purchaseOrder: 11, salesOrder: 22, customerCreditNote: 33, supplierCreditNote: 44 },
+    });
     mockReportIssue.mockResolvedValue(1);
     mockScan.mockResolvedValue({
       targetCount: 100, checkedCount: 100, mismatchCount: 2, failedBatches: 0,
@@ -45,9 +53,13 @@ describe('POST /api/xero/reconciliation/cron', () => {
 
     expect(response.status).toBe(200);
     expect(json.processed).toBe(2);
+    expect(mockRunIms.mock.calls.map(call => call[0])).toEqual(['biz-1', 'biz-2']);
+    expect(mockBootstrap).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', limitPerType: 25,
+    }));
     expect(mockScan).toHaveBeenNthCalledWith(1, { businessId: 'biz-1', afterId: 50, limit: 100 });
     expect(mockScan).toHaveBeenNthCalledWith(2, { businessId: 'biz-2', afterId: 0, limit: 500 });
-    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining('next_target_id = ?'), [150, 'biz-1']);
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining('bootstrap_po_id = ?'), [150, 11, 22, 33, 44, 'biz-1']);
   });
 
   it('wraps the cursor after the final page', async () => {
@@ -59,7 +71,7 @@ describe('POST /api/xero/reconciliation/cron', () => {
 
     await POST(request('test-secret'));
 
-    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining('next_target_id = ?'), [0, 'biz-1']);
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining('next_target_id = ?'), [0, 11, 22, 33, 44, 'biz-1']);
   });
 
   it('keeps a failed cursor unchanged and continues to the next business', async () => {

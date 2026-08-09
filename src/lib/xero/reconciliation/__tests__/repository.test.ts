@@ -2,9 +2,27 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   ignoreXeroReconciliationIssue,
+  insertXeroReconciliationTargetIfAbsent,
   recordXeroReconciliationIssue,
   resolveXeroReconciliationIssue,
 } from '../repository';
+
+describe('insertXeroReconciliationTargetIfAbsent', () => {
+  it('uses duplicate-safe insertion and reports whether the neutral target was created', async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce({ affectedRows: 1 })
+      .mockResolvedValueOnce({ affectedRows: 0 });
+    const dependencies = { execute: execute as any, query: vi.fn() as any };
+    const input = {
+      businessId: 'biz-1', targetType: 'purchase_order', referenceId: 42,
+      xeroId: 'bill-42', expected: { xeroId: 'bill-42', status: null },
+    };
+
+    await expect(insertXeroReconciliationTargetIfAbsent(input, dependencies)).resolves.toBe(true);
+    await expect(insertXeroReconciliationTargetIfAbsent(input, dependencies)).resolves.toBe(false);
+    expect(String(execute.mock.calls[0][0])).toContain('INSERT IGNORE');
+  });
+});
 
 describe('recordXeroReconciliationIssue', () => {
   it('upserts current state and appends an actor/reason event', async () => {
