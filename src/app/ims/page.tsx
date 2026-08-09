@@ -18035,6 +18035,10 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [rechecking, setRechecking] = useState(false);
+  const [ignoreIssue, setIgnoreIssue] = useState<XeroReconciliationIssue | null>(null);
+  const [ignoreReason, setIgnoreReason] = useState('');
+  const [ignoring, setIgnoring] = useState(false);
+  const [ignoreError, setIgnoreError] = useState('');
   const [filters, setFilters] = useState({ status: 'open', ruleKey: '', targetType: '', severity: '', minimumAgeDays: '' });
 
   const queryString = (format?: 'csv') => {
@@ -18080,6 +18084,27 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
       alert(error instanceof Error ? error.message : 'Recheck failed.');
     } finally {
       setRechecking(false);
+    }
+  };
+
+  const ignore = async () => {
+    if (!ignoreIssue || !ignoreReason.trim()) return;
+    setIgnoring(true);
+    setIgnoreError('');
+    try {
+      const response = await fetch(`/api/xero/reconciliation/issues/${ignoreIssue.id}/ignore`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), reason: ignoreReason.trim() }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'The issue could not be ignored.');
+      setIgnoreIssue(null);
+      setIgnoreReason('');
+      await loadIssues();
+    } catch (error) {
+      setIgnoreError(error instanceof Error ? error.message : 'The issue could not be ignored.');
+    } finally {
+      setIgnoring(false);
     }
   };
 
@@ -18152,11 +18177,27 @@ function XeroNeedsAttentionView({ getBusinessId, onOpenPurchaseOrder, onOpenSale
                 <td title={JSON.stringify(item.actual)} style={{ padding: 10, maxWidth: 180, color: 'var(--sv-text-dim)' }}>{compactSnapshot(item.actual)}</td>
                 <td style={{ padding: 10, whiteSpace: 'nowrap', color: 'var(--sv-text-dim)' }}>{item.lastCheckedAt ? new Date(item.lastCheckedAt).toLocaleDateString('en-AU') : 'Never'}</td>
                 <td style={{ padding: 10, maxWidth: 220 }}>{item.recommendedNextStep}</td>
-                <td style={{ padding: 10 }}>{link && <a href={link} target="_blank" rel="noopener noreferrer" title="Open in Xero" style={{ color: '#38bdf8' }}><ExternalLink size={15} /></a>}</td>
+                <td style={{ padding: 10 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {link && <a href={link} target="_blank" rel="noopener noreferrer" title="Open in Xero" style={{ color: '#38bdf8' }}><ExternalLink size={15} /></a>}
+                  {item.status === 'open' && <button type="button" onClick={() => { setIgnoreIssue(item); setIgnoreReason(''); setIgnoreError(''); }} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>Ignore</button>}
+                </div></td>
               </tr>;
             })}</tbody>
           </table>}
       </div>
+      {ignoreIssue && <div role="dialog" aria-modal="true" aria-labelledby="ignore-xero-issue-title" style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.58)', display: 'grid', placeItems: 'center', padding: 20 }}>
+        <form onSubmit={event => { event.preventDefault(); void ignore(); }} style={{ width: 'min(480px, 100%)', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
+          <h3 id="ignore-xero-issue-title" style={{ margin: '0 0 6px', color: 'var(--sv-text-strong)', fontSize: 17 }}>Ignore {ignoreIssue.reference}</h3>
+          <div style={{ color: 'var(--sv-text-dim)', fontSize: 12, marginBottom: 14 }}>{label(ignoreIssue.ruleKey)} · {ignoreIssue.summary}</div>
+          <label style={{ display: 'block', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700, marginBottom: 6 }} htmlFor="xero-ignore-reason">Reason</label>
+          <textarea id="xero-ignore-reason" autoFocus value={ignoreReason} onChange={event => setIgnoreReason(event.target.value)} maxLength={1000} rows={4} style={{ width: '100%', resize: 'vertical', boxSizing: 'border-box', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: 9, font: 'inherit' }} />
+          {ignoreError && <div role="alert" style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>{ignoreError}</div>}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <button type="button" onClick={() => setIgnoreIssue(null)} disabled={ignoring} style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'transparent', color: 'var(--sv-text-dim)', padding: '6px 12px', cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" disabled={ignoring || !ignoreReason.trim()} style={{ border: 0, borderRadius: 5, background: '#b45309', color: '#fff', padding: '6px 12px', cursor: ignoring || !ignoreReason.trim() ? 'not-allowed' : 'pointer', opacity: ignoring || !ignoreReason.trim() ? .55 : 1, fontWeight: 700 }}>{ignoring ? 'Saving…' : 'Ignore issue'}</button>
+          </div>
+        </form>
+      </div>}
     </div>
   );
 }

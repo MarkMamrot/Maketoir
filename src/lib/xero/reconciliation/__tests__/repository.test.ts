@@ -85,7 +85,7 @@ describe('recordXeroReconciliationIssue', () => {
 
   it('requires a reason to ignore and records the ignored fingerprint', async () => {
     const execute = vi.fn().mockResolvedValue({ affectedRows: 1 });
-    const query = vi.fn().mockResolvedValue([{ id: 9, mismatch_fingerprint: 'mismatch-1' }]);
+    const query = vi.fn().mockResolvedValue([{ id: 9, status: 'open', mismatch_fingerprint: 'mismatch-1' }]);
 
     await expect(ignoreXeroReconciliationIssue({
       businessId: 'biz-1', issueId: 9, actorId: 7, actorName: 'Alex', reason: 'Accepted by bookkeeper',
@@ -96,6 +96,29 @@ describe('recordXeroReconciliationIssue', () => {
     await expect(ignoreXeroReconciliationIssue({
       businessId: 'biz-1', issueId: 9, reason: '   ',
     }, { execute: execute as any, query: query as any })).rejects.toThrow('reason is required');
+  });
+
+  it('does not append another event when an issue is already ignored', async () => {
+    const execute = vi.fn();
+    const query = vi.fn().mockResolvedValue([{ id: 9, status: 'ignored', mismatch_fingerprint: 'mismatch-1' }]);
+
+    await expect(ignoreXeroReconciliationIssue({
+      businessId: 'biz-1', issueId: 9, reason: 'Accepted by bookkeeper',
+    }, { execute: execute as any, query: query as any })).resolves.toBe(false);
+
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('does not append an event when another request wins the open-state transition', async () => {
+    const execute = vi.fn().mockResolvedValue({ affectedRows: 0 });
+    const query = vi.fn().mockResolvedValue([{ id: 9, status: 'open', mismatch_fingerprint: 'mismatch-1' }]);
+
+    await expect(ignoreXeroReconciliationIssue({
+      businessId: 'biz-1', issueId: 9, reason: 'Accepted by bookkeeper',
+    }, { execute: execute as any, query: query as any })).resolves.toBe(false);
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(String(execute.mock.calls[0][0])).toContain("status = 'open'");
   });
 
   it('resolves a matched issue once and appends a resolution event', async () => {

@@ -359,18 +359,19 @@ export async function ignoreXeroReconciliationIssue(
 ): Promise<boolean> {
   const reason = input.reason.trim();
   if (!reason) throw new Error('A reason is required to ignore a Xero reconciliation issue.');
-  const rows = await dependencies.query<{ id: number; mismatch_fingerprint: string }>(
-    `SELECT id, mismatch_fingerprint FROM xero_reconciliation_issues
+  const rows = await dependencies.query<{ id: number; status: string; mismatch_fingerprint: string }>(
+    `SELECT id, status, mismatch_fingerprint FROM xero_reconciliation_issues
       WHERE business_id = ? AND id = ? LIMIT 1`,
     [input.businessId, input.issueId],
   );
-  if (!rows[0]) return false;
-  await dependencies.execute(
+  if (!rows[0] || rows[0].status !== 'open') return false;
+  const updated = await dependencies.execute(
     `UPDATE xero_reconciliation_issues
         SET status = 'ignored', ignored_fingerprint = mismatch_fingerprint, resolved_at = NULL
-      WHERE business_id = ? AND id = ?`,
+      WHERE business_id = ? AND id = ? AND status = 'open'`,
     [input.businessId, input.issueId],
   );
+  if (updated.affectedRows === 0) return false;
   await dependencies.execute(
     `INSERT INTO xero_reconciliation_issue_events
        (business_id, issue_id, event_type, actor_id, actor_name, reason, snapshot)
