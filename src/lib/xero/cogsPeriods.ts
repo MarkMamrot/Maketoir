@@ -13,8 +13,7 @@ export interface CogsJournalLine {
   AccountCode: string;
   Description: string;
   TaxType: 'NONE';
-  DebitAmount?: number;
-  CreditAmount?: number;
+  LineAmount: number;
 }
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
@@ -170,20 +169,14 @@ export function buildCogsJournalLines(input: {
     AccountCode: input.cogsAccountCode,
     Description: input.description,
     TaxType: 'NONE',
+    LineAmount: amount > 0 ? absoluteAmount : -absoluteAmount,
   };
   const inventoryLine: CogsJournalLine = {
     AccountCode: input.inventoryAccountCode,
     Description: input.description,
     TaxType: 'NONE',
+    LineAmount: amount > 0 ? -absoluteAmount : absoluteAmount,
   };
-
-  if (amount > 0) {
-    cogsLine.DebitAmount = absoluteAmount;
-    inventoryLine.CreditAmount = absoluteAmount;
-  } else {
-    inventoryLine.DebitAmount = absoluteAmount;
-    cogsLine.CreditAmount = absoluteAmount;
-  }
 
   return [cogsLine, inventoryLine];
 }

@@ -91,8 +91,8 @@ describe('buildCogsJournalLines', () => {
       inventoryAccountCode: '630',
       description: 'COGS July 2026',
     })).toEqual([
-      { AccountCode: '500', Description: 'COGS July 2026', TaxType: 'NONE', DebitAmount: 123.46 },
-      { AccountCode: '630', Description: 'COGS July 2026', TaxType: 'NONE', CreditAmount: 123.46 },
+      { AccountCode: '500', Description: 'COGS July 2026', TaxType: 'NONE', LineAmount: 123.46 },
+      { AccountCode: '630', Description: 'COGS July 2026', TaxType: 'NONE', LineAmount: -123.46 },
     ]);
   });
 
@@ -103,8 +103,8 @@ describe('buildCogsJournalLines', () => {
       inventoryAccountCode: '630',
       description: 'COGS adjustment',
     })).toEqual([
-      { AccountCode: '500', Description: 'COGS adjustment', TaxType: 'NONE', CreditAmount: 25 },
-      { AccountCode: '630', Description: 'COGS adjustment', TaxType: 'NONE', DebitAmount: 25 },
+      { AccountCode: '500', Description: 'COGS adjustment', TaxType: 'NONE', LineAmount: -25 },
+      { AccountCode: '630', Description: 'COGS adjustment', TaxType: 'NONE', LineAmount: 25 },
     ]);
   });
 
