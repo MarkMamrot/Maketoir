@@ -45,7 +45,7 @@ describe('summariseCogsRows', () => {
 describe('calculateCogsForPeriod', () => {
   beforeEach(() => mockImsQuery.mockReset());
 
-  it('queries a half-open period and returns its summary', async () => {
+  it('queries the tenant schema without filtering unreliable child-table business IDs', async () => {
     mockImsQuery.mockResolvedValueOnce([
       { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'ok', movement_count: '2', quantity: '3', cogs: '15.555' },
     ]);
@@ -58,7 +58,11 @@ describe('calculateCogsForPeriod', () => {
 
     expect(result.totalCOGS).toBe(15.56);
     expect(mockImsQuery).toHaveBeenCalledOnce();
-    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', '2026-07-01', '2026-08-01']);
+    const [sql, params] = mockImsQuery.mock.calls[0];
+    expect(sql).not.toContain('sm.business_id = ?');
+    expect(sql).not.toContain('ps.business_id = sm.business_id');
+    expect(sql).not.toContain('so.business_id = sm.business_id');
+    expect(params).toEqual(['2026-07-01', '2026-08-01']);
   });
 });
 

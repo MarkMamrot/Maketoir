@@ -163,14 +163,11 @@ export async function calculateCogsForPeriod(input: {
              ON sm.movement_type = 'pos_sale'
             AND sm.reference_type = 'pos_sale'
             AND ps.id = sm.reference_id
-            AND ps.business_id = sm.business_id
            LEFT JOIN ims_sales_orders so
              ON sm.movement_type = 'so_fulfilled'
             AND sm.reference_type = 'sales_order'
             AND so.id = sm.reference_id
-            AND so.business_id = sm.business_id
-          WHERE sm.business_id = ?
-            AND sm.movement_type IN ('pos_sale', 'so_fulfilled')
+          WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
             AND sm.created_at >= ?
             AND sm.created_at < ?
        ) classified
@@ -178,7 +175,7 @@ export async function calculateCogsForPeriod(input: {
                classified.source_status, classified.cost_status
       ORDER BY classified.location_id, classified.channel,
                classified.source_status, classified.cost_status`,
-    [input.businessId, input.startDate, input.endDateExclusive],
+    [input.startDate, input.endDateExclusive],
   );
 
   return summariseCogsRows(rows, input.startDate, input.endDateExclusive);
