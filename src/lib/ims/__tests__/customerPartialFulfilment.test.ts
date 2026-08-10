@@ -10,6 +10,7 @@ const connection = {
 };
 
 let storedRequestHash = '';
+let firstItemIsStock = 1;
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
@@ -21,6 +22,7 @@ describe('fulfilSalesOrderPartial', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     storedRequestHash = '';
+    firstItemIsStock = 1;
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {
         storedRequestHash = String(params?.[2] ?? '');
@@ -36,7 +38,7 @@ describe('fulfilSalesOrderPartial', () => {
       }
       if (sql.includes('FROM ims_sales_order_items')) {
         return [[
-          { id: 10, variant_id: 'variant-1', qty_ordered: 10, qty_fulfilled: 0, unit_cost: null },
+          { id: 10, variant_id: 'variant-1', qty_ordered: 10, qty_fulfilled: 0, unit_cost: null, is_stock_item: firstItemIsStock },
           { id: 11, variant_id: 'variant-2', qty_ordered: 2, qty_fulfilled: 0, unit_cost: null },
         ]];
       }
@@ -102,6 +104,23 @@ describe('fulfilSalesOrderPartial', () => {
 
     expect(result.status).toBe('partially_fulfilled');
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
+  });
+
+  it('fulfils a non-stock line without stock or movement writes', async () => {
+    firstItemIsStock = 0;
+
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-service',
+      shipmentQuantities: [{ itemId: 10, quantity: 10 }],
+    });
+
+    expect(result.fulfilledVariantIds).toEqual([]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_fulfilled = ?, unit_cost = 0'),
+      [10, 10, 42],
+    );
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_stock s'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_stock_movements'))).toBe(false);
   });
 
   it('rejects an operation key reused with different shipment quantities', async () => {

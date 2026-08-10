@@ -2764,7 +2764,7 @@ interface VariantRow {
 }
 interface OptionSet { name: string; values: string; }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, base_sku: '' };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -3006,7 +3006,7 @@ const IMPORT_FX_COST_HEADERS = ['Cost_USD', 'Cost_EUR', 'Cost_GBP', 'Cost_THB', 
 
 const IMPORT_BASE_HEADERS = [
   'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
-  'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
+  'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Stock_Item','Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
@@ -3190,7 +3190,7 @@ function ImportProductsModal({
       // Inherit missing product-level fields from the first row with the same Product_SKU
       const cached = product_sku ? batchProductFields.get(normStr(product_sku)) : undefined;
       if (cached) {
-        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory','sub category','subcateogry','website_title','website title','allow_indent_wholesale_orders','allow indent wholesale orders','allow_indent_wholesale','allow indent wholesale']) {
+        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory','sub category','subcateogry','website_title','website title','allow_indent_wholesale_orders','allow indent wholesale orders','allow_indent_wholesale','allow indent wholesale','stock_item','stock item','is_stock_item']) {
           if (!raw[field] && cached[field]) raw[field] = cached[field];
         }
       }
@@ -3233,6 +3233,8 @@ function ImportProductsModal({
           if (websiteTitle != null && websiteTitle !== '' && websiteTitle !== (p.website_title ?? '')) changedFields.push('Website Title');
           const allowIndent = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
           if (allowIndent !== undefined && allowIndent !== Number(p.allow_indent_wholesale ?? 0)) changedFields.push('Indent Wholesale');
+          const stockItem = parseImportFlag(rawValue(raw, 'stock_item', 'stock item', 'is_stock_item'));
+          if (stockItem !== undefined && stockItem !== Number(p.is_stock_item ?? 1)) changedFields.push('Stock Item');
           const category = rawValue(raw, 'category');
           if (category != null && category !== '' && category !== (p.category ?? '')) changedFields.push('Category');
           const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
@@ -3355,6 +3357,7 @@ function ImportProductsModal({
       const resolvedSupplier = raw['supplier'] ? (supplierResolutions[raw['supplier']] ?? raw['supplier']) : '';
       const websiteTitle = rawValue(raw, 'website_title', 'website title');
       const allowIndentWholesale = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
+      const stockItem = parseImportFlag(rawValue(raw, 'stock_item', 'stock item', 'is_stock_item'));
       const category = rawValue(raw, 'category');
       const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
 
@@ -3387,6 +3390,7 @@ function ImportProductsModal({
         subcategory: subcategory || undefined,
         website_title: websiteTitle || undefined,
         allow_indent_wholesale: allowIndentWholesale,
+        is_stock_item: stockItem,
         is_online: raw['online'] != null && raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: (() => {
           // If SKU is provided, use it directly
@@ -3491,7 +3495,7 @@ function ImportProductsModal({
               <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
               <strong>SKU</strong> — Optional. The individual variant SKU. If left blank, it is auto-generated from <em>Product_SKU</em> + option values (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S</code>). A matching SKU updates that variant; a new SKU creates one.<br />
               <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
-              <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> accepts Yes/No or 1/0.{' '}
+              <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> and <strong>Stock_Item</strong> accept Yes/No or 1/0.{' '}
               <br /><strong>{showZoneBin ? 'Zone, Bin, Min Qty and Reorder Qty' : 'Min Qty and Reorder Qty'}</strong>{' — '}per location columns saved against each location’s stock. The default warehouse location appears first.
               <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
             </div>
@@ -6276,6 +6280,17 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 </select>
               </Field>
             </Row2>
+            <Field label="Stock item">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: isAdvisor ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={Number(form.is_stock_item ?? 1) !== 0}
+                  disabled={isAdvisor}
+                  onChange={event => setForm((previous: any) => ({ ...previous, is_stock_item: event.target.checked ? 1 : 0 }))}
+                />
+                Track stock on hand and generate inventory cost movements
+              </label>
+            </Field>
             <Field label="Default Supplier">
               <select
                 value={form.supplier_contact_id ?? ''}
@@ -17412,6 +17427,8 @@ type CogsReportData = {
     excludedHistoricalQuantity: number;
     orphanedMovementCount: number;
     orphanedQuantity: number;
+    excludedNonStockMovementCount: number;
+    excludedNonStockQuantity: number;
   };
   coverage: { reliableFrom: string | null; warning: boolean; warningText: string | null };
   breakdown: Array<{ locationId: number; locationName: string; channel: string; totalCOGS: number; movementCount: number; quantity: number }>;
@@ -17885,6 +17902,7 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
                 <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
+                <div>Excluded non-stock: {cogsReport.quality.excludedNonStockMovementCount} / {Number(cogsReport.quality.excludedNonStockQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
               </div>
             </>

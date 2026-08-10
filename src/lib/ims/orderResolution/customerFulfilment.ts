@@ -86,9 +86,12 @@ export async function fulfilSalesOrderPartial(input: {
     }
 
     const [items] = await conn.execute<any[]>(
-      `SELECT id, variant_id, qty_ordered, qty_fulfilled, unit_cost
-         FROM ims_sales_order_items
-        WHERE so_id = ? AND business_id = ?
+      `SELECT soi.id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled, soi.unit_cost,
+              COALESCE(p.is_stock_item, 1) AS is_stock_item
+         FROM ims_sales_order_items soi
+         LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
+         LEFT JOIN ims_products p ON p.product_id = pv.product_id
+        WHERE soi.so_id = ? AND soi.business_id = ?
         ORDER BY id
         FOR UPDATE`,
       [input.soId, input.businessId],
@@ -108,6 +111,18 @@ export async function fulfilSalesOrderPartial(input: {
         throw new Error(`Shipment quantity exceeds the outstanding quantity for item ${itemId}.`);
       }
 
+      const quantity = shipmentScaled / QUANTITY_SCALE;
+      const oldFulfilled = fulfilledScaled / QUANTITY_SCALE;
+      const newFulfilled = oldFulfilled + quantity;
+      if (Number(item.is_stock_item ?? 1) === 0) {
+        await conn.execute(
+          `UPDATE ims_sales_order_items SET qty_fulfilled = ?, unit_cost = 0 WHERE id = ? AND so_id = ?`,
+          [newFulfilled, itemId, input.soId],
+        );
+        item.qty_fulfilled = newFulfilled;
+        continue;
+      }
+
       const [[stock]] = await conn.execute<any[]>(
         `SELECT s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost
            FROM ims_stock s
@@ -116,14 +131,11 @@ export async function fulfilSalesOrderPartial(input: {
           FOR UPDATE`,
         [item.variant_id, so.location_id],
       );
-      const quantity = shipmentScaled / QUANTITY_SCALE;
       const oldOnHand = Number(stock?.qty_on_hand ?? 0);
       const oldCommitted = Number(stock?.qty_committed ?? 0);
       if (scaledQuantity(oldOnHand) < shipmentScaled) throw new Error(`Insufficient stock to ship item ${itemId}.`);
       if (scaledQuantity(oldCommitted) < shipmentScaled) throw new Error(`Insufficient committed stock to ship item ${itemId}.`);
 
-      const oldFulfilled = fulfilledScaled / QUANTITY_SCALE;
-      const newFulfilled = oldFulfilled + quantity;
       const shipmentCost = Number(stock?.avg_cost ?? 0);
       const oldCost = Number(item.unit_cost ?? 0);
       const weightedCost = newFulfilled > 0

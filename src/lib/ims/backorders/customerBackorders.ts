@@ -192,11 +192,21 @@ export async function splitCustomerBackorder(input: {
 
     for (const item of actualItems) {
       const [stockRows] = await conn.execute<any[]>(
-        `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
-           FROM ims_stock s JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
-          WHERE s.variant_id = ? AND s.location_id = ? FOR UPDATE`,
-        [item.variant_id, so.location_id],
+        `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
+                COALESCE(p.is_stock_item, 1) AS is_stock_item
+           FROM ims_product_variants pv
+           JOIN ims_products p ON p.product_id = pv.product_id
+           LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
+          WHERE pv.variant_id = ? FOR UPDATE`,
+        [so.location_id, item.variant_id],
       );
+      if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) {
+        await conn.execute(
+          `UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = 0 WHERE id = ?`,
+          [item.id],
+        );
+        continue;
+      }
       const oldSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
       const avgCost = Number(stockRows[0]?.avg_cost ?? 0);
       const newSoh = oldSoh - Number(item.qty_ordered);

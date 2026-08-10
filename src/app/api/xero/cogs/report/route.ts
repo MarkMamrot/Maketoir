@@ -291,6 +291,8 @@ export async function GET(req: Request) {
         excludedHistoricalQuantity: calculation.excludedHistoricalQuantity,
         orphanedMovementCount: calculation.orphanedMovementCount,
         orphanedQuantity: calculation.orphanedQuantity,
+        excludedNonStockMovementCount: calculation.excludedNonStockMovementCount,
+        excludedNonStockQuantity: calculation.excludedNonStockQuantity,
       },
       coverage: {
         reliableFrom,

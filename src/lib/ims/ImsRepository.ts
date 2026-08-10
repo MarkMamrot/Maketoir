@@ -112,7 +112,7 @@ export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
   style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
-  allow_indent_wholesale?: number;
+  allow_indent_wholesale?: number; is_stock_item?: number;
   is_active: number; shopify_product_id?: string; website_title?: string; created_at?: string; updated_at?: string;
   variants?: ImsVariant[];
 }
@@ -222,6 +222,7 @@ export interface ImsSOItem {
   qty_fulfilled: number; unit_price: number; unit_cost?: number;
   discount_pct: number; tax_rate: number; line_total: number; notes?: string;
   sku?: string; product_name?: string; variant_label?: string;
+  is_stock_item?: number;
 }
 
 export type StocktakeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled' | 'reverted';
@@ -568,18 +569,18 @@ export const ImsProductsRepo = {
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
     await imsExecute(
-      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale,is_stock_item)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
        data.tags ?? null, data.category ?? null, data.subcategory ?? null, data.is_active ?? 1, data.shopify_product_id ?? null,
        data.style_code ?? null, data.base_sku ?? null, data.is_online ?? 1, data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
-       data.website_title ?? null, data.allow_indent_wholesale ?? 0]
+      data.website_title ?? null, data.allow_indent_wholesale ?? 0, data.is_stock_item ?? 1]
     );
     return product_id;
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale','is_stock_item'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -2276,6 +2277,21 @@ export const ImsSORepo = {
       const [items] = await conn.execute<ImsSOItem[]>(
         `SELECT * FROM ims_sales_order_items WHERE so_id = ? FOR UPDATE`, [id]
       );
+      const variantIds = items.map(item => item.variant_id).filter((variantId): variantId is string => Boolean(variantId));
+      if (variantIds.length > 0) {
+        const placeholders = variantIds.map(() => '?').join(',');
+        const [classificationRows] = await conn.execute<any[]>(
+          `SELECT pv.variant_id, COALESCE(p.is_stock_item, 1) AS is_stock_item
+             FROM ims_product_variants pv
+             JOIN ims_products p ON p.product_id = pv.product_id
+            WHERE pv.variant_id IN (${placeholders})`,
+          variantIds,
+        );
+        if (Array.isArray(classificationRows)) {
+          const stockItemByVariant = new Map(classificationRows.map(row => [String(row.variant_id), Number(row.is_stock_item)]));
+          for (const item of items) item.is_stock_item = stockItemByVariant.get(String(item.variant_id)) ?? 1;
+        }
+      }
 
       const from = so.status as SOStatus;
       const to   = newStatus;
@@ -2296,6 +2312,7 @@ export const ImsSORepo = {
       if (from === 'backordered' && to === 'confirmed') {
         const readinessLines = [];
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) continue;
           if (!item.variant_id) throw new Error('Customer backorder stock is not ready for release.');
           const [[stock]] = await conn.execute<any[]>(
             `SELECT qty_on_hand, qty_committed
@@ -2317,6 +2334,7 @@ export const ImsSORepo = {
       // ── draft → confirmed ────────────────────────────────────
       if (from === 'draft' && to === 'confirmed') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) continue;
           await conn.execute(
             `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_committed)
              VALUES (?, ?, ?, ?)
@@ -2339,6 +2357,7 @@ export const ImsSORepo = {
       // ── confirmed → draft ────────────────────────────────────
       if (from === 'confirmed' && to === 'draft') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
              WHERE variant_id=? AND location_id=?`,
@@ -2360,6 +2379,13 @@ export const ImsSORepo = {
       // ── confirmed/partially fulfilled → fulfilled ────────────
       if (['confirmed', 'partially_fulfilled'].includes(from) && to === 'fulfilled') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) {
+            await conn.execute(
+              `UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = 0 WHERE id = ?`,
+              [item.id],
+            );
+            continue;
+          }
           const fulfilledQty = Number(item.qty_fulfilled ?? 0);
           const qty = Math.max(0, Number(item.qty_ordered) - fulfilledQty);
           if (qty === 0) continue;
@@ -2413,6 +2439,7 @@ export const ImsSORepo = {
       // ── confirmed/partially fulfilled → cancelled ───────────
       if (to === 'cancelled' && ['confirmed', 'partially_fulfilled'].includes(from)) {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) continue;
           const outstandingQty = Math.max(0, Number(item.qty_ordered) - Number(item.qty_fulfilled ?? 0));
           if (outstandingQty === 0) continue;
           await conn.execute(
@@ -2426,6 +2453,7 @@ export const ImsSORepo = {
       // ── backordered → cancelled (release retained commitment) ─
       if (to === 'cancelled' && from === 'backordered') {
         for (const item of items) {
+          if (Number(item.is_stock_item ?? 1) === 0) continue;
           await conn.execute(
             `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
              WHERE variant_id=? AND location_id=?`,
@@ -4270,6 +4298,14 @@ async function restockCreditNoteItemsTx(
     if (!doRestock) continue;
     const qty = Number(item.qty);
     if (!(qty > 0)) continue;
+    const [[variant]] = await conn.execute<any[]>(
+      `SELECT COALESCE(p.is_stock_item, 1) AS is_stock_item
+         FROM ims_product_variants pv
+         JOIN ims_products p ON p.product_id = pv.product_id
+        WHERE pv.variant_id = ? LIMIT 1`,
+      [item.variant_id],
+    );
+    if (Number(variant?.is_stock_item ?? 1) === 0) continue;
     await conn.execute(
       `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
       [item.variant_id, locationId],

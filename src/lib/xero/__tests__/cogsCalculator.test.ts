@@ -14,6 +14,7 @@ describe('summariseCogsRows', () => {
       { location_id: 2, channel: 'online', source_status: 'eligible', cost_status: 'zero', movement_count: 2, quantity: 3, cogs: 0 },
       { location_id: 2, channel: 'wholesale', source_status: 'historical_import', cost_status: 'ok', movement_count: 5, quantity: 8, cogs: 80 },
       { location_id: 3, channel: 'pos', source_status: 'orphaned', cost_status: 'ok', movement_count: 1, quantity: 1, cogs: 10 },
+      { location_id: 3, channel: 'pos', source_status: 'non_stock', cost_status: 'zero', movement_count: 4, quantity: 5, cogs: 0 },
     ], '2026-07-01', '2026-08-01');
 
     expect(result).toMatchObject({
@@ -28,9 +29,12 @@ describe('summariseCogsRows', () => {
       excludedHistoricalQuantity: 8,
       orphanedMovementCount: 1,
       orphanedQuantity: 1,
+      excludedNonStockMovementCount: 4,
+      excludedNonStockQuantity: 5,
       blocked: true,
     });
-    expect(result.breakdown).toHaveLength(3);
+    expect(result.breakdown).toHaveLength(2);
+    expect(result.breakdown[0]).toMatchObject({ locationId: 1, channel: 'pos', movementCount: 4, quantity: 6, totalCOGS: 40.125 });
   });
 
   it('allows signed return and edit rows to reduce net COGS', () => {

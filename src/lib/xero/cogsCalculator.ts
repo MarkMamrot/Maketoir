@@ -1,7 +1,7 @@
 import { imsQuery } from '@/services/IMSMySQLService';
 import { roundCurrency } from './cogsPeriods';
 
-export type CogsSourceStatus = 'eligible' | 'historical_import' | 'orphaned';
+export type CogsSourceStatus = 'eligible' | 'historical_import' | 'orphaned' | 'non_stock';
 export type CogsCostStatus = 'ok' | 'missing' | 'zero';
 
 export interface CogsCalculationRow {
@@ -36,6 +36,8 @@ export interface CogsCalculation {
   excludedHistoricalQuantity: number;
   orphanedMovementCount: number;
   orphanedQuantity: number;
+  excludedNonStockMovementCount: number;
+  excludedNonStockQuantity: number;
   blocked: boolean;
   breakdown: CogsBreakdown[];
 }
@@ -58,6 +60,7 @@ export function summariseCogsRows(
   startDate: string,
   endDateExclusive: string,
 ): CogsCalculation {
+  const breakdownByLocationChannel = new Map<string, CogsBreakdown>();
   const result: CogsCalculation = {
     startDate,
     endDateExclusive,
@@ -72,6 +75,8 @@ export function summariseCogsRows(
     excludedHistoricalQuantity: 0,
     orphanedMovementCount: 0,
     orphanedQuantity: 0,
+    excludedNonStockMovementCount: 0,
+    excludedNonStockQuantity: 0,
     blocked: false,
     breakdown: [],
   };
@@ -91,6 +96,11 @@ export function summariseCogsRows(
       result.orphanedQuantity += quantity;
       continue;
     }
+    if (row.source_status === 'non_stock') {
+      result.excludedNonStockMovementCount += movementCount;
+      result.excludedNonStockQuantity += quantity;
+      continue;
+    }
 
     result.includedMovementCount += movementCount;
     result.includedQuantity += quantity;
@@ -103,16 +113,23 @@ export function summariseCogsRows(
     }
 
     result.totalCOGS += cogs;
-    result.breakdown.push({
-      locationId: Number(row.location_id),
+    const locationId = Number(row.location_id);
+    const breakdownKey = `${locationId}:${row.channel}`;
+    const breakdown = breakdownByLocationChannel.get(breakdownKey) ?? {
+      locationId,
       channel: row.channel,
-      totalCOGS: roundCurrency(cogs),
-      movementCount,
-      quantity,
-    });
+      totalCOGS: 0,
+      movementCount: 0,
+      quantity: 0,
+    };
+    breakdown.totalCOGS += cogs;
+    breakdown.movementCount += movementCount;
+    breakdown.quantity += quantity;
+    breakdownByLocationChannel.set(breakdownKey, breakdown);
   }
 
   result.totalCOGS = roundCurrency(result.totalCOGS);
+  result.breakdown = Array.from(breakdownByLocationChannel.values());
   result.blocked = result.missingCostMovementCount > 0 || result.zeroCostMovementCount > 0;
   return result;
 }
@@ -151,6 +168,7 @@ export async function calculateCogsForPeriod(input: {
               WHEN sm.movement_type = 'so_fulfilled'
                    AND (COALESCE(so.is_historical, 0) <> 0 OR so.cin7_order_id IS NOT NULL)
                 THEN 'historical_import'
+              WHEN COALESCE(p.is_stock_item, 1) = 0 THEN 'non_stock'
               ELSE 'eligible'
             END AS source_status,
             CASE
@@ -167,6 +185,8 @@ export async function calculateCogsForPeriod(input: {
              ON sm.movement_type = 'so_fulfilled'
             AND sm.reference_type = 'sales_order'
             AND so.id = sm.reference_id
+           LEFT JOIN ims_product_variants pv ON pv.variant_id = sm.variant_id
+           LEFT JOIN ims_products p ON p.product_id = pv.product_id
           WHERE sm.movement_type IN ('pos_sale', 'so_fulfilled')
             AND sm.created_at >= ?
             AND sm.created_at < ?

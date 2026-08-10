@@ -578,6 +578,7 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_cs_threads', 'starred_at', 'DATETIME NULL'],
