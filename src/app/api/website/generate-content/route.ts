@@ -345,7 +345,7 @@ export async function POST(req: Request) {
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 4096,
         ...(useSearch ? {} : { responseMimeType: 'application/json' }),
       },
     };
@@ -357,18 +357,26 @@ export async function POST(req: Request) {
     let lastText = '';
     let lastError = '';
     for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
-      const genRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...restBody,
-            generationConfig: { ...restBody.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
-          }),
-          signal: AbortSignal.timeout(120000),
-        },
-      );
+      let genRes: Response;
+      try {
+        genRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...restBody,
+              generationConfig: { ...restBody.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
+            }),
+            signal: AbortSignal.timeout(attempt === 0 ? 30000 : 15000),
+          },
+        );
+      } catch (error) {
+        lastError = error instanceof Error && error.name === 'TimeoutError'
+          ? 'AI content generation timed out.'
+          : `AI content generation request failed: ${error instanceof Error ? error.message : String(error)}`;
+        continue;
+      }
       const rawResponse = await genRes.text();
       if (!genRes.ok) {
         lastError = `Gemini API error (HTTP ${genRes.status}): ${rawResponse.slice(0, 300)}`;

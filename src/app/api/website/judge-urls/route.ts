@@ -104,7 +104,7 @@ Return ONLY valid JSON — no markdown fences, no extra text:
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
-            signal: AbortSignal.timeout(30000),
+            signal: AbortSignal.timeout(attempt === 0 ? 18000 : 10000),
           },
         );
       } catch (error) {
@@ -162,13 +162,19 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       return NextResponse.json({ error: 'AI returned unparseable JSON after retry.' }, { status: 502 });
     }
 
-    const rankedUrls = (Array.isArray(parsed.rankedUrls) ? parsed.rankedUrls : [])
+    const parsedRankedUrls = (Array.isArray(parsed.rankedUrls) ? parsed.rankedUrls : [])
       .filter((entry: any) => entry?.url?.trim() && validUrls.includes(String(entry.url).trim()))
       .map((entry: any) => ({
         url: String(entry.url).trim(),
         keep: entry.keep === true,
         reason: String(entry.reason ?? '').trim(),
       }));
+    const decisionByUrl = new Map(parsedRankedUrls.map((entry: any) => [entry.url, entry]));
+    const rankedUrls = validUrls.map(url => decisionByUrl.get(url) ?? ({
+      url,
+      keep: false,
+      reason: 'The AI did not select this candidate.',
+    }));
     const validUrlFound = rankedUrls.some((entry: any) => entry.keep);
 
     return NextResponse.json({ success: true, validUrlFound, rankedUrls });

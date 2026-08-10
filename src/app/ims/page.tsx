@@ -4197,6 +4197,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 }) {
   const [open, setOpen] = useState(false);
   const [urls, setUrls] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
+  const [selectedUrlIndex, setSelectedUrlIndex] = useState<number | null>(null);
+  const [urlSelectionSource, setUrlSelectionSource] = useState<'ai' | 'user' | null>(null);
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
@@ -4214,6 +4216,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
     code: researchVariant?.sku ?? product.base_sku ?? '',
     barcode: researchVariant?.barcode ?? '',
   };
+  const selectedUrl = selectedUrlIndex == null ? '' : (urls[selectedUrlIndex]?.trim() ?? '');
 
   // Preferred site URLs loaded from IMS contacts/brands
   const [supplierSite, setSupplierSite] = useState<string | null>(null);
@@ -4241,7 +4244,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [scrapeError, setScrapeError]       = useState<string | null>(null);
 
   const handleScrapeImages = async () => {
-    const activeUrls = urls.filter(u => u.trim());
+    const activeUrls = selectedUrl ? [selectedUrl] : [];
     if (!activeUrls.length) return;
     setScraping(true); setScrapeError(null);
     try {
@@ -4259,7 +4262,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   };
 
   const handleShowMoreImages = async () => {
-    const activeUrls = urls.filter(u => u.trim());
+    const activeUrls = selectedUrl ? [selectedUrl] : [];
     if (!activeUrls.length) return;
     if (fallbackImages.length > 0) { setShowFallbackImages(true); return; }
     setScraping(true); setScrapeError(null);
@@ -4352,12 +4355,20 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
       setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? '']);
+      setSelectedUrlIndex(null);
+      setUrlSelectionSource(null);
+      setShowResearchDetails(true);
     } catch (e: any) { setError(e.message); }
     finally { setFindingUrls(false); }
   };
 
   const handleResearch = async () => {
-    const topUrl = urls[0]?.trim();
+    const topUrl = selectedUrl;
+    if (!topUrl && urls.some(url => url.trim())) {
+      setError('Select the product page to use before researching.');
+      setShowResearchDetails(true);
+      return;
+    }
     setResearching(true); setError(null); setResearchResult(null);
     try {
       if (topUrl) {
@@ -4423,7 +4434,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
           },
           mode: 'full',
           tavilyInfo: researchResult?.answer ?? '',
-          tavilyUrls: urls.filter(Boolean),
+          tavilyUrls: selectedUrl ? [selectedUrl] : [],
         }),
       });
       const d = await parseWebsiteJsonResponse(res);
@@ -4459,57 +4470,83 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
         ...(!useBrandSite && brandSite ? [brandSite] : []),
       ];
-      const searchResponse = await fetch('/api/website/serper-search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product: researchProduct,
-          preferred_sites: preferredSites,
-          excluded_sites: excludedSites,
-          include_general: useGeneralResults,
-          search_au_only: searchAuOnly,
-        }),
-      });
-      const searchData = await parseWebsiteJsonResponse(searchResponse);
-      if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
-      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
+      let candidateUrls: [string, string, string, string, string] = [...urls];
+      let foundUrls = candidateUrls.map(url => url.trim()).filter(Boolean);
+      let selectedIndex = selectedUrlIndex;
+      let selectedSource = urlSelectionSource;
+      if (foundUrls.length === 0) {
+        const searchResponse = await fetch('/api/website/serper-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product: researchProduct,
+            preferred_sites: preferredSites,
+            excluded_sites: excludedSites,
+            include_general: useGeneralResults,
+            search_au_only: searchAuOnly,
+          }),
+        });
+        const searchData = await parseWebsiteJsonResponse(searchResponse);
+        if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
+        foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
+        candidateUrls = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
+        setUrls(candidateUrls);
+        setShowResearchDetails(true);
+        selectedIndex = null;
+        selectedSource = null;
+      }
       if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
 
-      const judgeResponse = await fetch('/api/website/judge-urls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId: businessId,
-          product: {
-            ...researchProduct,
-            retailPrice: researchVariant?.price_rrp ?? '0',
-          },
-          urls: foundUrls,
-        }),
-      });
-      const judgeData = await parseWebsiteJsonResponse(judgeResponse);
-      if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
-      const rankedUrls: string[] = (judgeData.rankedUrls ?? [])
-        .filter((entry: any) => entry?.url && entry.keep)
-        .map((entry: any) => String(entry.url));
-      const finalUrls: string[] = [...new Set<string>(rankedUrls)].slice(0, 1);
-      if (!judgeData.validUrlFound || finalUrls.length === 0) {
-        throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
+      let approvedUrl = selectedIndex == null ? '' : (candidateUrls[selectedIndex]?.trim() ?? '');
+      let speculativeScrape: Promise<{ response: Response; data: Record<string, any> }> | null = null;
+      if (!approvedUrl || selectedSource !== 'user') {
+        speculativeScrape = fetch('/api/website/scrape-photos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ urls: [foundUrls[0]], product: researchProduct, source_sites: researchSourceSites }),
+        }).then(async response => ({ response, data: await parseWebsiteJsonResponse(response) }))
+          .catch(error => ({ response: new Response(null, { status: 502 }), data: { error: error instanceof Error ? error.message : 'Page extraction failed' } }));
+        const judgeResponse = await fetch('/api/website/judge-urls', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            databaseId: businessId,
+            product: {
+              ...researchProduct,
+              retailPrice: researchVariant?.price_rrp ?? '0',
+            },
+            urls: foundUrls,
+          }),
+        });
+        const judgeData = await parseWebsiteJsonResponse(judgeResponse);
+        if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
+        const approvedEntry = (judgeData.rankedUrls ?? []).find((entry: any) => entry?.url && entry.keep);
+        approvedUrl = approvedEntry?.url ? String(approvedEntry.url) : '';
+        selectedIndex = approvedUrl ? candidateUrls.findIndex(url => url.trim() === approvedUrl) : -1;
+        if (!judgeData.validUrlFound || !approvedUrl || selectedIndex < 0) {
+          setSelectedUrlIndex(null);
+          setUrlSelectionSource(null);
+          throw new Error('AI could not confirm one exact product page. Select the best URL below, or replace a row with another URL, then run Generate Content & Find Photos again.');
+        }
+        setSelectedUrlIndex(selectedIndex);
+        setUrlSelectionSource('ai');
       }
-      setUrls([finalUrls[0] ?? '', '', '', '', '']);
 
-      const scrapeResponse = await fetch('/api/website/scrape-photos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: finalUrls, product: researchProduct, source_sites: researchSourceSites }),
-      });
-      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
+      const scrapeResult = approvedUrl === foundUrls[0] && speculativeScrape
+        ? await speculativeScrape
+        : await fetch('/api/website/scrape-photos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ urls: [approvedUrl], product: researchProduct, source_sites: researchSourceSites }),
+          }).then(async response => ({ response, data: await parseWebsiteJsonResponse(response) }));
+      const scrapeResponse = scrapeResult.response;
+      const scrapeData = scrapeResult.data;
       if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');
       const sourceFacts = String(scrapeData.productFacts ?? '').trim();
       if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the approved page. Nothing was generated.');
       setResearchResult({
         answer: sourceFacts,
-        urls: finalUrls,
+        urls: [approvedUrl],
         images: [],
       });
       setScrapedImages(filterImages(scrapeData.images ?? []));
@@ -4526,7 +4563,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
           },
           mode: 'full',
           tavilyInfo: sourceFacts,
-          tavilyUrls: finalUrls,
+          tavilyUrls: [approvedUrl],
         }),
       });
       const generateData = await parseWebsiteJsonResponse(generateResponse);
@@ -4625,7 +4662,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Research is collected internally; review the generated result and add only the photos you want.</span>
             </div>
 
-            {showResearchDetails && (<>
             {/* Research URLs */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -4643,23 +4679,38 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{i + 1}.</span>
                     <input
+                      type="radio"
+                      name={`website-source-${product.product_id ?? 'new'}`}
+                      checked={selectedUrlIndex === i}
+                      disabled={!urls[i].trim()}
+                      onChange={() => { setSelectedUrlIndex(i); setUrlSelectionSource('user'); setError(null); }}
+                      title="Use this page for product facts and photos"
+                      aria-label={`Use URL ${i + 1} for product facts and photos`}
+                    />
+                    <input
                       type="url"
                       value={urls[i]}
-                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
+                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); if (selectedUrlIndex === i) setUrlSelectionSource('user'); setFallbackImages([]); setShowFallbackImages(false); }}
                       placeholder="https://…"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
                     {urls[i] && (
                       <>
                         <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
-                        <button onClick={() => { const u: [string, string, string, string, string] = [...urls]; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                        <button onClick={() => { const u: [string, string, string, string, string] = [...urls]; u[i] = ''; setUrls(u); if (selectedUrlIndex === i) { setSelectedUrlIndex(null); setUrlSelectionSource(null); } }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
                       </>
                     )}
                   </div>
                 ))}
               </div>
+              {selectedUrl && (
+                <div style={{ marginTop: 7, marginLeft: 24, fontSize: 11, color: 'var(--sv-mint)' }}>
+                  {urlSelectionSource === 'ai' ? 'AI-selected source' : 'Selected source'} for product facts and photos
+                </div>
+              )}
             </div>
 
+            {showResearchDetails && (<>
             {/* Research summary */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -4736,13 +4787,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>More Images</span>
                 <button
                   onClick={handleScrapeImages}
-                  disabled={scraping || !urls.some(u => u.trim())}
-                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping || !urls.some(u => u.trim()) ? .6 : 1 }}
-                  title="Scrapes images directly from the URLs in Step 1 — useful when Tavily research misses product photos"
+                  disabled={scraping || !selectedUrl}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping || !selectedUrl ? .6 : 1 }}
+                  title="Scrapes images directly from the selected product page"
                 >
                   {scraping ? '⏳ Scraping…' : '📸 Pull More Images from URL'}
                 </button>
-                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>HTML scrape of Step 1 URLs</span>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>HTML scrape of selected URL</span>
               </div>
               {scrapeError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginBottom: 6 }}>{scrapeError}</div>}
               {scrapedImages.length > 0 && (
@@ -4808,7 +4859,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               </div>
             ) : null}
 
-            {urls.some(url => url.trim()) && (
+            {selectedUrl && (
               <div style={{ marginBottom: 16 }}>
                 <button
                   type="button"

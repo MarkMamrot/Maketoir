@@ -46,4 +46,30 @@ describe('POST /api/website/judge-urls', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(reportRuntimeIssue).not.toHaveBeenCalled();
   });
+
+  it('returns a decision row for every candidate when Gemini selects only one', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({
+        rankedUrls: [{ url: 'https://shop.example.com/right-product', keep: true, reason: 'Exact product.' }],
+      }) }] } }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+
+    const response = await POST(new Request('http://localhost/api/website/judge-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product: { name: 'Ducky Mug', brand: 'Decole' },
+        urls: ['https://shop.example.com/right-product', 'https://shop.example.com/wrong-product'],
+      }),
+    }));
+
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      validUrlFound: true,
+      rankedUrls: [
+        { url: 'https://shop.example.com/right-product', keep: true },
+        { url: 'https://shop.example.com/wrong-product', keep: false },
+      ],
+    });
+  });
 });
