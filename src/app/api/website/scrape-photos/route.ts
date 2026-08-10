@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { extractProductPageImageCandidates, extractShopifyProductImages, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
+import { extractIdentityVerifiedShopifyImages, extractProductPageImageCandidates, extractShopifyProductImages, normalizeProductImageCandidate, type ProductImageIdentity } from '@/lib/website/productPageImages';
 import { extractIndexedProductPageFacts, extractProductPageFacts, extractShopifyProductFacts, type IndexedProductPageRecord } from '@/lib/website/productPageFacts';
+import { productSearchQueries } from '@/lib/website/productResearchRules';
 import { readSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -87,6 +88,93 @@ async function fetchIndexedProductFacts(rawUrl: string, apiKey: string): Promise
   return extractIndexedProductPageFacts(records, canonicalUrl);
 }
 
+async function fetchIdentityVerifiedImages(
+  product: { name: string; brand?: string; sku?: string; code?: string; barcode?: string },
+  sourceSites: string[],
+  apiKey?: string,
+): Promise<string[]> {
+  const identity: ProductImageIdentity = {
+    sku: product.sku ?? product.code ?? '',
+    barcode: product.barcode ?? '',
+  };
+  const identifiers = [identity.sku, identity.barcode].map(value => String(value ?? '').trim()).filter(Boolean);
+  const sourceDomains = [...new Set(sourceSites.flatMap(site => {
+    try {
+      const url = new URL(site.startsWith('http') ? site : `https://${site}`);
+      return [url.hostname.replace(/^www\./, '')];
+    } catch {
+      return [];
+    }
+  }))].slice(0, 3);
+
+  for (const domain of sourceDomains) {
+    for (let page = 1; page <= 4; page += 1) {
+      try {
+        const catalogUrl = `https://${domain}/products.json?limit=250&page=${page}`;
+        const response = await fetch(catalogUrl, {
+          headers: PAGE_HEADERS,
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) break;
+        const payload = await response.json();
+        const products = Array.isArray(payload?.products) ? payload.products : [];
+        for (const catalogProduct of products) {
+          const images = extractIdentityVerifiedShopifyImages(catalogProduct, response.url || catalogUrl, identity);
+          if (images.length > 0) return images;
+        }
+        if (products.length < 250) break;
+      } catch {
+        break;
+      }
+    }
+  }
+
+  if (!apiKey) return [];
+  const sourceQueries = sourceDomains.flatMap(domain => identifiers.map(identifier => `site:${domain} ${identifier}`));
+  const generalQueries = [
+    ...productSearchQueries(product.name, product.brand ?? '', identity.sku ?? '', identity.barcode ?? '').slice(1),
+    ...identifiers,
+  ];
+  const queries = [...new Set([...sourceQueries, ...generalQueries])];
+  if (queries.length === 0) return [];
+
+  const searchResults = await Promise.allSettled(queries.map(async query => {
+    const response = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+      body: JSON.stringify({ q: query, gl: 'au', num: 10 }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`Serper HTTP ${response.status}`);
+    const data = await response.json();
+    return Array.isArray(data.organic) ? data.organic.map((record: any) => String(record.link ?? '')).filter(Boolean) : [];
+  }));
+
+  const candidates = [...new Set(searchResults.flatMap(result => result.status === 'fulfilled' ? result.value : []))].filter(candidate => {
+    try { return /^\/products\/[^/]+\/?$/.test(new URL(candidate).pathname); } catch { return false; }
+  }).slice(0, 30);
+
+  for (const candidate of candidates) {
+    const productUrl = new URL(canonicalProductUrl(candidate));
+    productUrl.pathname = `${productUrl.pathname.replace(/\/$/, '')}.js`;
+    try {
+      const response = await fetch(productUrl, {
+        headers: PAGE_HEADERS,
+        redirect: 'follow',
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const images = extractIdentityVerifiedShopifyImages(payload, response.url || productUrl.href, identity);
+      if (images.length > 0) return images;
+    } catch {
+      // Continue to the next exact-identifier search result.
+    }
+  }
+  return [];
+}
+
 /**
  * POST /api/website/scrape-photos
  *
@@ -105,6 +193,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const urls: string[] = (body.urls ?? []).filter((u: any) => typeof u === 'string' && u.startsWith('http'));
     const includeFallback = body.includeFallback === true;
+    const product = body.product && typeof body.product === 'object' ? body.product : null;
+    const sourceSites: string[] = (body.source_sites ?? []).filter((site: unknown) => typeof site === 'string' && site.trim());
 
     if (urls.length === 0) {
       return NextResponse.json({ images: [], fallbackImages: [], productFacts: '' });
@@ -212,6 +302,28 @@ export async function POST(req: Request) {
           title: 'Approved product page indexed-text fallback failed',
           error: error instanceof Error ? error : new Error(String(error)),
           context: { approvedUrl: canonicalProductUrl(urls[0]).slice(0, 500) },
+        });
+      }
+    }
+
+    // When the approved page blocks gallery extraction, search for another
+    // structured listing and accept its gallery only after exact variant-level
+    // SKU/barcode verification. Domain, supplier, and product names are not
+    // hard-coded, and sibling variants are rejected.
+    if (uniqueImages.size === 0 && product?.name && (sourceSites.length > 0 || process.env.SERPER_API_KEY)) {
+      try {
+        const verifiedImages = await fetchIdentityVerifiedImages(product, sourceSites, process.env.SERPER_API_KEY);
+        verifiedImages.forEach(image => uniqueImages.add(image));
+      } catch (error) {
+        const runtimeSession = readSession();
+        await reportRuntimeIssue({
+          businessId: runtimeSession?.businessId,
+          source: 'website-content',
+          operation: 'extract_identity_verified_product_images',
+          severity: 'warning',
+          title: 'Exact-identity product image fallback failed',
+          error: error instanceof Error ? error : new Error(String(error)),
+          context: { productName: String(product.name).slice(0, 200) },
         });
       }
     }

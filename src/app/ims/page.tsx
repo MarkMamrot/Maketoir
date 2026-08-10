@@ -4220,6 +4220,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [useBrandSite, setUseBrandSite] = useState(true);
   const [useGeneralResults, setUseGeneralResults] = useState(true);
   const [searchAuOnly, setSearchAuOnly] = useState(true);
+  const researchSourceSites = [
+    ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+    ...(useBrandSite && brandSite ? [brandSite] : []),
+  ];
 
   // Add-image state for research images
   const [addingImages, setAddingImages] = useState<Set<string>>(new Set());
@@ -4240,7 +4244,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls }),
+        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites }),
       });
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
@@ -4259,7 +4263,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls, includeFallback: true }),
+        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites, includeFallback: true }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) { setScrapeError(data.error ?? 'Unable to find more photos'); return; }
@@ -4356,7 +4360,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         const sourceResponse = await fetch('/api/website/scrape-photos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [topUrl] }),
+          body: JSON.stringify({ urls: [topUrl], product: researchProduct, source_sites: researchSourceSites }),
         });
         const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) throw new Error(sourceData.error ?? 'Approved-page extraction failed');
@@ -4493,7 +4497,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const scrapeResponse = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: finalUrls }),
+        body: JSON.stringify({ urls: finalUrls, product: researchProduct, source_sites: researchSourceSites }),
       });
       const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
       if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');

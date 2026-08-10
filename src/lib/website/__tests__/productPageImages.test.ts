@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractProductPageImageCandidates, extractProductPageImages, extractShopifyProductImages } from '../productPageImages';
+import { extractIdentityVerifiedShopifyImages, extractProductPageImageCandidates, extractProductPageImages, extractShopifyProductImages } from '../productPageImages';
 
 describe('extractProductPageImages', () => {
   it('keeps the selected product media family and rejects recommendation images', () => {
@@ -93,5 +93,44 @@ describe('extractProductPageImages', () => {
       'https://cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-01.jpg',
       'https://cdn.shopify.com/files/flutterby-long-sleeve-bodysuit-02.jpg',
     ]);
+  });
+
+  it('accepts a structured gallery only when SKU and barcode match the same variant', () => {
+    const payload = {
+      images: ['//cdn.shopify.com/files/crocodile-1.png'],
+      variants: [{ sku: 'AS-SBV44-CROCODILE', barcode: '842591060632' }],
+    };
+
+    expect(extractIdentityVerifiedShopifyImages(payload, 'https://supplier.test/products/crocodile.js', {
+      sku: 'AS-SBV44-CROCODILE',
+      barcode: '842591060632',
+    })).toEqual(['https://cdn.shopify.com/files/crocodile-1.png']);
+  });
+
+  it('accepts an exact structured SKU when the source omits barcode', () => {
+    const payload = {
+      images: ['//cdn.shopify.com/files/crocodile-1.png'],
+      variants: [{ sku: 'AS-SBV44-CROCODILE' }],
+    };
+
+    expect(extractIdentityVerifiedShopifyImages(payload, 'https://supplier.test/products/crocodile.js', {
+      sku: 'AS-SBV44-CROCODILE',
+      barcode: '842591060632',
+    })).toEqual(['https://cdn.shopify.com/files/crocodile-1.png']);
+  });
+
+  it('rejects sibling products and identifiers split across different variants', () => {
+    const payload = {
+      images: ['//cdn.shopify.com/files/wrong-product.png'],
+      variants: [
+        { sku: 'AS-SBV44-CROCODILE', barcode: 'wrong-barcode' },
+        { sku: 'AS-SBV44-CAT', barcode: '842591060632' },
+      ],
+    };
+
+    expect(extractIdentityVerifiedShopifyImages(payload, 'https://supplier.test/products/cat.js', {
+      sku: 'AS-SBV44-CROCODILE',
+      barcode: '842591060632',
+    })).toEqual([]);
   });
 });

@@ -210,3 +210,41 @@ export function extractShopifyProductImages(payload: unknown, pageUrl: string, l
     return typeof rawUrl === 'string' ? normalizeImageUrl(rawUrl, pageUrl) ?? [] : [];
   })).slice(0, limit);
 }
+
+export interface ProductImageIdentity {
+  sku?: string | null;
+  barcode?: string | null;
+}
+
+function normalizedIdentifier(value: unknown): string {
+  return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+}
+
+export function extractIdentityVerifiedShopifyImages(
+  payload: unknown,
+  pageUrl: string,
+  identity: ProductImageIdentity,
+  limit = 10,
+): string[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const expectedSku = normalizedIdentifier(identity.sku);
+  const expectedBarcode = normalizedIdentifier(identity.barcode);
+  if (expectedSku.length < 4 && expectedBarcode.length < 6) return [];
+
+  const product = payload as Record<string, unknown>;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const matchingVariant = variants.find(variant => {
+    if (!variant || typeof variant !== 'object') return false;
+    const record = variant as Record<string, unknown>;
+    const variantSku = normalizedIdentifier(record.sku);
+    const variantBarcode = normalizedIdentifier(record.barcode);
+    const skuConflicts = expectedSku.length >= 4 && variantSku.length > 0 && variantSku !== expectedSku;
+    const barcodeConflicts = expectedBarcode.length >= 6 && variantBarcode.length > 0 && variantBarcode !== expectedBarcode;
+    const skuMatches = expectedSku.length >= 4 && variantSku === expectedSku;
+    const barcodeMatches = expectedBarcode.length >= 6 && variantBarcode === expectedBarcode;
+    return !skuConflicts && !barcodeConflicts && (skuMatches || barcodeMatches);
+  });
+  if (!matchingVariant) return [];
+
+  return extractShopifyProductImages(payload, pageUrl, limit);
+}

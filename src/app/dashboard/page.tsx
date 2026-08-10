@@ -5191,10 +5191,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     try {
       const approvedUrl = urlsSnapshot[0]?.trim();
       if (approvedUrl) {
+        const searchSources = await getProductSearchSources(product);
         const sourceResponse = await fetch('/api/website/scrape-photos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [approvedUrl] }),
+          body: JSON.stringify({ urls: [approvedUrl], product, source_sites: searchSources.preferred_sites }),
         });
         const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) {
@@ -5284,10 +5285,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (!topUrl) return;
     setScrapingSet(prev => new Set(prev).add(key));
     try {
+      const searchSources = await getProductSearchSources(product);
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [topUrl] }),
+        body: JSON.stringify({ urls: [topUrl], product, source_sites: searchSources.preferred_sites }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (data.images?.length) {
@@ -5314,9 +5316,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (!topUrl) return;
     setScrapingSet(prev => new Set(prev).add(key));
     try {
+      const searchSources = await getProductSearchSources(product);
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [topUrl], includeFallback: true }),
+        body: JSON.stringify({ urls: [topUrl], product, source_sites: searchSources.preferred_sites, includeFallback: true }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) throw new Error(data.error ?? 'Unable to find more photos');
@@ -5436,7 +5439,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         try {
           const scrapeRes = await fetch('/api/website/scrape-photos', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urlsToScrape }),
+            body: JSON.stringify({ urls: urlsToScrape, product, source_sites: searchSources.preferred_sites }),
           });
           const scrapeData = await parseWebsiteJsonResponse(scrapeRes);
           sourceFacts = String(scrapeData.productFacts ?? '').trim();
