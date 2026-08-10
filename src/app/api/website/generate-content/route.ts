@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
 import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
-import { readSession } from '@/lib/auth/imsSession';
+import { getImsSession } from '@/lib/auth/imsSession';
+import { DEFAULT_BUSINESS_TIME_ZONE } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import {
+  DEFAULT_WEBSITE_CONTENT_MODEL,
+  measurementPrompt,
+  resolveMeasurementSystem,
+  WEBSITE_AI_SETTING_KEYS,
+} from '@/lib/website/contentPreferences';
 
 const SYSTEM_INSTRUCTION = `You are an expert e-commerce product content writer specialising in retail apparel and accessories. You use web search to research specific products and write accurate, engaging, SEO-optimised content for Shopify stores. Always respond with valid JSON only — no markdown code blocks, no preamble.`;
 
@@ -262,8 +269,8 @@ async function discoverProductUrls(
 
 export async function POST(req: Request) {
   try {
-    const session = cookies().get('marketoir_session');
-    if (!session?.value) {
+    const session = await getImsSession();
+    if (!session) {
       return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
     }
 
@@ -284,6 +291,9 @@ export async function POST(req: Request) {
     if (!databaseId || !product) {
       return NextResponse.json({ error: 'Missing databaseId or product' }, { status: 400 });
     }
+    if (databaseId !== session.businessId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    }
 
     const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
@@ -299,17 +309,37 @@ export async function POST(req: Request) {
       getProductTemplates(sheets, databaseId),
     ]);
 
-    // Determine model — use the same model configured in Connections if available
-    let modelId = 'gemini-2.5-flash';
+    const settingRows = await imsQuery<{ key: string; value: string | null }>(
+      'SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN (?, ?, ?)',
+      [
+        session.businessId,
+        WEBSITE_AI_SETTING_KEYS.contentModel,
+        WEBSITE_AI_SETTING_KEYS.measurementSystem,
+        'business_timezone',
+      ],
+    );
+    const websiteSettings = Object.fromEntries(settingRows.map(row => [row.key, row.value?.trim() ?? '']));
+
+    // Preserve the existing global Connections model as the fallback for tenants
+    // that have not chosen a task-specific Website Content model yet.
+    let modelId = websiteSettings[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL;
     try {
-      const connRows = await sheets.getData(databaseId, 'Connections') as string[][];
-      if (connRows?.length >= 2) {
-        const hdrs = connRows[0] as string[];
-        const vals = connRows[1] as string[];
-        const m = vals[hdrs.indexOf('GeminiModel')];
-        if (m?.trim()) modelId = m.trim();
+      if (!websiteSettings[WEBSITE_AI_SETTING_KEYS.contentModel]) {
+        const connRows = await sheets.getData(databaseId, 'Connections') as string[][];
+        if (connRows?.length >= 2) {
+          const hdrs = connRows[0] as string[];
+          const vals = connRows[1] as string[];
+          const m = vals[hdrs.indexOf('GeminiModel')];
+          if (m?.trim()) modelId = m.trim();
+        }
       }
     } catch { /* use default */ }
+
+    const businessTimeZone = websiteSettings.business_timezone || DEFAULT_BUSINESS_TIME_ZONE;
+    const measurementSystem = resolveMeasurementSystem(
+      websiteSettings[WEBSITE_AI_SETTING_KEYS.measurementSystem],
+      businessTimeZone,
+    );
 
     // Build prompt
     let prompt: string;
@@ -325,6 +355,7 @@ export async function POST(req: Request) {
     } else {
       prompt = buildFullPrompt(product, brandProfile, businessInfo, templates, [], tavilyInfo);
     }
+    prompt += `\n\n${measurementPrompt(measurementSystem, businessTimeZone)}`;
 
     // Append user-supplied brief/notes to the prompt
     if (userNotes?.trim()) {
@@ -345,7 +376,7 @@ export async function POST(req: Request) {
       systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
         ...(useSearch ? {} : { responseMimeType: 'application/json' }),
       },
     };
@@ -400,9 +431,8 @@ export async function POST(req: Request) {
     }
 
     if (!parsed) {
-      const runtimeSession = readSession();
       await reportRuntimeIssue({
-        businessId: runtimeSession?.businessId ?? databaseId,
+        businessId: session.businessId,
         source: 'website-content',
         operation: 'generate_content_parse_response',
         severity: 'error',

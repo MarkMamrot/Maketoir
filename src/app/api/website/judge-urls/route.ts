@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { readSession } from '@/lib/auth/imsSession';
+import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
+import { imsQuery } from '@/services/IMSMySQLService';
+import { DEFAULT_URL_JUDGE_MODEL, WEBSITE_AI_SETTING_KEYS } from '@/lib/website/contentPreferences';
 
 /**
  * POST /api/website/judge-urls
@@ -25,8 +26,8 @@ import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
 
 export async function POST(req: Request) {
   try {
-    const session = cookies().get('marketoir_session');
-    if (!session?.value) {
+    const session = await getImsSession();
+    if (!session) {
       return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
     }
 
@@ -35,10 +36,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
     }
 
-    const { product, urls } = await req.json();
+    const { databaseId, product, urls } = await req.json();
     if (!product?.name || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json({ error: 'product.name and urls[] are required.' }, { status: 400 });
     }
+    if (databaseId && databaseId !== session.businessId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    }
+
+    const modelRows = await imsQuery<{ value: string | null }>(
+      'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+      [session.businessId, WEBSITE_AI_SETTING_KEYS.urlJudgeModel],
+    );
+    const modelId = modelRows[0]?.value?.trim() || DEFAULT_URL_JUDGE_MODEL;
 
     const validUrls: string[] = urls.filter((u: any) => typeof u === 'string' && u.trim());
 
@@ -99,7 +109,7 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       let res: Response;
       try {
         res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -149,9 +159,8 @@ Return ONLY valid JSON — no markdown fences, no extra text:
           })),
         });
       }
-      const runtimeSession = readSession();
       await reportRuntimeIssue({
-        businessId: runtimeSession?.businessId,
+        businessId: session.businessId,
         source: 'website-content',
         operation: 'judge_urls_parse_response',
         severity: 'error',

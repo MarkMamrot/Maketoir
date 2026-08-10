@@ -2,12 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { reportRuntimeIssue } = vi.hoisted(() => ({ reportRuntimeIssue: vi.fn() }));
 
-vi.mock('next/headers', () => ({
-  cookies: () => ({ get: () => ({ value: 'session' }) }),
-}));
 vi.mock('@/lib/auth/imsSession', () => ({
-  readSession: () => ({ businessId: 'business-1' }),
+  getImsSession: () => ({ businessId: 'business-1' }),
 }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn().mockResolvedValue([]) }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue }));
 
 import { POST } from '../route';

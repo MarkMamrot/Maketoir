@@ -4,6 +4,12 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { DEFAULT_BUSINESS_TIME_ZONE, isValidBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { DEFAULT_LOYALTY_SETTINGS, LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
+import {
+  DEFAULT_URL_JUDGE_MODEL,
+  DEFAULT_WEBSITE_CONTENT_MODEL,
+  isValidGeminiModelId,
+  WEBSITE_AI_SETTING_KEYS,
+} from '@/lib/website/contentPreferences';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -31,6 +37,9 @@ export async function GET() {
     settings[LOYALTY_SETTING_KEYS.programName] ??= DEFAULT_LOYALTY_SETTINGS.programName;
     settings[LOYALTY_SETTING_KEYS.pointsLabel] ??= DEFAULT_LOYALTY_SETTINGS.pointsLabel;
     settings[LOYALTY_SETTING_KEYS.startedAt] ??= '';
+    settings[WEBSITE_AI_SETTING_KEYS.contentModel] ||= DEFAULT_WEBSITE_CONTENT_MODEL;
+    settings[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] ||= DEFAULT_URL_JUDGE_MODEL;
+    settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] ||= 'auto';
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
@@ -63,6 +72,20 @@ export async function PUT(req: Request) {
         return NextResponse.json({ success: false, error: 'Pending Online exclusion days must be an integer from 0 to 90.' }, { status: 400 });
       }
       pairs.pending_online_invalid_url_exclusion_days = String(days);
+    }
+    for (const key of [WEBSITE_AI_SETTING_KEYS.contentModel, WEBSITE_AI_SETTING_KEYS.urlJudgeModel]) {
+      if (pairs[key] === undefined) continue;
+      const modelId = String(pairs[key]).trim();
+      if (!isValidGeminiModelId(modelId)) {
+        return NextResponse.json({ success: false, error: 'AI model must be a valid Gemini text model.' }, { status: 400 });
+      }
+      pairs[key] = modelId;
+    }
+    if (pairs[WEBSITE_AI_SETTING_KEYS.measurementSystem] !== undefined) {
+      const measurementSystem = String(pairs[WEBSITE_AI_SETTING_KEYS.measurementSystem]);
+      if (!['auto', 'metric', 'imperial'].includes(measurementSystem)) {
+        return NextResponse.json({ success: false, error: 'Measurement system must be automatic, metric, or imperial.' }, { status: 400 });
+      }
     }
     if (pairs[LOYALTY_SETTING_KEYS.enabled] !== undefined && !['0', '1'].includes(String(pairs[LOYALTY_SETTING_KEYS.enabled]))) {
       return NextResponse.json({ success: false, error: 'Loyalty enabled must be 0 or 1.' }, { status: 400 });

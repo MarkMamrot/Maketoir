@@ -10,6 +10,12 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
+import {
+  DEFAULT_URL_JUDGE_MODEL,
+  DEFAULT_WEBSITE_CONTENT_MODEL,
+  resolveMeasurementSystem,
+  WEBSITE_AI_SETTING_KEYS,
+} from '@/lib/website/contentPreferences';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -18948,7 +18954,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'ai' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -23251,6 +23257,92 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
+function AISettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
+  const fallbackModels = [
+    { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
+  ];
+  const [models, setModels] = useState<{ id: string; displayName: string }[]>([]);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setDraft({
+      [WEBSITE_AI_SETTING_KEYS.contentModel]: settings[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL,
+      [WEBSITE_AI_SETTING_KEYS.urlJudgeModel]: settings[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL,
+      [WEBSITE_AI_SETTING_KEYS.measurementSystem]: settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] || 'auto',
+    });
+  }, [settings]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/ai/text-models')
+      .then(response => response.json())
+      .then(data => { if (active) setModels(Array.isArray(data.models) && data.models.length > 0 ? data.models : fallbackModels); })
+      .catch(() => { if (active) setModels(fallbackModels); });
+    return () => { active = false; };
+  }, []);
+
+  const selectStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13 };
+  const selectedModels = new Set(models.map(model => model.id));
+  const modelOptions = (selected: string) => <>
+    {selected && !selectedModels.has(selected) && <option value={selected}>{selected}</option>}
+    {models.map(model => <option key={model.id} value={model.id}>{model.displayName} ({model.id})</option>)}
+  </>;
+  const measurementPreference = draft[WEBSITE_AI_SETTING_KEYS.measurementSystem] || 'auto';
+  const automaticMeasurement = resolveMeasurementSystem('auto', settings.business_timezone);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    await saveSettings(draft);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div style={{ padding: 32, maxWidth: 720 }}>
+      <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>AI Settings</h2>
+      <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>Choose models by workload. Flash is recommended for Website Content because it balances structured-output quality with response time.</p>
+
+      <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+        <label style={labelStyle}>Website Content Generation</label>
+        <select value={draft[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.contentModel]: event.target.value }))} style={selectStyle}>
+          {modelOptions(draft[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL)}
+        </select>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Writes titles, descriptions, tags, and internal product copy from approved source facts.</p>
+      </div>
+
+      <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
+        <label style={labelStyle}>Exact Product URL Matching</label>
+        <select value={draft[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.urlJudgeModel]: event.target.value }))} style={selectStyle}>
+          {modelOptions(draft[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL)}
+        </select>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Ranks candidate pages and confirms the single exact product source.</p>
+      </div>
+
+      <div style={{ padding: '18px 20px' }}>
+        <label style={labelStyle}>Generated Measurement Units</label>
+        <select value={measurementPreference} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.measurementSystem]: event.target.value }))} style={selectStyle}>
+          <option value="auto">Automatic from organisation timezone ({automaticMeasurement})</option>
+          <option value="metric">Metric (mm, cm, m, g, kg)</option>
+          <option value="imperial">Imperial (in, ft, oz, lb)</option>
+        </select>
+        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Source measurements are converted into the organisation&apos;s units without adding facts that are absent from the approved page.</p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+        <button type="button" onClick={handleSave} disabled={saving || models.length === 0} style={btnStyle('action', 'sm')}>{saving ? 'Saving…' : 'Save AI Settings'}</button>
+        {models.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading available models…</span>}
+        {saved && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>Saved</span>}
+      </div>
+    </div>
+  );
+}
+
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput, onNavigateXero }: SettingsModalProps) {
   const { settings, saveSettings, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
@@ -23441,6 +23533,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
     { id: 'general',          label: 'General',          icon: '⚙' },
     { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
+    { id: 'ai',               label: 'AI',               icon: '✦' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
@@ -23664,6 +23757,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Locations ── */}
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
+        )}
+
+        {active === 'ai' && (
+          <AISettingsSection settings={settings} saveSettings={saveSettings} />
         )}
 
         {/* ── Business Profile ── */}

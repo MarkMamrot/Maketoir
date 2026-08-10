@@ -79,7 +79,7 @@ const NAV: NavItem[] = [
   {
     id: 'website', label: 'Website', icon: 'website',
     children: [
-      { id: 'pending-online',               label: 'Load Products To Website' },
+      { id: 'pending-online',               label: 'Website Content Studio' },
       { id: 'product-description-template', label: 'Web Field Templates'      },
       { id: 'bulk-edit-listings',           label: 'Bulk Edit Listings'       },
     ],
@@ -4732,7 +4732,7 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
   );
 });
 
-// ── Load Products To Website (IMS → Online Shop) ─────────────────────────────
+// ── Website Content Studio (IMS → Online Shop) ───────────────────────────────
 // Hover-zoom thumbnail — shows a 240×240 popup near the cursor
 type HoverImageSpec = { type?: string; size?: string; dimensions?: string; dpi?: string };
 
@@ -5339,6 +5339,67 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     }
   };
 
+  const handleConfirmProductPage = async (product: PendingOnlineProduct, approvedUrl: string) => {
+    const key = product.code;
+    const selectedUrl = approvedUrl.trim();
+    if (!selectedUrl || removedKeys.has(key) || automatingSet.has(key)) return;
+
+    setSessionBlockedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+    setUrlDecisionsMap(prev => ({
+      ...prev,
+      [key]: (prev[key] ?? []).map(decision => ({
+        ...decision,
+        keep: decision.url === selectedUrl,
+        reason: decision.url === selectedUrl ? 'Confirmed by user.' : decision.reason,
+      })),
+    }));
+    setProductInputs(prev => {
+      const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+      return { ...prev, [key]: { ...existing, urls: [selectedUrl, '', '', '', ''] } };
+    });
+    setAutomatingSet(prev => new Set(prev).add(key));
+    setAutoStepMap(prev => ({ ...prev, [key]: 'Step 3/4: Extracting facts from your confirmed page…' }));
+    setGenerateError(prev => ({ ...prev, [key]: '' }));
+
+    try {
+      const searchSources = await getProductSearchSources(product);
+      const scrapeResponse = await fetch('/api/website/scrape-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: [selectedUrl], product, source_sites: searchSources.preferred_sites }),
+      });
+      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
+      if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Confirmed-page extraction failed');
+
+      const sourceFacts = String(scrapeData.productFacts ?? '').trim();
+      if (!sourceFacts) throw new Error('No authoritative product facts were found on the confirmed page.');
+      const approvedPhotos = dedupeProductPhotoUrls(scrapeData.images ?? []);
+      setScrapedPhotosMap(prev => ({ ...prev, [key]: approvedPhotos }));
+      setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], [], [], []] }));
+      setProductInputs(prev => {
+        const existing = prev[key] ?? { urls: [selectedUrl, '', '', '', ''], photos: [], notes: '' };
+        return { ...prev, [key]: { ...existing, urls: [selectedUrl, '', '', '', ''], notes: sourceFacts } };
+      });
+
+      setAutoStepMap(prev => ({ ...prev, [key]: 'Step 4/4: Generating content from confirmed-page facts…' }));
+      const generationResponse = await fetch('/api/website/generate-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId, product, tavilyInfo: sourceFacts, tavilyUrls: [selectedUrl], userPhotos: [], userNotes: '' }),
+      });
+      const generationData = await parseWebsiteJsonResponse(generationResponse);
+      if (!generationResponse.ok || !generationData.success) throw new Error(generationData.error ?? 'Content generation failed');
+
+      setContentMap(prev => ({ ...prev, [key]: generationData.content }));
+      setAutoStepMap(prev => { const next = { ...prev }; delete next[key]; return next; });
+    } catch (confirmationError: any) {
+      setGenerateError(prev => ({ ...prev, [key]: confirmationError.message ?? 'Confirmed-page processing failed' }));
+      setAutoStepMap(prev => ({ ...prev, [key]: `❌ ${confirmationError.message ?? 'Confirmed-page processing failed'}` }));
+    } finally {
+      setAutomatingSet(prev => { const next = new Set(prev); next.delete(key); return next; });
+    }
+  };
+
   // Full automated pipeline: Find URLs → validate → collect photos → apply content.
   const handleAutomatedRetrieval = async (product: PendingOnlineProduct) => {
     const key = product.code;
@@ -5407,15 +5468,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         if (!judgeData.validUrlFound || finalUrls.length === 0) {
           setSessionBlockedKeys(prev => new Set(prev).add(key));
           setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
-          const attemptResponse = await fetch('/api/ims/website-content-attempts', {
+          setExpandedCode(key);
+          step('⏸ Awaiting confirmation — choose the exact product page below.');
+          void fetch('/api/ims/website-content-attempts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ productId: product.product_id, candidateUrls: foundUrls, decisions }),
-          });
-          const attemptData = await attemptResponse.json().catch(() => ({}));
-          step(attemptResponse.ok
-            ? '⛔ No valid product page found — skipped for this session.'
-            : `⛔ No valid product page found — session blocked, but attempt recording failed: ${attemptData.error ?? 'unknown error'}`);
+          }).catch(error => console.warn('[website-content-attempts]', error));
           return;
         }
       } catch (assessmentError: any) {
@@ -5429,7 +5488,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             reason: assessmentError?.message || 'AI URL assessment failed; original search order was retained.',
           })),
         }));
-        step(`⛔ URL assessment failed — skipped for this session: ${assessmentError?.message ?? 'unknown error'}`);
+        setExpandedCode(key);
+        step(`⏸ Awaiting confirmation — URL assessment failed: ${assessmentError?.message ?? 'unknown error'}`);
         return;
       }
       const paddedFinal: ProductUrlSlots = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '', finalUrls[3] ?? '', finalUrls[4] ?? ''];
@@ -5659,7 +5719,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Automated Product Content Studio</h2>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Website Content Studio</h2>
             <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
@@ -5893,7 +5953,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const fallbackPhotos = dedupeProductPhotoUrls(fallbackPhotosMap[key] ?? []).filter(url => !candidatePhotos.includes(url));
 
                 const overallStatus = (() => {
-                  if (isSessionBlocked) return { icon: '⛔', label: 'Skipped', cls: 'text-red-700 bg-red-50' };
+                  if (isSessionBlocked) return { icon: '⏸', label: 'Awaiting confirmation', cls: 'text-amber-800 bg-amber-50' };
                   if (onl === 'done') return { icon: '✅', label: 'On the shop', cls: 'text-green-700 bg-green-50' };
                   if (hasContent) return { icon: '✏️', label: 'Content ready', cls: 'text-indigo-700 bg-indigo-50' };
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
@@ -6009,7 +6069,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             <p className="text-xs font-medium text-gray-700 mb-1.5">AI URL assessment</p>
                             <div className="space-y-1.5">
                               {urlDecisions.map(decision => (
-                                <div key={decision.url} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 items-start rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                <div key={decision.url} className="grid grid-cols-[88px_minmax(0,1fr)_auto] gap-2 items-start rounded-md border border-gray-200 bg-white px-2.5 py-2">
                                   <span className={`text-[10px] font-bold uppercase tracking-wide text-center rounded-full px-2 py-1 ${
                                     decision.keep === true ? 'bg-emerald-100 text-emerald-700' :
                                     decision.keep === false ? 'bg-gray-100 text-gray-500' :
@@ -6021,6 +6081,16 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                     <a href={decision.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="block text-xs text-blue-600 hover:underline truncate">{decision.url}</a>
                                     <p className="text-[11px] text-gray-500 mt-0.5">{decision.reason}</p>
                                   </div>
+                                  {isSessionBlocked && (
+                                    <button
+                                      type="button"
+                                      onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, decision.url); }}
+                                      disabled={automatingSet.has(key)}
+                                      className="px-2.5 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
+                                    >
+                                      Use this page
+                                    </button>
+                                  )}
                                 </div>
                               ))}
                             </div>
