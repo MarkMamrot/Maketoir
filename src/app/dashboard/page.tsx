@@ -5164,7 +5164,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       const urls: string[] = data.urls ?? [];
       setUrlDecisionsMap(prev => ({
         ...prev,
-        [key]: urls.filter(Boolean).slice(0, 3).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
+        [key]: urls.filter(Boolean).slice(0, 5).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
       }));
       setProductInputs(prev => {
         const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
@@ -5356,7 +5356,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       });
       const serperData = await parseWebsiteJsonResponse(serperRes);
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
-      const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 3);
+      const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 5);
       if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
       setUrlDecisionsMap(prev => ({
         ...prev,

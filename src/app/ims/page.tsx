@@ -4191,7 +4191,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   onImageAdded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
+  const [urls, setUrls] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
@@ -4339,7 +4339,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
-      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '']);
+      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? '']);
     } catch (e: any) { setError(e.message); }
     finally { setFindingUrls(false); }
   };
@@ -4467,7 +4467,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       });
       const searchData = await parseWebsiteJsonResponse(searchResponse);
       if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
-      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 3) as string[];
+      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
       if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
 
       const judgeResponse = await fetch('/api/website/judge-urls', {
@@ -4493,7 +4493,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       if (!judgeData.validUrlFound || finalUrls.length === 0) {
         throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
       }
-      setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
+      setUrls([finalUrls[0] ?? '', '', '', '', '']);
 
       const scrapeResponse = await fetch('/api/website/scrape-photos', {
         method: 'POST',
@@ -4638,20 +4638,20 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {([0, 1, 2] as const).map(i => (
+                {([0, 1, 2, 3, 4] as const).map(i => (
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{i + 1}.</span>
                     <input
                       type="url"
                       value={urls[i]}
-                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
+                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
                       placeholder="https://…"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
                     {urls[i] && (
                       <>
                         <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
-                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                        <button onClick={() => { const u: [string, string, string, string, string] = [...urls]; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
                       </>
                     )}
                   </div>

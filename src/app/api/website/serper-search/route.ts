@@ -114,12 +114,14 @@ export async function POST(req: Request) {
       (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )];
 
-    const [generalSearches, preferredSearches] = await Promise.all([
+    const searchResults = await Promise.all([
       include_general
         ? Promise.all(searchQueries.map(query => serperQuery(query, apiKey, 20, search_au_only)))
         : Promise.resolve([]),
       ...preferredDomains.map(domain => serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only)),
-    ].then(results => [results[0], results.slice(1)] as [SerperQueryResult[], SerperQueryResult[]]));
+    ]);
+    const generalSearches = searchResults[0] as SerperQueryResult[];
+    const preferredSearches = searchResults.slice(1) as SerperQueryResult[];
     const rawUrls = [...new Set(generalSearches.flatMap(result => result.urls))];
     const preferredResults = preferredSearches.map(result => result.urls);
     const searchErrors = [...generalSearches, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
@@ -177,12 +179,12 @@ export async function POST(req: Request) {
       );
       const generalCandidates = [...strictGeneralCandidates, ...fallbackProductPages];
       for (const url of generalCandidates) {
-        if (urls.length >= 3) break;
+        if (urls.length >= 5) break;
         if (!seen.has(url)) { seen.add(url); urls.push(url); }
       }
     }
 
-    return NextResponse.json({ success: true, urls: urls.slice(0, 3), query: baseQuery, queries: searchQueries });
+    return NextResponse.json({ success: true, urls: urls.slice(0, 5), query: baseQuery, queries: searchQueries });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }
