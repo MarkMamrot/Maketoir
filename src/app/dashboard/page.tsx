@@ -4884,7 +4884,7 @@ interface PendingOnlineProduct {
   // and `product_id` drives the Push to Online Shop / shopify-sync call.
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
-  sku: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
+  sku: string; barcode: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
   last_invalid_url_attempt_at: string | null;
@@ -5120,6 +5120,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           brand:         p.brand ?? '',
           supplier_name: p.supplier_name ?? '',
           sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
+          barcode:       p.variants?.[0]?.barcode ?? '',
           styleCode:     p.style_code ?? '',
           retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
           website_title: p.website_title ?? '',
@@ -5151,7 +5152,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', code: product.code },
+          product: { name: product.name, brand: product.brand ?? '', sku: product.sku, barcode: product.barcode },
           ...searchSources,
         }),
       });

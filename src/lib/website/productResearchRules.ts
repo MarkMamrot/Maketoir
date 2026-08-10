@@ -12,3 +12,15 @@ export function productResearchQuery(productName: string, brand: string, url?: s
   const source = url ? `Use the product page ${url}. ` : '';
   return `${source}Research only the exact product "${productName}" by ${brand}. Find product features, materials, specifications, sizing, and dimensions or measurements. Exclude shipping, delivery, returns, promotions, pricing, stock messages, and other retailer policies.`;
 }
+
+export function productSearchQueries(productName: string, brand: string, code?: string, barcode?: string): string[] {
+  const normalizedNameWords = new Set(productName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const brandWords = brand.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const nameIncludesBrand = brandWords.length > 0 && brandWords.every(word => normalizedNameWords.has(word));
+  const broadQuery = [productName.trim(), nameIncludesBrand ? '' : brand.trim()].filter(Boolean).join(' ');
+  const identifiers = [code, barcode]
+    .map(value => value?.trim() ?? '')
+    .filter((value, index, values) => value.length >= 4 && values.indexOf(value) === index);
+
+  return [broadQuery, ...identifiers.map(identifier => `${broadQuery} ${identifier}`)].filter(Boolean);
+}

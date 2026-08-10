@@ -4324,7 +4324,12 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            sku: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            barcode: product.variants?.[0]?.barcode ?? '',
+          },
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4448,7 +4453,12 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            sku: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            barcode: product.variants?.[0]?.barcode ?? '',
+          },
           preferred_sites: preferredSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,

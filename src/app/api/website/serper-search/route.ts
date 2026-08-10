@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, productUrlScore, type ProductUrlIdentity } from '@/lib/website/productUrlCandidates';
+import { productSearchQueries } from '@/lib/website/productResearchRules';
 import { readSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -97,10 +98,11 @@ export async function POST(req: Request) {
     const identity: ProductUrlIdentity = {
       name: String(product.name),
       brand: String(product.brand ?? ''),
-      code: String(product.code ?? product.sku ?? ''),
+      code: String(product.sku ?? product.code ?? ''),
       barcode: String(product.barcode ?? ''),
     };
-    const baseQuery = `${identity.name} ${identity.brand}`;
+    const searchQueries = productSearchQueries(identity.name, identity.brand ?? '', identity.code, identity.barcode);
+    const baseQuery = searchQueries[0];
 
     // Extract unique preferred domains (only from explicitly-enabled URLs, max 2)
     const preferredDomains = [...new Set(
@@ -112,13 +114,15 @@ export async function POST(req: Request) {
       (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )];
 
-    const [generalSearch, ...preferredSearches] = await Promise.all([
-      include_general ? serperQuery(baseQuery, apiKey, 20, search_au_only) : Promise.resolve({ urls: [] }),
+    const [generalSearches, preferredSearches] = await Promise.all([
+      include_general
+        ? Promise.all(searchQueries.map(query => serperQuery(query, apiKey, 20, search_au_only)))
+        : Promise.resolve([]),
       ...preferredDomains.map(domain => serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only)),
-    ]);
-    const rawUrls = generalSearch.urls;
+    ].then(results => [results[0], results.slice(1)] as [SerperQueryResult[], SerperQueryResult[]]));
+    const rawUrls = [...new Set(generalSearches.flatMap(result => result.urls))];
     const preferredResults = preferredSearches.map(result => result.urls);
-    const searchErrors = [generalSearch, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
+    const searchErrors = [...generalSearches, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
     if (searchErrors.length > 0) {
       const runtimeSession = readSession();
       await reportRuntimeIssue({
@@ -178,7 +182,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, urls: urls.slice(0, 3), query: baseQuery });
+    return NextResponse.json({ success: true, urls: urls.slice(0, 3), query: baseQuery, queries: searchQueries });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }
