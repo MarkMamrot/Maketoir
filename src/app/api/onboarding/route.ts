@@ -6,6 +6,20 @@ import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const PROGRESS_KEY = 'onboarding_completed_steps';
+const ONBOARDING_STEP_IDS = [
+  'business_profile',
+  'operations_tax',
+  'online_shop',
+  'accounting',
+  'users',
+  'locations',
+  'products',
+  'sales_orders',
+  'purchase_orders',
+  'opening_stock',
+  'pos_ready',
+] as const;
+const ONBOARDING_STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
 
 const SETTING_DEFAULTS: Record<string, string> = {
   use_multiple_locations: 'yes',
@@ -125,27 +139,18 @@ export async function PUT(req: Request) {
 
   const businessId = session.businessId;
   const body = await req.json().catch(() => ({}));
-  const settings = body.settings && typeof body.settings === 'object' ? body.settings as Record<string, unknown> : {};
+  const completeStep = body.completeStep == null ? null : String(body.completeStep);
+  const reopenStep = body.reopenStep == null ? null : String(body.reopenStep);
 
-  for (const [key, rawValue] of Object.entries(settings)) {
-    await imsExecute(
-      'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
-      [businessId, key, rawValue == null ? '' : String(rawValue)],
-    );
+  if ((completeStep && !ONBOARDING_STEP_ID_SET.has(completeStep)) || (reopenStep && !ONBOARDING_STEP_ID_SET.has(reopenStep))) {
+    return NextResponse.json({ error: 'Invalid onboarding step' }, { status: 400 });
   }
 
-  if (settings.business_name || settings.business_abn) {
-    await BusinessInfoRepository.upsert(businessId, {
-      ...(settings.business_name ? { brand_name: String(settings.business_name) } : {}),
-      ...(settings.business_abn ? { abn: String(settings.business_abn) } : {}),
-    });
-  }
-
-  if (body.completeStep || body.reopenStep) {
+  if (completeStep || reopenStep) {
     const rows = await imsQuery<{ value: string }>('SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1', [businessId, PROGRESS_KEY]);
     const completed = new Set(parseCompleted(rows[0]?.value));
-    if (body.completeStep) completed.add(String(body.completeStep));
-    if (body.reopenStep) completed.delete(String(body.reopenStep));
+    if (completeStep) completed.add(completeStep);
+    if (reopenStep) completed.delete(reopenStep);
     await imsExecute(
       'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
       [businessId, PROGRESS_KEY, JSON.stringify(Array.from(completed))],

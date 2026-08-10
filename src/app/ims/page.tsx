@@ -26,6 +26,7 @@ import {
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { BackordersView } from './views/backorders/BackordersView';
+import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
@@ -585,7 +586,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   online_shop:      { type: 'nav',      view: 'shopify',             label: 'Open Shopify' },
   accounting:       { type: 'nav',      view: 'xero',                label: 'Open Xero' },
   users:            { type: 'settings', section: 'users',            label: 'Add Users' },
-  locations:        { type: 'nav',      view: 'locations',           label: 'Add Locations' },
+  locations:        { type: 'settings', section: 'locations',        label: 'Add Locations' },
   products:         { type: 'nav',      view: 'products',            label: 'Import Products' },
   sales_orders:     { type: 'nav',      view: 'sales-orders',        label: 'Import Sales Orders' },
   purchase_orders:  { type: 'nav',      view: 'purchase-orders',     label: 'Import Purchase Orders' },
@@ -678,7 +679,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
-  const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
   const channelChartRef = useRef<HTMLDivElement | null>(null);
@@ -724,38 +724,29 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     setOnboardingLoading(true);
     fetch('/api/onboarding')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
+      .then(d => { if (d?.success) setOnboarding(d); })
       .catch(() => {})
       .finally(() => setOnboardingLoading(false));
   }, []);
 
   useEffect(() => { loadOnboarding(); }, [loadOnboarding]);
 
-  const saveOnboardingSettings = async () => {
-    setOnboardingSaving(true);
-    try {
-      await fetch('/api/onboarding', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: onboardingDraft, completeStep: 'business_profile' }),
-      });
-      loadOnboarding();
-    } finally { setOnboardingSaving(false); }
-  };
-
   const completeOnboardingStep = async (stepId: string) => {
     setOnboardingSaving(true);
     try {
-      await fetch('/api/onboarding', {
+      const response = await fetch('/api/onboarding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completeStep: stepId }),
       });
-      loadOnboarding();
+      if (!response.ok) return;
+      setOnboarding((current: any) => {
+        if (!current) return current;
+        const steps = (current.steps ?? []).map((step: OnboardingStep) => step.id === stepId ? { ...step, completed: true } : step);
+        return { ...current, steps, complete: steps.every((step: OnboardingStep) => step.completed) };
+      });
     } finally { setOnboardingSaving(false); }
   };
-
-  const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
 
   const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
   const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav?: ImsView; onClick?: () => void }[] = [
@@ -883,144 +874,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 24 }} className="onboarding-grid">
-            {/* Left: form fields */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-              {/* ── Business Identity ── */}
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Business Identity</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
-                <div title="The legal name of your business — appears on PO and tax invoice PDFs.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Name</div>
-                  <input value={onboardingDraft.business_name ?? ''} onChange={e => setOnboardingField('business_name', e.target.value)}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="Your company name" />
-                </div>
-                <div title="Australian Business Number — printed on invoices for GST compliance.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>ABN</div>
-                  <input value={onboardingDraft.business_abn ?? ''} onChange={e => setOnboardingField('business_abn', e.target.value)}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="11 222 333 444" />
-                </div>
-              </div>
-              <div style={{ marginBottom: 20 }} title="The registered business address — appears on PO and tax invoice PDFs.">
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Address</div>
-                <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)}
-                  style={{ ...inputStyle, fontSize: 13 }} placeholder="123 Main St, Sydney NSW 2000" />
-              </div>
-
-              {/* ── Operations ── */}
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Operations</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
-                <div title="Turn on if you have more than one warehouse, store, or fulfilment location. Enables branch transfers and per-location stock.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Multiple locations?</div>
-                  <select value={onboardingDraft.use_multiple_locations ?? 'yes'} onChange={e => setOnboardingField('use_multiple_locations', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                <div title="Zone and bin help locate products within a warehouse (e.g. Zone A, Bin 12). Shown on purchase order PDFs.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use zones and bins?</div>
-                  <select value={onboardingDraft.use_zones_bins ?? 'no'} onChange={e => setOnboardingField('use_zones_bins', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                <div title="Enables product category and subcategory fields for organising your catalogue.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use categories?</div>
-                  <select value={onboardingDraft.use_categories ?? 'no'} onChange={e => setOnboardingField('use_categories', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                <div title="Allows purchase orders to be entered in foreign currencies (USD, EUR, etc.) with automatic AUD cost conversion.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Buy in foreign currencies?</div>
-                  <select value={onboardingDraft.use_foreign_currencies ?? 'yes'} onChange={e => setOnboardingField('use_foreign_currencies', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* ── Integrations ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
-                <div title="Connect Shopify (or another platform) to sync products, inventory levels, and online orders automatically.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect an Online Shop?</div>
-                  <select value={onboardingDraft.connect_online_shop ?? 'no'} onChange={e => setOnboardingField('connect_online_shop', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                {onboardingDraft.connect_online_shop === 'yes' && (
-                  <div title="The e-commerce platform your online store runs on.">
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Online shop platform</div>
-                    <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                      <option value="shopify">Shopify</option>
-                      <option disabled>WooCommerce — coming soon</option>
-                      <option disabled>BigCommerce — coming soon</option>
-                      <option disabled>Adobe Commerce — coming soon</option>
-                    </select>
-                  </div>
-                )}
-                <div title="Connect Xero or QuickBooks to automatically post purchase orders, sales invoices, and stocktake journals.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect accounting software?</div>
-                  <select value={onboardingDraft.connect_accounting_software ?? 'no'} onChange={e => setOnboardingField('connect_accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                {onboardingDraft.connect_accounting_software === 'yes' && (
-                  <div title="The accounting platform you use. Xero is fully supported; QuickBooks is coming soon.">
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Accounting platform</div>
-                    <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                      <option value="xero">Xero</option>
-                      <option disabled>QuickBooks — coming soon</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-
-              {/* divider */}
-              <div style={{ height: 1, background: 'var(--sv-etch)', margin: '12px 0 18px' }} />
-
-              {/* ── Tax Settings ── */}
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Tax Settings</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
-                <div title="Whether GST (or your local sales tax) is charged on sales orders and tax invoices.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Charge Sales Tax on Sales Orders?</div>
-                  <select value={onboardingDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setOnboardingField('sales_tax_on_sales', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
-                    <option value="yes">Yes</option><option value="no">No</option>
-                  </select>
-                </div>
-                <div title="The tax code label that appears on PDF invoices, e.g. GST.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Code</div>
-                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST" />
-                </div>
-                <div title="The sales tax rate as a percentage of the sale price. In Australia this is 10% for GST.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Rate (%)</div>
-                  <input type="number" min="0" step="0.01"
-                    value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''}
-                    onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
-                </div>
-                <div title="The tax rate applied to purchases (supplier invoices). Usually the same as your sales tax rate.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Rate (%)</div>
-                  <input type="number" min="0" step="0.01"
-                    value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''}
-                    onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
-                </div>
-                <div style={{ gridColumn: 'span 2' }} title="The purchase tax code label used in Xero and on PDF purchase orders, e.g. GST on Purchases.">
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Code</div>
-                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)}
-                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
-                </div>
-              </div>
-
-              <div style={{ marginTop: 16 }}>
-                <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
-                  style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}>
-                  {onboardingSaving ? 'Saving…' : 'Save details'}
-                </button>
-              </div>
-            </div>
-
-            {/* Right: step checklist */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {(onboarding.steps ?? []).map((step: OnboardingStep, index: number) => {
+          <div>
+            {/* Pending setup checklist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(onboarding.steps ?? []).filter((step: OnboardingStep) => !step.completed).map((step: OnboardingStep, index: number) => {
                 const action = IMS_ONBOARDING_ACTIONS[step.id];
                 const handleAction = action
                   ? () => action.type === 'nav'
@@ -1029,24 +886,30 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                   : undefined;
                 return (
                   <div key={step.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
                     borderRadius: 8, border: '1px solid var(--sv-etch)',
-                    background: step.completed ? 'rgba(16,185,129,.06)' : 'var(--sv-bg-2)',
+                    background: 'var(--sv-bg-2)',
                   }}>
-                    <button onClick={() => completeOnboardingStep(step.id)} disabled={step.completed || onboardingSaving}
-                      style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: step.completed ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12,
-                        background: step.completed ? 'var(--sv-mint, #10b981)' : 'rgba(37,99,235,.15)',
-                        color: step.completed ? '#fff' : 'var(--sv-action)' }}>
-                      {step.completed ? '✓' : index + 1}
-                    </button>
+                    <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, background: 'rgba(37,99,235,.15)', color: 'var(--sv-action)' }}>
+                      {index + 1}
+                    </span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: step.completed ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)', textDecoration: step.completed ? 'line-through' : 'none', opacity: step.completed ? .6 : 1 }}>{step.title}</div>
-                      {action && !step.completed && (
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{step.title}</div>
+                      {action && (
                         <button onClick={handleAction} style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 1 }}>
                           {action.label} →
                         </button>
                       )}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => completeOnboardingStep(step.id)}
+                      disabled={onboardingSaving}
+                      title={`Mark ${step.title.toLowerCase()} as done`}
+                      style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 600, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}
+                    >
+                      ✓ Done
+                    </button>
                   </div>
                 );
               })}
@@ -4214,6 +4077,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [awaitingUrlConfirmation, setAwaitingUrlConfirmation] = useState(false);
   const researchVariant = selectProductResearchVariant(product.name ?? '', product.variants ?? []);
   const researchProduct = {
     name: product.name,
@@ -4460,6 +4324,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerateAll = async () => {
     setGeneratingAll(true);
+    setAwaitingUrlConfirmation(false);
     setError(null);
     setGenerated(null);
     setGeneratedDescMode('preview');
@@ -4532,7 +4397,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         if (!judgeData.validUrlFound || !approvedUrl || selectedIndex < 0) {
           setSelectedUrlIndex(null);
           setUrlSelectionSource(null);
-          throw new Error('AI could not confirm one exact product page. Select the best URL below, or replace a row with another URL, then run Generate Content & Find Photos again.');
+          setAwaitingUrlConfirmation(true);
+          setShowResearchDetails(true);
+          throw new Error('We could not confidently identify the exact product page. Your candidate links have been kept for review.');
         }
         setSelectedUrlIndex(selectedIndex);
         setUrlSelectionSource('ai');
@@ -4619,9 +4486,27 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
         {open && (
           <div>
-            {error && (
+            {error && !awaitingUrlConfirmation && (
               <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, fontSize: 12, color: 'var(--sv-red)' }}>
                 {error}
+              </div>
+            )}
+
+            {awaitingUrlConfirmation && (
+              <div style={{ marginBottom: 14, padding: '12px 14px', background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.4)', borderRadius: 7, color: 'var(--sv-text-main)' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-amber)', marginBottom: 5 }}>Choose the exact product page to continue</div>
+                <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--sv-text-dim)' }}>
+                  Select one of the candidate links below, or paste a different product-page URL into any row. Then press Continue; Solvantis will extract facts, find photos, and generate the content from that page only.
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateAll}
+                  disabled={!selectedUrl || generatingAll}
+                  style={{ ...btnStyle('action', 'sm'), marginTop: 10, opacity: !selectedUrl || generatingAll ? .55 : 1 }}
+                >
+                  {generatingAll ? 'Continuing…' : 'Continue with selected page'}
+                </button>
+                {!selectedUrl && <span style={{ marginLeft: 9, fontSize: 11, color: 'var(--sv-text-dim)' }}>Select or enter a URL first.</span>}
               </div>
             )}
 
@@ -4696,7 +4581,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                     <input
                       type="url"
                       value={urls[i]}
-                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); if (selectedUrlIndex === i) setUrlSelectionSource('user'); setFallbackImages([]); setShowFallbackImages(false); }}
+                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); if (e.target.value.trim()) { setSelectedUrlIndex(i); setUrlSelectionSource('user'); setError(null); } else if (selectedUrlIndex === i) { setSelectedUrlIndex(null); setUrlSelectionSource(null); } setFallbackImages([]); setShowFallbackImages(false); }}
                       placeholder="https://…"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
@@ -18954,7 +18839,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'ai' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'ai' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -23531,18 +23416,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   if (!isOpen) return null;
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
-    { id: 'general',          label: 'General',          icon: '⚙' },
     { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
-    { id: 'ai',               label: 'AI',               icon: '✦' },
+    { id: 'general',          label: 'General',          icon: '⚙' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
-    { id: 'users',           label: 'Users',           icon: '👥' },
-    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
-    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
-    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
-    { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
-    { id: 'xero',            label: 'Xero Access',     icon: '🔗' },
-    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
-    { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
+    { id: 'users',            label: 'Users',            icon: '👥' },
+    { id: 'pos',              label: 'Point of Sale',    icon: '🖥' },
+    { id: 'loyalty',          label: 'Loyalty',           icon: '★' },
+    { id: 'sales-orders',     label: 'Sales Orders',     icon: '🧾' },
+    { id: 'purchase-orders',  label: 'Purchase Orders',  icon: '📦' },
+    { id: 'wholesale',        label: 'Wholesale Portal', icon: '🏪' },
+    { id: 'shopify',          label: 'Shopify',          icon: '🛒' },
+    { id: 'xero',             label: 'Xero Access',      icon: '🔗' },
+    { id: 'ai',               label: 'AI',               icon: '✦' },
+    { id: 'sync',             label: 'Sync & Import',    icon: '🔄' },
+    { id: 'utilities',        label: 'Utilities',        icon: '🛠️' },
   ];
 
   return (
@@ -23757,6 +23644,10 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Locations ── */}
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
+        )}
+
+        {active === 'loyalty' && (
+          <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />
         )}
 
         {active === 'ai' && (

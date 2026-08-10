@@ -6064,6 +6064,21 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       <div className="border border-gray-200 rounded-xl p-4 mt-2 mb-2 bg-gray-50 space-y-3">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
 
+                        {isSessionBlocked && (
+                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                            <p className="text-sm font-semibold">Choose the exact product page to continue</p>
+                            <p className="mt-1 text-xs leading-5 text-amber-800">Review the candidates and press <strong>Continue with this page</strong>. If none is correct, paste the exact product-page URL into the first reference field, then press <strong>Continue with entered URL</strong>. Only this product is paused; the rest of the batch continues.</p>
+                            <button
+                              type="button"
+                              onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, getInputs(key).urls[0] ?? ''); }}
+                              disabled={!getInputs(key).urls[0]?.trim() || automatingSet.has(key)}
+                              className="mt-2 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Continue with entered URL
+                            </button>
+                          </div>
+                        )}
+
                         {urlDecisions.length > 0 && (
                           <div>
                             <p className="text-xs font-medium text-gray-700 mb-1.5">AI URL assessment</p>
@@ -6088,7 +6103,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                       disabled={automatingSet.has(key)}
                                       className="px-2.5 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
                                     >
-                                      Use this page
+                                      Continue with this page
                                     </button>
                                   )}
                                 </div>

@@ -17,7 +17,7 @@ vi.mock('@/lib/db/BusinessInfoRepository', () => ({
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
 
-import { GET } from '../route';
+import { GET, PUT } from '../route';
 
 describe('GET /api/onboarding', () => {
   beforeEach(() => {
@@ -63,5 +63,72 @@ describe('GET /api/onboarding', () => {
       operation: 'load_progress',
       error: databaseError,
     }));
+  });
+
+  it('persists a valid manually completed step', async () => {
+    mocks.imsQuery.mockResolvedValue([{ value: '["business_profile"]' }]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completeStep: 'operations_tax' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'onboarding_completed_steps', '["business_profile","operations_tax"]'],
+    );
+  });
+
+  it('reopens a valid manually completed step', async () => {
+    mocks.imsQuery.mockResolvedValue([{ value: '["business_profile","operations_tax"]' }]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reopenStep: 'business_profile' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'onboarding_completed_steps', '["operations_tax"]'],
+    );
+  });
+
+  it('rejects unknown step IDs without writing progress', async () => {
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completeStep: 'unknown_step' }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid onboarding step' });
+    expect(mocks.imsQuery).not.toHaveBeenCalled();
+    expect(mocks.imsExecute).not.toHaveBeenCalled();
+  });
+
+  it('reports complete when every step is manually completed', async () => {
+    const completedSteps = [
+      'business_profile', 'operations_tax', 'online_shop', 'accounting', 'users', 'locations',
+      'products', 'sales_orders', 'purchase_orders', 'opening_stock', 'pos_ready',
+    ];
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT `key`, value')
+        ? [{ key: 'onboarding_completed_steps', value: JSON.stringify(completedSteps) }]
+        : [{ c: 0 }],
+    ));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.complete).toBe(true);
+    expect(body.steps).toHaveLength(completedSteps.length);
+    expect(body.steps.every((step: { completed: boolean }) => step.completed)).toBe(true);
   });
 });
