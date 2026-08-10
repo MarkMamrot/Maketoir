@@ -38,9 +38,7 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
     .reduce((sum, adjustment) => sum + Math.abs(parseFloat(adjustment?.tax_amount ?? '0')), 0);
   const taxAmount = itemTaxAmount + shippingTaxAmount;
   const transactionAmount = refundTxns.reduce((s, t) => s + parseFloat(t?.amount ?? '0'), 0);
-  const itemisedAmount = rlis.reduce((s, r) => (
-    s + parseFloat(r?.subtotal ?? '0') + parseFloat(r?.total_tax ?? '0')
-  ), 0);
+  const itemisedAmount = rlis.reduce((s, r) => s + parseFloat(r?.subtotal ?? '0'), 0);
   const amount = transactionAmount > 0 ? transactionAmount : itemisedAmount;
 
   const gateway = refundTxns[0]?.gateway ?? fallbackGateway ?? null;
@@ -49,9 +47,8 @@ export function parseShopifyRefund(refund: any, fallbackGateway?: string | null)
     .map(r => {
       const qty = Number(r?.quantity ?? 0);
       const lineTax = parseFloat(r?.total_tax ?? '0');
-      // subtotal is the ex-tax amount refunded for this line (Shopify sends it ex-tax).
-      const subtotal = parseFloat(r?.subtotal ?? '0');
-      const unitPrice = qty > 0 ? subtotal / qty : parseFloat(r?.line_item?.price ?? '0');
+      const grossSubtotal = parseFloat(r?.subtotal ?? '0');
+      const unitPrice = qty > 0 ? (grossSubtotal - lineTax) / qty : 0;
       return {
         shopifyVariantId: String(r?.line_item?.variant_id ?? ''),
         quantity: qty,

@@ -13,20 +13,20 @@ describe('parseShopifyRefund', () => {
     expect(result).toMatchObject({ amount: 12.95, taxAmount: 1.18, gateway: 'shopify_payments' });
   });
 
-  it('falls back to itemised subtotal plus tax when Shopify omits refund transactions', () => {
+  it('treats itemised subtotals as tax-inclusive when Shopify omits refund transactions', () => {
     const result = parseShopifyRefund({
       id: 1,
       refund_line_items: [{
         quantity: 1,
-        subtotal: '11.77',
-        total_tax: '1.18',
+        subtotal: '149.95',
+        total_tax: '13.63',
         restock_type: 'no_restock',
         line_item: { variant_id: 10, title: 'Item' },
       }],
     }, 'shopify_payments');
 
-    expect(result).toMatchObject({ amount: 12.95, taxAmount: 1.18, gateway: 'shopify_payments' });
-    expect(result.restockLines[0]).toMatchObject({ unitPrice: 11.77, restock: false });
+    expect(result).toMatchObject({ amount: 149.95, taxAmount: 13.63, gateway: 'shopify_payments' });
+    expect(result.restockLines[0]).toMatchObject({ unitPrice: 136.32, restock: false });
   });
 
   it('extracts GST from a shipping-only refund adjustment', () => {
