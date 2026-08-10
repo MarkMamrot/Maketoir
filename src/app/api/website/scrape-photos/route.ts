@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { extractProductPageImageCandidates, extractShopifyProductImages, normalizeProductImageCandidate } from '@/lib/website/productPageImages';
-import { extractProductPageFacts, extractShopifyProductFacts } from '@/lib/website/productPageFacts';
+import { extractIndexedProductPageFacts, extractProductPageFacts, extractShopifyProductFacts, type IndexedProductPageRecord } from '@/lib/website/productPageFacts';
+import { readSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const PAGE_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -63,6 +65,26 @@ async function fetchShopifyProduct(rawUrl: string): Promise<{ images: string[]; 
     console.warn(`[scrape-photos] Shopify product JSON failed for ${rawUrl}:`, error instanceof Error ? error.message : error);
     return { images: [], facts: '' };
   }
+}
+
+async function fetchIndexedProductFacts(rawUrl: string, apiKey: string): Promise<string> {
+  const canonicalUrl = canonicalProductUrl(rawUrl);
+  const queries = [canonicalUrl, `${canonicalUrl} dimensions`, `${canonicalUrl} "Product Details"`];
+  const records: IndexedProductPageRecord[] = [];
+
+  for (const query of queries) {
+    const response = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
+      body: JSON.stringify({ q: query, gl: 'au', num: 10 }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`Serper HTTP ${response.status}`);
+    const data = await response.json();
+    records.push(...(Array.isArray(data.organic) ? data.organic : []));
+  }
+
+  return extractIndexedProductPageFacts(records, canonicalUrl);
 }
 
 /**
@@ -170,6 +192,27 @@ export async function POST(req: Request) {
         }
       } catch (e: any) {
         console.warn('[scrape-photos] Tavily Extract error:', e.message);
+      }
+    }
+
+    // Some approved commerce pages block both direct requests and Tavily. In
+    // that case, use only Google records whose URL exactly matches the approved
+    // page; related search results remain excluded.
+    if (productFactBlocks.length === 0 && urls.length === 1 && process.env.SERPER_API_KEY) {
+      try {
+        const indexedFacts = await fetchIndexedProductFacts(urls[0], process.env.SERPER_API_KEY);
+        if (indexedFacts) productFactBlocks.push(indexedFacts);
+      } catch (error) {
+        const runtimeSession = readSession();
+        await reportRuntimeIssue({
+          businessId: runtimeSession?.businessId,
+          source: 'website-content',
+          operation: 'extract_indexed_product_facts',
+          severity: 'warning',
+          title: 'Approved product page indexed-text fallback failed',
+          error: error instanceof Error ? error : new Error(String(error)),
+          context: { approvedUrl: canonicalProductUrl(urls[0]).slice(0, 500) },
+        });
       }
     }
 

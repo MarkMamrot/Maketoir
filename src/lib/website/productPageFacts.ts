@@ -125,3 +125,28 @@ function canonicalSourceUrl(sourceUrl: string): string {
     return sourceUrl;
   }
 }
+
+export interface IndexedProductPageRecord {
+  title?: unknown;
+  link?: unknown;
+  snippet?: unknown;
+}
+
+export function extractIndexedProductPageFacts(records: IndexedProductPageRecord[], sourceUrl: string): string {
+  const canonicalSource = canonicalSourceUrl(sourceUrl);
+  const normalizedSource = canonicalSource.replace(/\/$/, '');
+  const matchingRecords = records.filter(record => {
+    if (typeof record.link !== 'string') return false;
+    return canonicalSourceUrl(record.link).replace(/\/$/, '') === normalizedSource;
+  });
+  const title = matchingRecords.map(record => meaningfulText(record.title)).find(Boolean) ?? '';
+  const snippets = [...new Set(matchingRecords.map(record => meaningfulText(record.snippet)).filter(Boolean))];
+  if (!title && snippets.length === 0) return '';
+
+  return [
+    `APPROVED SOURCE: ${canonicalSource}`,
+    'SOURCE ACCESS: Google-indexed text for the exact approved page (the retailer blocked direct extraction).',
+    title ? `Product: ${title}` : '',
+    snippets.length > 0 ? `INDEXED PRODUCT DETAILS:\n${snippets.join('\n')}` : '',
+  ].filter(Boolean).join('\n\n').slice(0, 16_000);
+}

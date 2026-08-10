@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractProductPageFacts, extractShopifyProductFacts } from '../productPageFacts';
+import { extractIndexedProductPageFacts, extractProductPageFacts, extractShopifyProductFacts } from '../productPageFacts';
 
 describe('extractProductPageFacts', () => {
   it('keeps exact product facts and excludes policies and related-product data', () => {
@@ -44,5 +44,27 @@ describe('extractShopifyProductFacts', () => {
 
     expect(facts).toContain('Product: Flutterby Bodysuit');
     expect(facts).not.toContain('Brand: 0');
+  });
+});
+
+describe('extractIndexedProductPageFacts', () => {
+  it('keeps indexed facts only when they belong to the exact approved URL', () => {
+    const sourceUrl = 'https://retailer.test/products/crocodile?tracking=1';
+    const facts = extractIndexedProductPageFacts([
+      { title: 'Wrong related product', link: 'https://retailer.test/products/cat', snippet: 'Wrong dimensions.' },
+      { title: 'Bestie Bottle Crocodile', link: 'https://retailer.test/products/crocodile/', snippet: 'Keeps drinks cold for 24 hours.' },
+      { link: 'https://retailer.test/products/crocodile', snippet: 'Dimensions: 7.62cm x 7.62cm x 20.32cm.' },
+    ], sourceUrl);
+
+    expect(facts).toContain('Bestie Bottle Crocodile');
+    expect(facts).toContain('7.62cm x 7.62cm x 20.32cm');
+    expect(facts).not.toContain('Wrong related product');
+    expect(facts).not.toContain('Wrong dimensions');
+  });
+
+  it('returns no facts when Google records do not match the approved URL', () => {
+    expect(extractIndexedProductPageFacts([
+      { title: 'Related product', link: 'https://retailer.test/products/cat', snippet: 'Related facts.' },
+    ], 'https://retailer.test/products/crocodile')).toBe('');
   });
 });
