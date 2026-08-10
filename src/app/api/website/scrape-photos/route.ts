@@ -24,24 +24,13 @@ function canonicalProductUrl(rawUrl: string): string {
 
 async function fetchProductPage(rawUrl: string): Promise<Response> {
   const canonicalUrl = canonicalProductUrl(rawUrl);
-  const attempts = canonicalUrl === rawUrl ? [canonicalUrl, canonicalUrl] : [canonicalUrl, rawUrl];
-  let lastError: unknown;
-
-  for (const attemptUrl of attempts) {
-    try {
-      const response = await fetch(attemptUrl, {
-        headers: PAGE_HEADERS,
-        redirect: 'follow',
-        signal: AbortSignal.timeout(12000),
-      });
-      if (response.ok) return response;
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error('Product page fetch failed');
+  const response = await fetch(canonicalUrl, {
+    headers: PAGE_HEADERS,
+    redirect: 'follow',
+    signal: AbortSignal.timeout(8000),
+  });
+  if (response.ok) return response;
+  throw new Error(`HTTP ${response.status}`);
 }
 
 async function fetchShopifyProduct(rawUrl: string): Promise<{ images: string[]; facts: string }> {
@@ -53,7 +42,7 @@ async function fetchShopifyProduct(rawUrl: string): Promise<{ images: string[]; 
     const response = await fetch(url, {
       headers: PAGE_HEADERS,
       redirect: 'follow',
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return { images: [], facts: '' };
     const payload = await response.json();
@@ -71,21 +60,32 @@ async function fetchShopifyProduct(rawUrl: string): Promise<{ images: string[]; 
 async function fetchIndexedProductFacts(rawUrl: string, apiKey: string): Promise<string> {
   const canonicalUrl = canonicalProductUrl(rawUrl);
   const queries = [canonicalUrl, `${canonicalUrl} dimensions`, `${canonicalUrl} "Product Details"`];
-  const records: IndexedProductPageRecord[] = [];
-
-  for (const query of queries) {
+  const results = await Promise.allSettled(queries.map(async query => {
     const response = await fetch('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
       body: JSON.stringify({ q: query, gl: 'au', num: 10 }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error(`Serper HTTP ${response.status}`);
     const data = await response.json();
-    records.push(...(Array.isArray(data.organic) ? data.organic : []));
-  }
+    return Array.isArray(data.organic) ? data.organic as IndexedProductPageRecord[] : [];
+  }));
+  const records = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
 
   return extractIndexedProductPageFacts(records, canonicalUrl);
+}
+
+async function withinTime<T>(promise: Promise<T>, milliseconds: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>(resolve => { timer = setTimeout(() => resolve(fallback), milliseconds); }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 async function fetchIdentityVerifiedImages(
@@ -108,13 +108,13 @@ async function fetchIdentityVerifiedImages(
   }))].slice(0, 3);
 
   for (const domain of sourceDomains) {
-    for (let page = 1; page <= 4; page += 1) {
+    for (let page = 1; page <= 3; page += 1) {
       try {
         const catalogUrl = `https://${domain}/products.json?limit=250&page=${page}`;
         const response = await fetch(catalogUrl, {
           headers: PAGE_HEADERS,
           redirect: 'follow',
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(10000),
         });
         if (!response.ok) break;
         const payload = await response.json();
@@ -144,7 +144,7 @@ async function fetchIdentityVerifiedImages(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-KEY': apiKey },
       body: JSON.stringify({ q: query, gl: 'au', num: 10 }),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error(`Serper HTTP ${response.status}`);
     const data = await response.json();
@@ -153,26 +153,21 @@ async function fetchIdentityVerifiedImages(
 
   const candidates = [...new Set(searchResults.flatMap(result => result.status === 'fulfilled' ? result.value : []))].filter(candidate => {
     try { return /^\/products\/[^/]+\/?$/.test(new URL(candidate).pathname); } catch { return false; }
-  }).slice(0, 30);
+  }).slice(0, 12);
 
-  for (const candidate of candidates) {
+  const candidateResults = await Promise.allSettled(candidates.map(async candidate => {
     const productUrl = new URL(canonicalProductUrl(candidate));
     productUrl.pathname = `${productUrl.pathname.replace(/\/$/, '')}.js`;
-    try {
-      const response = await fetch(productUrl, {
-        headers: PAGE_HEADERS,
-        redirect: 'follow',
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!response.ok) continue;
-      const payload = await response.json();
-      const images = extractIdentityVerifiedShopifyImages(payload, response.url || productUrl.href, identity);
-      if (images.length > 0) return images;
-    } catch {
-      // Continue to the next exact-identifier search result.
-    }
-  }
-  return [];
+    const response = await fetch(productUrl, {
+      headers: PAGE_HEADERS,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return extractIdentityVerifiedShopifyImages(payload, response.url || productUrl.href, identity);
+  }));
+  return candidateResults.flatMap(result => result.status === 'fulfilled' ? result.value : []).slice(0, 10);
 }
 
 /**
@@ -238,6 +233,13 @@ export async function POST(req: Request) {
       }
     }
 
+    const verifiedImagesPromise = uniqueImages.size === 0 && product?.name && (sourceSites.length > 0 || process.env.SERPER_API_KEY)
+      ? withinTime(fetchIdentityVerifiedImages(product, sourceSites, process.env.SERPER_API_KEY), 12000, [])
+      : Promise.resolve<string[]>([]);
+    const indexedFactsPromise = productFactBlocks.length === 0 && urls.length === 1 && process.env.SERPER_API_KEY
+      ? fetchIndexedProductFacts(urls[0], process.env.SERPER_API_KEY)
+      : Promise.resolve('');
+
     // Tavily is a fallback for pages the direct structured-gallery pass cannot read.
     const tavilyKey = process.env.TAVILY_API_KEY;
     const tavilyUrls = includeFallback ? urls : failedUrls;
@@ -250,7 +252,7 @@ export async function POST(req: Request) {
             'Authorization': `Bearer ${tavilyKey}`,
           },
           body: JSON.stringify({ urls: tavilyUrls, include_images: true }),
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(12000),
         });
 
         if (tavilyRes.ok) {
@@ -290,7 +292,7 @@ export async function POST(req: Request) {
     // page; related search results remain excluded.
     if (productFactBlocks.length === 0 && urls.length === 1 && process.env.SERPER_API_KEY) {
       try {
-        const indexedFacts = await fetchIndexedProductFacts(urls[0], process.env.SERPER_API_KEY);
+        const indexedFacts = await indexedFactsPromise;
         if (indexedFacts) productFactBlocks.push(indexedFacts);
       } catch (error) {
         const runtimeSession = readSession();
@@ -312,7 +314,7 @@ export async function POST(req: Request) {
     // hard-coded, and sibling variants are rejected.
     if (uniqueImages.size === 0 && product?.name && (sourceSites.length > 0 || process.env.SERPER_API_KEY)) {
       try {
-        const verifiedImages = await fetchIdentityVerifiedImages(product, sourceSites, process.env.SERPER_API_KEY);
+        const verifiedImages = await verifiedImagesPromise;
         verifiedImages.forEach(image => uniqueImages.add(image));
       } catch (error) {
         const runtimeSession = readSession();

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, productUrlScore, type ProductUrlIdentity } from '@/lib/website/productUrlCandidates';
+import { canonicalProductCandidateUrl, extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl, productUrlScore, type ProductUrlIdentity } from '@/lib/website/productUrlCandidates';
 import { productSearchQueries } from '@/lib/website/productResearchRules';
 import { readSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -122,8 +122,8 @@ export async function POST(req: Request) {
     ]);
     const generalSearches = searchResults[0] as SerperQueryResult[];
     const preferredSearches = searchResults.slice(1) as SerperQueryResult[];
-    const rawUrls = [...new Set(generalSearches.flatMap(result => result.urls))];
-    const preferredResults = preferredSearches.map(result => result.urls);
+    const rawUrls = [...new Set(generalSearches.flatMap(result => result.urls).map(canonicalProductCandidateUrl).filter((url): url is string => Boolean(url)))];
+    const preferredResults = preferredSearches.map(result => result.urls.map(canonicalProductCandidateUrl).filter((url): url is string => Boolean(url)));
     const searchErrors = [...generalSearches, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
     if (searchErrors.length > 0) {
       const runtimeSession = readSession();

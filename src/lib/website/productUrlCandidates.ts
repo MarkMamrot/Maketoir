@@ -8,6 +8,21 @@ export interface ProductUrlIdentity {
 const GENERIC_WORDS = new Set(['and', 'the', 'for', 'with', 'from', 'new', 'hat', 'hats', 'cap', 'caps']);
 const NON_PRODUCT_PATH = /\/(?:collections?|categories?|search|pages?|blogs?|brands?)(?:\/|$)/i;
 const PRODUCT_PATH = /\/(?:products?|product|p)\//i;
+const TRACKING_QUERY_KEYS = new Set(['srsltid', 'gclid', 'fbclid', '_gl']);
+
+export function canonicalProductCandidateUrl(rawUrl: string): string | null {
+  try {
+    const url = new URL(rawUrl);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+      if (key.startsWith('utm_') || TRACKING_QUERY_KEYS.has(key)) url.searchParams.delete(key);
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 
 function normalizedWords(value: string): string[] {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
@@ -67,11 +82,12 @@ export function extractLinkedProductUrls(html: string, pageUrl: string, product:
     try {
       const url = new URL(decodeHtml(match[1]), page);
       if (url.hostname !== page.hostname) continue;
-      url.hash = '';
       const label = decodeHtml(match[2].replace(/<[^>]+>/g, ' '));
-      const score = productUrlScore(url.href, label, product);
+      const canonicalUrl = canonicalProductCandidateUrl(url.href);
+      if (!canonicalUrl) continue;
+      const score = productUrlScore(canonicalUrl, label, product);
       if (score < 11) continue;
-      candidates.set(url.href, Math.max(score, candidates.get(url.href) ?? -100));
+      candidates.set(canonicalUrl, Math.max(score, candidates.get(canonicalUrl) ?? -100));
     } catch {
       // Ignore malformed links.
     }

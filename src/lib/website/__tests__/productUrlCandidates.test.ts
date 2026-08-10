@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl } from '../productUrlCandidates';
+import { canonicalProductCandidateUrl, extractLinkedProductUrls, isLikelyProductUrl, isProductPageUrl } from '../productUrlCandidates';
 
 const product = { name: 'Willow Garden Wide Brim Hat', brand: 'Acme', code: 'WG-HAT' };
 
 describe('product URL candidates', () => {
+  it('removes tracking parameters while retaining product-selection parameters', () => {
+    expect(canonicalProductCandidateUrl('https://retailer.test/products/bottle?variant=123&srsltid=abc&utm_source=google#details')).toBe(
+      'https://retailer.test/products/bottle?variant=123',
+    );
+  });
+
   it('rejects category pages and accepts matching product pages', () => {
     expect(isLikelyProductUrl('https://supplier.test/collections/hats', product)).toBe(false);
     expect(isLikelyProductUrl('https://supplier.test/products/willow-garden-wide-brim-hat', product)).toBe(true);
