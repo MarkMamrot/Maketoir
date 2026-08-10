@@ -141,6 +141,13 @@ export async function calculateCogsForPeriod(input: {
 }): Promise<CogsCalculation> {
   validateCogsDateRange(input.startDate, input.endDateExclusive);
 
+  const stockItemColumns = await imsQuery<{ Field: string }>(
+    "SHOW COLUMNS FROM ims_products LIKE 'is_stock_item'",
+  );
+  const stockItemExpression = stockItemColumns.length > 0
+    ? 'COALESCE(p.is_stock_item, 1)'
+    : '1';
+
   const rows = await imsQuery<CogsCalculationRow>(
     `SELECT classified.location_id,
             classified.channel,
@@ -168,7 +175,7 @@ export async function calculateCogsForPeriod(input: {
               WHEN sm.movement_type = 'so_fulfilled'
                    AND (COALESCE(so.is_historical, 0) <> 0 OR so.cin7_order_id IS NOT NULL)
                 THEN 'historical_import'
-              WHEN COALESCE(p.is_stock_item, 1) = 0 THEN 'non_stock'
+              WHEN ${stockItemExpression} = 0 THEN 'non_stock'
               ELSE 'eligible'
             END AS source_status,
             CASE

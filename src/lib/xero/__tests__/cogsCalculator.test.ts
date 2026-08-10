@@ -49,10 +49,15 @@ describe('summariseCogsRows', () => {
 describe('calculateCogsForPeriod', () => {
   beforeEach(() => mockImsQuery.mockReset());
 
-  it('queries the tenant schema without filtering unreliable child-table business IDs', async () => {
-    mockImsQuery.mockResolvedValueOnce([
-      { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'ok', movement_count: '2', quantity: '3', cogs: '15.555' },
-    ]);
+  it.each([
+    { columns: [{ Field: 'is_stock_item' }], stockItemSql: 'COALESCE(p.is_stock_item, 1)' },
+    { columns: [], stockItemSql: 'WHEN 1 = 0' },
+  ])('supports tenant schemas with and without is_stock_item', async ({ columns, stockItemSql }) => {
+    mockImsQuery
+      .mockResolvedValueOnce(columns)
+      .mockResolvedValueOnce([
+        { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'ok', movement_count: '2', quantity: '3', cogs: '15.555' },
+      ]);
 
     const result = await calculateCogsForPeriod({
       businessId: 'biz-1',
@@ -61,8 +66,10 @@ describe('calculateCogsForPeriod', () => {
     });
 
     expect(result.totalCOGS).toBe(15.56);
-    expect(mockImsQuery).toHaveBeenCalledOnce();
-    const [sql, params] = mockImsQuery.mock.calls[0];
+  expect(mockImsQuery).toHaveBeenCalledTimes(2);
+  expect(mockImsQuery.mock.calls[0][0]).toBe("SHOW COLUMNS FROM ims_products LIKE 'is_stock_item'");
+  const [sql, params] = mockImsQuery.mock.calls[1];
+  expect(sql).toContain(stockItemSql);
     expect(sql).not.toContain('sm.business_id = ?');
     expect(sql).not.toContain('ps.business_id = sm.business_id');
     expect(sql).not.toContain('so.business_id = sm.business_id');
