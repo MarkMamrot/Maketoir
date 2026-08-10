@@ -124,6 +124,7 @@ export async function GET(req: Request) {
   // prepared statements (pool.execute) reject `LIMIT ?`. It is clamped to a
   // safe integer 1..2000 so inlining is injection-safe.
   const limit = Math.max(1, Math.min(Math.floor(Number(searchParams.get('limit')) || 100), 2000));
+  const refreshLiveStatuses = searchParams.get('refreshLive') === '1';
   // Ensure xero_state column exists (added Jun 2026 — no-op once column is present)
   await ensureXeroStateColumn();
   try {
@@ -849,13 +850,19 @@ export async function GET(req: Request) {
     // Xero returns VOIDED invoices by ID; DELETED ones simply won't appear in the
     // response — we treat "sent but not returned" as DELETED.
     // Falls back silently to the logged state if Xero is unavailable.
-    try {
+    // Bulk history loads must not wait on hundreds of remote Xero requests. An
+    // explicit refresh checks only the newest linked documents and otherwise
+    // leaves the durable state recorded by each sync operation untouched.
+    if (refreshLiveStatuses) try {
+      const LIVE_STATUS_LIMIT = 40;
       const invoiceXeroIds = entries
         .filter(e => e.xero_id && ['po_bill', 'so_invoice', 'eod_reconciliation', 'online_batch'].includes(e.sync_type))
-        .map(e => e.xero_id as string);
+        .map(e => e.xero_id as string)
+        .slice(0, LIVE_STATUS_LIMIT);
       const creditNoteXeroIds = entries
         .filter(e => e.xero_id && ['cn_credit_note', 'scn_credit_note', 'customer_order_resolution', 'supplier_order_resolution'].includes(e.sync_type))
-        .map(e => e.xero_id as string);
+        .map(e => e.xero_id as string)
+        .slice(0, LIVE_STATUS_LIMIT);
       const uniqueIds = [...new Set(invoiceXeroIds)];
       const uniqueCreditNoteIds = [...new Set(creditNoteXeroIds)];
 
@@ -938,6 +945,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ entries });
   } catch (err: any) {
     console.error('[xero/sync-log]', err.message);
+    await reportRuntimeIssue({
+      businessId: databaseId!,
+      source: 'xero',
+      operation: 'sync_history_load',
+      title: 'Xero Sync History failed to load',
+      error: err,
+      context: { limit, refresh_live: refreshLiveStatuses },
+    }).catch(() => {});
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

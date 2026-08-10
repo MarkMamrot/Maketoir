@@ -17465,10 +17465,10 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
     return v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
   }
 
-  const loadData = async () => {
+  const loadData = async (refreshLive = false) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`);
+      const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000${refreshLive ? '&refreshLive=1' : ''}`);
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data.entries) ? data.entries : []);
@@ -17584,7 +17584,7 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
               </select>
             </label>
             <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>
-            <button title="Reload payout records" onClick={loadData} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
+            <button title="Reload payout records" onClick={() => loadData(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
           </div>
         </div>
 
@@ -17906,11 +17906,11 @@ function XeroSyncTab({
   const [filterSyncType, setFilterSyncType] = useState('');
   const [filterXeroState, setFilterXeroState] = useState('');
 
-  const loadData = async () => {
+  const loadData = async (refreshLive = false) => {
     setLoading(true);
     try {
       const [logRes, queuedRes] = await Promise.all([
-        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`),
+        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000${refreshLive ? '&refreshLive=1' : ''}`),
         fetch('/api/ims/xero/queued'),
       ]);
       if (logRes.ok) { const d = await logRes.json(); setEntries(d.entries ?? []); }
@@ -18123,7 +18123,7 @@ function XeroSyncTab({
                 {nonPayoutEntries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
               </select>
             )}
-            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+            <button onClick={() => loadData(true)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
           </div>
         </div>
 
