@@ -9,6 +9,7 @@ import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
+import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -4201,6 +4202,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const researchVariant = selectProductResearchVariant(product.name ?? '', product.variants ?? []);
+  const researchProduct = {
+    name: product.name,
+    brand: product.brand ?? '',
+    sku: researchVariant?.sku ?? product.base_sku ?? '',
+    code: researchVariant?.sku ?? product.base_sku ?? '',
+    barcode: researchVariant?.barcode ?? '',
+  };
 
   // Preferred site URLs loaded from IMS contacts/brands
   const [supplierSite, setSupplierSite] = useState<string | null>(null);
@@ -4324,12 +4333,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            sku: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-            barcode: product.variants?.[0]?.barcode ?? '',
-          },
+          product: researchProduct,
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4369,14 +4373,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
+              body: JSON.stringify({ product: researchProduct, firstUrl: url }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           )
         : [
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
+              body: JSON.stringify({ product: researchProduct }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           ];
 
@@ -4405,11 +4409,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            ...researchProduct,
             styleCode: '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+            retailPrice: researchVariant?.price_rrp ?? '0',
           },
           mode: 'full',
           tavilyInfo: researchResult?.answer ?? '',
@@ -4453,12 +4455,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            sku: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-            barcode: product.variants?.[0]?.barcode ?? '',
-          },
+          product: researchProduct,
           preferred_sites: preferredSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4476,10 +4473,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+            ...researchProduct,
+            retailPrice: researchVariant?.price_rrp ?? '0',
           },
           urls: foundUrls,
         }),
@@ -4517,11 +4512,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            ...researchProduct,
             styleCode: '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+            retailPrice: researchVariant?.price_rrp ?? '0',
           },
           mode: 'full',
           tavilyInfo: sourceFacts,
@@ -6572,7 +6565,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
           {hasForesight && modal.edit?.product_id && (
             <ForesightProductSection
-              product={modal.edit}
+              product={{
+                ...modal.edit,
+                name: form.name ?? modal.edit.name,
+                brand: form.brand ?? modal.edit.brand,
+                base_sku: form.base_sku ?? modal.edit.base_sku,
+                variants: variantRows.filter(row => !row._delete),
+              }}
               businessId={businessId}
               onApplyContent={(title, description, tags) => {
                 setForm((p: any) => ({

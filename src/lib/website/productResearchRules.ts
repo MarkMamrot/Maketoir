@@ -24,3 +24,33 @@ export function productSearchQueries(productName: string, brand: string, code?: 
 
   return [broadQuery, ...identifiers.map(identifier => `${broadQuery} ${identifier}`)].filter(Boolean);
 }
+
+export interface ProductResearchVariant {
+  sku?: string | null;
+  barcode?: string | null;
+  price_rrp?: string | number | null;
+  option1_value?: string | null;
+  option2_value?: string | null;
+  option3_value?: string | null;
+  variant_label?: string | null;
+}
+
+export function selectProductResearchVariant<T extends ProductResearchVariant>(productName: string, variants: T[]): T | undefined {
+  if (variants.length === 0) return undefined;
+  const normalizedName = productName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const nameWords = new Set(normalizedName.split(/\s+/).filter(Boolean));
+
+  const score = (variant: T): number => {
+    const optionValues = [variant.option1_value, variant.option2_value, variant.option3_value, variant.variant_label]
+      .map(value => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim())
+      .filter(value => value.length >= 3 && value !== 'default');
+    const optionScore = optionValues.reduce((total, value) =>
+      total + (normalizedName.includes(value) ? 100 + value.length : 0), 0);
+    const skuScore = String(variant.sku ?? '').toLowerCase().split(/[^a-z0-9]+/)
+      .filter(token => token.length >= 3 && nameWords.has(token))
+      .reduce((total, token) => total + token.length, 0);
+    return optionScore + skuScore;
+  };
+
+  return variants.reduce((best, variant) => score(variant) > score(best) ? variant : best, variants[0]);
+}

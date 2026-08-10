@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { PRODUCT_RESEARCH_RULES, productResearchQuery, productSearchQueries } from '../productResearchRules';
+import { PRODUCT_RESEARCH_RULES, productResearchQuery, productSearchQueries, selectProductResearchVariant } from '../productResearchRules';
 
 describe('product research rules', () => {
   it('excludes retailer logistics and distinguishes product dimensions', () => {
@@ -34,5 +34,23 @@ describe('product research rules', () => {
     expect(productSearchQueries('Test Product', 'Test Brand', '123', '123')).toEqual([
       'Test Product Test Brand',
     ]);
+  });
+
+  it('selects the variant whose option and SKU match the product title', () => {
+    const variants = [
+      { sku: 'AS-SBV44-CAT', barcode: 'cat-code', option1_value: 'Cat' },
+      { sku: 'AS-SBV44-CROCODILE', barcode: '842591060632', option1_value: 'Crocodile' },
+    ];
+
+    expect(selectProductResearchVariant('Asobu: Bestie Bottle 460ml - Crocodile', variants)).toBe(variants[1]);
+  });
+
+  it('keeps the first variant when the title does not identify a variant', () => {
+    const variants = [
+      { sku: 'STYLE-RED', option1_value: 'Red' },
+      { sku: 'STYLE-BLUE', option1_value: 'Blue' },
+    ];
+
+    expect(selectProductResearchVariant('Plain Bottle', variants)).toBe(variants[0]);
   });
 });
