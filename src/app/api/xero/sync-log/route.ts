@@ -604,9 +604,12 @@ export async function GET(req: Request) {
       };
     });
 
-    const cnEntries = cns.map((cn: any) => {
+    const cnEntries = cns.flatMap((cn: any) => {
       const log = cnLogByRef.get(cn.id);
-      return {
+      // POS returns are accounted for through EOD reconciliation. Only show a
+      // POS-owned credit note here when it has its own durable Xero sync event.
+      if (cn.source === 'pos' && !log) return [];
+      return [{
         sync_type: log?.sync_type ?? 'cn_credit_note',
         reference_id: cn.id,
         reference: cn.cn_number,
@@ -624,7 +627,7 @@ export async function GET(req: Request) {
         last_sync_detail: log?.detail ?? null,
         last_sync_at: log?.synced_at ?? null,
         payments: [],
-      };
+      }];
     });
 
     const scnEntries = scns.map((scn: any) => {

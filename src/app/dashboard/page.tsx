@@ -14,6 +14,7 @@ import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
+import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
@@ -4885,6 +4886,7 @@ interface PendingOnlineProduct {
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
   sku: string; barcode: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
+  variants: ProductResearchVariant[];
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
   last_invalid_url_attempt_at: string | null;
@@ -4963,10 +4965,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [preflightError, setPreflightError]   = useState<Record<string, string>>({});
 
   // Per-product user inputs passed to AI generation
-  type ProductInputs = { urls: [string, string, string]; photos: string[]; notes: string };
+  type ProductUrlSlots = [string, string, string, string, string];
+  type ProductInputs = { urls: ProductUrlSlots; photos: string[]; notes: string };
   const [productInputs, setProductInputs] = useState<Record<string, ProductInputs>>({});
   const getInputs = (k: string): ProductInputs =>
-    productInputs[k] ?? { urls: ['', '', ''], photos: [], notes: '' };
+    productInputs[k] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
   const patchInputs = (k: string, patch: Partial<ProductInputs>) =>
     setProductInputs(prev => ({ ...prev, [k]: { ...getInputs(k), ...patch } }));
 
@@ -4977,7 +4980,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [showFallbackPhotoKeys, setShowFallbackPhotoKeys] = useState<Set<string>>(new Set());
   const [scrapingSet, setScrapingSet]           = useState<Set<string>>(new Set());
   const [serperSearchingSet, setSerperSearchingSet] = useState<Set<string>>(new Set());
-  // Per-URL Tavily photos [productKey][urlSlot 0-2] and automated retrieval state
+  // Per-URL Tavily photos [productKey][urlSlot 0-4] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
   const [urlDecisionsMap, setUrlDecisionsMap] = useState<Record<string, ProductUrlDecision[]>>({});
   const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
@@ -5112,23 +5115,28 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       if (!data.success) { setError(data.error ?? 'Unknown error'); return; }
       // Fetch all IMS products (no pre-filter) so the UI filters work live
       const mapped: PendingOnlineProduct[] = ((data.data ?? []) as any[])
-        .map(p => ({
+        .map(p => {
+          const variants = Array.isArray(p.variants) ? p.variants : [];
+          const researchVariant = selectProductResearchVariant(p.name ?? '', variants);
+          return {
           id:            p.product_id,
           code:          p.product_id,
           product_id:    p.product_id,
           name:          p.name ?? '',
           brand:         p.brand ?? '',
           supplier_name: p.supplier_name ?? '',
-          sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
-          barcode:       p.variants?.[0]?.barcode ?? '',
+          sku:           researchVariant?.sku ?? p.base_sku ?? '',
+          barcode:       researchVariant?.barcode ?? '',
+          variants,
           styleCode:     p.style_code ?? '',
-          retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
+          retailPrice:   String(researchVariant?.price_rrp ?? ''),
           website_title: p.website_title ?? '',
           soh:           Number(p.soh ?? 0),
           is_online:     Number(p.is_online ?? 0),
           shopify_linked: !!(p.shopify_product_id),
           last_invalid_url_attempt_at: p.last_invalid_url_attempt_at ?? null,
-        }));
+          };
+        });
       setProducts(mapped);
     } catch (e: any) {
       setError(e.message);
@@ -5167,8 +5175,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         [key]: urls.filter(Boolean).slice(0, 5).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
       }));
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
-        const newUrls: [string, string, string] = [urls[0] ?? '', urls[1] ?? '', urls[2] ?? ''];
+        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+        const newUrls: ProductUrlSlots = [urls[0] ?? '', urls[1] ?? '', urls[2] ?? '', urls[3] ?? '', urls[4] ?? ''];
         return { ...prev, [key]: { ...existing, urls: newUrls } };
       });
     } catch (e: any) {
@@ -5210,11 +5218,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         const images = (sourceData.images ?? []) as string[];
         setPreflightMap(prev => ({ ...prev, [key]: { answer: productFacts, urls: [approvedUrl] } }));
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
           return { ...prev, [key]: { ...existing, notes: productFacts } };
         });
         setScrapedPhotosMap(prev => ({ ...prev, [key]: images }));
-        setUrlPhotosMap(prev => ({ ...prev, [key]: [images, [], []] }));
+        setUrlPhotosMap(prev => ({ ...prev, [key]: [images, [], [], [], []] }));
         return;
       }
       const res = await fetch('/api/website/tavily-preflight', {
@@ -5233,7 +5241,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       if (data.images?.length) {
         setTavilyPhotosMap(prev => ({ ...prev, [key]: data.images }));
       }
-      // Fetch Tavily photos for URL slots 1 & 2 (if already filled) so they display under each link
+      // Fetch Tavily photos for the remaining URL slots so they stay aligned with all five links.
       const _noise = /thumb|icon|swatch|logo|favicon|width=[0-9]{1,2}(?![0-9])/i;
       const _ok = (u: string) => !_noise.test(u);
       const _fetchSlot = async (url: string): Promise<string[]> => {
@@ -5246,26 +5254,25 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           return (d.images ?? []).filter(_ok);
         } catch { return []; }
       };
-      const [_s1, _s2] = await Promise.all([
-        urlsSnapshot[1]?.trim() ? _fetchSlot(urlsSnapshot[1].trim()) : Promise.resolve([]),
-        urlsSnapshot[2]?.trim() ? _fetchSlot(urlsSnapshot[2].trim()) : Promise.resolve([]),
-      ]);
-      setUrlPhotosMap(prev => ({ ...prev, [key]: [(data.images ?? []).filter(_ok), _s1, _s2] }));
+      const remainingSlotPhotos = await Promise.all(urlsSnapshot.slice(1).map(url =>
+        url?.trim() ? _fetchSlot(url.trim()) : Promise.resolve([])
+      ));
+      setUrlPhotosMap(prev => ({ ...prev, [key]: [(data.images ?? []).filter(_ok), ...remainingSlotPhotos] }));
       // Only auto-populate URL slots if no URLs already set (i.e. Find URLs hasn't been run)
       const alreadyHasUrls = getInputs(key).urls.some(u => u.trim());
       if (!alreadyHasUrls) {
         const tavilyUrls: string[] = data.urls ?? [];
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
-          const newUrls: [string, string, string] = [...existing.urls] as [string, string, string];
-          tavilyUrls.slice(0, 3).forEach((u, i) => { if (!newUrls[i]) newUrls[i] = u; });
+          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+          const newUrls: ProductUrlSlots = [...existing.urls] as ProductUrlSlots;
+          tavilyUrls.slice(0, 5).forEach((u, i) => { if (!newUrls[i]) newUrls[i] = u; });
           const notes = existing.notes?.trim() ? existing.notes : (data.answer ?? '');
           return { ...prev, [key]: { ...existing, urls: newUrls, notes } };
         });
       } else {
         // Just update the notes from the answer
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
           const notes = existing.notes?.trim() ? existing.notes : (data.answer ?? '');
           return { ...prev, [key]: { ...existing, notes } };
         });
@@ -5366,8 +5373,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         [key]: foundUrls.map(url => ({ url, keep: null, reason: 'Awaiting AI assessment.' })),
       }));
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
-        const newUrls: [string, string, string] = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? ''];
+        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+        const newUrls: ProductUrlSlots = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
         return { ...prev, [key]: { ...existing, urls: newUrls } };
       });
 
@@ -5425,9 +5432,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         step(`⛔ URL assessment failed — skipped for this session: ${assessmentError?.message ?? 'unknown error'}`);
         return;
       }
-      const paddedFinal: [string, string, string] = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? ''];
+      const paddedFinal: ProductUrlSlots = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '', finalUrls[3] ?? '', finalUrls[4] ?? ''];
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
         return { ...prev, [key]: { ...existing, urls: paddedFinal } };
       });
 
@@ -5445,7 +5452,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           sourceFacts = String(scrapeData.productFacts ?? '').trim();
           const approvedPhotos = (scrapeData.images ?? []).filter(noiseOk) as string[];
           if (approvedPhotos.length > 0) {
-            setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], []] }));
+            setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], [], [], []] }));
             setScrapedPhotosMap(prev => ({ ...prev, [key]: approvedPhotos }));
           }
         } catch { /* scrape failed */ }
@@ -6024,7 +6031,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         <div>
                           <p className="text-xs font-medium text-gray-700 mb-1.5">Selected reference pages</p>
                           <div className="space-y-1.5">
-                            {([0, 1, 2] as const).map(idx => (
+                            {([0, 1, 2, 3, 4] as const).map(idx => (
                               <div key={idx}>
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}.</span>
@@ -6032,7 +6039,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                     type="text"
                                     value={getInputs(key).urls[idx] ?? ''}
                                     onChange={e => {
-                                      const urls = [...getInputs(key).urls] as [string, string, string];
+                                      const urls = [...getInputs(key).urls] as ProductUrlSlots;
                                       urls[idx] = e.target.value;
                                       patchInputs(key, { urls });
                                       setFallbackPhotosMap(prev => ({ ...prev, [key]: [] }));

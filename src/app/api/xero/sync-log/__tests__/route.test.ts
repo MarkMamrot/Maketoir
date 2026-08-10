@@ -76,4 +76,69 @@ describe('GET /api/xero/sync-log', () => {
     expect(mocks.xeroFetch).toHaveBeenCalledOnce();
     expect(body.entries[0].last_xero_state).toBe('AUTHORISED');
   });
+
+  it('omits POS credit notes that have no individual Xero sync event', async () => {
+    mocks.imsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_credit_notes cn')) {
+        return [{
+          id: 12,
+          cn_number: 'CN-00012',
+          total_amount: 24.95,
+          cn_date: '2026-08-09',
+          source: 'pos',
+          pos_sale_id: 44,
+          xero_sync_status: null,
+          xero_synced_at: null,
+          contact_name: '',
+        }];
+      }
+      return [];
+    });
+
+    const response = await GET(new Request('http://localhost/api/xero/sync-log?databaseId=biz-1&limit=2000'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.entries).toEqual([]);
+  });
+
+  it('keeps a POS credit note when it has an individual Xero sync event', async () => {
+    mocks.imsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_credit_notes cn')) {
+        return [{
+          id: 12,
+          cn_number: 'CN-00012',
+          total_amount: 24.95,
+          cn_date: '2026-08-09',
+          source: 'pos',
+          pos_sale_id: 44,
+          xero_sync_status: 'synced',
+          xero_synced_at: '2026-08-09T01:00:00.000Z',
+          contact_name: '',
+        }];
+      }
+      return [];
+    });
+    mocks.mainQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("SHOW COLUMNS FROM xero_sync_log LIKE 'xero_state'")) return [{ Field: 'xero_state' }];
+      if (sql.includes("sync_type IN ('cn_credit_note','cn_credit_note_void')")) {
+        return [{
+          reference_id: 12,
+          sync_type: 'cn_credit_note',
+          xero_id: 'xero-cn-12',
+          status: 'success',
+          xero_state: 'AUTHORISED',
+          detail: 'Customer credit note posted',
+          synced_at: '2026-08-09T01:00:00.000Z',
+        }];
+      }
+      return [];
+    });
+
+    const response = await GET(new Request('http://localhost/api/xero/sync-log?databaseId=biz-1&limit=2000'));
+    const body = await response.json();
+
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]).toMatchObject({ reference: 'CN-00012', xero_id: 'xero-cn-12', last_sync_status: 'success' });
+  });
 });

@@ -18081,7 +18081,7 @@ function XeroSyncTab({
                       : { bg: 'rgba(245,158,11,.15)', color: '#f59e0b' };
                 return (
                   <tr key={key} style={{ borderBottom: '1px solid rgba(251,191,36,.1)' }}>
-                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color }}>{item.type.toUpperCase()}</span></td>
+                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: badge.bg, color: '#111827' }}>{item.type.toUpperCase()}</span></td>
                     <td style={{ ...td, fontWeight: 600 }}>{item.reference}</td>
                     <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || '—'}</td>
                     <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
@@ -18176,7 +18176,6 @@ function XeroSyncTab({
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
                 const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
-                const isPosCn = entry.sync_type === 'cn_credit_note' && String(entry.source ?? '') === 'pos';
                 const canOpenEntry =
                   (entry.sync_type === 'po_bill' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
                   (entry.sync_type === 'so_invoice' && !!entry.reference_id && !!onOpenSalesOrder) ||
@@ -18198,7 +18197,7 @@ function XeroSyncTab({
                         )}
                       </td>
                       <td style={td}>
-                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, ...typeStyle(entry.sync_type) }}>
+                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, ...typeStyle(entry.sync_type), color: '#111827' }}>
                           {typeLabel(entry.sync_type)}
                         </span>
                       </td>
@@ -18216,7 +18215,6 @@ function XeroSyncTab({
                         ) : (
                           entry.reference
                         )}
-                        {isPosCn && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 500 }}>POS / EOD</div>}
                       </td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
@@ -18234,7 +18232,7 @@ function XeroSyncTab({
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
-                      <td style={td}>{isPosCn ? <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>POS / EOD</span> : <XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} />}</td>
+                      <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
@@ -18284,7 +18282,7 @@ function XeroSyncTab({
                         <tr key={pay.id ?? pi} style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(99,102,241,.04)' }}>
                           <td style={td}></td>
                           <td style={{ ...td, paddingLeft: 28 }}>
-                            <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,.13)', color: '#818cf8' }}>Payment</span>
+                            <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,.13)', color: '#111827' }}>Payment</span>
                           </td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(pay.payment_date)}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)' }}>
