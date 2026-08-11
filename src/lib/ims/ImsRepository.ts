@@ -1483,6 +1483,7 @@ export const ImsPORepo = {
     newStatus: POStatus,
     freightTreatment: 'expense' | 'capitalise' = 'expense',
     avgCostInclusion?: { includeLandedCosts?: boolean; includeFreight?: boolean },
+    expectedUpdatedAt?: string | null,
   ): Promise<void> {
     await ensureVariantAvgCost(); // ensures avg_cost column exists before any receive writes it
     const pool = getIMSPool();
@@ -1495,6 +1496,7 @@ export const ImsPORepo = {
       );
       if (!po) throw new Error('Purchase order not found');
       if (po.is_historical) throw new Error('Cannot modify a historical Cin7 record');
+      assertExpectedOrderRevision(po.updated_at, expectedUpdatedAt);
 
       const [itemRows] = await conn.execute<any[]>(
         `SELECT * FROM ims_purchase_order_items WHERE po_id = ? FOR UPDATE`, [id]
@@ -2546,7 +2548,7 @@ export const ImsSORepo = {
     }
   },
 
-  async changeStatus(id: number, newStatus: SOStatus): Promise<void> {
+  async changeStatus(id: number, newStatus: SOStatus, expectedUpdatedAt?: string | null): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -2557,6 +2559,7 @@ export const ImsSORepo = {
       );
       if (!so) throw new Error('Sales order not found');
       if (so.is_historical) throw new Error('Cannot modify a historical Cin7 record');
+      assertExpectedOrderRevision(so.updated_at, expectedUpdatedAt);
 
       const [items] = await conn.execute<ImsSOItem[]>(
         `SELECT * FROM ims_sales_order_items WHERE so_id = ? FOR UPDATE`, [id]

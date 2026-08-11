@@ -78,7 +78,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment, {
         includeLandedCosts: landedTreatment === 'capitalise',
         includeFreight: freightTreatment === 'capitalise',
-      });
+      }, typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null);
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
       const poDataFull = await ImsPORepo.get(Number(params.id), businessId);

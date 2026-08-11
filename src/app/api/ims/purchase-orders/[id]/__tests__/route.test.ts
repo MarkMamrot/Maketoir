@@ -159,8 +159,22 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', 'expense', {
       includeLandedCosts: true,
       includeFreight: false,
-    });
+    }, null);
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('forwards the loaded revision to the PO status transaction', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [] });
+
+    const response = await PUT(putRequest({
+      status: 'cancelled', expectedUpdatedAt: '2026-08-11T10:00:00.000Z',
+    }), params);
+
+    expect(response.status).toBe(200);
+    expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', 'expense', {
+      includeLandedCosts: true,
+      includeFreight: false,
+    }, '2026-08-11T10:00:00.000Z');
   });
 
   it('returns a structured conflict for a retired direct receipt transition', async () => {

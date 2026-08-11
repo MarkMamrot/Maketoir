@@ -27,6 +27,7 @@ import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -8347,29 +8348,48 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs, operationKey: crypto.randomUUID(), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
-        // Also record any receiving deltas
+        // Also record any receiving deltas and let the batch transaction own final status.
         if (isReceiving) {
           const effectiveQtys = receiveQtysOverride ?? receiveQtys;
-          const received_items = lineItems
+          const receivePlan = planPurchaseOrderReceive(lineItems
             .filter(item => item.variant_id)
             .map(item => {
               const stored = Number(modal.edit!.items?.find((i: any) => i.variant_id === item.variant_id)?.qty_received ?? 0);
               const entered = Number(effectiveQtys[item.variant_id] ?? stored);
-              return { variant_id: item.variant_id, qty_received: Math.max(0, entered - stored) };
-            })
-            .filter(item => item.qty_received > 0);
-          if (received_items.length > 0) {
-            await apiFetch('/api/ims/receive/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ po_id: modal.edit.id, location_id: modal.edit.location_id, received_items, mark_po_received: false }) });
+              return {
+                variantId: item.variant_id,
+                orderedQuantity: Number(item.qty_ordered),
+                alreadyReceivedQuantity: stored,
+                enteredQuantity: entered,
+              };
+            }), targetStatus);
+          if (receivePlan.createBackorderPo && !confirm(
+            `${receivePlan.shortfallLineCount} line${receivePlan.shortfallLineCount === 1 ? '' : 's'} are short. Complete this PO and create a held backorder for the outstanding quantities?`,
+          )) {
+            return;
           }
-        }
-        if (targetStatus) {
-          await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: targetStatus }) });
+          if (receivePlan.shouldCallBatch) {
+            await apiFetch('/api/ims/receive/batch', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                po_id: modal.edit.id,
+                location_id: modal.edit.location_id,
+                received_items: receivePlan.receivedItems,
+                mark_po_received: receivePlan.markPoReceived,
+                create_backorder_po: receivePlan.createBackorderPo,
+              }),
+            });
+          }
         }
       } else {
         const res = await apiFetch('/api/ims/purchase-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
         savedPoId = Number(res?.id ?? 0) || null;
         if (andOrder && res?.id) {
-          await apiFetch(`/api/ims/purchase-orders/${res.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'confirmed' }) });
+          const createdPo = await apiFetch(`/api/ims/purchase-orders/${res.id}`);
+          await apiFetch(`/api/ims/purchase-orders/${res.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'confirmed', expectedUpdatedAt: createdPo?.data?.updated_at ?? null }),
+          });
         }
       }
       load();
@@ -8385,7 +8405,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, expectedUpdatedAt: po.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.po?.id === po.id) {
         const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
@@ -11957,7 +11977,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, expectedUpdatedAt: so.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.so?.id === so.id) {
         const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);

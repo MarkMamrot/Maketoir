@@ -96,6 +96,19 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     expect(mockXeroVoid).not.toHaveBeenCalled();
   });
 
+  it('forwards the loaded revision to an allowed SO status transaction', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [] });
+    const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled', expectedUpdatedAt: '2026-08-11T10:00:00.000Z' }),
+    });
+
+    const response = await PUT(statusRequest, params);
+
+    expect(response.status).toBe(200);
+    expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', '2026-08-11T10:00:00.000Z');
+  });
+
   it('leaves note-only edits local', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'fulfilled', customer_id: 3, xero_invoice_id: 'xero-invoice-1', items: [] });
 

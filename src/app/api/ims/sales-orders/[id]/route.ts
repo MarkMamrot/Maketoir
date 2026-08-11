@@ -46,7 +46,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (existing.status === 'partially_fulfilled') {
         throw new OrderLifecycleConflict('Use Continue Fulfilment or Resolve Outstanding for a partially fulfilled sales order.');
       }
-      await ImsSORepo.changeStatus(Number(params.id), status);
+      await ImsSORepo.changeStatus(
+        Number(params.id), status, typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null,
+      );
 
       // EVENT-DRIVEN CACHE UPDATE
       if ((existing.items?.length ?? 0) > 0) {
