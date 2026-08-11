@@ -9,6 +9,8 @@ import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
+import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
+import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
@@ -4185,16 +4187,38 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   onImageAdded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
+  const [urls, setUrls] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
+  const [selectedUrlIndex, setSelectedUrlIndex] = useState<number | null>(null);
+  const [urlSelectionSource, setUrlSelectionSource] = useState<'ai' | 'user' | null>(null);
+  const [urlCandidateEvidence, setUrlCandidateEvidence] = useState<Record<string, string>>({});
+  const [urlDecisions, setUrlDecisions] = useState<Array<{ url: string; keep: boolean | null; reason: string; confidence?: number }>>([]);
+  const [urlDiscoveryAudit, setUrlDiscoveryAudit] = useState<{
+    providerResultCount: number;
+    uniqueRetailResultCount: number;
+    candidateCount: number;
+    filteredCount: number;
+    rejected: { url: string; reason: string }[];
+  } | null>(null);
+  const [customUrl, setCustomUrl] = useState('');
+  const [awaitingUrlConfirmation, setAwaitingUrlConfirmation] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState('');
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
-  const [generatedDescMode, setGeneratedDescMode] = useState<'source' | 'preview'>('preview');
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const researchVariant = selectProductResearchVariant(product.name ?? '', Array.isArray(product.variants) ? product.variants : []);
+  const researchProduct = {
+    name: product.name ?? '',
+    brand: product.brand ?? '',
+    sku: researchVariant?.sku ?? product.base_sku ?? '',
+    code: researchVariant?.sku ?? product.base_sku ?? '',
+    barcode: researchVariant?.barcode ?? '',
+  };
+  const selectedUrl = selectedUrlIndex == null ? '' : (urls[selectedUrlIndex]?.trim() ?? '');
 
   // Preferred site URLs loaded from IMS contacts/brands
   const [supplierSite, setSupplierSite] = useState<string | null>(null);
@@ -4205,6 +4229,10 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [useBrandSite, setUseBrandSite] = useState(true);
   const [useGeneralResults, setUseGeneralResults] = useState(true);
   const [searchAuOnly, setSearchAuOnly] = useState(true);
+  const researchSourceSites = [
+    ...(useSupplierSite && supplierSite ? [supplierSite] : []),
+    ...(useBrandSite && brandSite ? [brandSite] : []),
+  ];
 
   // Add-image state for research images
   const [addingImages, setAddingImages] = useState<Set<string>>(new Set());
@@ -4218,14 +4246,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [scrapeError, setScrapeError]       = useState<string | null>(null);
 
   const handleScrapeImages = async () => {
-    const activeUrls = urls.filter(u => u.trim());
+    const activeUrls = selectedUrl ? [selectedUrl] : [];
     if (!activeUrls.length) return;
     setScraping(true); setScrapeError(null);
     try {
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls }),
+        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites }),
       });
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
@@ -4236,7 +4264,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   };
 
   const handleShowMoreImages = async () => {
-    const activeUrls = urls.filter(u => u.trim());
+    const activeUrls = selectedUrl ? [selectedUrl] : [];
     if (!activeUrls.length) return;
     if (fallbackImages.length > 0) { setShowFallbackImages(true); return; }
     setScraping(true); setScrapeError(null);
@@ -4244,7 +4272,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls, includeFallback: true }),
+        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites, includeFallback: true }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) { setScrapeError(data.error ?? 'Unable to find more photos'); return; }
@@ -4318,7 +4346,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
+          product: researchProduct,
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4328,20 +4356,36 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
-      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '']);
+      const nextUrls: [string, string, string, string, string] = [found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? ''];
+      setUrls(nextUrls);
+      setUrlDiscoveryAudit(d.discovery ?? null);
+      setUrlCandidateEvidence(Object.fromEntries(
+        (Array.isArray(d.candidates) ? d.candidates : [])
+          .filter((candidate: any) => candidate?.url)
+          .map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')]),
+      ));
+      setUrlDecisions(found.slice(0, 5).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })));
+      setSelectedUrlIndex(null);
+      setUrlSelectionSource(null);
+      setAwaitingUrlConfirmation(false);
+      setShowResearchDetails(true);
     } catch (e: any) { setError(e.message); }
     finally { setFindingUrls(false); }
   };
 
   const handleResearch = async () => {
-    const topUrl = urls[0]?.trim();
+    const topUrl = selectedUrl;
+    if (!topUrl && urls.some(url => url.trim())) {
+      setError('Select the exact product page before researching.');
+      return;
+    }
     setResearching(true); setError(null); setResearchResult(null);
     try {
       if (topUrl) {
         const sourceResponse = await fetch('/api/website/scrape-photos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [topUrl] }),
+          body: JSON.stringify({ urls: [topUrl], product: researchProduct, source_sites: researchSourceSites }),
         });
         const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) throw new Error(sourceData.error ?? 'Approved-page extraction failed');
@@ -4351,21 +4395,21 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         setScrapedImages(filterImages(sourceData.images ?? []));
         return;
       }
-      // Fetch research from all three URLs in parallel, then aggregate images
+      // No candidate has been selected yet, so this is a broad manual fallback.
       const nonEmptyUrls = urls.filter(Boolean);
       const requests: Promise<Record<string, any>>[] = nonEmptyUrls.length > 0
         ? nonEmptyUrls.map(url =>
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
+              body: JSON.stringify({ product: researchProduct, firstUrl: url }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           )
         : [
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
+              body: JSON.stringify({ product: researchProduct }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           ];
 
@@ -4386,7 +4430,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerate = async () => {
     setGenerating(true); setError(null); setGenerated(null);
-    setGeneratedDescMode('preview');
     try {
       const res = await fetch('/api/website/generate-content', {
         method: 'POST',
@@ -4394,15 +4437,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            ...researchProduct,
             styleCode: '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+            retailPrice: researchVariant?.price_rrp ?? '0',
           },
           mode: 'full',
           tavilyInfo: researchResult?.answer ?? '',
-          tavilyUrls: urls.filter(Boolean),
+          tavilyUrls: selectedUrl ? [selectedUrl] : [],
         }),
       });
       const d = await parseWebsiteJsonResponse(res);
@@ -4420,20 +4461,84 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
     finally { setGenerating(false); }
   };
 
+  const processConfirmedUrl = async (approvedUrl: string) => {
+    setPipelineStatus('Step 3/4: Extracting facts and photos from the confirmed page...');
+    const scrapeResponse = await fetch('/api/website/scrape-photos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: [approvedUrl], product: researchProduct, source_sites: researchSourceSites }),
+    });
+    const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
+    if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the confirmed product page');
+    const sourceFacts = String(scrapeData.productFacts ?? '').trim();
+    if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the confirmed page. Nothing was generated.');
+    setResearchResult({ answer: sourceFacts, urls: [approvedUrl], images: [] });
+    setScrapedImages(filterImages(scrapeData.images ?? []));
+
+    setPipelineStatus('Step 4/4: Generating content from confirmed-page facts...');
+    const generateResponse = await fetch('/api/website/generate-content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        databaseId: businessId,
+        product: { ...researchProduct, styleCode: '', retailPrice: researchVariant?.price_rrp ?? '0' },
+        mode: 'full',
+        tavilyInfo: sourceFacts,
+        tavilyUrls: [approvedUrl],
+      }),
+    });
+    const generateData = await parseWebsiteJsonResponse(generateResponse);
+    if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
+    setGenerated({
+      title: generateData.content?.title ?? generateData.title ?? '',
+      websiteDescription: generateData.content?.websiteDescription ?? generateData.websiteDescription ?? '',
+      tags: generateData.content?.tags ?? generateData.tags ?? '',
+    });
+    setAwaitingUrlConfirmation(false);
+    setPipelineStatus('');
+  };
+
+  const handleConfirmProductPage = async (approvedUrl: string) => {
+    const confirmedUrl = approvedUrl.trim();
+    if (!confirmedUrl || generatingAll) return;
+    const existingIndex = urls.findIndex(url => url.trim() === confirmedUrl);
+    const nextUrls: [string, string, string, string, string] = existingIndex >= 0
+      ? [...urls]
+      : [confirmedUrl, ...urls.filter(url => url.trim() && url.trim() !== confirmedUrl).slice(0, 4)] as [string, string, string, string, string];
+    const selectedIndex = existingIndex >= 0 ? existingIndex : 0;
+    setUrls(nextUrls);
+    setSelectedUrlIndex(selectedIndex);
+    setUrlSelectionSource('user');
+    setUrlDecisions(previous => previous.map(decision => ({
+      ...decision,
+      keep: decision.url === confirmedUrl,
+      reason: decision.url === confirmedUrl ? 'Confirmed by user.' : decision.reason,
+    })));
+    setGeneratingAll(true);
+    setAwaitingUrlConfirmation(false);
+    setError(null);
+    try {
+      await processConfirmedUrl(confirmedUrl);
+    } catch (confirmationError: any) {
+      setError(confirmationError.message ?? 'Confirmed-page processing failed');
+      setPipelineStatus('');
+    } finally {
+      setGeneratingAll(false);
+    }
+  };
+
   const handleGenerateAll = async () => {
     setGeneratingAll(true);
+    setAwaitingUrlConfirmation(false);
     setError(null);
     setGenerated(null);
-    setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
     setFallbackImages([]);
     setShowFallbackImages(false);
+    setUrlDecisions([]);
     try {
-      const preferredSites = [
-        ...(useSupplierSite && supplierSite ? [supplierSite] : []),
-        ...(useBrandSite && brandSite ? [brandSite] : []),
-      ];
+      setPipelineStatus('Step 1/4: Finding candidate product pages...');
       const excludedSites = [
         ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
         ...(!useBrandSite && brandSite ? [brandSite] : []),
@@ -4442,8 +4547,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
-          preferred_sites: preferredSites,
+          product: researchProduct,
+          preferred_sites: researchSourceSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
           search_au_only: searchAuOnly,
@@ -4451,76 +4556,60 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       });
       const searchData = await parseWebsiteJsonResponse(searchResponse);
       if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
-      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 3) as string[];
-      if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
+      setUrlDiscoveryAudit(searchData.discovery ?? null);
+      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
+      const candidateUrls: [string, string, string, string, string] = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
+      const foundCandidates = (Array.isArray(searchData.candidates) ? searchData.candidates : [])
+        .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
+      setUrls(candidateUrls);
+      setUrlCandidateEvidence(Object.fromEntries(foundCandidates.map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')])));
+      setSelectedUrlIndex(null);
+      setUrlSelectionSource(null);
+      setShowResearchDetails(true);
+      setUrlDecisions(foundUrls.map(url => ({ url, keep: null, reason: 'Awaiting AI assessment.' })));
+      if (foundUrls.length === 0) {
+        setAwaitingUrlConfirmation(true);
+        throw new Error('No exact-page candidates qualified. Enter the product page URL below to continue.');
+      }
 
+      setPipelineStatus('Step 2/4: AI assessing candidate pages...');
       const judgeResponse = await fetch('/api/website/judge-urls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           databaseId: businessId,
-          product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
-          },
+          product: { ...researchProduct, retailPrice: researchVariant?.price_rrp ?? '0' },
           urls: foundUrls,
+          candidates: foundCandidates,
+          preferredSites: researchSourceSites,
         }),
       });
       const judgeData = await parseWebsiteJsonResponse(judgeResponse);
-      if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
-      const rankedUrls: string[] = (judgeData.rankedUrls ?? [])
-        .filter((entry: any) => entry?.url && entry.keep)
-        .map((entry: any) => String(entry.url));
-      const finalUrls: string[] = [...new Set<string>(rankedUrls)].slice(0, 1);
-      if (!judgeData.validUrlFound || finalUrls.length === 0) {
-        throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
+      if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to assess product pages');
+      const ranked: Array<{ url: string; keep: boolean; reason?: string; confidence?: number }> = judgeData.rankedUrls ?? [];
+      const decisions = foundUrls.map(url => {
+        const decision = ranked.find(entry => entry.url === url);
+        return {
+          url,
+          keep: judgeData.assessmentUnavailable ? null : decision ? Boolean(decision.keep) : false,
+          reason: decision?.reason?.trim() || 'AI did not confirm this URL as the exact product page.',
+          confidence: typeof decision?.confidence === 'number' ? decision.confidence : undefined,
+        };
+      });
+      setUrlDecisions(decisions);
+      const approvedUrl = decisions.find(decision => decision.keep)?.url ?? '';
+      const approvedIndex = candidateUrls.findIndex(url => url === approvedUrl);
+      if (!judgeData.validUrlFound || !approvedUrl || approvedIndex < 0) {
+        setAwaitingUrlConfirmation(true);
+        setPipelineStatus('Awaiting confirmation: choose the exact product page below.');
+        return;
       }
-      setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
-
-      const scrapeResponse = await fetch('/api/website/scrape-photos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: finalUrls }),
-      });
-      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
-      if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');
-      const sourceFacts = String(scrapeData.productFacts ?? '').trim();
-      if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the approved page. Nothing was generated.');
-      setResearchResult({
-        answer: sourceFacts,
-        urls: finalUrls,
-        images: [],
-      });
-      setScrapedImages(filterImages(scrapeData.images ?? []));
-
-      const generateResponse = await fetch('/api/website/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          databaseId: businessId,
-          product: {
-            name: product.name,
-            brand: product.brand ?? '',
-            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
-            styleCode: '',
-            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
-          },
-          mode: 'full',
-          tavilyInfo: sourceFacts,
-          tavilyUrls: finalUrls,
-        }),
-      });
-      const generateData = await parseWebsiteJsonResponse(generateResponse);
-      if (!generateResponse.ok || generateData.error) throw new Error(generateData.error ?? 'Unable to generate content');
-      setGenerated({
-        title: generateData.content?.title ?? generateData.title ?? '',
-        websiteDescription: generateData.content?.websiteDescription ?? generateData.websiteDescription ?? '',
-        tags: generateData.content?.tags ?? generateData.tags ?? '',
-      });
+      setSelectedUrlIndex(approvedIndex);
+      setUrlSelectionSource('ai');
+      await processConfirmedUrl(approvedUrl);
     } catch (generationError: any) {
       setError(generationError.message ?? 'Unable to generate website content');
+      if (!awaitingUrlConfirmation) setPipelineStatus('');
     } finally {
       setGeneratingAll(false);
     }
@@ -4541,7 +4630,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       {/* Section divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', letterSpacing: '.04em' }}>✦ Foresight</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', letterSpacing: '.04em' }}>Website Content Studio</span>
         <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
       </div>
 
@@ -4549,8 +4638,8 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: open ? 16 : 0 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>🔍 Website Content Generator</div>
-            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>One click finds the best product page, researches product facts, generates content, and collects photos for you to add.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Website Content Studio</div>
+            <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 2 }}>Generate product descriptions and images for this product using one confirmed source page.</div>
           </div>
           <button onClick={() => setOpen(p => !p)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 500 }}>
             {open ? 'Hide ↑' : 'Open ↓'}
@@ -4562,6 +4651,11 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
             {error && (
               <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, fontSize: 12, color: 'var(--sv-red)' }}>
                 {error}
+              </div>
+            )}
+            {pipelineStatus && (
+              <div style={{ marginBottom: 12, padding: '8px 10px', background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', border: '1px solid color-mix(in srgb, var(--sv-action) 30%, var(--sv-etch))', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-main)' }}>
+                {pipelineStatus}
               </div>
             )}
 
@@ -4600,7 +4694,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                 disabled={generatingAll}
                 style={{ ...btnStyle('action', 'sm'), opacity: generatingAll ? .65 : 1 }}
               >
-                {generatingAll ? 'Researching and generating…' : 'Generate Content & Find Photos'}
+                {generatingAll ? 'Researching and generating...' : 'Generate Product Descriptions & Images'}
               </button>
               <button onClick={() => setShowResearchDetails(previous => !previous)} style={btnStyle('ghost', 'xs')}>
                 {showResearchDetails ? 'Hide research details' : 'Research details'}
@@ -4621,26 +4715,46 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                   {findingUrls ? '⏳ Finding…' : '🔍 Find URLs'}
                 </button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {([0, 1, 2] as const).map(i => (
-                  <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{i + 1}.</span>
-                    <input
-                      type="url"
-                      value={urls[i]}
-                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
-                      placeholder="https://…"
-                      style={{ ...inputStyle, fontSize: 12, flex: 1 }}
-                    />
-                    {urls[i] && (
-                      <>
-                        <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
-                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
-                      </>
-                    )}
-                  </div>
-                ))}
+              {urlDiscoveryAudit && (
+                <div style={{ marginBottom: 8, padding: '7px 9px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  Google results: {urlDiscoveryAudit.providerResultCount} · Retail pages: {urlDiscoveryAudit.uniqueRetailResultCount} · Candidates: {urlDiscoveryAudit.candidateCount} · Filtered: {urlDiscoveryAudit.filteredCount}
+                </div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {urls.map((url, index) => {
+                  if (!url) return null;
+                  const decision = urlDecisions.find(item => item.url === url);
+                  const isSelected = selectedUrlIndex === index;
+                  return (
+                    <div key={`${url}-${index}`} style={{ padding: '9px 10px', background: 'var(--sv-bg-1)', border: isSelected ? '2px solid var(--sv-action)' : '1px solid var(--sv-etch)', borderRadius: 6 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{index + 1}.</span>
+                        <a href={url} target="_blank" rel="noopener noreferrer" style={{ flex: 1, minWidth: 0, fontSize: 12, color: 'var(--sv-action)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</a>
+                        {typeof decision?.confidence === 'number' && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: decision.confidence >= 50 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{decision.confidence}%</span>
+                        )}
+                        {isSelected ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-mint)', whiteSpace: 'nowrap' }}>Selected</span>
+                        ) : (
+                          <button type="button" onClick={() => handleConfirmProductPage(url)} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Continue</button>
+                        )}
+                      </div>
+                      {(urlCandidateEvidence[url] || decision?.reason) && (
+                        <div style={{ marginTop: 5, paddingLeft: 24, fontSize: 11, lineHeight: 1.4, color: 'var(--sv-text-dim)' }}>
+                          {urlCandidateEvidence[url] && <div>{urlCandidateEvidence[url]}</div>}
+                          {decision?.reason && <div style={{ marginTop: urlCandidateEvidence[url] ? 3 : 0 }}>{decision.reason}</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+              {(awaitingUrlConfirmation || urls.some(url => url)) && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 10 }}>
+                  <input type="url" value={customUrl} onChange={event => setCustomUrl(event.target.value)} placeholder="Paste the exact product page URL" style={{ ...inputStyle, fontSize: 12, flex: 1 }} />
+                  <button type="button" onClick={() => handleConfirmProductPage(customUrl)} disabled={generatingAll || !customUrl.trim()} style={{ ...btnStyle('action', 'xs'), opacity: generatingAll || !customUrl.trim() ? .6 : 1 }}>Continue</button>
+                </div>
+              )}
             </div>
 
             {/* Research summary */}
@@ -4822,69 +4936,27 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
             {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{generated ? 'Review generated content' : 'Generated content will appear here'}</span>
-                {generated && <button onClick={handleGenerateAll} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Regenerate</button>}
-              </div>
-
+              {!generated && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Generated content will appear here</span>}
               {generated && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Title */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Website Title</span>
-                      <button
-                        onClick={() => onApplyContent(generated.title || null, null, null)}
-                        title="Apply title to Website Title field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
+                <WebsiteGeneratedContentEditor
+                  content={generated}
+                  heading="Review generated content"
+                  onChange={(field, value) => setGenerated(current => current ? { ...current, [field]: value } : current)}
+                  onApplyField={field => {
+                    if (field === 'title') onApplyContent(generated.title || null, null, null);
+                    if (field === 'websiteDescription') onApplyContent(null, generated.websiteDescription || null, null);
+                    if (field === 'tags') onApplyContent(null, null, generated.tags || null);
+                  }}
+                  footer={(
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
+                        {saving ? 'Saving...' : 'Apply All and Save'}
+                      </button>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Apply fields individually above, or apply and save all fields.</span>
+                      <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
                     </div>
-                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
-                  </div>
-                  {/* Description */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description</span>
-                      <button
-                        onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
-                        title="Apply description to product description field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
-                      <button
-                        onClick={() => setGeneratedDescMode(mode => mode === 'preview' ? 'source' : 'preview')}
-                        style={{ ...btnStyle('ghost', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >{generatedDescMode === 'preview' ? 'HTML source' : 'Preview'}</button>
-                    </div>
-                    {generatedDescMode === 'preview' ? (
-                      <div
-                        className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                        style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '12px 14px', fontSize: 13, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', maxHeight: 280, overflowY: 'auto' }}
-                        dangerouslySetInnerHTML={{ __html: generated.websiteDescription || '<em>No description generated</em>' }}
-                      />
-                    ) : (
-                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 280, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
-                    )}
-                  </div>
-                  {/* Tags */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
-                      <button
-                        onClick={() => onApplyContent(null, null, generated.tags || null)}
-                        title="Apply tags to product tags field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
-                    </div>
-                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
-                      {saving ? 'Saving…' : 'Apply All and Save'}
-                    </button>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies and saves all fields — or use ↙ Apply on individual fields above</span>
-                    <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
-                  </div>
-                </div>
+                  )}
+                />
               )}
             </div>
           </div>
