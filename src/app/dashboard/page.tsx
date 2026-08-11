@@ -5978,13 +5978,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
                 })();
 
-                const buttonLabel = (() => {
-                  if (isPreflight) return '⏳ Researching…';
-                  if (isGenerating) return '⏳ Generating…';
-                  if (hasContent) return 'Regenerate';
-                  return 'Format Content';
-                })();
-
                 return (
                   <div
                     key={key}
@@ -6248,18 +6241,20 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           type="button"
                           onClick={e => { e.stopPropagation(); void handleRemoveFromWebsiteList(p); }}
                           disabled={isActivelyWorking || removingWebsiteSet.has(key)}
-                          className="w-fit px-3 py-1.5 border border-red-300 bg-white text-red-700 text-xs font-semibold rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="w-fit rounded-md border-2 border-red-600 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website List'}
                         </button>
 
-                        <button
-                          onClick={e => { e.stopPropagation(); handleGenerateContent(p); }}
-                          disabled={isBusy}
-                          className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-                        >
-                          {isGenerating ? 'Generating…' : hasContent ? 'Regenerate Content' : 'Format Content'}
-                        </button>
+                        {!hasContent && (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleGenerateContent(p); }}
+                            disabled={isBusy}
+                            className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            {isGenerating ? 'Generating…' : 'Format Content'}
+                          </button>
+                        )}
                       </div>
                     )}
 
