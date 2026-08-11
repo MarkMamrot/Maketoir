@@ -10,7 +10,6 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { SolvantisMark } from '@/components/SolvantisMark';
-import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -151,12 +150,11 @@ function effectiveRRP(v: any, today: string): number {
 }
 
 // Searchable variant picker for PO/SO line items
-function VariantSearch({ value, variants, onChange, style, disabled }: {
+function VariantSearch({ value, variants, onChange, style }: {
   value: string;
   variants: any[];
   onChange: (variant_id: string) => void;
   style?: React.CSSProperties;
-  disabled?: boolean;
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
@@ -187,7 +185,6 @@ function VariantSearch({ value, variants, onChange, style, disabled }: {
   }, []);
 
   function openDropdown() {
-    if (disabled) return;
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
       setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 320) });
@@ -204,7 +201,6 @@ function VariantSearch({ value, variants, onChange, style, disabled }: {
         value={open ? query : displayLabel}
         title={!open && displayLabel ? displayLabel : undefined}
         placeholder="Search variant…"
-        disabled={disabled}
         onFocus={openDropdown}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         style={{ ...inputStyle, fontSize: 12, width: '100%' }}
@@ -4195,6 +4191,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
+  const [generatedDescMode, setGeneratedDescMode] = useState<'source' | 'preview'>('preview');
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -4389,6 +4386,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerate = async () => {
     setGenerating(true); setError(null); setGenerated(null);
+    setGeneratedDescMode('preview');
     try {
       const res = await fetch('/api/website/generate-content', {
         method: 'POST',
@@ -4426,6 +4424,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
     setGeneratingAll(true);
     setError(null);
     setGenerated(null);
+    setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
     setFallbackImages([]);
@@ -4823,36 +4822,69 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
             {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
-              {!generated && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Generated content will appear here</span>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{generated ? 'Review generated content' : 'Generated content will appear here'}</span>
+                {generated && <button onClick={handleGenerateAll} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Regenerate</button>}
+              </div>
 
               {generated && (
-                <WebsiteGeneratedContentEditor
-                  content={generated}
-                  heading="Review Generated Content"
-                  headerAction={(
-                    <button
-                      onClick={handleGenerateAll}
-                      disabled={generatingAll}
-                      className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      {generatingAll ? 'Regenerating…' : 'Regenerate Content'}
-                    </button>
-                  )}
-                  onChange={(field, value) => setGenerated(current => current ? { ...current, [field]: value } : current)}
-                  footer={(
-                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Title */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Website Title</span>
                       <button
-                        onClick={handleApplyAllAndSave}
-                        disabled={saving || !canSave}
-                        className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white hover:bg-[#123f50] disabled:opacity-50"
-                      >
-                        {saving ? 'Saving…' : 'Apply All and Save'}
-                      </button>
-                      <span className="text-xs text-gray-500">Apply and save all generated fields.</span>
-                      <button onClick={() => setGenerated(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-700">Discard</button>
+                        onClick={() => onApplyContent(generated.title || null, null, null)}
+                        title="Apply title to Website Title field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
                     </div>
-                  )}
-                />
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
+                  </div>
+                  {/* Description */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description</span>
+                      <button
+                        onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
+                        title="Apply description to product description field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
+                      <button
+                        onClick={() => setGeneratedDescMode(mode => mode === 'preview' ? 'source' : 'preview')}
+                        style={{ ...btnStyle('ghost', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >{generatedDescMode === 'preview' ? 'HTML source' : 'Preview'}</button>
+                    </div>
+                    {generatedDescMode === 'preview' ? (
+                      <div
+                        className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
+                        style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '12px 14px', fontSize: 13, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', maxHeight: 280, overflowY: 'auto' }}
+                        dangerouslySetInnerHTML={{ __html: generated.websiteDescription || '<em>No description generated</em>' }}
+                      />
+                    ) : (
+                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 280, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
+                    )}
+                  </div>
+                  {/* Tags */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
+                      <button
+                        onClick={() => onApplyContent(null, null, generated.tags || null)}
+                        title="Apply tags to product tags field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
+                    </div>
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
+                      {saving ? 'Saving…' : 'Apply All and Save'}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies and saves all fields — or use ↙ Apply on individual fields above</span>
+                    <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -11513,7 +11545,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const shippedEditLocked = !!modal.edit && ['partially_fulfilled', 'fulfilled'].includes(String(modal.edit.status));
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
@@ -11813,10 +11844,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
-        const updateBody = shippedEditLocked
-          ? { customer_po_number: form.customer_po_number, notes: form.notes }
-          : { ...form, items };
-        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody) });
+        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
       } else {
         const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
         savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
@@ -12116,25 +12144,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.so_number}` : 'New Sales Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
-            {shippedEditLocked && (
-              <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(251,191,36,.45)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: 'var(--sv-text-main)', fontSize: 12 }}>
-                This order has shipped quantities. Customer, location, pricing, and line items are locked to preserve fulfilment and stock history. Customer PO and notes may still be updated.
-              </div>
-            )}
             <Row3>
               <Field label="Customer">
-                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle} disabled={shippedEditLocked}>
+                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle}>
                   <option value="">— None —</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle} disabled={shippedEditLocked}>
+                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
-              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
             </Row3>
             <Row2>
               <Field label="Customer PO #"><input value={form.customer_po_number} onChange={sf('customer_po_number')} style={inputStyle} placeholder="Customer's PO reference" /></Field>
@@ -12142,12 +12165,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row2>
             <Row2>
               <Field label="Payment Terms">
-                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle} disabled={shippedEditLocked}>
+                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
                   {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
                 </select>
               </Field>
               <Field label="Price Tier">
-                <select value={soPriceTier} onChange={handleSOPriceTierChange} style={inputStyle} disabled={shippedEditLocked}>
+                <select value={soPriceTier} onChange={handleSOPriceTierChange} style={inputStyle}>
                   <option value="retail">Retail pricing</option>
                   <option value="wholesale">Wholesale pricing</option>
                 </select>
@@ -12155,7 +12178,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row2>
             <Row2>
               <Field label="Amounts Entered">
-                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle} disabled={shippedEditLocked}>
+                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle}>
                   <option value="ex_tax">Tax exclusive (tax added on top)</option>
                   <option value="inc_tax">Tax inclusive (tax already included)</option>
                   <option value="no_tax">No tax / zero-rated</option>
@@ -12166,7 +12189,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
-                {(form.customer_id || modal.edit) && !shippedEditLocked && (
+                {(form.customer_id || modal.edit) && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                     <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
@@ -12190,20 +12213,19 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '4px 2px', width: 30 }}>{!shippedEditLocked && <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>}</td>
+                        <td style={{ padding: '4px 2px', width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button></td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
                             variants={variants}
                             onChange={vid => selectSOVariant(i, vid)}
-                            disabled={shippedEditLocked}
                           />
                         </td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
-                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" disabled={shippedEditLocked} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
                         {soTaxTreatment !== 'no_tax' && (
-                          <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" disabled={shippedEditLocked} /></td>
+                          <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
                         )}
                         <td style={{ padding: '4px 8px', width: 100, textAlign: 'right', color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                       </tr>
@@ -12221,11 +12243,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Discount (−)</span>
-                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} disabled={shippedEditLocked} />
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
                     <span>Freight (+)</span>
-                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} disabled={shippedEditLocked} />
+                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   {soTaxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>

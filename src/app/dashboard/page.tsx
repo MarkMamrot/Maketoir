@@ -5526,7 +5526,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
   const handleRemoveFromWebsiteList = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (!window.confirm(`Remove "${product.name}" from the Website Queue?\n\nThis will set Website Product to No and deselect it from processing.`)) return;
+    if (!window.confirm(`Remove "${product.name}" from the website list?\n\nThis will set Website Product to No and deselect it from processing.`)) return;
 
     setRemovingWebsiteSet(previous => new Set(previous).add(key));
     setOnlineMessage(previous => ({ ...previous, [key]: '' }));
@@ -5538,7 +5538,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.success === false) {
-        throw new Error(data.error ?? 'Failed to remove product from the Website Queue');
+        throw new Error(data.error ?? 'Failed to remove product from the website list');
       }
 
       setRemovedKeys(previous => new Set(previous).add(key));
@@ -5550,7 +5550,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       setProducts(previous => previous?.map(item => item.code === key ? { ...item, is_online: 0 } : item) ?? null);
       setExpandedCode(previous => previous === key ? null : previous);
     } catch (removeError: any) {
-      setOnlineMessage(previous => ({ ...previous, [key]: removeError.message ?? 'Failed to remove product from the Website Queue' }));
+      setOnlineMessage(previous => ({ ...previous, [key]: removeError.message ?? 'Failed to remove product from the website list' }));
       setOnlineStatus(previous => ({ ...previous, [key]: 'error' }));
     } finally {
       setRemovingWebsiteSet(previous => {
@@ -5891,7 +5891,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const buttonLabel = (() => {
                   if (isPreflight) return '⏳ Researching…';
                   if (isGenerating) return '⏳ Generating…';
-                  if (hasContent) return 'Regenerate';
+                  if (hasContent) return '🔄 Reformat';
                   return '✨ Format Content';
                 })();
 
@@ -6112,9 +6112,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           type="button"
                           onClick={e => { e.stopPropagation(); void handleRemoveFromWebsiteList(p); }}
                           disabled={isActivelyWorking || removingWebsiteSet.has(key)}
-                          className="w-fit px-3 py-1.5 border border-red-700 bg-red-600 text-white text-xs font-semibold rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="w-fit px-3 py-1.5 border border-red-300 bg-white text-red-700 text-xs font-semibold rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website Queue'}
+                          {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website List'}
                         </button>
 
                         <button
@@ -6122,7 +6122,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           disabled={isBusy}
                           className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
-                          {isGenerating ? 'Generating…' : hasContent ? 'Regenerate Content' : 'Format Content'}
+                          {isGenerating ? '⏳ Generating…' : hasContent ? '🔄 Reformat Content' : '✨ Format Content'}
                         </button>
                       </div>
                     )}
