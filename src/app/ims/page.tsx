@@ -17,6 +17,7 @@ import {
   WEBSITE_AI_SETTING_KEYS,
 } from '@/lib/website/contentPreferences';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -4081,7 +4082,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
-  const [generatedDescMode, setGeneratedDescMode] = useState<'source' | 'preview'>('preview');
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -4304,7 +4304,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerate = async () => {
     setGenerating(true); setError(null); setGenerated(null);
-    setGeneratedDescMode('preview');
     try {
       const res = await fetch('/api/website/generate-content', {
         method: 'POST',
@@ -4341,7 +4340,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
     setAwaitingUrlConfirmation(false);
     setError(null);
     setGenerated(null);
-    setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
     setFallbackImages([]);
@@ -4827,69 +4825,37 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
             {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{generated ? 'Review generated content' : 'Generated content will appear here'}</span>
-                {generated && <button onClick={handleGenerateAll} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Regenerate</button>}
-              </div>
+              {!generated && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Generated content will appear here</span>}
 
               {generated && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {/* Title */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Website Title</span>
-                      <button
-                        onClick={() => onApplyContent(generated.title || null, null, null)}
-                        title="Apply title to Website Title field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
-                    </div>
-                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
-                  </div>
-                  {/* Description */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description</span>
-                      <button
-                        onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
-                        title="Apply description to product description field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
-                      <button
-                        onClick={() => setGeneratedDescMode(mode => mode === 'preview' ? 'source' : 'preview')}
-                        style={{ ...btnStyle('ghost', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >{generatedDescMode === 'preview' ? 'HTML source' : 'Preview'}</button>
-                    </div>
-                    {generatedDescMode === 'preview' ? (
-                      <div
-                        className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                        style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '12px 14px', fontSize: 13, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', maxHeight: 280, overflowY: 'auto' }}
-                        dangerouslySetInnerHTML={{ __html: generated.websiteDescription || '<em>No description generated</em>' }}
-                      />
-                    ) : (
-                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 280, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
-                    )}
-                  </div>
-                  {/* Tags */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
-                      <button
-                        onClick={() => onApplyContent(null, null, generated.tags || null)}
-                        title="Apply tags to product tags field"
-                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
-                      >↙ Apply</button>
-                    </div>
-                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
-                      {saving ? 'Saving…' : 'Apply All and Save'}
+                <WebsiteGeneratedContentEditor
+                  content={generated}
+                  heading="Generated Content"
+                  headerAction={(
+                    <button onClick={handleGenerateAll} disabled={generatingAll} className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                      {generatingAll ? 'Regenerating…' : 'Regenerate Content'}
                     </button>
-                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies and saves all fields — or use ↙ Apply on individual fields above</span>
-                    <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
-                  </div>
-                </div>
+                  )}
+                  onChange={(field, value) => setGenerated(current => current ? { ...current, [field]: value } : current)}
+                  onApplyField={field => {
+                    if (field === 'title') onApplyContent(generated.title || null, null, null);
+                    if (field === 'websiteDescription') onApplyContent(null, generated.websiteDescription || null, null);
+                    if (field === 'tags') onApplyContent(null, null, generated.tags || null);
+                  }}
+                  footer={(
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <button
+                        onClick={handleApplyAllAndSave}
+                        disabled={saving || !canSave}
+                        className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white hover:bg-[#123f50] disabled:opacity-50"
+                      >
+                        {saving ? 'Saving…' : 'Apply All and Save'}
+                      </button>
+                      <span className="text-xs text-gray-500">Apply and save all fields, or apply individual fields above.</span>
+                      <button onClick={() => setGenerated(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-700">Discard</button>
+                    </div>
+                  )}
+                />
               )}
             </div>
           </div>

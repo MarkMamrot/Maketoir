@@ -16,6 +16,7 @@ import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/l
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -5003,14 +5004,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [removingWebsiteSet, setRemovingWebsiteSet] = useState<Set<string>>(new Set());
   const [sessionBlockedKeys, setSessionBlockedKeys] = useState<Set<string>>(new Set());
 
-  // Website description HTML preview toggle
-  const [descSourceKeys, setDescSourceKeys] = useState<Set<string>>(new Set());
-  const toggleDescSource = (k: string) => setDescSourceKeys(prev => {
-    const next = new Set(prev);
-    next.has(k) ? next.delete(k) : next.add(k);
-    return next;
-  });
-
   useEffect(() => {
     fetch('/api/ims/settings')
       .then(response => response.json())
@@ -5990,7 +5983,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const buttonLabel = (() => {
                   if (isPreflight) return '⏳ Researching…';
                   if (isGenerating) return '⏳ Generating…';
-                  if (hasContent) return '🔄 Reformat';
+                  if (hasContent) return 'Regenerate';
                   return '✨ Format Content';
                 })();
 
@@ -6269,7 +6262,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           disabled={isBusy}
                           className="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
-                          {isGenerating ? '⏳ Generating…' : hasContent ? '🔄 Reformat Content' : '✨ Format Content'}
+                          {isGenerating ? 'Generating…' : hasContent ? 'Regenerate Content' : 'Format Content'}
                         </button>
                       </div>
                     )}
@@ -6286,88 +6279,36 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     {/* Step 3 result: generated content + push to online shop */}
                     {isExpanded && !isGenerating && hasContent && (
                       <div className="space-y-4 border-t border-indigo-200 bg-indigo-50 p-5" onClick={e => e.stopPropagation()}>
-                        <h3 className="font-bold text-gray-800 text-sm">Generated Content — <span className="text-indigo-700">{p.name}</span></h3>
-
-                        {/* Title */}
-                        <div>
-                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Website Title</label>
-                          <input
-                            value={contentMap[key]?.title ?? ''}
-                            onChange={e => handleContentChange(key, 'title', e.target.value)}
-                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                          />
-                        </div>
-
-                        {/* Tags */}
-                        <div>
-                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Tags</label>
-                          <input
-                            value={contentMap[key]?.tags ?? ''}
-                            onChange={e => handleContentChange(key, 'tags', e.target.value)}
-                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                          />
-                        </div>
-
-                        {/* Website Description */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Website Description</label>
-                            <button
-                              onClick={() => toggleDescSource(key)}
-                              className="text-xs border border-gray-300 rounded px-2 py-0.5 text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors"
-                            >
-                              {descSourceKeys.has(key) ? 'Preview' : 'HTML source'}
-                            </button>
-                          </div>
-                          {!descSourceKeys.has(key) ? (
-                            <div
-                              key={`desc-preview-${key}`}
-                              contentEditable
-                              suppressContentEditableWarning
-                              className="w-full min-h-[8rem] px-4 py-3 border border-indigo-300 rounded-lg text-sm leading-6 bg-white overflow-auto max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-text [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
-                              dangerouslySetInnerHTML={{ __html: contentMap[key]?.websiteDescription ?? '' }}
-                              onBlur={e => handleContentChange(key, 'websiteDescription', e.currentTarget.innerHTML)}
-                            />
-                          ) : (
-                            <textarea
-                              value={contentMap[key]?.websiteDescription ?? ''}
-                              onChange={e => handleContentChange(key, 'websiteDescription', e.target.value)}
-                              rows={6}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono text-xs"
-                            />
+                        <WebsiteGeneratedContentEditor
+                          content={contentMap[key]}
+                          heading={<>Generated Content: <span className="text-indigo-700">{p.name}</span></>}
+                          onChange={(field, value) => handleContentChange(key, field, value)}
+                          footer={(
+                            <div className="flex flex-wrap items-center gap-3 pt-1">
+                              <button
+                                onClick={() => handlePushToOnline(p)}
+                                disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
+                                className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#123f50] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
+                              >
+                                {onlineStatus[key] === 'pushing'
+                                  ? 'Saving and pushing…'
+                                  : onlineStatus[key] === 'done'
+                                  ? 'Saved and pushed online'
+                                  : 'Save and Push Online'}
+                              </button>
+                              {shopifyLinksLoading.has(key) && <span className="text-xs text-gray-400">Loading Shopify links…</span>}
+                              {shopifyLinksMap[key]?.storefrontUrl && (
+                                <a href={shopifyLinksMap[key].storefrontUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">View listing</a>
+                              )}
+                              {shopifyLinksMap[key]?.adminUrl && (
+                                <a href={shopifyLinksMap[key].adminUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">Open in Shopify admin</a>
+                              )}
+                              {onlineMessage[key] && (
+                                <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
+                              )}
+                            </div>
                           )}
-                        </div>
-
-                        {/* Save and push online */}
-                        <div className="flex items-center gap-3 flex-wrap pt-1">
-                          <button
-                            onClick={() => handlePushToOnline(p)}
-                            disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
-                            className="px-5 py-2 bg-[#164e63] text-white text-sm font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
-                          >
-                            {onlineStatus[key] === 'pushing'
-                              ? 'Saving and pushing…'
-                              : onlineStatus[key] === 'done'
-                              ? 'Saved and pushed online'
-                              : 'Save and Push Online'}
-                          </button>
-                          {shopifyLinksLoading.has(key) && (
-                            <span className="text-xs text-gray-400">Loading Shopify links…</span>
-                          )}
-                          {shopifyLinksMap[key]?.storefrontUrl && (
-                            <a href={shopifyLinksMap[key].storefrontUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 font-semibold hover:underline">
-                              View listing ↗
-                            </a>
-                          )}
-                          {shopifyLinksMap[key]?.adminUrl && (
-                            <a href={shopifyLinksMap[key].adminUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">
-                              Open in Shopify admin ↗
-                            </a>
-                          )}
-                          {onlineMessage[key] && (
-                            <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
-                          )}
-                        </div>
+                        />
                       </div>
                     )}
 
