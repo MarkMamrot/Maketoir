@@ -11,6 +11,7 @@ const connection = {
 
 let storedRequestHash = '';
 let firstItemIsStock = 1;
+let quantityOnHand = 20;
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
@@ -23,6 +24,7 @@ describe('fulfilSalesOrderPartial', () => {
     vi.clearAllMocks();
     storedRequestHash = '';
     firstItemIsStock = 1;
+    quantityOnHand = 20;
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {
         storedRequestHash = String(params?.[2] ?? '');
@@ -43,7 +45,7 @@ describe('fulfilSalesOrderPartial', () => {
         ]];
       }
       if (sql.includes('FROM ims_stock s')) {
-        return [[{ qty_on_hand: 20, qty_committed: 12, avg_cost: 4.5 }]];
+        return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, avg_cost: 4.5 }]];
       }
       return [{ affectedRows: 1 }];
     });
@@ -144,5 +146,34 @@ describe('fulfilSalesOrderPartial', () => {
       shipmentQuantities: [{ itemId: 10, quantity: 11 }],
     })).rejects.toThrow('exceeds the outstanding quantity');
     expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('returns a structured warning before allowing stock to go negative', async () => {
+    quantityOnHand = 2;
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-short',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+    })).rejects.toMatchObject({
+      code: 'STOCK_SHORTFALL',
+      shortfalls: [{ itemId: 10, quantityOnHand: 2, requestedQuantity: 3, resultingQuantityOnHand: -1 }],
+    });
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('allows negative stock only after an explicit override', async () => {
+    quantityOnHand = 2;
+
+    await fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-short-confirmed',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+      allowNegativeStock: true,
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_on_hand = ?'),
+      [-1, 3, 'variant-1', 4],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });

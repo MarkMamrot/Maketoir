@@ -37,6 +37,9 @@ describe('ImsSORepo.update', () => {
       if (sql.includes('SELECT freight, discount')) {
         return [[{ freight: 0, discount: 0, tax_treatment: 'inc_tax' }]];
       }
+      if (sql.includes('SELECT qty_on_hand FROM ims_stock')) {
+        return [[{ qty_on_hand: 8 }]];
+      }
       return [{ affectedRows: 1 }];
     });
   });
@@ -78,6 +81,59 @@ describe('ImsSORepo.update', () => {
     }])).rejects.toThrow('Release this customer backorder');
     expect(connection.rollback).toHaveBeenCalledOnce();
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM ims_sales_order_items'))).toBe(false);
+  });
+
+  it('preserves fulfilled quantities by rejecting commercial line changes after shipment', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'fulfilled', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax' }]];
+      }
+      if (sql.includes('SELECT variant_id, qty_ordered, qty_fulfilled')) {
+        return [[{
+          variant_id: 'shipped-size', qty_ordered: 1, qty_fulfilled: 1,
+          unit_price: 59.95, discount_pct: 0, tax_rate: 0.1, notes: null,
+        }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(ImsSORepo.update(42, {}, [{
+      variant_id: 'shipped-size', qty_ordered: 1, unit_price: 59.95,
+      discount_pct: 0, tax_rate: 0.1, line_total: 59.95, notes: null,
+    }, {
+      variant_id: 'new-size', qty_ordered: 1, unit_price: 59.95,
+      discount_pct: 0, tax_rate: 0.1, line_total: 59.95, notes: null,
+    }])).rejects.toThrow('cannot be changed after any quantity has been fulfilled');
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM ims_sales_order_items'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('allows metadata edits after shipment without replacing line rows', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax' }]];
+      }
+      if (sql.includes('SELECT variant_id, qty_ordered, qty_fulfilled')) {
+        return [[{
+          variant_id: 'shipped-size', qty_ordered: 2, qty_fulfilled: 1,
+          unit_price: 59.95, discount_pct: 0, tax_rate: 0.1, notes: null,
+        }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.update(42, { notes: 'Updated delivery note' }, [{
+      variant_id: 'shipped-size', qty_ordered: 2, unit_price: 59.95,
+      discount_pct: 0, tax_rate: 0.1, line_total: 119.9, notes: null,
+    }]);
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_sales_orders SET notes = ?'),
+      ['Updated delivery note', 42],
+    );
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM ims_sales_order_items'))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });
 

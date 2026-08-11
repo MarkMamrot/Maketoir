@@ -4,6 +4,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfilment';
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 
 function responseStatus(message: string): number {
   if (message.includes('not found')) return 404;
@@ -36,6 +37,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       soId,
       operationKey: String(body.operationKey ?? ''),
       shipmentQuantities: Array.isArray(body.shipmentQuantities) ? body.shipmentQuantities : [],
+      allowNegativeStock: body.allowNegativeStock === true,
     });
 
     if (result.fulfilledVariantIds.length) {
@@ -46,6 +48,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
+    if (error instanceof StockShortfallError) {
+      return NextResponse.json({ error: error.message, code: error.code, shortfalls: error.shortfalls }, { status: 409 });
+    }
     const message = String(error?.message ?? 'Sales order fulfilment failed.');
     const status = responseStatus(message);
     if (status >= 500) {

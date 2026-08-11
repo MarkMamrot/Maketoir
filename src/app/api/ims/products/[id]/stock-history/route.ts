@@ -117,8 +117,8 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          cust.name AS customer_name,
          ps.local_id AS pos_sale_local_id,
          CASE
-           WHEN m.movement_type IN ('so_confirmed','so_committed')     THEN COALESCE(soi.qty, 0)
-           WHEN m.movement_type IN ('so_unconfirmed','so_uncommitted') THEN -COALESCE(soi.qty, 0)
+           WHEN m.movement_type IN ('so_confirmed','so_committed')     THEN COALESCE(NULLIF(m.qty_change, 0), COALESCE(soi.qty, 0) + COALESCE(sob.qty, 0), 0)
+           WHEN m.movement_type IN ('so_unconfirmed','so_uncommitted') THEN COALESCE(NULLIF(m.qty_change, 0), -(COALESCE(soi.qty, 0) + COALESCE(sob.qty, 0)), 0)
            WHEN m.movement_type = 'so_fulfilled'                        THEN m.qty_change
            ELSE 0
          END AS committed_change
@@ -137,6 +137,12 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          FROM ims_sales_order_items
          GROUP BY so_id, variant_id
        ) soi ON soi.so_id = m.reference_id AND soi.variant_id = m.variant_id AND m.reference_type = 'sales_order'
+       LEFT JOIN (
+         SELECT bl.source_so_id, boi.variant_id, SUM(bl.transferred_qty) AS qty
+         FROM ims_so_backorder_lines bl
+         JOIN ims_sales_order_items boi ON boi.id = bl.backorder_so_item_id
+         GROUP BY bl.source_so_id, boi.variant_id
+       ) sob ON sob.source_so_id = m.reference_id AND sob.variant_id = m.variant_id AND m.reference_type = 'sales_order'
        WHERE m.variant_id IN (${ph})
          AND m.created_at >= ?
        ORDER BY m.created_at DESC`,

@@ -21,6 +21,7 @@ vi.mock('@/lib/ims/xeroHooks', () => ({ triggerSOXeroSync: mockXeroSync }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReport }));
 
 import { POST } from '../route';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 
 function request(body: unknown): Request {
   return new Request('http://localhost/api/ims/sales-orders/42/fulfil', {
@@ -83,5 +84,21 @@ describe('POST sales order fulfilment', () => {
     expect(mockReport).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1', operation: 'partial_fulfilment',
     }));
+  });
+
+  it('returns structured stock shortfalls without reporting an operational failure', async () => {
+    mockFulfil.mockRejectedValue(new StockShortfallError([{
+      itemId: 10, variantId: 'variant-1', requestedQuantity: 3,
+      quantityOnHand: 2, resultingQuantityOnHand: -1,
+    }]));
+
+    const response = await POST(request({
+      operationKey: 'shipment-short', shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+    }), { params: { id: '42' } });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body).toMatchObject({ code: 'STOCK_SHORTFALL', shortfalls: [{ itemId: 10 }] });
+    expect(mockReport).not.toHaveBeenCalled();
   });
 });

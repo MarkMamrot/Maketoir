@@ -1,5 +1,6 @@
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { calculateBackorderSplit, nextBackorderNumber } from './domain';
+import { StockShortfallError } from '../orderResolution/stockShortfall';
 
 type FulfilQuantity = { itemId: number; quantity: number };
 
@@ -41,6 +42,7 @@ export async function splitCustomerBackorder(input: {
   operationKey: string;
   fulfilQuantities: FulfilQuantity[];
   verifiedDraftXeroId?: string | null;
+  allowNegativeStock?: boolean;
 }): Promise<CustomerBackorderSplitResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 191) throw new Error('A valid operation key is required.');
@@ -123,8 +125,15 @@ export async function splitCustomerBackorder(input: {
         `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ? FOR UPDATE`,
         [item.variant_id, so.location_id],
       );
-      if (Number(stockRows[0]?.qty_on_hand ?? 0) < split.actualQty) {
-        throw new Error(`Insufficient stock to fulfil sales order item ${item.id}.`);
+      const quantityOnHand = Number(stockRows[0]?.qty_on_hand ?? 0);
+      if (quantityOnHand < split.actualQty && !input.allowNegativeStock) {
+        throw new StockShortfallError([{
+          itemId: Number(item.id),
+          variantId: String(item.variant_id),
+          requestedQuantity: split.actualQty,
+          quantityOnHand,
+          resultingQuantityOnHand: quantityOnHand - split.actualQty,
+        }]);
       }
     }
 

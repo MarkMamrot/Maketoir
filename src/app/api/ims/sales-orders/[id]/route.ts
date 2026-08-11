@@ -59,6 +59,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     } else {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+      if (['partially_fulfilled', 'fulfilled'].includes(String(existing.status))) {
+        const lockedFields = ['customer_id', 'location_id', 'order_date', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'];
+        if (items !== undefined || lockedFields.some(field => soData[field] !== undefined)) {
+          return NextResponse.json({
+            success: false,
+            error: 'Customer, location, pricing, and order lines cannot be changed after any quantity has been fulfilled. Create a new sales order or process a return instead.',
+          }, { status: 409 });
+        }
+      }
       const hasXeroChanges = hasXeroVisibleOrderChanges(
         'sales_order', existing as unknown as Record<string, unknown>, soData, items,
       );
@@ -121,6 +130,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    const message = String(e?.message ?? 'Sales order update failed');
+    const isShippedEditConflict = message.includes('cannot be changed after any quantity has been fulfilled');
+    if (isShippedEditConflict) {
+      return NextResponse.json({ success: false, error: message }, { status: 409 });
+    }
     await reportRuntimeIssue({
       businessId,
       source: 'ims_sales_orders',
@@ -129,7 +143,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       error: e,
       reference: { type: 'sales_order', id: params.id },
     });
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

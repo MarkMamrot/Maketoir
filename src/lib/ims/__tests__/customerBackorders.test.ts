@@ -16,8 +16,11 @@ vi.mock('@/services/IMSMySQLService', () => ({
 import { splitCustomerBackorder } from '../backorders/customerBackorders';
 
 describe('splitCustomerBackorder', () => {
+  let quantityOnHand = 10;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    quantityOnHand = 10;
     let insertedItemId = 200;
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) {
@@ -45,11 +48,11 @@ describe('splitCustomerBackorder', () => {
           { id: 11, so_id: 42, variant_id: 'variant-2', qty_ordered: 1, unit_price: 22, discount_pct: 0, tax_rate: 0.1, notes: null },
         ]];
       }
-      if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: 10 }]];
+      if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: quantityOnHand }]];
       if (sql.includes('SELECT so_number FROM ims_sales_orders')) return [[]];
       if (sql.includes('INSERT INTO ims_sales_orders')) return [{ insertId: 99 }];
       if (sql.includes('INSERT INTO ims_sales_order_items')) return [{ insertId: ++insertedItemId }];
-      if (sql.includes('COALESCE(pv.avg_cost')) return [[{ qty_on_hand: 10, avg_cost: 4.5 }]];
+      if (sql.includes('COALESCE(pv.avg_cost')) return [[{ qty_on_hand: quantityOnHand, avg_cost: 4.5 }]];
       return [{ affectedRows: 1 }];
     });
   });
@@ -86,5 +89,34 @@ describe('splitCustomerBackorder', () => {
     expect(execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_so_backorder_lines'))).toHaveLength(2);
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicit override before a backorder split makes stock negative', async () => {
+    quantityOnHand = 1;
+
+    await expect(splitCustomerBackorder({
+      businessId: 'biz-1', soId: 42, operationKey: 'split-42-short',
+      fulfilQuantities: [{ itemId: 10, quantity: 2 }, { itemId: 11, quantity: 0 }],
+    })).rejects.toMatchObject({
+      code: 'STOCK_SHORTFALL',
+      shortfalls: [{ itemId: 10, quantityOnHand: 1, requestedQuantity: 2, resultingQuantityOnHand: -1 }],
+    });
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('allows a confirmed backorder split to make stock negative', async () => {
+    quantityOnHand = 1;
+
+    await splitCustomerBackorder({
+      businessId: 'biz-1', soId: 42, operationKey: 'split-42-short-confirmed',
+      fulfilQuantities: [{ itemId: 10, quantity: 2 }, { itemId: 11, quantity: 0 }],
+      allowNegativeStock: true,
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'),
+      [-1, 2, 'variant-1', 4],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });

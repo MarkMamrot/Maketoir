@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { StockShortfallError } from './stockShortfall';
 
 const QUANTITY_SCALE = 10_000;
 
@@ -22,6 +23,7 @@ export async function fulfilSalesOrderPartial(input: {
   soId: number;
   operationKey: string;
   shipmentQuantities: ShipmentQuantity[];
+  allowNegativeStock?: boolean;
 }): Promise<CustomerFulfilmentResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 191) throw new Error('A valid operation key is required.');
@@ -133,7 +135,15 @@ export async function fulfilSalesOrderPartial(input: {
       );
       const oldOnHand = Number(stock?.qty_on_hand ?? 0);
       const oldCommitted = Number(stock?.qty_committed ?? 0);
-      if (scaledQuantity(oldOnHand) < shipmentScaled) throw new Error(`Insufficient stock to ship item ${itemId}.`);
+      if (scaledQuantity(oldOnHand) < shipmentScaled && !input.allowNegativeStock) {
+        throw new StockShortfallError([{
+          itemId,
+          variantId: String(item.variant_id),
+          requestedQuantity: quantity,
+          quantityOnHand: oldOnHand,
+          resultingQuantityOnHand: oldOnHand - quantity,
+        }]);
+      }
       if (scaledQuantity(oldCommitted) < shipmentScaled) throw new Error(`Insufficient committed stock to ship item ${itemId}.`);
 
       const shipmentCost = Number(stock?.avg_cost ?? 0);

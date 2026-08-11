@@ -34,7 +34,7 @@ export function SalesOrderFulfilmentModal({
     return { totalOrdered, totalOutstanding };
   }, [items]);
 
-  async function submit() {
+  async function submit(allowNegativeStock = false, operationKey = crypto.randomUUID()) {
     setSaving(true);
     setError('');
     try {
@@ -48,9 +48,23 @@ export function SalesOrderFulfilmentModal({
       const response = await fetch(request.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operationKey: crypto.randomUUID(), ...request.body }),
+        body: JSON.stringify({ operationKey, allowNegativeStock, ...request.body }),
       });
       const data = await response.json();
+      if (response.status === 409 && data?.code === 'STOCK_SHORTFALL' && !allowNegativeStock) {
+        const lines = Array.isArray(data.shortfalls) ? data.shortfalls : [];
+        const detail = lines.map((line: any) => {
+          const item = items.find(candidate => Number(candidate.id) === Number(line.itemId));
+          return `${item?.sku || item?.product_name || `Line ${line.itemId}`}: ${line.quantityOnHand} on hand, ${line.requestedQuantity} requested, resulting SOH ${line.resultingQuantityOnHand}`;
+        }).join('\n');
+        const confirmed = window.confirm(
+          `Stock on hand is insufficient:\n\n${detail}\n\n` +
+          'Continuing will make stock on hand negative. Stocktake or adjust this stock as soon as possible.\n\n' +
+          'Continue and allow negative stock?',
+        );
+        if (confirmed) return submit(true, operationKey);
+        return;
+      }
       if (!response.ok || !data?.success) throw new Error(data?.error || 'Fulfilment failed.');
       await onResolved();
       onClose();

@@ -68,7 +68,7 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     expect(mockXeroUpdate).not.toHaveBeenCalled();
   });
 
-  it('allows Xero-visible edits to an unpaid Authorised invoice', async () => {
+  it('blocks Xero-visible edits after shipment before contacting Xero', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'fulfilled', customer_id: 3, xero_invoice_id: 'xero-invoice-1', items: [] });
     mockGetXeroInvoiceEditState.mockResolvedValue({
       status: 'AUTHORISED', amountPaid: 0, amountCredited: 0, documentDate: '2026-08-09',
@@ -79,9 +79,24 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
 
     const response = await PUT(financialRequest, params);
 
-    expect(response.status).toBe(200);
-    expect(mockUpdate).toHaveBeenCalled();
-    expect(mockXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
+    expect(response.status).toBe(409);
+    expect(mockGetXeroInvoiceEditState).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockXeroUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns a conflict without reporting when shipped commercial lines are changed', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'fulfilled', customer_id: 3, xero_invoice_id: null, items: [] });
+    const lineEditRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ variant_id: 'new-size', qty_ordered: 1, unit_price: 10 }] }),
+    });
+
+    const response = await PUT(lineEditRequest, params);
+
+    expect(response.status).toBe(409);
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 });
 

@@ -151,11 +151,12 @@ function effectiveRRP(v: any, today: string): number {
 }
 
 // Searchable variant picker for PO/SO line items
-function VariantSearch({ value, variants, onChange, style }: {
+function VariantSearch({ value, variants, onChange, style, disabled }: {
   value: string;
   variants: any[];
   onChange: (variant_id: string) => void;
   style?: React.CSSProperties;
+  disabled?: boolean;
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
@@ -186,6 +187,7 @@ function VariantSearch({ value, variants, onChange, style }: {
   }, []);
 
   function openDropdown() {
+    if (disabled) return;
     if (inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect();
       setDropPos({ top: rect.bottom + window.scrollY, left: rect.left + window.scrollX, width: Math.max(rect.width, 320) });
@@ -202,6 +204,7 @@ function VariantSearch({ value, variants, onChange, style }: {
         value={open ? query : displayLabel}
         title={!open && displayLabel ? displayLabel : undefined}
         placeholder="Search variant…"
+        disabled={disabled}
         onFocus={openDropdown}
         onChange={e => { setQuery(e.target.value); setOpen(true); }}
         style={{ ...inputStyle, fontSize: 12, width: '100%' }}
@@ -4836,11 +4839,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                     </button>
                   )}
                   onChange={(field, value) => setGenerated(current => current ? { ...current, [field]: value } : current)}
-                  onApplyField={field => {
-                    if (field === 'title') onApplyContent(generated.title || null, null, null);
-                    if (field === 'websiteDescription') onApplyContent(null, generated.websiteDescription || null, null);
-                    if (field === 'tags') onApplyContent(null, null, generated.tags || null);
-                  }}
                   footer={(
                     <div className="flex flex-wrap items-center gap-3 pt-1">
                       <button
@@ -4850,7 +4848,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                       >
                         {saving ? 'Saving…' : 'Apply All and Save'}
                       </button>
-                      <span className="text-xs text-gray-500">Apply and save all fields, or use Apply on each field above.</span>
+                      <span className="text-xs text-gray-500">Apply and save all generated fields.</span>
                       <button onClick={() => setGenerated(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-700">Discard</button>
                     </div>
                   )}
@@ -11515,6 +11513,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const shippedEditLocked = !!modal.edit && ['partially_fulfilled', 'fulfilled'].includes(String(modal.edit.status));
   const { settings } = useImsSettings();
   const load = useCallback(() => {
     setLoading(true);
@@ -11814,7 +11813,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       const resultingSoStatus = modal.edit?.status ?? 'draft';
       const items = lineItems.map(i => ({ ...i, tax_rate: soTaxTreatment === 'no_tax' ? 0 : i.tax_rate, line_total: lineTotal(i) }));
       if (modal.edit) {
-        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
+        const updateBody = shippedEditLocked
+          ? { customer_po_number: form.customer_po_number, notes: form.notes }
+          : { ...form, items };
+        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody) });
       } else {
         const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
         savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
@@ -12114,20 +12116,25 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.so_number}` : 'New Sales Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
+            {shippedEditLocked && (
+              <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(251,191,36,.45)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: 'var(--sv-text-main)', fontSize: 12 }}>
+                This order has shipped quantities. Customer, location, pricing, and line items are locked to preserve fulfilment and stock history. Customer PO and notes may still be updated.
+              </div>
+            )}
             <Row3>
               <Field label="Customer">
-                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle}>
+                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="">— None —</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
-              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
+              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} disabled={shippedEditLocked} /></Field>
             </Row3>
             <Row2>
               <Field label="Customer PO #"><input value={form.customer_po_number} onChange={sf('customer_po_number')} style={inputStyle} placeholder="Customer's PO reference" /></Field>
@@ -12135,12 +12142,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row2>
             <Row2>
               <Field label="Payment Terms">
-                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
+                <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle} disabled={shippedEditLocked}>
                   {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
                 </select>
               </Field>
               <Field label="Price Tier">
-                <select value={soPriceTier} onChange={handleSOPriceTierChange} style={inputStyle}>
+                <select value={soPriceTier} onChange={handleSOPriceTierChange} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="retail">Retail pricing</option>
                   <option value="wholesale">Wholesale pricing</option>
                 </select>
@@ -12148,7 +12155,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row2>
             <Row2>
               <Field label="Amounts Entered">
-                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle}>
+                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="ex_tax">Tax exclusive (tax added on top)</option>
                   <option value="inc_tax">Tax inclusive (tax already included)</option>
                   <option value="no_tax">No tax / zero-rated</option>
@@ -12159,7 +12166,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
-                {(form.customer_id || modal.edit) && (
+                {(form.customer_id || modal.edit) && !shippedEditLocked && (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                     <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
@@ -12183,19 +12190,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <tbody>
                     {lineItems.map((item, i) => (
                       <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                        <td style={{ padding: '4px 2px', width: 30 }}><button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button></td>
+                        <td style={{ padding: '4px 2px', width: 30 }}>{!shippedEditLocked && <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>}</td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
                             value={item.variant_id}
                             variants={variants}
                             onChange={vid => selectSOVariant(i, vid)}
+                            disabled={shippedEditLocked}
                           />
                         </td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} /></td>
-                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} /></td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
+                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" disabled={shippedEditLocked} /></td>
                         {soTaxTreatment !== 'no_tax' && (
-                          <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" /></td>
+                          <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" disabled={shippedEditLocked} /></td>
                         )}
                         <td style={{ padding: '4px 8px', width: 100, textAlign: 'right', color: 'var(--sv-text-main)', fontSize: 13 }}>{fmtCurrency(lineTotal(item))}</td>
                       </tr>
@@ -12213,11 +12221,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Discount (−)</span>
-                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} disabled={shippedEditLocked} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>
                     <span>Freight (+)</span>
-                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} disabled={shippedEditLocked} />
                   </div>
                   {soTaxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 8 }}>

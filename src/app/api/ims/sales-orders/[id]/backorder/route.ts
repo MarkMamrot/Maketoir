@@ -6,6 +6,7 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { triggerSOXeroSync } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -35,6 +36,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       operationKey: String(body.operationKey ?? ''),
       fulfilQuantities: Array.isArray(body.fulfilQuantities) ? body.fulfilQuantities : [],
       verifiedDraftXeroId: xeroInvoiceId,
+      allowNegativeStock: body.allowNegativeStock === true,
     });
 
     if (result.fulfilledVariantIds.length) {
@@ -43,6 +45,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     await triggerSOXeroSync(businessId, soId, 'fulfilled');
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
+    if (error instanceof StockShortfallError) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code, shortfalls: error.shortfalls }, { status: 409 });
+    }
     const message = String(error?.message ?? 'Customer backorder failed.');
     const isConflict = /cannot|only confirmed|payments|already linked|insufficient|required for every|at least one/i.test(message);
     if (!isConflict) {
