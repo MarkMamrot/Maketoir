@@ -202,3 +202,32 @@ describe('ImsPORepo.update', () => {
     expect(connection.commit).not.toHaveBeenCalled();
   });
 });
+
+describe('ImsPORepo.changeStatus lifecycle boundaries', () => {
+  it.each([
+    ['partially_received', 'confirmed'],
+    ['confirmed', 'complete'],
+  ] as const)('rejects %s to %s before changing stock, receipt lines, or status', async (from, to) => {
+    mockImsQuery.mockResolvedValue([]);
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('FROM ims_purchase_orders')) {
+        return [[{ id: 42, status: from, location_id: 4, business_id: 'biz-1', is_historical: 0 }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: from === 'partially_received' ? 2 : 0 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.changeStatus(42, to)).rejects.toThrow(`cannot change from ${from} to ${to}`);
+
+    const mutationSql = execute.mock.calls
+      .map(([sql]) => String(sql).trim())
+      .filter(sql => /^(UPDATE|INSERT|DELETE)/i.test(sql));
+    expect(mutationSql).toEqual([]);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+});

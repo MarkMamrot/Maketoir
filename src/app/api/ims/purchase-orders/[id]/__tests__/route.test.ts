@@ -54,6 +54,7 @@ vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliatio
 vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
 
 import { DELETE, GET, PUT } from '../route';
+import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 
 const params = { params: { id: '42' } };
 
@@ -159,6 +160,24 @@ describe('/api/ims/purchase-orders/[id]', () => {
       includeLandedCosts: true,
       includeFreight: false,
     });
+    expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('returns a structured conflict for a retired direct receipt transition', async () => {
+    mockChangeStatus.mockRejectedValue(new OrderLifecycleConflict(
+      'Purchase order cannot change from partially_received to confirmed.',
+    ));
+
+    const response = await PUT(putRequest({ status: 'confirmed' }), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Purchase order cannot change from partially_received to confirmed.',
+      code: 'order_lifecycle_conflict',
+    });
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
+    expect(mockTriggerPOXeroVoid).not.toHaveBeenCalled();
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 

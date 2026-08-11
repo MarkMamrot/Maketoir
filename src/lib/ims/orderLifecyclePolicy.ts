@@ -6,10 +6,10 @@ export type OrderStatus = POStatus | SOStatus;
 
 const PO_TRANSITIONS: Record<POStatus, readonly POStatus[]> = {
   draft: ['confirmed'],
-  confirmed: ['draft', 'complete', 'cancelled'],
-  partially_received: ['confirmed', 'complete', 'cancelled'],
+  confirmed: ['draft', 'cancelled'],
+  partially_received: [],
   backordered: ['confirmed', 'cancelled'],
-  complete: ['confirmed', 'cancelled'],
+  complete: ['cancelled'],
   cancelled: [],
 };
 
