@@ -35,6 +35,14 @@ import {
   hasMultiFilter,
   multiFilterParams,
 } from './views/reports/reportFilterHelpers';
+import {
+  getXeroHash,
+  getXeroWorkspaceSection,
+  isXeroHash,
+  parseXeroHash,
+  type XeroDestination,
+  type XeroWorkspaceSection,
+} from './views/xero/navigation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -15668,7 +15676,8 @@ function XeroView({
 }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
+  const [destination, setDestination] = useState<XeroDestination>(isAdvisor ? 'setup-ledger' : 'overview');
+  const [workspaceSection, setWorkspaceSection] = useState<XeroWorkspaceSection>(isAdvisor ? 'setup' : 'overview');
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -15683,6 +15692,29 @@ function XeroView({
   }, [businessId]);
 
   const getBusinessId = () => businessId;
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const hash = window.location.hash || '#xero';
+      if (!isXeroHash(hash)) return;
+      const parsed = parseXeroHash(hash);
+      setDestination(parsed);
+      setWorkspaceSection(getXeroWorkspaceSection(parsed));
+    };
+    syncFromHash();
+    window.addEventListener('popstate', syncFromHash);
+    window.addEventListener('hashchange', syncFromHash);
+    return () => {
+      window.removeEventListener('popstate', syncFromHash);
+      window.removeEventListener('hashchange', syncFromHash);
+    };
+  }, []);
+
+  const goToDestination = (next: XeroDestination) => {
+    setDestination(next);
+    setWorkspaceSection(getXeroWorkspaceSection(next));
+    window.history.pushState(window.history.state, '', getXeroHash(next));
+  };
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
@@ -15761,20 +15793,33 @@ function XeroView({
         </div>
       ) : (
         <>
-          {/* Tab bar */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
-            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
-            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
-            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
-            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
-            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <button style={tabBtnStyle(workspaceSection === 'overview')} onClick={() => goToDestination('overview')}>Overview</button>
+            <button style={tabBtnStyle(workspaceSection === 'setup')} onClick={() => goToDestination('setup-automation')}>Setup</button>
+            <button style={tabBtnStyle(workspaceSection === 'activity')} onClick={() => goToDestination('activity-history')}>Activity</button>
           </div>
 
-          {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
-          {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
-          {tab === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
-          {tab === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
-          {tab === 'sync' && (
+          {workspaceSection === 'setup' && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+              <button style={tabBtnStyle(destination === 'setup-automation')} onClick={() => goToDestination('setup-automation')}>Automation</button>
+              <button style={tabBtnStyle(destination === 'setup-ledger')} onClick={() => goToDestination('setup-ledger')}>Accounts &amp; Tracking</button>
+              <button style={tabBtnStyle(destination === 'setup-payments')} onClick={() => goToDestination('setup-payments')}>Payment Routing</button>
+            </div>
+          )}
+
+          {workspaceSection === 'activity' && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+              <button style={tabBtnStyle(destination === 'activity-history')} onClick={() => goToDestination('activity-history')}>Sync History</button>
+              <button style={tabBtnStyle(destination === 'activity-cogs')} onClick={() => goToDestination('activity-cogs')}>COGS Reconciliation</button>
+              <button style={tabBtnStyle(destination === 'activity-payouts')} onClick={() => goToDestination('activity-payouts')}>Shopify Payouts</button>
+            </div>
+          )}
+
+          {(destination === 'overview' || destination === 'setup-automation') && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {(destination === 'setup-ledger' || destination === 'setup-payments') && <XeroMappingTab getBusinessId={getBusinessId} />}
+          {destination === 'activity-cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
+          {destination === 'activity-payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
+          {destination === 'activity-history' && (
             <XeroSyncTab
               getBusinessId={getBusinessId}
               onOpenPurchaseOrder={onOpenPurchaseOrder}
@@ -19126,6 +19171,7 @@ export default function ImsPage() {
         setSettingsOpen(true);
         return 'dashboard' as ImsView;
       }
+      if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
@@ -19134,8 +19180,13 @@ export default function ImsPage() {
     if (initial !== 'dashboard' || window.location.hash) setViewSafe(initial);
     setHasRestoredInitialHash(true);
     const onPop = () => setViewSafe(readHash());
+    const onHash = () => setViewSafe(readHash());
     window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    window.addEventListener('hashchange', onHash);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('hashchange', onHash);
+    };
   }, [VALID_VIEWS]);
 
   // Keep hash in sync whenever the active view changes.
@@ -23137,7 +23188,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
   const [taxSaving, setTaxSaving] = useState(false);
-  const [xeroSettingsTab, setXeroSettingsTab] = useState<'setup' | 'mapping'>('setup');
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
@@ -23375,110 +23425,48 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Xero ── */}
         {active === 'xero' && (
           <div style={{ padding: 32, maxWidth: 980 }}>
-            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -&gt; Xero.
+              Xero configuration lives in Integrations -&gt; Xero. This panel controls advisor permissions and quick links.
             </p>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              <button
-                onClick={() => setXeroSettingsTab('setup')}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  border: '1px solid var(--sv-etch)',
-                  background: xeroSettingsTab === 'setup' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                  color: xeroSettingsTab === 'setup' ? '#fff' : 'var(--sv-text-main)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Accounting Setup
-              </button>
-              <button
-                onClick={() => setXeroSettingsTab('mapping')}
-                style={{
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  border: '1px solid var(--sv-etch)',
-                  background: xeroSettingsTab === 'mapping' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
-                  color: xeroSettingsTab === 'mapping' ? '#fff' : 'var(--sv-text-main)',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Ledger Mapping
-              </button>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                Advisor Access
+                <HintBadge text="When enabled, Advisor users can only access Xero account and tracking mapping screens." />
+              </h3>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={xeroAdvisorEnabled}
+                  disabled={xeroAdvisorSaving}
+                  onChange={e => saveXeroAdvisorAccess(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'inherit' }}
+                />
+                <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                  {xeroAdvisorEnabled
+                    ? 'Enabled - Advisors can manage account/tracking mappings'
+                    : 'Disabled - Advisors cannot access Xero mappings'}
+                </span>
+                {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
+              </label>
             </div>
 
-            {xeroSettingsTab === 'setup' ? (
-              <>
-                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
-                  <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
-                    Advisor Access
-                    <HintBadge text="When enabled, Advisor users can only access Xero mapping screens. They cannot run sync actions or change connection controls." />
-                  </h3>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={xeroAdvisorEnabled}
-                      disabled={xeroAdvisorSaving}
-                      onChange={e => saveXeroAdvisorAccess(e.target.checked)}
-                      style={{ width: 16, height: 16, cursor: 'inherit' }}
-                    />
-                    <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-                      {xeroAdvisorEnabled
-                        ? 'Enabled - Advisors can manage account/tracking mappings'
-                        : 'Disabled - Advisors cannot access Xero mappings'}
-                    </span>
-                    {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
-                  </label>
-                </div>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+              <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Quick Links</h3>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('overview'); }} style={btnStyle('ghost', 'sm')}>Open Xero Overview</button>
+                <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('setup-ledger'); }} style={btnStyle('ghost', 'sm')}>Open Accounts &amp; Tracking</button>
+                <button type="button" onClick={() => { onClose(); window.location.hash = getXeroHash('activity-history'); }} style={btnStyle('ghost', 'sm')}>Open Sync History</button>
+              </div>
+            </div>
 
-                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
-                    Tax Type Defaults
-                    <HintBadge text="These are raw Xero TaxType values sent on lines. Typical AU values: OUTPUT, INPUT, NONE." />
-                  </h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
-                    <div>
-                      <label style={labelStyle}>Sales (ACCREC)</label>
-                      <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_sales'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_sales: e.target.value }))}
-                        placeholder="e.g. OUTPUT"
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Purchases (ACCPAY)</label>
-                      <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_purchases'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_purchases: e.target.value }))}
-                        placeholder="e.g. INPUT"
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Tax-Exempt / Zero-Rated</label>
-                      <input
-                        style={inputStyle}
-                        value={taxDraft['xero_tax_type_exempt'] ?? ''}
-                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_exempt: e.target.value }))}
-                        placeholder="e.g. NONE"
-                      />
-                    </div>
-                  </div>
-                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>
-                    {taxSaving ? 'Saving…' : 'Save Xero Settings'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <XeroMappingTab getBusinessId={() => businessId} />
-            )}
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Australian GST Reference</h3>
+              <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+                Sales are typically GST-inclusive and sent to Xero with line-level tax codes. Confirm your Sales tax type (commonly OUTPUT), Purchases tax type (commonly INPUT), and tax-exempt type (commonly NONE) in Xero Overview before posting.
+              </div>
+            </div>
           </div>
         )}
 
