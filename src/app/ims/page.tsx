@@ -18,8 +18,10 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { BackordersView } from './views/backorders/BackordersView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
+import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import {
   EMPTY_MULTI,
@@ -39,10 +41,10 @@ import {
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -63,6 +65,7 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'backorders',       label: 'Backorders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
     { id: 'smart-device-receive', label: 'Smart Device Receive' },
@@ -18937,6 +18940,9 @@ export default function ImsPage() {
   const [advisorXeroMappingEnabled, setAdvisorXeroMappingEnabled] = useState(false);
   const isAdvisor = user?.tier === 'Advisor';
   const [view, setView] = useState<ImsView>('dashboard');
+  const setViewSafe = useCallback((nextView: any) => {
+    setView(nextView as ImsView);
+  }, []);
   const [hasRestoredInitialHash, setHasRestoredInitialHash] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -19029,10 +19035,10 @@ export default function ImsPage() {
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
-    'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
+    'purchase-orders','sales-orders','backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch','report-sales-search',
+    'reports','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -19053,9 +19059,9 @@ export default function ImsPage() {
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
-    if (initial !== 'dashboard' || window.location.hash) setView(initial);
+    if (initial !== 'dashboard' || window.location.hash) setViewSafe(initial);
     setHasRestoredInitialHash(true);
-    const onPop = () => setView(readHash());
+    const onPop = () => setViewSafe(readHash());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, [VALID_VIEWS]);
@@ -19191,7 +19197,7 @@ export default function ImsPage() {
         <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
           <span style={{ fontWeight: 700 }}>⚠ {xeroQueuedCount} order{xeroQueuedCount !== 1 ? 's' : ''} queued for Xero sync</span>
           <button
-            onClick={() => { setView('xero'); }}
+            onClick={() => { setViewSafe('xero'); }}
             style={{ background: 'none', border: '1px solid rgba(251,191,36,.4)', borderRadius: 4, cursor: 'pointer', padding: '2px 10px', fontSize: 11, color: '#fbbf24' }}
           >
             View in Integrations →
@@ -19479,7 +19485,7 @@ export default function ImsPage() {
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setView(v); }} />
+        <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setViewSafe(v); }} />
         <main style={{ flex: 1, overflow: 'auto', padding: 28 }}>
           <MainSections
             view={view}
@@ -19493,7 +19499,7 @@ export default function ImsPage() {
             pendingOpenPosSale={pendingOpenPosSale}
             pendingOpenPosDay={pendingOpenPosDay}
             cnPrefill={cnPrefill}
-            setView={setView}
+            setView={setViewSafe}
             setSettingsSection={setSettingsSection}
             setSettingsOpen={setSettingsOpen}
             setPendingOpenPO={setPendingOpenPO}
@@ -19510,6 +19516,7 @@ export default function ImsPage() {
             LocationsView={LocationsView}
             PurchaseOrdersView={PurchaseOrdersView}
             SalesOrdersView={SalesOrdersView}
+            BackordersView={BackordersView}
             CreditNotesView={CreditNotesView}
             SupplierCreditNotesView={SupplierCreditNotesView}
             BranchTransfersView={BranchTransfersView}
@@ -19521,6 +19528,7 @@ export default function ImsPage() {
             StocktakesView={StocktakesView}
             ReportsView={ReportsView}
             SalesByBranchView={SalesByBranchView}
+            SalesSummaryView={SalesSummaryView}
             SalesSearchView={SalesSearchView}
             InventoryValuationView={InventoryValuationView}
             ProductMarginView={ProductMarginView}
