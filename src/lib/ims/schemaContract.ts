@@ -26,6 +26,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_sales_orders',
   'ims_sales_order_items',
   'ims_so_fulfilment_operations',
+  'ims_po_receive_operations',
   'ims_order_amendment_operations',
   'ims_order_amendment_lines',
   'ims_so_shortfall_resolutions',

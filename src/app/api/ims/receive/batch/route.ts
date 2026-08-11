@@ -5,7 +5,7 @@ import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   computeLandedCostPerUnit,
   computeReceivedUnitCostAud,
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
       stock_updates = [],
       mark_po_received = false,
       create_backorder_po = false,
+      operation_key,
     } = body as {
       po_id: number;
       location_id: number;
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
       stock_updates: StockUpdate[];
       mark_po_received?: boolean;
       create_backorder_po?: boolean;
+      operation_key?: string;
     };
 
     if (!po_id || !location_id) {
@@ -65,9 +67,49 @@ export async function POST(req: Request) {
 
     const pool = getIMSPool();
     const conn = await pool.getConnection();
+    const operationKey = typeof operation_key === 'string' && operation_key.trim() ? operation_key.trim() : randomUUID();
+    const requestHash = createHash('sha256').update(JSON.stringify({
+      po_id,
+      location_id,
+      received_items,
+      product_updates,
+      stock_updates,
+      mark_po_received: Boolean(mark_po_received),
+      create_backorder_po: Boolean(create_backorder_po),
+    })).digest('hex');
 
     try {
       await conn.beginTransaction();
+
+      await conn.execute(
+        `INSERT IGNORE INTO ims_po_receive_operations
+          (business_id, operation_key, request_hash, po_id, status, request_json)
+         VALUES (?, ?, ?, ?, 'processing', ?)`,
+        [businessId, operationKey, requestHash, po_id, JSON.stringify({ received_items, mark_po_received, create_backorder_po })],
+      );
+      const [[receiveOperation]] = await conn.execute<any[]>(
+        `SELECT request_hash, status, response_json
+           FROM ims_po_receive_operations
+          WHERE business_id = ? AND operation_key = ?
+          FOR UPDATE`,
+        [businessId, operationKey],
+      );
+      if (!receiveOperation || String(receiveOperation.request_hash) !== requestHash) {
+        await conn.rollback();
+        return NextResponse.json({ error: 'This receive operation key was already used with different quantities or options.' }, { status: 409 });
+      }
+      if (receiveOperation.status === 'complete') {
+        const replayedResponse = typeof receiveOperation.response_json === 'string'
+          ? JSON.parse(receiveOperation.response_json)
+          : receiveOperation.response_json;
+        await conn.commit();
+        const receivedVariantIds = received_items.map(i => i.variant_id).filter(Boolean);
+        if (receivedVariantIds.length > 0) refreshVariantCache(receivedVariantIds).catch(() => {});
+        if (replayedResponse?.newStatus === 'complete') {
+          await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve replay failed:', err));
+        }
+        return NextResponse.json({ ...replayedResponse, replayed: true });
+      }
 
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
@@ -401,7 +443,7 @@ export async function POST(req: Request) {
           // Insert shortfall items into the backorder PO
           let bkSubtotal = 0;
           let bkTax = 0;
-          const operationKey = createHash('sha256')
+          const backorderOperationKey = createHash('sha256')
             .update(`${businessId}|po-backorder|${po_id}|${shortfallItems.map((item: any) => `${item.id}:${item.qty_received}`).join('|')}`)
             .digest('hex');
           for (const sf of shortfallItems) {
@@ -436,7 +478,7 @@ export async function POST(req: Request) {
               `INSERT INTO ims_po_backorder_lines
                 (business_id, operation_key, source_po_id, source_po_item_id, backorder_po_id, backorder_po_item_id, transferred_qty)
                VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [businessId, operationKey, po_id, origItem.id, backorderPoId, backorderItemResult.insertId, sf.shortfall],
+              [businessId, backorderOperationKey, po_id, origItem.id, backorderPoId, backorderItemResult.insertId, sf.shortfall],
             );
           }
           // Update backorder PO totals
@@ -485,21 +527,7 @@ export async function POST(req: Request) {
         }
       }
 
-      await conn.commit();
-
-      // ─── 6. Post-commit side effects ──────────────────────────────────────
-      // Refresh variant cache for received items
-      const receivedVariantIds = received_items.map(i => i.variant_id).filter(Boolean);
-      if (receivedVariantIds.length > 0) {
-        refreshVariantCache(receivedVariantIds).catch(() => {});
-      }
-
-      // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
-      if (newStatus === 'complete') {
-        await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve failed:', err));
-      }
-
-      return NextResponse.json({
+      const response = {
         success: true,
         po_id,
         newStatus,
@@ -514,7 +542,28 @@ export async function POST(req: Request) {
         message: newStatus === 'complete'
           ? `PO received. ${shortfallItems.length > 0 ? `${shortfallItems.length} items were short.` : 'All items fully received.'}`
           : `Progress saved — ${shortfallItems.length} items still outstanding.`,
-      });
+      };
+      await conn.execute(
+        `UPDATE ims_po_receive_operations
+            SET status = 'complete', response_json = ?, completed_at = NOW()
+          WHERE business_id = ? AND operation_key = ?`,
+        [JSON.stringify(response), businessId, operationKey],
+      );
+      await conn.commit();
+
+      // ─── 6. Post-commit side effects ──────────────────────────────────────
+      // Refresh variant cache for received items
+      const receivedVariantIds = received_items.map(i => i.variant_id).filter(Boolean);
+      if (receivedVariantIds.length > 0) {
+        refreshVariantCache(receivedVariantIds).catch(() => {});
+      }
+
+      // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
+      if (newStatus === 'complete') {
+        await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve failed:', err));
+      }
+
+      return NextResponse.json(response);
     } finally {
       conn.release();
     }

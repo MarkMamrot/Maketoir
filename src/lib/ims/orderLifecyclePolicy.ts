@@ -76,3 +76,28 @@ export function buildOrderStatusOperationKey(
   const revision = String(updatedAt ?? '').trim() || 'unversioned';
   return `${kind}:${orderId}:status:${status}:revision:${revision}`;
 }
+
+export async function buildPurchaseOrderReceiveOperationKey(
+  orderId: number,
+  updatedAt: string | null | undefined,
+  payload: unknown,
+): Promise<string> {
+  const revision = String(updatedAt ?? '').trim() || 'unversioned';
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  const requestHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  return `purchase_order:${orderId}:receive:revision:${revision}:request:${requestHash}`;
+}
+
+export async function buildOrderEditOperationKey(
+  kind: OrderKind,
+  orderId: number,
+  updatedAt: string | null | undefined,
+  payload: unknown,
+): Promise<string> {
+  const revision = String(updatedAt ?? '').trim() || 'unversioned';
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  const requestHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${kind}:${orderId}:edit:revision:${revision}:request:${requestHash}`;
+}

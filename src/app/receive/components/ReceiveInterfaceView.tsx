@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import BarcodeScanner from './BarcodeScanner';
+import { buildPurchaseOrderReceiveOperationKey } from '@/lib/ims/orderLifecyclePolicy';
 
 interface PO {
   id: number;
@@ -74,6 +75,7 @@ export default function ReceiveInterfaceView({
   const [poItemsLoading, setPoItemsLoading] = useState(false);
   const [poItemsError, setPoItemsError] = useState<string | null>(null);
   const [poLocationId, setPoLocationId] = useState<number>(1);
+  const [poRevision, setPoRevision] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [shortfallDialog, setShortfallDialog] = useState<{ items: any[]; creatingBackorder: boolean } | null>(null);
@@ -89,6 +91,7 @@ export default function ReceiveInterfaceView({
         const fullPo = data?.data;
         setPoItems(fullPo?.items || []);
         setPoLocationId(Number(fullPo?.location_id) || 1);
+        setPoRevision(fullPo?.updated_at ?? null);
       } catch (err: any) {
         setPoItemsError(err?.message || 'Could not load PO products');
       } finally {
@@ -224,11 +227,12 @@ export default function ReceiveInterfaceView({
         mark_po_received: markReceived,
         create_backorder_po: createBackorderPo,
       };
+      const operationKey = await buildPurchaseOrderReceiveOperationKey(po.id, poRevision, payload);
 
       const res = await fetch('/api/ims/receive/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, operation_key: operationKey }),
       });
 
       const data = await res.json();

@@ -86,12 +86,28 @@ const TABLE_DDLS = [
     request_hash CHAR(64) NOT NULL,
     so_id INT NOT NULL,
     status ENUM('processing','complete') NOT NULL DEFAULT 'processing',
+    request_json JSON NULL,
     response_json JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME NULL,
     UNIQUE KEY uq_so_fulfilment_operation (business_id, operation_key),
     INDEX idx_so_fulfilment_order (business_id, so_id, created_at),
     CONSTRAINT fk_so_fulfilment_order FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL,
+    po_id INT NOT NULL,
+    status ENUM('processing','complete') NOT NULL DEFAULT 'processing',
+    request_json JSON NULL,
+    response_json JSON NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    UNIQUE KEY uq_po_receive_operation (business_id, operation_key),
+    INDEX idx_po_receive_order (business_id, po_id, created_at),
+    CONSTRAINT fk_po_receive_order FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_backorder_merges (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -594,6 +610,8 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_so_fulfilment_operations', 'request_json', 'JSON NULL AFTER status'],
+  ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],

@@ -26,7 +26,7 @@ import { SalesSearchView as SalesSearchViewComponent } from './views/reports/Sal
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
-import { buildOrderStatusOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import {
   EMPTY_MULTI,
@@ -8347,7 +8347,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs, operationKey: crypto.randomUUID(), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
+        const editPayload = { ...form, items, landed_costs };
+        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editPayload, operationKey: await buildOrderEditOperationKey('purchase_order', modal.edit.id, modal.edit.updated_at, editPayload), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
         // Also record any receiving deltas and let the batch transaction own final status.
         if (isReceiving) {
           const effectiveQtys = receiveQtysOverride ?? receiveQtys;
@@ -8369,14 +8370,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             return;
           }
           if (receivePlan.shouldCallBatch) {
+            const receivePayload = {
+              po_id: modal.edit.id,
+              location_id: modal.edit.location_id,
+              received_items: receivePlan.receivedItems,
+              mark_po_received: receivePlan.markPoReceived,
+              create_backorder_po: receivePlan.createBackorderPo,
+            };
             await apiFetch('/api/ims/receive/batch', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                po_id: modal.edit.id,
-                location_id: modal.edit.location_id,
-                received_items: receivePlan.receivedItems,
-                mark_po_received: receivePlan.markPoReceived,
-                create_backorder_po: receivePlan.createBackorderPo,
+                ...receivePayload,
+                operation_key: await buildPurchaseOrderReceiveOperationKey(modal.edit.id, modal.edit.updated_at, receivePayload),
               }),
             });
           }
@@ -9342,12 +9347,14 @@ function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
 
   return (
     <div style={{ marginTop: 20, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Change History</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Activity History</div>
       {entries.map(entry => {
+        const isAmendment = !entry.activityType || entry.activityType === 'amendment';
         const statusChanged = String(entry.previousStatus) !== String(entry.resultingStatus);
         const timestamp = entry.completedAt ?? entry.createdAt;
         const lines = Array.isArray(entry.lines) ? entry.lines : [];
         const fields = Array.isArray(entry.changedFields) ? entry.changedFields : [];
+        const details = Array.isArray(entry.details) ? entry.details : [];
         const added = lines.filter((line: any) => line.changeType === 'added').length;
         const removed = lines.filter((line: any) => line.changeType === 'removed').length;
         const updated = lines.filter((line: any) => line.changeType === 'updated').length;
@@ -9357,24 +9364,29 @@ function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
           updated ? `${updated} updated` : '',
         ].filter(Boolean).join(', ');
         return (
-          <div key={entry.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
+          <div key={entry.entryKey ?? entry.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto', gap: 12 }}>
               <div>
                 <div style={{ color: 'var(--sv-text)', fontWeight: 600 }}>
-                  {statusChanged ? `${label(entry.previousStatus)} to ${label(entry.resultingStatus)}` : 'Order details edited'}
+                  {isAmendment
+                    ? statusChanged ? `${label(entry.previousStatus)} to ${label(entry.resultingStatus)}` : 'Order details edited'
+                    : entry.title || 'Order activity'}
                 </div>
                 <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>
-                  {entry.actorName || 'System'} · Operation #{entry.id}
-                  {lineSummary ? ` · ${lineSummary}` : Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} lines changed` : ''}
+                  {isAmendment ? `${entry.actorName || 'System'} · Operation #${entry.id}` : entry.summary || `Operation #${entry.id}`}
+                  {isAmendment && (lineSummary ? ` · ${lineSummary}` : Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} lines changed` : '')}
+                  {!isAmendment && entry.state ? ` · ${label(entry.state)}` : ''}
                 </div>
               </div>
               <div style={{ color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {timestamp ? new Date(timestamp).toLocaleString() : '—'}
               </div>
             </div>
-            {(fields.length > 0 || lines.length > 0) && (
+            {(fields.length > 0 || lines.length > 0 || details.length > 0) && (
               <details style={{ marginTop: 6 }}>
-                <summary style={{ color: 'var(--sv-accent)', cursor: 'pointer', fontWeight: 600 }}>View changes</summary>
+                <summary style={{ color: 'var(--sv-accent)', cursor: 'pointer', fontWeight: 600 }}>
+                  {isAmendment ? 'View changes' : 'View details'}
+                </summary>
                 <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: '2px solid var(--sv-etch)', color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
                   {fields.length > 0 && <div>Fields: {fields.map(fieldLabel).join(', ')}</div>}
                   {lines.map((line: any) => (
@@ -9387,6 +9399,7 @@ function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
                           : `${line.previousQuantity ?? '—'} to ${line.resultingQuantity ?? '—'}`}
                     </div>
                   ))}
+                  {details.map((detail: string, index: number) => <div key={`${entry.entryKey ?? entry.id}:detail:${index}`}>{detail}</div>)}
                 </div>
               </details>
             )}
@@ -24621,11 +24634,12 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <p style={p}>Draft, Submitted, and unpaid/uncredited/unlocked Authorised Xero bills update in place. Paid, credited, locked, terminal, or unverifiable bills require the correction workflow.</p>
 
-        <h3 style={h3}>Change History</h3>
-        <p style={p}>The order modal lists the newest 25 completed edits and status changes. Select <strong>View changes</strong> to see which header fields changed and each added, removed, or updated line without exposing internal audit data.</p>
+        <h3 style={h3}>Activity History</h3>
+        <p style={p}>The order modal lists the newest 25 edits, status changes, receipts, and outstanding-quantity resolutions. Select <strong>View changes</strong> for amendment detail or <strong>View details</strong> for received quantities. Internal audit data is never displayed.</p>
         <ul style={ul}>
           <li><strong>Example: red reduced from 5 to 3</strong> — the summary says one line updated; the detail shows the red variant quantity changing from 5 to 3.</li>
           <li><strong>Example: blue quantity 2 added</strong> — the summary says one line added; the detail shows the blue variant and resulting quantity 2.</li>
+          <li><strong>Example: a receive response is lost</strong> — retrying the same saved quantities returns the completed result without adding stock or movements twice.</li>
         </ul>
 
         <h3 style={h3}>Partial receives &amp; backorder POs</h3>
@@ -24676,8 +24690,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Example: move the order to another location</strong> — commitments are released at the old location and added at the new location in one transaction.</li>
           <li><strong>Example: the order changed in another browser</strong> — the stale save is rejected and you are asked to refresh.</li>
         </ul>
-        <h3 style={h3}>Change History</h3>
-        <p style={p}>The order modal lists the newest 25 completed edits and status changes. Select <strong>View changes</strong> to see changed fields and line quantity changes. For example, changing 5 red to 3 red plus 2 blue appears as one updated red line and one added blue line.</p>
+        <h3 style={h3}>Activity History</h3>
+        <p style={p}>The order modal lists the newest 25 edits, status changes, shipments, and outstanding-quantity resolutions. Select <strong>View changes</strong> for amendments or <strong>View details</strong> for shipped quantities. For example, shipping 3 units from line 17 appears as <em>Line #17: shipped 3</em>.</p>
         <h3 style={h3}>After goods have shipped</h3>
         <p style={p}>Shipped line IDs, quantities, costs, and movements are preserved. Use <strong>Continue Fulfilment</strong> or <strong>Resolve Outstanding</strong> for a partial SO. A Completed SO is corrected with <strong>Return / Credit</strong> and, when needed, a replacement SO; it is not reopened or unfulfilled.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>

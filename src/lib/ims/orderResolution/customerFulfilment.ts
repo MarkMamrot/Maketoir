@@ -49,9 +49,9 @@ export async function fulfilSalesOrderPartial(input: {
     await conn.beginTransaction();
     await conn.execute(
       `INSERT IGNORE INTO ims_so_fulfilment_operations
-        (business_id, operation_key, request_hash, so_id, status)
-       VALUES (?, ?, ?, ?, 'processing')`,
-      [input.businessId, operationKey, requestHash, input.soId],
+        (business_id, operation_key, request_hash, so_id, status, request_json)
+       VALUES (?, ?, ?, ?, 'processing', ?)`,
+      [input.businessId, operationKey, requestHash, input.soId, JSON.stringify({ shipmentQuantities: input.shipmentQuantities })],
     );
     const [[operation]] = await conn.execute<any[]>(
       `SELECT so_id, request_hash, status, response_json

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   assertAllowedPOStatusTransition,
   assertAllowedSOStatusTransition,
+  buildOrderEditOperationKey,
+  buildPurchaseOrderReceiveOperationKey,
   buildOrderStatusOperationKey,
   getOrderStatusLabel,
   getPhysicalCompletionLabel,
@@ -46,5 +48,21 @@ describe('order lifecycle policy', () => {
     expect(buildOrderStatusOperationKey('purchase_order', 42, 'cancelled', '2026-08-11T10:00:00.000Z')).toBe(first);
     expect(buildOrderStatusOperationKey('purchase_order', 42, 'confirmed', '2026-08-11T10:00:00.000Z')).not.toBe(first);
     expect(buildOrderStatusOperationKey('purchase_order', 42, 'cancelled', '2026-08-11T11:00:00.000Z')).not.toBe(first);
+  });
+
+  it('builds stable receive keys that change with payload or revision', async () => {
+    const payload = { received_items: [{ variant_id: 'red', qty_received: 2 }], mark_po_received: false };
+    const first = await buildPurchaseOrderReceiveOperationKey(42, '2026-08-11T10:00:00.000Z', payload);
+    expect(await buildPurchaseOrderReceiveOperationKey(42, '2026-08-11T10:00:00.000Z', payload)).toBe(first);
+    expect(await buildPurchaseOrderReceiveOperationKey(42, '2026-08-11T10:00:00.000Z', { ...payload, mark_po_received: true })).not.toBe(first);
+    expect(await buildPurchaseOrderReceiveOperationKey(42, '2026-08-11T11:00:00.000Z', payload)).not.toBe(first);
+  });
+
+  it('builds stable edit keys that change with payload or revision', async () => {
+    const payload = { notes: 'First', items: [{ id: 7, qty_ordered: 2 }] };
+    const first = await buildOrderEditOperationKey('purchase_order', 42, 'revision-1', payload);
+    expect(await buildOrderEditOperationKey('purchase_order', 42, 'revision-1', payload)).toBe(first);
+    expect(await buildOrderEditOperationKey('purchase_order', 42, 'revision-1', { ...payload, notes: 'Second' })).not.toBe(first);
+    expect(await buildOrderEditOperationKey('purchase_order', 42, 'revision-2', payload)).not.toBe(first);
   });
 });

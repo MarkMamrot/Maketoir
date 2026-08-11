@@ -54,9 +54,29 @@ function buildFakeConnection(state: {
   const commit = vi.fn(async () => {});
   const rollback = vi.fn(async () => {});
   const release = vi.fn(() => {});
+  const receiveOperations = new Map<string, Row>();
 
   const execute = vi.fn(async (sql: string, params: any[] = []) => {
     const s = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    if (s.startsWith('insert ignore into ims_po_receive_operations')) {
+      const [businessId, operationKey, requestHash, poId] = params;
+      const key = `${businessId}|${operationKey}`;
+      if (!receiveOperations.has(key)) receiveOperations.set(key, { request_hash: requestHash, po_id: poId, status: 'processing', response_json: null });
+      return [{ affectedRows: 1 }];
+    }
+
+    if (s.includes('from ims_po_receive_operations') && s.includes('for update')) {
+      const [businessId, operationKey] = params;
+      return [[receiveOperations.get(`${businessId}|${operationKey}`)]];
+    }
+
+    if (s.startsWith("update ims_po_receive_operations set status = 'complete'")) {
+      const [responseJson, businessId, operationKey] = params;
+      const operation = receiveOperations.get(`${businessId}|${operationKey}`);
+      if (operation) Object.assign(operation, { status: 'complete', response_json: responseJson });
+      return [{ affectedRows: operation ? 1 : 0 }];
+    }
 
     if (s.includes('from ims_purchase_orders where id = ? for update')) {
       return [[state.po]];
@@ -284,6 +304,37 @@ describe('POST /api/ims/receive/batch', () => {
     expect(state.movements[0].unit_cost).toBeCloseTo(18, 8);
 
     expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 11, 'complete');
+  });
+
+  it('replays a completed receive operation without applying stock twice', async () => {
+    const state = {
+      po: { id: 12, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0 },
+      settings: [],
+      items: [{ id: 102, po_id: 12, variant_id: 'v-2', qty_ordered: 2, qty_received: 0, unit_cost: 5, tax_rate: 0.1 }],
+      stockByVariant: new Map<string, Row>([['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2, avg_cost: 0 }]]),
+      landedRows: [],
+      paymentAgg: { tot_foreign: 0, tot_local: 0 },
+      movements: [] as Row[],
+      variantAvgById: new Map<string, number>([['v-2', 0]]),
+    };
+    const connection = buildFakeConnection(state);
+    mockGetConnection.mockResolvedValue(connection);
+    const payload = {
+      po_id: 12,
+      location_id: 4,
+      received_items: [{ variant_id: 'v-2', qty_received: 2 }],
+      mark_po_received: true,
+      operation_key: 'receive-12-revision-1',
+    };
+
+    const first = await POST(makeRequest(payload));
+    const second = await POST(makeRequest(payload));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ success: true, replayed: true, newStatus: 'complete' });
+    expect(state.stockByVariant.get('v-2|4')?.qty_on_hand).toBe(2);
+    expect(state.movements).toHaveLength(1);
   });
 
   it('keeps PO partially_received and excludes landed/freight when settings are expense', async () => {

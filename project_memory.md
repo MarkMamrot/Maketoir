@@ -302,6 +302,14 @@ Always read this file when starting a new session or implementing a feature to u
 * Validation: focused history/PO/SO route tests passed (26), full Vitest passed (263 files / 1,253 tests, one skipped), and the production build passed.
 * Three lifecycle-hardening slices remain: receive-batch request replay safety; unified receive/fulfil/shortfall activity history; final browser/end-to-end exercise and dead-path cleanup.
 
+### PO receive replay + unified order activity (2026-08-11)
+* `POST /api/ims/receive/batch` now binds each request operation key to a SHA-256 request hash in `ims_po_receive_operations`; completed retries return the stored response before PO status or stock checks and do not repeat stock movements.
+* Desktop and scanner receive clients derive stable keys from the loaded PO revision plus exact payload. The desktop preliminary PO edit also uses a stable revision/payload key so a lost receive response can reach both edit and receive replay.
+* Example: receiving red quantity 2 twice with the same key leaves SOH +2 with one `po_received` movement; reusing that key with quantity 3 returns HTTP 409.
+* PO/SO Activity History now combines amendments with receive/fulfilment and shortfall-resolution ledgers, sorted newest first. Safe request snapshots show received/shipped quantities; raw JSON remains server-side.
+* Added `request_json` to PO receive and SO fulfilment ledgers through the all-tenant catch-up migration. Verified PO/SO activity union queries in Monsterthreads and Sage.
+* One lifecycle-hardening slice remains: final browser/end-to-end operational exercise and obsolete/dead-path cleanup.
+
 ### CN/SCN Xero pathway hardening (2026-07-25)
 * `POST /api/ims/xero/void` now supports `type: 'cn' | 'scn'` in addition to PO/SO.
 * Added service-level Xero void functions for credit notes:

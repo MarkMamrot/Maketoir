@@ -33,10 +33,12 @@ describe('getOrderAmendmentHistory', () => {
       result_line_id: 8,
       before_line_json: null,
       after_line_json: JSON.stringify({ variant_id: 'blue', qty_ordered: 2 }),
-    }]);
+    }]).mockResolvedValueOnce([]);
 
     await expect(getOrderAmendmentHistory('biz-1', 'purchase_order', 42)).resolves.toEqual([{
       id: 9,
+      entryKey: 'amendment:9',
+      activityType: 'amendment',
       previousStatus: 'confirmed',
       resultingStatus: 'cancelled',
       actorName: 'Alex',
@@ -66,5 +68,46 @@ describe('getOrderAmendmentHistory', () => {
       expect.stringContaining('FROM ims_order_amendment_lines'),
       ['biz-1', 9],
     );
+    expect(mockImsQuery).toHaveBeenCalledWith(
+      expect.stringContaining('FROM ims_po_receive_operations'),
+      ['biz-1', 42, 'biz-1', 42],
+    );
+  });
+
+  it('normalizes receipt and resolution ledgers into safe visible activity', async () => {
+    mockImsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      id: 20,
+      activity_type: 'receive',
+      state: 'complete',
+      request_json: JSON.stringify({ received_items: [{ variant_id: 'red', qty_received: 2 }] }),
+      response_json: JSON.stringify({ newStatus: 'complete', backorderPoNumber: 'PO-42-B' }),
+      created_at: new Date('2026-08-11T11:00:00.000Z'),
+      completed_at: new Date('2026-08-11T11:00:01.000Z'),
+    }, {
+      id: 21,
+      activity_type: 'resolution',
+      state: 'complete',
+      outcome: 'cancel_remainder',
+      settlement: 'supplier_refund',
+      request_json: null,
+      response_json: '{}',
+      created_at: new Date('2026-08-11T12:00:00.000Z'),
+      completed_at: new Date('2026-08-11T12:00:01.000Z'),
+    }]);
+
+    const entries = await getOrderAmendmentHistory('biz-1', 'purchase_order', 42);
+
+    expect(entries).toMatchObject([{
+      entryKey: 'resolution:21',
+      activityType: 'resolution',
+      title: 'Outstanding quantity cancelled',
+      summary: 'Settlement: supplier refund',
+    }, {
+      entryKey: 'receive:20',
+      activityType: 'receive',
+      title: 'Receipt completed',
+      summary: '1 line submitted; backorder PO-42-B created',
+      details: ['Variant red: received 2'],
+    }]);
   });
 });
