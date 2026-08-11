@@ -19,7 +19,7 @@ describe('order lifecycle policy', () => {
     expect(isAllowedPOStatusTransition('partially_received', 'complete')).toBe(false);
     expect(isAllowedPOStatusTransition('partially_received', 'cancelled')).toBe(false);
     expect(isAllowedPOStatusTransition('complete', 'confirmed')).toBe(false);
-    expect(isAllowedPOStatusTransition('complete', 'cancelled')).toBe(true);
+    expect(isAllowedPOStatusTransition('complete', 'cancelled')).toBe(false);
     expect(isAllowedPOStatusTransition('cancelled', 'draft')).toBe(false);
     expect(() => assertAllowedPOStatusTransition('confirmed', 'partially_received')).toThrow(
       'Purchase order cannot change from confirmed to partially_received.',

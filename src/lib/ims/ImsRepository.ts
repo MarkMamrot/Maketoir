@@ -11,6 +11,7 @@ import {
   type SOStatus,
 } from './orderLifecyclePolicy';
 import { OrderAmendmentConflict, planStockRebalance, reconcileOrderLines } from './orderAmendmentPlan';
+import { assessPurchaseOrderUndo, OrderCorrectionConflict } from './orderCorrectionPolicy';
 import {
   computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
@@ -996,6 +997,98 @@ export const ImsStockRepo = {
 // Purchase Orders
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function reversePurchaseOrderReceiptTx(
+  conn: any,
+  po: any,
+  items: ImsPOItem[],
+): Promise<void> {
+  const grouped = new Map<string, number>();
+  for (const item of items) {
+    if (!item.variant_id) continue;
+    grouped.set(item.variant_id, (grouped.get(item.variant_id) ?? 0) + Math.max(0, Number(item.qty_received ?? 0)));
+  }
+
+  const plans: Array<{ variantId: string; receivedQty: number; newAvg: number; receiptUnitCost: number }> = [];
+  for (const [variantId, receivedQty] of grouped) {
+    if (receivedQty <= 0) continue;
+    const [stockRows] = await conn.execute<any[]>(
+      `SELECT location_id, qty_on_hand FROM ims_stock WHERE variant_id = ? FOR UPDATE`,
+      [variantId],
+    );
+    const locationQty = Number(stockRows.find((row: any) => Number(row.location_id) === Number(po.location_id))?.qty_on_hand ?? 0);
+    if (locationQty + 0.0001 < receivedQty) {
+      throw new OrderCorrectionConflict([{
+        code: 'insufficient_stock',
+        message: `Cannot reverse PO receipt: variant ${variantId} has ${locationQty} units at the receiving location, but ${receivedQty} received units must be reversed. Return or adjust the stock first.`,
+      }]);
+    }
+    const [[variantRow]] = await conn.execute<any[]>(
+      `SELECT COALESCE(avg_cost, 0) AS avg_cost FROM ims_product_variants WHERE variant_id = ? FOR UPDATE`,
+      [variantId],
+    );
+    const totalOrgQty = stockRows.reduce((sum: number, row: any) => sum + Number(row.qty_on_hand ?? 0), 0);
+    if (totalOrgQty + 0.0001 < receivedQty) {
+      throw new OrderCorrectionConflict([{
+        code: 'insufficient_stock',
+        message: `Cannot reverse PO receipt: variant ${variantId} has ${totalOrgQty} units across the business, but ${receivedQty} received units must be reversed. Return or adjust the stock first.`,
+      }]);
+    }
+    const [[receiptRow]] = await conn.execute<any[]>(
+      `SELECT SUM(qty_change) AS receipt_qty,
+              SUM(qty_change * COALESCE(unit_cost, 0)) / NULLIF(SUM(qty_change), 0) AS receipt_unit_cost
+         FROM ims_stock_movements
+        WHERE business_id = ? AND reference_type = 'purchase_order' AND reference_id = ?
+          AND movement_type = 'po_received' AND variant_id = ? AND location_id = ?
+          AND id > COALESCE((
+            SELECT MAX(reversal.id) FROM ims_stock_movements reversal
+             WHERE reversal.business_id = ? AND reversal.reference_type = 'purchase_order'
+               AND reversal.reference_id = ? AND reversal.movement_type = 'po_unapproved'
+               AND reversal.variant_id = ? AND reversal.location_id = ?
+          ), 0) AND qty_change > 0`,
+      [po.business_id, po.id, variantId, po.location_id, po.business_id, po.id, variantId, po.location_id],
+    );
+    if (Number(receiptRow?.receipt_qty ?? 0) + 0.0001 < receivedQty) {
+      throw new OrderCorrectionConflict([{
+        code: 'incomplete_valuation_history',
+        message: `Cannot reverse PO receipt: the receipt valuation history for variant ${variantId} is incomplete.`,
+      }]);
+    }
+    const receiptUnitCost = Number(receiptRow?.receipt_unit_cost ?? 0);
+    plans.push({
+      variantId,
+      receivedQty,
+      receiptUnitCost,
+      newAvg: computeAverageCostAfterReversal({
+        currentQtyOnHand: totalOrgQty,
+        currentAvgCost: Number(variantRow?.avg_cost ?? 0),
+        reversedQty: receivedQty,
+        reversedUnitCostAud: receiptUnitCost,
+      }),
+    });
+  }
+
+  for (const plan of plans) {
+    await conn.execute(
+      `UPDATE ims_stock SET qty_on_hand = qty_on_hand - ? WHERE variant_id = ? AND location_id = ?`,
+      [plan.receivedQty, plan.variantId, po.location_id],
+    );
+    await conn.execute(`UPDATE ims_product_variants SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
+    await conn.execute(`UPDATE ims_stock SET avg_cost = ? WHERE variant_id = ?`, [plan.newAvg, plan.variantId]);
+    const [[stockRow]] = await conn.execute<any[]>(
+      `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+      [plan.variantId, po.location_id],
+    );
+    await conn.execute(
+      `INSERT INTO ims_stock_movements
+         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,notes)
+       VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?)`,
+      [po.business_id, plan.variantId, po.location_id, po.id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'Mistaken PO receipt undone'],
+    );
+  }
+  await conn.execute(`UPDATE ims_purchase_order_items SET qty_received = 0 WHERE po_id = ?`, [po.id]);
+  await conn.execute(`UPDATE ims_purchase_orders SET received_date = NULL WHERE id = ? AND business_id = ?`, [po.id, po.business_id]);
+}
+
 export const ImsPORepo = {
   async list(status?: POStatus, businessId?: string): Promise<ImsPO[]> {
     const wheres: string[] = [];
@@ -1979,11 +2072,6 @@ export const ImsPORepo = {
         await reverseReceivedStock({ restoreIncoming: false, removeOutstandingIncoming: true });
       }
 
-      // ── complete → cancelled (reverse receipt and retain audit trail) ──────────
-      if (to === 'cancelled' && from === 'complete') {
-        await reverseReceivedStock({ restoreIncoming: false, removeOutstandingIncoming: false });
-      }
-
       await conn.execute(
         `UPDATE ims_purchase_orders SET status = ? WHERE id = ?`, [to, id]
       );
@@ -1994,6 +2082,91 @@ export const ImsPORepo = {
     } catch (err) {
       await conn.rollback();
       throw err;
+    } finally {
+      conn.release();
+    }
+  },
+
+  async undoCompletedReceipt(
+    id: number,
+    businessId: string,
+    expectedUpdatedAt: string,
+    operationContext: OrderAmendmentContext,
+  ): Promise<{ replayed: boolean }> {
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[po]] = await conn.execute<any[]>(
+        `SELECT * FROM ims_purchase_orders WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [id, businessId],
+      );
+      if (!po) throw new Error('Purchase order not found');
+      const amendment = await beginOrderAmendment(conn, operationContext, {
+        businessId,
+        orderKind: 'purchase_order',
+        orderId: id,
+        orderStatus: String(po.status),
+        beforeHeader: po,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return { replayed: true };
+      }
+      assertExpectedOrderRevision(po.updated_at, expectedUpdatedAt);
+
+      const [[dependencies]] = await conn.execute<any[]>(
+        `SELECT
+           (SELECT COUNT(*) FROM ims_purchase_order_payments WHERE business_id = ? AND po_id = ?) AS payment_count,
+           (SELECT COUNT(*) FROM ims_supplier_credit_notes
+             WHERE business_id = ? AND po_id = ? AND status = 'complete') AS supplier_credit_count,
+           (SELECT COUNT(*) FROM ims_po_shortfall_resolutions
+             WHERE business_id = ? AND source_po_id = ? AND state <> 'failed'
+               AND (outcome <> 'leave_partial' OR accounting_action <> 'none'
+                    OR child_po_id IS NOT NULL OR supplier_credit_note_id IS NOT NULL)) AS shortfall_count,
+           (SELECT COUNT(*) FROM ims_po_backorder_lines
+             WHERE business_id = ? AND source_po_id = ?) AS backorder_count,
+           (SELECT COUNT(*) FROM ims_supplier_credit_settlements
+             WHERE business_id = ? AND target_po_id = ? AND status <> 'released') AS reserved_credit_count`,
+        [businessId, id, businessId, id, businessId, id, businessId, id, businessId, id],
+      );
+      const assessment = assessPurchaseOrderUndo({
+        status: po.status as POStatus,
+        isHistorical: !!po.is_historical,
+        expectedUpdatedAt: 'validated',
+        currentUpdatedAt: 'validated',
+        paymentCount: Number(dependencies?.payment_count ?? 0),
+        completedSupplierCreditCount: Number(dependencies?.supplier_credit_count ?? 0),
+        settledShortfallCount: Number(dependencies?.shortfall_count ?? 0),
+        conflictingChildCount: Number(dependencies?.backorder_count ?? 0) + Number(dependencies?.reserved_credit_count ?? 0),
+        hasSufficientStock: true,
+        hasCompleteValuationHistory: true,
+        hasLinkedXeroBill: false,
+        xeroBillState: null,
+      });
+      if (!assessment.allowed) throw new OrderCorrectionConflict(assessment.blockers);
+
+      const [itemRows] = await conn.execute<any[]>(
+        `SELECT * FROM ims_purchase_order_items WHERE po_id = ? FOR UPDATE`,
+        [id],
+      );
+      await reversePurchaseOrderReceiptTx(conn, po, itemRows as ImsPOItem[]);
+      await conn.execute(
+        `UPDATE ims_purchase_orders SET status = 'cancelled' WHERE id = ? AND business_id = ?`,
+        [id, businessId],
+      );
+      await completeOrderAmendment(
+        conn,
+        businessId,
+        amendment.amendmentId,
+        { ...po, status: 'cancelled', correction: 'undo_mistaken_receipt' },
+        [],
+      );
+      await conn.commit();
+      return { replayed: false };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
     } finally {
       conn.release();
     }

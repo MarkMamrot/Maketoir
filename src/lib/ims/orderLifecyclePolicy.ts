@@ -9,7 +9,7 @@ const PO_TRANSITIONS: Record<POStatus, readonly POStatus[]> = {
   confirmed: ['draft', 'cancelled'],
   partially_received: [],
   backordered: ['confirmed', 'cancelled'],
-  complete: ['cancelled'],
+  complete: [],
   cancelled: [],
 };
 
