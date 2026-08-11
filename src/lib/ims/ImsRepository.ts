@@ -2027,11 +2027,6 @@ export const ImsPORepo = {
         await reverseReceivedStock({ restoreIncoming: true, removeOutstandingIncoming: false });
       }
 
-      // ── complete → confirmed (revert a fully received PO) ─────────────────────
-      if (from === 'complete' && to === 'confirmed') {
-        await reverseReceivedStock({ restoreIncoming: true, removeOutstandingIncoming: false });
-      }
-
       // ── any → cancelled ──────────────────────────────────────
       if (to === 'cancelled' && from === 'confirmed') {
         for (const item of items) {

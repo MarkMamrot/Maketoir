@@ -77,6 +77,14 @@ export function buildOrderStatusOperationKey(
   return `${kind}:${orderId}:status:${status}:revision:${revision}`;
 }
 
+export function buildPurchaseOrderUndoOperationKey(
+  orderId: number,
+  updatedAt: string | null | undefined,
+): string {
+  const revision = String(updatedAt ?? '').trim() || 'unversioned';
+  return `purchase_order:${orderId}:undo_mistaken_receipt:revision:${revision}`;
+}
+
 export async function buildPurchaseOrderReceiveOperationKey(
   orderId: number,
   updatedAt: string | null | undefined,

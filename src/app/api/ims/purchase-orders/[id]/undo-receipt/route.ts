@@ -52,21 +52,23 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }).catch(() => {});
       }
     }
-    const assessment = assessPurchaseOrderUndo({
-      status: po.status,
-      isHistorical: !!po.is_historical,
-      expectedUpdatedAt: normalizedRevision(expectedUpdatedAt),
-      currentUpdatedAt: normalizedRevision(po.updated_at),
-      paymentCount: 0,
-      completedSupplierCreditCount: 0,
-      settledShortfallCount: 0,
-      conflictingChildCount: 0,
-      hasSufficientStock: true,
-      hasCompleteValuationHistory: true,
-      hasLinkedXeroBill: !!po.xero_bill_id,
-      xeroBillState: xeroState,
-    });
-    if (!assessment.allowed) throw new OrderCorrectionConflict(assessment.blockers);
+    if (po.status !== 'cancelled') {
+      const assessment = assessPurchaseOrderUndo({
+        status: po.status,
+        isHistorical: !!po.is_historical,
+        expectedUpdatedAt: normalizedRevision(expectedUpdatedAt),
+        currentUpdatedAt: normalizedRevision(po.updated_at),
+        paymentCount: 0,
+        completedSupplierCreditCount: 0,
+        settledShortfallCount: 0,
+        conflictingChildCount: 0,
+        hasSufficientStock: true,
+        hasCompleteValuationHistory: true,
+        hasLinkedXeroBill: !!po.xero_bill_id,
+        xeroBillState: xeroState,
+      });
+      if (!assessment.allowed) throw new OrderCorrectionConflict(assessment.blockers);
+    }
 
     const requestHash = createHash('sha256').update(JSON.stringify({
       action: 'undo_mistaken_receipt',

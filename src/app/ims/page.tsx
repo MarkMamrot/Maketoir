@@ -26,7 +26,7 @@ import { SalesSearchView as SalesSearchViewComponent } from './views/reports/Sal
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
-import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import {
   EMPTY_MULTI,
@@ -8424,6 +8424,34 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     } catch (e: any) { alert(e.message); }
   };
 
+  const undoMistakenReceipt = async (po: any) => {
+    if (!po.updated_at) {
+      alert('Refresh this purchase order before undoing its receipt.');
+      return;
+    }
+    if (!confirm(
+      `Undo the receipt for PO ${po.po_number}?\n\n` +
+      `Use this only when the receipt was entered by mistake and the goods never arrived. ` +
+      `This removes the exact received stock, cancels the PO, and attempts to void the linked Xero bill.\n\n` +
+      `For goods that genuinely arrived and are now going back, use Supplier Return / Credit instead.`,
+    )) return;
+    try {
+      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}/undo-receipt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationKey: buildPurchaseOrderUndoOperationKey(Number(po.id), po.updated_at),
+          expectedUpdatedAt: po.updated_at,
+        }),
+      });
+      await load();
+      if (viewModal.open && viewModal.po?.id === po.id) await refreshPoView(po.id);
+      if (res?.xeroWarning) alert(`Receipt undone. Xero needs attention:\n\n${res.xeroWarning}`);
+    } catch (e: any) {
+      alert(e.message);
+    }
+  };
+
   const handleDelete = async (po: any) => {
     if (!confirm(`Delete PO ${po.po_number}?`)) return;
     try { await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }); load(); }
@@ -8552,7 +8580,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -8890,7 +8918,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -9286,7 +9314,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   );
 }
 
-function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -9320,7 +9348,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, conte
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && po.status === 'complete') {
-    btns.push(<button key="reverse" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>);
+    btns.push(<button key="undo-receipt" onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
   }
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -24652,7 +24680,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
 
         <h3 style={h3}>After stock has been received</h3>
-        <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. A partial PO can continue receiving or use <strong>Resolve Outstanding</strong>. A Completed PO uses <strong>Reverse Receipt &amp; Cancel</strong> only when all received stock and Xero checks permit the exact reversal.</p>
+        <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. A partial PO can continue receiving or use <strong>Resolve Outstanding</strong>. For a Completed PO, use <strong>Undo Mistaken Receipt</strong> only when the receipt never physically happened and all stock and Xero checks permit an exact reversal. Genuine goods going back require a Supplier Return / Credit.</p>
 
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>

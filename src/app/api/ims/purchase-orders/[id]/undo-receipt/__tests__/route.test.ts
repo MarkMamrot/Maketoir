@@ -89,6 +89,14 @@ describe('POST /api/ims/purchase-orders/[id]/undo-receipt', () => {
   });
 
   it('passes a deterministic hash and actor to the replay-safe transaction', async () => {
+    mocks.get.mockResolvedValue({
+      id: 42,
+      status: 'cancelled',
+      is_historical: 0,
+      updated_at: '2026-08-11T10:01:00.000Z',
+      xero_bill_id: null,
+      items: [{ variant_id: 'v-1' }],
+    });
     mocks.undo.mockResolvedValue({ replayed: true });
 
     const response = await POST(request({ operationKey: 'undo-42', expectedUpdatedAt: revision }), params);
