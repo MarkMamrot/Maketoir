@@ -17,17 +17,15 @@ export function productSearchQueries(productName: string, brand: string, code?: 
   const normalizedNameWords = new Set(productName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
   const brandWords = brand.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const nameIncludesBrand = brandWords.length > 0 && brandWords.every(word => normalizedNameWords.has(word));
-  const broadQuery = [productName.trim(), nameIncludesBrand ? '' : brand.trim()].filter(Boolean).join(' ');
+  const searchableName = productName.replace(/["“”]+/g, '').replace(/\s+/g, ' ').trim();
+  const broadQuery = [searchableName, nameIncludesBrand ? '' : brand.trim()].filter(Boolean).join(' ');
   const identifiers = [code, barcode]
     .map(value => value?.trim() ?? '')
     .filter((value, index, values) => value.length >= 4 && values.indexOf(value) === index);
 
-  const exactName = productName.trim().replace(/["“”]+/g, '').replace(/\s+/g, ' ');
-  const quotedName = exactName ? `"${exactName}"${nameIncludesBrand || !brand.trim() ? '' : ` ${brand.trim()}`}` : '';
   return [...new Set([
-    quotedName,
     broadQuery,
-    ...identifiers.map(identifier => `${broadQuery} "${identifier}"`),
+    ...identifiers,
   ].filter(Boolean))];
 }
 

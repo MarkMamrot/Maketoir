@@ -137,17 +137,28 @@ export async function POST(req: Request) {
       (excluded_sites as string[]).map(extractDomain).filter(Boolean) as string[]
     )];
 
-    const searchResults = await Promise.all([
-      include_general
-        ? Promise.all(searchQueries.map(query => serperQuery(query, apiKey, 20, search_au_only)))
-        : Promise.resolve([]),
-      ...preferredDomains.map(domain => serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only)),
-    ]);
-    const generalSearches = searchResults[0] as SerperQueryResult[];
-    const preferredSearches = searchResults.slice(1) as SerperQueryResult[];
+    const generalSearches: SerperQueryResult[] = [];
+    const executedQueries: string[] = [];
+    if (include_general) {
+      const primaryQuery = searchQueries[0];
+      const primarySearch = await serperQuery(primaryQuery, apiKey, 20, search_au_only);
+      generalSearches.push(primarySearch);
+      executedQueries.push(primaryQuery);
+      if (primarySearch.results.length === 0) {
+        for (const fallbackQuery of searchQueries.slice(1)) {
+          generalSearches.push(await serperQuery(fallbackQuery, apiKey, 20, search_au_only));
+          executedQueries.push(fallbackQuery);
+        }
+      }
+    }
+    const preferredSearches: SerperQueryResult[] = [];
+    for (const domain of preferredDomains) {
+      preferredSearches.push(await serperQuery(`site:${domain} ${baseQuery}`, apiKey, 8, search_au_only));
+    }
     const rawResults = mergeSearchResults(generalSearches);
     const preferredResults = preferredSearches.map(search => mergeSearchResults([search]));
     const searchErrors = [...generalSearches, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
+    const successfulSearchCount = [...generalSearches, ...preferredSearches].filter(result => !result.error).length;
     if (searchErrors.length > 0) {
       const runtimeSession = readSession();
       await reportRuntimeIssue({
@@ -164,6 +175,19 @@ export async function POST(req: Request) {
           includeGeneral: Boolean(include_general),
         },
       });
+    }
+    if (successfulSearchCount === 0 && searchErrors.length > 0) {
+      return NextResponse.json({
+        error: `Product search provider unavailable: ${searchErrors[0]}`,
+        discovery: {
+          providerResultCount: 0,
+          uniqueRetailResultCount: 0,
+          candidateCount: 0,
+          filteredCount: 0,
+          rejected: [],
+          providerErrors: searchErrors,
+        },
+      }, { status: 502 });
     }
 
     // Strip any URL whose domain is in the excluded list
@@ -234,9 +258,10 @@ export async function POST(req: Request) {
       candidateCount: selectedUrls.length,
       filteredCount: Math.max(0, providerResultCount - selectedUrls.length),
       rejected,
+      providerErrors: searchErrors,
     };
 
-    return NextResponse.json({ success: true, urls: selectedUrls, candidates, discovery, query: baseQuery, queries: searchQueries });
+    return NextResponse.json({ success: true, urls: selectedUrls, candidates, discovery, query: baseQuery, queries: searchQueries, executedQueries });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }

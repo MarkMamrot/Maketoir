@@ -93,6 +93,14 @@ describe('POST /api/website/serper-search', () => {
       filteredCount: expect.any(Number),
     });
     expect(body.discovery.providerResultCount).toBeGreaterThan(body.discovery.candidateCount);
-    expect(body.queries[0]).toBe('"A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic w/ Printed Box - Linen & Orris" Paddywax');
+    expect(body.queries).toEqual([
+      'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic w/ Printed Box - Linen & Orris Paddywax',
+      'AD0815BXAU',
+      '647658077239',
+    ]);
+    expect(body.executedQueries).toEqual([
+      'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic w/ Printed Box - Linen & Orris Paddywax',
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
