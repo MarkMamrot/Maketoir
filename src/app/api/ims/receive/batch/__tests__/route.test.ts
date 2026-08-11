@@ -7,11 +7,13 @@ const {
   mockTriggerPOXeroSync,
   mockRefreshVariantCache,
   mockGetConnection,
+  mockReportRuntimeIssue,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
   mockRefreshVariantCache: vi.fn(),
   mockGetConnection: vi.fn(),
+  mockReportRuntimeIssue: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -28,6 +30,10 @@ vi.mock('@/lib/ims/cacheHelper', () => ({
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: mockGetConnection }),
+}));
+
+vi.mock('@/lib/runtimeIssues', () => ({
+  reportRuntimeIssue: mockReportRuntimeIssue,
 }));
 
 import { POST } from '../route';
@@ -328,6 +334,7 @@ describe('POST /api/ims/receive/batch', () => {
     };
 
     const first = await POST(makeRequest(payload));
+    mockTriggerPOXeroSync.mockRejectedValueOnce(new Error('Xero unavailable'));
     const second = await POST(makeRequest(payload));
 
     expect(first.status).toBe(200);
@@ -335,6 +342,12 @@ describe('POST /api/ims/receive/batch', () => {
     expect(await second.json()).toMatchObject({ success: true, replayed: true, newStatus: 'complete' });
     expect(state.stockByVariant.get('v-2|4')?.qty_on_hand).toBe(2);
     expect(state.movements).toHaveLength(1);
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      operation: 'receive_xero_approval',
+      context: { replayed: true },
+      reference: { type: 'purchase_order', id: 12 },
+    }));
   });
 
   it('keeps PO partially_received and excludes landed/freight when settings are expense', async () => {

@@ -310,6 +310,14 @@ Always read this file when starting a new session or implementing a feature to u
 * Added `request_json` to PO receive and SO fulfilment ledgers through the all-tenant catch-up migration. Verified PO/SO activity union queries in Monsterthreads and Sage.
 * One lifecycle-hardening slice remains: final browser/end-to-end operational exercise and obsolete/dead-path cleanup.
 
+### PO/SO lifecycle hardening sign-off (2026-08-11)
+* Final staff call-graph review confirms PO physical completion is owned by batch receive and SO physical completion by the fulfil endpoint. Direct SO `fulfilled` repository calls remain only for Shopify import/webhook compatibility.
+* Removed stale generic PO `complete` / `partially_received` confirmation labels and renamed the modal component to `OrderActivityHistory`; the response field remains `amendment_history` for API compatibility.
+* Post-commit PO receipt Xero approval failures, including replay recovery attempts, now call `reportRuntimeIssue()` with tenant/order context while receipt replay still returns its committed success.
+* Live schema audit passed in Monsterthreads and Sage: receive operation hash/key/snapshot columns, unique `(business_id, operation_key)`, and order lookup indexes are present. No production lifecycle operation rows existed, so no synthetic business records were persisted.
+* Browser smoke reached the authentication boundary and redirected `/ims` to `/login` cleanly. Protected modal interaction could not be automated without a shared authenticated tab or credentials; route/service tests cover the protected workflows without exposing secrets.
+* Lifecycle hardening is complete. Future work is ordinary regression maintenance rather than a planned follow-on slice.
+
 ### CN/SCN Xero pathway hardening (2026-07-25)
 * `POST /api/ims/xero/void` now supports `type: 'cn' | 'scn'` in addition to PO/SO.
 * Added service-level Xero void functions for credit notes:

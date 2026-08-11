@@ -32,6 +32,19 @@ interface StockUpdate {
   reorder_qty?: number;
 }
 
+async function reportReceiveXeroFailure(businessId: string, poId: number, error: unknown, replayed: boolean): Promise<void> {
+  console.error(replayed ? '[Xero] PO bill approve replay failed:' : '[Xero] PO bill approve failed:', error);
+  await reportRuntimeIssue({
+    businessId,
+    source: 'ims_purchase_orders',
+    operation: 'receive_xero_approval',
+    title: 'Purchase order receipt committed but Xero approval failed',
+    error,
+    context: { replayed },
+    reference: { type: 'purchase_order', id: poId },
+  });
+}
+
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) {
@@ -106,7 +119,7 @@ export async function POST(req: Request) {
         const receivedVariantIds = received_items.map(i => i.variant_id).filter(Boolean);
         if (receivedVariantIds.length > 0) refreshVariantCache(receivedVariantIds).catch(() => {});
         if (replayedResponse?.newStatus === 'complete') {
-          await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve replay failed:', err));
+          await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => reportReceiveXeroFailure(businessId, po_id, err, true));
         }
         return NextResponse.json({ ...replayedResponse, replayed: true });
       }
@@ -560,7 +573,7 @@ export async function POST(req: Request) {
 
       // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
       if (newStatus === 'complete') {
-        await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => console.error('[Xero] PO bill approve failed:', err));
+        await triggerPOXeroSync(businessId, po_id, 'complete').catch(err => reportReceiveXeroFailure(businessId, po_id, err, false));
       }
 
       return NextResponse.json(response);

@@ -8411,7 +8411,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   };
 
   const changeStatus = async (po: any, status: string) => {
-    const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
+    const labels: Record<string, string> = { confirmed: 'confirm', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('purchase_order', Number(po.id), status, po.updated_at), expectedUpdatedAt: po.updated_at ?? null }) });
@@ -9161,7 +9161,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             );
           })()}
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
-          <OrderAmendmentHistory entries={viewModal.po.amendment_history} />
+          <OrderActivityHistory entries={viewModal.po.amendment_history} />
 
           {/* ── Supplier Invoices / Attachments ── */}
           <div style={{ marginTop: 20 }}>
@@ -9334,7 +9334,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, conte
   );
 }
 
-function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
+function OrderActivityHistory({ entries }: { entries?: any[] }) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
   const label = (status: unknown) => String(status ?? '')
     .split('_')
@@ -12740,7 +12740,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             );
           })()}
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
-          <OrderAmendmentHistory entries={viewModal.so.amendment_history} />
+          <OrderActivityHistory entries={viewModal.so.amendment_history} />
         </Modal>
       )}
 
