@@ -12,6 +12,8 @@ const {
   mockGetXeroInvoiceEditState,
   mockRecordXeroReconciliationIssue,
   mockReportRuntimeIssue,
+  mockGetOrderAmendmentHistory,
+  mockGetOrderResolutionFinancialSummaries,
 } = vi.hoisted(() => ({
   mockSession: vi.fn(),
   mockGet: vi.fn(),
@@ -24,6 +26,8 @@ const {
   mockGetXeroInvoiceEditState: vi.fn(),
   mockRecordXeroReconciliationIssue: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockGetOrderAmendmentHistory: vi.fn(),
+  mockGetOrderResolutionFinancialSummaries: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
@@ -39,8 +43,10 @@ vi.mock('@/lib/ims/xeroHooks', () => ({
 vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mockGetXeroInvoiceEditState }));
 vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mockRecordXeroReconciliationIssue }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
+vi.mock('@/lib/ims/orderAmendmentHistory', () => ({ getOrderAmendmentHistory: mockGetOrderAmendmentHistory }));
+vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
 
-import { DELETE, PUT } from '../route';
+import { DELETE, GET, PUT } from '../route';
 
 const params = { params: { id: '42' } };
 const request = () => new Request('http://localhost/api/ims/sales-orders/42', {
@@ -60,6 +66,21 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     mockXeroVoid.mockResolvedValue(null);
     mockReportRuntimeIssue.mockResolvedValue(undefined);
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
+    mockGetOrderAmendmentHistory.mockResolvedValue([]);
+    mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
+  });
+
+  it('includes completed amendment history in SO detail', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [] });
+    mockGetOrderAmendmentHistory.mockResolvedValue([{ id: 8, previousStatus: 'draft', resultingStatus: 'confirmed' }]);
+
+    const response = await GET(new Request('http://localhost'), params);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: { amendment_history: [{ id: 8, previousStatus: 'draft', resultingStatus: 'confirmed' }] },
+    });
+    expect(mockGetOrderAmendmentHistory).toHaveBeenCalledWith('biz-1', 'sales_order', 42);
   });
 
   it('requires the quantity-aware fulfilment route to complete a confirmed SO', async () => {

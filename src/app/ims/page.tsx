@@ -26,7 +26,7 @@ import { SalesSearchView as SalesSearchViewComponent } from './views/reports/Sal
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
-import { getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { buildOrderStatusOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import {
   EMPTY_MULTI,
@@ -8388,7 +8388,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           const createdPo = await apiFetch(`/api/ims/purchase-orders/${res.id}`);
           await apiFetch(`/api/ims/purchase-orders/${res.id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'confirmed', operationKey: crypto.randomUUID(), expectedUpdatedAt: createdPo?.data?.updated_at ?? null }),
+            body: JSON.stringify({
+              status: 'confirmed',
+              operationKey: buildOrderStatusOperationKey('purchase_order', Number(res.id), 'confirmed', createdPo?.data?.updated_at),
+              expectedUpdatedAt: createdPo?.data?.updated_at ?? null,
+            }),
           });
         }
       }
@@ -8405,7 +8409,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: crypto.randomUUID(), expectedUpdatedAt: po.updated_at ?? null }) });
+      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('purchase_order', Number(po.id), status, po.updated_at), expectedUpdatedAt: po.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.po?.id === po.id) {
         const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
@@ -9152,6 +9156,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
             );
           })()}
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
+          <OrderAmendmentHistory entries={viewModal.po.amendment_history} />
 
           {/* ── Supplier Invoices / Attachments ── */}
           <div style={{ marginTop: 20 }}>
@@ -9320,6 +9325,40 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, conte
         </span>
       )}
       {btns}
+    </div>
+  );
+}
+
+function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
+  if (!Array.isArray(entries) || entries.length === 0) return null;
+  const label = (status: unknown) => String(status ?? '')
+    .split('_')
+    .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : '')
+    .join(' ');
+
+  return (
+    <div style={{ marginTop: 20, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Change History</div>
+      {entries.map(entry => {
+        const statusChanged = String(entry.previousStatus) !== String(entry.resultingStatus);
+        const timestamp = entry.completedAt ?? entry.createdAt;
+        return (
+          <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
+            <div>
+              <div style={{ color: 'var(--sv-text)', fontWeight: 600 }}>
+                {statusChanged ? `${label(entry.previousStatus)} to ${label(entry.resultingStatus)}` : 'Order details edited'}
+              </div>
+              <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>
+                {entry.actorName || 'System'} · Operation #{entry.id}
+                {Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} line${Number(entry.lineChangeCount) === 1 ? '' : 's'} changed` : ''}
+              </div>
+            </div>
+            <div style={{ color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+              {timestamp ? new Date(timestamp).toLocaleString() : '—'}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -11977,7 +12016,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: crypto.randomUUID(), expectedUpdatedAt: so.updated_at ?? null }) });
+      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('sales_order', Number(so.id), status, so.updated_at), expectedUpdatedAt: so.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.so?.id === so.id) {
         const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
@@ -12654,6 +12693,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             );
           })()}
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
+          <OrderAmendmentHistory entries={viewModal.so.amendment_history} />
         </Modal>
       )}
 

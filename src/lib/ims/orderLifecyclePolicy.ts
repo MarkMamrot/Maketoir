@@ -66,3 +66,13 @@ export function getOrderStatusLabel(kind: OrderKind, status: OrderStatus): strin
 export function getPhysicalCompletionLabel(kind: OrderKind): string {
   return kind === 'purchase_order' ? 'Fully received' : 'Fully fulfilled';
 }
+
+export function buildOrderStatusOperationKey(
+  kind: OrderKind,
+  orderId: number,
+  status: OrderStatus,
+  updatedAt: string | null | undefined,
+): string {
+  const revision = String(updatedAt ?? '').trim() || 'unversioned';
+  return `${kind}:${orderId}:status:${status}:revision:${revision}`;
+}

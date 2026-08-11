@@ -15,6 +15,7 @@ const {
   mockGetXeroInvoiceEditState,
   mockRecordXeroReconciliationIssue,
   mockGetOrderResolutionFinancialSummaries,
+  mockGetOrderAmendmentHistory,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockGet: vi.fn(),
@@ -30,6 +31,7 @@ const {
   mockGetXeroInvoiceEditState: vi.fn(),
   mockRecordXeroReconciliationIssue: vi.fn(),
   mockGetOrderResolutionFinancialSummaries: vi.fn(),
+  mockGetOrderAmendmentHistory: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
@@ -52,6 +54,7 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIss
 vi.mock('@/services/XeroSyncService', () => ({ getXeroInvoiceEditState: mockGetXeroInvoiceEditState }));
 vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliationIssue: mockRecordXeroReconciliationIssue }));
 vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
+vi.mock('@/lib/ims/orderAmendmentHistory', () => ({ getOrderAmendmentHistory: mockGetOrderAmendmentHistory }));
 
 import { DELETE, GET, PUT } from '../route';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
@@ -79,6 +82,7 @@ describe('/api/ims/purchase-orders/[id]', () => {
     mockTriggerPOXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
     mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
+    mockGetOrderAmendmentHistory.mockResolvedValue([]);
   });
 
   it('returns core PO detail when optional shortfall financials fail', async () => {
@@ -109,8 +113,21 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockGetOrderResolutionFinancialSummaries).not.toHaveBeenCalled();
     expect(await response.json()).toMatchObject({
       success: true,
-      data: { id: 42, resolution_financials: [] },
+      data: { id: 42, resolution_financials: [], amendment_history: [] },
     });
+  });
+
+  it('includes completed amendment history in PO detail', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [] });
+    mockGetOrderAmendmentHistory.mockResolvedValue([{ id: 9, previousStatus: 'draft', resultingStatus: 'confirmed' }]);
+
+    const response = await GET(new Request('http://localhost'), params);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: { amendment_history: [{ id: 9, previousStatus: 'draft', resultingStatus: 'confirmed' }] },
+    });
+    expect(mockGetOrderAmendmentHistory).toHaveBeenCalledWith('biz-1', 'purchase_order', 42);
   });
 
   it('only hard-deletes a draft PO for the authenticated business', async () => {

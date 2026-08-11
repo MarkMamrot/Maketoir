@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertAllowedPOStatusTransition,
   assertAllowedSOStatusTransition,
+  buildOrderStatusOperationKey,
   getOrderStatusLabel,
   getPhysicalCompletionLabel,
   isAllowedPOStatusTransition,
@@ -38,5 +39,12 @@ describe('order lifecycle policy', () => {
     expect(getOrderStatusLabel('purchase_order', 'partially_received')).toBe('Partially Received');
     expect(getPhysicalCompletionLabel('purchase_order')).toBe('Fully received');
     expect(getPhysicalCompletionLabel('sales_order')).toBe('Fully fulfilled');
+  });
+
+  it('builds stable status operation keys that change with status or revision', () => {
+    const first = buildOrderStatusOperationKey('purchase_order', 42, 'cancelled', '2026-08-11T10:00:00.000Z');
+    expect(buildOrderStatusOperationKey('purchase_order', 42, 'cancelled', '2026-08-11T10:00:00.000Z')).toBe(first);
+    expect(buildOrderStatusOperationKey('purchase_order', 42, 'confirmed', '2026-08-11T10:00:00.000Z')).not.toBe(first);
+    expect(buildOrderStatusOperationKey('purchase_order', 42, 'cancelled', '2026-08-11T11:00:00.000Z')).not.toBe(first);
   });
 });
