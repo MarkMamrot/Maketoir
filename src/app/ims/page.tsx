@@ -15370,6 +15370,12 @@ const REPORT_CATALOG = [
     icon: '📊',
   },
   {
+    id: 'report-sales-summary' as ImsView,
+    title: 'Sales Summary',
+    description: 'Aggregated sales totals grouped by location, brand, supplier, product type, day-of-week, or hour-of-day.',
+    icon: '📉',
+  },
+  {
     id: 'report-sales-search' as ImsView,
     title: 'Sales Search',
     description: 'Search all sales in any date range — type words from a product name or SKU. Totals per product across POS, online and wholesale.',
