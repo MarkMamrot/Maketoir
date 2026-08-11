@@ -14,9 +14,7 @@ import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
-import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
-import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -80,7 +78,7 @@ const NAV: NavItem[] = [
   {
     id: 'website', label: 'Website', icon: 'website',
     children: [
-      { id: 'pending-online',               label: 'Website Content Studio' },
+      { id: 'pending-online',               label: 'Load Products To Website' },
       { id: 'product-description-template', label: 'Web Field Templates'      },
       { id: 'bulk-edit-listings',           label: 'Bulk Edit Listings'       },
     ],
@@ -4733,7 +4731,7 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
   );
 });
 
-// ── Website Content Studio (IMS → Online Shop) ───────────────────────────────
+// ── Load Products To Website (IMS → Online Shop) ─────────────────────────────
 // Hover-zoom thumbnail — shows a 240×240 popup near the cursor
 type HoverImageSpec = { type?: string; size?: string; dimensions?: string; dpi?: string };
 
@@ -4886,8 +4884,7 @@ interface PendingOnlineProduct {
   // and `product_id` drives the Push to Online Shop / shopify-sync call.
   id: string; code: string; product_id: string;
   name: string; brand: string; supplier_name: string;
-  sku: string; barcode: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
-  variants: ProductResearchVariant[];
+  sku: string; styleCode: string; retailPrice: string; website_title: string; soh: number;
   is_online: number;      // 0 or 1 from IMS
   shopify_linked: boolean; // shopify_product_id is set
   last_invalid_url_attempt_at: string | null;
@@ -4905,15 +4902,6 @@ interface ProductUrlDecision {
   url: string;
   keep: boolean | null;
   reason: string;
-  confidence?: number;
-}
-
-interface ProductDiscoveryAudit {
-  providerResultCount: number;
-  uniqueRetailResultCount: number;
-  candidateCount: number;
-  filteredCount: number;
-  rejected: { url: string; reason: string }[];
 }
 
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
@@ -4975,11 +4963,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [preflightError, setPreflightError]   = useState<Record<string, string>>({});
 
   // Per-product user inputs passed to AI generation
-  type ProductUrlSlots = [string, string, string, string, string];
-  type ProductInputs = { urls: ProductUrlSlots; photos: string[]; notes: string };
+  type ProductInputs = { urls: [string, string, string]; photos: string[]; notes: string };
   const [productInputs, setProductInputs] = useState<Record<string, ProductInputs>>({});
   const getInputs = (k: string): ProductInputs =>
-    productInputs[k] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+    productInputs[k] ?? { urls: ['', '', ''], photos: [], notes: '' };
   const patchInputs = (k: string, patch: Partial<ProductInputs>) =>
     setProductInputs(prev => ({ ...prev, [k]: { ...getInputs(k), ...patch } }));
 
@@ -4990,11 +4977,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [showFallbackPhotoKeys, setShowFallbackPhotoKeys] = useState<Set<string>>(new Set());
   const [scrapingSet, setScrapingSet]           = useState<Set<string>>(new Set());
   const [serperSearchingSet, setSerperSearchingSet] = useState<Set<string>>(new Set());
-  // Per-URL Tavily photos [productKey][urlSlot 0-4] and automated retrieval state
+  // Per-URL Tavily photos [productKey][urlSlot 0-2] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
   const [urlDecisionsMap, setUrlDecisionsMap] = useState<Record<string, ProductUrlDecision[]>>({});
-  const [discoveryAuditMap, setDiscoveryAuditMap] = useState<Record<string, ProductDiscoveryAudit>>({});
-  const [customUrlMap, setCustomUrlMap] = useState<Record<string, string>>({});
   const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
@@ -5003,6 +4988,14 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   const [removedKeys, setRemovedKeys] = useState<Set<string>>(new Set());
   const [removingWebsiteSet, setRemovingWebsiteSet] = useState<Set<string>>(new Set());
   const [sessionBlockedKeys, setSessionBlockedKeys] = useState<Set<string>>(new Set());
+
+  // Website description HTML preview toggle
+  const [descSourceKeys, setDescSourceKeys] = useState<Set<string>>(new Set());
+  const toggleDescSource = (k: string) => setDescSourceKeys(prev => {
+    const next = new Set(prev);
+    next.has(k) ? next.delete(k) : next.add(k);
+    return next;
+  });
 
   useEffect(() => {
     fetch('/api/ims/settings')
@@ -5119,28 +5112,22 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       if (!data.success) { setError(data.error ?? 'Unknown error'); return; }
       // Fetch all IMS products (no pre-filter) so the UI filters work live
       const mapped: PendingOnlineProduct[] = ((data.data ?? []) as any[])
-        .map(p => {
-          const variants = Array.isArray(p.variants) ? p.variants : [];
-          const researchVariant = selectProductResearchVariant(p.name ?? '', variants);
-          return {
+        .map(p => ({
           id:            p.product_id,
           code:          p.product_id,
           product_id:    p.product_id,
           name:          p.name ?? '',
           brand:         p.brand ?? '',
           supplier_name: p.supplier_name ?? '',
-          sku:           researchVariant?.sku ?? p.base_sku ?? '',
-          barcode:       researchVariant?.barcode ?? '',
-          variants,
+          sku:           p.variants?.[0]?.sku ?? p.base_sku ?? '',
           styleCode:     p.style_code ?? '',
-          retailPrice:   String(researchVariant?.price_rrp ?? ''),
+          retailPrice:   String(p.variants?.[0]?.price_rrp ?? ''),
           website_title: p.website_title ?? '',
           soh:           Number(p.soh ?? 0),
           is_online:     Number(p.is_online ?? 0),
           shopify_linked: !!(p.shopify_product_id),
           last_invalid_url_attempt_at: p.last_invalid_url_attempt_at ?? null,
-          };
-        });
+        }));
       setProducts(mapped);
     } catch (e: any) {
       setError(e.message);
@@ -5164,7 +5151,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: { name: product.name, brand: product.brand ?? '', sku: product.sku, barcode: product.barcode },
+          product: { name: product.name, brand: product.brand ?? '', code: product.code },
           ...searchSources,
         }),
       });
@@ -5174,14 +5161,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return;
       }
       const urls: string[] = data.urls ?? [];
-      if (data.discovery) setDiscoveryAuditMap(prev => ({ ...prev, [key]: data.discovery as ProductDiscoveryAudit }));
       setUrlDecisionsMap(prev => ({
         ...prev,
-        [key]: urls.filter(Boolean).slice(0, 5).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
+        [key]: urls.filter(Boolean).slice(0, 3).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
       }));
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
-        const newUrls: ProductUrlSlots = [urls[0] ?? '', urls[1] ?? '', urls[2] ?? '', urls[3] ?? '', urls[4] ?? ''];
+        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+        const newUrls: [string, string, string] = [urls[0] ?? '', urls[1] ?? '', urls[2] ?? ''];
         return { ...prev, [key]: { ...existing, urls: newUrls } };
       });
     } catch (e: any) {
@@ -5204,11 +5190,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     try {
       const approvedUrl = urlsSnapshot[0]?.trim();
       if (approvedUrl) {
-        const searchSources = await getProductSearchSources(product);
         const sourceResponse = await fetch('/api/website/scrape-photos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [approvedUrl], product, source_sites: searchSources.preferred_sites }),
+          body: JSON.stringify({ urls: [approvedUrl] }),
         });
         const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) {
@@ -5223,11 +5208,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         const images = (sourceData.images ?? []) as string[];
         setPreflightMap(prev => ({ ...prev, [key]: { answer: productFacts, urls: [approvedUrl] } }));
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
           return { ...prev, [key]: { ...existing, notes: productFacts } };
         });
         setScrapedPhotosMap(prev => ({ ...prev, [key]: images }));
-        setUrlPhotosMap(prev => ({ ...prev, [key]: [images, [], [], [], []] }));
+        setUrlPhotosMap(prev => ({ ...prev, [key]: [images, [], []] }));
         return;
       }
       const res = await fetch('/api/website/tavily-preflight', {
@@ -5246,7 +5231,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       if (data.images?.length) {
         setTavilyPhotosMap(prev => ({ ...prev, [key]: data.images }));
       }
-      // Fetch Tavily photos for the remaining URL slots so they stay aligned with all five links.
+      // Fetch Tavily photos for URL slots 1 & 2 (if already filled) so they display under each link
       const _noise = /thumb|icon|swatch|logo|favicon|width=[0-9]{1,2}(?![0-9])/i;
       const _ok = (u: string) => !_noise.test(u);
       const _fetchSlot = async (url: string): Promise<string[]> => {
@@ -5259,25 +5244,26 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           return (d.images ?? []).filter(_ok);
         } catch { return []; }
       };
-      const remainingSlotPhotos = await Promise.all(urlsSnapshot.slice(1).map(url =>
-        url?.trim() ? _fetchSlot(url.trim()) : Promise.resolve([])
-      ));
-      setUrlPhotosMap(prev => ({ ...prev, [key]: [(data.images ?? []).filter(_ok), ...remainingSlotPhotos] }));
+      const [_s1, _s2] = await Promise.all([
+        urlsSnapshot[1]?.trim() ? _fetchSlot(urlsSnapshot[1].trim()) : Promise.resolve([]),
+        urlsSnapshot[2]?.trim() ? _fetchSlot(urlsSnapshot[2].trim()) : Promise.resolve([]),
+      ]);
+      setUrlPhotosMap(prev => ({ ...prev, [key]: [(data.images ?? []).filter(_ok), _s1, _s2] }));
       // Only auto-populate URL slots if no URLs already set (i.e. Find URLs hasn't been run)
       const alreadyHasUrls = getInputs(key).urls.some(u => u.trim());
       if (!alreadyHasUrls) {
         const tavilyUrls: string[] = data.urls ?? [];
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
-          const newUrls: ProductUrlSlots = [...existing.urls] as ProductUrlSlots;
-          tavilyUrls.slice(0, 5).forEach((u, i) => { if (!newUrls[i]) newUrls[i] = u; });
+          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+          const newUrls: [string, string, string] = [...existing.urls] as [string, string, string];
+          tavilyUrls.slice(0, 3).forEach((u, i) => { if (!newUrls[i]) newUrls[i] = u; });
           const notes = existing.notes?.trim() ? existing.notes : (data.answer ?? '');
           return { ...prev, [key]: { ...existing, urls: newUrls, notes } };
         });
       } else {
         // Just update the notes from the answer
         setProductInputs(prev => {
-          const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+          const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
           const notes = existing.notes?.trim() ? existing.notes : (data.answer ?? '');
           return { ...prev, [key]: { ...existing, notes } };
         });
@@ -5297,11 +5283,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (!topUrl) return;
     setScrapingSet(prev => new Set(prev).add(key));
     try {
-      const searchSources = await getProductSearchSources(product);
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [topUrl], product, source_sites: searchSources.preferred_sites }),
+        body: JSON.stringify({ urls: [topUrl] }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (data.images?.length) {
@@ -5328,10 +5313,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
     if (!topUrl) return;
     setScrapingSet(prev => new Set(prev).add(key));
     try {
-      const searchSources = await getProductSearchSources(product);
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [topUrl], product, source_sites: searchSources.preferred_sites, includeFallback: true }),
+        body: JSON.stringify({ urls: [topUrl], includeFallback: true }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) throw new Error(data.error ?? 'Unable to find more photos');
@@ -5341,67 +5325,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       setPreflightError(prev => ({ ...prev, [key]: e.message }));
     } finally {
       setScrapingSet(prev => { const next = new Set(prev); next.delete(key); return next; });
-    }
-  };
-
-  const handleConfirmProductPage = async (product: PendingOnlineProduct, approvedUrl: string) => {
-    const key = product.code;
-    const selectedUrl = approvedUrl.trim();
-    if (!selectedUrl || removedKeys.has(key) || automatingSet.has(key)) return;
-
-    setSessionBlockedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
-    setUrlDecisionsMap(prev => ({
-      ...prev,
-      [key]: (prev[key] ?? []).map(decision => ({
-        ...decision,
-        keep: decision.url === selectedUrl,
-        reason: decision.url === selectedUrl ? 'Confirmed by user.' : decision.reason,
-      })),
-    }));
-    setProductInputs(prev => {
-      const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
-      return { ...prev, [key]: { ...existing, urls: [selectedUrl, '', '', '', ''] } };
-    });
-    setAutomatingSet(prev => new Set(prev).add(key));
-    setAutoStepMap(prev => ({ ...prev, [key]: 'Step 3/4: Extracting facts from your confirmed page…' }));
-    setGenerateError(prev => ({ ...prev, [key]: '' }));
-
-    try {
-      const searchSources = await getProductSearchSources(product);
-      const scrapeResponse = await fetch('/api/website/scrape-photos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: [selectedUrl], product, source_sites: searchSources.preferred_sites }),
-      });
-      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
-      if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Confirmed-page extraction failed');
-
-      const sourceFacts = String(scrapeData.productFacts ?? '').trim();
-      if (!sourceFacts) throw new Error('No authoritative product facts were found on the confirmed page.');
-      const approvedPhotos = dedupeProductPhotoUrls(scrapeData.images ?? []);
-      setScrapedPhotosMap(prev => ({ ...prev, [key]: approvedPhotos }));
-      setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], [], [], []] }));
-      setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: [selectedUrl, '', '', '', ''], photos: [], notes: '' };
-        return { ...prev, [key]: { ...existing, urls: [selectedUrl, '', '', '', ''], notes: sourceFacts } };
-      });
-
-      setAutoStepMap(prev => ({ ...prev, [key]: 'Step 4/4: Generating content from confirmed-page facts…' }));
-      const generationResponse = await fetch('/api/website/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId, product, tavilyInfo: sourceFacts, tavilyUrls: [selectedUrl], userPhotos: [], userNotes: '' }),
-      });
-      const generationData = await parseWebsiteJsonResponse(generationResponse);
-      if (!generationResponse.ok || !generationData.success) throw new Error(generationData.error ?? 'Content generation failed');
-
-      setContentMap(prev => ({ ...prev, [key]: generationData.content }));
-      setAutoStepMap(prev => { const next = { ...prev }; delete next[key]; return next; });
-    } catch (confirmationError: any) {
-      setGenerateError(prev => ({ ...prev, [key]: confirmationError.message ?? 'Confirmed-page processing failed' }));
-      setAutoStepMap(prev => ({ ...prev, [key]: `❌ ${confirmationError.message ?? 'Confirmed-page processing failed'}` }));
-    } finally {
-      setAutomatingSet(prev => { const next = new Set(prev); next.delete(key); return next; });
     }
   };
 
@@ -5432,25 +5355,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       });
       const serperData = await parseWebsiteJsonResponse(serperRes);
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
-      if (serperData.discovery) setDiscoveryAuditMap(prev => ({ ...prev, [key]: serperData.discovery as ProductDiscoveryAudit }));
-      const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 5);
-      const foundCandidates = (Array.isArray(serperData.candidates) ? serperData.candidates : [])
-        .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
-      if (foundUrls.length === 0) {
-        const foundCount = Number(serperData.discovery?.providerResultCount ?? 0);
-        setSessionBlockedKeys(prev => new Set(prev).add(key));
-        setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
-        setExpandedCode(key);
-        step(`⏸ Awaiting confirmation — Google returned ${foundCount} result${foundCount === 1 ? '' : 's'}, but none qualified as an exact product page.`);
-        return;
-      }
+      const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 3);
+      if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
       setUrlDecisionsMap(prev => ({
         ...prev,
         [key]: foundUrls.map(url => ({ url, keep: null, reason: 'Awaiting AI assessment.' })),
       }));
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
-        const newUrls: ProductUrlSlots = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
+        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
+        const newUrls: [string, string, string] = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? ''];
         return { ...prev, [key]: { ...existing, urls: newUrls } };
       });
 
@@ -5463,21 +5376,18 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           body: JSON.stringify({
             product,
             urls: foundUrls,
-            candidates: foundCandidates,
-            preferredSites: searchSources.preferred_sites,
             databaseId,
           }),
         });
         const judgeData = await parseWebsiteJsonResponse(judgeRes);
         if (!judgeRes.ok || judgeData.error) throw new Error(judgeData.error ?? 'AI URL assessment failed');
-        const ranked: { url: string; keep: boolean; reason?: string; confidence?: number }[] = judgeData.rankedUrls ?? [];
+        const ranked: { url: string; keep: boolean; reason?: string }[] = judgeData.rankedUrls ?? [];
         const decisions = foundUrls.map(url => {
           const decision = ranked.find(item => item.url === url);
           return {
             url,
-            keep: judgeData.assessmentUnavailable ? null : decision ? Boolean(decision.keep) : false,
+            keep: decision ? Boolean(decision.keep) : false,
             reason: decision?.reason?.trim() || 'AI did not confirm this URL as an exact product page.',
-            confidence: typeof decision?.confidence === 'number' ? decision.confidence : undefined,
           };
         });
         setUrlDecisionsMap(prev => ({ ...prev, [key]: decisions }));
@@ -5486,13 +5396,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         if (!judgeData.validUrlFound || finalUrls.length === 0) {
           setSessionBlockedKeys(prev => new Set(prev).add(key));
           setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
-          setExpandedCode(key);
-          step('⏸ Awaiting confirmation — choose the exact product page below.');
-          void fetch('/api/ims/website-content-attempts', {
+          const attemptResponse = await fetch('/api/ims/website-content-attempts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ productId: product.product_id, candidateUrls: foundUrls, decisions }),
-          }).catch(error => console.warn('[website-content-attempts]', error));
+          });
+          const attemptData = await attemptResponse.json().catch(() => ({}));
+          step(attemptResponse.ok
+            ? '⛔ No valid product page found — skipped for this session.'
+            : `⛔ No valid product page found — session blocked, but attempt recording failed: ${attemptData.error ?? 'unknown error'}`);
           return;
         }
       } catch (assessmentError: any) {
@@ -5503,16 +5415,15 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           [key]: foundUrls.map(url => ({
             url,
             keep: null,
-            reason: 'Automatic matching was inconclusive. Review this page and continue if it is the exact product.',
+            reason: assessmentError?.message || 'AI URL assessment failed; original search order was retained.',
           })),
         }));
-        setExpandedCode(key);
-        step('⏸ Awaiting confirmation — automatic matching was inconclusive.');
+        step(`⛔ URL assessment failed — skipped for this session: ${assessmentError?.message ?? 'unknown error'}`);
         return;
       }
-      const paddedFinal: ProductUrlSlots = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '', finalUrls[3] ?? '', finalUrls[4] ?? ''];
+      const paddedFinal: [string, string, string] = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? ''];
       setProductInputs(prev => {
-        const existing = prev[key] ?? { urls: ['', '', '', '', ''], photos: [], notes: '' };
+        const existing = prev[key] ?? { urls: ['', '', ''], photos: [], notes: '' };
         return { ...prev, [key]: { ...existing, urls: paddedFinal } };
       });
 
@@ -5524,13 +5435,13 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         try {
           const scrapeRes = await fetch('/api/website/scrape-photos', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: urlsToScrape, product, source_sites: searchSources.preferred_sites }),
+            body: JSON.stringify({ urls: urlsToScrape }),
           });
           const scrapeData = await parseWebsiteJsonResponse(scrapeRes);
           sourceFacts = String(scrapeData.productFacts ?? '').trim();
           const approvedPhotos = (scrapeData.images ?? []).filter(noiseOk) as string[];
           if (approvedPhotos.length > 0) {
-            setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], [], [], []] }));
+            setUrlPhotosMap(prev => ({ ...prev, [key]: [approvedPhotos, [], []] }));
             setScrapedPhotosMap(prev => ({ ...prev, [key]: approvedPhotos }));
           }
         } catch { /* scrape failed */ }
@@ -5615,7 +5526,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
   const handleRemoveFromWebsiteList = async (product: PendingOnlineProduct) => {
     const key = product.code;
-    if (!window.confirm(`Remove "${product.name}" from the website list?\n\nThis will set Website Product to No and deselect it from processing.`)) return;
+    if (!window.confirm(`Remove "${product.name}" from the Website Queue?\n\nThis will set Website Product to No and deselect it from processing.`)) return;
 
     setRemovingWebsiteSet(previous => new Set(previous).add(key));
     setOnlineMessage(previous => ({ ...previous, [key]: '' }));
@@ -5627,7 +5538,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.success === false) {
-        throw new Error(data.error ?? 'Failed to remove product from the website list');
+        throw new Error(data.error ?? 'Failed to remove product from the Website Queue');
       }
 
       setRemovedKeys(previous => new Set(previous).add(key));
@@ -5639,7 +5550,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       setProducts(previous => previous?.map(item => item.code === key ? { ...item, is_online: 0 } : item) ?? null);
       setExpandedCode(previous => previous === key ? null : previous);
     } catch (removeError: any) {
-      setOnlineMessage(previous => ({ ...previous, [key]: removeError.message ?? 'Failed to remove product from the website list' }));
+      setOnlineMessage(previous => ({ ...previous, [key]: removeError.message ?? 'Failed to remove product from the Website Queue' }));
       setOnlineStatus(previous => ({ ...previous, [key]: 'error' }));
     } finally {
       setRemovingWebsiteSet(previous => {
@@ -5737,7 +5648,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Website Content Studio</h2>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Automated Product Content Studio</h2>
             <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
@@ -5963,7 +5874,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const isActivelyWorking = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
                 const isBusy = isActivelyWorking || isSessionBlocked;
                 const urlDecisions = urlDecisionsMap[key] ?? [];
-                const discoveryAudit = discoveryAuditMap[key];
                 const candidatePhotos = dedupeProductPhotoUrls([
                   ...(urlPhotosMap[key] ?? []).flat(),
                   ...(scrapedPhotosMap[key] ?? []),
@@ -5972,13 +5882,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const fallbackPhotos = dedupeProductPhotoUrls(fallbackPhotosMap[key] ?? []).filter(url => !candidatePhotos.includes(url));
 
                 const overallStatus = (() => {
-                  if (isSessionBlocked) return { icon: '⏸', label: 'Awaiting confirmation', cls: 'text-amber-800 bg-amber-50' };
+                  if (isSessionBlocked) return { icon: '⛔', label: 'Skipped', cls: 'text-red-700 bg-red-50' };
                   if (onl === 'done') return { icon: '✅', label: 'On the shop', cls: 'text-green-700 bg-green-50' };
                   if (hasContent) return { icon: '✏️', label: 'Content ready', cls: 'text-indigo-700 bg-indigo-50' };
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
                 })();
-                const isSelected = selectedKeys.has(key);
-                const hasDetailRows = Boolean(genErr || pfErr || onlineMessage[key] || autoStepMap[key] || isExpanded);
 
                 const buttonLabel = (() => {
                   if (isPreflight) return '⏳ Researching…';
@@ -5988,21 +5896,10 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 })();
 
                 return (
-                  <div
-                    key={key}
-                    className={`overflow-hidden rounded-lg bg-white transition-[border-color,box-shadow] ${
-                      isSelected
-                        ? 'border-2 border-[#147f95] shadow-[0_0_0_2px_rgba(20,127,149,0.14)]'
-                        : isExpanded
-                        ? 'border border-indigo-300 shadow-sm'
-                        : 'border border-gray-200'
-                    }`}
-                  >
+                  <div key={key}>
                     <div
-                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2.5 items-center text-sm cursor-pointer transition-colors ${
-                        isExpanded ? 'bg-indigo-50' : 'bg-white hover:bg-gray-50'
-                      } ${
-                        hasDetailRows ? 'border-b border-gray-200' : ''
+                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
+                        isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
                       }`}
                       onClick={() => toggleExpandedProduct(p, key, isExpanded)}
                     >
@@ -6071,11 +5968,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       </button>
                     </div>
 
-                    {(genErr || pfErr) && !autoStepMap[key] && (
-                      <p className="border-b border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">❌ {genErr || pfErr}</p>
+                    {(genErr || pfErr) && (
+                      <p className="text-xs text-red-600 px-3 py-1">❌ {genErr || pfErr}</p>
                     )}
                     {onlineMessage[key] && (
-                      <div className={`flex gap-4 border-b px-3 py-2 ${onl === 'error' ? 'border-red-100 bg-red-50' : 'border-green-100 bg-green-50'}`}>
+                      <div className="px-3 py-1 flex gap-4">
                         <p className={`text-xs ${onl === 'error' ? 'text-red-600' : 'text-green-700'}`}>
                           Online shop: {onlineMessage[key]}
                         </p>
@@ -6083,9 +5980,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     )}
 
                     {autoStepMap[key] && (
-                      <p className={`border-b px-3 py-2 text-xs font-medium ${
-                        autoStepMap[key].startsWith('❌') || autoStepMap[key].startsWith('⛔') ? 'border-red-100 bg-red-50 text-red-700' :
-                        autoStepMap[key].startsWith('✅') ? 'border-green-100 bg-green-50 text-green-700' : 'border-amber-100 bg-amber-50 text-amber-700'
+                      <p className={`text-xs px-3 py-0.5 font-medium ${
+                        autoStepMap[key].startsWith('❌') || autoStepMap[key].startsWith('⛔') ? 'text-red-600' :
+                        autoStepMap[key].startsWith('✅') ? 'text-green-700' : 'text-amber-600'
                       }`}>
                         🤖 {autoStepMap[key]}
                       </p>
@@ -6093,99 +5990,62 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* ── Persistent AI Input Panel ─────────────────────── */}
                     {isExpanded && (
-                      <div className="space-y-3 bg-gray-50 p-4">
+                      <div className="border border-gray-200 rounded-xl p-4 mt-2 mb-2 bg-gray-50 space-y-3">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
-
-                        {discoveryAudit && (
-                          <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                              <span><strong>{discoveryAudit.providerResultCount}</strong> Google results found</span>
-                              <span><strong>{discoveryAudit.uniqueRetailResultCount}</strong> unique retail pages checked</span>
-                              <span><strong>{discoveryAudit.candidateCount}</strong> candidates retained</span>
-                              <span><strong>{discoveryAudit.filteredCount}</strong> filtered out</span>
-                            </div>
-                            {discoveryAudit.rejected.length > 0 && (
-                              <details className="mt-2">
-                                <summary className="cursor-pointer font-semibold text-sky-800">Review filtered results</summary>
-                                <div className="mt-2 space-y-1.5 border-t border-sky-200 pt-2">
-                                  {discoveryAudit.rejected.map(result => (
-                                    <div key={result.url} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
-                                      <a href={result.url} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="truncate text-blue-700 hover:underline">{result.url}</a>
-                                      <span className="text-sky-700">{result.reason}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
-                          </div>
-                        )}
-
-                        {isSessionBlocked && (
-                          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
-                            <p className="text-sm font-semibold">Choose the exact product page to continue</p>
-                            <p className="mt-1 text-xs leading-5 text-amber-800">Review the candidate pages below and continue with the exact product. If none is correct, enter another product-page URL. Only this product is paused; the rest of the batch continues.</p>
-                          </div>
-                        )}
 
                         {urlDecisions.length > 0 && (
                           <div>
                             <p className="text-xs font-medium text-gray-700 mb-1.5">AI URL assessment</p>
                             <div className="space-y-1.5">
                               {urlDecisions.map(decision => (
-                                <div key={decision.url} className="grid grid-cols-[88px_minmax(0,1fr)_auto] gap-2 items-start rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                                <div key={decision.url} className="grid grid-cols-[88px_minmax(0,1fr)] gap-2 items-start rounded-md border border-gray-200 bg-white px-2.5 py-2">
                                   <span className={`text-[10px] font-bold uppercase tracking-wide text-center rounded-full px-2 py-1 ${
                                     decision.keep === true ? 'bg-emerald-100 text-emerald-700' :
                                     decision.keep === false ? 'bg-gray-100 text-gray-500' :
                                     'bg-amber-100 text-amber-700'
                                   }`}>
                                     {decision.keep === true ? 'Selected' : decision.keep === false ? 'Discarded' : 'Not assessed'}
-                                    {typeof decision.confidence === 'number' && ` ${decision.confidence}%`}
                                   </span>
                                   <div className="min-w-0">
                                     <a href={decision.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="block text-xs text-blue-600 hover:underline truncate">{decision.url}</a>
                                     <p className="text-[11px] text-gray-500 mt-0.5">{decision.reason}</p>
                                   </div>
-                                  {isSessionBlocked && (
-                                    <button
-                                      type="button"
-                                      onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, decision.url); }}
-                                      disabled={automatingSet.has(key)}
-                                      className="px-2.5 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 whitespace-nowrap"
-                                    >
-                                      Continue with this page
-                                    </button>
-                                  )}
                                 </div>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {isSessionBlocked && (
-                          <div>
-                            <p className="text-xs font-medium text-gray-700 mb-1.5">Use another product page</p>
-                            <div className="grid grid-cols-[88px_minmax(0,1fr)_auto] gap-2 items-center rounded-md border border-gray-200 bg-white px-2.5 py-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wide text-center rounded-full px-2 py-1 bg-blue-50 text-blue-700">Custom URL</span>
-                              <input
-                                type="url"
-                                value={customUrlMap[key] ?? ''}
-                                onChange={event => setCustomUrlMap(previous => ({ ...previous, [key]: event.target.value }))}
-                                onClick={event => event.stopPropagation()}
-                                placeholder="https://retailer.com/products/exact-product"
-                                aria-label="Custom exact product-page URL"
-                                className="w-full min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                              />
-                              <button
-                                type="button"
-                                onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, customUrlMap[key] ?? ''); }}
-                                disabled={!customUrlMap[key]?.trim() || automatingSet.has(key)}
-                                className="px-2.5 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                              >
-                                Continue with this page
-                              </button>
-                            </div>
+                        {/* Reference Pages */}
+                        <div>
+                          <p className="text-xs font-medium text-gray-700 mb-1.5">Selected reference pages</p>
+                          <div className="space-y-1.5">
+                            {([0, 1, 2] as const).map(idx => (
+                              <div key={idx}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}.</span>
+                                  <input
+                                    type="text"
+                                    value={getInputs(key).urls[idx] ?? ''}
+                                    onChange={e => {
+                                      const urls = [...getInputs(key).urls] as [string, string, string];
+                                      urls[idx] = e.target.value;
+                                      patchInputs(key, { urls });
+                                      setFallbackPhotosMap(prev => ({ ...prev, [key]: [] }));
+                                      setShowFallbackPhotoKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+                                    }}
+                                    onClick={e => e.stopPropagation()}
+                                    placeholder="https://…"
+                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  />
+                                  {getInputs(key).urls[idx] && (
+                                    <a href={getInputs(key).urls[idx]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:underline shrink-0">↗</a>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        )}
+                        </div>
 
                         {/* Deduplicated photo candidates */}
                         <div>
@@ -6252,9 +6112,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           type="button"
                           onClick={e => { e.stopPropagation(); void handleRemoveFromWebsiteList(p); }}
                           disabled={isActivelyWorking || removingWebsiteSet.has(key)}
-                          className="w-fit px-3 py-1.5 border border-red-300 bg-white text-red-700 text-xs font-semibold rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="w-fit px-3 py-1.5 border border-red-700 bg-red-600 text-white text-xs font-semibold rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website List'}
+                          {removingWebsiteSet.has(key) ? 'Removing…' : 'Remove from Website Queue'}
                         </button>
 
                         <button
@@ -6269,7 +6129,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* Step 2: AI generation loading */}
                     {isExpanded && isGenerating && (
-                      <div className="flex flex-col items-center gap-3 border-t border-indigo-200 bg-indigo-50 p-8">
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-8 mt-2 mb-4 flex flex-col items-center gap-3">
                         <div className="animate-spin w-8 h-8 border-4 border-indigo-300 border-t-indigo-600 rounded-full" />
                         <p className="text-sm font-medium text-indigo-800">Generating content for <strong>{p.name}</strong>…</p>
                         <p className="text-xs text-gray-400">AI is writing descriptions and gathering images</p>
@@ -6278,43 +6138,95 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* Step 3 result: generated content + push to online shop */}
                     {isExpanded && !isGenerating && hasContent && (
-                      <div className="space-y-4 border-t border-indigo-200 bg-indigo-50 p-5" onClick={e => e.stopPropagation()}>
-                        <WebsiteGeneratedContentEditor
-                          content={contentMap[key]}
-                          heading={<>Generated Content: <span className="text-indigo-700">{p.name}</span></>}
-                          onChange={(field, value) => handleContentChange(key, field, value)}
-                          footer={(
-                            <div className="flex flex-wrap items-center gap-3 pt-1">
-                              <button
-                                onClick={() => handlePushToOnline(p)}
-                                disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
-                                className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#123f50] disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
-                              >
-                                {onlineStatus[key] === 'pushing'
-                                  ? 'Saving and pushing…'
-                                  : onlineStatus[key] === 'done'
-                                  ? 'Saved and pushed online'
-                                  : 'Save and Push Online'}
-                              </button>
-                              {shopifyLinksLoading.has(key) && <span className="text-xs text-gray-400">Loading Shopify links…</span>}
-                              {shopifyLinksMap[key]?.storefrontUrl && (
-                                <a href={shopifyLinksMap[key].storefrontUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-blue-600 hover:underline">View listing</a>
-                              )}
-                              {shopifyLinksMap[key]?.adminUrl && (
-                                <a href={shopifyLinksMap[key].adminUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">Open in Shopify admin</a>
-                              )}
-                              {onlineMessage[key] && (
-                                <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
-                              )}
-                            </div>
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-2 mb-4 space-y-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold text-gray-800 text-sm">Generated Content — <span className="text-indigo-700">{p.name}</span></h3>
+
+                        {/* Title */}
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Website Title</label>
+                          <input
+                            value={contentMap[key]?.title ?? ''}
+                            onChange={e => handleContentChange(key, 'title', e.target.value)}
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </div>
+
+                        {/* Tags */}
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1">Tags</label>
+                          <input
+                            value={contentMap[key]?.tags ?? ''}
+                            onChange={e => handleContentChange(key, 'tags', e.target.value)}
+                            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          />
+                        </div>
+
+                        {/* Website Description */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Website Description</label>
+                            <button
+                              onClick={() => toggleDescSource(key)}
+                              className="text-xs border border-gray-300 rounded px-2 py-0.5 text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors"
+                            >
+                              {descSourceKeys.has(key) ? 'Preview' : 'HTML source'}
+                            </button>
+                          </div>
+                          {!descSourceKeys.has(key) ? (
+                            <div
+                              key={`desc-preview-${key}`}
+                              contentEditable
+                              suppressContentEditableWarning
+                              className="w-full min-h-[8rem] px-4 py-3 border border-indigo-300 rounded-lg text-sm leading-6 bg-white overflow-auto max-w-none focus:outline-none focus:ring-2 focus:ring-indigo-400 cursor-text [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
+                              dangerouslySetInnerHTML={{ __html: contentMap[key]?.websiteDescription ?? '' }}
+                              onBlur={e => handleContentChange(key, 'websiteDescription', e.currentTarget.innerHTML)}
+                            />
+                          ) : (
+                            <textarea
+                              value={contentMap[key]?.websiteDescription ?? ''}
+                              onChange={e => handleContentChange(key, 'websiteDescription', e.target.value)}
+                              rows={6}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y font-mono text-xs"
+                            />
                           )}
-                        />
+                        </div>
+
+                        {/* Save and push online */}
+                        <div className="flex items-center gap-3 flex-wrap pt-1">
+                          <button
+                            onClick={() => handlePushToOnline(p)}
+                            disabled={removedKeys.has(key) || isSessionBlocked || !contentMap[key] || onlineStatus[key] === 'pushing'}
+                            className="px-5 py-2 bg-[#164e63] text-white text-sm font-semibold rounded-lg hover:bg-[#123f50] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--sv-action)] focus-visible:ring-offset-2"
+                          >
+                            {onlineStatus[key] === 'pushing'
+                              ? 'Saving and pushing…'
+                              : onlineStatus[key] === 'done'
+                              ? 'Saved and pushed online'
+                              : 'Save and Push Online'}
+                          </button>
+                          {shopifyLinksLoading.has(key) && (
+                            <span className="text-xs text-gray-400">Loading Shopify links…</span>
+                          )}
+                          {shopifyLinksMap[key]?.storefrontUrl && (
+                            <a href={shopifyLinksMap[key].storefrontUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 font-semibold hover:underline">
+                              View listing ↗
+                            </a>
+                          )}
+                          {shopifyLinksMap[key]?.adminUrl && (
+                            <a href={shopifyLinksMap[key].adminUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-gray-500 hover:text-gray-700 hover:underline">
+                              Open in Shopify admin ↗
+                            </a>
+                          )}
+                          {onlineMessage[key] && (
+                            <span className={`text-xs ${onlineStatus[key] === 'error' ? 'text-red-600' : 'text-green-700'}`}>{onlineMessage[key]}</span>
+                          )}
+                        </div>
                       </div>
                     )}
 
                     {/* Step 1: Tavily preflight loading */}
                     {isExpanded && isPreflight && (
-                      <div className="flex flex-col items-center gap-3 border-t border-emerald-200 bg-emerald-50 p-8 text-gray-500">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-8 mt-2 mb-4 flex flex-col items-center gap-3 text-gray-500">
                         <div className="animate-spin w-8 h-8 border-4 border-emerald-300 border-t-emerald-600 rounded-full" />
                         <p className="text-sm font-medium text-emerald-800">Researching <strong>{p.name}</strong> via Tavily…</p>
                         <p className="text-xs text-gray-400">Gathering product information and URLs</p>
@@ -8114,16 +8026,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   // Rename state
   const [renamingId, setRenamingId]   = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  // Optional source image used to guide AI generation for visual assets.
-  const assetRefInputRef = useRef<HTMLInputElement>(null);
-  const [assetRefImage, setAssetRefImage] = useState<{ data: string; mime: string } | null>(null);
-  // Direct upload flow (bypasses AI generation).
-  const manualUploadInputRef = useRef<HTMLInputElement>(null);
-  const [manualUploadCategory, setManualUploadCategory] = useState('');
-  const [manualUploadImage, setManualUploadImage] = useState<{ data: string; mime: string; fileName: string } | null>(null);
-  const [manualUploadName, setManualUploadName] = useState('');
-  const [manualUploadError, setManualUploadError] = useState('');
-  const [manualUploadSaving, setManualUploadSaving] = useState(false);
+  // Model reference photo (used when aiCategory === 'models')
+  const modelRefInputRef = useRef<HTMLInputElement>(null);
+  const [modelRefImage, setModelRefImage] = useState<{ data: string; mime: string } | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -8176,7 +8081,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setContextSystemPrompt('');
     setContextPreviewDebug(null);
     setEditingSummary(false);
-    setAssetRefImage(null);
+    setModelRefImage(null);
     setAiOpen(true);
     // Fetch creative brief in background
     if (databaseId) {
@@ -8315,11 +8220,12 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         body: JSON.stringify({
           prompt,
           imageModel,
-          category: aiCategory,
-          forceWhiteBackground: aiCategory === 'models' || aiCategory === 'poses',
-          ...(assetRefImage && {
-            referenceImageData: assetRefImage.data,
-            referenceImageMime: assetRefImage.mime,
+          ...(aiCategory === 'models' && {
+            forceWhiteBackground: true,
+            ...(modelRefImage && {
+              referenceImageData: modelRefImage.data,
+              referenceImageMime: modelRefImage.mime,
+            }),
           }),
         }),
       });
@@ -8359,49 +8265,6 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     }
   };
 
-  const categoryPrefix = (category: string) =>
-    category === 'models' ? 'Model-'
-      : category === 'backdrops' ? 'Backdrop-'
-      : category === 'poses' ? 'Pose-'
-      : category === 'scenes' ? 'Scene-'
-      : '';
-
-  const openManualUpload = (category: string) => {
-    setManualUploadCategory(category);
-    setManualUploadImage(null);
-    setManualUploadName(categoryPrefix(category));
-    setManualUploadError('');
-  };
-
-  const saveManualUpload = async () => {
-    if (!manualUploadImage || !manualUploadName.trim() || manualUploadSaving) return;
-    setManualUploadSaving(true);
-    setManualUploadError('');
-    try {
-      const res = await fetch('/api/dashboard/brand-assets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: manualUploadCategory,
-          name: manualUploadName.trim(),
-          content: `Manually uploaded reference image: ${manualUploadImage.fileName}`,
-          imageData: manualUploadImage.data,
-          imageMime: manualUploadImage.mime,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.error ?? 'Upload failed');
-      await loadAssets();
-      setManualUploadCategory('');
-      setManualUploadImage(null);
-      setManualUploadName('');
-    } catch (error) {
-      setManualUploadError(error instanceof Error ? error.message : 'Upload failed');
-    } finally {
-      setManualUploadSaving(false);
-    }
-  };
-
   const catInfo = BRAND_ASSET_CATEGORIES.find(c => c.id === aiCategory);
 
   return (
@@ -8413,7 +8276,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
           return (
             <div key={cat.id} style={{ background: 'var(--sv-bg-2, #fff)', border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 14, overflow: 'hidden' }}>
               {/* Category header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', borderBottom: catAssets.length > 0 ? '1px solid var(--sv-etch, #e5e7eb)' : 'none', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', borderBottom: catAssets.length > 0 ? '1px solid var(--sv-etch, #e5e7eb)' : 'none' }}>
                 <div style={{ width: 40, height: 40, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: cat.accentColor + '18', color: cat.accentColor, flexShrink: 0 }} dangerouslySetInnerHTML={{ __html: cat.icon }} />
                 <div style={{ flex: 1 }}>
                   <h3 style={{ fontWeight: 700, fontSize: 15, color: 'var(--sv-text-strong, #111827)', margin: 0 }}>{cat.label}</h3>
@@ -8425,16 +8288,6 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                 >
                   <span>✨</span> Create with AI
                 </button>
-                {cat.id !== 'templates' && (
-                  <button
-                    onClick={() => openManualUpload(cat.id)}
-                    title={`Upload an existing ${cat.label.toLowerCase()} reference image`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', color: 'var(--sv-text-dim, #6b7280)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 14v5h14v-5"/></svg>
-                    Upload Image
-                  </button>
-                )}
               </div>
 
               {/* Asset cards */}
@@ -8522,7 +8375,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
 
               {catAssets.length === 0 && !assetsLoading && (
                 <div style={{ padding: '14px 20px' }}>
-                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>No {cat.label.toLowerCase()} assets yet — create one with AI or upload an existing image.</p>
+                  <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>No {cat.label.toLowerCase()} prompts yet — use AI to create your first.</p>
                 </div>
               )}
             </div>
@@ -8683,66 +8536,56 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
               </select>
             </div>
 
-            {/* Optional reference image for visual asset generation */}
-            {aiCategory !== 'templates' && (
+            {/* Model reference photo (models category only) */}
+            {aiCategory === 'models' && (
               <div>
-                <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reference Image</p>
-                {assetRefImage ? (
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📸 Reference Photo</p>
+                {modelRefImage ? (
                   <div style={{ position: 'relative' }}>
                     <img
-                      src={`data:${assetRefImage.mime};base64,${assetRefImage.data}`}
+                      src={`data:${modelRefImage.mime};base64,${modelRefImage.data}`}
                       alt="Reference"
                       style={{ width: '100%', borderRadius: 7, border: '1px solid #d1d5db', display: 'block' }}
                     />
                     <button
-                      onClick={() => setAssetRefImage(null)}
-                      title="Remove reference image"
+                      onClick={() => setModelRefImage(null)}
+                      title="Remove reference photo"
                       style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: 4, color: '#fff', fontSize: 14, cursor: 'pointer', padding: '1px 6px', lineHeight: 1.4 }}
                     >×</button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => assetRefInputRef.current?.click()}
+                    onClick={() => modelRefInputRef.current?.click()}
                     style={{ width: '100%', padding: '10px 8px', borderRadius: 7, border: '2px dashed #d1d5db', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 11, textAlign: 'center' }}
                   >
-                    + Upload reference image
+                    + Upload reference photo
                   </button>
                 )}
                 <input
-                  ref={assetRefInputRef}
+                  ref={modelRefInputRef}
                   type="file"
                   accept="image/*"
                   style={{ display: 'none' }}
                   onChange={e => {
                     const file = e.target.files?.[0];
                     if (!file) return;
-                    if (!file.type.startsWith('image/')) {
-                      setChatError('Choose an image file.');
-                      e.target.value = '';
-                      return;
-                    }
-                    if (file.size > 10 * 1024 * 1024) {
-                      setChatError('Reference images must be 10 MB or smaller.');
-                      e.target.value = '';
-                      return;
-                    }
                     const reader = new FileReader();
                     reader.onload = ev => {
                       const result = ev.target?.result as string;
                       const [header, data] = result.split(',');
                       const mime = header.split(':')[1].split(';')[0];
-                      setAssetRefImage({ data, mime });
+                      setModelRefImage({ data, mime });
                     };
                     reader.readAsDataURL(file);
                     e.target.value = '';
                   }}
                 />
-                {assetRefImage ? (
-                  <p style={{ fontSize: 10, color: '#6b7280', margin: '5px 0 0', lineHeight: 1.4 }}>AI will use this image as the {catInfo.label.toLowerCase()} reference · <button onClick={() => assetRefInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: catInfo.accentColor, fontSize: 10, padding: 0 }}>change</button></p>
+                {modelRefImage ? (
+                  <p style={{ fontSize: 10, color: '#6b7280', margin: '5px 0 0', lineHeight: 1.4 }}>Model identity taken from this photo · <button onClick={() => modelRefInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', fontSize: 10, padding: 0 }}>change</button></p>
                 ) : (
-                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0', lineHeight: 1.4 }}>Optional — guide the generated {catInfo.label.toLowerCase()} with an existing image.</p>
+                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0', lineHeight: 1.4 }}>Optional — upload a photo to use that person&apos;s exact face &amp; identity.</p>
                 )}
-                {(aiCategory === 'models' || aiCategory === 'poses') && <p style={{ fontSize: 10, color: catInfo.accentColor, margin: '4px 0 0', fontWeight: 600 }}>White background applied automatically</p>}
+                <p style={{ fontSize: 10, color: '#0ea5e9', margin: '4px 0 0', fontWeight: 600 }}>✓ White background applied automatically to all model images</p>
               </div>
             )}
           </div>
@@ -8913,75 +8756,6 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
           </div>
         </div>
       )}
-
-      {/* Direct image upload modal */}
-      {manualUploadCategory && (() => {
-        const uploadCategoryInfo = BRAND_ASSET_CATEGORIES.find(category => category.id === manualUploadCategory);
-        if (!uploadCategoryInfo) return null;
-        return (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ width: 'min(480px, 100%)', background: 'var(--sv-bg-2, #fff)', borderRadius: 12, border: '1px solid var(--sv-etch, #e5e7eb)', boxShadow: '0 20px 50px rgba(0,0,0,.25)', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)' }}>
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong, #111827)' }}>Upload {uploadCategoryInfo.label} Asset</p>
-                  <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--sv-text-dim, #6b7280)' }}>Add an existing reference image without AI generation.</p>
-                </div>
-                <button onClick={() => setManualUploadCategory('')} title="Close" style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18 }}>×</button>
-              </div>
-              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {manualUploadImage ? (
-                  <button onClick={() => manualUploadInputRef.current?.click()} title="Choose a different image" style={{ padding: 0, border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 8, background: 'none', overflow: 'hidden', cursor: 'pointer' }}>
-                    <img src={`data:${manualUploadImage.mime};base64,${manualUploadImage.data}`} alt="Selected asset" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'contain', background: 'var(--sv-bg-1, #f9fafb)' }} />
-                  </button>
-                ) : (
-                  <button onClick={() => manualUploadInputRef.current?.click()} style={{ height: 150, borderRadius: 8, border: `2px dashed ${uploadCategoryInfo.accentColor}66`, background: uploadCategoryInfo.accentColor + '08', color: uploadCategoryInfo.accentColor, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Choose Image</button>
-                )}
-                <input
-                  ref={manualUploadInputRef}
-                  type="file"
-                  accept="image/*"
-                  style={{ display: 'none' }}
-                  onChange={event => {
-                    const file = event.target.files?.[0];
-                    if (!file) return;
-                    if (!file.type.startsWith('image/')) {
-                      setManualUploadError('Choose an image file.');
-                      event.target.value = '';
-                      return;
-                    }
-                    if (file.size > 10 * 1024 * 1024) {
-                      setManualUploadError('Images must be 10 MB or smaller.');
-                      event.target.value = '';
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = loadEvent => {
-                      const result = String(loadEvent.target?.result ?? '');
-                      const [header, data] = result.split(',');
-                      const mime = header.match(/^data:([^;]+);base64$/)?.[1] ?? file.type;
-                      setManualUploadImage({ data, mime, fileName: file.name });
-                      const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
-                      setManualUploadName(`${categoryPrefix(manualUploadCategory)}${baseName}`);
-                      setManualUploadError('');
-                    };
-                    reader.readAsDataURL(file);
-                    event.target.value = '';
-                  }}
-                />
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim, #6b7280)' }}>
-                  Asset name
-                  <input value={manualUploadName} onChange={event => setManualUploadName(event.target.value)} placeholder={`${categoryPrefix(manualUploadCategory)}Name`} style={{ height: 36, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', fontSize: 12 }} />
-                </label>
-                {manualUploadError && <p style={{ margin: 0, padding: '7px 9px', borderRadius: 6, background: '#fef2f2', color: '#dc2626', fontSize: 11 }}>{manualUploadError}</p>}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                  <button onClick={() => setManualUploadCategory('')} style={{ height: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'none', color: 'var(--sv-text-dim, #6b7280)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
-                  <button onClick={saveManualUpload} disabled={!manualUploadImage || !manualUploadName.trim() || manualUploadSaving} style={{ height: 34, padding: '0 14px', borderRadius: 7, border: 'none', background: uploadCategoryInfo.accentColor, color: '#fff', cursor: !manualUploadImage || !manualUploadName.trim() || manualUploadSaving ? 'not-allowed' : 'pointer', opacity: !manualUploadImage || !manualUploadName.trim() || manualUploadSaving ? .45 : 1, fontSize: 12, fontWeight: 700 }}>{manualUploadSaving ? 'Uploading…' : 'Upload Asset'}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </>
   );
 }
