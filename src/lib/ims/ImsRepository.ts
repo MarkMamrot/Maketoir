@@ -10,6 +10,7 @@ import {
   type POStatus,
   type SOStatus,
 } from './orderLifecyclePolicy';
+import { OrderAmendmentConflict, planStockRebalance, reconcileOrderLines } from './orderAmendmentPlan';
 import {
   computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
@@ -179,6 +180,78 @@ export interface ImsPaymentMethod {
 export interface LandedCostRow {
   id?: number; po_id?: number;
   label: string; reference?: string | null; amount: number; sort_order?: number;
+}
+
+export interface OrderAmendmentContext {
+  operationKey: string;
+  requestHash: string;
+  expectedUpdatedAt?: string | null;
+  actorId?: number | null;
+  actorName?: string | null;
+}
+
+function assertExpectedOrderRevision(actual: unknown, expected: string | null | undefined): void {
+  if (!expected) return;
+  const actualTime = actual instanceof Date ? actual.getTime() : new Date(String(actual ?? '')).getTime();
+  const expectedTime = new Date(expected).getTime();
+  if (!Number.isFinite(actualTime) || !Number.isFinite(expectedTime) || actualTime !== expectedTime) {
+    throw new OrderAmendmentConflict('This order changed after you opened it. Refresh the order and review the latest values before saving.');
+  }
+}
+
+async function beginOrderAmendment(
+  conn: any,
+  context: OrderAmendmentContext | undefined,
+  input: { businessId: string; orderKind: 'purchase_order' | 'sales_order'; orderId: number; orderStatus: string; beforeHeader: unknown },
+): Promise<{ amendmentId: number | null; replayed: boolean }> {
+  if (!context) return { amendmentId: null, replayed: false };
+  const [[existing]] = await conn.execute<any[]>(
+    `SELECT id, request_hash, state FROM ims_order_amendment_operations
+      WHERE business_id = ? AND operation_key = ? FOR UPDATE`,
+    [input.businessId, context.operationKey],
+  );
+  if (existing) {
+    if (String(existing.request_hash) !== context.requestHash) {
+      throw new OrderAmendmentConflict('This amendment key was already used with different changes. Refresh and try again.');
+    }
+    if (existing.state === 'complete') return { amendmentId: Number(existing.id), replayed: true };
+    throw new OrderAmendmentConflict('This amendment is already being processed. Refresh before trying again.');
+  }
+  const [result] = await conn.execute<any>(
+    `INSERT INTO ims_order_amendment_operations
+       (business_id, operation_key, request_hash, order_kind, order_id, order_status, state,
+        before_header_json, actor_id, actor_name)
+     VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?)`,
+    [input.businessId, context.operationKey, context.requestHash, input.orderKind, input.orderId, input.orderStatus,
+     JSON.stringify(input.beforeHeader), context.actorId ?? null, context.actorName ?? null],
+  );
+  return { amendmentId: Number(result.insertId), replayed: false };
+}
+
+async function completeOrderAmendment(
+  conn: any,
+  businessId: string,
+  amendmentId: number | null,
+  afterHeader: unknown,
+  lineChanges: Array<{ sourceLineId: number | null; resultLineId: number | null; movedFloor: number; beforeLine: unknown; afterLine: unknown }>,
+): Promise<void> {
+  if (amendmentId == null) return;
+  for (const change of lineChanges) {
+    await conn.execute(
+      `INSERT INTO ims_order_amendment_lines
+         (business_id, amendment_id, source_line_id, result_line_id, moved_quantity_floor, before_line_json, after_line_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, amendmentId, change.sourceLineId, change.resultLineId, change.movedFloor,
+       change.beforeLine == null ? null : JSON.stringify(change.beforeLine),
+       change.afterLine == null ? null : JSON.stringify(change.afterLine)],
+    );
+  }
+  await conn.execute(
+    `UPDATE ims_order_amendment_operations
+        SET state = 'complete', after_header_json = ?, completed_at = NOW()
+      WHERE id = ? AND business_id = ?`,
+    [JSON.stringify(afterHeader), amendmentId, businessId],
+  );
 }
 
 export interface ImsPO {
@@ -1167,8 +1240,9 @@ export const ImsPORepo = {
   async update(
     id: number,
     data: Partial<Pick<ImsPO, 'supplier_id' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'supplier_invoice_number' | 'supplier_invoice_date' | 'payment_terms' | 'tax_treatment' | 'tax_code' | 'currency_code' | 'exchange_rate' | 'freight' | 'discount'>>,
-    items?: Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'>[],
+    items?: (Omit<ImsPOItem, 'id' | 'po_id' | 'qty_received' | 'sku' | 'product_name' | 'variant_label'> & { id?: number })[],
     landedCosts?: LandedCostRow[],
+    amendmentContext?: OrderAmendmentContext,
   ): Promise<void> {
     const fields = ['supplier_id','location_id','order_date','expected_date','notes','supplier_invoice_number','supplier_invoice_date','payment_terms','tax_treatment','tax_code','currency_code','exchange_rate','freight','discount'];
     const sets: string[] = [];
@@ -1186,14 +1260,36 @@ export const ImsPORepo = {
     try {
       await conn.beginTransaction();
 
-      if (items) {
-        const [[currentPo]] = await conn.execute<any[]>(
-          `SELECT status FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+      const [[currentPo]] = await conn.execute<any[]>(
+        `SELECT status, location_id, business_id, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+      );
+      if (!currentPo) throw new Error('Purchase order not found');
+      assertExpectedOrderRevision(currentPo.updated_at, amendmentContext?.expectedUpdatedAt);
+
+      let existingItems: any[] = [];
+      const locationChanged = data.location_id !== undefined && Number(data.location_id) !== Number(currentPo.location_id);
+      if (items || locationChanged) {
+        [existingItems] = await conn.execute<any[]>(
+          `SELECT id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes
+             FROM ims_purchase_order_items WHERE po_id = ? ORDER BY id FOR UPDATE`,
+          [id],
         );
-        if (currentPo?.status === 'backordered') {
-          throw new Error('Release this supplier backorder before changing its quantities.');
+        if (!['draft', 'confirmed'].includes(String(currentPo.status))) {
+          throw new OrderAmendmentConflict('Only Draft or untouched Confirmed purchase orders can be edited. Use Resolve Outstanding or the completed-order correction workflow instead.');
+        }
+        if (existingItems.some(item => Number(item.qty_received ?? 0) > 0)) {
+          throw new OrderAmendmentConflict('Received quantities cannot be changed by a normal edit. Amend only the outstanding remainder.');
         }
       }
+      const amendment = await beginOrderAmendment(conn, amendmentContext, {
+        businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
+        orderStatus: String(currentPo.status), beforeHeader: currentPo,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return;
+      }
+      const amendmentLines: Array<{ sourceLineId: number | null; resultLineId: number | null; movedFloor: number; beforeLine: unknown; afterLine: unknown }> = [];
 
       if (sets.length) {
         vals.push(id);
@@ -1201,7 +1297,7 @@ export const ImsPORepo = {
       }
 
       if (items) {
-        await conn.execute(`DELETE FROM ims_purchase_order_items WHERE po_id = ?`, [id]);
+        const reconciliation = reconcileOrderLines(existingItems, items);
         // Determine effective tax_treatment (new value if supplied, else from DB)
         let taxTreatment: string = data.tax_treatment ?? 'ex_tax';
         if (!data.tax_treatment) {
@@ -1209,8 +1305,8 @@ export const ImsPORepo = {
           taxTreatment = poMeta?.tax_treatment ?? 'ex_tax';
         }
         let subtotal = 0, tax_amount = 0;
-        const itemRows: unknown[][] = [];
-        for (const item of items) {
+        const newItemRows: unknown[][] = [];
+        for (const { existingId, line: item } of reconciliation.lines) {
           const discPct = Number(item.discount_pct ?? 0);
           const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
           const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
@@ -1228,18 +1324,81 @@ export const ImsPORepo = {
           }
           subtotal   += item_subtotal;
           tax_amount += item_tax;
-          itemRows.push([
-            id, item.variant_id, item.qty_ordered, item.unit_cost,
-            discPct, item.tax_rate ?? 0, line_total, item.notes ?? null,
-          ]);
+          if (existingId != null) {
+            await conn.execute(
+              `UPDATE ims_purchase_order_items
+                  SET variant_id = ?, qty_ordered = ?, unit_cost = ?, discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?
+                WHERE id = ? AND po_id = ?`,
+              [item.variant_id, item.qty_ordered, item.unit_cost, discPct, item.tax_rate ?? 0, line_total, item.notes ?? null, existingId, id],
+            );
+            amendmentLines.push({
+              sourceLineId: existingId, resultLineId: existingId, movedFloor: 0,
+              beforeLine: existingItems.find(line => Number(line.id) === existingId) ?? null, afterLine: item,
+            });
+          } else {
+            newItemRows.push([
+              id, item.variant_id, item.qty_ordered, item.unit_cost,
+              discPct, item.tax_rate ?? 0, line_total, item.notes ?? null,
+            ]);
+            amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
+          }
         }
-        if (itemRows.length > 0) {
+        for (const removedId of reconciliation.removedIds) {
+          amendmentLines.push({
+            sourceLineId: removedId, resultLineId: null, movedFloor: 0,
+            beforeLine: existingItems.find(line => Number(line.id) === removedId) ?? null, afterLine: null,
+          });
+        }
+        if (newItemRows.length > 0) {
           await conn.execute(
             `INSERT INTO ims_purchase_order_items
                (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
-             VALUES ${itemRows.map(() => '(?,?,?,?,?,?,?,?)').join(',')}`,
-            itemRows.flat(),
+             VALUES ${newItemRows.map(() => '(?,?,?,?,?,?,?,?)').join(',')}`,
+            newItemRows.flat(),
           );
+        }
+        if (reconciliation.removedIds.length > 0) {
+          await conn.execute(
+            `DELETE FROM ims_purchase_order_items WHERE po_id = ? AND id IN (${reconciliation.removedIds.map(() => '?').join(',')})`,
+            [id, ...reconciliation.removedIds],
+          );
+        }
+
+        if (currentPo.status === 'confirmed') {
+          const newLocationId = Number(data.location_id ?? currentPo.location_id);
+          const deltas = planStockRebalance(Number(currentPo.location_id), newLocationId, existingItems, items);
+          for (const delta of deltas) {
+            if (delta.quantityDelta > 0) {
+              await conn.execute(
+                `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_incoming)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE qty_incoming = qty_incoming + VALUES(qty_incoming)`,
+                [delta.variantId, delta.locationId, currentPo.business_id, delta.quantityDelta],
+              );
+            } else {
+              const [[stock]] = await conn.execute<any[]>(
+                `SELECT qty_incoming FROM ims_stock WHERE variant_id = ? AND location_id = ? FOR UPDATE`,
+                [delta.variantId, delta.locationId],
+              );
+              if (Number(stock?.qty_incoming ?? 0) + 0.00005 < Math.abs(delta.quantityDelta)) {
+                throw new OrderAmendmentConflict(`Incoming stock for variant ${delta.variantId} changed while this purchase order was being edited. Refresh and try again.`);
+              }
+              await conn.execute(
+                `UPDATE ims_stock SET qty_incoming = qty_incoming + ? WHERE variant_id = ? AND location_id = ?`,
+                [delta.quantityDelta, delta.variantId, delta.locationId],
+              );
+            }
+            const [[stockAfter]] = await conn.execute<any[]>(
+              `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
+              [delta.variantId, delta.locationId],
+            );
+            await conn.execute(
+              `INSERT INTO ims_stock_movements
+                (business_id, variant_id, location_id, movement_type, reference_type, reference_id, qty_change, qty_after_soh, notes)
+               VALUES (?, ?, ?, ?, 'purchase_order', ?, ?, ?, 'Purchase order amended')`,
+              [currentPo.business_id, delta.variantId, delta.locationId, delta.quantityDelta > 0 ? 'po_approved' : 'po_unapproved', id, delta.quantityDelta, Number(stockAfter?.qty_on_hand ?? 0)],
+            );
+          }
         }
 
         // Replace landed costs if provided
@@ -1307,6 +1466,7 @@ export const ImsPORepo = {
           [newTaxAmount, Number(poRow?.subtotal ?? 0) + newTaxAmount + useFreight - useDi, id]
         );
       }
+      await completeOrderAmendment(conn, String(currentPo.business_id ?? ''), amendment.amendmentId, data, amendmentLines);
       await conn.commit();
     } catch (err) {
       await conn.rollback();
@@ -2170,7 +2330,8 @@ export const ImsSORepo = {
   async update(
     id: number,
     data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>,
-    items?: Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'>[],
+    items?: (Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'> & { id?: number })[],
+    amendmentContext?: OrderAmendmentContext,
   ): Promise<void> {
     await this.ensureTaxTreatmentColumn();
     const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','notes','payment_terms','price_tier','tax_treatment','tax_code','freight','discount'];
@@ -2193,11 +2354,23 @@ export const ImsSORepo = {
       // lines below would strand that commitment, so we rebalance it here.
       const [[preEdit]] = await conn.execute<any[]>(
         `SELECT status, location_id, business_id, customer_id, order_date, payment_terms,
-                price_tier, tax_treatment, tax_code, freight, discount
+           price_tier, tax_treatment, tax_code, freight, discount, so_type, updated_at
            FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
       );
+      if (!preEdit) throw new Error('Sales order not found');
+       assertExpectedOrderRevision(preEdit.updated_at, amendmentContext?.expectedUpdatedAt);
       if (items && preEdit?.status === 'backordered') {
-        throw new Error('Release this customer backorder before changing its quantities.');
+        throw new OrderAmendmentConflict('Release this customer backorder before changing its quantities.');
+      }
+      const locationChanged = data.location_id !== undefined && Number(data.location_id) !== Number(preEdit.location_id);
+      let existingItems: any[] = [];
+      if (items || locationChanged) {
+        [existingItems] = await conn.execute<any[]>(
+          `SELECT id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, unit_cost,
+                  discount_pct, tax_rate, line_total, notes
+             FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
+          [id],
+        );
       }
       let replacementItems = items;
       if (['partially_fulfilled', 'fulfilled'].includes(String(preEdit?.status))) {
@@ -2209,13 +2382,8 @@ export const ImsSORepo = {
         }
       }
       if (items && ['partially_fulfilled', 'fulfilled'].includes(String(preEdit?.status))) {
-        const [shippedItems] = await conn.execute<any[]>(
-          `SELECT variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, notes
-             FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
-          [id],
-        );
         const sameNumber = (left: unknown, right: unknown) => Math.abs(Number(left ?? 0) - Number(right ?? 0)) < 0.00005;
-        const linesUnchanged = shippedItems.length === items.length && shippedItems.every((existingItem, index) => {
+        const linesUnchanged = existingItems.length === items.length && existingItems.every((existingItem, index) => {
           const nextItem = items[index];
           return String(existingItem.variant_id ?? '') === String(nextItem.variant_id ?? '')
             && sameNumber(existingItem.qty_ordered, nextItem.qty_ordered)
@@ -2230,12 +2398,18 @@ export const ImsSORepo = {
         replacementItems = undefined;
       }
       const rebalanceCommitted = !!replacementItems && preEdit?.status === 'confirmed';
-      let oldCommitItems: any[] = [];
-      if (rebalanceCommitted) {
-        [oldCommitItems] = await conn.execute<any[]>(
-          `SELECT variant_id, qty_ordered FROM ims_sales_order_items WHERE so_id = ?`, [id]
-        );
+      if (rebalanceCommitted && existingItems.some(item => Number(item.qty_fulfilled ?? 0) > 0)) {
+        throw new OrderAmendmentConflict('Fulfilled quantities cannot be changed by a normal edit. Amend only the outstanding remainder.');
       }
+      const amendment = await beginOrderAmendment(conn, amendmentContext, {
+        businessId: String(preEdit.business_id ?? ''), orderKind: 'sales_order', orderId: id,
+        orderStatus: String(preEdit.status), beforeHeader: preEdit,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return;
+      }
+      const amendmentLines: Array<{ sourceLineId: number | null; resultLineId: number | null; movedFloor: number; beforeLine: unknown; afterLine: unknown }> = [];
 
       if (sets.length) {
         vals.push(id);
@@ -2243,60 +2417,105 @@ export const ImsSORepo = {
       }
 
       if (replacementItems) {
-        await conn.execute(`DELETE FROM ims_sales_order_items WHERE so_id = ?`, [id]);
-        for (const item of replacementItems) {
+        const reconciliation = reconcileOrderLines(existingItems, replacementItems);
+        const newRows: unknown[][] = [];
+        for (const { existingId, line: item } of reconciliation.lines) {
           const disc      = 1 - Number(item.discount_pct ?? 0) / 100;
           const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
+          if (existingId != null) {
+            await conn.execute(
+              `UPDATE ims_sales_order_items
+                  SET shopify_line_item_id = ?, variant_id = ?, qty_ordered = ?, unit_price = ?,
+                      discount_pct = ?, tax_rate = ?, line_total = ?, notes = ?
+                WHERE id = ? AND so_id = ?`,
+              [item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+               item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null, existingId, id],
+            );
+            amendmentLines.push({
+              sourceLineId: existingId, resultLineId: existingId, movedFloor: 0,
+              beforeLine: existingItems.find(line => Number(line.id) === existingId) ?? null, afterLine: item,
+            });
+          } else {
+            newRows.push([id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+              item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]);
+            amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
+          }
+        }
+        for (const removedId of reconciliation.removedIds) {
+          amendmentLines.push({
+            sourceLineId: removedId, resultLineId: null, movedFloor: 0,
+            beforeLine: existingItems.find(line => Number(line.id) === removedId) ?? null, afterLine: null,
+          });
+        }
+        if (newRows.length > 0) {
           await conn.execute(
             `INSERT INTO ims_sales_order_items
                (so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
-            [id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
-             item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]
+             VALUES ${newRows.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}`,
+            newRows.flat(),
+          );
+        }
+        if (reconciliation.removedIds.length > 0) {
+          await conn.execute(
+            `DELETE FROM ims_sales_order_items WHERE so_id = ? AND id IN (${reconciliation.removedIds.map(() => '?').join(',')})`,
+            [id, ...reconciliation.removedIds],
           );
         }
 
-        // Rebalance committed for a confirmed order: release the OLD lines'
-        // commitment (at the OLD location), then commit the NEW lines (at the
-        // possibly-changed location). Skips null-variant lines.
         if (rebalanceCommitted) {
           const oldLoc = preEdit.location_id;
           const newLoc = (data.location_id != null) ? data.location_id : preEdit.location_id;
-          for (const oi of oldCommitItems) {
-            if (!oi.variant_id) continue;
-            await conn.execute(
-              `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-               WHERE variant_id = ? AND location_id = ?`,
-              [oi.qty_ordered, oi.variant_id, oldLoc]
+          const allVariantIds = [...new Set([...existingItems, ...replacementItems]
+            .map(item => item.variant_id)
+            .filter((variantId): variantId is string => Boolean(variantId)))];
+          const stockItemByVariant = new Map<string, number>();
+          if (allVariantIds.length > 0) {
+            const [classificationRows] = await conn.execute<any[]>(
+              `SELECT pv.variant_id, COALESCE(p.is_stock_item, 1) AS is_stock_item
+                 FROM ims_product_variants pv
+                 JOIN ims_products p ON p.product_id = pv.product_id
+                WHERE pv.variant_id IN (${allVariantIds.map(() => '?').join(',')})`,
+              allVariantIds,
             );
-            const [[stock]] = await conn.execute<any[]>(
-              `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
-              [oi.variant_id, oldLoc],
-            );
-            await conn.execute(
-              `INSERT INTO ims_stock_movements
-                (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, notes)
-               VALUES (?, ?, ?, 'so_unconfirmed', 'wholesale', 'sales_order', ?, ?, ?, 'Sales order lines edited')`,
-              [preEdit.business_id, oi.variant_id, oldLoc, id, -Number(oi.qty_ordered), Number(stock?.qty_on_hand ?? 0)],
-            );
+            if (Array.isArray(classificationRows)) {
+              for (const row of classificationRows) stockItemByVariant.set(String(row.variant_id), Number(row.is_stock_item));
+            }
           }
-          for (const item of replacementItems) {
-            if (!item.variant_id) continue;
-            await conn.execute(
-              `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_committed)
-               VALUES (?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-              [item.variant_id, newLoc, preEdit.business_id, item.qty_ordered]
-            );
-            const [[stock]] = await conn.execute<any[]>(
+          const stockOnly = (lines: any[]) => lines.filter(item => !item.variant_id || (stockItemByVariant.get(String(item.variant_id)) ?? 1) !== 0);
+          const deltas = planStockRebalance(Number(oldLoc), Number(newLoc), stockOnly(existingItems), stockOnly(replacementItems));
+          for (const delta of deltas) {
+            if (delta.quantityDelta > 0) {
+              await conn.execute(
+                `INSERT INTO ims_stock (variant_id, location_id, business_id, qty_committed)
+                 VALUES (?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+                [delta.variantId, delta.locationId, preEdit.business_id, delta.quantityDelta],
+              );
+            } else {
+              const [[stock]] = await conn.execute<any[]>(
+                `SELECT qty_on_hand, qty_committed FROM ims_stock
+                  WHERE variant_id = ? AND location_id = ? FOR UPDATE`,
+                [delta.variantId, delta.locationId],
+              );
+              if (Number(stock?.qty_committed ?? 0) + 0.00005 < Math.abs(delta.quantityDelta)) {
+                throw new OrderAmendmentConflict(`Committed stock for variant ${delta.variantId} changed while this sales order was being edited. Refresh and try again.`);
+              }
+              await conn.execute(
+                `UPDATE ims_stock SET qty_committed = qty_committed + ? WHERE variant_id = ? AND location_id = ?`,
+                [delta.quantityDelta, delta.variantId, delta.locationId],
+              );
+            }
+            const [[stockAfter]] = await conn.execute<any[]>(
               `SELECT qty_on_hand FROM ims_stock WHERE variant_id = ? AND location_id = ?`,
-              [item.variant_id, newLoc],
+              [delta.variantId, delta.locationId],
             );
             await conn.execute(
               `INSERT INTO ims_stock_movements
                 (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, notes)
-               VALUES (?, ?, ?, 'so_confirmed', 'wholesale', 'sales_order', ?, ?, ?, 'Sales order lines edited')`,
-              [preEdit.business_id, item.variant_id, newLoc, id, Number(item.qty_ordered), Number(stock?.qty_on_hand ?? 0)],
+               VALUES (?, ?, ?, ?, ?, 'sales_order', ?, ?, ?, 'Sales order amended')`,
+              [preEdit.business_id, delta.variantId, delta.locationId,
+               delta.quantityDelta > 0 ? 'so_confirmed' : 'so_unconfirmed',
+               preEdit.so_type === 'online' ? 'online' : 'wholesale', id, delta.quantityDelta, Number(stockAfter?.qty_on_hand ?? 0)],
             );
           }
         }
@@ -2311,6 +2530,7 @@ export const ImsSORepo = {
           [totals.subtotal, totals.tax_amount, totals.total_amount, id]
         );
       }
+      await completeOrderAmendment(conn, String(preEdit.business_id ?? ''), amendment.amendmentId, data, amendmentLines);
       await conn.commit();
     } catch (err) {
       await conn.rollback();

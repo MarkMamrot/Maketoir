@@ -21,6 +21,22 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_order_amendment_operations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL, order_kind VARCHAR(32) NOT NULL, order_id INT NOT NULL, order_status VARCHAR(32) NOT NULL,
+    state VARCHAR(32) NOT NULL DEFAULT 'processing', before_header_json JSON NULL, after_header_json JSON NULL,
+    actor_id INT NULL, actor_name VARCHAR(255) NULL, safe_error VARCHAR(500) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    UNIQUE KEY uq_order_amendment_operation (business_id, operation_key),
+    INDEX idx_order_amendment_order (business_id, order_kind, order_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_order_amendment_lines (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, amendment_id BIGINT NOT NULL,
+    source_line_id INT NULL, result_line_id INT NULL, moved_quantity_floor DECIMAL(12,4) NOT NULL DEFAULT 0,
+    before_line_json JSON NULL, after_line_json JSON NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_order_amendment_lines (business_id, amendment_id, id),
+    CONSTRAINT fk_order_amendment_lines_operation FOREIGN KEY (amendment_id) REFERENCES ims_order_amendment_operations(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_so_shortfall_resolutions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
     request_hash CHAR(64) NOT NULL, source_so_id INT NOT NULL,
@@ -698,6 +714,7 @@ const COLUMNS = [
   ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
+  ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
 ];
 
 const INDEXES = [

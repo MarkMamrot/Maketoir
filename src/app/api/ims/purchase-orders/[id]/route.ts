@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash, randomUUID } from 'crypto';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsPORepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -10,6 +11,7 @@ import { getOrderResolutionFinancialSummaries } from '@/lib/ims/orderResolution/
 import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEditState } from '@/lib/xero/documentEditPolicy';
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
+import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -50,7 +52,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
-    const { items, status, ...poData } = body;
+    const { items, status, operationKey, expectedUpdatedAt, ...poData } = body;
 
     // Handle status transition
     let xeroWarning: string | null = null;
@@ -139,7 +141,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
       const { landed_costs, ...cleanPoData } = poData;
-      await ImsPORepo.update(Number(params.id), cleanPoData, items, landed_costs);
+      const amendmentKey = typeof operationKey === 'string' && operationKey.trim() ? operationKey.trim() : randomUUID();
+      const requestHash = createHash('sha256').update(JSON.stringify({ poData: cleanPoData, items, landed_costs })).digest('hex');
+      await ImsPORepo.update(Number(params.id), cleanPoData, items, landed_costs, {
+        operationKey: amendmentKey,
+        requestHash,
+        expectedUpdatedAt: typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null,
+        actorId: session.userId,
+        actorName: session.name ?? session.email,
+      });
 
       // EVENT-DRIVEN CACHE UPDATE
       if (items && items.length > 0) {
@@ -163,6 +173,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e instanceof OrderAmendmentConflict) {
+      return NextResponse.json({
+        success: false,
+        error: e.message,
+        code: e.code,
+      }, { status: 409 });
+    }
     if (e instanceof OrderLifecycleConflict) {
       return NextResponse.json({
         success: false,

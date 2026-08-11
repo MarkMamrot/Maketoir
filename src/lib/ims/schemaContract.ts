@@ -26,6 +26,8 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_sales_orders',
   'ims_sales_order_items',
   'ims_so_fulfilment_operations',
+  'ims_order_amendment_operations',
+  'ims_order_amendment_lines',
   'ims_so_shortfall_resolutions',
   'ims_customer_credit_settlements',
   'ims_po_shortfall_resolutions',
@@ -87,6 +89,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'shopify_inventory_item_id',
   ],
   ims_stock: ['zone', 'bin'],
+  ims_purchase_order_items: ['discount_pct'],
   store_credit_transactions: ['credit_note_id', 'idempotency_key'],
 } as const;
 

@@ -41,9 +41,12 @@ describe('ImsPORepo.get', () => {
 });
 
 describe('ImsPORepo.update', () => {
-  it('replaces all PO lines with one multi-row insert', async () => {
+  it('preserves existing PO line IDs and inserts only new lines', async () => {
     const execute = vi.fn(async (sql: string) => {
-      if (sql.includes('SELECT status')) return [[{ status: 'draft' }]];
+      if (sql.includes('SELECT status, location_id')) return [[{ status: 'draft', location_id: 4, business_id: 'biz-1' }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[
+        { id: 10, variant_id: 'v-1', qty_ordered: 2, qty_received: 0 },
+      ]];
       if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
       if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
       return [{ affectedRows: 1 }];
@@ -58,14 +61,92 @@ describe('ImsPORepo.update', () => {
     mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
 
     await ImsPORepo.update(42, {}, [
-      { variant_id: 'v-1', qty_ordered: 2, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 10, notes: null },
+      { id: 10, variant_id: 'v-1', qty_ordered: 2, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 10, notes: null },
       { variant_id: 'v-2', qty_ordered: 3, unit_cost: 7, discount_pct: 0, tax_rate: 0.1, line_total: 21, notes: 'Second' },
     ]);
 
     const inserts = execute.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO ims_purchase_order_items'));
     expect(inserts).toHaveLength(1);
-    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?),(?,?,?,?,?,?,?,?)');
-    expect(inserts[0][1]).toHaveLength(16);
+    expect(inserts[0][0]).toContain('VALUES (?,?,?,?,?,?,?,?)');
+    expect(inserts[0][1]).toHaveLength(8);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_purchase_order_items'),
+      ['v-1', 2, 5, 0, 0.1, 10, null, 10, 42],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('applies only the net incoming delta for a confirmed quantity edit', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1' }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[
+        { id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0 },
+      ]];
+      if (sql.includes('SELECT qty_incoming')) return [[{ qty_incoming: 9 }]];
+      if (sql.includes('SELECT qty_on_hand')) return [[{ qty_on_hand: 6 }]];
+      if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
+      if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, {}, [
+      { id: 10, variant_id: 'v-1', qty_ordered: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 15, notes: null },
+    ]);
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_incoming = qty_incoming + ?'),
+      [-2, 'v-1', 4],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("VALUES (?, ?, ?, ?, 'purchase_order'"),
+      ['biz-1', 'v-1', 4, 'po_unapproved', 42, -2, 6],
+    );
+  });
+
+  it('rejects a stale edit before changing lines, stock, or amendment history', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', updated_at: new Date('2026-08-11T10:00:00.000Z') }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.update(42, {}, [], undefined, {
+      operationKey: 'amend-1', requestHash: 'a'.repeat(64), expectedUpdatedAt: '2026-08-11T09:00:00.000Z',
+    })).rejects.toThrow('This order changed after you opened it');
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('ims_order_amendment_operations'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('replays a completed amendment operation without applying changes twice', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', updated_at: new Date('2026-08-11T10:00:00.000Z') }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0 }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) {
+        return [[{ id: 70, request_hash: 'a'.repeat(64), state: 'complete' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, {}, [{
+      id: 10, variant_id: 'v-1', qty_ordered: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 15, notes: null,
+    }], undefined, { operationKey: 'amend-1', requestHash: 'a'.repeat(64) });
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 });

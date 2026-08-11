@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash, randomUUID } from 'crypto';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
@@ -9,6 +10,7 @@ import { getOrderResolutionFinancialSummaries } from '@/lib/ims/orderResolution/
 import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEditState } from '@/lib/xero/documentEditPolicy';
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
+import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -32,7 +34,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
-    const { items, status, ...soData } = body;
+    const { items, status, operationKey, expectedUpdatedAt, ...soData } = body;
 
     let xeroWarning: string | null = null;
     if (status) {
@@ -92,7 +94,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
           }, { status: 409 });
         }
       }
-      await ImsSORepo.update(Number(params.id), soData, items);
+      const amendmentKey = typeof operationKey === 'string' && operationKey.trim() ? operationKey.trim() : randomUUID();
+      const requestHash = createHash('sha256').update(JSON.stringify({ soData, items })).digest('hex');
+      await ImsSORepo.update(Number(params.id), soData, items, {
+        operationKey: amendmentKey,
+        requestHash,
+        expectedUpdatedAt: typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null,
+        actorId: session.userId,
+        actorName: session.name ?? session.email,
+      });
 
       // EVENT-DRIVEN CACHE UPDATE
       if (items && items.length > 0) {
@@ -116,6 +126,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e instanceof OrderAmendmentConflict) {
+      return NextResponse.json({
+        success: false,
+        error: e.message,
+        code: e.code,
+      }, { status: 409 });
+    }
     if (e instanceof OrderLifecycleConflict) {
       return NextResponse.json({
         success: false,

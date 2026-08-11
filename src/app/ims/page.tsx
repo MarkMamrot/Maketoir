@@ -8272,7 +8272,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       ? `Avg of ${payments.length} payment${payments.length !== 1 ? 's' : ''} (${derivedRate.toFixed(4)} AUD per ${cur})`
       : '';
     setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', supplier_invoice_date: d.data.supplier_invoice_date?.slice(0, 10) ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
     const finalQtys = pendingReceiveOverrideRef.current ? { ...initQtys, ...pendingReceiveOverrideRef.current } : initQtys;
@@ -8346,7 +8346,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs }) });
+        await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items, landed_costs, operationKey: crypto.randomUUID(), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
         // Also record any receiving deltas
         if (isReceiving) {
           const effectiveQtys = receiveQtysOverride ?? receiveQtys;
@@ -11794,7 +11794,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
     setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', price_tier: normalizeSOPriceTier(d.data.price_tier), tax_treatment: d.data.tax_treatment ?? 'ex_tax', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, shopify_line_item_id: i.shopify_line_item_id ?? null, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setModal({ open: true, edit: d.data });
   };
 
@@ -11941,7 +11941,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         const updateBody = shippedEditLocked
           ? { customer_po_number: form.customer_po_number, notes: form.notes }
           : { ...form, items };
-        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updateBody) });
+        await apiFetch(`/api/ims/sales-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...updateBody, operationKey: crypto.randomUUID(), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
       } else {
         const created = await apiFetch('/api/ims/sales-orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, items }) });
         savedSoId = Number(created?.id ?? created?.data?.id ?? 0) || null;
@@ -24513,21 +24513,31 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
           <li><strong>Confirmed</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
           <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
-          <li><strong>Received</strong> — All goods received into stock. Xero bill moves to <em>Authorised</em>; if deposits were recorded, a journal transfers cost from <em>Inventory In Transit</em> to <em>Inventory Asset</em>.</li>
-          <li><strong>Cancelled</strong> — PO cancelled. Stock impacts are fully reversed. If a Xero bill exists, it is voided automatically.</li>
+          <li><strong>Completed — Fully received</strong> — All goods are in stock. The Xero bill follows the configured completion policy, normally Authorised.</li>
+          <li><strong>Backordered</strong> — A held child PO owns the short quantity. Release it when the supplier can deliver.</li>
+          <li><strong>Cancelled</strong> — An immutable audit record. Duplicate it to start a replacement Draft.</li>
         </ul>
+
+        <h3 style={h3}>Editing before anything is received</h3>
+        <p style={p}>Draft and untouched Confirmed POs are editable. Confirmed edits update only the difference in incoming stock and update the existing editable Xero bill.</p>
+        <ul style={ul}>
+          <li><strong>Example: 10 reduced to 8</strong> — <em>qty_incoming</em> changes by −2. The system does not remove 10 and add 8.</li>
+          <li><strong>Example: 8 red changed to 8 blue</strong> — incoming red changes by −8 and incoming blue by +8. Stock on hand does not change.</li>
+          <li><strong>Example: another user saved first</strong> — your save is rejected with a refresh message instead of overwriting their change.</li>
+        </ul>
+        <p style={p}>Draft, Submitted, and unpaid/uncredited/unlocked Authorised Xero bills update in place. Paid, credited, locked, terminal, or unverifiable bills require the correction workflow.</p>
 
         <h3 style={h3}>Partial receives &amp; backorder POs</h3>
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
           <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
           <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
-          <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (e.g. <span style={code}>PO-2025-0042-B</span>) and start in <em>Draft</em> status, ready to approve and track separately.</li>
-          <li>You can also click <strong>Mark Received</strong> directly from the IMS PO list or view modal — this force-completes a partially received PO, processing the remaining unscanned items at their full ordered quantity.</li>
+          <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (for example <span style={code}>PO-2026-0042-B</span>) and remain held until released.</li>
+          <li><strong>Resolve Outstanding</strong> can leave the remainder open, cancel it, or move it to a held child without repeating any receipt movement.</li>
         </ul>
 
-        <h3 style={h3}>Reverting a partially received PO</h3>
-        <p style={p}>From the PO view modal, <strong>Revert to Confirmed</strong> fully undoes all partial stock updates — <em>qty_on_hand</em> is decremented and <em>qty_incoming</em> is restored for each item received so far. No Xero action is taken (the original draft bill remains).</p>
+        <h3 style={h3}>After stock has been received</h3>
+        <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. A partial PO can continue receiving or use <strong>Resolve Outstanding</strong>. A Completed PO uses <strong>Reverse Receipt &amp; Cancel</strong> only when all received stock and Xero checks permit the exact reversal.</p>
 
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>
@@ -24552,10 +24562,21 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Status lifecycle</h3>
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
-          <li><strong>Confirmed</strong> — Wholesale SO confirmed. Triggers an <em>Authorised Invoice</em> in Xero (ACCREC) immediately.</li>
-          <li><strong>Fulfilled</strong> — Goods dispatched. Stock levels adjusted. No additional Xero action.</li>
-          <li><strong>Closed</strong> — Fully processed and paid.</li>
+          <li><strong>Confirmed</strong> — Commits stock. The Xero invoice follows the configured confirmation policy, normally Draft.</li>
+          <li><strong>Partially Fulfilled</strong> — Some goods have shipped; only the outstanding remainder remains committed.</li>
+          <li><strong>Completed — Fully fulfilled</strong> — All goods have shipped. The Xero invoice follows the configured completion policy, normally Authorised.</li>
+          <li><strong>Backordered</strong> — A held child SO owns the outstanding commitment until it is ready for release.</li>
+          <li><strong>Cancelled</strong> — An immutable audit record. Duplicate it to create a replacement Draft.</li>
         </ul>
+        <h3 style={h3}>Editing before anything is fulfilled</h3>
+        <p style={p}>Draft and untouched Confirmed SOs are editable. Confirmed edits preserve existing line IDs, change only the net stock commitment, and update the existing editable Xero invoice.</p>
+        <ul style={ul}>
+          <li><strong>Example: 5 red becomes 3 red + 2 blue</strong> — red commitment changes by −2 and blue by +2. Stock on hand does not change until fulfilment.</li>
+          <li><strong>Example: move the order to another location</strong> — commitments are released at the old location and added at the new location in one transaction.</li>
+          <li><strong>Example: the order changed in another browser</strong> — the stale save is rejected and you are asked to refresh.</li>
+        </ul>
+        <h3 style={h3}>After goods have shipped</h3>
+        <p style={p}>Shipped line IDs, quantities, costs, and movements are preserved. Use <strong>Continue Fulfilment</strong> or <strong>Resolve Outstanding</strong> for a partial SO. A Completed SO is corrected with <strong>Return / Credit</strong> and, when needed, a replacement SO; it is not reopened or unfulfilled.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
           <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>

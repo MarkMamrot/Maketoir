@@ -29,10 +29,16 @@ describe('ImsSORepo.update', () => {
     vi.clearAllMocks();
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) {
-        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax' }]];
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax', so_type: 'b2b' }]];
       }
-      if (sql.includes('SELECT variant_id, qty_ordered')) {
-        return [[{ variant_id: 'old-size', qty_ordered: 1 }]];
+      if (sql.includes('FROM ims_sales_order_items')) {
+        return [[{ id: 10, variant_id: 'old-size', qty_ordered: 1, qty_fulfilled: 0 }]];
+      }
+      if (sql.includes('COALESCE(p.is_stock_item')) {
+        return [[{ variant_id: 'old-size', is_stock_item: 1 }, { variant_id: 'new-size', is_stock_item: 1 }]];
+      }
+      if (sql.includes('qty_on_hand, qty_committed')) {
+        return [[{ qty_on_hand: 8, qty_committed: 1 }]];
       }
       if (sql.includes('SELECT freight, discount')) {
         return [[{ freight: 0, discount: 0, tax_treatment: 'inc_tax' }]];
@@ -46,6 +52,7 @@ describe('ImsSORepo.update', () => {
 
   it('moves committed stock to the edited Shopify variant', async () => {
     await ImsSORepo.update(42, {}, [{
+      id: 10,
       shopify_line_item_id: '9002',
       variant_id: 'new-size',
       qty_ordered: 1,
@@ -57,12 +64,12 @@ describe('ImsSORepo.update', () => {
     }]);
 
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining('(so_id,shopify_line_item_id,variant_id'),
-      [42, '9002', 'new-size', 1, 59.95, 0, 0.1, 59.95, 'T-shirt / Large'],
+      expect.stringContaining('UPDATE ims_sales_order_items'),
+      ['9002', 'new-size', 1, 59.95, 0, 0.1, 59.95, 'T-shirt / Large', 10, 42],
     );
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining('qty_committed = GREATEST(0, qty_committed - ?)'),
-      [1, 'old-size', 4],
+      expect.stringContaining('qty_committed = qty_committed + ?'),
+      [-1, 'old-size', 4],
     );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('qty_committed = qty_committed + VALUES(qty_committed)'),
@@ -88,9 +95,9 @@ describe('ImsSORepo.update', () => {
       if (sql.includes('SELECT status, location_id')) {
         return [[{ status: 'fulfilled', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax' }]];
       }
-      if (sql.includes('SELECT variant_id, qty_ordered, qty_fulfilled')) {
+      if (sql.includes('FROM ims_sales_order_items')) {
         return [[{
-          variant_id: 'shipped-size', qty_ordered: 1, qty_fulfilled: 1,
+          id: 10, variant_id: 'shipped-size', qty_ordered: 1, qty_fulfilled: 1,
           unit_price: 59.95, discount_pct: 0, tax_rate: 0.1, notes: null,
         }]];
       }
@@ -114,9 +121,9 @@ describe('ImsSORepo.update', () => {
       if (sql.includes('SELECT status, location_id')) {
         return [[{ status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax' }]];
       }
-      if (sql.includes('SELECT variant_id, qty_ordered, qty_fulfilled')) {
+      if (sql.includes('FROM ims_sales_order_items')) {
         return [[{
-          variant_id: 'shipped-size', qty_ordered: 2, qty_fulfilled: 1,
+          id: 10, variant_id: 'shipped-size', qty_ordered: 2, qty_fulfilled: 1,
           unit_price: 59.95, discount_pct: 0, tax_rate: 0.1, notes: null,
         }]];
       }
