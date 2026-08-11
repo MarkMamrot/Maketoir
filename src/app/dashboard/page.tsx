@@ -5962,6 +5962,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                   if (hasContent) return { icon: '✏️', label: 'Content ready', cls: 'text-indigo-700 bg-indigo-50' };
                   return { icon: '⏳', label: 'Pending', cls: 'text-gray-600 bg-gray-100' };
                 })();
+                const isSelected = selectedKeys.has(key);
+                const hasDetailRows = Boolean(genErr || pfErr || onlineMessage[key] || autoStepMap[key] || isExpanded);
 
                 const buttonLabel = (() => {
                   if (isPreflight) return '⏳ Researching…';
@@ -5971,10 +5973,21 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 })();
 
                 return (
-                  <div key={key}>
+                  <div
+                    key={key}
+                    className={`overflow-hidden rounded-lg bg-white transition-[border-color,box-shadow] ${
+                      isSelected
+                        ? 'border-2 border-[#147f95] shadow-[0_0_0_2px_rgba(20,127,149,0.14)]'
+                        : isExpanded
+                        ? 'border border-indigo-300 shadow-sm'
+                        : 'border border-gray-200'
+                    }`}
+                  >
                     <div
-                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2.5 rounded-lg border items-center text-sm cursor-pointer transition-colors ${
-                        isExpanded ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
+                      className={`grid grid-cols-[16px_minmax(90px,1fr)_minmax(200px,4fr)_72px_88px_112px_80px_80px_120px_24px] gap-3 px-3 py-2.5 items-center text-sm cursor-pointer transition-colors ${
+                        isExpanded ? 'bg-indigo-50' : 'bg-white hover:bg-gray-50'
+                      } ${
+                        hasDetailRows ? 'border-b border-gray-200' : ''
                       }`}
                       onClick={() => toggleExpandedProduct(p, key, isExpanded)}
                     >
@@ -6043,11 +6056,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                       </button>
                     </div>
 
-                    {(genErr || pfErr) && (
-                      <p className="text-xs text-red-600 px-3 py-1">❌ {genErr || pfErr}</p>
+                    {(genErr || pfErr) && !autoStepMap[key] && (
+                      <p className="border-b border-red-100 bg-red-50 px-3 py-2 text-xs text-red-700">❌ {genErr || pfErr}</p>
                     )}
                     {onlineMessage[key] && (
-                      <div className="px-3 py-1 flex gap-4">
+                      <div className={`flex gap-4 border-b px-3 py-2 ${onl === 'error' ? 'border-red-100 bg-red-50' : 'border-green-100 bg-green-50'}`}>
                         <p className={`text-xs ${onl === 'error' ? 'text-red-600' : 'text-green-700'}`}>
                           Online shop: {onlineMessage[key]}
                         </p>
@@ -6055,9 +6068,9 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     )}
 
                     {autoStepMap[key] && (
-                      <p className={`text-xs px-3 py-0.5 font-medium ${
-                        autoStepMap[key].startsWith('❌') || autoStepMap[key].startsWith('⛔') ? 'text-red-600' :
-                        autoStepMap[key].startsWith('✅') ? 'text-green-700' : 'text-amber-600'
+                      <p className={`border-b px-3 py-2 text-xs font-medium ${
+                        autoStepMap[key].startsWith('❌') || autoStepMap[key].startsWith('⛔') ? 'border-red-100 bg-red-50 text-red-700' :
+                        autoStepMap[key].startsWith('✅') ? 'border-green-100 bg-green-50 text-green-700' : 'border-amber-100 bg-amber-50 text-amber-700'
                       }`}>
                         🤖 {autoStepMap[key]}
                       </p>
@@ -6065,7 +6078,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* ── Persistent AI Input Panel ─────────────────────── */}
                     {isExpanded && (
-                      <div className="border border-gray-200 rounded-xl p-4 mt-2 mb-2 bg-gray-50 space-y-3">
+                      <div className="space-y-3 bg-gray-50 p-4">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
 
                         {isSessionBlocked && (
@@ -6247,7 +6260,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* Step 2: AI generation loading */}
                     {isExpanded && isGenerating && (
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-8 mt-2 mb-4 flex flex-col items-center gap-3">
+                      <div className="flex flex-col items-center gap-3 border-t border-indigo-200 bg-indigo-50 p-8">
                         <div className="animate-spin w-8 h-8 border-4 border-indigo-300 border-t-indigo-600 rounded-full" />
                         <p className="text-sm font-medium text-indigo-800">Generating content for <strong>{p.name}</strong>…</p>
                         <p className="text-xs text-gray-400">AI is writing descriptions and gathering images</p>
@@ -6256,7 +6269,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* Step 3 result: generated content + push to online shop */}
                     {isExpanded && !isGenerating && hasContent && (
-                      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-2 mb-4 space-y-4" onClick={e => e.stopPropagation()}>
+                      <div className="space-y-4 border-t border-indigo-200 bg-indigo-50 p-5" onClick={e => e.stopPropagation()}>
                         <h3 className="font-bold text-gray-800 text-sm">Generated Content — <span className="text-indigo-700">{p.name}</span></h3>
 
                         {/* Title */}
@@ -6344,7 +6357,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
 
                     {/* Step 1: Tavily preflight loading */}
                     {isExpanded && isPreflight && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-8 mt-2 mb-4 flex flex-col items-center gap-3 text-gray-500">
+                      <div className="flex flex-col items-center gap-3 border-t border-emerald-200 bg-emerald-50 p-8 text-gray-500">
                         <div className="animate-spin w-8 h-8 border-4 border-emerald-300 border-t-emerald-600 rounded-full" />
                         <p className="text-sm font-medium text-emerald-800">Researching <strong>{p.name}</strong> via Tavily…</p>
                         <p className="text-xs text-gray-400">Gathering product information and URLs</p>
