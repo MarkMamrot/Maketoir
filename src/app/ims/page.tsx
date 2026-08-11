@@ -9041,6 +9041,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Supplier Invoice #</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_number || '—'}</div></div>
+            <div><div style={labelStyle}>Supplier Invoice Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_date?.slice(0, 10) || '—'}</div></div>
+            <div><div style={labelStyle}>Payment Terms</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.payment_terms || '—'}</div></div>
+            <div><div style={labelStyle}>Tax Treatment</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.tax_treatment ? (viewModal.po.tax_treatment === 'inc_tax' ? 'Inc-tax' : viewModal.po.tax_treatment === 'no_tax' ? 'No tax' : 'Ex-tax') : '—'}</div></div>
+            <div><div style={labelStyle}>Currency</div><div style={{ color: 'var(--sv-text-main)' }}>{(viewModal.po.currency_code || 'AUD').toUpperCase()}</div></div>
+            <div><div style={labelStyle}>Exchange Rate</div><div style={{ color: 'var(--sv-text-main)' }}>{Number(viewModal.po.exchange_rate || 1).toFixed(4)}</div></div>
           </div>
           {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>

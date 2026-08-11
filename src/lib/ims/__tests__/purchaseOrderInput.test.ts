@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizePurchaseOrderField } from '../purchaseOrderInput';
+import { normalizeCin7PurchaseOrderMetadata, normalizePurchaseOrderField } from '../purchaseOrderInput';
 
 describe('normalizePurchaseOrderField', () => {
   it('turns blank optional dates into null', () => {
@@ -17,5 +17,34 @@ describe('normalizePurchaseOrderField', () => {
   it('preserves populated values', () => {
     expect(normalizePurchaseOrderField('expected_date', '2026-08-10')).toBe('2026-08-10');
     expect(normalizePurchaseOrderField('discount', 12.5)).toBe(12.5);
+  });
+});
+
+describe('normalizeCin7PurchaseOrderMetadata', () => {
+  it('normalizes historical Cin7 PO metadata and currency fields', () => {
+    expect(normalizeCin7PurchaseOrderMetadata({
+      currencyCode: 'usd',
+      exchangeRate: '1.55',
+      paymentTerms: '30 Days',
+      supplierInvoiceNumber: 'INV-1002',
+      supplierInvoiceDate: '2025-01-12T00:00:00Z',
+      invoiceDate: '2025-01-11',
+    })).toMatchObject({
+      currencyCode: 'USD',
+      exchangeRate: 1.55,
+      paymentTerms: '30 Days',
+      supplierInvoiceNumber: 'INV-1002',
+      supplierInvoiceDate: '2025-01-12',
+    });
+  });
+
+  it('falls back to safe defaults when Cin7 values are missing', () => {
+    expect(normalizeCin7PurchaseOrderMetadata({})).toMatchObject({
+      currencyCode: 'AUD',
+      exchangeRate: 1,
+      paymentTerms: null,
+      supplierInvoiceNumber: null,
+      supplierInvoiceDate: null,
+    });
   });
 });

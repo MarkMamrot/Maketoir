@@ -1,5 +1,6 @@
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages } from '@/lib/cin7Helpers';
+import { normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
 import { getImportSession, makeSSEStream } from '../_helpers';
 
 const MONTHS_BACK = 36;
@@ -129,12 +130,21 @@ export async function POST() {
         const existingSupplierId = supplierMap.get(Number(order.memberId)) ?? null;
         const supplierNameRaw = (order.company || (order.firstName ? `${order.firstName} ${order.lastName ?? ''}`.trim() : null) || null) as string | null;
         const existingStatus = mapStatus(order.status ?? '', order.stage ?? '');
+        const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
+          currencyCode: order.currencyCode ?? order.currency,
+          exchangeRate: order.exchangeRate ?? order.currencyRate,
+          paymentTerms: order.paymentTerms ?? order.terms,
+          supplierInvoiceNumber: order.supplierInvoiceNumber ?? order.invoiceNumber,
+          supplierInvoiceDate: order.supplierInvoiceDate ?? order.invoiceDate,
+          invoiceDate: order.createdDate ?? order.orderDate,
+        });
         await imsExecute(
           `UPDATE ims_purchase_orders
              SET is_historical=1, subtotal=?, tax_amount=?, freight=?, discount=?, total_amount=?,
                  tax_treatment=?, tax_code=COALESCE(?, tax_code),
                  payment_terms=COALESCE(?, payment_terms),
                  supplier_invoice_number=COALESCE(?, supplier_invoice_number),
+                 supplier_invoice_date=COALESCE(?, supplier_invoice_date),
                  currency_code=COALESCE(NULLIF(?, 'AUD'), currency_code),
                  exchange_rate=?,
                  supplier_id=COALESCE(supplier_id, ?),
@@ -142,10 +152,11 @@ export async function POST() {
            WHERE id=?`,
           [subtotal, taxAmount, freight, discount, totalAmount,
            treatmentForSupplier(existingSupplierId), purchaseTaxCode,
-           order.paymentTerms ?? order.terms ?? null,
-           order.supplierInvoiceNumber ?? order.invoiceNumber ?? null,
-           (order.currencyCode ?? 'AUD').toUpperCase(),
-           Number(order.exchangeRate ?? 1),
+           normalizedMeta.paymentTerms,
+           normalizedMeta.supplierInvoiceNumber,
+           normalizedMeta.supplierInvoiceDate,
+           normalizedMeta.currencyCode,
+           normalizedMeta.exchangeRate,
            existingSupplierId,
            supplierNameRaw,
            existingPoId],
@@ -183,21 +194,30 @@ export async function POST() {
       const orderDate   = safeDate(order.invoiceDate ?? order.createdDate) ?? new Date().toISOString().slice(0, 10);
       const expectedDate  = safeDate(order.expectedDeliveryDate);
       const receivedDate  = safeDate(order.fullyReceivedDate);
-      const paymentTerms  = order.paymentTerms ?? order.terms ?? null;
-      const supplierInvNo = order.supplierInvoiceNumber ?? order.invoiceNumber ?? null;
-      const currencyCode  = (order.currencyCode ?? 'AUD').toUpperCase();
-      const exchangeRate  = Number(order.exchangeRate ?? 1);
+      const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
+        currencyCode: order.currencyCode ?? order.currency,
+        exchangeRate: order.exchangeRate ?? order.currencyRate,
+        paymentTerms: order.paymentTerms ?? order.terms,
+        supplierInvoiceNumber: order.supplierInvoiceNumber ?? order.invoiceNumber,
+        supplierInvoiceDate: order.supplierInvoiceDate ?? order.invoiceDate,
+        invoiceDate: order.createdDate ?? order.orderDate,
+      });
+      const paymentTerms  = normalizedMeta.paymentTerms;
+      const supplierInvNo = normalizedMeta.supplierInvoiceNumber;
+      const supplierInvDate = normalizedMeta.supplierInvoiceDate;
+      const currencyCode  = normalizedMeta.currencyCode;
+      const exchangeRate  = normalizedMeta.exchangeRate;
       const isHistorical = 1; // all Cin7 POs are read-only
 
       const res = await imsExecute(
         `INSERT INTO ims_purchase_orders
            (po_number, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date, received_date,
-            payment_terms, supplier_invoice_number, currency_code, exchange_rate,
+            payment_terms, supplier_invoice_number, supplier_invoice_date, currency_code, exchange_rate,
             tax_treatment, tax_code,
             subtotal, tax_amount, freight, discount, total_amount, cin7_order_id, is_historical)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [poNumber, supplierId, supplierNameRaw, locationId, status, orderDate, expectedDate, receivedDate,
-         paymentTerms, supplierInvNo, currencyCode, exchangeRate,
+         paymentTerms, supplierInvNo, supplierInvDate, currencyCode, exchangeRate,
          treatmentForSupplier(supplierId), purchaseTaxCode,
          subtotal, taxAmount, freight, discount, totalAmount, cin7Id, isHistorical],
       ) as any;

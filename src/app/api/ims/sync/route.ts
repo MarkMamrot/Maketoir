@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
 
 
 async function getImsSetting(businessId: string, key: string): Promise<string | null> {
@@ -1006,8 +1007,17 @@ export async function POST(req: Request) {
             const rawExpected = po.deliveryDate ?? po.dueDate ?? '';
             const expectedDate = rawExpected ? String(rawExpected).slice(0, 10) : null;
             const receivedDate = poStatus === 'complete' ? (expectedDate || orderDate) : null;
-            const paymentTerms = po.paymentTerms ?? po.terms ?? null;
-            const supplierInvoiceNumber = po.supplierInvoiceNumber ?? po.invoiceNumber ?? null;
+            const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
+              currencyCode: po.currencyCode ?? po.currency,
+              exchangeRate: po.exchangeRate ?? po.currencyRate,
+              paymentTerms: po.paymentTerms ?? po.terms,
+              supplierInvoiceNumber: po.supplierInvoiceNumber ?? po.invoiceNumber,
+              supplierInvoiceDate: po.supplierInvoiceDate ?? po.invoiceDate,
+              invoiceDate: po.createdDate ?? po.orderDate,
+            });
+            const paymentTerms = normalizedMeta.paymentTerms;
+            const supplierInvoiceNumber = normalizedMeta.supplierInvoiceNumber;
+            const supplierInvoiceDate = normalizedMeta.supplierInvoiceDate;
             const poLines: any[] = Array.isArray(po.lineItems) ? po.lineItems : [];
             const computedSubtotal = poLines.reduce((s: number, l: any) => {
               const qty = Number(l.qty ?? 0);
@@ -1027,21 +1037,21 @@ export async function POST(req: Request) {
               : taxTreatment === 'inc_tax' ? totalAmt * poTaxRate / (1 + poTaxRate)
               : poBase * poTaxRate;
             const lineItemTaxRate = taxTreatment === 'ex_tax' ? poTaxRate : 0;
-            const poCurrencyCode = (po.currencyCode ?? po.currency ?? 'AUD').toUpperCase();
-            const poExchangeRate = Number(po.exchangeRate ?? po.currencyRate ?? 1);
+            const poCurrencyCode = normalizedMeta.currencyCode;
+            const poExchangeRate = normalizedMeta.exchangeRate;
 
             let poInsertId: number;
             try {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
                    (po_number, business_id, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
-                    received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
+                    received_date, notes, payment_terms, supplier_invoice_number, supplier_invoice_date, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id, tax_treatment)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [poNumber, businessId, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
-                 supplierInvoiceNumber,
+                 supplierInvoiceNumber, supplierInvoiceDate,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
                  poCurrencyCode, poExchangeRate, cin7SuppId || null, taxTreatment],
               );
@@ -1050,13 +1060,13 @@ export async function POST(req: Request) {
               const poRes = await imsExecute(
                 `INSERT INTO ims_purchase_orders
                    (po_number, business_id, supplier_id, supplier_name_raw, location_id, status, order_date, expected_date,
-                    received_date, notes, payment_terms, supplier_invoice_number, freight, discount,
+                    received_date, notes, payment_terms, supplier_invoice_number, supplier_invoice_date, freight, discount,
                     subtotal, tax_amount, total_amount, cin7_order_id, is_historical,
                     currency_code, exchange_rate, cin7_contact_id, tax_treatment)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [`CIN7-${po.id}`, businessId, supplierId, supplierNameRaw, locationId, poStatus, orderDate, expectedDate,
                  receivedDate, po.notes || null, paymentTerms ? String(paymentTerms) : null,
-                 supplierInvoiceNumber,
+                 supplierInvoiceNumber, supplierInvoiceDate,
                  freight, discount, subtotal, taxAmt, totalAmt, cin7PoId, isHistorical,
                  poCurrencyCode, poExchangeRate, cin7SuppId || null, taxTreatment],
               );
