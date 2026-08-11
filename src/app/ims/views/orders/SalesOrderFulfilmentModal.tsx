@@ -1,19 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-
-export type SalesOrderFulfilmentMode = 'partial' | 'backorder';
-
-type ItemInput = { itemId: number; quantity: number; label?: string; maxQty?: number };
-
-type FulfilmentRequest = { endpoint: string; body: Record<string, unknown> };
-
-export function buildSalesOrderFulfilmentRequest(mode: SalesOrderFulfilmentMode, soId: number, items: ItemInput[]): FulfilmentRequest {
-  const body = items.map(({ itemId, quantity }) => ({ itemId, quantity }));
-  return mode === 'backorder'
-    ? { endpoint: `/api/ims/sales-orders/${soId}/backorder`, body: { fulfilQuantities: body } }
-    : { endpoint: `/api/ims/sales-orders/${soId}/fulfil`, body: { shipmentQuantities: body } };
-}
+import { buildSalesOrderFulfilmentRequest, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
 
 export function SalesOrderFulfilmentModal({
   order,
@@ -89,13 +77,15 @@ export function SalesOrderFulfilmentModal({
 
         <div style={{ display: 'grid', gap: 10, marginTop: 20 }}>
           <label style={{ display: 'block', padding: 12, border: `1px solid ${mode === 'partial' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 9, cursor: 'pointer' }}>
-            <input type="radio" checked={mode === 'partial'} onChange={() => setMode('partial')} /> <strong>Partially fulfil now</strong>
+            <input type="radio" checked={mode === 'partial'} onChange={() => setMode('partial')} />
+            <strong>Partially fulfil now</strong>
             <div style={{ margin: '4px 0 0 22px', fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
               Ship the quantities entered below now and leave any remaining amount outstanding for a short delay.
             </div>
           </label>
           <label style={{ display: 'block', padding: 12, border: `1px solid ${mode === 'backorder' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 9, cursor: 'pointer' }}>
-            <input type="radio" checked={mode === 'backorder'} onChange={() => setMode('backorder')} /> <strong>Create backorder for remainder</strong>
+            <input type="radio" checked={mode === 'backorder'} onChange={() => setMode('backorder')} />
+            <strong>Create backorder for remainder</strong>
             <div style={{ margin: '4px 0 0 22px', fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
               Fulfil the quantities entered now and move the rest to a held child backorder for later dispatch.
             </div>
@@ -123,7 +113,7 @@ export function SalesOrderFulfilmentModal({
           </div>
         </div>
 
-        {error && <div style={{ marginTop: 14, padding: 10, borderRadius: 7, background: 'rgba(248,113,113,.12)', color: '#fecaca', fontSize: 13 }}>{error}</div>}
+        {error ? <div style={{ marginTop: 14, padding: 10, borderRadius: 7, background: 'rgba(248,113,113,.12)', color: '#fecaca', fontSize: 13 }}>{error}</div> : null}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid var(--sv-border,#364152)', color: 'inherit', cursor: 'pointer' }}>Cancel</button>

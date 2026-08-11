@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSalesOrderFulfilmentRequest } from '../SalesOrderFulfilmentModal';
+import { buildSalesOrderFulfilmentRequest } from '../salesOrderFulfilmentRequest';
 
 describe('buildSalesOrderFulfilmentRequest', () => {
   it('uses the partial fulfilment route for partial shipments', () => {
