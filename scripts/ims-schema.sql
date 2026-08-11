@@ -505,6 +505,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   xero_sync_status ENUM('synced','queued','error') NULL,
   cin7_order_id VARCHAR(50) NULL,
   is_historical TINYINT(1) NOT NULL DEFAULT 0,
+  replacement_of_po_id INT NULL,
   currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
   exchange_rate DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
   cin7_contact_id INT NULL,
@@ -520,6 +521,7 @@ CREATE TABLE IF NOT EXISTS ims_purchase_orders (
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
   INDEX idx_po_backorder_queue (business_id, status, supplier_id, created_at),
+  UNIQUE INDEX uq_po_replacement_source (business_id, replacement_of_po_id),
   FOREIGN KEY (supplier_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -595,6 +597,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   shopify_order_id VARCHAR(100),
   cin7_order_id    VARCHAR(100) NULL,
   is_historical   TINYINT(1) NOT NULL DEFAULT 0,
+  replacement_of_so_id INT NULL,
   cin7_member_id  INT NULL,
   tax_code         VARCHAR(50) NULL,
   payment_gateway  VARCHAR(255) NULL,
@@ -605,6 +608,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
   INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
+  UNIQUE INDEX uq_so_replacement_source (business_id, replacement_of_so_id),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
   FOREIGN KEY (location_id) REFERENCES ims_locations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

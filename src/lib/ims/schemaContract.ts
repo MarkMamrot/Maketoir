@@ -90,6 +90,8 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'shopify_inventory_item_id',
   ],
   ims_stock: ['zone', 'bin'],
+  ims_purchase_orders: ['replacement_of_po_id'],
+  ims_sales_orders: ['replacement_of_so_id'],
   ims_purchase_order_items: ['discount_pct'],
   ims_credit_note_items: ['source_so_item_id'],
   ims_supplier_credit_note_items: ['source_po_item_id'],
@@ -97,6 +99,8 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_purchase_orders: ['uq_po_replacement_source'],
+  ims_sales_orders: ['uq_so_replacement_source'],
   ims_credit_notes: ['uq_business_cn'],
   ims_credit_note_items: ['idx_cn_source_so_item'],
   ims_supplier_credit_note_items: ['idx_scn_source_po_item'],

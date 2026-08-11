@@ -628,6 +628,7 @@ const COLUMNS = [
   ['ims_purchase_orders', 'xero_sync_status',         "ENUM('synced','queued','error') NULL"],
   ['ims_purchase_orders', 'cin7_order_id',            'VARCHAR(50) NULL'],
   ['ims_purchase_orders', 'is_historical',            'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['ims_purchase_orders', 'replacement_of_po_id',      'INT NULL'],
   ['ims_purchase_orders', 'supplier_invoice_number',  'VARCHAR(100) NULL'],
   ['ims_purchase_orders', 'supplier_invoice_date',    'DATE NULL'],
   ['ims_purchase_orders', 'payment_terms',            'VARCHAR(100) NULL'],
@@ -645,6 +646,7 @@ const COLUMNS = [
   ['ims_sales_orders', 'shopify_order_name',  'VARCHAR(50) NULL'],
   ['ims_sales_orders', 'cin7_order_id',       'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'is_historical',       'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['ims_sales_orders', 'replacement_of_so_id', 'INT NULL'],
   ['ims_sales_orders', 'payment_terms',       'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'freight',             'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'discount',            'DECIMAL(10,2) NOT NULL DEFAULT 0.00'],
@@ -739,7 +741,9 @@ const COLUMNS = [
 
 const INDEXES = [
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
+  ['ims_purchase_orders', 'uq_po_replacement_source', 'UNIQUE INDEX `uq_po_replacement_source` (`business_id`, `replacement_of_po_id`)'],
   ['ims_sales_orders', 'idx_so_backorder_queue', 'INDEX `idx_so_backorder_queue` (`business_id`, `status`, `customer_id`, `created_at`)'],
+  ['ims_sales_orders', 'uq_so_replacement_source', 'UNIQUE INDEX `uq_so_replacement_source` (`business_id`, `replacement_of_so_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],

@@ -263,6 +263,7 @@ export interface ImsPO {
   supplier_invoice_number?: string; supplier_invoice_date?: string; payment_terms?: string;
   tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
+  replacement_of_po_id?: number | null;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
   supplier_name?: string; supplier_email?: string; location_name?: string;
@@ -310,6 +311,7 @@ export interface ImsSO {
   price_tier?: 'retail' | 'wholesale';
   payment_terms?: string; tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
+  replacement_of_so_id?: number | null;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
   customer_name?: string; customer_email?: string; location_name?: string;
@@ -390,6 +392,32 @@ async function nextSONumber(): Promise<string> {
   );
   const seq = String((rows[0]?.max_seq ?? 0) + 1).padStart(4, '0');
   return `SO-${year}-${seq}`;
+}
+
+async function nextReplacementOrderNumberTx(
+  conn: any,
+  businessId: string,
+  kind: 'po' | 'so',
+): Promise<string> {
+  const lockName = `ims:${businessId}:${kind}:number`;
+  const [[lockResult]] = await conn.execute<any[]>(`SELECT GET_LOCK(?, 10) AS acquired`, [lockName]);
+  if (Number(lockResult?.acquired) !== 1) throw new Error(`Could not allocate a replacement ${kind.toUpperCase()} number. Please retry.`);
+  const year = new Date().getFullYear();
+  const table = kind === 'po' ? 'ims_purchase_orders' : 'ims_sales_orders';
+  const column = kind === 'po' ? 'po_number' : 'so_number';
+  const prefix = kind === 'po' ? 'PO' : 'SO';
+  try {
+    const [[row]] = await conn.execute<any[]>(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(${column}, '-', -1) AS UNSIGNED)) AS max_seq
+         FROM ${table}
+        WHERE business_id = ? AND ${column} LIKE ?`,
+      [businessId, `${prefix}-${year}-%`],
+    );
+    return `${prefix}-${year}-${String(Number(row?.max_seq ?? 0) + 1).padStart(4, '0')}`;
+  } catch (error) {
+    await conn.execute(`SELECT RELEASE_LOCK(?)`, [lockName]);
+    throw error;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2249,6 +2277,79 @@ export const ImsPORepo = {
     }
   },
 
+  async createReplacement(id: number, businessId: string): Promise<{ id: number; replayed: boolean }> {
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    const numberLockName = `ims:${businessId}:po:number`;
+    let numberLockAcquired = false;
+    try {
+      await conn.beginTransaction();
+      const [[source]] = await conn.execute<any[]>(
+        `SELECT * FROM ims_purchase_orders WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [id, businessId],
+      );
+      if (!source) throw new Error('Purchase order not found');
+      if (!['complete', 'cancelled'].includes(String(source.status))) {
+        throw new OrderAmendmentConflict('A replacement Draft can only be created from a Completed or Cancelled purchase order.');
+      }
+      const [[existing]] = await conn.execute<any[]>(
+        `SELECT id FROM ims_purchase_orders WHERE business_id = ? AND replacement_of_po_id = ? LIMIT 1 FOR UPDATE`,
+        [businessId, id],
+      );
+      if (existing) {
+        await conn.commit();
+        return { id: Number(existing.id), replayed: true };
+      }
+      const [items] = await conn.execute<any[]>(
+        `SELECT variant_id, qty_ordered, unit_cost, discount_pct, tax_rate, line_total, notes
+           FROM ims_purchase_order_items WHERE po_id = ? ORDER BY id FOR UPDATE`,
+        [id],
+      );
+      const [landedCosts] = await conn.execute<any[]>(
+        `SELECT label, reference, amount, sort_order FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order, id FOR UPDATE`,
+        [id],
+      );
+      const poNumber = await nextReplacementOrderNumberTx(conn, businessId, 'po');
+      numberLockAcquired = true;
+      const notes = [`Replacement for ${source.po_number}`, source.notes].filter(Boolean).join('\n\n');
+      const [headerResult] = await conn.execute<any>(
+        `INSERT INTO ims_purchase_orders
+           (business_id, po_number, supplier_id, location_id, status, order_date, expected_date, notes,
+            payment_terms, tax_treatment, tax_code, currency_code, exchange_rate, freight, discount,
+            subtotal, tax_amount, total_amount, replacement_of_po_id)
+         VALUES (?, ?, ?, ?, 'draft', CURRENT_DATE, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, poNumber, source.supplier_id ?? null, source.location_id, notes || null,
+         source.payment_terms ?? null, source.tax_treatment ?? 'ex_tax', source.tax_code ?? null,
+         source.currency_code ?? 'AUD', source.exchange_rate ?? 1, source.freight ?? 0, source.discount ?? 0,
+         source.subtotal ?? 0, source.tax_amount ?? 0, source.total_amount ?? 0, id],
+      );
+      const replacementId = Number(headerResult.insertId);
+      for (const item of items) {
+        await conn.execute(
+          `INSERT INTO ims_purchase_order_items
+             (business_id, po_id, variant_id, qty_ordered, qty_received, unit_cost, discount_pct, tax_rate, line_total, notes)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+          [businessId, replacementId, item.variant_id, item.qty_ordered, item.unit_cost,
+           item.discount_pct ?? 0, item.tax_rate ?? 0, item.line_total, item.notes ?? null],
+        );
+      }
+      for (const cost of landedCosts) {
+        await conn.execute(
+          `INSERT INTO ims_po_landed_costs (business_id, po_id, label, reference, amount, sort_order) VALUES (?, ?, ?, ?, ?, ?)`,
+          [businessId, replacementId, cost.label, cost.reference ?? null, cost.amount, cost.sort_order ?? 0],
+        );
+      }
+      await conn.commit();
+      return { id: replacementId, replayed: false };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      if (numberLockAcquired) await conn.execute(`SELECT RELEASE_LOCK(?)`, [numberLockName]);
+      conn.release();
+    }
+  },
+
   async delete(id: number, businessId: string): Promise<void> {
     const result = await imsExecute(
       `DELETE FROM ims_purchase_orders WHERE id = ? AND business_id = ? AND status = 'draft'`,
@@ -2591,6 +2692,69 @@ export const ImsSORepo = {
       );
     }
     return so_id;
+  },
+
+  async createReplacement(id: number, businessId: string): Promise<{ id: number; replayed: boolean }> {
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    const numberLockName = `ims:${businessId}:so:number`;
+    let numberLockAcquired = false;
+    try {
+      await conn.beginTransaction();
+      const [[source]] = await conn.execute<any[]>(
+        `SELECT * FROM ims_sales_orders WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [id, businessId],
+      );
+      if (!source) throw new Error('Sales order not found');
+      if (!['fulfilled', 'cancelled'].includes(String(source.status))) {
+        throw new OrderAmendmentConflict('A replacement Draft can only be created from a Fulfilled or Cancelled sales order.');
+      }
+      const [[existing]] = await conn.execute<any[]>(
+        `SELECT id FROM ims_sales_orders WHERE business_id = ? AND replacement_of_so_id = ? LIMIT 1 FOR UPDATE`,
+        [businessId, id],
+      );
+      if (existing) {
+        await conn.commit();
+        return { id: Number(existing.id), replayed: true };
+      }
+      const [items] = await conn.execute<any[]>(
+        `SELECT variant_id, qty_ordered, unit_price, unit_cost, discount_pct, tax_rate, line_total, notes
+           FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
+        [id],
+      );
+      const soNumber = await nextReplacementOrderNumberTx(conn, businessId, 'so');
+      numberLockAcquired = true;
+      const notes = [`Replacement for ${source.so_number}`, source.notes].filter(Boolean).join('\n\n');
+      const [headerResult] = await conn.execute<any>(
+        `INSERT INTO ims_sales_orders
+           (business_id, so_number, so_type, customer_id, customer_po_number, price_tier, location_id, status,
+            order_date, expected_date, payment_terms, notes, tax_treatment, tax_code, freight, discount,
+            subtotal, tax_amount, total_amount, currency_code, exchange_rate, replacement_of_so_id)
+         VALUES (?, ?, ?, ?, NULL, ?, ?, 'draft', CURRENT_DATE, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, soNumber, source.so_type ?? 'b2b', source.customer_id ?? null, source.price_tier ?? 'retail',
+         source.location_id, source.payment_terms ?? null, notes || null, source.tax_treatment ?? 'ex_tax',
+         source.tax_code ?? null, source.freight ?? 0, source.discount ?? 0, source.subtotal ?? 0,
+         source.tax_amount ?? 0, source.total_amount ?? 0, source.currency_code ?? 'AUD', source.exchange_rate ?? 1, id],
+      );
+      const replacementId = Number(headerResult.insertId);
+      for (const item of items) {
+        await conn.execute(
+          `INSERT INTO ims_sales_order_items
+             (business_id, so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, unit_cost, discount_pct, tax_rate, line_total, notes)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
+          [businessId, replacementId, item.variant_id, item.qty_ordered, item.unit_price, item.unit_cost ?? null,
+           item.discount_pct ?? 0, item.tax_rate ?? 0, item.line_total, item.notes ?? null],
+        );
+      }
+      await conn.commit();
+      return { id: replacementId, replayed: false };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      if (numberLockAcquired) await conn.execute(`SELECT RELEASE_LOCK(?)`, [numberLockName]);
+      conn.release();
+    }
   },
 
   async update(

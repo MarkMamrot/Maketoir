@@ -8463,6 +8463,21 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     }
   };
 
+  const createPoReplacement = async (po: any) => {
+    const correctionNotice = po.status === 'complete'
+      ? `\n\nThis does not undo the original receipt or alter its Xero bill. Use Undo Mistaken Receipt or Supplier Return / Credit separately when the original needs correction.`
+      : '';
+    if (!confirm(`Create a replacement Draft from PO ${po.po_number}?${correctionNotice}`)) return;
+    try {
+      const result = await apiFetch(`/api/ims/purchase-orders/${po.id}/replacement`, { method: 'POST' });
+      await load();
+      setViewModal({ open: false, po: null });
+      await openEdit({ id: result.id }, true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to create replacement purchase order.');
+    }
+  };
+
   const handleDelete = async (po: any) => {
     if (!confirm(`Delete PO ${po.po_number}?`)) return;
     try { await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }); load(); }
@@ -8591,7 +8606,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} onSupplierReturn={() => createSupplierReturn(po)} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} onSupplierReturn={() => createSupplierReturn(po)} onReplacement={() => createPoReplacement(po)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -8929,7 +8944,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} onReplacement={() => createPoReplacement(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -9325,7 +9340,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   );
 }
 
-function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, onSupplierReturn, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; onSupplierReturn?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, onSupplierReturn, onReplacement, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; onSupplierReturn?: () => void; onReplacement?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -9361,6 +9376,9 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   if (!isAdvisor && po.status === 'complete') {
     btns.push(<button key="undo-receipt" onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
     btns.push(<button key="supplier-return" onClick={onSupplierReturn} style={btnStyle('ghost', 'xs')} title="Create a linked supplier credit for goods returned or a financial correction">Supplier Return / Credit</button>);
+  }
+  if (!isAdvisor && ['complete', 'cancelled'].includes(po.status)) {
+    btns.push(<button key="replacement" onClick={onReplacement} style={btnStyle('mint', 'xs')} title="Create or reopen the one linked replacement Draft">Create Replacement Draft</button>);
   }
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -12236,6 +12254,21 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     }
   };
 
+  const createSoReplacement = async (so: any) => {
+    const correctionNotice = so.status === 'fulfilled'
+      ? `\n\nThis does not unfulfil the original order or alter its payments, returns, stock movements, or Xero invoice. Use Return / Credit separately when the original needs correction.`
+      : '';
+    if (!confirm(`Create a replacement Draft from SO ${so.so_number}?${correctionNotice}`)) return;
+    try {
+      const result = await apiFetch(`/api/ims/sales-orders/${so.id}/replacement`, { method: 'POST' });
+      await load();
+      setViewModal({ open: false, so: null });
+      await openEdit({ id: result.id });
+    } catch (e: any) {
+      alert(e.message || 'Failed to create replacement sales order.');
+    }
+  };
+
   const customerOptions = [...new Set(sos.map((s: any) => s.customer_name).filter(Boolean))].sort() as string[];
   const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
   const salesFiltersActive = statusFilter !== '' || channelFilter !== 'b2b' || dateFilterActive || !!filterCustomer.trim() || !!filterProduct.trim();
@@ -12406,7 +12439,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
                       </div>
                     ) : (
-                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onFulfill={() => openSoFulfilmentModal(so)} onResolve={() => setResolveOrder(so)} />
+                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onReplacement={() => createSoReplacement(so)} onFulfill={() => openSoFulfilmentModal(so)} onResolve={() => setResolveOrder(so)} />
                     )}
                   </td>
                 </tr>
@@ -12617,7 +12650,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12954,7 +12987,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onFulfill, onResolve, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onFulfill?: () => void; onResolve?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, onFulfill, onResolve, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onReplacement?: () => void; onFulfill?: () => void; onResolve?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
@@ -12984,6 +13017,9 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onFulfill, onReso
     if (onReturn) {
       btns.push(<button key="return" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">Return / Credit</button>);
     }
+  }
+  if (!isAdvisor && ['fulfilled', 'cancelled'].includes(so.status)) {
+    btns.push(<button key="replacement" onClick={onReplacement} style={btnStyle('mint', 'xs')} title="Create or reopen the one linked replacement Draft">Create Replacement Draft</button>);
   }
   return <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{btns}</div>;
 }
