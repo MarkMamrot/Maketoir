@@ -24,6 +24,7 @@ interface MainSectionsProps {
   pendingOpenPosSale: number | null;
   pendingOpenPosDay: string | null;
   cnPrefill: any;
+  scnPrefill: any;
   setView: (v: ImsView) => void;
   setSettingsSection: (section: any) => void;
   setSettingsOpen: (open: boolean) => void;
@@ -33,6 +34,7 @@ interface MainSectionsProps {
   setPendingOpenPosSale: (id: number | null) => void;
   setPendingOpenPosDay: (date: string | null) => void;
   setCnPrefill: (v: any) => void;
+  setScnPrefill: (v: any) => void;
   onOpenPurchaseOrder?: (id: number) => void;
   onOpenSalesOrder?: (id: number) => void;
   onOpenPosSale?: (id: number) => void;
@@ -89,6 +91,7 @@ export function MainSections(props: MainSectionsProps) {
     pendingOpenPosSale,
     pendingOpenPosDay,
     cnPrefill,
+    scnPrefill,
     setView,
     setSettingsSection,
     setSettingsOpen,
@@ -98,6 +101,7 @@ export function MainSections(props: MainSectionsProps) {
     setPendingOpenPosSale,
     setPendingOpenPosDay,
     setCnPrefill,
+    setScnPrefill,
     onOpenPurchaseOrder,
     onOpenSalesOrder,
     onOpenPosSale,
@@ -177,6 +181,7 @@ export function MainSections(props: MainSectionsProps) {
         pendingOpenPosSale={pendingOpenPosSale}
         pendingOpenPosDay={pendingOpenPosDay}
         cnPrefill={cnPrefill}
+        scnPrefill={scnPrefill}
         setView={setView}
         setPendingOpenPO={setPendingOpenPO}
         setPendingOpenSO={setPendingOpenSO}
@@ -184,6 +189,7 @@ export function MainSections(props: MainSectionsProps) {
         setPendingOpenPosSale={setPendingOpenPosSale}
         setPendingOpenPosDay={setPendingOpenPosDay}
         setCnPrefill={setCnPrefill}
+        setScnPrefill={setScnPrefill}
         PurchaseOrdersView={PurchaseOrdersView}
         SalesOrdersView={SalesOrdersView}
         BackordersView={BackordersView}

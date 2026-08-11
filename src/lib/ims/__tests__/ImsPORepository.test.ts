@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockGetIMSPool, mockImsQuery } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
@@ -15,6 +15,8 @@ vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: vi.fn() }));
 
 import { ImsPORepo } from '../ImsRepository';
+
+beforeEach(() => vi.clearAllMocks());
 
 describe('ImsPORepo.get', () => {
   it('starts independent accessory reads concurrently after loading the PO header', async () => {
@@ -37,6 +39,70 @@ describe('ImsPORepo.get', () => {
       files: [],
     });
     expect(mockImsQuery.mock.calls[0][1]).toEqual([42, 42, 'biz-1']);
+  });
+});
+
+describe('ImsPORepo.getSupplierReturnContext', () => {
+  it('returns tenant-scoped remaining quantities and net PO line costs', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{
+        id: 42,
+        po_number: 'PO-0042',
+        supplier_id: 8,
+        supplier_name: 'Supplier Co',
+        location_id: 4,
+        currency_code: 'NZD',
+        exchange_rate: '0.92',
+        tax_treatment: 'ex_tax',
+        tax_code: 'INPUT',
+      }])
+      .mockResolvedValueOnce([{
+        source_po_item_id: 11,
+        variant_id: 'v-1',
+        code: 'SKU-1',
+        name: 'Shirt / Blue / M',
+        qty_received: '10',
+        already_returned_qty: '3',
+        remaining_returnable_qty: '7',
+        unit_cost: '18',
+        tax_rate: '0.1',
+      }]);
+
+    await expect(ImsPORepo.getSupplierReturnContext(42, 'biz-1')).resolves.toEqual({
+      po_id: 42,
+      po_number: 'PO-0042',
+      supplier_id: 8,
+      supplier_name: 'Supplier Co',
+      location_id: 4,
+      currency_code: 'NZD',
+      exchange_rate: 0.92,
+      tax_treatment: 'ex_tax',
+      tax_code: 'INPUT',
+      items: [{
+        source_po_item_id: 11,
+        variant_id: 'v-1',
+        code: 'SKU-1',
+        name: 'Shirt / Blue / M',
+        qty_received: 10,
+        already_returned_qty: 3,
+        remaining_returnable_qty: 7,
+        unit_cost: 18,
+        tax_rate: 0.1,
+      }],
+    });
+    expect(mockImsQuery.mock.calls[0][0]).toContain("po.status = 'complete'");
+    expect(mockImsQuery.mock.calls[0][1]).toEqual([42, 'biz-1']);
+    expect(mockImsQuery.mock.calls[1][0]).toContain("scn.status <> 'cancelled'");
+    expect(mockImsQuery.mock.calls[1][0]).toContain('poi.unit_cost * (1 - COALESCE(poi.discount_pct, 0) / 100)');
+    expect(mockImsQuery.mock.calls[1][1]).toEqual(['biz-1', 'biz-1', 42]);
+  });
+
+  it('does not expose a non-completed or cross-tenant purchase order', async () => {
+    mockImsQuery.mockResolvedValueOnce([]);
+
+    await expect(ImsPORepo.getSupplierReturnContext(42, 'biz-2')).resolves.toBeNull();
+
+    expect(mockImsQuery).toHaveBeenCalledOnce();
   });
 });
 

@@ -13,7 +13,7 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 
 import { ImsSupplierCNRepo } from '../ImsRepository';
 
-function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; returnedQty?: number } = {}) {
+function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; sourceVariantId?: string; returnedQty?: number } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from ims_supplier_credit_notes') && normalized.includes('for update')) {
@@ -23,7 +23,7 @@ function connectionFor(options: { status?: string; onHand?: number; isStockItem?
       return [[{ id: 11, scn_id: 7, variant_id: 'v-1', qty: 3, unit_cost: 5, restock: 1, source_po_item_id: options.sourcePoItemId }]];
     }
     if (normalized.includes('from ims_purchase_order_items poi')) {
-      return [[{ qty_received: 5 }]];
+      return [[{ qty_received: 5, variant_id: options.sourceVariantId ?? 'v-1' }]];
     }
     if (normalized.includes('sum(scni.qty)')) {
       return [[{ returned_qty: options.returnedQty ?? 0 }]];
@@ -119,6 +119,20 @@ describe('ImsSupplierCNRepo.complete', () => {
 
     await expect(ImsSupplierCNRepo.complete(7, 'biz-1')).rejects.toThrow(
       'Return quantity for purchase order line 21 exceeds the remaining returnable quantity of 1.',
+    );
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining("'scn_returned'"),
+      expect.anything(),
+    );
+  });
+
+  it('rejects a linked return whose variant differs from its source PO line', async () => {
+    const connection = connectionFor({ sourcePoItemId: 21, sourceVariantId: 'v-2' });
+
+    await expect(ImsSupplierCNRepo.complete(7, 'biz-1')).rejects.toThrow(
+      'Supplier return line 21 must use the same product variant as its source purchase-order line.',
     );
 
     expect(connection.rollback).toHaveBeenCalledOnce();

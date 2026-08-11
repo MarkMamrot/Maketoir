@@ -11,6 +11,9 @@ const {
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsSupplierCNRepo: { get: mockGet, update: mockUpdate, delete: mockDelete },
+  SupplierReturnConflict: class SupplierReturnConflict extends Error {
+    readonly code = 'supplier_return_conflict';
+  },
 }));
 vi.mock('@/lib/ims/xeroHooks', () => ({ triggerSupplierCNXeroUpdate: mockXeroUpdate }));
 vi.mock('@/services/XeroSyncService', () => ({ getXeroCreditNoteEditState: mockGetXeroCreditNoteEditState }));
@@ -18,6 +21,7 @@ vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliatio
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 
 import { PUT } from '../route';
+import { SupplierReturnConflict } from '@/lib/ims/ImsRepository';
 
 const params = { params: { id: '52' } };
 function request(body: unknown) {
@@ -71,5 +75,23 @@ describe('PUT /api/ims/supplier-credit-notes/[id]', () => {
     expect(response.status).toBe(403);
     expect(mockGet).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns a structured 409 for an expected linked-return cap conflict', async () => {
+    mockGet.mockResolvedValue({ id: 52, status: 'draft', supplier_id: 3, xero_credit_note_id: null, items: [] });
+    mockUpdate.mockRejectedValue(new SupplierReturnConflict('Only 2 units remain returnable.'));
+
+    const response = await PUT(request({
+      po_id: 42,
+      items: [{ source_po_item_id: 11, variant_id: 'v-1', qty: 3, unit_cost: 5 }],
+    }), params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: 'Only 2 units remain returnable.',
+      code: 'supplier_return_conflict',
+    });
+    expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 });

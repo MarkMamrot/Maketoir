@@ -19,6 +19,7 @@ interface OrdersSectionProps {
   pendingOpenPosSale: number | null;
   pendingOpenPosDay: string | null;
   cnPrefill: any;
+  scnPrefill: any;
   setView: (v: ImsView) => void;
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
@@ -26,6 +27,7 @@ interface OrdersSectionProps {
   setPendingOpenPosSale: (id: number | null) => void;
   setPendingOpenPosDay: (date: string | null) => void;
   setCnPrefill: (v: any) => void;
+  setScnPrefill: (v: any) => void;
   PurchaseOrdersView: any;
   SalesOrdersView: any;
   BackordersView: any;
@@ -48,6 +50,7 @@ export function OrdersSection({
   pendingOpenPosSale,
   pendingOpenPosDay,
   cnPrefill,
+  scnPrefill,
   setView,
   setPendingOpenPO,
   setPendingOpenSO,
@@ -55,6 +58,7 @@ export function OrdersSection({
   setPendingOpenPosSale,
   setPendingOpenPosDay,
   setCnPrefill,
+  setScnPrefill,
   PurchaseOrdersView,
   SalesOrdersView,
   BackordersView,
@@ -73,6 +77,7 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           pendingOpenId={pendingOpenPO}
           onPendingHandled={() => setPendingOpenPO(null)}
+          onSupplierReturn={(prefill: any) => { setScnPrefill(prefill); setView('supplier-credit-notes'); }}
         />
       )}
       {view === 'sales-orders' && (
@@ -103,7 +108,13 @@ export function OrdersSection({
           onPendingHandled={() => setPendingOpenCN(null)}
         />
       )}
-      {view === 'supplier-credit-notes' && <SupplierCreditNotesView isAdvisor={isAdvisor} />}
+      {view === 'supplier-credit-notes' && (
+        <SupplierCreditNotesView
+          isAdvisor={isAdvisor}
+          prefill={scnPrefill}
+          onPrefillConsumed={() => setScnPrefill(null)}
+        />
+      )}
       {view === 'branch-transfers' && <BranchTransfersView />}
       {view === 'receive-transfers' && <ReceiveTransfersView />}
       {view === 'pos-sales' && <PosSalesView pendingOpenDay={pendingOpenPosDay} onPendingHandled={() => setPendingOpenPosDay(null)} />}

@@ -8099,7 +8099,7 @@ function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean } = {}) {
+function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; isAdvisor?: boolean } = {}) {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -8452,6 +8452,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     }
   };
 
+  const createSupplierReturn = async (po: any) => {
+    try {
+      const context = await apiFetch(`/api/ims/purchase-orders/${po.id}/supplier-return-context`);
+      if (!context?.data) throw new Error('Supplier-return details could not be loaded.');
+      setViewModal({ open: false, po: null });
+      onSupplierReturn?.(context.data);
+    } catch (e: any) {
+      alert(e.message || 'Supplier-return details could not be loaded.');
+    }
+  };
+
   const handleDelete = async (po: any) => {
     if (!confirm(`Delete PO ${po.po_number}?`)) return;
     try { await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }); load(); }
@@ -8580,7 +8591,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} onSupplierReturn={() => createSupplierReturn(po)} /></td>
                 </tr>
               ))}
             </tbody>
@@ -8918,7 +8929,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(viewModal.po)} onSupplierReturn={() => createSupplierReturn(viewModal.po)} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -9314,7 +9325,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   );
 }
 
-function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
+function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUndoReceipt, onSupplierReturn, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; onUndoReceipt?: () => void; onSupplierReturn?: () => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -9349,6 +9360,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   }
   if (!isAdvisor && po.status === 'complete') {
     btns.push(<button key="undo-receipt" onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
+    btns.push(<button key="supplier-return" onClick={onSupplierReturn} style={btnStyle('ghost', 'xs')} title="Create a linked supplier credit for goods returned or a financial correction">Supplier Return / Credit</button>);
   }
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -10776,7 +10788,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
-function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void } = {}) {
   const [scns, setScns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -10792,7 +10804,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
+  const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', currency_code: 'AUD', exchange_rate: 1, tax_treatment: 'ex_tax', notes: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
@@ -10810,6 +10822,38 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setLocations(d.data); });
     fetch('/api/ims/variants').then(r => r.json()).then(d => { if (d.success) setVariants(d.data); });
   }, []);
+  useEffect(() => {
+    if (!prefill) return;
+    setForm({
+      supplier_id: prefill.supplier_id == null ? '' : String(prefill.supplier_id),
+      po_id: String(prefill.po_id),
+      location_id: String(prefill.location_id),
+      scn_date: today(),
+      reference: prefill.po_number,
+      supplier_credit_ref: '',
+      currency_code: prefill.currency_code ?? 'AUD',
+      exchange_rate: Number(prefill.exchange_rate ?? 1),
+      tax_treatment: prefill.tax_treatment ?? 'ex_tax',
+      notes: '',
+    });
+    setLineItems((prefill.items ?? [])
+      .filter((item: any) => Number(item.remaining_returnable_qty) > 0)
+      .map((item: any) => ({
+        source_po_item_id: Number(item.source_po_item_id),
+        variant_id: item.variant_id,
+        code: item.code ?? '',
+        name: item.name ?? '',
+        qty: Number(item.remaining_returnable_qty),
+        unit_cost: Number(item.unit_cost ?? 0),
+        tax_rate: Number(item.tax_rate ?? 0),
+        restock: true,
+        qty_received: Number(item.qty_received ?? 0),
+        already_returned_qty: Number(item.already_returned_qty ?? 0),
+        remaining_returnable_qty: Number(item.remaining_returnable_qty ?? 0),
+      })));
+    setModal({ open: true, edit: null });
+    onPrefillConsumed?.();
+  }, [prefill, onPrefillConsumed]);
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
   const addLine = () => setLineItems(p => [...p, { variant_id: '', code: '', name: '', qty: 1, unit_cost: 0, tax_rate: defaultTaxRate(), restock: true }]);
@@ -10834,14 +10878,14 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
   }, 0);
 
   const openNew = () => {
-    setForm({ supplier_id: '', po_id: '', location_id: locations[0]?.id ? String(locations[0].id) : '', scn_date: today(), reference: '', supplier_credit_ref: '', tax_treatment: 'ex_tax', notes: '' });
+    setForm({ supplier_id: '', po_id: '', location_id: locations[0]?.id ? String(locations[0].id) : '', scn_date: today(), reference: '', supplier_credit_ref: '', currency_code: 'AUD', exchange_rate: 1, tax_treatment: 'ex_tax', notes: '' });
     setLineItems([{ variant_id: '', code: '', name: '', qty: 1, unit_cost: 0, tax_rate: defaultTaxRate(), restock: true }]);
     setModal({ open: true, edit: null });
   };
   const openEdit = async (scn: any) => {
     const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`);
-    setForm({ supplier_id: d.data.supplier_id ?? '', po_id: d.data.po_id ?? '', location_id: String(d.data.location_id), scn_date: d.data.scn_date?.slice(0, 10), reference: d.data.reference ?? '', supplier_credit_ref: d.data.supplier_credit_ref ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', notes: d.data.notes ?? '' });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_cost: i.unit_cost, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
+    setForm({ supplier_id: d.data.supplier_id ?? '', po_id: d.data.po_id ?? '', location_id: String(d.data.location_id), scn_date: d.data.scn_date?.slice(0, 10), reference: d.data.reference ?? '', supplier_credit_ref: d.data.supplier_credit_ref ?? '', currency_code: d.data.currency_code ?? 'AUD', exchange_rate: Number(d.data.exchange_rate ?? 1), tax_treatment: d.data.tax_treatment ?? 'ex_tax', notes: d.data.notes ?? '' });
+    setLineItems((d.data.items || []).map((i: any) => ({ source_po_item_id: i.source_po_item_id ?? null, variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_cost: i.unit_cost, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
     setModal({ open: true, edit: d.data });
   };
   const openView = async (scn: any) => {
@@ -10959,8 +11003,10 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         po_id: form.po_id ? Number(form.po_id) : null,
         location_id: Number(form.location_id),
         scn_date: form.scn_date, reference: form.reference || null, supplier_credit_ref: form.supplier_credit_ref || null,
+        currency_code: form.currency_code || 'AUD', exchange_rate: Number(form.exchange_rate || 1),
         tax_treatment: form.tax_treatment, notes: form.notes || null,
         items: lineItems.map(i => ({
+          source_po_item_id: i.source_po_item_id ?? null,
           variant_id: i.variant_id || null,
           code: i.code || null,
           name: i.name || null,
@@ -11066,12 +11112,19 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
           <form onSubmit={handleSave} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 900, maxWidth: '98vw', padding: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 17, color: 'var(--sv-text-strong)' }}>{modal.edit ? `Edit ${modal.edit.scn_number}` : 'New Supplier Credit Note'}</h2>
+            {form.po_id && (
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-main)' }}>
+                Linked to completed PO <strong>{form.reference || `#${form.po_id}`}</strong>. Keep <strong>Return stock</strong> selected for goods physically leaving; clear it for a money-only supplier credit.
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
               <div><label style={labelStyle}>Supplier *</label><select value={form.supplier_id} onChange={sf('supplier_id')} style={inputStyle}><option value="">— select —</option>{suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
               <div><label style={labelStyle}>Location *</label><select value={form.location_id} onChange={sf('location_id')} style={inputStyle}><option value="">— select —</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select></div>
               <div><label style={labelStyle}>Date</label><input type="date" value={form.scn_date} onChange={sf('scn_date')} style={inputStyle} /></div>
               <div><label style={labelStyle}>Supplier's Credit Ref</label><input value={form.supplier_credit_ref} onChange={sf('supplier_credit_ref')} placeholder="their CN number" style={inputStyle} /></div>
               <div><label style={labelStyle}>Reference (PO/Bill)</label><input value={form.reference} onChange={sf('reference')} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Currency</label><input value={form.currency_code} onChange={sf('currency_code')} maxLength={10} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Exchange Rate</label><input type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} /></div>
               <div><label style={labelStyle}>Tax Treatment</label><select value={form.tax_treatment} onChange={sf('tax_treatment')} style={inputStyle}><option value="ex_tax">Tax exclusive</option><option value="inc_tax">Tax inclusive</option><option value="no_tax">No tax</option></select></div>
             </div>
 
@@ -11083,18 +11136,19 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
             <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Line Items</div>
             <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Qty','Unit Cost','Tax %','Return stock','Line',''].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>)}</tr></thead>
+                <thead><tr style={{ background: 'var(--sv-bg-2)' }}>{['Product','Received','Returned / reserved','Remaining','Qty','Unit Cost','Tax %','Return stock','Line',''].map(h => <th key={h} style={{ padding: '6px 8px', textAlign: 'left', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{h}</th>)}</tr></thead>
                 <tbody>
                   {lineItems.map((item, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                       <td style={{ padding: '4px 8px', minWidth: 240 }}>
-                        <VariantSearch
-                          value={item.variant_id}
-                          variants={variants}
-                          onChange={vid => selectVariant(i, vid)}
-                        />
+                        {item.source_po_item_id != null
+                          ? <div><div style={{ fontWeight: 600 }}>{item.name || item.code || item.variant_id}</div>{item.code && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>{item.code}</div>}</div>
+                          : <VariantSearch value={item.variant_id} variants={variants} onChange={vid => selectVariant(i, vid)} />}
                       </td>
-                      <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
+                      <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{item.qty_received ?? '—'}</td>
+                      <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{item.already_returned_qty ?? '—'}</td>
+                      <td style={{ padding: '4px 8px', fontWeight: item.remaining_returnable_qty != null ? 700 : 400 }}>{item.remaining_returnable_qty ?? '—'}</td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" min="0.001" max={item.remaining_returnable_qty ?? undefined} step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, width: 90, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px', textAlign: 'center' }}><input type="checkbox" checked={!!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} title="Goods physically returned to supplier — reduces stock" /></td>
@@ -19250,6 +19304,7 @@ export default function ImsPage() {
   const [pendingOpenPosSale, setPendingOpenPosSale] = useState<number | null>(null);
   const [pendingOpenPosDay, setPendingOpenPosDay] = useState<string | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
+  const [scnPrefill, setScnPrefill] = useState<any>(null);
 
   // ── Notifications ────────────────────────────────────────────────────────
   const [notifOpen, setNotifOpen]           = useState(false);
@@ -19792,6 +19847,7 @@ export default function ImsPage() {
             pendingOpenPosSale={pendingOpenPosSale}
             pendingOpenPosDay={pendingOpenPosDay}
             cnPrefill={cnPrefill}
+            scnPrefill={scnPrefill}
             setView={setViewSafe}
             setSettingsSection={setSettingsSection}
             setSettingsOpen={setSettingsOpen}
@@ -19801,6 +19857,7 @@ export default function ImsPage() {
             setPendingOpenPosSale={setPendingOpenPosSale}
             setPendingOpenPosDay={setPendingOpenPosDay}
             setCnPrefill={setCnPrefill}
+            setScnPrefill={setScnPrefill}
             DashboardView={DashboardView}
             ProductsView={ProductsView}
             StockView={StockView}

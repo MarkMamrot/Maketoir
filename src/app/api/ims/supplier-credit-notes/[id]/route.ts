@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { ImsSupplierCNRepo, SupplierReturnConflict } from '@/lib/ims/ImsRepository';
 import { triggerSupplierCNXeroUpdate } from '@/lib/ims/xeroHooks';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assessXeroCreditNoteEdit, hasXeroVisibleCreditNoteChanges, type XeroCreditNoteEditState } from '@/lib/xero/documentEditPolicy';
@@ -107,6 +107,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, data: scn, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e instanceof SupplierReturnConflict) {
+      return NextResponse.json({ success: false, error: e.message, code: e.code }, { status: 409 });
+    }
     await reportRuntimeIssue({
       businessId,
       source: 'ims_supplier_credit_notes',

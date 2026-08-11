@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { ImsSupplierCNRepo, SupplierReturnConflict } from '@/lib/ims/ImsRepository';
 
 function normalizeAndValidateSupplierCNItems(items: any[] | undefined): { items: any[]; error: string | null } {
   if (!Array.isArray(items) || items.length === 0) {
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const data = await ImsSupplierCNRepo.list(businessId, status || undefined);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message, ...(e instanceof SupplierReturnConflict ? { code: e.code } : {}) }, { status: e instanceof SupplierReturnConflict ? 409 : 500 });
   }
 }
 

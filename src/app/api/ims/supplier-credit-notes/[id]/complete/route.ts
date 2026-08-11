@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
+import { ImsSupplierCNRepo, SupplierReturnConflict } from '@/lib/ims/ImsRepository';
 import { triggerSupplierCNXeroSync } from '@/lib/ims/xeroHooks';
 
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
   const scnId = Number(params.id);
   try {
@@ -25,6 +26,6 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message, ...(e instanceof SupplierReturnConflict ? { code: e.code } : {}) }, { status: e instanceof SupplierReturnConflict ? 409 : 500 });
   }
 }

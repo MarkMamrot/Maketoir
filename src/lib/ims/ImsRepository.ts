@@ -278,6 +278,29 @@ export interface ImsPOItem {
   name_raw?: string; sku_raw?: string;
 }
 
+export interface SupplierReturnContext {
+  po_id: number;
+  po_number: string;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  location_id: number;
+  currency_code: string;
+  exchange_rate: number;
+  tax_treatment: ImsPO['tax_treatment'];
+  tax_code: string | null;
+  items: Array<{
+    source_po_item_id: number;
+    variant_id: string;
+    code: string | null;
+    name: string;
+    qty_received: number;
+    already_returned_qty: number;
+    remaining_returnable_qty: number;
+    unit_cost: number;
+    tax_rate: number;
+  }>;
+}
+
 export interface ImsSO {
   id: number; so_number: string; customer_id?: number; customer_po_number?: string; location_id: number;
   status: SOStatus; order_date: string; expected_date?: string;
@@ -1238,6 +1261,65 @@ export const ImsPORepo = {
       filesPromise,
     ]);
     return { ...rows[0], items, payments, landed_costs, files };
+  },
+
+  async getSupplierReturnContext(id: number, businessId: string): Promise<SupplierReturnContext | null> {
+    const rows = await imsQuery<any>(
+      `SELECT po.id, po.po_number, po.supplier_id, COALESCE(c.name, po.supplier_name_raw) AS supplier_name,
+              po.location_id, po.currency_code, po.exchange_rate, po.tax_treatment, po.tax_code
+         FROM ims_purchase_orders po
+         LEFT JOIN ims_contacts c ON c.id = po.supplier_id AND c.business_id = po.business_id
+        WHERE po.id = ? AND po.business_id = ? AND po.status = 'complete'`,
+      [id, businessId],
+    );
+    if (!rows[0]) return null;
+    const itemRows = await imsQuery<any>(
+      `SELECT poi.id AS source_po_item_id, poi.variant_id,
+              COALESCE(v.sku, '') AS code,
+              CONCAT_WS(' / ', p.name,
+                NULLIF(v.option1_value, ''), NULLIF(v.option2_value, ''), NULLIF(v.option3_value, '')) AS name,
+              poi.qty_received,
+              COALESCE(returned.returned_qty, 0) AS already_returned_qty,
+              GREATEST(0, poi.qty_received - COALESCE(returned.returned_qty, 0)) AS remaining_returnable_qty,
+              poi.unit_cost * (1 - COALESCE(poi.discount_pct, 0) / 100) AS unit_cost,
+              poi.tax_rate
+         FROM ims_purchase_order_items poi
+         JOIN ims_purchase_orders po ON po.id = poi.po_id AND po.business_id = ?
+         LEFT JOIN ims_product_variants v ON v.variant_id = poi.variant_id
+         LEFT JOIN ims_products p ON p.product_id = v.product_id
+         LEFT JOIN (
+           SELECT scni.source_po_item_id, SUM(scni.qty) AS returned_qty
+             FROM ims_supplier_credit_note_items scni
+             JOIN ims_supplier_credit_notes scn ON scn.id = scni.scn_id
+            WHERE scn.business_id = ? AND scn.status <> 'cancelled'
+            GROUP BY scni.source_po_item_id
+         ) returned ON returned.source_po_item_id = poi.id
+        WHERE poi.po_id = ?
+        ORDER BY poi.id`,
+      [businessId, businessId, id],
+    );
+    return {
+      po_id: Number(rows[0].id),
+      po_number: String(rows[0].po_number),
+      supplier_id: rows[0].supplier_id == null ? null : Number(rows[0].supplier_id),
+      supplier_name: rows[0].supplier_name == null ? null : String(rows[0].supplier_name),
+      location_id: Number(rows[0].location_id),
+      currency_code: String(rows[0].currency_code ?? 'AUD'),
+      exchange_rate: Number(rows[0].exchange_rate ?? 1),
+      tax_treatment: rows[0].tax_treatment ?? 'ex_tax',
+      tax_code: rows[0].tax_code ?? null,
+      items: itemRows.map(row => ({
+        source_po_item_id: Number(row.source_po_item_id),
+        variant_id: String(row.variant_id),
+        code: row.code ? String(row.code) : null,
+        name: String(row.name ?? row.code ?? row.variant_id),
+        qty_received: Number(row.qty_received ?? 0),
+        already_returned_qty: Number(row.already_returned_qty ?? 0),
+        remaining_returnable_qty: Number(row.remaining_returnable_qty ?? 0),
+        unit_cost: Number(row.unit_cost ?? 0),
+        tax_rate: Number(row.tax_rate ?? 0),
+      })),
+    };
   },
 
   async addPayment(
@@ -5386,6 +5468,15 @@ export interface ImsSupplierCNItem {
   variant_label?: string | null;
 }
 
+export class SupplierReturnConflict extends Error {
+  readonly code = 'supplier_return_conflict';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'SupplierReturnConflict';
+  }
+}
+
 async function validateSupplierReturnCapsTx(
   conn: any,
   businessId: string,
@@ -5393,24 +5484,30 @@ async function validateSupplierReturnCapsTx(
   items: ImsSupplierCNItem[],
   currentScnId?: number,
 ): Promise<void> {
-  const quantities = new Map<number, number>();
+  const quantities = new Map<number, { qty: number; variants: Set<string> }>();
   for (const item of items) {
     if (item.source_po_item_id == null) continue;
     const sourceId = Number(item.source_po_item_id);
-    quantities.set(sourceId, (quantities.get(sourceId) ?? 0) + Number(item.qty));
+    const current = quantities.get(sourceId) ?? { qty: 0, variants: new Set<string>() };
+    current.qty += Number(item.qty);
+    if (item.variant_id) current.variants.add(String(item.variant_id));
+    quantities.set(sourceId, current);
   }
   if (!quantities.size) return;
-  if (!poId) throw new Error('Linked supplier return lines require a source purchase order.');
-  for (const [sourceId, requestedQty] of [...quantities].sort(([left], [right]) => left - right)) {
+  if (!poId) throw new SupplierReturnConflict('Linked supplier return lines require a source purchase order.');
+  for (const [sourceId, requested] of [...quantities].sort(([left], [right]) => left - right)) {
     const [[sourceLine]] = await conn.execute<any[]>(
-      `SELECT poi.qty_received
+      `SELECT poi.qty_received, poi.variant_id
          FROM ims_purchase_order_items poi
          JOIN ims_purchase_orders po ON po.id = poi.po_id
         WHERE poi.id = ? AND poi.po_id = ? AND po.business_id = ?
         FOR UPDATE`,
       [sourceId, poId, businessId],
     );
-    if (!sourceLine) throw new Error(`Purchase order source line ${sourceId} was not found.`);
+    if (!sourceLine) throw new SupplierReturnConflict(`Purchase order source line ${sourceId} was not found.`);
+    if (requested.variants.size !== 1 || !requested.variants.has(String(sourceLine.variant_id))) {
+      throw new SupplierReturnConflict(`Supplier return line ${sourceId} must use the same product variant as its source purchase-order line.`);
+    }
     const [[returned]] = await conn.execute<any[]>(
       `SELECT COALESCE(SUM(scni.qty), 0) AS returned_qty
          FROM ims_supplier_credit_note_items scni
@@ -5420,8 +5517,8 @@ async function validateSupplierReturnCapsTx(
       [sourceId, businessId, currentScnId ?? 0],
     );
     const remaining = Number(sourceLine.qty_received) - Number(returned?.returned_qty ?? 0);
-    if (requestedQty > remaining + 0.0001) {
-      throw new Error(`Return quantity for purchase order line ${sourceId} exceeds the remaining returnable quantity of ${Math.max(0, remaining)}.`);
+    if (requested.qty > remaining + 0.0001) {
+      throw new SupplierReturnConflict(`Return quantity for purchase order line ${sourceId} exceeds the remaining returnable quantity of ${Math.max(0, remaining)}.`);
     }
   }
 }
@@ -5468,7 +5565,7 @@ async function returnStockToSupplierTx(
     const s = (rows as any[])[0];
     const currentSoh = Number(s?.qty_on_hand ?? 0);
     if (currentSoh + 0.0001 < qty) {
-      throw new Error(`Cannot return variant ${item.variant_id}: ${currentSoh} units are on hand at this location, but ${qty} units would leave.`);
+      throw new SupplierReturnConflict(`Cannot return variant ${item.variant_id}: ${currentSoh} units are on hand at this location, but ${qty} units would leave.`);
     }
     const newSoh = currentSoh - qty;
     const unitCost = Number(s?.avg_cost ?? item.unit_cost ?? 0);
