@@ -54,10 +54,10 @@ export function productUrlScore(url: string, label: string, product: ProductUrlI
   return score;
 }
 
-export function isLikelyProductUrl(url: string, product: ProductUrlIdentity): boolean {
+export function isLikelyProductUrl(url: string, product: ProductUrlIdentity, label = ''): boolean {
   const words = identityWords(product);
   const minimum = words.length > 0 ? 11 : 8;
-  return productUrlScore(url, '', product) >= minimum;
+  return productUrlScore(url, label, product) >= minimum;
 }
 
 export function isProductPageUrl(url: string): boolean {

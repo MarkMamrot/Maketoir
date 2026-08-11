@@ -8,8 +8,8 @@ import { DEFAULT_URL_JUDGE_MODEL, WEBSITE_AI_SETTING_KEYS } from '@/lib/website/
 /**
  * POST /api/website/judge-urls
  *
- * Uses Gemini to evaluate and rank candidate URLs, keeping only the best exact
- * product page. Content generation happens separately from extracted page facts.
+ * Uses Gemini to classify compact Google result evidence, keeping only the best
+ * exact product page. Page extraction and content generation happen separately.
  *
  * Body: {
  *   product:     { name, brand, code?, barcode?, styleCode?, retailPrice? }
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
     }
 
-    const { databaseId, product, urls } = await req.json();
+    const { databaseId, product, urls, candidates = [] } = await req.json();
     if (!product?.name || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json({ error: 'product.name and urls[] are required.' }, { status: 400 });
     }
@@ -51,26 +51,38 @@ export async function POST(req: Request) {
     const modelId = modelRows[0]?.value?.trim() || DEFAULT_URL_JUDGE_MODEL;
 
     const validUrls: string[] = urls.filter((u: any) => typeof u === 'string' && u.trim());
+    const evidenceByUrl = new Map<string, string>(
+      (Array.isArray(candidates) ? candidates : [])
+        .filter((candidate: any) => validUrls.includes(String(candidate?.url ?? '').trim()))
+        .map((candidate: any) => [
+          String(candidate.url).trim(),
+          String(candidate.evidence ?? '').trim().slice(0, 1200),
+        ]),
+    );
 
     const skuBlock = product.code ? `\n- SKU: ${product.code}` : '';
-    const urlList = validUrls.map((u, i) => `${i + 1}. ${u}`).join('\n');
+    const urlList = validUrls.map((url, index) => {
+      const evidence = evidenceByUrl.get(url);
+      return `${index + 1}. URL: ${url}${evidence ? `\n   GOOGLE RESULT: ${evidence}` : ''}`;
+    }).join('\n');
 
-    const prompt = `You are an exact-product URL evaluator. Use Google Search to inspect the candidate pages.
+    const prompt = `You are an exact-product URL evaluator. Classify the supplied Google result evidence without web browsing.
 
 PRODUCT TO FIND:
 - Name: ${product.name}
 - Brand: ${product.brand}${skuBlock}${product.barcode ? `\n- Barcode: ${product.barcode}` : ''}
 
-CANDIDATE URLs (search for and visit each one):
+CANDIDATE URLS AND GOOGLE RESULT EVIDENCE:
 ${urlList}
 
-Visit each candidate URL using Google Search. For each URL decide: is it the actual product listing page for THIS EXACT product by ${product.brand}?
+For each URL decide whether the URL and result evidence identify an actual listing page for THIS EXACT product by ${product.brand}.
 
 Rules:
 - keep = true  → confirmed product listing page for THIS specific product (any retailer is fine)
 - keep = false → category page, search results page, brand homepage, wrong product, or unrelated page
 - KEEP ONLY THE SINGLE BEST URL (the most authoritative/detailed product page). All others keep = false.
 - If none are confirmed product pages for this exact product, set keep = false for EVERY URL.
+- If evidence is absent or ambiguous, do not guess; set keep = false.
 - Do NOT invent URLs not in the list above.
 
 ═══════════════════════════════════════════════════════
@@ -87,8 +99,7 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     const body = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       systemInstruction: { parts: [{ text: 'You are an exact-product URL evaluator. Always respond with valid JSON only — no markdown code blocks, no preamble.' }] },
-      tools: [{ google_search: {} }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2048, responseMimeType: 'application/json' },
     };
 
     let parsed: any = null;
@@ -97,15 +108,7 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
       const requestBody = attempt === 0
         ? body
-        : {
-            ...body,
-            tools: undefined,
-            generationConfig: {
-              ...body.generationConfig,
-              temperature: 0,
-              responseMimeType: 'application/json',
-            },
-          };
+        : { ...body, generationConfig: { ...body.generationConfig, temperature: 0 } };
       let res: Response;
       try {
         res = await fetch(
@@ -114,20 +117,18 @@ Return ONLY valid JSON — no markdown fences, no extra text:
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
-            signal: AbortSignal.timeout(attempt === 0 ? 18000 : 10000),
+            signal: AbortSignal.timeout(attempt === 0 ? 8000 : 5000),
           },
         );
       } catch (error) {
         finishReason = error instanceof Error ? error.name : 'FETCH_FAILED';
-        if (attempt === 0) continue;
         break;
       }
       const rawResponse = await res.text();
       if (!res.ok) {
         finishReason = `HTTP_${res.status}`;
         responseLength = rawResponse.length;
-        if (res.status >= 500 && attempt === 0) continue;
-        return NextResponse.json({ error: `Gemini error: ${res.status}`, detail: rawResponse.slice(0, 300) }, { status: 502 });
+        break;
       }
 
       let json: any;
@@ -164,11 +165,20 @@ Return ONLY valid JSON — no markdown fences, no extra text:
         source: 'website-content',
         operation: 'judge_urls_parse_response',
         severity: 'error',
-        title: 'Website content AI returned invalid JSON',
-        error: new Error(`Gemini response could not be parsed after retry (${finishReason}).`),
+        title: 'Website content URL matching was unavailable',
+        error: new Error(`Gemini URL matching did not complete (${finishReason}).`),
         context: { productName: String(product.name).slice(0, 200), candidateUrlCount: validUrls.length, finishReason, responseLength },
       });
-      return NextResponse.json({ error: 'AI returned unparseable JSON after retry.' }, { status: 502 });
+      return NextResponse.json({
+        success: true,
+        validUrlFound: false,
+        assessmentUnavailable: true,
+        rankedUrls: validUrls.map(url => ({
+          url,
+          keep: false,
+          reason: 'Automatic matching was inconclusive. Review this candidate to continue.',
+        })),
+      });
     }
 
     const parsedRankedUrls = (Array.isArray(parsed.rankedUrls) ? parsed.rankedUrls : [])

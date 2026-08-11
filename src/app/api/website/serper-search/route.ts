@@ -18,11 +18,16 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
  *   excluded_sites?:  string[]   // full URLs or domains to exclude entirely (unchecked sources)
  *   include_general?: boolean    // default true — include non-preferred results
  * }
- * Returns: { success: true, urls: string[] }
+ * Returns: { success: true, urls: string[], candidates: { url, evidence }[] }
  */
 
+interface SerperOrganicResult {
+  url: string;
+  label: string;
+}
+
 interface SerperQueryResult {
-  urls: string[];
+  results: SerperOrganicResult[];
   error?: string;
 }
 
@@ -34,12 +39,30 @@ async function serperQuery(query: string, apiKey: string, num = 20, searchAuOnly
       body: JSON.stringify(searchAuOnly ? { q: query, gl: 'au', num } : { q: query, num }),
       signal: AbortSignal.timeout(15000),
     });
-    if (!res.ok) return { urls: [], error: `Serper HTTP ${res.status}` };
+    if (!res.ok) return { results: [], error: `Serper HTTP ${res.status}` };
     const data = await res.json();
-    return { urls: (data.organic ?? []).map((r: any) => r.link as string).filter(Boolean) };
+    return {
+      results: (data.organic ?? [])
+        .filter((result: any) => result?.link)
+        .map((result: any) => ({
+          url: String(result.link),
+          label: `${String(result.title ?? '')} ${String(result.snippet ?? '')}`.trim(),
+        })),
+    };
   } catch (error) {
-    return { urls: [], error: error instanceof Error ? error.message : 'Serper request failed' };
+    return { results: [], error: error instanceof Error ? error.message : 'Serper request failed' };
   }
+}
+
+function mergeSearchResults(searches: SerperQueryResult[]): SerperOrganicResult[] {
+  const results = new Map<string, string>();
+  for (const result of searches.flatMap(search => search.results)) {
+    const url = canonicalProductCandidateUrl(result.url);
+    if (!url) continue;
+    const existingLabel = results.get(url) ?? '';
+    results.set(url, `${existingLabel} ${result.label}`.trim());
+  }
+  return [...results].map(([url, label]) => ({ url, label }));
 }
 
 function extractDomain(url: string): string | null {
@@ -122,8 +145,8 @@ export async function POST(req: Request) {
     ]);
     const generalSearches = searchResults[0] as SerperQueryResult[];
     const preferredSearches = searchResults.slice(1) as SerperQueryResult[];
-    const rawUrls = [...new Set(generalSearches.flatMap(result => result.urls).map(canonicalProductCandidateUrl).filter((url): url is string => Boolean(url)))];
-    const preferredResults = preferredSearches.map(result => result.urls.map(canonicalProductCandidateUrl).filter((url): url is string => Boolean(url)));
+    const rawResults = mergeSearchResults(generalSearches);
+    const preferredResults = preferredSearches.map(search => mergeSearchResults([search]));
     const searchErrors = [...generalSearches, ...preferredSearches].flatMap(result => result.error ? [result.error] : []);
     if (searchErrors.length > 0) {
       const runtimeSession = readSession();
@@ -144,9 +167,9 @@ export async function POST(req: Request) {
     }
 
     // Strip any URL whose domain is in the excluded list
-    const allUrls = excludedDomains.length
-      ? rawUrls.filter(url => !excludedDomains.some(d => urlMatchesDomain(url, d)))
-      : rawUrls;
+    const allResults = excludedDomains.length
+      ? rawResults.filter(result => !excludedDomains.some(domain => urlMatchesDomain(result.url, domain)))
+      : rawResults;
 
     const seen = new Set<string>();
     const urls: string[] = [];
@@ -155,36 +178,47 @@ export async function POST(req: Request) {
     // Google only found a category page, inspect that page for the product link.
     for (const [index, domain] of preferredDomains.entries()) {
       const preferredPool = preferredResults[index] ?? [];
-      const domainPool = [...preferredPool, ...allUrls.filter(url => urlMatchesDomain(url, domain))];
+      const domainPool = [...preferredPool, ...allResults.filter(result => urlMatchesDomain(result.url, domain))];
       const directMatches = domainPool
-        .filter(url => !seen.has(url) && isLikelyProductUrl(url, identity))
-        .sort((a, b) => productUrlScore(b, '', identity) - productUrlScore(a, '', identity));
-      const expandedMatches = directMatches.length > 0 ? [] : await expandPreferredResults(domainPool, domain, identity);
-      const match = directMatches[0] ?? expandedMatches[0];
+        .filter(result => !seen.has(result.url) && isLikelyProductUrl(result.url, identity, result.label))
+        .sort((a, b) => productUrlScore(b.url, b.label, identity) - productUrlScore(a.url, a.label, identity));
+      const expandedMatches = directMatches.length > 0 ? [] : await expandPreferredResults(domainPool.map(result => result.url), domain, identity);
+      const match = directMatches[0]?.url ?? expandedMatches[0];
       if (match) { seen.add(match); urls.push(match); }
     }
 
     // Then fill from general web, preferring other domains so supplier results
     // cannot crowd out viable retailer/product pages.
     if (include_general) {
-      const strictGeneralCandidates = allUrls
-        .filter(url => !seen.has(url) && isLikelyProductUrl(url, identity))
+      const strictGeneralCandidates = allResults
+        .filter(result => !seen.has(result.url) && isLikelyProductUrl(result.url, identity, result.label))
         .sort((a, b) => {
-          const aPreferred = preferredDomains.some(domain => urlMatchesDomain(a, domain)) ? 1 : 0;
-          const bPreferred = preferredDomains.some(domain => urlMatchesDomain(b, domain)) ? 1 : 0;
-          return aPreferred - bPreferred || productUrlScore(b, '', identity) - productUrlScore(a, '', identity);
+          const aPreferred = preferredDomains.some(domain => urlMatchesDomain(a.url, domain)) ? 1 : 0;
+          const bPreferred = preferredDomains.some(domain => urlMatchesDomain(b.url, domain)) ? 1 : 0;
+          return aPreferred - bPreferred || productUrlScore(b.url, b.label, identity) - productUrlScore(a.url, a.label, identity);
         });
-      const fallbackProductPages = allUrls.filter(url =>
-        !seen.has(url) && !strictGeneralCandidates.includes(url) && isProductPageUrl(url)
+      const strictUrls = new Set(strictGeneralCandidates.map(result => result.url));
+      const fallbackProductPages = allResults.filter(result =>
+        !seen.has(result.url) && !strictUrls.has(result.url) && isProductPageUrl(result.url)
       );
       const generalCandidates = [...strictGeneralCandidates, ...fallbackProductPages];
-      for (const url of generalCandidates) {
+      for (const { url } of generalCandidates) {
         if (urls.length >= 5) break;
         if (!seen.has(url)) { seen.add(url); urls.push(url); }
       }
     }
 
-    return NextResponse.json({ success: true, urls: urls.slice(0, 5), query: baseQuery, queries: searchQueries });
+    const selectedUrls = urls.slice(0, 5);
+    const evidenceByUrl = new Map(
+      mergeSearchResults([...generalSearches, ...preferredSearches])
+        .map(result => [result.url, result.label] as const),
+    );
+    const candidates = selectedUrls.map(url => ({
+      url,
+      evidence: String(evidenceByUrl.get(url) ?? '').slice(0, 1200),
+    }));
+
+    return NextResponse.json({ success: true, urls: selectedUrls, candidates, query: baseQuery, queries: searchQueries });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }

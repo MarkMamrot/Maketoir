@@ -4068,6 +4068,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [urls, setUrls] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
   const [selectedUrlIndex, setSelectedUrlIndex] = useState<number | null>(null);
   const [urlSelectionSource, setUrlSelectionSource] = useState<'ai' | 'user' | null>(null);
+  const [urlCandidateEvidence, setUrlCandidateEvidence] = useState<Record<string, string>>({});
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
@@ -4225,6 +4226,11 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
       setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? '']);
+      setUrlCandidateEvidence(Object.fromEntries(
+        (Array.isArray(d.candidates) ? d.candidates : [])
+          .filter((candidate: any) => candidate?.url)
+          .map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')]),
+      ));
       setSelectedUrlIndex(null);
       setUrlSelectionSource(null);
       setShowResearchDetails(true);
@@ -4343,6 +4349,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       ];
       let candidateUrls: [string, string, string, string, string] = [...urls];
       let foundUrls = candidateUrls.map(url => url.trim()).filter(Boolean);
+      let foundCandidates = foundUrls.map(url => ({ url, evidence: urlCandidateEvidence[url] ?? '' }));
       let selectedIndex = selectedUrlIndex;
       let selectedSource = urlSelectionSource;
       if (foundUrls.length === 0) {
@@ -4360,6 +4367,11 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         const searchData = await parseWebsiteJsonResponse(searchResponse);
         if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
         foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
+        foundCandidates = (Array.isArray(searchData.candidates) ? searchData.candidates : [])
+          .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
+        setUrlCandidateEvidence(Object.fromEntries(
+          foundCandidates.map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')]),
+        ));
         candidateUrls = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
         setUrls(candidateUrls);
         setShowResearchDetails(true);
@@ -4387,6 +4399,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               retailPrice: researchVariant?.price_rrp ?? '0',
             },
             urls: foundUrls,
+            candidates: foundCandidates,
           }),
         });
         const judgeData = await parseWebsiteJsonResponse(judgeResponse);

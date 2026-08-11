@@ -22,7 +22,13 @@ export function productSearchQueries(productName: string, brand: string, code?: 
     .map(value => value?.trim() ?? '')
     .filter((value, index, values) => value.length >= 4 && values.indexOf(value) === index);
 
-  return [broadQuery, ...identifiers.map(identifier => `${broadQuery} ${identifier}`)].filter(Boolean);
+  const exactName = productName.trim().replace(/["“”]+/g, '').replace(/\s+/g, ' ');
+  const quotedName = exactName ? `"${exactName}"${nameIncludesBrand || !brand.trim() ? '' : ` ${brand.trim()}`}` : '';
+  return [...new Set([
+    quotedName,
+    broadQuery,
+    ...identifiers.map(identifier => `${broadQuery} "${identifier}"`),
+  ].filter(Boolean))];
 }
 
 export interface ProductResearchVariant {

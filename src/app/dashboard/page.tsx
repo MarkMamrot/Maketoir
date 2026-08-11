@@ -4983,6 +4983,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Per-URL Tavily photos [productKey][urlSlot 0-4] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
   const [urlDecisionsMap, setUrlDecisionsMap] = useState<Record<string, ProductUrlDecision[]>>({});
+  const [customUrlMap, setCustomUrlMap] = useState<Record<string, string>>({});
   const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
   const [autoStepMap, setAutoStepMap]     = useState<Record<string, string>>({});
@@ -5428,6 +5429,8 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       const serperData = await parseWebsiteJsonResponse(serperRes);
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
       const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 5);
+      const foundCandidates = (Array.isArray(serperData.candidates) ? serperData.candidates : [])
+        .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
       if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
       setUrlDecisionsMap(prev => ({
         ...prev,
@@ -5448,6 +5451,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           body: JSON.stringify({
             product,
             urls: foundUrls,
+            candidates: foundCandidates,
             databaseId,
           }),
         });
@@ -5458,7 +5462,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           const decision = ranked.find(item => item.url === url);
           return {
             url,
-            keep: decision ? Boolean(decision.keep) : false,
+            keep: judgeData.assessmentUnavailable ? null : decision ? Boolean(decision.keep) : false,
             reason: decision?.reason?.trim() || 'AI did not confirm this URL as an exact product page.',
           };
         });
@@ -5485,11 +5489,11 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
           [key]: foundUrls.map(url => ({
             url,
             keep: null,
-            reason: assessmentError?.message || 'AI URL assessment failed; original search order was retained.',
+            reason: 'Automatic matching was inconclusive. Review this page and continue if it is the exact product.',
           })),
         }));
         setExpandedCode(key);
-        step(`⏸ Awaiting confirmation — URL assessment failed: ${assessmentError?.message ?? 'unknown error'}`);
+        step('⏸ Awaiting confirmation — automatic matching was inconclusive.');
         return;
       }
       const paddedFinal: ProductUrlSlots = [finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '', finalUrls[3] ?? '', finalUrls[4] ?? ''];
@@ -6067,15 +6071,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                         {isSessionBlocked && (
                           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">
                             <p className="text-sm font-semibold">Choose the exact product page to continue</p>
-                            <p className="mt-1 text-xs leading-5 text-amber-800">Review the candidates and press <strong>Continue with this page</strong>. If none is correct, paste the exact product-page URL into the first reference field, then press <strong>Continue with entered URL</strong>. Only this product is paused; the rest of the batch continues.</p>
-                            <button
-                              type="button"
-                              onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, getInputs(key).urls[0] ?? ''); }}
-                              disabled={!getInputs(key).urls[0]?.trim() || automatingSet.has(key)}
-                              className="mt-2 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Continue with entered URL
-                            </button>
+                            <p className="mt-1 text-xs leading-5 text-amber-800">Review the candidate pages below and continue with the exact product. If none is correct, enter another product-page URL. Only this product is paused; the rest of the batch continues.</p>
                           </div>
                         )}
 
@@ -6112,8 +6108,34 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                           </div>
                         )}
 
+                        {isSessionBlocked && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1.5">Use another product page</p>
+                            <div className="grid grid-cols-[88px_minmax(0,1fr)_auto] gap-2 items-center rounded-md border border-gray-200 bg-white px-2.5 py-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-center rounded-full px-2 py-1 bg-blue-50 text-blue-700">Custom URL</span>
+                              <input
+                                type="url"
+                                value={customUrlMap[key] ?? ''}
+                                onChange={event => setCustomUrlMap(previous => ({ ...previous, [key]: event.target.value }))}
+                                onClick={event => event.stopPropagation()}
+                                placeholder="https://retailer.com/products/exact-product"
+                                aria-label="Custom exact product-page URL"
+                                className="w-full min-w-0 px-2 py-1.5 border border-gray-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={event => { event.stopPropagation(); void handleConfirmProductPage(p, customUrlMap[key] ?? ''); }}
+                                disabled={!customUrlMap[key]?.trim() || automatingSet.has(key)}
+                                className="px-2.5 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                              >
+                                Continue with this page
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Reference Pages */}
-                        <div>
+                        {!isSessionBlocked && <div>
                           <p className="text-xs font-medium text-gray-700 mb-1.5">Selected reference pages</p>
                           <div className="space-y-1.5">
                             {([0, 1, 2, 3, 4] as const).map(idx => (
@@ -6141,7 +6163,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                               </div>
                             ))}
                           </div>
-                        </div>
+                        </div>}
 
                         {/* Deduplicated photo candidates */}
                         <div>

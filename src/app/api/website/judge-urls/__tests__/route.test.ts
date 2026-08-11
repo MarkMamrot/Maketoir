@@ -46,11 +46,12 @@ describe('POST /api/website/judge-urls', () => {
   });
 
   it('returns a decision row for every candidate when Gemini selects only one', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({
         rankedUrls: [{ url: 'https://shop.example.com/right-product', keep: true, reason: 'Exact product.' }],
       }) }] } }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
 
     const response = await POST(new Request('http://localhost/api/website/judge-urls', {
       method: 'POST',
@@ -58,6 +59,7 @@ describe('POST /api/website/judge-urls', () => {
       body: JSON.stringify({
         product: { name: 'Ducky Mug', brand: 'Decole' },
         urls: ['https://shop.example.com/right-product', 'https://shop.example.com/wrong-product'],
+        candidates: [{ url: 'https://shop.example.com/right-product', evidence: 'Decole Ducky Mug exact product listing.' }],
       }),
     }));
 
@@ -69,5 +71,30 @@ describe('POST /api/website/judge-urls', () => {
         { url: 'https://shop.example.com/wrong-product', keep: false },
       ],
     });
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(requestBody.tools).toBeUndefined();
+    expect(requestBody.contents[0].parts[0].text).toContain('Decole Ducky Mug exact product listing.');
+  });
+
+  it('returns confirmation candidates instead of an error when matching times out', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError')));
+
+    const response = await POST(new Request('http://localhost/api/website/judge-urls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product: { name: 'Capy Fathers Day Card', brand: 'Jolly Awesome' },
+        urls: ['https://example.com/capy-fathers-day-card'],
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      validUrlFound: false,
+      assessmentUnavailable: true,
+      rankedUrls: [{ keep: false, reason: expect.stringContaining('inconclusive') }],
+    });
+    expect(reportRuntimeIssue).toHaveBeenCalledOnce();
   });
 });

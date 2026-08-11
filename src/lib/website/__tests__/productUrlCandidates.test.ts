@@ -39,4 +39,13 @@ describe('product URL candidates', () => {
     expect(isProductPageUrl('https://retailer.test/collections/wide-brim-hats')).toBe(false);
     expect(isProductPageUrl('https://retailer.test/search?q=willow')).toBe(false);
   });
+
+  it('uses Google title and snippet evidence when a retailer URL omits the product identity', () => {
+    const candle = { name: 'A Dopo 8 Oz Handpainted Blue Cheetahs', brand: 'Paddywax', code: 'AD0815BXAU' };
+    const url = 'https://retailer.test/p/seasonal-candle-4815';
+    const label = 'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic Candle by Paddywax AD0815BXAU';
+
+    expect(isLikelyProductUrl(url, candle)).toBe(false);
+    expect(isLikelyProductUrl(url, candle, label)).toBe(true);
+  });
 });
