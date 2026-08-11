@@ -9335,6 +9335,10 @@ function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
     .split('_')
     .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : '')
     .join(' ');
+  const fieldLabel = (field: unknown) => String(field ?? '')
+    .split('_')
+    .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : '')
+    .join(' ');
 
   return (
     <div style={{ marginTop: 20, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
@@ -9342,20 +9346,50 @@ function OrderAmendmentHistory({ entries }: { entries?: any[] }) {
       {entries.map(entry => {
         const statusChanged = String(entry.previousStatus) !== String(entry.resultingStatus);
         const timestamp = entry.completedAt ?? entry.createdAt;
+        const lines = Array.isArray(entry.lines) ? entry.lines : [];
+        const fields = Array.isArray(entry.changedFields) ? entry.changedFields : [];
+        const added = lines.filter((line: any) => line.changeType === 'added').length;
+        const removed = lines.filter((line: any) => line.changeType === 'removed').length;
+        const updated = lines.filter((line: any) => line.changeType === 'updated').length;
+        const lineSummary = [
+          added ? `${added} added` : '',
+          removed ? `${removed} removed` : '',
+          updated ? `${updated} updated` : '',
+        ].filter(Boolean).join(', ');
         return (
-          <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
-            <div>
-              <div style={{ color: 'var(--sv-text)', fontWeight: 600 }}>
-                {statusChanged ? `${label(entry.previousStatus)} to ${label(entry.resultingStatus)}` : 'Order details edited'}
+          <div key={entry.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto', gap: 12 }}>
+              <div>
+                <div style={{ color: 'var(--sv-text)', fontWeight: 600 }}>
+                  {statusChanged ? `${label(entry.previousStatus)} to ${label(entry.resultingStatus)}` : 'Order details edited'}
+                </div>
+                <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>
+                  {entry.actorName || 'System'} · Operation #{entry.id}
+                  {lineSummary ? ` · ${lineSummary}` : Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} lines changed` : ''}
+                </div>
               </div>
-              <div style={{ color: 'var(--sv-text-dim)', marginTop: 2 }}>
-                {entry.actorName || 'System'} · Operation #{entry.id}
-                {Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} line${Number(entry.lineChangeCount) === 1 ? '' : 's'} changed` : ''}
+              <div style={{ color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                {timestamp ? new Date(timestamp).toLocaleString() : '—'}
               </div>
             </div>
-            <div style={{ color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', textAlign: 'right' }}>
-              {timestamp ? new Date(timestamp).toLocaleString() : '—'}
-            </div>
+            {(fields.length > 0 || lines.length > 0) && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ color: 'var(--sv-accent)', cursor: 'pointer', fontWeight: 600 }}>View changes</summary>
+                <div style={{ marginTop: 6, paddingLeft: 12, borderLeft: '2px solid var(--sv-etch)', color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+                  {fields.length > 0 && <div>Fields: {fields.map(fieldLabel).join(', ')}</div>}
+                  {lines.map((line: any) => (
+                    <div key={line.id}>
+                      {fieldLabel(line.changeType)} · Variant {line.variantId || '—'} · Quantity{' '}
+                      {line.changeType === 'added'
+                        ? line.resultingQuantity ?? '—'
+                        : line.changeType === 'removed'
+                          ? `${line.previousQuantity ?? '—'} to removed`
+                          : `${line.previousQuantity ?? '—'} to ${line.resultingQuantity ?? '—'}`}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
           </div>
         );
       })}
@@ -24587,6 +24621,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         </ul>
         <p style={p}>Draft, Submitted, and unpaid/uncredited/unlocked Authorised Xero bills update in place. Paid, credited, locked, terminal, or unverifiable bills require the correction workflow.</p>
 
+        <h3 style={h3}>Change History</h3>
+        <p style={p}>The order modal lists the newest 25 completed edits and status changes. Select <strong>View changes</strong> to see which header fields changed and each added, removed, or updated line without exposing internal audit data.</p>
+        <ul style={ul}>
+          <li><strong>Example: red reduced from 5 to 3</strong> — the summary says one line updated; the detail shows the red variant quantity changing from 5 to 3.</li>
+          <li><strong>Example: blue quantity 2 added</strong> — the summary says one line added; the detail shows the blue variant and resulting quantity 2.</li>
+        </ul>
+
         <h3 style={h3}>Partial receives &amp; backorder POs</h3>
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
@@ -24635,6 +24676,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Example: move the order to another location</strong> — commitments are released at the old location and added at the new location in one transaction.</li>
           <li><strong>Example: the order changed in another browser</strong> — the stale save is rejected and you are asked to refresh.</li>
         </ul>
+        <h3 style={h3}>Change History</h3>
+        <p style={p}>The order modal lists the newest 25 completed edits and status changes. Select <strong>View changes</strong> to see changed fields and line quantity changes. For example, changing 5 red to 3 red plus 2 blue appears as one updated red line and one added blue line.</p>
         <h3 style={h3}>After goods have shipped</h3>
         <p style={p}>Shipped line IDs, quantities, costs, and movements are preserved. Use <strong>Continue Fulfilment</strong> or <strong>Resolve Outstanding</strong> for a partial SO. A Completed SO is corrected with <strong>Return / Credit</strong> and, when needed, a replacement SO; it is not reopened or unfulfilled.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>

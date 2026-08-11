@@ -294,6 +294,14 @@ Always read this file when starting a new session or implementing a feature to u
 * Shared report filter/date helpers moved to `src/app/ims/views/reports/reportFilterHelpers.tsx` and imported back into `page.tsx` (behavior preserved).
 * Practical rule for this monolith: avoid single giant diffs; patch by anchor in small chunks and run diagnostics (`get_errors`) after each chunk.
 
+### PO/SO amendment history detail (2026-08-11)
+* PO and SO order modals now summarize amendment lines by added/removed/updated count and provide an expandable `View changes` section.
+* Expanded detail shows safe human-readable changed header fields, variant IDs, and quantity transitions; raw audit JSON and internal header fields are not exposed.
+* Example: changing 5 red to 3 red plus 2 blue displays one updated line (`5 to 3`) and one added line (`2`).
+* Both operation and line-history reads remain explicitly tenant-scoped by `business_id`; the enriched SQL was exercised against Monsterthreads and Sage.
+* Validation: focused history/PO/SO route tests passed (26), full Vitest passed (263 files / 1,253 tests, one skipped), and the production build passed.
+* Three lifecycle-hardening slices remain: receive-batch request replay safety; unified receive/fulfil/shortfall activity history; final browser/end-to-end exercise and dead-path cleanup.
+
 ### CN/SCN Xero pathway hardening (2026-07-25)
 * `POST /api/ims/xero/void` now supports `type: 'cn' | 'scn'` in addition to PO/SO.
 * Added service-level Xero void functions for credit notes:
