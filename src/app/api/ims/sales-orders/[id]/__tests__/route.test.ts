@@ -98,6 +98,25 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
+
+  it('does not allow an Admin reason to bypass a settled Xero invoice', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', customer_id: 3, xero_invoice_id: 'xero-invoice-1', items: [] });
+    mockGetXeroInvoiceEditState.mockResolvedValue({
+      status: 'AUTHORISED', amountPaid: 25, amountCredited: 0, documentDate: '2026-08-09',
+    });
+    const financialRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer_id: 4, xeroOverrideReason: 'Bookkeeper approved correction' }),
+    });
+
+    const response = await PUT(financialRequest, params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'settled' });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockXeroUpdate).not.toHaveBeenCalled();
+    expect(mockRecordXeroReconciliationIssue).not.toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /api/ims/sales-orders/[id]', () => {

@@ -1,0 +1,68 @@
+export type OrderKind = 'purchase_order' | 'sales_order';
+
+export type POStatus = 'draft' | 'confirmed' | 'partially_received' | 'backordered' | 'complete' | 'cancelled';
+export type SOStatus = 'draft' | 'confirmed' | 'partially_fulfilled' | 'backordered' | 'fulfilled' | 'cancelled';
+export type OrderStatus = POStatus | SOStatus;
+
+const PO_TRANSITIONS: Record<POStatus, readonly POStatus[]> = {
+  draft: ['confirmed'],
+  confirmed: ['draft', 'complete', 'cancelled'],
+  partially_received: ['confirmed', 'complete', 'cancelled'],
+  backordered: ['confirmed', 'cancelled'],
+  complete: ['confirmed', 'cancelled'],
+  cancelled: [],
+};
+
+const SO_TRANSITIONS: Record<SOStatus, readonly SOStatus[]> = {
+  draft: ['confirmed'],
+  confirmed: ['draft', 'fulfilled', 'cancelled'],
+  partially_fulfilled: ['fulfilled', 'cancelled'],
+  backordered: ['confirmed', 'cancelled'],
+  fulfilled: [],
+  cancelled: [],
+};
+
+export class OrderLifecycleConflict extends Error {
+  readonly code = 'order_lifecycle_conflict';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'OrderLifecycleConflict';
+  }
+}
+
+export function isAllowedPOStatusTransition(from: POStatus, to: POStatus): boolean {
+  return from === to || PO_TRANSITIONS[from].includes(to);
+}
+
+export function isAllowedSOStatusTransition(from: SOStatus, to: SOStatus): boolean {
+  return from === to || SO_TRANSITIONS[from].includes(to);
+}
+
+export function assertAllowedPOStatusTransition(from: POStatus, to: POStatus): void {
+  if (!isAllowedPOStatusTransition(from, to)) {
+    throw new OrderLifecycleConflict(`Purchase order cannot change from ${from} to ${to}.`);
+  }
+}
+
+export function assertAllowedSOStatusTransition(from: SOStatus, to: SOStatus): void {
+  if (!isAllowedSOStatusTransition(from, to)) {
+    throw new OrderLifecycleConflict(`Sales order cannot change from ${from} to ${to}.`);
+  }
+}
+
+export function getOrderStatusLabel(kind: OrderKind, status: OrderStatus): string {
+  if ((kind === 'purchase_order' && status === 'complete') ||
+      (kind === 'sales_order' && status === 'fulfilled')) {
+    return 'Completed';
+  }
+
+  return status
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function getPhysicalCompletionLabel(kind: OrderKind): string {
+  return kind === 'purchase_order' ? 'Fully received' : 'Fully fulfilled';
+}

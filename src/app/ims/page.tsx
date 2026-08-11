@@ -25,6 +25,8 @@ import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
+import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
+import { getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -347,11 +349,12 @@ const STATUS_COLORS: Record<string, string> = {
   reverted:           'background:rgba(139,92,246,.18);color:#a78bfa',
 };
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, orderKind }: { status: string; orderKind?: OrderKind }) {
   const style = STATUS_COLORS[status] ?? STATUS_COLORS.draft;
+  const label = orderKind ? getOrderStatusLabel(orderKind, status as any) : status;
   return (
     <span style={{ ...parseStyleStr(style), padding: '2px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
-      {status}
+      {label}
     </span>
   );
 }
@@ -8101,6 +8104,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   const [statusFilter, setStatusFilter] = useState('');
   const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
+  const [resolveOrder, setResolveOrder] = useState<any | null>(null);
   const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
@@ -8518,8 +8522,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
+                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} /></td>
                 </tr>
               ))}
             </tbody>
@@ -8857,7 +8861,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
       {viewModal.open && viewModal.po && (
         <Modal title={`${viewModal.po.po_number} — ${viewModal.po.status}`} onClose={() => { setViewModal({ open: false, po: null }); setPoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
+            <POActions isAdvisor={isAdvisor} po={viewModal.po} onEdit={() => editPoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onReceive={() => { setViewModal({ open: false, po: null }); openEdit(viewModal.po); }} onResolve={() => setResolveOrder(viewModal.po)} onDelete={() => deletePoWithWarn(viewModal.po, () => setViewModal({ open: false, po: null }))} onStatus={changeStatus} context="view" />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/purchase-orders/${viewModal.po.id}/pdf`, '_blank'); }}
@@ -8893,7 +8897,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
-            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} /></div>
+            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} orderKind="purchase_order" /></div>
             <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
             <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
@@ -9229,6 +9233,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           }}
         />
       )}
+      {resolveOrder && (
+        <ResolveOutstandingModal
+          kind="supplier"
+          order={resolveOrder}
+          onClose={() => setResolveOrder(null)}
+          onResolved={async () => {
+            await load();
+            if (viewModal.open && viewModal.po?.id === resolveOrder.id) await refreshPoView(resolveOrder.id);
+          }}
+        />
+      )}
       {importPOsOpen && (
         <ImportPOsModal
           locations={locations}
@@ -9241,14 +9256,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
   );
 }
 
-function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
+function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, context = 'list', isAdvisor = false }: { po: any; onEdit: () => void; onReceive?: () => void; onResolve?: () => void; onDelete: () => void; onStatus: (po: any, s: string) => void; context?: 'list' | 'view'; isAdvisor?: boolean }) {
   const isOpeningSnapshot =
     po?.po_category === 'opening_stock' ||
     po?.category === 'opening_stock' ||
@@ -9260,25 +9268,29 @@ function POActions({ po, onEdit, onReceive, onDelete, onStatus, context = 'list'
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
-  if (po.status === 'draft')    { btns.push(<button key="a" onClick={() => onStatus(po, 'confirmed')}  style={btnStyle('mint', 'xs')} disabled={isAdvisor}>Confirm</button>); }
-  if (isMobile && po.status === 'confirmed' && context !== 'list') { btns.push(<a key="p" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 Smart Device Receive</a>); }
-  if (po.status === 'confirmed' && context === 'view') { btns.push(<button key="r" onClick={() => onStatus(po, 'complete')}  style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
-  if (po.status === 'confirmed' && context !== 'list') { btns.push(<button key="b" onClick={() => onStatus(po, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
-  if (isMobile && po.status === 'partially_received') { btns.push(<a key="pr" href={`/receive?po_id=${po.id}`} style={{ ...btnStyle('action', 'xs'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>📱 {context === 'view' ? 'Continue Receiving' : 'Continue'}</a>); }
-  if (po.status === 'partially_received') { btns.push(<button key="prr" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>); }
-  if (po.status === 'partially_received' && context !== 'list') { btns.push(<button key="prb" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('ghost', 'xs')}>Revert to Confirmed</button>); }
-  if (po.status === 'complete') {
-    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+  if (!isAdvisor && po.status === 'draft') {
+    btns.push(<button key="confirm" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
+    btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="delete" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
-  if (po.status !== 'complete' && po.status !== 'cancelled') {
-    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (po.status === 'confirmed' && context === 'list') { btns.push(<button key="recv" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')} disabled={isAdvisor}>Receive</button>); }
-    if (context !== 'list' && po.status !== 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
-    if (context !== 'list' && po.status === 'partially_received') { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
+  if (!isAdvisor && po.status === 'confirmed') {
+    btns.push(<button key="receive" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Receive</button>);
+    btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    if (context !== 'list') {
+      btns.push(<button key="revert" onClick={() => onStatus(po, 'draft')} style={btnStyle('ghost', 'xs')}>Revert to Draft</button>);
+      btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+    }
   }
-  if (po.status === 'cancelled' || po.status === 'draft') {
-    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+  if (!isAdvisor && po.status === 'partially_received') {
+    btns.push(<button key="continue" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Continue Receiving</button>);
+    if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
+  }
+  if (!isAdvisor && po.status === 'backordered') {
+    btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
+    btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+  }
+  if (!isAdvisor && po.status === 'complete') {
+    btns.push(<button key="reverse" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Reverse Receipt &amp; Cancel</button>);
   }
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -11601,6 +11613,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
+  const [resolveOrder, setResolveOrder] = useState<any | null>(null);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
   const [posVoiding, setPosVoiding] = useState(false);
@@ -12195,7 +12208,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} /></td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
                   <td style={{ padding: '10px 12px' }}>
                     {so.is_pos_ledger ? (
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -12205,7 +12218,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
                       </div>
                     ) : (
-                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onFulfill={() => openSoFulfilmentModal(so)} />
+                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onFulfill={() => openSoFulfilmentModal(so)} onResolve={() => setResolveOrder(so)} />
                     )}
                   </td>
                 </tr>
@@ -12416,7 +12429,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12453,7 +12466,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
-            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} /></div>
+            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} orderKind="sales_order" /></div>
             <div><div style={labelStyle}>Order Date</div><div>{viewModal.so.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Cust PO #</div><div>{viewModal.so.customer_po_number || '—'}</div></div>
             <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
@@ -12732,6 +12745,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           onResolved={handleSOFulfilmentResolved}
         />
       )}
+      {resolveOrder && (
+        <ResolveOutstandingModal
+          kind="customer"
+          order={resolveOrder}
+          onClose={() => setResolveOrder(null)}
+          onResolved={handleSOFulfilmentResolved}
+        />
+      )}
 
       {importSOsOpen && (
         <ImportSOsModal
@@ -12744,32 +12765,36 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onFulfill, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onFulfill?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onFulfill, onResolve, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onFulfill?: () => void; onResolve?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
-  if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
-  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
-  if (so.status === 'fulfilled') {
-    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+  if (!isAdvisor && so.status === 'draft') {
+    btns.push(<button key="confirm" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
+    btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="delete" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
-  if (so.status !== 'fulfilled' && so.status !== 'cancelled' && so.status !== 'draft') {
-    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
-    if (!isAdvisor) { btns.push(<button key="x" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>); }
+  if (!isAdvisor && so.status === 'confirmed') {
+    btns.push(<button key="fulfil" onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfil</button>);
+    btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
+    btns.push(<button key="revert" onClick={() => onStatus(so, 'draft')} style={btnStyle('ghost', 'xs')}>Revert to Draft</button>);
+    btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
-  if (so.status === 'draft') {
-    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit}  style={btnStyle('ghost', 'xs')}>Edit</button>); }
+  if (!isAdvisor && so.status === 'partially_fulfilled') {
+    btns.push(<button key="continue" onClick={() => onFulfill?.()} style={btnStyle('action', 'xs')}>Continue Fulfilment</button>);
+    if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
   }
-  if (so.status === 'cancelled' || so.status === 'draft') {
-    if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }
+  if (!isAdvisor && so.status === 'backordered') {
+    btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
+    btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
-  // Return / Refund — available on any sold order (confirmed or fulfilled).
-  if (!isAdvisor && onReturn && (so.status === 'confirmed' || so.status === 'fulfilled')) {
-    btns.push(<button key="r" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">↩ Return</button>);
+  if (!isAdvisor && so.status === 'fulfilled') {
+    btns.push(<button key="notes" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit Notes</button>);
+    if (onReturn) {
+      btns.push(<button key="return" onClick={onReturn} style={btnStyle('ghost', 'xs')} title="Create a credit note / return for this order">Return / Credit</button>);
+    }
   }
   return <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{btns}</div>;
 }

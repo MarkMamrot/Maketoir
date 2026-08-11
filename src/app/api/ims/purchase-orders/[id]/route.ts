@@ -9,6 +9,7 @@ import { getXeroInvoiceEditState } from '@/services/XeroSyncService';
 import { getOrderResolutionFinancialSummaries } from '@/lib/ims/orderResolution/financialSummary';
 import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEditState } from '@/lib/xero/documentEditPolicy';
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
+import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -49,7 +50,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   const businessId = session.businessId as string;
   try {
     const body = await req.json();
-    const { items, status, xeroOverrideReason, ...poData } = body;
+    const { items, status, ...poData } = body;
 
     // Handle status transition
     let xeroWarning: string | null = null;
@@ -118,7 +119,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         'purchase_order', existing as unknown as Record<string, unknown>, poData, items,
       );
       let xeroState: XeroDocumentEditState | null = null;
-      let isXeroOverride = false;
       if (existing.xero_bill_id && hasXeroChanges) {
         try {
           xeroState = await getXeroInvoiceEditState(businessId, existing.xero_bill_id);
@@ -131,16 +131,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
         const assessment = assessXeroDocumentEdit(true, xeroState);
         if (!assessment.allowed) {
-          const overrideReason = typeof xeroOverrideReason === 'string' ? xeroOverrideReason.trim() : '';
-          const canOverride = ['Admin', 'SuperAdmin'].includes(session.tier ?? '') && overrideReason.length > 0;
-          if (!canOverride) {
           return NextResponse.json({
             success: false,
-              error: `${assessment.message} An Admin or SuperAdmin can save a local override by providing xeroOverrideReason.`,
-              xeroOverrideAvailable: ['Admin', 'SuperAdmin'].includes(session.tier ?? ''),
+            error: `${assessment.message} Use the purchase-order correction workflow instead.`,
+            code: assessment.reason,
           }, { status: 409 });
-          }
-          isXeroOverride = true;
         }
       }
       const { landed_costs, ...cleanPoData } = poData;
@@ -154,16 +149,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      if (isXeroOverride) {
-        xeroWarning = 'Purchase order saved locally as an Admin override. The linked Xero bill was not changed.';
-        await recordXeroReconciliationIssue({
-          businessId, targetType: 'purchase_order', referenceId: params.id,
-          xeroId: existing.xero_bill_id, ruleKey: 'admin_edit_override', severity: 'warning',
-          summary: xeroWarning, expected: { localEdit: true }, actual: xeroState,
-          eventType: 'override', actorId: session.userId, actorName: session.name ?? session.email,
-          reason: xeroOverrideReason.trim(),
-        });
-      } else if (existing.xero_bill_id && hasXeroChanges) {
+      if (existing.xero_bill_id && hasXeroChanges) {
         const result = await triggerPOXeroUpdate(businessId, Number(params.id));
         xeroWarning = result.warning;
         if (result.warning) {
@@ -177,6 +163,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e instanceof OrderLifecycleConflict) {
+      return NextResponse.json({
+        success: false,
+        error: e.message,
+        code: e.code,
+      }, { status: 409 });
+    }
     const isReversalConflict = String(e?.message ?? '').startsWith('Cannot reverse PO receipt:');
     if (!isReversalConflict) {
       await reportRuntimeIssue({

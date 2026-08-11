@@ -243,4 +243,22 @@ describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
     );
     expect(connection.commit).toHaveBeenCalledOnce();
   });
+
+  it('rejects an unlisted transition before changing stock or status', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{ id: 42, status: 'fulfilled', location_id: 4, business_id: 'biz-1', is_historical: 0 }]];
+      }
+      if (sql.includes('SELECT * FROM ims_sales_order_items')) return [[]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(ImsSORepo.changeStatus(42, 'draft')).rejects.toThrow(
+      'Sales order cannot change from fulfilled to draft.',
+    );
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('SET status ='))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
 });

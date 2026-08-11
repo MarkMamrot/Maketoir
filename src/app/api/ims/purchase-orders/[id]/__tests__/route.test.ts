@@ -186,7 +186,7 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockTriggerPOXeroUpdate).toHaveBeenCalledWith('biz-1', 42);
   });
 
-  it('blocks a settled Xero-visible edit without a reasoned Admin override', async () => {
+  it('blocks a settled Xero-visible edit and directs the user to correction', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
     mockGetXeroInvoiceEditState.mockResolvedValue({
       status: 'AUTHORISED', amountPaid: 10, amountCredited: 0, documentDate: '2026-08-09',
@@ -195,10 +195,11 @@ describe('/api/ims/purchase-orders/[id]', () => {
     const response = await PUT(putRequest({ supplier_id: 4 }), params);
 
     expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: 'settled' });
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('records a reasoned Admin override without updating Xero', async () => {
+  it('does not allow an Admin reason to bypass a terminal Xero document', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'complete', supplier_id: 3, xero_bill_id: 'xero-bill-1', items: [] });
     mockGetXeroInvoiceEditState.mockResolvedValue({
       status: 'PAID', amountPaid: 25, amountCredited: 0, documentDate: '2026-08-09',
@@ -207,12 +208,11 @@ describe('/api/ims/purchase-orders/[id]', () => {
     const response = await PUT(putRequest({ supplier_id: 4, xeroOverrideReason: 'Bookkeeper approved correction' }), params);
     const json = await response.json();
 
-    expect(response.status).toBe(200);
-    expect(json.xeroWarning).toContain('Admin override');
+    expect(response.status).toBe(409);
+    expect(json).toMatchObject({ code: 'terminal_status' });
+    expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockTriggerPOXeroUpdate).not.toHaveBeenCalled();
-    expect(mockRecordXeroReconciliationIssue).toHaveBeenCalledWith(expect.objectContaining({
-      ruleKey: 'admin_edit_override', eventType: 'override', actorId: 7, reason: 'Bookkeeper approved correction',
-    }));
+    expect(mockRecordXeroReconciliationIssue).not.toHaveBeenCalled();
   });
 
   it('returns and records a warning when the post-save Xero update fails', async () => {

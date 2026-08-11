@@ -5,6 +5,12 @@ import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getCustomerBackorderReadinessConflict } from './backorders/domain';
 import {
+  assertAllowedPOStatusTransition,
+  assertAllowedSOStatusTransition,
+  type POStatus,
+  type SOStatus,
+} from './orderLifecyclePolicy';
+import {
   computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
   computeReceivedUnitCostAud,
@@ -68,8 +74,7 @@ async function setOrgAvgCost(conn: any, variantId: string, newAvg: number): Prom
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ContactType = 'supplier' | 'b2b_customer' | 'retail_customer' | 'lead' | 'both';
-export type POStatus    = 'draft' | 'confirmed' | 'partially_received' | 'backordered' | 'complete' | 'cancelled';
-export type SOStatus    = 'draft' | 'confirmed' | 'partially_fulfilled' | 'backordered' | 'fulfilled' | 'cancelled';
+export type { POStatus, SOStatus } from './orderLifecyclePolicy';
 
 export interface ImsContact {
   id: number; type: ContactType;
@@ -1344,6 +1349,7 @@ export const ImsPORepo = {
 
       const from = po.status as POStatus;
       const to   = newStatus;
+      assertAllowedPOStatusTransition(from, to);
       const includeLandedCosts = avgCostInclusion?.includeLandedCosts !== false;
       const includeFreight = avgCostInclusion?.includeFreight ?? (freightTreatment === 'capitalise');
 
@@ -2347,8 +2353,12 @@ export const ImsSORepo = {
 
       const from = so.status as SOStatus;
       const to   = newStatus;
+      assertAllowedSOStatusTransition(from, to);
 
-      if (from === to) return;
+      if (from === to) {
+        await conn.commit();
+        return;
+      }
       if (to === 'backordered') {
         throw new Error('Backorders must be created through partial fulfilment.');
       }
