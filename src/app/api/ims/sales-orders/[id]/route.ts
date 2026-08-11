@@ -46,8 +46,16 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (existing.status === 'partially_fulfilled') {
         throw new OrderLifecycleConflict('Use Continue Fulfilment or Resolve Outstanding for a partially fulfilled sales order.');
       }
+      const statusOperationKey = typeof operationKey === 'string' && operationKey.trim() ? operationKey.trim() : randomUUID();
+      const statusRequestHash = createHash('sha256').update(JSON.stringify({ status })).digest('hex');
       await ImsSORepo.changeStatus(
         Number(params.id), status, typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null,
+        {
+          operationKey: statusOperationKey,
+          requestHash: statusRequestHash,
+          actorId: session.userId,
+          actorName: session.name ?? session.email,
+        },
       );
 
       // EVENT-DRIVEN CACHE UPDATE

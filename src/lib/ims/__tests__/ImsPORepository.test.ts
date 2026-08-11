@@ -204,6 +204,34 @@ describe('ImsPORepo.update', () => {
 });
 
 describe('ImsPORepo.changeStatus lifecycle boundaries', () => {
+  it('replays a completed status operation before revision, line, or stock checks', async () => {
+    mockImsQuery.mockResolvedValue([]);
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('FROM ims_purchase_orders')) {
+        return [[{
+          id: 42, status: 'cancelled', location_id: 4, business_id: 'biz-1', is_historical: 0,
+          updated_at: new Date('2026-08-11T11:00:00.000Z'),
+        }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) {
+        return [[{ id: 80, request_hash: 'c'.repeat(64), state: 'complete' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.changeStatus(
+      42, 'cancelled', 'expense', undefined, '2026-08-11T10:00:00.000Z',
+      { operationKey: 'po-status-1', requestHash: 'c'.repeat(64) },
+    );
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => /^(UPDATE ims_stock|INSERT INTO ims_stock|UPDATE ims_purchase_orders)/i.test(String(sql).trim()))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
   it('rejects a stale status action before loading lines or changing stock', async () => {
     mockImsQuery.mockResolvedValue([]);
     const execute = vi.fn(async (sql: string) => {

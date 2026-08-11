@@ -159,7 +159,7 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', 'expense', {
       includeLandedCosts: true,
       includeFreight: false,
-    }, null);
+    }, null, expect.objectContaining({ requestHash: expect.stringMatching(/^[a-f0-9]{64}$/) }));
     expect(mockReportRuntimeIssue).not.toHaveBeenCalled();
   });
 
@@ -174,7 +174,9 @@ describe('/api/ims/purchase-orders/[id]', () => {
     expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', 'expense', {
       includeLandedCosts: true,
       includeFreight: false,
-    }, '2026-08-11T10:00:00.000Z');
+    }, '2026-08-11T10:00:00.000Z', expect.objectContaining({
+      requestHash: expect.stringMatching(/^[a-f0-9]{64}$/), actorId: 7, actorName: 'Alex',
+    }));
   });
 
   it('returns a structured conflict for a retired direct receipt transition', async () => {

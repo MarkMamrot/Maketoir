@@ -74,11 +74,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
       // Capture prior status before changeStatus to detect received → ordered revert
       const priorPo = await ImsPORepo.get(Number(params.id), businessId);
+      const statusOperationKey = typeof operationKey === 'string' && operationKey.trim() ? operationKey.trim() : randomUUID();
+      const statusRequestHash = createHash('sha256').update(JSON.stringify({ status })).digest('hex');
 
       await ImsPORepo.changeStatus(Number(params.id), status, freightTreatment, {
         includeLandedCosts: landedTreatment === 'capitalise',
         includeFreight: freightTreatment === 'capitalise',
-      }, typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null);
+      }, typeof expectedUpdatedAt === 'string' ? expectedUpdatedAt : null, {
+        operationKey: statusOperationKey,
+        requestHash: statusRequestHash,
+        actorId: session.userId,
+        actorName: session.name ?? session.email,
+      });
 
       // EVENT-DRIVEN CACHE UPDATE: update global_incoming and stock fields on PO changes
       const poDataFull = await ImsPORepo.get(Number(params.id), businessId);

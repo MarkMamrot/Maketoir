@@ -173,6 +173,53 @@ describe('ImsSORepo.changeStatus customer backorder release', () => {
     vi.clearAllMocks();
   });
 
+  it('replays a completed status operation before revision, line, or stock checks', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{
+          id: 42, status: 'cancelled', location_id: 4, business_id: 'biz-1', is_historical: 0,
+          updated_at: new Date('2026-08-11T11:00:00.000Z'),
+        }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) {
+        return [[{ id: 80, request_hash: 'c'.repeat(64), state: 'complete' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.changeStatus(
+      42, 'cancelled', '2026-08-11T10:00:00.000Z',
+      { operationKey: 'so-status-1', requestHash: 'c'.repeat(64) },
+    );
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_sales_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => /^(UPDATE ims_stock|INSERT INTO ims_stock|UPDATE ims_sales_orders)/i.test(String(sql).trim()))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('completes the operation ledger for a same-status no-op', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{ id: 42, status: 'confirmed', location_id: 4, business_id: 'biz-1', is_historical: 0 }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 80 }];
+      if (sql.includes('FROM ims_sales_order_items')) return [[]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.changeStatus(
+      42, 'confirmed', null, { operationKey: 'so-status-noop', requestHash: 'd'.repeat(64) },
+    );
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_order_amendment_operations'),
+      [expect.any(String), 80, 'biz-1'],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
   it('rejects a stale status action before loading lines or changing stock', async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) {

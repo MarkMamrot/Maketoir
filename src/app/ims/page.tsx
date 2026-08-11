@@ -8388,7 +8388,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
           const createdPo = await apiFetch(`/api/ims/purchase-orders/${res.id}`);
           await apiFetch(`/api/ims/purchase-orders/${res.id}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: 'confirmed', expectedUpdatedAt: createdPo?.data?.updated_at ?? null }),
+            body: JSON.stringify({ status: 'confirmed', operationKey: crypto.randomUUID(), expectedUpdatedAt: createdPo?.data?.updated_at ?? null }),
           });
         }
       }
@@ -8405,7 +8405,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
     const labels: Record<string, string> = { confirmed: 'confirm', complete: 'mark as complete', draft: 'revert to draft', cancelled: 'cancel', partially_received: 'mark as partially received' };
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, expectedUpdatedAt: po.updated_at ?? null }) });
+      const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: crypto.randomUUID(), expectedUpdatedAt: po.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.po?.id === po.id) {
         const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
@@ -11977,7 +11977,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
-      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, expectedUpdatedAt: so.updated_at ?? null }) });
+      const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: crypto.randomUUID(), expectedUpdatedAt: so.updated_at ?? null }) });
       load();
       if (viewModal.open && viewModal.so?.id === so.id) {
         const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);

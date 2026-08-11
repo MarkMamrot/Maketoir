@@ -1484,6 +1484,7 @@ export const ImsPORepo = {
     freightTreatment: 'expense' | 'capitalise' = 'expense',
     avgCostInclusion?: { includeLandedCosts?: boolean; includeFreight?: boolean },
     expectedUpdatedAt?: string | null,
+    operationContext?: OrderAmendmentContext,
   ): Promise<void> {
     await ensureVariantAvgCost(); // ensures avg_cost column exists before any receive writes it
     const pool = getIMSPool();
@@ -1496,6 +1497,14 @@ export const ImsPORepo = {
       );
       if (!po) throw new Error('Purchase order not found');
       if (po.is_historical) throw new Error('Cannot modify a historical Cin7 record');
+      const amendment = await beginOrderAmendment(conn, operationContext, {
+        businessId: String(po.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
+        orderStatus: String(po.status), beforeHeader: po,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return;
+      }
       assertExpectedOrderRevision(po.updated_at, expectedUpdatedAt);
 
       const [itemRows] = await conn.execute<any[]>(
@@ -1977,6 +1986,9 @@ export const ImsPORepo = {
 
       await conn.execute(
         `UPDATE ims_purchase_orders SET status = ? WHERE id = ?`, [to, id]
+      );
+      await completeOrderAmendment(
+        conn, String(po.business_id ?? ''), amendment.amendmentId, { ...po, status: to }, [],
       );
       await conn.commit();
     } catch (err) {
@@ -2548,7 +2560,12 @@ export const ImsSORepo = {
     }
   },
 
-  async changeStatus(id: number, newStatus: SOStatus, expectedUpdatedAt?: string | null): Promise<void> {
+  async changeStatus(
+    id: number,
+    newStatus: SOStatus,
+    expectedUpdatedAt?: string | null,
+    operationContext?: OrderAmendmentContext,
+  ): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -2559,6 +2576,14 @@ export const ImsSORepo = {
       );
       if (!so) throw new Error('Sales order not found');
       if (so.is_historical) throw new Error('Cannot modify a historical Cin7 record');
+      const amendment = await beginOrderAmendment(conn, operationContext, {
+        businessId: String(so.business_id ?? ''), orderKind: 'sales_order', orderId: id,
+        orderStatus: String(so.status), beforeHeader: so,
+      });
+      if (amendment.replayed) {
+        await conn.commit();
+        return;
+      }
       assertExpectedOrderRevision(so.updated_at, expectedUpdatedAt);
 
       const [items] = await conn.execute<ImsSOItem[]>(
@@ -2585,6 +2610,9 @@ export const ImsSORepo = {
       assertAllowedSOStatusTransition(from, to);
 
       if (from === to) {
+        await completeOrderAmendment(
+          conn, String(so.business_id ?? ''), amendment.amendmentId, { ...so, status: to }, [],
+        );
         await conn.commit();
         return;
       }
@@ -2758,6 +2786,9 @@ export const ImsSORepo = {
 
       await conn.execute(
         `UPDATE ims_sales_orders SET status = ? WHERE id = ?`, [to, id]
+      );
+      await completeOrderAmendment(
+        conn, String(so.business_id ?? ''), amendment.amendmentId, { ...so, status: to }, [],
       );
       await conn.commit();
     } catch (err) {

@@ -106,7 +106,10 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     const response = await PUT(statusRequest, params);
 
     expect(response.status).toBe(200);
-    expect(mockChangeStatus).toHaveBeenCalledWith(42, 'cancelled', '2026-08-11T10:00:00.000Z');
+    expect(mockChangeStatus).toHaveBeenCalledWith(
+      42, 'cancelled', '2026-08-11T10:00:00.000Z',
+      expect.objectContaining({ requestHash: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    );
   });
 
   it('leaves note-only edits local', async () => {
