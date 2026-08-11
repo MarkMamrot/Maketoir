@@ -4,7 +4,9 @@ const {
   mockSession,
   mockGet,
   mockUpdate,
+  mockChangeStatus,
   mockDelete,
+  mockXeroSync,
   mockXeroUpdate,
   mockXeroVoid,
   mockGetXeroInvoiceEditState,
@@ -14,7 +16,9 @@ const {
   mockSession: vi.fn(),
   mockGet: vi.fn(),
   mockUpdate: vi.fn(),
+  mockChangeStatus: vi.fn(),
   mockDelete: vi.fn(),
+  mockXeroSync: vi.fn(),
   mockXeroUpdate: vi.fn(),
   mockXeroVoid: vi.fn(),
   mockGetXeroInvoiceEditState: vi.fn(),
@@ -24,11 +28,11 @@ const {
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
-  ImsSORepo: { get: mockGet, update: mockUpdate, delete: mockDelete },
+  ImsSORepo: { get: mockGet, update: mockUpdate, changeStatus: mockChangeStatus, delete: mockDelete },
 }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: vi.fn() }));
 vi.mock('@/lib/ims/xeroHooks', () => ({
-  triggerSOXeroSync: vi.fn(),
+  triggerSOXeroSync: mockXeroSync,
   triggerSOXeroVoid: mockXeroVoid,
   triggerSOXeroUpdate: mockXeroUpdate,
 }));
@@ -50,11 +54,46 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     vi.clearAllMocks();
     mockSession.mockResolvedValue({ businessId: 'biz-1', tier: 'Admin' });
     mockUpdate.mockResolvedValue(undefined);
+    mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
     mockXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
     mockXeroVoid.mockResolvedValue(null);
     mockReportRuntimeIssue.mockResolvedValue(undefined);
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
+  });
+
+  it('requires the quantity-aware fulfilment route to complete a confirmed SO', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ variant_id: 'v-1' }] });
+    const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'fulfilled' }),
+    });
+
+    const response = await PUT(statusRequest, params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'order_lifecycle_conflict',
+      error: 'Use Fulfil to record shipment quantities before completing a sales order.',
+    });
+    expect(mockChangeStatus).not.toHaveBeenCalled();
+    expect(mockXeroSync).not.toHaveBeenCalled();
+  });
+
+  it('requires Continue Fulfilment or Resolve Outstanding for a partial SO', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'partially_fulfilled', items: [{ variant_id: 'v-1' }] });
+    const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'cancelled' }),
+    });
+
+    const response = await PUT(statusRequest, params);
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: 'order_lifecycle_conflict',
+      error: 'Use Continue Fulfilment or Resolve Outstanding for a partially fulfilled sales order.',
+    });
+    expect(mockChangeStatus).not.toHaveBeenCalled();
+    expect(mockXeroVoid).not.toHaveBeenCalled();
   });
 
   it('leaves note-only edits local', async () => {

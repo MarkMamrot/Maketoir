@@ -40,6 +40,12 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (status) {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+      if (status === 'fulfilled') {
+        throw new OrderLifecycleConflict('Use Fulfil to record shipment quantities before completing a sales order.');
+      }
+      if (existing.status === 'partially_fulfilled') {
+        throw new OrderLifecycleConflict('Use Continue Fulfilment or Resolve Outstanding for a partially fulfilled sales order.');
+      }
       await ImsSORepo.changeStatus(Number(params.id), status);
 
       // EVENT-DRIVEN CACHE UPDATE
