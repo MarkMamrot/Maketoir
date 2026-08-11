@@ -78,6 +78,30 @@ describe('ImsSORepo.update', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 
+  it('records the generated ID of a newly inserted SO line in amendment provenance', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'draft', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax', so_type: 'b2b' }]];
+      }
+      if (sql.includes('FROM ims_sales_order_items')) return [[]];
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 70 }];
+      if (sql.includes('INSERT INTO ims_sales_order_items')) return [{ insertId: 31 }];
+      if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0, tax_treatment: 'inc_tax' }]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await ImsSORepo.update(42, {}, [{
+      variant_id: 'new-size', qty_ordered: 1, unit_price: 59.95,
+      discount_pct: 0, tax_rate: 0.1, line_total: 59.95, notes: null,
+    }], { operationKey: 'amend-new-line', requestHash: 'b'.repeat(64) });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_order_amendment_lines'),
+      ['biz-1', 70, null, 31, 0, null, expect.any(String)],
+    );
+  });
+
   it('rejects line changes while a customer backorder is held', async () => {
     execute.mockResolvedValueOnce([[{
       status: 'backordered', location_id: 4, business_id: 'biz-1', tax_treatment: 'inc_tax',

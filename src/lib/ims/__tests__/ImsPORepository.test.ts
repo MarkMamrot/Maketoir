@@ -49,6 +49,7 @@ describe('ImsPORepo.update', () => {
       ]];
       if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
       if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
+      if (sql.includes('INSERT INTO ims_purchase_order_items')) return [{ affectedRows: 1, insertId: 31 }];
       return [{ affectedRows: 1 }];
     });
     const connection = {
@@ -74,6 +75,30 @@ describe('ImsPORepo.update', () => {
       ['v-1', 2, 5, 0, 0.1, 10, null, 10, 42],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('records the generated ID of a newly inserted PO line in amendment provenance', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) return [[{ status: 'draft', location_id: 4, business_id: 'biz-1' }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[]];
+      if (sql.includes('FROM ims_order_amendment_operations')) return [[]];
+      if (sql.includes('INSERT INTO ims_order_amendment_operations')) return [{ insertId: 70 }];
+      if (sql.includes('INSERT INTO ims_purchase_order_items')) return [{ insertId: 31 }];
+      if (sql.includes('SELECT tax_treatment')) return [[{ tax_treatment: 'ex_tax' }]];
+      if (sql.includes('SELECT freight, discount')) return [[{ freight: 0, discount: 0 }]];
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, {}, [{
+      variant_id: 'v-2', qty_ordered: 3, unit_cost: 7, discount_pct: 0, tax_rate: 0.1, line_total: 21, notes: null,
+    }], undefined, { operationKey: 'amend-new-line', requestHash: 'b'.repeat(64) });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_order_amendment_lines'),
+      ['biz-1', 70, null, 31, 0, null, expect.any(String)],
+    );
   });
 
   it('applies only the net incoming delta for a confirmed quantity edit', async () => {
@@ -148,5 +173,32 @@ describe('ImsPORepo.update', () => {
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects an amendment operation key reused with different changes', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'confirmed', location_id: 4, business_id: 'biz-1' }]];
+      }
+      if (sql.includes('FROM ims_purchase_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 5, qty_received: 0 }]];
+      }
+      if (sql.includes('FROM ims_order_amendment_operations')) {
+        return [[{ id: 70, request_hash: 'a'.repeat(64), state: 'complete' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsPORepo.update(42, {}, [{
+      id: 10, variant_id: 'v-1', qty_ordered: 3, unit_cost: 5, discount_pct: 0, tax_rate: 0.1, line_total: 15, notes: null,
+    }], undefined, { operationKey: 'amend-1', requestHash: 'b'.repeat(64) }))
+      .rejects.toThrow('already used with different changes');
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_purchase_order_items'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
   });
 });

@@ -1305,7 +1305,7 @@ export const ImsPORepo = {
           taxTreatment = poMeta?.tax_treatment ?? 'ex_tax';
         }
         let subtotal = 0, tax_amount = 0;
-        const newItemRows: unknown[][] = [];
+        const newItemRows: Array<{ values: unknown[]; amendmentIndex: number }> = [];
         for (const { existingId, line: item } of reconciliation.lines) {
           const discPct = Number(item.discount_pct ?? 0);
           const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
@@ -1336,11 +1336,12 @@ export const ImsPORepo = {
               beforeLine: existingItems.find(line => Number(line.id) === existingId) ?? null, afterLine: item,
             });
           } else {
-            newItemRows.push([
-              id, item.variant_id, item.qty_ordered, item.unit_cost,
-              discPct, item.tax_rate ?? 0, line_total, item.notes ?? null,
-            ]);
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
+            newItemRows.push({
+              values: [id, item.variant_id, item.qty_ordered, item.unit_cost,
+                discPct, item.tax_rate ?? 0, line_total, item.notes ?? null],
+              amendmentIndex: amendmentLines.length - 1,
+            });
           }
         }
         for (const removedId of reconciliation.removedIds) {
@@ -1349,13 +1350,14 @@ export const ImsPORepo = {
             beforeLine: existingItems.find(line => Number(line.id) === removedId) ?? null, afterLine: null,
           });
         }
-        if (newItemRows.length > 0) {
-          await conn.execute(
+        for (const newItem of newItemRows) {
+          const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_purchase_order_items
                (po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes)
-             VALUES ${newItemRows.map(() => '(?,?,?,?,?,?,?,?)').join(',')}`,
-            newItemRows.flat(),
+             VALUES (?,?,?,?,?,?,?,?)`,
+            newItem.values,
           );
+          amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
         }
         if (reconciliation.removedIds.length > 0) {
           await conn.execute(
@@ -2418,7 +2420,7 @@ export const ImsSORepo = {
 
       if (replacementItems) {
         const reconciliation = reconcileOrderLines(existingItems, replacementItems);
-        const newRows: unknown[][] = [];
+        const newRows: Array<{ values: unknown[]; amendmentIndex: number }> = [];
         for (const { existingId, line: item } of reconciliation.lines) {
           const disc      = 1 - Number(item.discount_pct ?? 0) / 100;
           const line_total = Number(item.qty_ordered) * Number(item.unit_price) * disc;
@@ -2436,9 +2438,12 @@ export const ImsSORepo = {
               beforeLine: existingItems.find(line => Number(line.id) === existingId) ?? null, afterLine: item,
             });
           } else {
-            newRows.push([id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
-              item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null]);
             amendmentLines.push({ sourceLineId: null, resultLineId: null, movedFloor: 0, beforeLine: null, afterLine: item });
+            newRows.push({
+              values: [id, item.shopify_line_item_id ?? null, item.variant_id, item.qty_ordered, item.unit_price,
+                item.discount_pct ?? 0, item.tax_rate ?? 0, line_total, item.notes ?? null],
+              amendmentIndex: amendmentLines.length - 1,
+            });
           }
         }
         for (const removedId of reconciliation.removedIds) {
@@ -2447,13 +2452,14 @@ export const ImsSORepo = {
             beforeLine: existingItems.find(line => Number(line.id) === removedId) ?? null, afterLine: null,
           });
         }
-        if (newRows.length > 0) {
-          await conn.execute(
+        for (const newItem of newRows) {
+          const [insertResult] = await conn.execute<any>(
             `INSERT INTO ims_sales_order_items
                (so_id,shopify_line_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
-             VALUES ${newRows.map(() => '(?,?,?,?,?,?,?,?,?)').join(',')}`,
-            newRows.flat(),
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            newItem.values,
           );
+          amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
         }
         if (reconciliation.removedIds.length > 0) {
           await conn.execute(
