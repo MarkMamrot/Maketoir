@@ -18,7 +18,7 @@ import { DEFAULT_URL_JUDGE_MODEL, WEBSITE_AI_SETTING_KEYS } from '@/lib/website/
  *   notes?:      string   — any user notes to include
  * }
  * Returns: {
- *   rankedUrls:        { url, keep, reason }[]
+ *   rankedUrls:        { url, keep, confidence, preferred, reason }[]
  * }
  */
 
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
     }
 
-    const { databaseId, product, urls, candidates = [] } = await req.json();
+    const { databaseId, product, urls, candidates = [], preferredSites = [] } = await req.json();
     if (!product?.name || !Array.isArray(urls) || urls.length === 0) {
       return NextResponse.json({ error: 'product.name and urls[] are required.' }, { status: 400 });
     }
@@ -51,6 +51,18 @@ export async function POST(req: Request) {
     const modelId = modelRows[0]?.value?.trim() || DEFAULT_URL_JUDGE_MODEL;
 
     const validUrls: string[] = urls.filter((u: any) => typeof u === 'string' && u.trim());
+    const preferredDomains = (Array.isArray(preferredSites) ? preferredSites : [])
+      .map((site: any) => {
+        try { return new URL(String(site).startsWith('http') ? String(site) : `https://${site}`).hostname.replace(/^www\./, ''); }
+        catch { return ''; }
+      })
+      .filter(Boolean);
+    const isPreferredUrl = (url: string) => {
+      try {
+        const hostname = new URL(url).hostname.replace(/^www\./, '');
+        return preferredDomains.some((domain: string) => hostname === domain || hostname.endsWith(`.${domain}`));
+      } catch { return false; }
+    };
     const evidenceByUrl = new Map<string, string>(
       (Array.isArray(candidates) ? candidates : [])
         .filter((candidate: any) => validUrls.includes(String(candidate?.url ?? '').trim()))
@@ -59,6 +71,63 @@ export async function POST(req: Request) {
           String(candidate.evidence ?? '').trim().slice(0, 1200),
         ]),
     );
+    const normaliseIdentity = (value: unknown) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const scoreFromSearchEvidence = (url: string) => {
+      let decodedUrl = url;
+      try { decodedUrl = decodeURIComponent(url); } catch { decodedUrl = url; }
+      const combined = normaliseIdentity(`${decodedUrl} ${evidenceByUrl.get(url) ?? ''}`);
+      const nameTokens = normaliseIdentity(product.name).split(' ').filter((token: string) => token.length >= 2);
+      const brandTokens = normaliseIdentity(product.brand).split(' ').filter((token: string) => token.length >= 2);
+      const nameCoverage = nameTokens.length > 0
+        ? nameTokens.filter((token: string) => combined.includes(token)).length / nameTokens.length
+        : 0;
+      const brandMatches = brandTokens.length > 0 && brandTokens.every((token: string) => combined.includes(token));
+      const identifier = [product.code, product.barcode, product.styleCode]
+        .map(normaliseIdentity)
+        .find((value: string) => value.length >= 4 && combined.includes(value));
+      const productPath = /\/(?:products?|p|item)\//i.test(url);
+
+      let confidence = 0;
+      let reason = 'Search evidence does not identify the exact product.';
+      if (identifier) {
+        confidence = 95;
+        reason = 'The search result contains an exact product identifier.';
+      } else if (nameCoverage === 1) {
+        confidence = brandMatches ? 92 : 84;
+        reason = brandMatches
+          ? 'The search result contains the full product name and brand.'
+          : 'The search result contains the full product name.';
+      } else if (nameCoverage >= 0.75) {
+        confidence = brandMatches ? 78 : 68;
+        reason = 'The search result strongly matches the product name.';
+      } else if (nameCoverage >= 0.6 && brandMatches) {
+        confidence = 58;
+        reason = 'The search result probably matches the product name and brand.';
+      } else if (nameCoverage > 0) {
+        confidence = Math.round(nameCoverage * 45);
+        reason = 'The search result only partially matches the product name.';
+      }
+
+      if (!productPath) confidence = Math.min(confidence, 49);
+      return { url, confidence, reason };
+    };
+    const selectRankedUrls = (scoredUrls: { url: string; confidence: number; reason: string }[]) => {
+      const preferredSelection = scoredUrls
+        .filter(entry => isPreferredUrl(entry.url) && entry.confidence >= 50)
+        .sort((a, b) => b.confidence - a.confidence)[0];
+      const bestSelection = scoredUrls
+        .filter(entry => entry.confidence >= 50)
+        .sort((a, b) => b.confidence - a.confidence)[0];
+      const selectedUrl = preferredSelection?.url ?? bestSelection?.url ?? '';
+      return {
+        selectedUrl,
+        rankedUrls: scoredUrls.map(entry => ({
+          ...entry,
+          keep: entry.url === selectedUrl,
+          preferred: isPreferredUrl(entry.url),
+        })),
+      };
+    };
 
     const skuBlock = product.code ? `\n- SKU: ${product.code}` : '';
     const urlList = validUrls.map((url, index) => {
@@ -75,14 +144,17 @@ PRODUCT TO FIND:
 CANDIDATE URLS AND GOOGLE RESULT EVIDENCE:
 ${urlList}
 
-For each URL decide whether the URL and result evidence identify an actual listing page for THIS EXACT product by ${product.brand}.
+For each URL score how confidently the URL and result evidence identify an actual listing page for THIS EXACT product by ${product.brand}.
 
 Rules:
-- keep = true  → confirmed product listing page for THIS specific product (any retailer is fine)
-- keep = false → category page, search results page, brand homepage, wrong product, or unrelated page
-- KEEP ONLY THE SINGLE BEST URL (the most authoritative/detailed product page). All others keep = false.
-- If none are confirmed product pages for this exact product, set keep = false for EVERY URL.
-- If evidence is absent or ambiguous, do not guess; set keep = false.
+- confidence is an integer from 0 to 100.
+- 90-100 = exact product identity is explicit in the URL/title/snippet.
+- 70-89 = strong exact-product match with only minor wording differences.
+- 50-69 = probable exact-product page, sufficient for automatic selection.
+- 1-49 = ambiguous, incomplete, or possibly a related product.
+- 0 = category/search/social page, clearly wrong product, or unrelated page.
+- Score every candidate independently. Multiple exact retailer pages may all score highly.
+- Supplier or brand pages are more authoritative, but confidence must still reflect exact-product identity.
 - Do NOT invent URLs not in the list above.
 
 ═══════════════════════════════════════════════════════
@@ -92,7 +164,7 @@ RETURN FORMAT
 Return ONLY valid JSON — no markdown fences, no extra text:
 {
   "rankedUrls": [
-    { "url": "<exact url from the list above>", "keep": true, "reason": "<1 sentence>" }
+    { "url": "<exact url from the list above>", "confidence": 85, "reason": "<1 sentence>" }
   ]
 }`;
 
@@ -149,15 +221,15 @@ Return ONLY valid JSON — no markdown fences, no extra text:
     }
 
     if (!parsed) {
+      const fallbackSelection = selectRankedUrls(validUrls.map(scoreFromSearchEvidence));
       if (finishReason === 'STOP' && responseLength === 0) {
         return NextResponse.json({
           success: true,
-          validUrlFound: false,
-          rankedUrls: validUrls.map(url => ({
-            url,
-            keep: false,
-            reason: 'The product page could not be verified.',
-          })),
+          validUrlFound: Boolean(fallbackSelection.selectedUrl),
+          selectedUrl: fallbackSelection.selectedUrl,
+          assessmentUnavailable: !fallbackSelection.selectedUrl,
+          assessmentMethod: 'search-evidence',
+          rankedUrls: fallbackSelection.rankedUrls,
         });
       }
       await reportRuntimeIssue({
@@ -171,13 +243,11 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       });
       return NextResponse.json({
         success: true,
-        validUrlFound: false,
-        assessmentUnavailable: true,
-        rankedUrls: validUrls.map(url => ({
-          url,
-          keep: false,
-          reason: 'Automatic matching was inconclusive. Review this candidate to continue.',
-        })),
+        validUrlFound: Boolean(fallbackSelection.selectedUrl),
+        selectedUrl: fallbackSelection.selectedUrl,
+        assessmentUnavailable: !fallbackSelection.selectedUrl,
+        assessmentMethod: 'search-evidence',
+        rankedUrls: fallbackSelection.rankedUrls,
       });
     }
 
@@ -185,18 +255,27 @@ Return ONLY valid JSON — no markdown fences, no extra text:
       .filter((entry: any) => entry?.url?.trim() && validUrls.includes(String(entry.url).trim()))
       .map((entry: any) => ({
         url: String(entry.url).trim(),
-        keep: entry.keep === true,
+        confidence: Number.isFinite(Number(entry.confidence))
+          ? Math.max(0, Math.min(100, Math.round(Number(entry.confidence))))
+          : entry.keep === true ? 100 : 0,
         reason: String(entry.reason ?? '').trim(),
       }));
     const decisionByUrl = new Map(parsedRankedUrls.map((entry: any) => [entry.url, entry]));
-    const rankedUrls = validUrls.map(url => decisionByUrl.get(url) ?? ({
+    const scoredUrls = validUrls.map(url => decisionByUrl.get(url) ?? ({
       url,
-      keep: false,
-      reason: 'The AI did not select this candidate.',
+      confidence: 0,
+      reason: 'The AI did not assess this candidate.',
     }));
-    const validUrlFound = rankedUrls.some((entry: any) => entry.keep);
+    const selection = selectRankedUrls(scoredUrls);
+    const validUrlFound = Boolean(selection.selectedUrl);
 
-    return NextResponse.json({ success: true, validUrlFound, rankedUrls });
+    return NextResponse.json({
+      success: true,
+      validUrlFound,
+      selectedUrl: selection.selectedUrl,
+      assessmentMethod: 'ai',
+      rankedUrls: selection.rankedUrls,
+    });
   } catch (e: any) {
     console.error('[judge-urls]', e);
     return NextResponse.json({ error: e.message ?? 'Internal server error' }, { status: 500 });

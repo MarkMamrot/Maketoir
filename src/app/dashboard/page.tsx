@@ -4904,6 +4904,7 @@ interface ProductUrlDecision {
   url: string;
   keep: boolean | null;
   reason: string;
+  confidence?: number;
 }
 
 interface ProductDiscoveryAudit {
@@ -5470,18 +5471,20 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
             product,
             urls: foundUrls,
             candidates: foundCandidates,
+            preferredSites: searchSources.preferred_sites,
             databaseId,
           }),
         });
         const judgeData = await parseWebsiteJsonResponse(judgeRes);
         if (!judgeRes.ok || judgeData.error) throw new Error(judgeData.error ?? 'AI URL assessment failed');
-        const ranked: { url: string; keep: boolean; reason?: string }[] = judgeData.rankedUrls ?? [];
+        const ranked: { url: string; keep: boolean; reason?: string; confidence?: number }[] = judgeData.rankedUrls ?? [];
         const decisions = foundUrls.map(url => {
           const decision = ranked.find(item => item.url === url);
           return {
             url,
             keep: judgeData.assessmentUnavailable ? null : decision ? Boolean(decision.keep) : false,
             reason: decision?.reason?.trim() || 'AI did not confirm this URL as an exact product page.',
+            confidence: typeof decision?.confidence === 'number' ? decision.confidence : undefined,
           };
         });
         setUrlDecisionsMap(prev => ({ ...prev, [key]: decisions }));
@@ -6143,6 +6146,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                                     'bg-amber-100 text-amber-700'
                                   }`}>
                                     {decision.keep === true ? 'Selected' : decision.keep === false ? 'Discarded' : 'Not assessed'}
+                                    {typeof decision.confidence === 'number' && ` ${decision.confidence}%`}
                                   </span>
                                   <div className="min-w-0">
                                     <a href={decision.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="block text-xs text-blue-600 hover:underline truncate">{decision.url}</a>
@@ -6189,37 +6193,6 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                             </div>
                           </div>
                         )}
-
-                        {/* Reference Pages */}
-                        {!isSessionBlocked && <div>
-                          <p className="text-xs font-medium text-gray-700 mb-1.5">Selected reference pages</p>
-                          <div className="space-y-1.5">
-                            {([0, 1, 2, 3, 4] as const).map(idx => (
-                              <div key={idx}>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-400 w-4 shrink-0">{idx + 1}.</span>
-                                  <input
-                                    type="text"
-                                    value={getInputs(key).urls[idx] ?? ''}
-                                    onChange={e => {
-                                      const urls = [...getInputs(key).urls] as ProductUrlSlots;
-                                      urls[idx] = e.target.value;
-                                      patchInputs(key, { urls });
-                                      setFallbackPhotosMap(prev => ({ ...prev, [key]: [] }));
-                                      setShowFallbackPhotoKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
-                                    }}
-                                    onClick={e => e.stopPropagation()}
-                                    placeholder="https://…"
-                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs font-mono bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                  />
-                                  {getInputs(key).urls[idx] && (
-                                    <a href={getInputs(key).urls[idx]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-xs text-blue-500 hover:underline shrink-0">↗</a>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>}
 
                         {/* Deduplicated photo candidates */}
                         <div>

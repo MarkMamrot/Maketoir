@@ -4409,6 +4409,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
             },
             urls: foundUrls,
             candidates: foundCandidates,
+            preferredSites,
           }),
         });
         const judgeData = await parseWebsiteJsonResponse(judgeResponse);
