@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { buildSalesOrderFulfilmentRequest, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
+import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
 
 export function SalesOrderFulfilmentModal({
   order,
@@ -34,7 +34,7 @@ export function SalesOrderFulfilmentModal({
     return { totalOrdered, totalOutstanding };
   }, [items]);
 
-  async function submit(allowNegativeStock = false, operationKey = crypto.randomUUID()) {
+  async function submit(allowNegativeStock = false, retryOperationKey?: string) {
     setSaving(true);
     setError('');
     try {
@@ -44,6 +44,12 @@ export function SalesOrderFulfilmentModal({
       if (payloadItems.length === 0) {
         throw new Error('Enter at least one positive quantity.');
       }
+      const operationKey = retryOperationKey ?? await buildSalesOrderFulfilmentOperationKey(
+        mode,
+        Number(order.id),
+        order.updated_at,
+        payloadItems,
+      );
       const request = buildSalesOrderFulfilmentRequest(mode, Number(order.id), payloadItems);
       const response = await fetch(request.endpoint, {
         method: 'POST',
@@ -131,7 +137,7 @@ export function SalesOrderFulfilmentModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid var(--sv-border,#364152)', color: 'inherit', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={submit} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
+          <button onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
         </div>
       </div>
     </div>

@@ -4,6 +4,29 @@ export type SalesOrderFulfilmentItemInput = { itemId: number; quantity: number }
 
 export type SalesOrderFulfilmentRequest = { endpoint: string; body: Record<string, unknown> };
 
+const QUANTITY_SCALE = 10_000;
+
+export async function buildSalesOrderFulfilmentOperationKey(
+  mode: SalesOrderFulfilmentMode,
+  soId: number,
+  updatedAt: string | null | undefined,
+  items: SalesOrderFulfilmentItemInput[],
+): Promise<string> {
+  const canonicalRequest = {
+    soId,
+    revision: String(updatedAt ?? '').trim() || 'unversioned',
+    mode,
+    negativeStockPolicy: 'confirm_on_shortfall',
+    quantities: items
+      .map(item => ({ itemId: Number(item.itemId), quantity: Math.round(Number(item.quantity) * QUANTITY_SCALE) }))
+      .sort((left, right) => left.itemId - right.itemId),
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(canonicalRequest));
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+  const requestHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  return `sales_order:${soId}:${mode}:revision_request:${requestHash}`;
+}
+
 export function buildSalesOrderFulfilmentRequest(mode: SalesOrderFulfilmentMode, soId: number, items: SalesOrderFulfilmentItemInput[]): SalesOrderFulfilmentRequest {
   const body = items.map(({ itemId, quantity }) => ({ itemId, quantity }));
   if (mode === 'backorder') {

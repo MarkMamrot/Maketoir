@@ -91,6 +91,33 @@ describe('splitCustomerBackorder', () => {
     expect(connection.rollback).not.toHaveBeenCalled();
   });
 
+  it('returns the existing child without repeating stock or line mutations on retry', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{ id: 42, business_id: 'biz-1', status: 'backordered' }]];
+      }
+      if (sql.includes('FROM ims_so_backorder_lines')) {
+        return [[{ backorder_so_id: 99, so_number: 'SO-2026-0042-B' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+
+    const result = await splitCustomerBackorder({
+      businessId: 'biz-1', soId: 42, operationKey: 'split-42-1',
+      fulfilQuantities: [{ itemId: 10, quantity: 2 }],
+    });
+
+    expect(result).toEqual({
+      sourceSoId: 42,
+      backorderSoId: 99,
+      backorderSoNumber: 'SO-2026-0042-B',
+      operationKey: 'split-42-1',
+      fulfilledVariantIds: [],
+    });
+    expect(execute.mock.calls.some(([sql]) => /UPDATE ims_stock|INSERT INTO ims_sales_orders|INSERT INTO ims_sales_order_items/.test(String(sql)))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
   it('requires an explicit override before a backorder split makes stock negative', async () => {
     quantityOnHand = 1;
 

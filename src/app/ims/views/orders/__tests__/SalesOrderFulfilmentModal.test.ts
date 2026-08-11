@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSalesOrderFulfilmentRequest } from '../salesOrderFulfilmentRequest';
+import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest } from '../salesOrderFulfilmentRequest';
 
 describe('buildSalesOrderFulfilmentRequest', () => {
   it('uses the partial fulfilment route for partial shipments', () => {
@@ -18,5 +18,27 @@ describe('buildSalesOrderFulfilmentRequest', () => {
       endpoint: '/api/ims/sales-orders/42/backorder',
       body: { fulfilQuantities: [{ itemId: 7, quantity: 3 }] },
     });
+  });
+
+  it('builds the same key for manual retries and canonical line ordering', async () => {
+    const first = await buildSalesOrderFulfilmentOperationKey('partial', 42, '2026-08-12T01:02:03.000Z', [
+      { itemId: 9, quantity: 1.25 },
+      { itemId: 7, quantity: 3 },
+    ]);
+    const retry = await buildSalesOrderFulfilmentOperationKey('partial', 42, '2026-08-12T01:02:03.000Z', [
+      { itemId: 7, quantity: 3 },
+      { itemId: 9, quantity: 1.25 },
+    ]);
+
+    expect(retry).toBe(first);
+    expect(first).toMatch(/^sales_order:42:partial:revision_request:[a-f0-9]{64}$/);
+  });
+
+  it('changes the key when mode, loaded revision, or quantities change', async () => {
+    const base = await buildSalesOrderFulfilmentOperationKey('partial', 42, 'revision-1', [{ itemId: 7, quantity: 3 }]);
+
+    await expect(buildSalesOrderFulfilmentOperationKey('backorder', 42, 'revision-1', [{ itemId: 7, quantity: 3 }])).resolves.not.toBe(base);
+    await expect(buildSalesOrderFulfilmentOperationKey('partial', 42, 'revision-2', [{ itemId: 7, quantity: 3 }])).resolves.not.toBe(base);
+    await expect(buildSalesOrderFulfilmentOperationKey('partial', 42, 'revision-1', [{ itemId: 7, quantity: 2 }])).resolves.not.toBe(base);
   });
 });
