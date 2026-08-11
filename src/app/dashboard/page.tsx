@@ -80,7 +80,7 @@ const NAV: NavItem[] = [
   {
     id: 'website', label: 'Website', icon: 'website',
     children: [
-      { id: 'pending-online',               label: 'Load Products To Website' },
+      { id: 'pending-online',               label: 'Website Content Studio' },
       { id: 'product-description-template', label: 'Web Field Templates'      },
       { id: 'bulk-edit-listings',           label: 'Bulk Edit Listings'       },
     ],
@@ -5735,7 +5735,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         <div className="relative flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center text-xl">🌐</div>
           <div className="flex-1">
-            <h2 className="font-bold text-gray-800 text-lg leading-tight">Automated Product Content Studio</h2>
+            <h2 className="font-bold text-gray-800 text-lg leading-tight">Website Content Studio</h2>
             <p className="text-xs text-gray-500">Turn basic catalogue data into complete online listings with researched titles, compelling descriptions, and relevant supplier images.</p>
           </div>
           {/* Settings cog */}
@@ -8105,6 +8105,13 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   // Rename state
   const [renamingId, setRenamingId]   = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // Direct upload flow (bypasses AI generation).
+  const manualUploadInputRef = useRef<HTMLInputElement>(null);
+  const [manualUploadCategory, setManualUploadCategory] = useState('');
+  const [manualUploadImage, setManualUploadImage] = useState<{ data: string; mime: string; fileName: string } | null>(null);
+  const [manualUploadName, setManualUploadName] = useState('');
+  const [manualUploadError, setManualUploadError] = useState('');
+  const [manualUploadSaving, setManualUploadSaving] = useState(false);
   // Model reference photo (used when aiCategory === 'models')
   const modelRefInputRef = useRef<HTMLInputElement>(null);
   const [modelRefImage, setModelRefImage] = useState<{ data: string; mime: string } | null>(null);
@@ -8344,6 +8351,49 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     }
   };
 
+  const categoryPrefix = (category: string) =>
+    category === 'models' ? 'Model-'
+      : category === 'backdrops' ? 'Backdrop-'
+      : category === 'poses' ? 'Pose-'
+      : category === 'scenes' ? 'Scene-'
+      : '';
+
+  const openManualUpload = (category: string) => {
+    setManualUploadCategory(category);
+    setManualUploadImage(null);
+    setManualUploadName(categoryPrefix(category));
+    setManualUploadError('');
+  };
+
+  const saveManualUpload = async () => {
+    if (!manualUploadImage || !manualUploadName.trim() || manualUploadSaving) return;
+    setManualUploadSaving(true);
+    setManualUploadError('');
+    try {
+      const res = await fetch('/api/dashboard/brand-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: manualUploadCategory,
+          name: manualUploadName.trim(),
+          content: `Manually uploaded reference image: ${manualUploadImage.fileName}`,
+          imageData: manualUploadImage.data,
+          imageMime: manualUploadImage.mime,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'Upload failed');
+      await loadAssets();
+      setManualUploadCategory('');
+      setManualUploadImage(null);
+      setManualUploadName('');
+    } catch (error) {
+      setManualUploadError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setManualUploadSaving(false);
+    }
+  };
+
   const catInfo = BRAND_ASSET_CATEGORIES.find(c => c.id === aiCategory);
 
   return (
@@ -8367,6 +8417,16 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                 >
                   <span>✨</span> Create with AI
                 </button>
+                {cat.id !== 'templates' && (
+                  <button
+                    onClick={() => openManualUpload(cat.id)}
+                    title={`Upload an existing ${cat.label.toLowerCase()} reference image`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, background: 'var(--sv-bg-1, #f9fafb)', border: '1px solid var(--sv-etch, #e5e7eb)', color: 'var(--sv-text-dim, #6b7280)', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 14v5h14v-5"/></svg>
+                    Upload Image
+                  </button>
+                )}
               </div>
 
               {/* Asset cards */}
@@ -8835,6 +8895,75 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
           </div>
         </div>
       )}
+
+      {/* Direct image upload modal */}
+      {manualUploadCategory && (() => {
+        const uploadCategoryInfo = BRAND_ASSET_CATEGORIES.find(category => category.id === manualUploadCategory);
+        if (!uploadCategoryInfo) return null;
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ width: 'min(480px, 100%)', background: 'var(--sv-bg-2, #fff)', borderRadius: 12, border: '1px solid var(--sv-etch, #e5e7eb)', boxShadow: '0 20px 50px rgba(0,0,0,.25)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--sv-etch, #e5e7eb)' }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong, #111827)' }}>Upload {uploadCategoryInfo.label} Asset</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--sv-text-dim, #6b7280)' }}>Add an existing reference image without AI generation.</p>
+                </div>
+                <button onClick={() => setManualUploadCategory('')} title="Close" style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18 }}>×</button>
+              </div>
+              <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {manualUploadImage ? (
+                  <button onClick={() => manualUploadInputRef.current?.click()} title="Choose a different image" style={{ padding: 0, border: '1px solid var(--sv-etch, #e5e7eb)', borderRadius: 8, background: 'none', overflow: 'hidden', cursor: 'pointer' }}>
+                    <img src={`data:${manualUploadImage.mime};base64,${manualUploadImage.data}`} alt="Selected asset" style={{ display: 'block', width: '100%', maxHeight: 280, objectFit: 'contain', background: 'var(--sv-bg-1, #f9fafb)' }} />
+                  </button>
+                ) : (
+                  <button onClick={() => manualUploadInputRef.current?.click()} style={{ height: 150, borderRadius: 8, border: `2px dashed ${uploadCategoryInfo.accentColor}66`, background: uploadCategoryInfo.accentColor + '08', color: uploadCategoryInfo.accentColor, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Choose Image</button>
+                )}
+                <input
+                  ref={manualUploadInputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={event => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    if (!file.type.startsWith('image/')) {
+                      setManualUploadError('Choose an image file.');
+                      event.target.value = '';
+                      return;
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                      setManualUploadError('Images must be 10 MB or smaller.');
+                      event.target.value = '';
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                      const result = String(e.target?.result || '');
+                      const [header, data] = result.split(',');
+                      const mime = header.match(/^data:([^;]+);base64$/)?.[1] ?? file.type;
+                      setManualUploadImage({ data, mime, fileName: file.name });
+                      const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+                      setManualUploadName(`${categoryPrefix(manualUploadCategory)}${baseName}`);
+                      setManualUploadError('');
+                    };
+                    reader.readAsDataURL(file);
+                    event.target.value = '';
+                  }}
+                />
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim, #6b7280)' }}>
+                  Asset name
+                  <input value={manualUploadName} onChange={event => setManualUploadName(event.target.value)} placeholder={`${categoryPrefix(manualUploadCategory)}Name`} style={{ height: 36, padding: '0 10px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', fontSize: 12 }} />
+                </label>
+                {manualUploadError && <p style={{ margin: 0, padding: '7px 9px', borderRadius: 6, background: '#fef2f2', color: '#dc2626', fontSize: 11 }}>{manualUploadError}</p>}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button onClick={() => setManualUploadCategory('')} style={{ height: 34, padding: '0 12px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'none', color: 'var(--sv-text-dim, #6b7280)', cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+                  <button onClick={saveManualUpload} disabled={!manualUploadImage || !manualUploadName.trim() || manualUploadSaving} style={{ height: 34, padding: '0 14px', borderRadius: 7, border: 'none', background: uploadCategoryInfo.accentColor, color: '#fff', cursor: !manualUploadImage || !manualUploadName.trim() || manualUploadSaving ? 'not-allowed' : 'pointer', opacity: !manualUploadImage || !manualUploadName.trim() || manualUploadSaving ? .45 : 1, fontSize: 12, fontWeight: 700 }}>{manualUploadSaving ? 'Uploading…' : 'Upload Asset'}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
