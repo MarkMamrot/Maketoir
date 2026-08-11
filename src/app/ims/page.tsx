@@ -10570,7 +10570,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
-                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
+                    {xeroId && <a href={`https://go.xero.com/AccountsReceivable/EditCreditNote.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
                     {!isAdvisor && xeroId && (
                       <button type="button" onClick={() => voidCnInXero(viewModal.cn.id)} disabled={voidingCnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingCnXero ? .7 : 1 }}>
                         {voidingCnXero ? 'Voiding…' : 'Void in Xero'}
@@ -11175,7 +11175,7 @@ function SupplierCreditNotesView({ isAdvisor = false }: { isAdvisor?: boolean } 
                     <span style={{ color: '#34d399', fontWeight: 700 }}>✓ Synced to Xero</span>
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
-                    <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
+                    <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?InvoiceID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
                     {!isAdvisor && (
                       <button type="button" onClick={() => voidScnInXero(viewModal.scn.id)} disabled={voidingScnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingScnXero ? .7 : 1 }}>
                         {voidingScnXero ? 'Voiding…' : 'Void in Xero'}
@@ -17925,9 +17925,9 @@ function XeroSyncTab({
     if (syncType === 'po_bill' || syncType === 'po_bill_void' || syncType === 'po_payment')
       return `https://go.xero.com/AccountsPayable/View.aspx?InvoiceID=${id}`;
     if (syncType === 'scn_credit_note' || syncType === 'scn_credit_note_void')
-      return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?creditNoteID=${id}`;
+      return `https://go.xero.com/AccountsPayable/EditCreditNote.aspx?InvoiceID=${id}`;
     if (syncType === 'cn_credit_note' || syncType === 'cn_credit_note_void')
-      return `https://go.xero.com/AccountsReceivable/CreditNote.aspx?creditNoteID=${id}`;
+      return `https://go.xero.com/AccountsReceivable/EditCreditNote.aspx?InvoiceID=${id}`;
     if (syncType === 'stocktake_journal' || syncType === 'cogs_journal' || syncType === 'gift_card_liability' || syncType === 'gift_card_redeem' || syncType === 'store_credit_issue' || syncType === 'store_credit_redeem')
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
