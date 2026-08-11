@@ -371,6 +371,16 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
     apply({ kind: 'range', from: f, to: t, label: diff === 1 ? f : `${f} → ${t}` });
   };
 
+  const dropdownAlign = (() => {
+    if (typeof window === 'undefined' || !ref.current) return { right: 0 };
+    const rect = ref.current.getBoundingClientRect();
+    const width = tab === 'presets' ? 430 : 248;
+    const nearRight = window.innerWidth - rect.right < width;
+    const nearLeft = rect.left < width;
+    if (nearLeft && !nearRight) return { left: 0 };
+    return { right: 0 };
+  })();
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
@@ -383,7 +393,7 @@ export function SBDatePicker({ value, onChange }: { value: SBDateRange; onChange
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: '100%', marginTop: 6, zIndex: 500, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.18)', width: tab === 'presets' ? 430 : 248, maxWidth: 'calc(100vw - 24px)', overflow: 'hidden', ...dropdownAlign }}>
           <div style={{ display: 'flex', borderBottom: '1px solid var(--sv-etch)' }}>
             {(['presets', 'custom'] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '8px 0', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t ? 700 : 400, background: tab === t ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: tab === t ? '#fff' : 'var(--sv-text-dim)' }}>
