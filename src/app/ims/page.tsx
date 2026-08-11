@@ -8125,7 +8125,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [xeroWarnBillNum, setXeroWarnBillNum] = useState<string | null>(null);
   const [xeroWarnFetching, setXeroWarnFetching] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filterSupplier, setFilterSupplier] = useState('');
+  const [filterProduct, setFilterProduct] = useState('');
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -8520,9 +8522,25 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   };
 
   const supplierOptions = [...new Set(pos.map((p: any) => p.supplier_name).filter(Boolean))].sort() as string[];
+  const poDateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
+  const poFiltersActive = statusFilter !== '' || !!filterSupplier.trim() || !!filterProduct.trim() || poDateFilterActive;
   const filteredPOs = pos.filter((p: any) => {
     if (statusFilter && p.status !== statusFilter) return false;
-    if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
+    const filterText = filterSupplier.trim().toLowerCase();
+    if (filterText && !((p.supplier_name || '').toLowerCase().includes(filterText) || String(p.po_number || '').toLowerCase().includes(filterText))) return false;
+    const productText = filterProduct.trim().toLowerCase();
+    if (productText) {
+      const matchesProduct = (p.items || []).some((item: any) => {
+        const searchable = [
+          item.product_name,
+          item.sku,
+          item.variant_label,
+          item.variant_id,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return searchable.includes(productText);
+      });
+      if (!matchesProduct) return false;
+    }
     if (!inDateRange(p.order_date, dateRange)) return false;
     return true;
   });
@@ -8552,24 +8570,63 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-        {['','draft','confirmed','partially_received','complete','cancelled'].map(s => (
-          <button key={s} onClick={() => { setStatusFilter(s); setPage(1); }} style={btnStyle(statusFilter === s ? 'action' : 'ghost', 'sm')}>
-            {s === 'partially_received' ? 'partially received' : (s || 'All')}
-          </button>
-        ))}
         <input
           list="po-supplier-filter-list"
-          placeholder="Filter by supplier…"
+          placeholder="Filter by customer / order number…"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
         />
+        <input
+          placeholder="Filter by product / SKU…"
+          value={filterProduct}
+          onChange={e => { setFilterProduct(e.target.value); setPage(1); }}
+          style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}
+        />
         <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setFiltersOpen(p => !p)}
+            style={{
+              ...btnStyle('secondary', 'sm'),
+              ...(poFiltersActive ? { background: 'color-mix(in srgb, var(--sv-action) 12%, var(--sv-bg-2))', borderColor: 'var(--sv-action)', color: 'var(--sv-action)' } : {}),
+            }}
+          >
+            Filters ▾{poFiltersActive ? ' ●' : ''}
+          </button>
+          {filtersOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+                <div style={{ marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+                    style={{ ...inputStyle, width: '100%' }}
+                  >
+                    <option value="">All</option>
+                    <option value="draft">Draft</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="partially_received">Partially received</option>
+                    <option value="complete">Complete</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                  <div>Status: <strong style={{ color: 'var(--sv-text-main)' }}>{statusFilter ? statusFilter.replace(/_/g, ' ') : 'All'}</strong></div>
+                  <div>Date: <strong style={{ color: 'var(--sv-text-main)' }}>{dateRange.label}</strong></div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
         <datalist id="po-supplier-filter-list">
           {supplierOptions.map(s => <option key={s} value={s} />)}
         </datalist>
-        {(statusFilter || filterSupplier || dateRange.kind !== 'window' || dateRange.window !== 90) && (
-          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
+        {poFiltersActive && (
+          <button onClick={() => { setStatusFilter(''); setFilterSupplier(''); setFilterProduct(''); setDateRange(DEFAULT_DATE_RANGE); setPage(1); setFiltersOpen(false); }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
@@ -12328,7 +12385,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <input
           list="so-customer-filter-list"
-          placeholder="Filter by customer…"
+          placeholder="Filter by customer / order number…"
           value={filterCustomer}
           onChange={e => { setFilterCustomer(e.target.value); setPage(1); }}
           style={{ ...inputStyle, minWidth: 180, flex: '1 1 180px' }}
