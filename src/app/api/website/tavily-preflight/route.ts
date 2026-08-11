@@ -21,9 +21,11 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { product, firstUrl, photosOnly } = body;
 
-    if (!product?.name || !product?.brand) {
-      return NextResponse.json({ error: 'product.name and product.brand are required.' }, { status: 400 });
+    if (!product?.name) {
+      return NextResponse.json({ error: 'product.name is required.' }, { status: 400 });
     }
+    const normalizedBrand = String(product.brand ?? '').trim();
+    const queryBrand = normalizedBrand || 'the listed brand';
 
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) {
@@ -36,12 +38,12 @@ export async function POST(req: Request) {
     let query: string;
     if (photosOnly && firstUrl) {
       // Skip text summary — only need images from this URL
-      query = `${product.name} ${product.brand} product images`;
+      query = `${product.name} ${normalizedBrand}`.trim() + ' product images';
     } else if (firstUrl) {
-      query = productResearchQuery(product.name, product.brand, firstUrl);
+      query = productResearchQuery(product.name, queryBrand, firstUrl);
     } else {
       const barcodeHint = product.barcode ? ` May have barcode ${product.barcode} and code ${product.code}.` : (product.code ? ` May have code ${product.code}.` : '');
-      query = `${productResearchQuery(product.name, product.brand)}${barcodeHint} Prefer the official ${product.brand} or supplier website and return specific product pages from distinct domains.`;
+      query = `${productResearchQuery(product.name, queryBrand)}${barcodeHint} Prefer the official ${queryBrand} or supplier website and return specific product pages from distinct domains.`;
     }
 
     const searchRequest: Record<string, any> = {

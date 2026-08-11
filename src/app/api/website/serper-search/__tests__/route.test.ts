@@ -103,4 +103,30 @@ describe('POST /api/website/serper-search', () => {
     ]);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
+
+  it('accepts a product without brand and still runs discovery', async () => {
+    const response = await POST(new Request('http://localhost/api/website/serper-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        product: {
+          name: 'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic Candle',
+          brand: '',
+          sku: 'AD0815BXAU',
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.success).toBe(true);
+    expect(body.urls.length).toBeGreaterThan(0);
+    expect(body.queries).toEqual([
+      'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic Candle',
+      'AD0815BXAU',
+    ]);
+    expect(body.executedQueries).toEqual([
+      'A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic Candle',
+    ]);
+  });
 });

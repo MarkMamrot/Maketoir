@@ -13,7 +13,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
  * followed by the remaining general results to fill up to 3.
  *
  * Body: {
- *   product: { name: string, brand: string }
+ *   product: { name: string, brand?: string }
  *   preferred_sites?: string[]   // full URLs or domains to prioritise (only enabled ones)
  *   excluded_sites?:  string[]   // full URLs or domains to exclude entirely (unchecked sources)
  *   include_general?: boolean    // default true — include non-preferred results
@@ -106,9 +106,9 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { product, preferred_sites = [], excluded_sites = [], include_general = true, search_au_only = true } = body;
-    if (!product?.name || !product?.brand) {
+    if (!product?.name) {
       return NextResponse.json(
-        { error: 'product.name and product.brand are required.' },
+        { error: 'product.name is required.' },
         { status: 400 },
       );
     }
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
 
     const identity: ProductUrlIdentity = {
       name: String(product.name),
-      brand: String(product.brand ?? ''),
+      brand: String(product.brand ?? '').trim(),
       code: String(product.sku ?? product.code ?? ''),
       barcode: String(product.barcode ?? ''),
     };
