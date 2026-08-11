@@ -9,15 +9,7 @@ import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
-import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
-import {
-  DEFAULT_URL_JUDGE_MODEL,
-  DEFAULT_WEBSITE_CONTENT_MODEL,
-  resolveMeasurementSystem,
-  WEBSITE_AI_SETTING_KEYS,
-} from '@/lib/website/contentPreferences';
 import { SolvantisMark } from '@/components/SolvantisMark';
-import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -26,18 +18,9 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
-import { BackordersView } from './views/backorders/BackordersView';
-import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
-import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
-import {
-  getXeroHash,
-  getXeroWorkspaceSection,
-  isXeroHash,
-  parseXeroHash,
-  type XeroDestination,
-} from './views/xero/navigation';
+import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -56,10 +39,10 @@ import {
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-by-branch' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -80,7 +63,6 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'backorders',       label: 'Backorders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
     { id: 'smart-device-receive', label: 'Smart Device Receive' },
@@ -587,7 +569,7 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   online_shop:      { type: 'nav',      view: 'shopify',             label: 'Open Shopify' },
   accounting:       { type: 'nav',      view: 'xero',                label: 'Open Xero' },
   users:            { type: 'settings', section: 'users',            label: 'Add Users' },
-  locations:        { type: 'settings', section: 'locations',        label: 'Add Locations' },
+  locations:        { type: 'nav',      view: 'locations',           label: 'Add Locations' },
   products:         { type: 'nav',      view: 'products',            label: 'Import Products' },
   sales_orders:     { type: 'nav',      view: 'sales-orders',        label: 'Import Sales Orders' },
   purchase_orders:  { type: 'nav',      view: 'purchase-orders',     label: 'Import Purchase Orders' },
@@ -680,6 +662,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [onboarding, setOnboarding] = useState<any>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
+  const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
   const channelChartRef = useRef<HTMLDivElement | null>(null);
@@ -725,29 +708,38 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     setOnboardingLoading(true);
     fetch('/api/onboarding')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.success) setOnboarding(d); })
+      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
       .catch(() => {})
       .finally(() => setOnboardingLoading(false));
   }, []);
 
   useEffect(() => { loadOnboarding(); }, [loadOnboarding]);
 
+  const saveOnboardingSettings = async () => {
+    setOnboardingSaving(true);
+    try {
+      await fetch('/api/onboarding', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: onboardingDraft, completeStep: 'business_profile' }),
+      });
+      loadOnboarding();
+    } finally { setOnboardingSaving(false); }
+  };
+
   const completeOnboardingStep = async (stepId: string) => {
     setOnboardingSaving(true);
     try {
-      const response = await fetch('/api/onboarding', {
+      await fetch('/api/onboarding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completeStep: stepId }),
       });
-      if (!response.ok) return;
-      setOnboarding((current: any) => {
-        if (!current) return current;
-        const steps = (current.steps ?? []).map((step: OnboardingStep) => step.id === stepId ? { ...step, completed: true } : step);
-        return { ...current, steps, complete: steps.every((step: OnboardingStep) => step.completed) };
-      });
+      loadOnboarding();
     } finally { setOnboardingSaving(false); }
   };
+
+  const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
 
   const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
   const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav?: ImsView; onClick?: () => void }[] = [
@@ -875,10 +867,144 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             </div>
           </div>
 
-          <div>
-            {/* Pending setup checklist */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {(onboarding.steps ?? []).filter((step: OnboardingStep) => !step.completed).map((step: OnboardingStep, index: number) => {
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 24 }} className="onboarding-grid">
+            {/* Left: form fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+              {/* ── Business Identity ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Business Identity</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="The legal name of your business — appears on PO and tax invoice PDFs.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Name</div>
+                  <input value={onboardingDraft.business_name ?? ''} onChange={e => setOnboardingField('business_name', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="Your company name" />
+                </div>
+                <div title="Australian Business Number — printed on invoices for GST compliance.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>ABN</div>
+                  <input value={onboardingDraft.business_abn ?? ''} onChange={e => setOnboardingField('business_abn', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="11 222 333 444" />
+                </div>
+              </div>
+              <div style={{ marginBottom: 20 }} title="The registered business address — appears on PO and tax invoice PDFs.">
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business Address</div>
+                <input value={onboardingDraft.business_address ?? ''} onChange={e => setOnboardingField('business_address', e.target.value)}
+                  style={{ ...inputStyle, fontSize: 13 }} placeholder="123 Main St, Sydney NSW 2000" />
+              </div>
+
+              {/* ── Operations ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Operations</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Turn on if you have more than one warehouse, store, or fulfilment location. Enables branch transfers and per-location stock.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Multiple locations?</div>
+                  <select value={onboardingDraft.use_multiple_locations ?? 'yes'} onChange={e => setOnboardingField('use_multiple_locations', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Zone and bin help locate products within a warehouse (e.g. Zone A, Bin 12). Shown on purchase order PDFs.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use zones and bins?</div>
+                  <select value={onboardingDraft.use_zones_bins ?? 'no'} onChange={e => setOnboardingField('use_zones_bins', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Enables product category and subcategory fields for organising your catalogue.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Use categories?</div>
+                  <select value={onboardingDraft.use_categories ?? 'no'} onChange={e => setOnboardingField('use_categories', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="Allows purchase orders to be entered in foreign currencies (USD, EUR, etc.) with automatic AUD cost conversion.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Buy in foreign currencies?</div>
+                  <select value={onboardingDraft.use_foreign_currencies ?? 'yes'} onChange={e => setOnboardingField('use_foreign_currencies', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ── Integrations ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Connect Shopify (or another platform) to sync products, inventory levels, and online orders automatically.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect an Online Shop?</div>
+                  <select value={onboardingDraft.connect_online_shop ?? 'no'} onChange={e => setOnboardingField('connect_online_shop', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                {onboardingDraft.connect_online_shop === 'yes' && (
+                  <div title="The e-commerce platform your online store runs on.">
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Online shop platform</div>
+                    <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="shopify">Shopify</option>
+                      <option disabled>WooCommerce — coming soon</option>
+                      <option disabled>BigCommerce — coming soon</option>
+                      <option disabled>Adobe Commerce — coming soon</option>
+                    </select>
+                  </div>
+                )}
+                <div title="Connect Xero or QuickBooks to automatically post purchase orders, sales invoices, and stocktake journals.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect accounting software?</div>
+                  <select value={onboardingDraft.connect_accounting_software ?? 'no'} onChange={e => setOnboardingField('connect_accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                {onboardingDraft.connect_accounting_software === 'yes' && (
+                  <div title="The accounting platform you use. Xero is fully supported; QuickBooks is coming soon.">
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Accounting platform</div>
+                    <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="xero">Xero</option>
+                      <option disabled>QuickBooks — coming soon</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* divider */}
+              <div style={{ height: 1, background: 'var(--sv-etch)', margin: '12px 0 18px' }} />
+
+              {/* ── Tax Settings ── */}
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Tax Settings</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Whether GST (or your local sales tax) is charged on sales orders and tax invoices.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Charge Sales Tax on Sales Orders?</div>
+                  <select value={onboardingDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setOnboardingField('sales_tax_on_sales', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
+                <div title="The tax code label that appears on PDF invoices, e.g. GST.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Code</div>
+                  <input value={onboardingDraft.sales_tax_code ?? ''} onChange={e => setOnboardingField('sales_tax_code', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST" />
+                </div>
+                <div title="The sales tax rate as a percentage of the sale price. In Australia this is 10% for GST.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Sales Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01"
+                    value={onboardingDraft.sales_tax_rate ? String(Number(onboardingDraft.sales_tax_rate) * 100) : ''}
+                    onChange={e => setOnboardingField('sales_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                </div>
+                <div title="The tax rate applied to purchases (supplier invoices). Usually the same as your sales tax rate.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Rate (%)</div>
+                  <input type="number" min="0" step="0.01"
+                    value={onboardingDraft.purchase_tax_rate ? String(Number(onboardingDraft.purchase_tax_rate) * 100) : ''}
+                    onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
+                </div>
+                <div style={{ gridColumn: 'span 2' }} title="The purchase tax code label used in Xero and on PDF purchase orders, e.g. GST on Purchases.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Code</div>
+                  <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)}
+                    style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
+                  style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}>
+                  {onboardingSaving ? 'Saving…' : 'Save details'}
+                </button>
+              </div>
+            </div>
+
+            {/* Right: step checklist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(onboarding.steps ?? []).map((step: OnboardingStep, index: number) => {
                 const action = IMS_ONBOARDING_ACTIONS[step.id];
                 const handleAction = action
                   ? () => action.type === 'nav'
@@ -887,30 +1013,24 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                   : undefined;
                 return (
                   <div key={step.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
                     borderRadius: 8, border: '1px solid var(--sv-etch)',
-                    background: 'var(--sv-bg-2)',
+                    background: step.completed ? 'rgba(16,185,129,.06)' : 'var(--sv-bg-2)',
                   }}>
-                    <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, background: 'rgba(37,99,235,.15)', color: 'var(--sv-action)' }}>
-                      {index + 1}
-                    </span>
+                    <button onClick={() => completeOnboardingStep(step.id)} disabled={step.completed || onboardingSaving}
+                      style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: step.completed ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12,
+                        background: step.completed ? 'var(--sv-mint, #10b981)' : 'rgba(37,99,235,.15)',
+                        color: step.completed ? '#fff' : 'var(--sv-action)' }}>
+                      {step.completed ? '✓' : index + 1}
+                    </button>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{step.title}</div>
-                      {action && (
+                      <div style={{ fontSize: 13, fontWeight: 600, color: step.completed ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)', textDecoration: step.completed ? 'line-through' : 'none', opacity: step.completed ? .6 : 1 }}>{step.title}</div>
+                      {action && !step.completed && (
                         <button onClick={handleAction} style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-action)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 1 }}>
                           {action.label} →
                         </button>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => completeOnboardingStep(step.id)}
-                      disabled={onboardingSaving}
-                      title={`Mark ${step.title.toLowerCase()} as done`}
-                      style={{ flexShrink: 0, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 600, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}
-                    >
-                      ✓ Done
-                    </button>
                   </div>
                 );
               })}
@@ -2634,7 +2754,7 @@ interface VariantRow {
 }
 interface OptionSet { name: string; values: string; }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, base_sku: '' };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -2876,7 +2996,7 @@ const IMPORT_FX_COST_HEADERS = ['Cost_USD', 'Cost_EUR', 'Cost_GBP', 'Cost_THB', 
 
 const IMPORT_BASE_HEADERS = [
   'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
-  'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Stock_Item','Tags','Online','Pack_Size',
+  'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
 ];
@@ -3060,7 +3180,7 @@ function ImportProductsModal({
       // Inherit missing product-level fields from the first row with the same Product_SKU
       const cached = product_sku ? batchProductFields.get(normStr(product_sku)) : undefined;
       if (cached) {
-        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory','sub category','subcateogry','website_title','website title','allow_indent_wholesale_orders','allow indent wholesale orders','allow_indent_wholesale','allow indent wholesale','stock_item','stock item','is_stock_item']) {
+        for (const field of ['product_name','description','product_type','brand','supplier','tags','category','subcategory','sub category','subcateogry','website_title','website title','allow_indent_wholesale_orders','allow indent wholesale orders','allow_indent_wholesale','allow indent wholesale']) {
           if (!raw[field] && cached[field]) raw[field] = cached[field];
         }
       }
@@ -3103,8 +3223,6 @@ function ImportProductsModal({
           if (websiteTitle != null && websiteTitle !== '' && websiteTitle !== (p.website_title ?? '')) changedFields.push('Website Title');
           const allowIndent = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
           if (allowIndent !== undefined && allowIndent !== Number(p.allow_indent_wholesale ?? 0)) changedFields.push('Indent Wholesale');
-          const stockItem = parseImportFlag(rawValue(raw, 'stock_item', 'stock item', 'is_stock_item'));
-          if (stockItem !== undefined && stockItem !== Number(p.is_stock_item ?? 1)) changedFields.push('Stock Item');
           const category = rawValue(raw, 'category');
           if (category != null && category !== '' && category !== (p.category ?? '')) changedFields.push('Category');
           const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
@@ -3227,7 +3345,6 @@ function ImportProductsModal({
       const resolvedSupplier = raw['supplier'] ? (supplierResolutions[raw['supplier']] ?? raw['supplier']) : '';
       const websiteTitle = rawValue(raw, 'website_title', 'website title');
       const allowIndentWholesale = parseImportFlag(rawValue(raw, 'allow_indent_wholesale_orders', 'allow indent wholesale orders', 'allow_indent_wholesale', 'allow indent wholesale'));
-      const stockItem = parseImportFlag(rawValue(raw, 'stock_item', 'stock item', 'is_stock_item'));
       const category = rawValue(raw, 'category');
       const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
 
@@ -3260,7 +3377,6 @@ function ImportProductsModal({
         subcategory: subcategory || undefined,
         website_title: websiteTitle || undefined,
         allow_indent_wholesale: allowIndentWholesale,
-        is_stock_item: stockItem,
         is_online: raw['online'] != null && raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
         sku: (() => {
           // If SKU is provided, use it directly
@@ -3365,7 +3481,7 @@ function ImportProductsModal({
               <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
               <strong>SKU</strong> — Optional. The individual variant SKU. If left blank, it is auto-generated from <em>Product_SKU</em> + option values (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S</code>). A matching SKU updates that variant; a new SKU creates one.<br />
               <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
-              <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> and <strong>Stock_Item</strong> accept Yes/No or 1/0.{' '}
+              <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> accepts Yes/No or 1/0.{' '}
               <br /><strong>{showZoneBin ? 'Zone, Bin, Min Qty and Reorder Qty' : 'Min Qty and Reorder Qty'}</strong>{' — '}per location columns saved against each location’s stock. The default warehouse location appears first.
               <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
             </div>
@@ -4066,35 +4182,16 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   onImageAdded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [urls, setUrls] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
-  const [selectedUrlIndex, setSelectedUrlIndex] = useState<number | null>(null);
-  const [urlSelectionSource, setUrlSelectionSource] = useState<'ai' | 'user' | null>(null);
-  const [urlCandidateEvidence, setUrlCandidateEvidence] = useState<Record<string, string>>({});
-  const [urlDiscoveryAudit, setUrlDiscoveryAudit] = useState<{
-    providerResultCount: number;
-    uniqueRetailResultCount: number;
-    candidateCount: number;
-    filteredCount: number;
-    rejected: { url: string; reason: string }[];
-  } | null>(null);
+  const [urls, setUrls] = useState<[string, string, string]>(['', '', '']);
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ title: string; websiteDescription: string; tags: string } | null>(null);
+  const [generatedDescMode, setGeneratedDescMode] = useState<'source' | 'preview'>('preview');
   const [generatingAll, setGeneratingAll] = useState(false);
   const [showResearchDetails, setShowResearchDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [awaitingUrlConfirmation, setAwaitingUrlConfirmation] = useState(false);
-  const researchVariant = selectProductResearchVariant(product.name ?? '', product.variants ?? []);
-  const researchProduct = {
-    name: product.name,
-    brand: product.brand ?? '',
-    sku: researchVariant?.sku ?? product.base_sku ?? '',
-    code: researchVariant?.sku ?? product.base_sku ?? '',
-    barcode: researchVariant?.barcode ?? '',
-  };
-  const selectedUrl = selectedUrlIndex == null ? '' : (urls[selectedUrlIndex]?.trim() ?? '');
 
   // Preferred site URLs loaded from IMS contacts/brands
   const [supplierSite, setSupplierSite] = useState<string | null>(null);
@@ -4105,10 +4202,6 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [useBrandSite, setUseBrandSite] = useState(true);
   const [useGeneralResults, setUseGeneralResults] = useState(true);
   const [searchAuOnly, setSearchAuOnly] = useState(true);
-  const researchSourceSites = [
-    ...(useSupplierSite && supplierSite ? [supplierSite] : []),
-    ...(useBrandSite && brandSite ? [brandSite] : []),
-  ];
 
   // Add-image state for research images
   const [addingImages, setAddingImages] = useState<Set<string>>(new Set());
@@ -4122,14 +4215,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [scrapeError, setScrapeError]       = useState<string | null>(null);
 
   const handleScrapeImages = async () => {
-    const activeUrls = selectedUrl ? [selectedUrl] : [];
+    const activeUrls = urls.filter(u => u.trim());
     if (!activeUrls.length) return;
     setScraping(true); setScrapeError(null);
     try {
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites }),
+        body: JSON.stringify({ urls: activeUrls }),
       });
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setScrapeError(d.error ?? 'Scrape failed'); return; }
@@ -4140,7 +4233,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   };
 
   const handleShowMoreImages = async () => {
-    const activeUrls = selectedUrl ? [selectedUrl] : [];
+    const activeUrls = urls.filter(u => u.trim());
     if (!activeUrls.length) return;
     if (fallbackImages.length > 0) { setShowFallbackImages(true); return; }
     setScraping(true); setScrapeError(null);
@@ -4148,7 +4241,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const res = await fetch('/api/website/scrape-photos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ urls: activeUrls, product: researchProduct, source_sites: researchSourceSites, includeFallback: true }),
+        body: JSON.stringify({ urls: activeUrls, includeFallback: true }),
       });
       const data = await parseWebsiteJsonResponse(res);
       if (!res.ok || data.error) { setScrapeError(data.error ?? 'Unable to find more photos'); return; }
@@ -4222,7 +4315,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          product: researchProduct,
+          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
           preferred_sites: activePrefSites,
           excluded_sites: excludedSites,
           include_general: useGeneralResults,
@@ -4232,34 +4325,20 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
-      setUrlDiscoveryAudit(d.discovery ?? null);
-      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? '']);
-      setUrlCandidateEvidence(Object.fromEntries(
-        (Array.isArray(d.candidates) ? d.candidates : [])
-          .filter((candidate: any) => candidate?.url)
-          .map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')]),
-      ));
-      setSelectedUrlIndex(null);
-      setUrlSelectionSource(null);
-      setShowResearchDetails(true);
+      setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '']);
     } catch (e: any) { setError(e.message); }
     finally { setFindingUrls(false); }
   };
 
   const handleResearch = async () => {
-    const topUrl = selectedUrl;
-    if (!topUrl && urls.some(url => url.trim())) {
-      setError('Select the product page to use before researching.');
-      setShowResearchDetails(true);
-      return;
-    }
+    const topUrl = urls[0]?.trim();
     setResearching(true); setError(null); setResearchResult(null);
     try {
       if (topUrl) {
         const sourceResponse = await fetch('/api/website/scrape-photos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [topUrl], product: researchProduct, source_sites: researchSourceSites }),
+          body: JSON.stringify({ urls: [topUrl] }),
         });
         const sourceData = await parseWebsiteJsonResponse(sourceResponse);
         if (!sourceResponse.ok || sourceData.error) throw new Error(sourceData.error ?? 'Approved-page extraction failed');
@@ -4276,14 +4355,14 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: researchProduct, firstUrl: url }),
+              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' }, firstUrl: url }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           )
         : [
             fetch('/api/website/tavily-preflight', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ product: researchProduct }),
+              body: JSON.stringify({ product: { name: product.name, brand: product.brand ?? '' } }),
             }).then(r => parseWebsiteJsonResponse(r)).catch(() => ({} as Record<string, any>))
           ];
 
@@ -4304,6 +4383,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerate = async () => {
     setGenerating(true); setError(null); setGenerated(null);
+    setGeneratedDescMode('preview');
     try {
       const res = await fetch('/api/website/generate-content', {
         method: 'POST',
@@ -4311,13 +4391,15 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            ...researchProduct,
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
             styleCode: '',
-            retailPrice: researchVariant?.price_rrp ?? '0',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
           },
           mode: 'full',
           tavilyInfo: researchResult?.answer ?? '',
-          tavilyUrls: selectedUrl ? [selectedUrl] : [],
+          tavilyUrls: urls.filter(Boolean),
         }),
       });
       const d = await parseWebsiteJsonResponse(res);
@@ -4337,9 +4419,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
   const handleGenerateAll = async () => {
     setGeneratingAll(true);
-    setAwaitingUrlConfirmation(false);
     setError(null);
     setGenerated(null);
+    setGeneratedDescMode('preview');
     setResearchResult(null);
     setScrapedImages([]);
     setFallbackImages([]);
@@ -4353,94 +4435,59 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         ...(!useSupplierSite && supplierSite ? [supplierSite] : []),
         ...(!useBrandSite && brandSite ? [brandSite] : []),
       ];
-      let candidateUrls: [string, string, string, string, string] = [...urls];
-      let foundUrls = candidateUrls.map(url => url.trim()).filter(Boolean);
-      let foundCandidates = foundUrls.map(url => ({ url, evidence: urlCandidateEvidence[url] ?? '' }));
-      let selectedIndex = selectedUrlIndex;
-      let selectedSource = urlSelectionSource;
-      if (foundUrls.length === 0) {
-        const searchResponse = await fetch('/api/website/serper-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product: researchProduct,
-            preferred_sites: preferredSites,
-            excluded_sites: excludedSites,
-            include_general: useGeneralResults,
-            search_au_only: searchAuOnly,
-          }),
-        });
-        const searchData = await parseWebsiteJsonResponse(searchResponse);
-        if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
-        setUrlDiscoveryAudit(searchData.discovery ?? null);
-        foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
-        foundCandidates = (Array.isArray(searchData.candidates) ? searchData.candidates : [])
-          .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
-        setUrlCandidateEvidence(Object.fromEntries(
-          foundCandidates.map((candidate: any) => [String(candidate.url), String(candidate.evidence ?? '')]),
-        ));
-        candidateUrls = [foundUrls[0] ?? '', foundUrls[1] ?? '', foundUrls[2] ?? '', foundUrls[3] ?? '', foundUrls[4] ?? ''];
-        setUrls(candidateUrls);
-        setShowResearchDetails(true);
-        selectedIndex = null;
-        selectedSource = null;
-      }
+      const searchResponse = await fetch('/api/website/serper-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product: { name: product.name, brand: product.brand ?? '', code: product.variants?.[0]?.sku ?? product.base_sku ?? '' },
+          preferred_sites: preferredSites,
+          excluded_sites: excludedSites,
+          include_general: useGeneralResults,
+          search_au_only: searchAuOnly,
+        }),
+      });
+      const searchData = await parseWebsiteJsonResponse(searchResponse);
+      if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
+      const foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 3) as string[];
       if (foundUrls.length === 0) throw new Error('No likely product pages were found. Review the search sources and try again.');
 
-      let approvedUrl = selectedIndex == null ? '' : (candidateUrls[selectedIndex]?.trim() ?? '');
-      let speculativeScrape: Promise<{ response: Response; data: Record<string, any> }> | null = null;
-      if (!approvedUrl || selectedSource !== 'user') {
-        speculativeScrape = fetch('/api/website/scrape-photos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ urls: [foundUrls[0]], product: researchProduct, source_sites: researchSourceSites }),
-        }).then(async response => ({ response, data: await parseWebsiteJsonResponse(response) }))
-          .catch(error => ({ response: new Response(null, { status: 502 }), data: { error: error instanceof Error ? error.message : 'Page extraction failed' } }));
-        const judgeResponse = await fetch('/api/website/judge-urls', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            databaseId: businessId,
-            product: {
-              ...researchProduct,
-              retailPrice: researchVariant?.price_rrp ?? '0',
-            },
-            urls: foundUrls,
-            candidates: foundCandidates,
-            preferredSites,
-          }),
-        });
-        const judgeData = await parseWebsiteJsonResponse(judgeResponse);
-        if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
-        const approvedEntry = (judgeData.rankedUrls ?? []).find((entry: any) => entry?.url && entry.keep);
-        approvedUrl = approvedEntry?.url ? String(approvedEntry.url) : '';
-        selectedIndex = approvedUrl ? candidateUrls.findIndex(url => url.trim() === approvedUrl) : -1;
-        if (!judgeData.validUrlFound || !approvedUrl || selectedIndex < 0) {
-          setSelectedUrlIndex(null);
-          setUrlSelectionSource(null);
-          setAwaitingUrlConfirmation(true);
-          setShowResearchDetails(true);
-          throw new Error('We could not confidently identify the exact product page. Your candidate links have been kept for review.');
-        }
-        setSelectedUrlIndex(selectedIndex);
-        setUrlSelectionSource('ai');
+      const judgeResponse = await fetch('/api/website/judge-urls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          databaseId: businessId,
+          product: {
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
+          },
+          urls: foundUrls,
+        }),
+      });
+      const judgeData = await parseWebsiteJsonResponse(judgeResponse);
+      if (!judgeResponse.ok || judgeData.error) throw new Error(judgeData.error ?? 'Unable to evaluate product pages');
+      const rankedUrls: string[] = (judgeData.rankedUrls ?? [])
+        .filter((entry: any) => entry?.url && entry.keep)
+        .map((entry: any) => String(entry.url));
+      const finalUrls: string[] = [...new Set<string>(rankedUrls)].slice(0, 1);
+      if (!judgeData.validUrlFound || finalUrls.length === 0) {
+        throw new Error('AI could not confirm an exact product page. No content or photos were generated.');
       }
+      setUrls([finalUrls[0] ?? '', finalUrls[1] ?? '', finalUrls[2] ?? '']);
 
-      const scrapeResult = approvedUrl === foundUrls[0] && speculativeScrape
-        ? await speculativeScrape
-        : await fetch('/api/website/scrape-photos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ urls: [approvedUrl], product: researchProduct, source_sites: researchSourceSites }),
-          }).then(async response => ({ response, data: await parseWebsiteJsonResponse(response) }));
-      const scrapeResponse = scrapeResult.response;
-      const scrapeData = scrapeResult.data;
+      const scrapeResponse = await fetch('/api/website/scrape-photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: finalUrls }),
+      });
+      const scrapeData = await parseWebsiteJsonResponse(scrapeResponse);
       if (!scrapeResponse.ok || scrapeData.error) throw new Error(scrapeData.error ?? 'Unable to extract the approved product page');
       const sourceFacts = String(scrapeData.productFacts ?? '').trim();
       if (!sourceFacts) throw new Error('Could not extract authoritative product facts from the approved page. Nothing was generated.');
       setResearchResult({
         answer: sourceFacts,
-        urls: [approvedUrl],
+        urls: finalUrls,
         images: [],
       });
       setScrapedImages(filterImages(scrapeData.images ?? []));
@@ -4451,13 +4498,15 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         body: JSON.stringify({
           databaseId: businessId,
           product: {
-            ...researchProduct,
+            name: product.name,
+            brand: product.brand ?? '',
+            code: product.variants?.[0]?.sku ?? product.base_sku ?? '',
             styleCode: '',
-            retailPrice: researchVariant?.price_rrp ?? '0',
+            retailPrice: product.variants?.[0]?.price_rrp ?? '0',
           },
           mode: 'full',
           tavilyInfo: sourceFacts,
-          tavilyUrls: [approvedUrl],
+          tavilyUrls: finalUrls,
         }),
       });
       const generateData = await parseWebsiteJsonResponse(generateResponse);
@@ -4507,27 +4556,9 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
         {open && (
           <div>
-            {error && !awaitingUrlConfirmation && (
+            {error && (
               <div style={{ marginBottom: 12, padding: '8px 10px', background: 'rgba(248,113,113,.12)', border: '1px solid rgba(248,113,113,.3)', borderRadius: 6, fontSize: 12, color: 'var(--sv-red)' }}>
                 {error}
-              </div>
-            )}
-
-            {awaitingUrlConfirmation && (
-              <div style={{ marginBottom: 14, padding: '12px 14px', background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.4)', borderRadius: 7, color: 'var(--sv-text-main)' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-amber)', marginBottom: 5 }}>Choose the exact product page to continue</div>
-                <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--sv-text-dim)' }}>
-                  Select one of the candidate links below, or paste a different product-page URL into any row. Then press Continue; Solvantis will extract facts, find photos, and generate the content from that page only.
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGenerateAll}
-                  disabled={!selectedUrl || generatingAll}
-                  style={{ ...btnStyle('action', 'sm'), marginTop: 10, opacity: !selectedUrl || generatingAll ? .55 : 1 }}
-                >
-                  {generatingAll ? 'Continuing…' : 'Continue with selected page'}
-                </button>
-                {!selectedUrl && <span style={{ marginLeft: 9, fontSize: 11, color: 'var(--sv-text-dim)' }}>Select or enter a URL first.</span>}
               </div>
             )}
 
@@ -4574,6 +4605,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Research is collected internally; review the generated result and add only the photos you want.</span>
             </div>
 
+            {showResearchDetails && (<>
             {/* Research URLs */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -4587,65 +4619,27 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                 </button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {([0, 1, 2, 3, 4] as const).map(i => (
+                {([0, 1, 2] as const).map(i => (
                   <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 16 }}>{i + 1}.</span>
                     <input
-                      type="radio"
-                      name={`website-source-${product.product_id ?? 'new'}`}
-                      checked={selectedUrlIndex === i}
-                      disabled={!urls[i].trim()}
-                      onChange={() => { setSelectedUrlIndex(i); setUrlSelectionSource('user'); setError(null); }}
-                      title="Use this page for product facts and photos"
-                      aria-label={`Use URL ${i + 1} for product facts and photos`}
-                    />
-                    <input
                       type="url"
                       value={urls[i]}
-                      onChange={e => { const u: [string, string, string, string, string] = [...urls]; u[i] = e.target.value; setUrls(u); if (e.target.value.trim()) { setSelectedUrlIndex(i); setUrlSelectionSource('user'); setError(null); } else if (selectedUrlIndex === i) { setSelectedUrlIndex(null); setUrlSelectionSource(null); } setFallbackImages([]); setShowFallbackImages(false); }}
+                      onChange={e => { const u: [string, string, string] = [...urls] as any; u[i] = e.target.value; setUrls(u); setFallbackImages([]); setShowFallbackImages(false); }}
                       placeholder="https://…"
                       style={{ ...inputStyle, fontSize: 12, flex: 1 }}
                     />
                     {urls[i] && (
                       <>
                         <a href={urls[i]} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--sv-action)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Open ↗</a>
-                        <button onClick={() => { const u: [string, string, string, string, string] = [...urls]; u[i] = ''; setUrls(u); if (selectedUrlIndex === i) { setSelectedUrlIndex(null); setUrlSelectionSource(null); } }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
+                        <button onClick={() => { const u: [string, string, string] = [...urls] as any; u[i] = ''; setUrls(u); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>×</button>
                       </>
                     )}
                   </div>
                 ))}
               </div>
-              {selectedUrl && (
-                <div style={{ marginTop: 7, marginLeft: 24, fontSize: 11, color: 'var(--sv-mint)' }}>
-                  {urlSelectionSource === 'ai' ? 'AI-selected source' : 'Selected source'} for product facts and photos
-                </div>
-              )}
-              {urlDiscoveryAudit && (
-                <div style={{ marginTop: 9, padding: '8px 10px', border: '1px solid rgba(14,165,233,.28)', borderRadius: 6, background: 'rgba(14,165,233,.08)', fontSize: 11, color: 'var(--sv-text-main)' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
-                    <span><strong>{urlDiscoveryAudit.providerResultCount}</strong> Google results found</span>
-                    <span><strong>{urlDiscoveryAudit.uniqueRetailResultCount}</strong> unique retail pages checked</span>
-                    <span><strong>{urlDiscoveryAudit.candidateCount}</strong> candidates retained</span>
-                    <span><strong>{urlDiscoveryAudit.filteredCount}</strong> filtered out</span>
-                  </div>
-                  {urlDiscoveryAudit.rejected.length > 0 && (
-                    <details style={{ marginTop: 6 }}>
-                      <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--sv-action)' }}>Review filtered results</summary>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(14,165,233,.22)' }}>
-                        {urlDiscoveryAudit.rejected.map(result => (
-                          <div key={result.url} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 10 }}>
-                            <a href={result.url} target="_blank" rel="noopener noreferrer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--sv-action)' }}>{result.url}</a>
-                            <span style={{ color: 'var(--sv-text-dim)' }}>{result.reason}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  )}
-                </div>
-              )}
             </div>
 
-            {showResearchDetails && (<>
             {/* Research summary */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -4722,13 +4716,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>More Images</span>
                 <button
                   onClick={handleScrapeImages}
-                  disabled={scraping || !selectedUrl}
-                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping || !selectedUrl ? .6 : 1 }}
-                  title="Scrapes images directly from the selected product page"
+                  disabled={scraping || !urls.some(u => u.trim())}
+                  style={{ ...btnStyle('ghost', 'xs'), opacity: scraping || !urls.some(u => u.trim()) ? .6 : 1 }}
+                  title="Scrapes images directly from the URLs in Step 1 — useful when Tavily research misses product photos"
                 >
                   {scraping ? '⏳ Scraping…' : '📸 Pull More Images from URL'}
                 </button>
-                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>HTML scrape of selected URL</span>
+                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>HTML scrape of Step 1 URLs</span>
               </div>
               {scrapeError && <div style={{ fontSize: 12, color: 'var(--sv-red)', marginBottom: 6 }}>{scrapeError}</div>}
               {scrapedImages.length > 0 && (
@@ -4794,7 +4788,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               </div>
             ) : null}
 
-            {selectedUrl && (
+            {urls.some(url => url.trim()) && (
               <div style={{ marginBottom: 16 }}>
                 <button
                   type="button"
@@ -4825,37 +4819,69 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
 
             {/* Review generated content */}
             <div style={{ marginBottom: generated ? 14 : 0 }}>
-              {!generated && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Generated content will appear here</span>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: generated ? 10 : 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-strong)' }}>{generated ? 'Review generated content' : 'Generated content will appear here'}</span>
+                {generated && <button onClick={handleGenerateAll} disabled={generatingAll} style={btnStyle('ghost', 'xs')}>Regenerate</button>}
+              </div>
 
               {generated && (
-                <WebsiteGeneratedContentEditor
-                  content={generated}
-                  heading="Generated Content"
-                  headerAction={(
-                    <button onClick={handleGenerateAll} disabled={generatingAll} className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                      {generatingAll ? 'Regenerating…' : 'Regenerate Content'}
-                    </button>
-                  )}
-                  onChange={(field, value) => setGenerated(current => current ? { ...current, [field]: value } : current)}
-                  onApplyField={field => {
-                    if (field === 'title') onApplyContent(generated.title || null, null, null);
-                    if (field === 'websiteDescription') onApplyContent(null, generated.websiteDescription || null, null);
-                    if (field === 'tags') onApplyContent(null, null, generated.tags || null);
-                  }}
-                  footer={(
-                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Title */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Website Title</span>
                       <button
-                        onClick={handleApplyAllAndSave}
-                        disabled={saving || !canSave}
-                        className="rounded-lg bg-[#164e63] px-5 py-2 text-sm font-semibold text-white hover:bg-[#123f50] disabled:opacity-50"
-                      >
-                        {saving ? 'Saving…' : 'Apply All and Save'}
-                      </button>
-                      <span className="text-xs text-gray-500">Apply and save all fields, or apply individual fields above.</span>
-                      <button onClick={() => setGenerated(null)} className="ml-auto text-xs text-gray-500 hover:text-gray-700">Discard</button>
+                        onClick={() => onApplyContent(generated.title || null, null, null)}
+                        title="Apply title to Website Title field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
                     </div>
-                  )}
-                />
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 13, color: generated.title ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontStyle: generated.title ? 'normal' : 'italic' }}>{generated.title || 'No title generated'}</div>
+                  </div>
+                  {/* Description */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Description</span>
+                      <button
+                        onClick={() => onApplyContent(null, generated.websiteDescription || null, null)}
+                        title="Apply description to product description field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
+                      <button
+                        onClick={() => setGeneratedDescMode(mode => mode === 'preview' ? 'source' : 'preview')}
+                        style={{ ...btnStyle('ghost', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >{generatedDescMode === 'preview' ? 'HTML source' : 'Preview'}</button>
+                    </div>
+                    {generatedDescMode === 'preview' ? (
+                      <div
+                        className="leading-6 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mt-5 [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_p]:my-3 [&_ul]:my-3 [&_ul]:pl-6 [&_ol]:my-3 [&_ol]:pl-6 [&_li]:my-1"
+                        style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '12px 14px', fontSize: 13, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', maxHeight: 280, overflowY: 'auto' }}
+                        dangerouslySetInnerHTML={{ __html: generated.websiteDescription || '<em>No description generated</em>' }}
+                      />
+                    ) : (
+                      <pre style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: generated.websiteDescription ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.websiteDescription ? 'normal' : 'italic', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 280, overflowY: 'auto', margin: 0 }}>{generated.websiteDescription || 'No description generated'}</pre>
+                    )}
+                  </div>
+                  {/* Tags */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                      <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Tags</span>
+                      <button
+                        onClick={() => onApplyContent(null, null, generated.tags || null)}
+                        title="Apply tags to product tags field"
+                        style={{ ...btnStyle('mint', 'xs'), fontSize: 10, padding: '1px 6px' }}
+                      >↙ Apply</button>
+                    </div>
+                    <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', fontSize: 12, color: generated.tags ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontStyle: generated.tags ? 'normal' : 'italic' }}>{generated.tags || 'No tags generated'}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={handleApplyAllAndSave} disabled={saving || !canSave} style={{ ...btnStyle('action', 'sm'), opacity: saving || !canSave ? .6 : 1 }}>
+                      {saving ? 'Saving…' : 'Apply All and Save'}
+                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Applies and saves all fields — or use ↙ Apply on individual fields above</span>
+                    <button onClick={() => setGenerated(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 12 }}>Discard</button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -6234,17 +6260,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 </select>
               </Field>
             </Row2>
-            <Field label="Stock item">
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: isAdvisor ? 'not-allowed' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={Number(form.is_stock_item ?? 1) !== 0}
-                  disabled={isAdvisor}
-                  onChange={event => setForm((previous: any) => ({ ...previous, is_stock_item: event.target.checked ? 1 : 0 }))}
-                />
-                Track stock on hand and generate inventory cost movements
-              </label>
-            </Field>
             <Field label="Default Supplier">
               <select
                 value={form.supplier_contact_id ?? ''}
@@ -6538,13 +6553,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {/* ── Foresight: Supplier URL finder + Research + Generate Content ── */}
           {hasForesight && modal.edit?.product_id && (
             <ForesightProductSection
-              product={{
-                ...modal.edit,
-                name: form.name ?? modal.edit.name,
-                brand: form.brand ?? modal.edit.brand,
-                base_sku: form.base_sku ?? modal.edit.base_sku,
-                variants: variantRows.filter(row => !row._delete),
-              }}
+              product={modal.edit}
               businessId={businessId}
               onApplyContent={(title, description, tags) => {
                 setForm((p: any) => ({
@@ -8996,7 +9005,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false
                 {poPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                     <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Setup → Automation and Payment Routing. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
+                      Xero payment behaviour follows Ledger Mapping. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
@@ -11509,9 +11518,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   });
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; so: any | null }>({ open: false, so: null });
-  const [fulfilModal, setFulfilModal] = useState<{ so: any; quantities: Record<number, number> } | null>(null);
-  const [fulfilSaving, setFulfilSaving] = useState(false);
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
+  const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
   const [posVoiding, setPosVoiding] = useState(false);
   const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
   const [syncingSoPaymentId, setSyncingSoPaymentId] = useState<number | null>(null);
@@ -11699,6 +11707,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setSoPayForm(null);
   };
 
+  const openSoFulfilmentModal = async (so: any) => {
+    const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+    const detail = d.data ?? d;
+    setSoFulfilmentModal({ open: true, so: detail, items: Array.isArray(detail.items) ? detail.items : [] });
+  };
+
   const getPosSaleIdFromRow = (row: any): number | null => {
     const id = Number(row?.pos_sale_id ?? 0);
     if (id > 0) return id;
@@ -11839,9 +11853,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     finally { setSaving(false); }
   };
 
-  const changeStatus = async (so: any, status: string, skipConfirm = false) => {
+  const changeStatus = async (so: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', fulfilled: 'mark as fulfilled', draft: 'revert to draft', cancelled: 'cancel' };
-    if (!skipConfirm && !confirm(`${labels[status] || status} SO ${so.so_number}?`)) return false;
+    if (!confirm(`${labels[status] || status} SO ${so.so_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       load();
@@ -11850,77 +11864,23 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         setViewModal({ open: true, so: d.data });
       }
       if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
-      return true;
-    } catch (e: any) { alert(e.message); return false; }
-  };
-
-  const beginFulfil = async (so: any) => {
-    if (so.shopify_order_id) {
-      await changeStatus(so, 'fulfilled');
-      return;
-    }
-    try {
-      const response = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-      const detail = response.data ?? response;
-      const quantities: Record<number, number> = {};
-      for (const item of detail.items ?? []) quantities[Number(item.id)] = Number(item.qty_ordered);
-      setFulfilModal({ so: detail, quantities });
-    } catch (e: any) {
-      alert(e.message || 'Failed to load fulfilment quantities.');
-    }
-  };
-
-  const submitFulfil = async () => {
-    if (!fulfilModal) return;
-    const items = fulfilModal.so.items ?? [];
-    const fulfilQuantities = items.map((item: any) => ({
-      itemId: Number(item.id),
-      quantity: Number(fulfilModal.quantities[Number(item.id)] ?? 0),
-    }));
-    const hasInvalid = fulfilQuantities.some((line: any, index: number) =>
-      !Number.isFinite(line.quantity) || line.quantity < 0 || line.quantity > Number(items[index].qty_ordered),
-    );
-    if (hasInvalid) {
-      alert('Fulfil quantities must be between zero and the ordered quantity.');
-      return;
-    }
-    const totalFulfilled = fulfilQuantities.reduce((sum: number, line: any) => sum + line.quantity, 0);
-    if (totalFulfilled <= 0) {
-      alert('Enter a fulfilled quantity for at least one line.');
-      return;
-    }
-    const isFull = fulfilQuantities.every((line: any, index: number) => line.quantity === Number(items[index].qty_ordered));
-    setFulfilSaving(true);
-    try {
-      if (isFull) {
-        const succeeded = await changeStatus(fulfilModal.so, 'fulfilled', true);
-        if (!succeeded) return;
-      } else {
-        const operationKey = typeof crypto?.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `${fulfilModal.so.id}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        await apiFetch(`/api/ims/sales-orders/${fulfilModal.so.id}/backorder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operationKey, fulfilQuantities }),
-        });
-        load();
-        if (viewModal.open && viewModal.so?.id === fulfilModal.so.id) {
-          await refreshSoView(fulfilModal.so.id);
-        }
-      }
-      setFulfilModal(null);
-    } catch (e: any) {
-      alert(e.message || 'Fulfilment failed.');
-    } finally {
-      setFulfilSaving(false);
-    }
+    } catch (e: any) { alert(e.message); }
   };
 
   const handleDelete = async (so: any) => {
     if (!confirm(`Delete SO ${so.so_number}?`)) return;
     try { await apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'DELETE' }); load(); }
     catch (e: any) { alert(e.message); }
+  };
+
+  const handleSOFulfilmentResolved = async () => {
+    await load();
+    if (viewModal.open && viewModal.so?.id) {
+      try {
+        const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
+        setViewModal({ open: true, so: d.data });
+      } catch {}
+    }
   };
 
   const showSoXeroWarnForFulfilled = (action: 'edit' | 'delete', so: any, onConfirm: () => void) => {
@@ -12158,7 +12118,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
                       </div>
                     ) : (
-                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onFulfil={() => beginFulfil(so)} onReturn={() => handleReturn(so)} />
+                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onFulfill={() => openSoFulfilmentModal(so)} />
                     )}
                   </td>
                 </tr>
@@ -12363,7 +12323,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onFulfil={() => beginFulfil(viewModal.so)} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} />
+            <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               <button
                 onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
@@ -12528,7 +12488,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 {soPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                     <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Setup → Automation and Payment Routing. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
+                      Xero payment behaviour follows Ledger Mapping. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
@@ -12671,6 +12631,15 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         </Modal>
       )}
 
+      {soFulfilmentModal.open && soFulfilmentModal.so && (
+        <SalesOrderFulfilmentModal
+          order={soFulfilmentModal.so}
+          items={soFulfilmentModal.items}
+          onClose={() => setSoFulfilmentModal({ open: false, so: null, items: [] })}
+          onResolved={handleSOFulfilmentResolved}
+        />
+      )}
+
       {importSOsOpen && (
         <ImportSOsModal
           locations={locations}
@@ -12678,63 +12647,18 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           onDone={() => load()}
         />
       )}
-
-      {fulfilModal && (
-        <Modal title={`Fulfil ${fulfilModal.so.so_number}`} onClose={() => { if (!fulfilSaving) setFulfilModal(null); }} wide>
-          <div style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 14 }}>
-            Enter the quantity dispatching now. Any remainder will become a held customer backorder.
-          </div>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 620, borderCollapse: 'collapse', border: '1px solid var(--sv-etch)' }}>
-              <thead><tr style={{ background: 'var(--sv-bg-1)' }}>
-                {['SKU', 'Product', 'Variant', 'Ordered', 'Fulfil now', 'Backorder'].map(label => <th key={label} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)' }}>{label}</th>)}
-              </tr></thead>
-              <tbody>{(fulfilModal.so.items ?? []).map((item: any) => {
-                const itemId = Number(item.id);
-                const ordered = Number(item.qty_ordered);
-                const fulfilled = Number(fulfilModal.quantities[itemId] ?? 0);
-                return <tr key={itemId} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '9px 10px' }}><code style={{ color: 'var(--sv-mint)' }}>{item.sku || '—'}</code></td>
-                  <td style={{ padding: '9px 10px' }}>{item.product_name || 'Unknown product'}</td>
-                  <td style={{ padding: '9px 10px' }}>{item.variant_label || 'Default'}</td>
-                  <td style={{ padding: '9px 10px' }}>{fmtQty(ordered)}</td>
-                  <td style={{ padding: '9px 10px' }}>
-                    <input
-                      type="number"
-                      min={0}
-                      max={ordered}
-                      step="any"
-                      value={fulfilled}
-                      onChange={event => setFulfilModal(current => current ? {
-                        ...current,
-                        quantities: { ...current.quantities, [itemId]: Number(event.target.value) },
-                      } : current)}
-                      style={{ ...inputStyle, width: 92 }}
-                    />
-                  </td>
-                  <td style={{ padding: '9px 10px', fontWeight: ordered - fulfilled > 0 ? 700 : 400, color: ordered - fulfilled > 0 ? 'var(--sv-orange)' : 'var(--sv-text-dim)' }}>{fmtQty(Math.max(0, ordered - fulfilled))}</td>
-                </tr>;
-              })}</tbody>
-            </table>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-            <button onClick={() => setFulfilModal(null)} disabled={fulfilSaving} style={btnStyle('ghost', 'sm')}>Cancel</button>
-            <button onClick={submitFulfil} disabled={fulfilSaving} style={btnStyle('mint', 'sm')}>{fulfilSaving ? 'Processing...' : 'Confirm fulfilment'}</button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
 
-function SOActions({ so, onEdit, onDelete, onStatus, onFulfil, onReturn, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onFulfil?: () => void; onReturn?: () => void; isAdvisor?: boolean }) {
+function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onFulfill, isAdvisor = false }: { so: any; onEdit: () => void; onDelete: () => void; onStatus: (so: any, s: string) => void; onReturn?: () => void; onFulfill?: () => void; isAdvisor?: boolean }) {
   if (so.is_historical) {
     const label = so.cin7_order_id ? 'Historical (Cin7)' : 'Imported';
     return <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>{label}</span>;
   }
   const btns = [];
   if (so.status === 'draft')     { if (!isAdvisor) btns.push(<button key="c" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>); }
-  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={onFulfil ?? (() => onStatus(so, 'fulfilled'))} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
+  if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="f" onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfill</button>); }
   if (so.status === 'confirmed') { if (!isAdvisor) btns.push(<button key="b" onClick={() => onStatus(so, 'draft')}     style={btnStyle('ghost', 'xs')}>Revert</button>); }
   if (so.status === 'fulfilled') {
     if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>); }
@@ -13675,8 +13599,8 @@ function CashBankingView() {
       {loading && <div style={{ padding: 36, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading cash days...</div>}
       {data && !loading && <>
         {(!data.cashClearingAccount || !data.defaultDestinationAccount) && <div style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 6, border: '1px solid var(--sv-amber)', color: 'var(--sv-amber)', fontSize: 12 }}>
-          {!data.cashClearingAccount ? 'Map the branch Cash clearing account in Xero → Setup → Payment Routing. ' : ''}
-          {!data.defaultDestinationAccount ? 'Set the branch default Cash Deposit Bank in Xero → Setup → Payment Routing.' : ''}
+          {!data.cashClearingAccount ? 'Map the branch Cash clearing account in Xero settings. ' : ''}
+          {!data.defaultDestinationAccount ? 'Set the branch default Cash Deposit Bank in Xero settings.' : ''}
         </div>}
         <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
           <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
@@ -15030,15 +14954,9 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 const REPORT_CATALOG = [
   {
     id: 'report-sales-by-branch' as ImsView,
-    title: 'Sales - Detail',
-    description: 'Product-level sales quantity and value by location for the selected period.',
+    title: 'Sales',
+    description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
     icon: '📊',
-  },
-  {
-    id: 'report-sales-summary' as ImsView,
-    title: 'Sales - Summary',
-    description: 'Group sales by location, supplier, brand, product type, day, or hour with attached COGS, GP, and current SOH.',
-    icon: '📈',
   },
   {
     id: 'report-sales-search' as ImsView,
@@ -15170,10 +15088,6 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function SalesByBranchView({ onBack }: { onBack: () => void }) {
   return <SalesByBranchViewComponent onBack={onBack} apiFetch={apiFetch} />;
-}
-
-function SalesSummaryView({ onBack }: { onBack: () => void }) {
-  return <SalesSummaryViewComponent onBack={onBack} apiFetch={apiFetch} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15510,12 +15424,7 @@ function SettingsView() {
 
   const handleSave = async () => {
     setSaving(true); setSaved(false);
-    await saveSettings({
-      ...draft,
-      xero_tax_type_sales: 'OUTPUT',
-      xero_tax_type_purchases: 'INPUT',
-      xero_tax_type_exempt: 'NONE',
-    });
+    await saveSettings(draft);
     setSaving(false); setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -15616,33 +15525,36 @@ function SettingsView() {
       <div style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Xero Tax Type Mapping</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>
-          Standard taxable sales use <code>OUTPUT</code> and taxable purchases use <code>INPUT</code>. <code>NONE</code> is used when no GST applies; GST-free sales or purchases require their appropriate Xero tax classification.
+          Enter the exact Xero <strong>TaxType</strong> codes (e.g. <code>OUTPUT</code>, <code>INPUT</code>, <code>NONE</code>, <code>EXEMPTOUTPUT</code>). These are sent on invoice &amp; bill lines so Xero applies the correct tax.
         </p>
 
-        <Field label="GST on Sales">
+        <Field label="Sales (ACCREC) Tax Type">
           <input
             type="text"
-            value="OUTPUT"
-            readOnly
-            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
+            value={draft.xero_tax_type_sales ?? ''}
+            onChange={sd('xero_tax_type_sales')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. OUTPUT"
           />
         </Field>
 
-        <Field label="GST on Purchases">
+        <Field label="Purchases (ACCPAY) Tax Type">
           <input
             type="text"
-            value="INPUT"
-            readOnly
-            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
+            value={draft.xero_tax_type_purchases ?? ''}
+            onChange={sd('xero_tax_type_purchases')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. INPUT"
           />
         </Field>
 
-        <Field label="No GST">
+        <Field label="Tax-Exempt / Zero-Rated Tax Type">
           <input
             type="text"
-            value="NONE"
-            readOnly
-            style={{ ...inputStyle, width: 200, opacity: 0.75 }}
+            value={draft.xero_tax_type_exempt ?? ''}
+            onChange={sd('xero_tax_type_exempt')}
+            style={{ ...inputStyle, width: 200 }}
+            placeholder="e.g. NONE or EXEMPTOUTPUT"
           />
         </Field>
       </div>
@@ -15681,17 +15593,7 @@ function XeroView({
 }) {
   const [status, setStatus] = useState<{ connected: boolean; tenantName?: string; tokenExpiry?: number; envConfigured?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [destination, setDestination] = useState<XeroDestination>(() => {
-    if (isAdvisor) return 'setup-ledger';
-    return typeof window === 'undefined' ? 'overview' : parseXeroHash(window.location.hash);
-  });
-
-  useEffect(() => {
-    if (isAdvisor) return;
-    const onPopState = () => setDestination(parseXeroHash(window.location.hash));
-    window.addEventListener('popstate', onPopState);
-    return () => window.removeEventListener('popstate', onPopState);
-  }, [isAdvisor]);
+  const [tab, setTab] = useState<'overview' | 'mapping' | 'cogs' | 'payouts' | 'sync'>(isAdvisor ? 'mapping' : 'overview');
 
   useEffect(() => {
     if (!businessId) { setLoading(false); return; }
@@ -15707,15 +15609,6 @@ function XeroView({
 
   const getBusinessId = () => businessId;
 
-  const navigate = (next: XeroDestination) => {
-    if (isAdvisor && next !== 'setup-ledger') return;
-    setDestination(next);
-    const hash = getXeroHash(next);
-    if (window.location.hash !== hash) window.history.pushState(window.history.state, '', hash);
-  };
-
-  const workspaceSection = getXeroWorkspaceSection(destination);
-
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
     background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: active ? '#fff' : 'var(--sv-text-main)',
@@ -15723,12 +15616,12 @@ function XeroView({
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;
 
-  // Advisor accounts are restricted to Accounts & Tracking, and only when an
-  // administrator has granted access in Settings → Xero Access.
+  // Advisor accounts are restricted to the Account & Tracking Mapping tab, and
+  // only when an administrator has granted access in Xero → Overview.
   if (isAdvisor) {
     const titleBar = (
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Accounts &amp; Tracking</h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero — Account &amp; Tracking Mapping</h1>
         {status?.connected && (
           <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, background: 'rgba(16,185,129,.15)', color: '#34d399' }}>Connected — {status.tenantName}</span>
         )}
@@ -15739,7 +15632,7 @@ function XeroView({
         <div>
           {titleBar}
           <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 560, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-            Your account doesn&apos;t have access to Xero setup. Ask an administrator to enable <strong>Advisor Access</strong> in Settings → Xero Access.
+            🔒 Your account doesn&apos;t have access to Xero settings. Ask an administrator to enable <strong>Advisor access to Account &amp; Tracking Mapping</strong> in Xero → Overview.
           </div>
         </div>
       );
@@ -15757,7 +15650,7 @@ function XeroView({
     return (
       <div>
         {titleBar}
-        <XeroMappingTab getBusinessId={getBusinessId} mode="ledger" />
+        <XeroMappingTab getBusinessId={getBusinessId} />
       </div>
     );
   }
@@ -15793,34 +15686,20 @@ function XeroView({
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: workspaceSection === 'overview' ? 24 : 12, flexWrap: 'wrap' }}>
-            <button style={tabBtnStyle(workspaceSection === 'overview')} onClick={() => navigate('overview')}>Overview</button>
-            <button style={tabBtnStyle(workspaceSection === 'setup')} onClick={() => navigate('setup-automation')}>Setup</button>
-            <button style={tabBtnStyle(workspaceSection === 'activity')} onClick={() => navigate('activity-history')}>Activity</button>
+          {/* Tab bar */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+            <button style={tabBtnStyle(tab === 'overview')} onClick={() => setTab('overview')}>Overview</button>
+            <button style={tabBtnStyle(tab === 'mapping')} onClick={() => setTab('mapping')} title="Also available in Settings -> Xero">Ledger Mapping</button>
+            <button style={tabBtnStyle(tab === 'cogs')} onClick={() => setTab('cogs')}>COGS Reconciliation</button>
+            <button style={tabBtnStyle(tab === 'payouts')} onClick={() => setTab('payouts')}>Shopify Payouts</button>
+            <button style={tabBtnStyle(tab === 'sync')} onClick={() => setTab('sync')}>Sync History</button>
           </div>
 
-          {workspaceSection === 'setup' && (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 12 }}>
-              <button style={tabBtnStyle(destination === 'setup-automation')} onClick={() => navigate('setup-automation')}>Automation</button>
-              <button style={tabBtnStyle(destination === 'setup-ledger')} onClick={() => navigate('setup-ledger')}>Accounts &amp; Tracking</button>
-              <button style={tabBtnStyle(destination === 'setup-payments')} onClick={() => navigate('setup-payments')}>Payment Routing</button>
-            </div>
-          )}
-          {workspaceSection === 'activity' && (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap', borderBottom: '1px solid var(--sv-etch)', paddingBottom: 12 }}>
-              <button style={tabBtnStyle(destination === 'activity-history')} onClick={() => navigate('activity-history')}>Sync History</button>
-              <button style={tabBtnStyle(destination === 'activity-cogs')} onClick={() => navigate('activity-cogs')}>COGS Reconciliation</button>
-              <button style={tabBtnStyle(destination === 'activity-payouts')} onClick={() => navigate('activity-payouts')}>Shopify Payouts</button>
-            </div>
-          )}
-
-          {destination === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
-          {destination === 'setup-automation' && <XeroDocumentPolicySection getBusinessId={getBusinessId} />}
-          {destination === 'setup-ledger' && <XeroMappingTab getBusinessId={getBusinessId} mode="ledger" />}
-          {destination === 'setup-payments' && <XeroMappingTab getBusinessId={getBusinessId} mode="payments" />}
-          {destination === 'activity-cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
-          {destination === 'activity-payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
-          {destination === 'activity-history' && (
+          {tab === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {tab === 'mapping' && <XeroMappingTab getBusinessId={getBusinessId} />}
+          {tab === 'cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
+          {tab === 'payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
+          {tab === 'sync' && (
             <XeroSyncTab
               getBusinessId={getBusinessId}
               onOpenPurchaseOrder={onOpenPurchaseOrder}
@@ -16767,7 +16646,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
   );
 }
 
-function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; mode: 'ledger' | 'payments' }) {
+function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
   type MappingRoleDef = {
     key: string;
     label: string;
@@ -16857,7 +16736,7 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
     { key: 'gift_card_liability', label: 'Gift Card Liability', help: 'Liability account for unused gift card balances until they are redeemed.', example: 'Sell a $100 gift card: Gift Card Liability increases by $100 until the customer spends it.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'store_credit_liability', label: 'Store Credit Liability', help: 'Liability account for customer store credit that has been issued but not used yet.', example: 'Issue $60 store credit on a return: Store Credit Liability increases by $60 until the customer redeems it.', filter: (a: any) => a.class === 'LIABILITY' },
     { key: 'supplier_credit_note', label: 'Supplier Credit Notes (Non-stock lines)', help: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to Inventory Asset instead.', example: 'Supplier gives a $75 rebate with no stock movement: that line posts here. If physical goods are returned, those lines post to Inventory Asset.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'ASSET' },
-  ];
+  ].filter(r => !(r.key === 'freight' && freightTreatment === 'capitalise'));
 
   useEffect(() => {
     (async () => {
@@ -16866,10 +16745,10 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
       try {
         const [accRes, trackRes, locRes] = await Promise.all([
           fetch(`/api/xero/accounts?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { accounts: [], mappings: [] }),
-          mode === 'ledger' ? fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }) : Promise.resolve({ categories: [], mappings: [] }),
-          mode === 'ledger' ? fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []) : Promise.resolve([]),
+          fetch(`/api/xero/tracking?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : { categories: [], mappings: [] }),
+          fetch(`/api/ims/locations?databaseId=${encodeURIComponent(bid)}`).then(r => r.ok ? r.json() : []).catch(() => []),
         ]);
-        if (mode === 'ledger') try {
+        try {
           const settingsRes = await fetch('/api/ims/settings').then(r => r.ok ? r.json() : null);
           if (settingsRes?.data?.freight_treatment === 'capitalise') setFreightTreatment('capitalise');
         } catch {}
@@ -16886,7 +16765,7 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
       } catch {}
       setLoading(false);
     })();
-  }, [mode]);
+  }, []);
 
   async function saveAccountMapping(roleKey: string, accountId: string) {
     const acc = accounts.find(a => a.accountId === accountId);
@@ -16945,8 +16824,8 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
 
   return (
     <div style={{ maxWidth: 800 }}>
+      <XeroDocumentPolicySection getBusinessId={getBusinessId} />
       {/* Account mapping */}
-      {mode === 'ledger' && <>
       <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Chart of Accounts Mapping</h3>
         <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -16959,7 +16838,6 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
         )}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {ROLE_DEFS.map(role => {
-            const disabled = role.key === 'freight' && freightTreatment === 'capitalise';
             const filtered = accounts.filter(role.filter);
             const current = mappings[role.key];
             // Always keep the currently-mapped account selectable, even if the live
@@ -16977,9 +16855,8 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
                 <select
                   value={current?.xero_account_id ?? ''}
                   onChange={e => saveAccountMapping(role.key, e.target.value)}
-                  disabled={disabled || saving === role.key}
-                  title={disabled ? 'Freight is capitalised into Inventory Asset, so this mapping is currently inactive.' : undefined}
-                  style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13, opacity: disabled ? 0.6 : 1 }}
+                  disabled={saving === role.key}
+                  style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
                 >
                   <option value="">— Select account —</option>
                   {options.map(a => (
@@ -17041,17 +16918,14 @@ function XeroMappingTab({ getBusinessId, mode }: { getBusinessId: () => string; 
           <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>No tracking categories found in Xero. Create them in Xero first.</p>
         )}
       </div>
-      </>}
 
       {/* Payment Methods */}
-      {mode === 'payments' && <>
       <XeroPaymentMappingSection type="po" label="PO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPaymentMappingSection type="so" label="SO Payment Methods — Xero Bank Accounts" accounts={accounts} />
       <XeroPosPaymentMappingSection accounts={accounts} getBusinessId={getBusinessId} />
 
       {/* Online Gateway Clearing Accounts */}
       <XeroGatewayClearingSection accounts={accounts} getBusinessId={getBusinessId} />
-      </>}
     </div>
   );
 }
@@ -17381,8 +17255,6 @@ type CogsReportData = {
     excludedHistoricalQuantity: number;
     orphanedMovementCount: number;
     orphanedQuantity: number;
-    excludedNonStockMovementCount: number;
-    excludedNonStockQuantity: number;
   };
   coverage: { reliableFrom: string | null; warning: boolean; warningText: string | null };
   breakdown: Array<{ locationId: number; locationName: string; channel: string; totalCOGS: number; movementCount: number; quantity: number }>;
@@ -17449,10 +17321,10 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
     return v != null ? `$${Number(v).toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
   }
 
-  const loadData = async (refreshLive = false) => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000${refreshLive ? '&refreshLive=1' : ''}`);
+      const res = await fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`);
       if (res.ok) {
         const data = await res.json();
         setEntries(Array.isArray(data.entries) ? data.entries : []);
@@ -17568,7 +17440,7 @@ function ShopifyPayoutsTab({ getBusinessId }: { getBusinessId: () => string }) {
               </select>
             </label>
             <button title="Poll Shopify for paid payouts in the selected period and ingest any missing records" onClick={syncMissedPayouts} disabled={catchupRunning} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(20,184,166,.12)', border: '1px solid rgba(20,184,166,.3)', borderRadius: 5, cursor: catchupRunning ? 'wait' : 'pointer', padding: '6px 11px', fontSize: 12, color: '#14b8a6', fontWeight: 600 }}><Search size={14} />{catchupRunning ? 'Syncing…' : 'Sync payouts'}</button>
-            <button title="Reload payout records" onClick={() => loadData(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
+            <button title="Reload payout records" onClick={loadData} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '6px 11px', fontSize: 12, color: 'var(--sv-text-dim)' }}><RefreshCw size={14} />Refresh</button>
           </div>
         </div>
 
@@ -17856,7 +17728,6 @@ function CogsReconciliationTab({ getBusinessId }: { getBusinessId: () => string 
                 <div>Missing cost: {cogsReport.quality.missingCostMovementCount} / {Number(cogsReport.quality.missingCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Zero cost: {cogsReport.quality.zeroCostMovementCount} / {Number(cogsReport.quality.zeroCostQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Excluded historical: {cogsReport.quality.excludedHistoricalMovementCount} / {Number(cogsReport.quality.excludedHistoricalQuantity).toLocaleString('en-AU')} qty</div>
-                <div>Excluded non-stock: {cogsReport.quality.excludedNonStockMovementCount} / {Number(cogsReport.quality.excludedNonStockQuantity).toLocaleString('en-AU')} qty</div>
                 <div>Orphaned: {cogsReport.quality.orphanedMovementCount} / {Number(cogsReport.quality.orphanedQuantity).toLocaleString('en-AU')} qty</div>
               </div>
             </>
@@ -17891,11 +17762,11 @@ function XeroSyncTab({
   const [filterSyncType, setFilterSyncType] = useState('');
   const [filterXeroState, setFilterXeroState] = useState('');
 
-  const loadData = async (refreshLive = false) => {
+  const loadData = async () => {
     setLoading(true);
     try {
       const [logRes, queuedRes] = await Promise.all([
-        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000${refreshLive ? '&refreshLive=1' : ''}`),
+        fetch(`/api/xero/sync-log?databaseId=${encodeURIComponent(getBusinessId())}&limit=2000`),
         fetch('/api/ims/xero/queued'),
       ]);
       if (logRes.ok) { const d = await logRes.json(); setEntries(d.entries ?? []); }
@@ -18053,7 +17924,7 @@ function XeroSyncTab({
                       : { bg: 'rgba(245,158,11,.15)', color: '#f59e0b' };
                 return (
                   <tr key={key} style={{ borderBottom: '1px solid rgba(251,191,36,.1)' }}>
-                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: badge.bg, color: '#111827' }}>{item.type.toUpperCase()}</span></td>
+                    <td style={td}><span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color }}>{item.type.toUpperCase()}</span></td>
                     <td style={{ ...td, fontWeight: 600 }}>{item.reference}</td>
                     <td style={{ ...td, color: 'var(--sv-text-dim)' }}>{item.contact_name || '—'}</td>
                     <td style={td}>{item.total_amount != null ? fmtMoney(item.total_amount) : '—'}</td>
@@ -18108,7 +17979,7 @@ function XeroSyncTab({
                 {nonPayoutEntries.some(e => !e.last_xero_state) && <option value='__none'>Unknown / Pre-history</option>}
               </select>
             )}
-            <button onClick={() => loadData(true)} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
+            <button onClick={loadData} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 5, cursor: 'pointer', padding: '4px 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>↻ Refresh</button>
           </div>
         </div>
 
@@ -18148,6 +18019,7 @@ function XeroSyncTab({
                 const isStoreCreditRedeem = entry.sync_type === 'store_credit_redeem';
                 const isShopifyPayout = entry.sync_type === 'shopify_payout';
                 const isHistorical = entry.is_historical === 1;
+                const isPosCn = entry.sync_type === 'cn_credit_note' && String(entry.source ?? '') === 'pos';
                 const canOpenEntry =
                   (entry.sync_type === 'po_bill' && !!entry.reference_id && !!onOpenPurchaseOrder) ||
                   (entry.sync_type === 'so_invoice' && !!entry.reference_id && !!onOpenSalesOrder) ||
@@ -18169,7 +18041,7 @@ function XeroSyncTab({
                         )}
                       </td>
                       <td style={td}>
-                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, ...typeStyle(entry.sync_type), color: '#111827' }}>
+                        <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, ...typeStyle(entry.sync_type) }}>
                           {typeLabel(entry.sync_type)}
                         </span>
                       </td>
@@ -18187,6 +18059,7 @@ function XeroSyncTab({
                         ) : (
                           entry.reference
                         )}
+                        {isPosCn && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 500 }}>POS / EOD</div>}
                       </td>
                       <td title={entry.last_sync_detail ?? undefined} style={{ ...td, color: 'var(--sv-text-dim)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {entry.contact_name ?? '—'}
@@ -18204,7 +18077,7 @@ function XeroSyncTab({
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
                       <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{entry.last_sync_at ? fmtDate(entry.last_sync_at) : '—'}</td>
-                      <td style={td}><XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} /></td>
+                      <td style={td}>{isPosCn ? <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>POS / EOD</span> : <XeroStatusBadge status={entry.last_sync_status} isHistorical={isHistorical} />}</td>
                       <td style={td}><XeroStateBadge state={entry.last_xero_state ?? null} /></td>
                       <td style={{ ...td, textAlign: 'right' }}>
                         {entry.last_sync_status === 'error' && !isHistorical && (isPo || isSo || isCn || isScn || canRetryLifecycle) && (
@@ -18254,7 +18127,7 @@ function XeroSyncTab({
                         <tr key={pay.id ?? pi} style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(99,102,241,.04)' }}>
                           <td style={td}></td>
                           <td style={{ ...td, paddingLeft: 28 }}>
-                            <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,.13)', color: '#111827' }}>Payment</span>
+                            <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: 'rgba(99,102,241,.13)', color: '#818cf8' }}>Payment</span>
                           </td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', fontSize: 12 }}>{fmtDay(pay.payment_date)}</td>
                           <td style={{ ...td, color: 'var(--sv-text-dim)' }}>
@@ -18851,7 +18724,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'ai' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -19156,10 +19029,10 @@ export default function ImsPage() {
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
-    'purchase-orders','sales-orders','backorders','credit-notes','supplier-credit-notes',
+    'purchase-orders','sales-orders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch','report-sales-summary','report-sales-search',
+    'reports','report-sales-by-branch','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -19177,7 +19050,6 @@ export default function ImsPage() {
       }
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
-      if (isXeroHash(h)) return 'xero' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();
@@ -19604,12 +19476,6 @@ export default function ImsPage() {
         setSalesMonthsInput={setSalesMonthsInput}
         poMonthsInput={poMonthsInput}
         setPoMonthsInput={setPoMonthsInput}
-        onNavigateXero={(destination) => {
-          setSettingsOpen(false);
-          window.history.pushState(window.history.state, '', getXeroHash(destination));
-          window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
-          setView('xero');
-        }}
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -19644,7 +19510,6 @@ export default function ImsPage() {
             LocationsView={LocationsView}
             PurchaseOrdersView={PurchaseOrdersView}
             SalesOrdersView={SalesOrdersView}
-            BackordersView={BackordersView}
             CreditNotesView={CreditNotesView}
             SupplierCreditNotesView={SupplierCreditNotesView}
             BranchTransfersView={BranchTransfersView}
@@ -19656,7 +19521,6 @@ export default function ImsPage() {
             StocktakesView={StocktakesView}
             ReportsView={ReportsView}
             SalesByBranchView={SalesByBranchView}
-            SalesSummaryView={SalesSummaryView}
             SalesSearchView={SalesSearchView}
             InventoryValuationView={InventoryValuationView}
             ProductMarginView={ProductMarginView}
@@ -22695,7 +22559,6 @@ interface SettingsModalProps {
   setSalesMonthsInput: (v: number) => void;
   poMonthsInput: number;
   setPoMonthsInput: (v: number) => void;
-  onNavigateXero: (destination: XeroDestination) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -23154,93 +23017,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
   );
 }
 
-function AISettingsSection({ settings, saveSettings }: { settings: Record<string, string>; saveSettings: (u: Record<string, string>) => Promise<void> }) {
-  const fallbackModels = [
-    { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-    { id: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro' },
-    { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
-  ];
-  const [models, setModels] = useState<{ id: string; displayName: string }[]>([]);
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setDraft({
-      [WEBSITE_AI_SETTING_KEYS.contentModel]: settings[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL,
-      [WEBSITE_AI_SETTING_KEYS.urlJudgeModel]: settings[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL,
-      [WEBSITE_AI_SETTING_KEYS.measurementSystem]: settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] || 'auto',
-    });
-  }, [settings]);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/api/ai/text-models')
-      .then(response => response.json())
-      .then(data => { if (active) setModels(Array.isArray(data.models) && data.models.length > 0 ? data.models : fallbackModels); })
-      .catch(() => { if (active) setModels(fallbackModels); });
-    return () => { active = false; };
-  }, []);
-
-  const selectStyle: React.CSSProperties = { width: '100%', padding: '9px 11px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13 };
-  const selectedModels = new Set(models.map(model => model.id));
-  const modelOptions = (selected: string) => <>
-    {selected && !selectedModels.has(selected) && <option value={selected}>{selected}</option>}
-    {models.map(model => <option key={model.id} value={model.id}>{model.displayName} ({model.id})</option>)}
-  </>;
-  const measurementPreference = draft[WEBSITE_AI_SETTING_KEYS.measurementSystem] || 'auto';
-  const automaticMeasurement = resolveMeasurementSystem('auto', settings.business_timezone);
-
-  const handleSave = async () => {
-    setSaving(true);
-    setSaved(false);
-    await saveSettings(draft);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  return (
-    <div style={{ padding: 32, maxWidth: 720 }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>AI Settings</h2>
-      <p style={{ margin: '0 0 22px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>Choose models by workload. Flash is recommended for Website Content because it balances structured-output quality with response time.</p>
-
-      <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-        <label style={labelStyle}>Website Content Generation</label>
-        <select value={draft[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.contentModel]: event.target.value }))} style={selectStyle}>
-          {modelOptions(draft[WEBSITE_AI_SETTING_KEYS.contentModel] || DEFAULT_WEBSITE_CONTENT_MODEL)}
-        </select>
-        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Writes titles, descriptions, tags, and internal product copy from approved source facts.</p>
-      </div>
-
-      <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--sv-etch)' }}>
-        <label style={labelStyle}>Exact Product URL Matching</label>
-        <select value={draft[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.urlJudgeModel]: event.target.value }))} style={selectStyle}>
-          {modelOptions(draft[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] || DEFAULT_URL_JUDGE_MODEL)}
-        </select>
-        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Ranks candidate pages and confirms the single exact product source.</p>
-      </div>
-
-      <div style={{ padding: '18px 20px' }}>
-        <label style={labelStyle}>Generated Measurement Units</label>
-        <select value={measurementPreference} onChange={event => setDraft(current => ({ ...current, [WEBSITE_AI_SETTING_KEYS.measurementSystem]: event.target.value }))} style={selectStyle}>
-          <option value="auto">Automatic from organisation timezone ({automaticMeasurement})</option>
-          <option value="metric">Metric (mm, cm, m, g, kg)</option>
-          <option value="imperial">Imperial (in, ft, oz, lb)</option>
-        </select>
-        <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--sv-text-dim)' }}>Source measurements are converted into the organisation&apos;s units without adding facts that are absent from the approved page.</p>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
-        <button type="button" onClick={handleSave} disabled={saving || models.length === 0} style={btnStyle('action', 'sm')}>{saving ? 'Saving…' : 'Save AI Settings'}</button>
-        {models.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading available models…</span>}
-        {saved && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>Saved</span>}
-      </div>
-    </div>
-  );
-}
-
-function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput, onNavigateXero }: SettingsModalProps) {
+function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
   const { settings, saveSettings, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
@@ -23280,6 +23057,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
   const [taxSaving, setTaxSaving] = useState(false);
+  const [xeroSettingsTab, setXeroSettingsTab] = useState<'setup' | 'mapping'>('setup');
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
@@ -23302,12 +23080,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   }, [settings]);
   const saveTaxSettings = async () => {
     setTaxSaving(true);
-    await saveSettings({
-      ...taxDraft,
-      xero_tax_type_sales: 'OUTPUT',
-      xero_tax_type_purchases: 'INPUT',
-      xero_tax_type_exempt: 'NONE',
-    });
+    await saveSettings(taxDraft);
     setTaxSaving(false);
   };
   useEffect(() => {
@@ -23428,20 +23201,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   if (!isOpen) return null;
 
   const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
-    { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'general',          label: 'General',          icon: '⚙' },
+    { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
-    { id: 'users',            label: 'Users',            icon: '👥' },
-    { id: 'pos',              label: 'Point of Sale',    icon: '🖥' },
-    { id: 'loyalty',          label: 'Loyalty',           icon: '★' },
-    { id: 'sales-orders',     label: 'Sales Orders',     icon: '🧾' },
-    { id: 'purchase-orders',  label: 'Purchase Orders',  icon: '📦' },
-    { id: 'wholesale',        label: 'Wholesale Portal', icon: '🏪' },
-    { id: 'shopify',          label: 'Shopify',          icon: '🛒' },
-    { id: 'xero',             label: 'Xero Access',      icon: '🔗' },
-    { id: 'ai',               label: 'AI',               icon: '✦' },
-    { id: 'sync',             label: 'Sync & Import',    icon: '🔄' },
-    { id: 'utilities',        label: 'Utilities',        icon: '🛠️' },
+    { id: 'users',           label: 'Users',           icon: '👥' },
+    { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
+    { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
+    { id: 'xero',            label: 'Xero',            icon: '🔗' },
+    { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
+    { id: 'utilities',       label: 'Utilities',       icon: '🛠️' },
   ];
 
   return (
@@ -23524,52 +23294,111 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Xero ── */}
         {active === 'xero' && (
-          <div style={{ padding: 32, maxWidth: 820 }}>
-            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
+          <div style={{ padding: 32, maxWidth: 980 }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Settings</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-              Manage who can configure Xero. Accounting automation, mappings, payment routing, and activity have one authoritative home in the Xero workspace.
+              Configure accounting defaults here. Day-to-day sync monitoring remains in Integrations -&gt; Xero.
             </p>
 
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
-                Advisor Access
-                <HintBadge text="When enabled, Advisor users can manage Accounts & Tracking only. They cannot change automation, payment routing, connection controls, or accounting activity." />
-              </h3>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={xeroAdvisorEnabled}
-                  disabled={xeroAdvisorSaving}
-                  onChange={e => saveXeroAdvisorAccess(e.target.checked)}
-                  style={{ width: 16, height: 16, cursor: 'inherit' }}
-                />
-                <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
-                  {xeroAdvisorEnabled
-                    ? 'Enabled - Advisors can manage Accounts & Tracking'
-                    : 'Disabled - Advisors cannot access Xero setup'}
-                </span>
-                {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
-              </label>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <button
+                onClick={() => setXeroSettingsTab('setup')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 6,
+                  border: '1px solid var(--sv-etch)',
+                  background: xeroSettingsTab === 'setup' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                  color: xeroSettingsTab === 'setup' ? '#fff' : 'var(--sv-text-main)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Accounting Setup
+              </button>
+              <button
+                onClick={() => setXeroSettingsTab('mapping')}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: 6,
+                  border: '1px solid var(--sv-etch)',
+                  background: xeroSettingsTab === 'mapping' ? 'var(--sv-action)' : 'var(--sv-bg-2)',
+                  color: xeroSettingsTab === 'mapping' ? '#fff' : 'var(--sv-text-main)',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Ledger Mapping
+              </button>
             </div>
 
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Open Xero Workspace</h3>
-              <p style={{ margin: '0 0 12px', fontSize: 12, lineHeight: 1.5, color: 'var(--sv-text-dim)' }}>Each accounting control appears in one place so changes cannot drift between duplicate screens.</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button type="button" onClick={() => onNavigateXero('overview')} style={btnStyle('ghost', 'sm')}>Overview</button>
-                <button type="button" onClick={() => onNavigateXero('setup-automation')} style={btnStyle('ghost', 'sm')}>Automation</button>
-                <button type="button" onClick={() => onNavigateXero('setup-ledger')} style={btnStyle('ghost', 'sm')}>Accounts &amp; Tracking</button>
-                <button type="button" onClick={() => onNavigateXero('setup-payments')} style={btnStyle('ghost', 'sm')}>Payment Routing</button>
-                <button type="button" onClick={() => onNavigateXero('activity-history')} style={btnStyle('ghost', 'sm')}>Sync History</button>
-              </div>
-            </div>
+            {xeroSettingsTab === 'setup' ? (
+              <>
+                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                    Advisor Access
+                    <HintBadge text="When enabled, Advisor users can only access Xero mapping screens. They cannot run sync actions or change connection controls." />
+                  </h3>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={xeroAdvisorEnabled}
+                      disabled={xeroAdvisorSaving}
+                      onChange={e => saveXeroAdvisorAccess(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'inherit' }}
+                    />
+                    <span style={{ fontSize: 13, color: 'var(--sv-text-main)' }}>
+                      {xeroAdvisorEnabled
+                        ? 'Enabled - Advisors can manage account/tracking mappings'
+                        : 'Disabled - Advisors cannot access Xero mappings'}
+                    </span>
+                    {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
+                  </label>
+                </div>
 
-            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Australian GST Reference</h3>
-              <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.7, color: 'var(--sv-text-main)' }}>
-                Taxable sales use <code>OUTPUT</code>, taxable purchases use <code>INPUT</code>, and transactions with no GST use <code>NONE</code>. GST-free sales or purchases use their transaction-specific Xero classification.
-              </p>
-            </div>
+                <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+                  <h3 style={{ margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'inline-flex', alignItems: 'center' }}>
+                    Tax Type Defaults
+                    <HintBadge text="These are raw Xero TaxType values sent on lines. Typical AU values: OUTPUT, INPUT, NONE." />
+                  </h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
+                    <div>
+                      <label style={labelStyle}>Sales (ACCREC)</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_sales'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_sales: e.target.value }))}
+                        placeholder="e.g. OUTPUT"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Purchases (ACCPAY)</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_purchases'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_purchases: e.target.value }))}
+                        placeholder="e.g. INPUT"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Tax-Exempt / Zero-Rated</label>
+                      <input
+                        style={inputStyle}
+                        value={taxDraft['xero_tax_type_exempt'] ?? ''}
+                        onChange={e => setTaxDraft(p => ({ ...p, xero_tax_type_exempt: e.target.value }))}
+                        placeholder="e.g. NONE"
+                      />
+                    </div>
+                  </div>
+                  <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>
+                    {taxSaving ? 'Saving…' : 'Save Xero Settings'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <XeroMappingTab getBusinessId={() => businessId} />
+            )}
           </div>
         )}
 
@@ -23656,14 +23485,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {/* ── Locations ── */}
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
-        )}
-
-        {active === 'loyalty' && (
-          <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />
-        )}
-
-        {active === 'ai' && (
-          <AISettingsSection settings={settings} saveSettings={saveSettings} />
         )}
 
         {/* ── Business Profile ── */}
@@ -24715,13 +24536,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
-          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Xero → Setup → Automation.' },
+          { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
           { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
           { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Authorised. If deposits exist, the inventory journal still transfers In Transit → Inventory Asset.' },
           { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
-          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Xero → Setup → Automation.' },
+          { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
           { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Existing Xero documents are never moved backwards.' },
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
@@ -24734,7 +24555,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         ]} />
 
         <h3 style={h3}>Document status and payment policy</h3>
-        <p style={p}>Configure these controls in <strong>Xero → Setup → Automation</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
+        <p style={p}>Configure these controls in <strong>Xero → Ledger Mapping → Document Status &amp; Payments</strong>. <em>No sync</em> leaves the event in IMS, <em>Draft</em> creates an editable Xero document, and <em>Authorised</em> creates a document that can receive payments. A later No sync setting does not delete, void, or downgrade an existing Xero document.</p>
         <ul style={ul}>
           <li><strong>Payments require Authorised documents.</strong> A mapped PO or SO payment may promote its linked Draft when payment sync is enabled. Online immediate clearing payments can only be enabled with an Authorised daily invoice.</li>
           <li><strong>POS EOD invoice-only mode</strong> does not fund the Xero clearing account. Those cash reconciliations remain unavailable to Cash Banking, preventing a transfer of money that Xero never received.</li>
@@ -24760,7 +24581,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         ]} />
 
         <h3 style={h3}>Tracking categories</h3>
-        <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel in <strong>Xero → Setup → Accounts &amp; Tracking</strong>.</p>
+        <p style={p}>Xero Tracking Categories allow your Xero reports to segment P&amp;L by dimension (e.g. "Location", "Sales Channel"). Map each IMS location and sales channel to a Xero Tracking Option in the Xero settings tab.</p>
         <ul style={ul}>
           <li><strong>Both location and channel</strong> tracking are applied simultaneously when mapped to <em>different</em> Xero Tracking Categories (Xero allows up to 2 per line). If both resolve to the same category, location takes priority.</li>
           <li><strong>Channels:</strong> <span style={code}>pos</span>, <span style={code}>online</span>, <span style={code}>wholesale</span> (plus any IMS location)</li>
@@ -24888,7 +24709,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li>Invoice payments are posted gross. Processing fees are separate Xero bank transactions from Shopify clearing to the configured fee expense account. Fee GST treatment is configured per merchant.</li>
           <li>Shopify refunds settle their completed Xero customer credit notes from Shopify clearing. Reserves, disputes, fee reversals, and other adjustments post separately with their signed effect.</li>
           <li>The payout row must balance exactly before it can be planned. Missing invoices, mappings, or Xero credit notes block it without partial fallback posting.</li>
-          <li>Posting is manually confirmed in <em>Xero → Activity → Shopify Payouts</em> by default. You can opt into automatic posting under <em>Xero → Setup → Automation</em>. Auto-post runs only after a payout balances and has a complete durable plan; it Authorises linked Draft invoices before payment and leaves failures blocked or partial for review.</li>
+          <li>Posting is manually confirmed in <em>Xero → Shopify Payouts</em> by default. You can opt into automatic posting under <em>Xero → Ledger Mapping → Document Status &amp; Payments</em>. Auto-post runs only after a payout balances and has a complete durable plan; it Authorises linked Draft invoices before payment and leaves failures blocked or partial for review.</li>
           <li>After posting, match the real Shopify deposit as a transfer from Shopify clearing to the bank account in Xero; IMS does not create that bank transfer.</li>
           <li>Gift card and store credit tenders are not payout gateways, so they do not use gateway clearing mappings. CN-backed store-credit issuance is represented by the completed customer credit note plus its customer ledger entry; it is not posted as a second revenue-reclassification journal.</li>
         </ul>
