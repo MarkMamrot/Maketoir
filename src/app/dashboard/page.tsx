@@ -4906,6 +4906,14 @@ interface ProductUrlDecision {
   reason: string;
 }
 
+interface ProductDiscoveryAudit {
+  providerResultCount: number;
+  uniqueRetailResultCount: number;
+  candidateCount: number;
+  filteredCount: number;
+  rejected: { url: string; reason: string }[];
+}
+
 type PushStatus = 'idle' | 'pushing' | 'done' | 'error';
 type ShopifyProductLinks = { storefrontUrl: string; adminUrl: string };
 
@@ -4983,6 +4991,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
   // Per-URL Tavily photos [productKey][urlSlot 0-4] and automated retrieval state
   const [urlPhotosMap, setUrlPhotosMap]   = useState<Record<string, string[][]>>({});
   const [urlDecisionsMap, setUrlDecisionsMap] = useState<Record<string, ProductUrlDecision[]>>({});
+  const [discoveryAuditMap, setDiscoveryAuditMap] = useState<Record<string, ProductDiscoveryAudit>>({});
   const [customUrlMap, setCustomUrlMap] = useState<Record<string, string>>({});
   const [selectedPhotoUrls, setSelectedPhotoUrls] = useState<Record<string, Set<string>>>({});
   const [automatingSet, setAutomatingSet] = useState<Set<string>>(new Set());
@@ -5171,6 +5180,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
         return;
       }
       const urls: string[] = data.urls ?? [];
+      if (data.discovery) setDiscoveryAuditMap(prev => ({ ...prev, [key]: data.discovery as ProductDiscoveryAudit }));
       setUrlDecisionsMap(prev => ({
         ...prev,
         [key]: urls.filter(Boolean).slice(0, 5).map(url => ({ url, keep: null, reason: 'Found by search; not yet assessed by AI.' })),
@@ -5428,10 +5438,18 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
       });
       const serperData = await parseWebsiteJsonResponse(serperRes);
       if (!serperRes.ok || serperData.error) { step(`❌ Find URLs failed: ${serperData.error ?? 'error'}`); return; }
+      if (serperData.discovery) setDiscoveryAuditMap(prev => ({ ...prev, [key]: serperData.discovery as ProductDiscoveryAudit }));
       const foundUrls: string[] = (serperData.urls ?? []).filter(Boolean).slice(0, 5);
       const foundCandidates = (Array.isArray(serperData.candidates) ? serperData.candidates : [])
         .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
-      if (foundUrls.length === 0) { step('❌ No URLs found'); return; }
+      if (foundUrls.length === 0) {
+        const foundCount = Number(serperData.discovery?.providerResultCount ?? 0);
+        setSessionBlockedKeys(prev => new Set(prev).add(key));
+        setSelectedKeys(prev => { const next = new Set(prev); next.delete(key); return next; });
+        setExpandedCode(key);
+        step(`⏸ Awaiting confirmation — Google returned ${foundCount} result${foundCount === 1 ? '' : 's'}, but none qualified as an exact product page.`);
+        return;
+      }
       setUrlDecisionsMap(prev => ({
         ...prev,
         [key]: foundUrls.map(url => ({ url, keep: null, reason: 'Awaiting AI assessment.' })),
@@ -5949,6 +5967,7 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                 const isActivelyWorking = isGenerating || isPreflight || isReformulating || automatingSet.has(key);
                 const isBusy = isActivelyWorking || isSessionBlocked;
                 const urlDecisions = urlDecisionsMap[key] ?? [];
+                const discoveryAudit = discoveryAuditMap[key];
                 const candidatePhotos = dedupeProductPhotoUrls([
                   ...(urlPhotosMap[key] ?? []).flat(),
                   ...(scrapedPhotosMap[key] ?? []),
@@ -6080,6 +6099,30 @@ function PendingOnlineView({ databaseId }: { databaseId: string }) {
                     {isExpanded && (
                       <div className="space-y-3 bg-gray-50 p-4">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">AI Generation Inputs</p>
+
+                        {discoveryAudit && (
+                          <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span><strong>{discoveryAudit.providerResultCount}</strong> Google results found</span>
+                              <span><strong>{discoveryAudit.uniqueRetailResultCount}</strong> unique retail pages checked</span>
+                              <span><strong>{discoveryAudit.candidateCount}</strong> candidates retained</span>
+                              <span><strong>{discoveryAudit.filteredCount}</strong> filtered out</span>
+                            </div>
+                            {discoveryAudit.rejected.length > 0 && (
+                              <details className="mt-2">
+                                <summary className="cursor-pointer font-semibold text-sky-800">Review filtered results</summary>
+                                <div className="mt-2 space-y-1.5 border-t border-sky-200 pt-2">
+                                  {discoveryAudit.rejected.map(result => (
+                                    <div key={result.url} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+                                      <a href={result.url} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="truncate text-blue-700 hover:underline">{result.url}</a>
+                                      <span className="text-sky-700">{result.reason}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        )}
 
                         {isSessionBlocked && (
                           <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950">

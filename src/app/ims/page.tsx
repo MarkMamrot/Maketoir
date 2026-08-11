@@ -4069,6 +4069,13 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
   const [selectedUrlIndex, setSelectedUrlIndex] = useState<number | null>(null);
   const [urlSelectionSource, setUrlSelectionSource] = useState<'ai' | 'user' | null>(null);
   const [urlCandidateEvidence, setUrlCandidateEvidence] = useState<Record<string, string>>({});
+  const [urlDiscoveryAudit, setUrlDiscoveryAudit] = useState<{
+    providerResultCount: number;
+    uniqueRetailResultCount: number;
+    candidateCount: number;
+    filteredCount: number;
+    rejected: { url: string; reason: string }[];
+  } | null>(null);
   const [findingUrls, setFindingUrls] = useState(false);
   const [researching, setResearching] = useState(false);
   const [researchResult, setResearchResult] = useState<{ answer: string; urls: string[]; images: string[] } | null>(null);
@@ -4225,6 +4232,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
       const d = await parseWebsiteJsonResponse(res);
       if (!res.ok || d.error) { setError(d.error ?? 'Find URLs failed'); return; }
       const found: string[] = d.urls ?? [];
+      setUrlDiscoveryAudit(d.discovery ?? null);
       setUrls([found[0] ?? '', found[1] ?? '', found[2] ?? '', found[3] ?? '', found[4] ?? '']);
       setUrlCandidateEvidence(Object.fromEntries(
         (Array.isArray(d.candidates) ? d.candidates : [])
@@ -4366,6 +4374,7 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
         });
         const searchData = await parseWebsiteJsonResponse(searchResponse);
         if (!searchResponse.ok || searchData.error) throw new Error(searchData.error ?? 'Unable to find product pages');
+        setUrlDiscoveryAudit(searchData.discovery ?? null);
         foundUrls = (searchData.urls ?? []).filter(Boolean).slice(0, 5) as string[];
         foundCandidates = (Array.isArray(searchData.candidates) ? searchData.candidates : [])
           .filter((candidate: any) => foundUrls.includes(String(candidate?.url ?? '')));
@@ -4610,6 +4619,29 @@ function ForesightProductSection({ product, businessId, onApplyContent, onApplyA
               {selectedUrl && (
                 <div style={{ marginTop: 7, marginLeft: 24, fontSize: 11, color: 'var(--sv-mint)' }}>
                   {urlSelectionSource === 'ai' ? 'AI-selected source' : 'Selected source'} for product facts and photos
+                </div>
+              )}
+              {urlDiscoveryAudit && (
+                <div style={{ marginTop: 9, padding: '8px 10px', border: '1px solid rgba(14,165,233,.28)', borderRadius: 6, background: 'rgba(14,165,233,.08)', fontSize: 11, color: 'var(--sv-text-main)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px' }}>
+                    <span><strong>{urlDiscoveryAudit.providerResultCount}</strong> Google results found</span>
+                    <span><strong>{urlDiscoveryAudit.uniqueRetailResultCount}</strong> unique retail pages checked</span>
+                    <span><strong>{urlDiscoveryAudit.candidateCount}</strong> candidates retained</span>
+                    <span><strong>{urlDiscoveryAudit.filteredCount}</strong> filtered out</span>
+                  </div>
+                  {urlDiscoveryAudit.rejected.length > 0 && (
+                    <details style={{ marginTop: 6 }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--sv-action)' }}>Review filtered results</summary>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(14,165,233,.22)' }}>
+                        {urlDiscoveryAudit.rejected.map(result => (
+                          <div key={result.url} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto', gap: 10 }}>
+                            <a href={result.url} target="_blank" rel="noopener noreferrer" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--sv-action)' }}>{result.url}</a>
+                            <span style={{ color: 'var(--sv-text-dim)' }}>{result.reason}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
               )}
             </div>

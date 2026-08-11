@@ -209,16 +209,34 @@ export async function POST(req: Request) {
     }
 
     const selectedUrls = urls.slice(0, 5);
-    const evidenceByUrl = new Map(
-      mergeSearchResults([...generalSearches, ...preferredSearches])
-        .map(result => [result.url, result.label] as const),
-    );
+    const mergedSearchResults = mergeSearchResults([...generalSearches, ...preferredSearches]);
+    const evidenceByUrl = new Map(mergedSearchResults.map(result => [result.url, result.label] as const));
     const candidates = selectedUrls.map(url => ({
       url,
       evidence: String(evidenceByUrl.get(url) ?? '').slice(0, 1200),
     }));
+    const selectedSet = new Set(selectedUrls);
+    const rejected = allResults
+      .filter(result => !selectedSet.has(result.url))
+      .sort((a, b) => productUrlScore(b.url, b.label, identity) - productUrlScore(a.url, a.label, identity))
+      .slice(0, 10)
+      .map(result => ({
+        url: result.url,
+        reason: isProductPageUrl(result.url)
+          ? 'Lower relevance to this exact product.'
+          : 'Not recognised as an exact product page.',
+      }));
+    const providerResultCount = [...generalSearches, ...preferredSearches]
+      .reduce((count, search) => count + search.results.length, 0);
+    const discovery = {
+      providerResultCount,
+      uniqueRetailResultCount: mergedSearchResults.length,
+      candidateCount: selectedUrls.length,
+      filteredCount: Math.max(0, providerResultCount - selectedUrls.length),
+      rejected,
+    };
 
-    return NextResponse.json({ success: true, urls: selectedUrls, candidates, query: baseQuery, queries: searchQueries });
+    return NextResponse.json({ success: true, urls: selectedUrls, candidates, discovery, query: baseQuery, queries: searchQueries });
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? 'Unexpected error' }, { status: 500 });
   }

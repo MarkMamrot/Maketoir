@@ -48,4 +48,18 @@ describe('product URL candidates', () => {
     expect(isLikelyProductUrl(url, candle)).toBe(false);
     expect(isLikelyProductUrl(url, candle, label)).toBe(true);
   });
+
+  it('does not abort scoring when Google result text contains a malformed percent sequence', () => {
+    const candle = { name: 'A Dopo Blue Cheetahs Candle', brand: 'Paddywax', code: 'AD0815BXAU' };
+    expect(isLikelyProductUrl(
+      'https://retailer.test/products/a-dopo-blue-cheetahs-candle?discount=20%off',
+      candle,
+      'Paddywax A Dopo Blue Cheetahs 20% off',
+    )).toBe(true);
+  });
+
+  it('rejects social-media posts even when their path resembles a product page', () => {
+    expect(canonicalProductCandidateUrl('https://www.instagram.com/p/DZNtp2alCAr/')).toBeNull();
+    expect(isProductPageUrl('https://www.instagram.com/p/DZNtp2alCAr/')).toBe(false);
+  });
 });

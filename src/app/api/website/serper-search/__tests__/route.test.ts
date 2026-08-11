@@ -41,7 +41,12 @@ const organic = [
   {
     title: 'A Dopo Candle - Blue Cheetahs (Linen & Orris)',
     link: 'https://www.wileaway.com.au/products/a-dopo-candle-blue-cheetahs-linen-orris',
-    snippet: 'Paddywax 8 oz ceramic candle with hand-painted details.',
+    snippet: 'Paddywax 8 oz ceramic candle with hand-painted details. Save 20%off today.',
+  },
+  {
+    title: 'A Dopo Blue Cheetahs on Instagram',
+    link: 'https://www.instagram.com/p/DZNtp2alCAr/',
+    snippet: 'Paddywax A Dopo Blue Cheetahs candle.',
   },
 ];
 
@@ -81,6 +86,13 @@ describe('POST /api/website/serper-search', () => {
       url: 'https://www.armchaircollective.com.au/products/a-dopo-blue-cheetahs-candle',
       evidence: expect.stringContaining('Blue Cheetahs'),
     }));
+    expect(body.urls).not.toContain('https://www.instagram.com/p/DZNtp2alCAr/');
+    expect(body.discovery).toMatchObject({
+      providerResultCount: expect.any(Number),
+      candidateCount: body.urls.length,
+      filteredCount: expect.any(Number),
+    });
+    expect(body.discovery.providerResultCount).toBeGreaterThan(body.discovery.candidateCount);
     expect(body.queries[0]).toBe('"A Dopo 8 Oz Handpainted Blue Cheetahs Ceramic w/ Printed Box - Linen & Orris" Paddywax');
   });
 });

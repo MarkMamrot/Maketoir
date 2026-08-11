@@ -9,11 +9,20 @@ const GENERIC_WORDS = new Set(['and', 'the', 'for', 'with', 'from', 'new', 'hat'
 const NON_PRODUCT_PATH = /\/(?:collections?|categories?|search|pages?|blogs?|brands?)(?:\/|$)/i;
 const PRODUCT_PATH = /\/(?:products?|product|p)\//i;
 const TRACKING_QUERY_KEYS = new Set(['srsltid', 'gclid', 'fbclid', '_gl']);
+const NON_RETAIL_HOSTS = /(^|\.)(?:instagram\.com|facebook\.com|fb\.com|pinterest\.[a-z.]+|tiktok\.com|youtube\.com|youtu\.be|x\.com|twitter\.com)$/i;
+
+function isRetailCandidateUrl(url: URL): boolean {
+  return /^https?:$/.test(url.protocol) && !NON_RETAIL_HOSTS.test(url.hostname.replace(/^www\./, ''));
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
 
 export function canonicalProductCandidateUrl(rawUrl: string): string | null {
   try {
     const url = new URL(rawUrl);
-    if (!/^https?:$/.test(url.protocol)) return null;
+    if (!isRetailCandidateUrl(url)) return null;
     url.hash = '';
     for (const key of [...url.searchParams.keys()]) {
       if (key.startsWith('utm_') || TRACKING_QUERY_KEYS.has(key)) url.searchParams.delete(key);
@@ -40,9 +49,9 @@ function compact(value: string): string {
 export function productUrlScore(url: string, label: string, product: ProductUrlIdentity): number {
   let parsed: URL;
   try { parsed = new URL(url); } catch { return -100; }
-  if (!/^https?:$/.test(parsed.protocol) || NON_PRODUCT_PATH.test(parsed.pathname)) return -100;
+  if (!isRetailCandidateUrl(parsed) || NON_PRODUCT_PATH.test(parsed.pathname)) return -100;
 
-  const haystack = decodeURIComponent(`${parsed.pathname} ${label}`).toLowerCase();
+  const haystack = safeDecodeURIComponent(`${parsed.pathname} ${label}`).toLowerCase();
   let score = PRODUCT_PATH.test(parsed.pathname) ? 8 : 0;
   for (const word of identityWords(product)) {
     if (haystack.includes(word)) score += 3;
@@ -63,7 +72,7 @@ export function isLikelyProductUrl(url: string, product: ProductUrlIdentity, lab
 export function isProductPageUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return /^https?:$/.test(parsed.protocol) && PRODUCT_PATH.test(parsed.pathname) && !NON_PRODUCT_PATH.test(parsed.pathname);
+    return isRetailCandidateUrl(parsed) && PRODUCT_PATH.test(parsed.pathname) && !NON_PRODUCT_PATH.test(parsed.pathname);
   } catch {
     return false;
   }
