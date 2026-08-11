@@ -32,9 +32,10 @@ export async function GET() {
            FROM ims_sales_orders so
            LEFT JOIN ims_contacts c ON c.id = so.customer_id
            JOIN ims_locations l ON l.id = so.location_id
-           LEFT JOIN ims_so_backorder_lines bl ON bl.backorder_so_id = so.id AND bl.business_id = so.business_id
+           LEFT JOIN ims_so_backorder_lines bl ON bl.backorder_so_id = so.id
+              AND bl.business_id COLLATE utf8mb4_general_ci = so.business_id COLLATE utf8mb4_general_ci
            LEFT JOIN ims_sales_orders source ON source.id = bl.source_so_id
-          WHERE so.business_id = ? AND so.status = 'backordered'
+          WHERE so.business_id COLLATE utf8mb4_general_ci = ? AND so.status = 'backordered'
           GROUP BY so.id
           ORDER BY so.created_at ASC`,
         [businessId],
@@ -49,9 +50,10 @@ export async function GET() {
            FROM ims_purchase_orders po
            LEFT JOIN ims_contacts c ON c.id = po.supplier_id
            JOIN ims_locations l ON l.id = po.location_id
-           LEFT JOIN ims_po_backorder_lines bl ON bl.backorder_po_id = po.id AND bl.business_id = po.business_id
+           LEFT JOIN ims_po_backorder_lines bl ON bl.backorder_po_id = po.id
+              AND bl.business_id COLLATE utf8mb4_general_ci = po.business_id COLLATE utf8mb4_general_ci
            LEFT JOIN ims_purchase_orders source ON source.id = bl.source_po_id
-          WHERE po.business_id = ? AND po.status = 'backordered'
+          WHERE po.business_id COLLATE utf8mb4_general_ci = ? AND po.status = 'backordered'
           GROUP BY po.id
           ORDER BY po.created_at ASC`,
         [businessId],
@@ -63,7 +65,7 @@ export async function GET() {
                 COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
                 COALESCE(st.qty_committed, 0) AS qty_committed, COALESCE(st.qty_incoming, 0) AS qty_incoming
            FROM ims_sales_order_items i
-           JOIN ims_sales_orders so ON so.id = i.so_id AND so.business_id = ? AND so.status = 'backordered'
+           JOIN ims_sales_orders so ON so.id = i.so_id AND so.business_id COLLATE utf8mb4_general_ci = ? AND so.status = 'backordered'
            LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
            LEFT JOIN ims_products p ON p.product_id = v.product_id
            LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = so.location_id
@@ -77,7 +79,7 @@ export async function GET() {
                 COALESCE(st.qty_on_hand, 0) AS qty_on_hand,
                 COALESCE(st.qty_committed, 0) AS qty_committed, COALESCE(st.qty_incoming, 0) AS qty_incoming
            FROM ims_purchase_order_items i
-           JOIN ims_purchase_orders po ON po.id = i.po_id AND po.business_id = ? AND po.status = 'backordered'
+           JOIN ims_purchase_orders po ON po.id = i.po_id AND po.business_id COLLATE utf8mb4_general_ci = ? AND po.status = 'backordered'
            LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
            LEFT JOIN ims_products p ON p.product_id = v.product_id
            LEFT JOIN ims_stock st ON st.variant_id = i.variant_id AND st.location_id = po.location_id

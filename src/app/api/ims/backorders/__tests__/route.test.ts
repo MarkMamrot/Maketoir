@@ -48,4 +48,22 @@ describe('GET /api/ims/backorders', () => {
     const body = await (await GET()).json();
     expect(body.data.customer[0].ready).toBe(false);
   });
+
+  it('uses collation-safe tenant checks in the backorder query', async () => {
+    mockSession.mockResolvedValue({ businessId: 'biz-1' });
+    mockImsQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await GET();
+
+    const firstSql = String(mockImsQuery.mock.calls[0][0]);
+    const secondSql = String(mockImsQuery.mock.calls[1][0]);
+    expect(firstSql).toContain('bl.business_id COLLATE utf8mb4_general_ci = so.business_id');
+    expect(secondSql).toContain('bl.business_id COLLATE utf8mb4_general_ci = po.business_id');
+    expect(firstSql).toContain('so.business_id COLLATE utf8mb4_general_ci = ?');
+    expect(secondSql).toContain('po.business_id COLLATE utf8mb4_general_ci = ?');
+  });
 });
