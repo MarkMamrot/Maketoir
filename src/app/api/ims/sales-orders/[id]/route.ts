@@ -11,7 +11,7 @@ import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEd
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
-import { getOrderAmendmentHistory } from '@/lib/ims/orderAmendmentHistory';
+import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -21,18 +21,18 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsSORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    let amendment_history: Awaited<ReturnType<typeof getOrderAmendmentHistory>> = [];
+    let activity_history: Awaited<ReturnType<typeof getOrderActivityHistory>> = [];
     try {
-      amendment_history = await getOrderAmendmentHistory(businessId, 'sales_order', Number(params.id));
+      activity_history = await getOrderActivityHistory(businessId, 'sales_order', Number(params.id));
     } catch (error) {
       await reportRuntimeIssue({
-        businessId, source: 'ims_sales_orders', operation: 'load_amendment_history',
-        title: 'Sales order amendment history could not be loaded', error,
+        businessId, source: 'ims_sales_orders', operation: 'load_activity_history',
+        title: 'Sales order activity history could not be loaded', error,
         reference: { type: 'sales_order', id: params.id },
       }).catch(() => {});
     }
     const resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'customer', Number(params.id));
-    return NextResponse.json({ success: true, data: { ...data, resolution_financials, amendment_history } });
+    return NextResponse.json({ success: true, data: { ...data, resolution_financials, activity_history, amendment_history: activity_history } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

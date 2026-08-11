@@ -5,11 +5,14 @@ import type { OrderKind } from './orderLifecyclePolicy';
 export type OrderAmendmentHistoryEntry = {
   id: number;
   entryKey?: string;
-  activityType?: 'amendment' | 'receive' | 'fulfilment' | 'resolution';
+  activityType?: 'amendment' | 'receive' | 'fulfilment' | 'resolution' | 'receipt_undo' | 'credit' | 'replacement';
   title?: string;
   summary?: string;
   state?: string;
   details?: string[];
+  documentType?: 'purchase_order' | 'sales_order' | 'credit_note' | 'supplier_credit_note';
+  documentId?: number;
+  documentNumber?: string;
   previousStatus: string;
   resultingStatus: string;
   actorName: string | null;
@@ -55,7 +58,7 @@ function changedHeaderFields(before: Record<string, unknown> | null, after: Reco
     .sort();
 }
 
-export async function getOrderAmendmentHistory(
+export async function getOrderActivityHistory(
   businessId: string,
   orderKind: OrderKind,
   orderId: number,
@@ -104,15 +107,21 @@ export async function getOrderAmendmentHistory(
   const amendmentEntries: OrderAmendmentHistoryEntry[] = rows.map(row => {
     const beforeHeader = parseObject(row.before_header_json);
     const afterHeader = parseObject(row.after_header_json);
+    const isReceiptUndo = orderKind === 'purchase_order' && afterHeader?.correction === 'undo_mistaken_receipt';
     return {
       id: Number(row.id),
       entryKey: `amendment:${row.id}`,
-      activityType: 'amendment',
+      activityType: isReceiptUndo ? 'receipt_undo' : 'amendment',
+      ...(isReceiptUndo ? {
+        title: 'Mistaken receipt undone',
+        summary: 'Received stock was reversed and the purchase order was cancelled',
+        state: String(afterHeader?.status ?? 'cancelled'),
+      } : {}),
       previousStatus: String(row.order_status ?? ''),
       resultingStatus: String(afterHeader?.status ?? row.order_status ?? ''),
       actorName: row.actor_name == null ? null : String(row.actor_name),
       lineChangeCount: Number(row.line_change_count ?? 0),
-      changedFields: changedHeaderFields(beforeHeader, afterHeader),
+      changedFields: isReceiptUndo ? [] : changedHeaderFields(beforeHeader, afterHeader),
       lines: linesByOperation.get(Number(row.id)) ?? [],
       createdAt: toIso(row.created_at),
       completedAt: row.completed_at == null ? null : toIso(row.completed_at),
@@ -199,7 +208,87 @@ export async function getOrderAmendmentHistory(
     };
   });
 
-  return [...amendmentEntries, ...activityEntries]
+  const linkedRows = (orderKind === 'purchase_order'
+    ? await imsQuery<any>(
+      `(SELECT scn.id, 'credit' AS activity_type, 'supplier_credit_note' AS document_type,
+               scn.scn_number AS document_number, scn.status AS state, scn.total_amount,
+               scn.created_at, scn.completed_at
+          FROM ims_supplier_credit_notes scn
+         WHERE scn.business_id = ? AND scn.po_id = ?)
+       UNION ALL
+       (SELECT child.id, 'replacement_child' AS activity_type, 'purchase_order' AS document_type,
+               child.po_number AS document_number, child.status AS state, child.total_amount,
+               child.created_at, NULL AS completed_at
+          FROM ims_purchase_orders child
+         WHERE child.business_id = ? AND child.replacement_of_po_id = ?)
+       UNION ALL
+       (SELECT source.id, 'replacement_source' AS activity_type, 'purchase_order' AS document_type,
+               source.po_number AS document_number, source.status AS state, source.total_amount,
+               current.created_at, NULL AS completed_at
+          FROM ims_purchase_orders current
+          JOIN ims_purchase_orders source
+            ON source.id = current.replacement_of_po_id AND source.business_id = current.business_id
+         WHERE current.business_id = ? AND current.id = ?)
+       ORDER BY created_at DESC LIMIT 25`,
+      [businessId, orderId, businessId, orderId, businessId, orderId],
+    )
+    : await imsQuery<any>(
+      `(SELECT cn.id, 'credit' AS activity_type, 'credit_note' AS document_type,
+               cn.cn_number AS document_number, cn.status AS state, cn.total_amount,
+               cn.created_at, cn.completed_at
+          FROM ims_credit_notes cn
+         WHERE cn.business_id = ? AND cn.so_id = ?)
+       UNION ALL
+       (SELECT child.id, 'replacement_child' AS activity_type, 'sales_order' AS document_type,
+               child.so_number AS document_number, child.status AS state, child.total_amount,
+               child.created_at, NULL AS completed_at
+          FROM ims_sales_orders child
+         WHERE child.business_id = ? AND child.replacement_of_so_id = ?)
+       UNION ALL
+       (SELECT source.id, 'replacement_source' AS activity_type, 'sales_order' AS document_type,
+               source.so_number AS document_number, source.status AS state, source.total_amount,
+               current.created_at, NULL AS completed_at
+          FROM ims_sales_orders current
+          JOIN ims_sales_orders source
+            ON source.id = current.replacement_of_so_id AND source.business_id = current.business_id
+         WHERE current.business_id = ? AND current.id = ?)
+       ORDER BY created_at DESC LIMIT 25`,
+      [businessId, orderId, businessId, orderId, businessId, orderId],
+    )) ?? [];
+
+  const linkedEntries: OrderAmendmentHistoryEntry[] = linkedRows.map(row => {
+    const isCredit = row.activity_type === 'credit';
+    const isSource = row.activity_type === 'replacement_source';
+    const documentNumber = String(row.document_number ?? `#${row.id}`);
+    return {
+      id: Number(row.id),
+      entryKey: `${String(row.activity_type)}:${String(row.document_type)}:${row.id}`,
+      activityType: isCredit ? 'credit' : 'replacement',
+      title: isCredit
+        ? orderKind === 'purchase_order' ? 'Supplier Return / Credit linked' : 'Return / Credit linked'
+        : isSource ? 'Created from source order' : 'Replacement Draft created',
+      summary: isCredit
+        ? `${documentNumber} · ${Number(row.total_amount ?? 0).toFixed(2)}`
+        : isSource ? `Source ${documentNumber}` : `Child ${documentNumber}`,
+      state: String(row.state ?? ''),
+      details: [],
+      documentType: String(row.document_type) as OrderAmendmentHistoryEntry['documentType'],
+      documentId: Number(row.id),
+      documentNumber,
+      previousStatus: '',
+      resultingStatus: '',
+      actorName: null,
+      lineChangeCount: 0,
+      changedFields: [],
+      lines: [],
+      createdAt: toIso(row.created_at),
+      completedAt: row.completed_at == null ? null : toIso(row.completed_at),
+    };
+  });
+
+  return [...amendmentEntries, ...activityEntries, ...linkedEntries]
     .sort((left, right) => Date.parse(right.completedAt ?? right.createdAt) - Date.parse(left.completedAt ?? left.createdAt))
     .slice(0, 25);
 }
+
+  export const getOrderAmendmentHistory = getOrderActivityHistory;

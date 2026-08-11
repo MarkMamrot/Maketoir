@@ -4,7 +4,7 @@ const { mockImsQuery } = vi.hoisted(() => ({ mockImsQuery: vi.fn() }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 
-import { getOrderAmendmentHistory } from '../orderAmendmentHistory';
+import { getOrderActivityHistory, getOrderAmendmentHistory } from '../orderAmendmentHistory';
 
 describe('getOrderAmendmentHistory', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -109,5 +109,47 @@ describe('getOrderAmendmentHistory', () => {
       summary: '1 line submitted; backorder PO-42-B created',
       details: ['Variant red: received 2'],
     }]);
+  });
+
+  it('normalizes undo, linked credits, and replacement document links', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{
+        id: 30,
+        order_status: 'complete',
+        actor_name: 'Alex',
+        before_header_json: JSON.stringify({ status: 'complete' }),
+        after_header_json: JSON.stringify({ status: 'cancelled', correction: 'undo_mistaken_receipt' }),
+        line_change_count: 0,
+        created_at: new Date('2026-08-12T08:00:00.000Z'),
+        completed_at: new Date('2026-08-12T08:00:01.000Z'),
+      }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 61, activity_type: 'credit', document_type: 'supplier_credit_note',
+        document_number: 'SCN-0061', state: 'complete', total_amount: 55,
+        created_at: new Date('2026-08-12T09:00:00.000Z'), completed_at: new Date('2026-08-12T09:01:00.000Z'),
+      }, {
+        id: 88, activity_type: 'replacement_child', document_type: 'purchase_order',
+        document_number: 'PO-2026-0088', state: 'draft', total_amount: 110,
+        created_at: new Date('2026-08-12T10:00:00.000Z'), completed_at: null,
+      }]);
+
+    const entries = await getOrderActivityHistory('biz-1', 'purchase_order', 42);
+
+    expect(entries).toMatchObject([{
+      activityType: 'replacement', title: 'Replacement Draft created',
+      documentType: 'purchase_order', documentId: 88, documentNumber: 'PO-2026-0088',
+    }, {
+      activityType: 'credit', title: 'Supplier Return / Credit linked',
+      documentType: 'supplier_credit_note', documentId: 61, documentNumber: 'SCN-0061',
+    }, {
+      activityType: 'receipt_undo', title: 'Mistaken receipt undone', state: 'cancelled',
+    }]);
+    expect(mockImsQuery).toHaveBeenLastCalledWith(
+      expect.stringContaining('replacement_of_po_id'),
+      ['biz-1', 42, 'biz-1', 42, 'biz-1', 42],
+    );
+    expect(getOrderAmendmentHistory).toBe(getOrderActivityHistory);
   });
 });

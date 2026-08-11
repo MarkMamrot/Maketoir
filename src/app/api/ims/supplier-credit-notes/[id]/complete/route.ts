@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo, SupplierReturnConflict } from '@/lib/ims/ImsRepository';
 import { triggerSupplierCNXeroSync } from '@/lib/ims/xeroHooks';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
@@ -12,8 +13,14 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
   const scnId = Number(params.id);
   try {
     await ImsSupplierCNRepo.complete(scnId, businessId);
-    // Fire-and-forget Xero ACCPAY credit note sync
-    triggerSupplierCNXeroSync(businessId, scnId).catch(err => console.error('[Xero] supplier CN sync failed:', err));
+    triggerSupplierCNXeroSync(businessId, scnId).catch(error => reportRuntimeIssue({
+      businessId,
+      source: 'ims_supplier_credit_notes',
+      operation: 'complete_xero_sync',
+      title: 'Supplier credit note completed but Xero sync failed',
+      error,
+      reference: { type: 'supplier_credit_note', id: scnId },
+    }).catch(() => {}));
     const scn = await ImsSupplierCNRepo.get(scnId, businessId);
     return NextResponse.json({
       success: true,

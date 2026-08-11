@@ -12,7 +12,7 @@ import { assessXeroDocumentEdit, hasXeroVisibleOrderChanges, type XeroDocumentEd
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
-import { getOrderAmendmentHistory } from '@/lib/ims/orderAmendmentHistory';
+import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -22,13 +22,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   try {
     const data = await ImsPORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    let amendment_history: Awaited<ReturnType<typeof getOrderAmendmentHistory>> = [];
+    let activity_history: Awaited<ReturnType<typeof getOrderActivityHistory>> = [];
     try {
-      amendment_history = await getOrderAmendmentHistory(businessId, 'purchase_order', Number(params.id));
+      activity_history = await getOrderActivityHistory(businessId, 'purchase_order', Number(params.id));
     } catch (error) {
       await reportRuntimeIssue({
-        businessId, source: 'ims_purchase_orders', operation: 'load_amendment_history',
-        title: 'Purchase order amendment history could not be loaded', error,
+        businessId, source: 'ims_purchase_orders', operation: 'load_activity_history',
+        title: 'Purchase order activity history could not be loaded', error,
         reference: { type: 'purchase_order', id: params.id },
       }).catch(() => {});
     }
@@ -48,7 +48,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({
       success: true,
-      data: { ...data, resolution_financials, amendment_history },
+      data: { ...data, resolution_financials, activity_history, amendment_history: activity_history },
       ...(resolutionFinancialsWarning ? { warning: resolutionFinancialsWarning } : {}),
     });
   } catch (e: any) {

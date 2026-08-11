@@ -8099,7 +8099,7 @@ function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
 // Purchase Orders View
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; isAdvisor?: boolean } = {}) {
+function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean } = {}) {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -9215,7 +9215,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             );
           })()}
           <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
-          <OrderActivityHistory entries={viewModal.po.amendment_history} />
+          <OrderActivityHistory entries={viewModal.po.activity_history ?? viewModal.po.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, po: null }); onOpenActivityDocument?.(entry); }} />
 
           {/* ── Supplier Invoices / Attachments ── */}
           <div style={{ marginTop: 20 }}>
@@ -9392,7 +9392,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   );
 }
 
-function OrderActivityHistory({ entries }: { entries?: any[] }) {
+function OrderActivityHistory({ entries, onOpenDocument }: { entries?: any[]; onOpenDocument?: (entry: any) => void }) {
   if (!Array.isArray(entries) || entries.length === 0) return null;
   const label = (status: unknown) => String(status ?? '')
     .split('_')
@@ -9435,6 +9435,11 @@ function OrderActivityHistory({ entries }: { entries?: any[] }) {
                   {isAmendment && (lineSummary ? ` · ${lineSummary}` : Number(entry.lineChangeCount) > 0 ? ` · ${entry.lineChangeCount} lines changed` : '')}
                   {!isAmendment && entry.state ? ` · ${label(entry.state)}` : ''}
                 </div>
+                {entry.documentId && entry.documentNumber && (
+                  <button type="button" onClick={() => onOpenDocument?.(entry)} disabled={!onOpenDocument} style={{ marginTop: 4, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-accent)', fontSize: 12, fontWeight: 600, cursor: onOpenDocument ? 'pointer' : 'default' }}>
+                    Open {entry.documentNumber}
+                  </button>
+                )}
               </div>
               <div style={{ color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', textAlign: 'right' }}>
                 {timestamp ? new Date(timestamp).toLocaleString() : '—'}
@@ -10806,7 +10811,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
-function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void } = {}) {
+function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
   const [scns, setScns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -10923,6 +10928,12 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       setScnXeroLatest(null);
     }
   };
+  useEffect(() => {
+    if (!pendingOpenId) return;
+    openView({ id: pendingOpenId });
+    onPendingHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingOpenId]);
 
   const loadScnFileSync = async (scnId: number) => {
     try {
@@ -11801,7 +11812,7 @@ function ImportSOsModal({ locations, onClose, onDone }: {
   );
 }
 
-function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
+function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12855,7 +12866,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             );
           })()}
           <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
-          <OrderActivityHistory entries={viewModal.so.amendment_history} />
+          <OrderActivityHistory entries={viewModal.so.activity_history ?? viewModal.so.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, so: null }); onOpenActivityDocument?.(entry); }} />
         </Modal>
       )}
 
@@ -19337,6 +19348,7 @@ export default function ImsPage() {
   const [pendingOpenPO, setPendingOpenPO] = useState<number | null>(null);
   const [pendingOpenSO, setPendingOpenSO] = useState<number | null>(null);
   const [pendingOpenCN, setPendingOpenCN] = useState<number | null>(null);
+  const [pendingOpenSCN, setPendingOpenSCN] = useState<number | null>(null);
   const [pendingOpenPosSale, setPendingOpenPosSale] = useState<number | null>(null);
   const [pendingOpenPosDay, setPendingOpenPosDay] = useState<string | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
@@ -19880,6 +19892,7 @@ export default function ImsPage() {
             pendingOpenPO={pendingOpenPO}
             pendingOpenSO={pendingOpenSO}
             pendingOpenCN={pendingOpenCN}
+            pendingOpenSCN={pendingOpenSCN}
             pendingOpenPosSale={pendingOpenPosSale}
             pendingOpenPosDay={pendingOpenPosDay}
             cnPrefill={cnPrefill}
@@ -19890,6 +19903,7 @@ export default function ImsPage() {
             setPendingOpenPO={setPendingOpenPO}
             setPendingOpenSO={setPendingOpenSO}
             setPendingOpenCN={setPendingOpenCN}
+            setPendingOpenSCN={setPendingOpenSCN}
             setPendingOpenPosSale={setPendingOpenPosSale}
             setPendingOpenPosDay={setPendingOpenPosDay}
             setCnPrefill={setCnPrefill}
@@ -24743,7 +24757,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
           <li><strong>Completed — Fully received</strong> — All goods are in stock. The Xero bill follows the configured completion policy, normally Authorised.</li>
           <li><strong>Backordered</strong> — A held child PO owns the short quantity. Release it when the supplier can deliver.</li>
-          <li><strong>Cancelled</strong> — An immutable audit record. Duplicate it to start a replacement Draft.</li>
+          <li><strong>Cancelled</strong> — An immutable audit record. Use <strong>Create Replacement Draft</strong> to start the next linked order.</li>
         </ul>
 
         <h3 style={h3}>Editing before anything is received</h3>
@@ -24756,7 +24770,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>Draft, Submitted, and unpaid/uncredited/unlocked Authorised Xero bills update in place. Paid, credited, locked, terminal, or unverifiable bills require the correction workflow.</p>
 
         <h3 style={h3}>Activity History</h3>
-        <p style={p}>The order modal lists the newest 25 edits, status changes, receipts, and outstanding-quantity resolutions. Select <strong>View changes</strong> for amendment detail or <strong>View details</strong> for received quantities. Internal audit data is never displayed.</p>
+        <p style={p}>The order modal lists the newest 25 edits, status changes, receipts, outstanding-quantity resolutions, receipt undo, linked supplier credits, and replacement orders. Linked document numbers open the related record. Select <strong>View changes</strong> for amendment detail or <strong>View details</strong> for received quantities. Internal audit JSON is never displayed.</p>
         <ul style={ul}>
           <li><strong>Example: red reduced from 5 to 3</strong> — the summary says one line updated; the detail shows the red variant quantity changing from 5 to 3.</li>
           <li><strong>Example: blue quantity 2 added</strong> — the summary says one line added; the detail shows the blue variant and resulting quantity 2.</li>
@@ -24774,6 +24788,12 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
 
         <h3 style={h3}>After stock has been received</h3>
         <p style={p}>Normal Edit never rewrites received quantities, receipt costs, or stock movements. A partial PO can continue receiving or use <strong>Resolve Outstanding</strong>. For a Completed PO, use <strong>Undo Mistaken Receipt</strong> only when the receipt never physically happened and all stock and Xero checks permit an exact reversal. Genuine goods going back require a Supplier Return / Credit.</p>
+        <ul style={ul}>
+          <li><strong>Wrong red receipt that never happened</strong> — Undo Mistaken Receipt, then create a replacement Draft for the correct blue order.</li>
+          <li><strong>Red goods genuinely arrived and are returned</strong> — Create a linked Supplier Return / Credit, then create a replacement Draft if blue goods are being ordered.</li>
+          <li><strong>Replacement alone</strong> — Creates the next commercial Draft. It never reverses source stock, payments, or the Xero bill.</li>
+        </ul>
+        <p style={p}>IMS stock changes commit before the external Xero action. If Xero cannot finish, the local correction remains valid and the order shows a warning/retry path for reconciliation; do not repeat the stock action.</p>
 
         <h3 style={h3}>Freight treatment</h3>
         <p style={p}>Configurable in Settings → Purchase Orders:</p>
@@ -24802,7 +24822,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Partially Fulfilled</strong> — Some goods have shipped; only the outstanding remainder remains committed.</li>
           <li><strong>Completed — Fully fulfilled</strong> — All goods have shipped. The Xero invoice follows the configured completion policy, normally Authorised.</li>
           <li><strong>Backordered</strong> — A held child SO owns the outstanding commitment until it is ready for release.</li>
-          <li><strong>Cancelled</strong> — An immutable audit record. Duplicate it to create a replacement Draft.</li>
+          <li><strong>Cancelled</strong> — An immutable audit record. Use <strong>Create Replacement Draft</strong> to create the next linked order.</li>
         </ul>
         <h3 style={h3}>Editing before anything is fulfilled</h3>
         <p style={p}>Draft and untouched Confirmed SOs are editable. Confirmed edits preserve existing line IDs, change only the net stock commitment, and update the existing editable Xero invoice.</p>
@@ -24812,9 +24832,14 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           <li><strong>Example: the order changed in another browser</strong> — the stale save is rejected and you are asked to refresh.</li>
         </ul>
         <h3 style={h3}>Activity History</h3>
-        <p style={p}>The order modal lists the newest 25 edits, status changes, shipments, and outstanding-quantity resolutions. Select <strong>View changes</strong> for amendments or <strong>View details</strong> for shipped quantities. For example, shipping 3 units from line 17 appears as <em>Line #17: shipped 3</em>.</p>
+        <p style={p}>The order modal lists the newest 25 edits, status changes, shipments, outstanding-quantity resolutions, linked customer credits, and replacement orders. Linked document numbers open the related record. Select <strong>View changes</strong> for amendments or <strong>View details</strong> for shipped quantities. For example, shipping 3 units from line 17 appears as <em>Line #17: shipped 3</em>.</p>
         <h3 style={h3}>After goods have shipped</h3>
         <p style={p}>Shipped line IDs, quantities, costs, and movements are preserved. Use <strong>Continue Fulfilment</strong> or <strong>Resolve Outstanding</strong> for a partial SO. A Completed SO is corrected with <strong>Return / Credit</strong> and, when needed, a replacement SO; it is not reopened or unfulfilled.</p>
+        <ul style={ul}>
+          <li><strong>Customer returns red goods</strong> — Create a linked Return / Credit for the physical and financial return, then create a replacement Draft if blue goods will be supplied.</li>
+          <li><strong>Customer only needs another order</strong> — Create Replacement Draft without changing the fulfilled source, stock history, payments, or Xero invoice.</li>
+        </ul>
+        <p style={p}>PO undo and customer returns follow the same audit rule in different ways: an event that never happened may be exactly reversed when safe; a genuine shipment and return remain as two additive records. If queued credit-note Xero sync later fails, Runtime Issues and the document retry status preserve operational visibility without repeating the return.</p>
         <h3 style={h3}>Wholesale vs. POS vs. Online</h3>
         <ul style={ul}>
           <li><strong>Wholesale SOs</strong> — Individual invoices; each confirmation triggers a Xero invoice sync immediately.</li>

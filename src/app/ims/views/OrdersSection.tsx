@@ -16,6 +16,7 @@ interface OrdersSectionProps {
   pendingOpenPO: number | null;
   pendingOpenSO: number | null;
   pendingOpenCN: number | null;
+  pendingOpenSCN: number | null;
   pendingOpenPosSale: number | null;
   pendingOpenPosDay: string | null;
   cnPrefill: any;
@@ -24,6 +25,7 @@ interface OrdersSectionProps {
   setPendingOpenPO: (id: number | null) => void;
   setPendingOpenSO: (id: number | null) => void;
   setPendingOpenCN: (id: number | null) => void;
+  setPendingOpenSCN: (id: number | null) => void;
   setPendingOpenPosSale: (id: number | null) => void;
   setPendingOpenPosDay: (date: string | null) => void;
   setCnPrefill: (v: any) => void;
@@ -47,6 +49,7 @@ export function OrdersSection({
   pendingOpenPO,
   pendingOpenSO,
   pendingOpenCN,
+  pendingOpenSCN,
   pendingOpenPosSale,
   pendingOpenPosDay,
   cnPrefill,
@@ -55,6 +58,7 @@ export function OrdersSection({
   setPendingOpenPO,
   setPendingOpenSO,
   setPendingOpenCN,
+  setPendingOpenSCN,
   setPendingOpenPosSale,
   setPendingOpenPosDay,
   setCnPrefill,
@@ -70,6 +74,15 @@ export function OrdersSection({
   OnlineSalesView,
   OrderPlannerView,
 }: OrdersSectionProps) {
+  const openActivityDocument = (entry: { documentType?: string; documentId?: number }) => {
+    const id = Number(entry.documentId ?? 0);
+    if (!id) return;
+    if (entry.documentType === 'purchase_order') { setPendingOpenPO(id); setView('purchase-orders'); }
+    else if (entry.documentType === 'sales_order') { setPendingOpenSO(id); setView('sales-orders'); }
+    else if (entry.documentType === 'credit_note') { setPendingOpenCN(id); setView('credit-notes'); }
+    else if (entry.documentType === 'supplier_credit_note') { setPendingOpenSCN(id); setView('supplier-credit-notes'); }
+  };
+
   return (
     <>
       {view === 'purchase-orders' && (
@@ -77,6 +90,7 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           pendingOpenId={pendingOpenPO}
           onPendingHandled={() => setPendingOpenPO(null)}
+          onOpenActivityDocument={openActivityDocument}
           onSupplierReturn={(prefill: any) => { setScnPrefill(prefill); setView('supplier-credit-notes'); }}
         />
       )}
@@ -85,6 +99,7 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           pendingOpenId={pendingOpenSO}
           onPendingHandled={() => setPendingOpenSO(null)}
+          onOpenActivityDocument={openActivityDocument}
           pendingOpenPosSaleId={pendingOpenPosSale}
           onPendingPosSaleHandled={() => setPendingOpenPosSale(null)}
           onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }}
@@ -113,6 +128,8 @@ export function OrdersSection({
           isAdvisor={isAdvisor}
           prefill={scnPrefill}
           onPrefillConsumed={() => setScnPrefill(null)}
+          pendingOpenId={pendingOpenSCN}
+          onPendingHandled={() => setPendingOpenSCN(null)}
         />
       )}
       {view === 'branch-transfers' && <BranchTransfersView />}
