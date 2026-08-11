@@ -91,10 +91,15 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ],
   ims_stock: ['zone', 'bin'],
   ims_purchase_order_items: ['discount_pct'],
+  ims_credit_note_items: ['source_so_item_id'],
+  ims_supplier_credit_note_items: ['source_po_item_id'],
   store_credit_transactions: ['credit_note_id', 'idempotency_key'],
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_credit_notes: ['uq_business_cn'],
+  ims_credit_note_items: ['idx_cn_source_so_item'],
+  ims_supplier_credit_note_items: ['idx_scn_source_po_item'],
   store_credit_transactions: ['idx_sct_credit_note', 'uq_sct_idempotency'],
 } as const;
 

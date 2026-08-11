@@ -679,6 +679,7 @@ const COLUMNS = [
   // ── ims_credit_note_items ────────────────────────────────────────────────
   ['ims_credit_note_items', 'price_basis',    "ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom'"],
   ['ims_credit_note_items', 'restock',        'TINYINT(1) NOT NULL DEFAULT 1'],
+  ['ims_credit_note_items', 'source_so_item_id', 'INT NULL AFTER restock'],
   // ── ims_supplier_credit_notes ────────────────────────────────────────────
   ['ims_supplier_credit_notes', 'supplier_credit_ref', 'VARCHAR(100) NULL'],
   ['ims_supplier_credit_notes', 'currency_code',       "VARCHAR(10) NOT NULL DEFAULT 'AUD'"],
@@ -689,6 +690,7 @@ const COLUMNS = [
   ['ims_supplier_credit_notes', 'created_by',          'VARCHAR(150) NULL'],
   // ── ims_supplier_credit_note_items ───────────────────────────────────────
   ['ims_supplier_credit_note_items', 'restock',        'TINYINT(1) NOT NULL DEFAULT 1'],
+  ['ims_supplier_credit_note_items', 'source_po_item_id', 'INT NULL AFTER restock'],
   // ── ims_product_variants ─────────────────────────────────────────────────
   ['ims_product_variants', 'cost_aud',                  'DECIMAL(12,4) NULL'],
   ['ims_product_variants', 'avg_cost',                  'DECIMAL(15,4) NULL'],
@@ -742,12 +744,15 @@ const INDEXES = [
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
   ['ims_credit_notes', 'uq_cn_pos_sale', 'UNIQUE INDEX `uq_cn_pos_sale` (`business_id`, `pos_sale_id`)'],
+  ['ims_credit_notes', 'uq_business_cn', 'UNIQUE INDEX `uq_business_cn` (`business_id`, `cn_number`)'],
+  ['ims_credit_note_items', 'idx_cn_source_so_item', 'INDEX `idx_cn_source_so_item` (`source_so_item_id`)'],
   ['pos_sales', 'idx_ps_customer', 'INDEX `idx_ps_customer` (`customer_id`)'],
   ['pos_sales', 'uq_ps_credit_note', 'UNIQUE INDEX `uq_ps_credit_note` (`business_id`, `credit_note_id`)'],
   ['pos_sale_items', 'idx_psi_return_source', 'INDEX `idx_psi_return_source` (`return_of_sale_item_id`)'],
   ['store_credit_transactions', 'idx_sct_credit_note', 'INDEX `idx_sct_credit_note` (`credit_note_id`)'],
   ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
+  ['ims_supplier_credit_note_items', 'idx_scn_source_po_item', 'INDEX `idx_scn_source_po_item` (`source_po_item_id`)'],
 ];
 
 async function ensureEnumValues(schema, table, column, requiredValues) {

@@ -4557,6 +4557,7 @@ export interface ImsCNItem {
   unit_price: number;
   price_basis: 'cost' | 'wholesale' | 'rrp' | 'custom';
   restock?: boolean | number;
+  source_so_item_id?: number | null;
   tax_rate: number;
   line_total: number;
   // joined from variant / product
@@ -4601,6 +4602,46 @@ async function nextCNNumber(businessId: string): Promise<string> {
   return `CN-${next}`;
 }
 
+async function validateCustomerReturnCapsTx(
+  conn: any,
+  businessId: string,
+  soId: number | null | undefined,
+  items: ImsCNItem[],
+  currentCnId?: number,
+): Promise<void> {
+  const quantities = new Map<number, number>();
+  for (const item of items) {
+    if (item.source_so_item_id == null) continue;
+    const sourceId = Number(item.source_so_item_id);
+    quantities.set(sourceId, (quantities.get(sourceId) ?? 0) + Number(item.qty));
+  }
+  if (!quantities.size) return;
+  if (!soId) throw new Error('Linked return lines require a source sales order.');
+  for (const [sourceId, requestedQty] of [...quantities].sort(([left], [right]) => left - right)) {
+    const [[sourceLine]] = await conn.execute<any[]>(
+      `SELECT soi.qty_fulfilled
+         FROM ims_sales_order_items soi
+         JOIN ims_sales_orders so ON so.id = soi.so_id
+        WHERE soi.id = ? AND soi.so_id = ? AND so.business_id = ?
+        FOR UPDATE`,
+      [sourceId, soId, businessId],
+    );
+    if (!sourceLine) throw new Error(`Sales order source line ${sourceId} was not found.`);
+    const [[returned]] = await conn.execute<any[]>(
+      `SELECT COALESCE(SUM(cni.qty), 0) AS returned_qty
+         FROM ims_credit_note_items cni
+         JOIN ims_credit_notes cn ON cn.id = cni.cn_id
+        WHERE cni.source_so_item_id = ? AND cn.business_id = ?
+          AND cn.status <> 'cancelled' AND cn.id <> ?`,
+      [sourceId, businessId, currentCnId ?? 0],
+    );
+    const remaining = Number(sourceLine.qty_fulfilled) - Number(returned?.returned_qty ?? 0);
+    if (requestedQty > remaining + 0.0001) {
+      throw new Error(`Return quantity for sales order line ${sourceId} exceeds the remaining returnable quantity of ${Math.max(0, remaining)}.`);
+    }
+  }
+}
+
 /**
  * Restock the returnable lines of a credit note within an open transaction.
  * Only items flagged restock=1 (and with a variant) put stock back; broken /
@@ -4609,6 +4650,7 @@ async function nextCNNumber(businessId: string): Promise<string> {
  */
 async function restockCreditNoteItemsTx(
   conn: any,
+  businessId: string,
   cnId: number,
   locationId: number,
   items: ImsCNItem[],
@@ -4629,8 +4671,8 @@ async function restockCreditNoteItemsTx(
     );
     if (Number(variant?.is_stock_item ?? 1) === 0) continue;
     await conn.execute(
-      `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-      [item.variant_id, locationId],
+      `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
+      [businessId, item.variant_id, locationId],
     );
     await conn.execute(
       `UPDATE ims_stock SET qty_on_hand = qty_on_hand + ? WHERE variant_id = ? AND location_id = ?`,
@@ -4643,9 +4685,9 @@ async function restockCreditNoteItemsTx(
     const s = (rows as any[])[0];
     await conn.execute(
       `INSERT INTO ims_stock_movements
-         (variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
-       VALUES (?,?,'cn_returned',?,'credit_note',?,?,?)`,
-      [item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0],
+         (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh)
+       VALUES (?,?,?,'cn_returned',?,'credit_note',?,?,?)`,
+      [businessId, item.variant_id, locationId, channel, cnId, qty, s?.qty_on_hand ?? 0],
     );
   }
 }
@@ -4708,34 +4750,56 @@ export const ImsCNRepo = {
     businessId: string,
     createdBy?: string,
   ): Promise<number> {
-    const cn_number = await nextCNNumber(businessId);
     const { subtotal, tax_amount, total_amount } = calculateCNTotals(items, data.tax_treatment);
-    const res = await imsExecute(
-      `INSERT INTO ims_credit_notes
-        (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,pos_sale_id,settlement_method,
-         shopify_refund_id,cn_date,reference,tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId, cn_number, data.customer_id ?? null, data.so_id ?? null, data.original_so_number ?? null,
-       data.location_id, 'draft', data.source ?? 'manual', data.pos_sale_id ?? null,
-       data.source === 'shopify' ? 'external' : (data.settlement_method ?? 'store_credit'), data.shopify_refund_id ?? null,
-       data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
-      subtotal, tax_amount, total_amount,
-       data.notes ?? null, createdBy ?? null],
-    );
-    const cn_id = (res as any).insertId;
-    for (const item of items) {
-      const line_total = Number(item.qty) * Number(item.unit_price);
-      await imsExecute(
-        `INSERT INTO ims_credit_note_items
-           (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`,
-        [cn_id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
-         item.qty, item.unit_price, item.price_basis ?? 'custom',
-         item.restock === undefined ? 1 : (item.restock ? 1 : 0),
-         item.tax_rate ?? 0, line_total],
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    const numberLock = `ims:cn-number:${businessId}`;
+    let hasNumberLock = false;
+    try {
+      const [[lockResult]] = await conn.execute<any[]>('SELECT GET_LOCK(?, 10) AS acquired', [numberLock]);
+      if (Number(lockResult?.acquired) !== 1) throw new Error('Could not allocate a credit note number. Please retry.');
+      hasNumberLock = true;
+      await conn.beginTransaction();
+      await validateCustomerReturnCapsTx(conn, businessId, data.so_id, items as ImsCNItem[]);
+      const [[numberRow]] = await conn.execute<any[]>(
+        `SELECT MAX(CAST(REGEXP_REPLACE(cn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
+           FROM ims_credit_notes WHERE business_id = ?`,
+        [businessId],
       );
+      const cnNumber = `CN-${(Number(numberRow?.max_num ?? 0) + 1).toString().padStart(5, '0')}`;
+      const [res] = await conn.execute(
+        `INSERT INTO ims_credit_notes
+          (business_id,cn_number,customer_id,so_id,original_so_number,location_id,status,source,pos_sale_id,settlement_method,
+           shopify_refund_id,cn_date,reference,tax_treatment,tax_code,subtotal,tax_amount,total_amount,notes,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [businessId, cnNumber, data.customer_id ?? null, data.so_id ?? null, data.original_so_number ?? null,
+         data.location_id, 'draft', data.source ?? 'manual', data.pos_sale_id ?? null,
+         data.source === 'shopify' ? 'external' : (data.settlement_method ?? 'store_credit'), data.shopify_refund_id ?? null,
+         data.cn_date, data.reference ?? null, data.tax_treatment, data.tax_code ?? null,
+         subtotal, tax_amount, total_amount, data.notes ?? null, createdBy ?? null],
+      );
+      const cnId = (res as any).insertId;
+      for (const item of items) {
+        const lineTotal = Number(item.qty) * Number(item.unit_price);
+        await conn.execute(
+          `INSERT INTO ims_credit_note_items
+             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,source_so_item_id,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [cnId, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+           item.qty, item.unit_price, item.price_basis ?? 'custom',
+           item.restock === undefined ? 1 : (item.restock ? 1 : 0), item.source_so_item_id ?? null,
+           item.tax_rate ?? 0, lineTotal],
+        );
+      }
+      await conn.commit();
+      return cnId;
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      if (hasNumberLock) await conn.execute('SELECT RELEASE_LOCK(?)', [numberLock]);
+      conn.release();
     }
-    return cn_id;
   },
 
   async getByPosSale(posSaleId: number, businessId: string): Promise<ImsCN | null> {
@@ -4752,42 +4816,58 @@ export const ImsCNRepo = {
     data: Partial<Pick<ImsCN, 'location_id' | 'cn_date' | 'customer_id' | 'so_id' | 'original_so_number' | 'reference' | 'tax_treatment' | 'tax_code' | 'notes'>>,
     items?: (Omit<ImsCNItem, 'id' | 'cn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label' | 'avg_cost'>)[],
   ): Promise<void> {
-    const allowed = ['location_id','cn_date','customer_id','so_id','original_so_number','reference','tax_treatment','tax_code','notes'];
-    const sets: string[] = [];
-    const vals: any[] = [];
-    for (const f of allowed) {
-      if (data[f as keyof typeof data] !== undefined) {
-        sets.push(`${f} = ?`);
-        vals.push(data[f as keyof typeof data] ?? null);
-      }
-    }
-    if (items !== undefined) {
-      const taxTreatment = data.tax_treatment ?? (await ImsCNRepo.get(id, businessId))?.tax_treatment ?? 'ex_tax';
-      const { subtotal, tax_amount, total_amount } = calculateCNTotals(items, taxTreatment);
-      sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-      vals.push(subtotal, tax_amount, total_amount);
-    }
-    if (sets.length) {
-      vals.push(id, businessId);
-      await imsExecute(
-        `UPDATE ims_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
-        vals,
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[current]] = await conn.execute<any[]>(
+        `SELECT so_id, tax_treatment FROM ims_credit_notes
+          WHERE id = ? AND business_id = ? AND status = 'draft' FOR UPDATE`,
+        [id, businessId],
       );
-    }
-    if (items !== undefined) {
-      await imsExecute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [id]);
-      for (const item of items) {
-        const line_total = Number(item.qty) * Number(item.unit_price);
-        await imsExecute(
-          `INSERT INTO ims_credit_note_items
-             (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,tax_rate,line_total)
-           VALUES (?,?,?,?,?,?,?,?,?,?)`,
-          [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
-           item.qty, item.unit_price, item.price_basis ?? 'custom',
-           item.restock === undefined ? 1 : (item.restock ? 1 : 0),
-           item.tax_rate ?? 0, line_total],
+      if (!current) throw new Error('Draft credit note not found');
+      const allowed = ['location_id','cn_date','customer_id','so_id','original_so_number','reference','tax_treatment','tax_code','notes'];
+      const sets: string[] = [];
+      const vals: any[] = [];
+      for (const field of allowed) {
+        if (data[field as keyof typeof data] !== undefined) {
+          sets.push(`${field} = ?`);
+          vals.push(data[field as keyof typeof data] ?? null);
+        }
+      }
+      if (items !== undefined) {
+        await validateCustomerReturnCapsTx(conn, businessId, data.so_id ?? current.so_id, items as ImsCNItem[], id);
+        const totals = calculateCNTotals(items, data.tax_treatment ?? current.tax_treatment ?? 'ex_tax');
+        sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+        vals.push(totals.subtotal, totals.tax_amount, totals.total_amount);
+      }
+      if (sets.length) {
+        await conn.execute(
+          `UPDATE ims_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
+          [...vals, id, businessId],
         );
       }
+      if (items !== undefined) {
+        await conn.execute(`DELETE FROM ims_credit_note_items WHERE cn_id = ?`, [id]);
+        for (const item of items) {
+          const lineTotal = Number(item.qty) * Number(item.unit_price);
+          await conn.execute(
+            `INSERT INTO ims_credit_note_items
+               (cn_id,variant_id,code,name,qty,unit_price,price_basis,restock,source_so_item_id,tax_rate,line_total)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+             item.qty, item.unit_price, item.price_basis ?? 'custom',
+             item.restock === undefined ? 1 : (item.restock ? 1 : 0), item.source_so_item_id ?? null,
+             item.tax_rate ?? 0, lineTotal],
+          );
+        }
+      }
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
     }
   },
 
@@ -4826,6 +4906,7 @@ export const ImsCNRepo = {
         [id],
       );
       const items = itemRows as ImsCNItem[];
+      await validateCustomerReturnCapsTx(conn, businessId, cn.so_id, items, id);
 
       let channel: string | null = cn.source === 'pos' ? 'pos' : null;
       if (cn.so_id) {
@@ -4873,7 +4954,7 @@ export const ImsCNRepo = {
         );
       }
 
-      await restockCreditNoteItemsTx(conn, cn.id, cn.location_id, items, channel);
+      await restockCreditNoteItemsTx(conn, businessId, cn.id, cn.location_id, items, channel);
       await conn.execute(
         `UPDATE ims_credit_notes
             SET status = 'complete', completed_at = NOW(), settlement_method = ?,
@@ -5128,6 +5209,7 @@ export interface ImsSupplierCNItem {
   qty: number;
   unit_cost: number;
   restock?: boolean | number;
+  source_po_item_id?: number | null;
   tax_rate: number;
   line_total: number;
   // joined
@@ -5136,14 +5218,44 @@ export interface ImsSupplierCNItem {
   variant_label?: string | null;
 }
 
-async function nextSCNNumber(businessId: string): Promise<string> {
-  const rows = await imsQuery<{ max_num: string | null }>(
-    `SELECT MAX(CAST(REGEXP_REPLACE(scn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
-     FROM ims_supplier_credit_notes WHERE business_id = ?`,
-    [businessId],
-  );
-  const next = (Number(rows[0]?.max_num ?? 0) + 1).toString().padStart(5, '0');
-  return `SCN-${next}`;
+async function validateSupplierReturnCapsTx(
+  conn: any,
+  businessId: string,
+  poId: number | null | undefined,
+  items: ImsSupplierCNItem[],
+  currentScnId?: number,
+): Promise<void> {
+  const quantities = new Map<number, number>();
+  for (const item of items) {
+    if (item.source_po_item_id == null) continue;
+    const sourceId = Number(item.source_po_item_id);
+    quantities.set(sourceId, (quantities.get(sourceId) ?? 0) + Number(item.qty));
+  }
+  if (!quantities.size) return;
+  if (!poId) throw new Error('Linked supplier return lines require a source purchase order.');
+  for (const [sourceId, requestedQty] of [...quantities].sort(([left], [right]) => left - right)) {
+    const [[sourceLine]] = await conn.execute<any[]>(
+      `SELECT poi.qty_received
+         FROM ims_purchase_order_items poi
+         JOIN ims_purchase_orders po ON po.id = poi.po_id
+        WHERE poi.id = ? AND poi.po_id = ? AND po.business_id = ?
+        FOR UPDATE`,
+      [sourceId, poId, businessId],
+    );
+    if (!sourceLine) throw new Error(`Purchase order source line ${sourceId} was not found.`);
+    const [[returned]] = await conn.execute<any[]>(
+      `SELECT COALESCE(SUM(scni.qty), 0) AS returned_qty
+         FROM ims_supplier_credit_note_items scni
+         JOIN ims_supplier_credit_notes scn ON scn.id = scni.scn_id
+        WHERE scni.source_po_item_id = ? AND scn.business_id = ?
+          AND scn.status <> 'cancelled' AND scn.id <> ?`,
+      [sourceId, businessId, currentScnId ?? 0],
+    );
+    const remaining = Number(sourceLine.qty_received) - Number(returned?.returned_qty ?? 0);
+    if (requestedQty > remaining + 0.0001) {
+      throw new Error(`Return quantity for purchase order line ${sourceId} exceeds the remaining returnable quantity of ${Math.max(0, remaining)}.`);
+    }
+  }
 }
 
 /**
@@ -5154,6 +5266,7 @@ async function nextSCNNumber(businessId: string): Promise<string> {
  */
 async function returnStockToSupplierTx(
   conn: any,
+  businessId: string,
   scnId: number,
   locationId: number,
   items: ImsSupplierCNItem[],
@@ -5164,19 +5277,32 @@ async function returnStockToSupplierTx(
     if (!doRestock) continue;
     const qty = Number(item.qty);
     if (!(qty > 0)) continue;
+    const [[variant]] = await conn.execute<any[]>(
+      `SELECT COALESCE(p.is_stock_item, 1) AS is_stock_item
+         FROM ims_product_variants pv
+         JOIN ims_products p ON p.product_id = pv.product_id
+        WHERE pv.variant_id = ? LIMIT 1`,
+      [item.variant_id],
+    );
+    if (Number(variant?.is_stock_item ?? 1) === 0) continue;
     await conn.execute(
-      `INSERT IGNORE INTO ims_stock (variant_id, location_id) VALUES (?, ?)`,
-      [item.variant_id, locationId],
+      `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id) VALUES (?, ?, ?)`,
+      [businessId, item.variant_id, locationId],
     );
     const [rows] = await conn.execute(
       `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost
        FROM ims_stock s
        JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
-       WHERE s.variant_id = ? AND s.location_id = ?`,
+        WHERE s.variant_id = ? AND s.location_id = ?
+        FOR UPDATE`,
       [item.variant_id, locationId],
     );
     const s = (rows as any[])[0];
-    const newSoh = Number(s?.qty_on_hand ?? 0) - qty; // goods leave
+    const currentSoh = Number(s?.qty_on_hand ?? 0);
+    if (currentSoh + 0.0001 < qty) {
+      throw new Error(`Cannot return variant ${item.variant_id}: ${currentSoh} units are on hand at this location, but ${qty} units would leave.`);
+    }
+    const newSoh = currentSoh - qty;
     const unitCost = Number(s?.avg_cost ?? item.unit_cost ?? 0);
     await conn.execute(
       `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
@@ -5184,9 +5310,9 @@ async function returnStockToSupplierTx(
     );
     await conn.execute(
       `INSERT INTO ims_stock_movements
-         (variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-       VALUES (?,?,'scn_returned','supplier_credit_note',?,?,?,?)`,
-      [item.variant_id, locationId, scnId, -qty, newSoh, unitCost],
+         (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
+       VALUES (?,?,?,'scn_returned','supplier_credit_note',?,?,?,?)`,
+      [businessId, item.variant_id, locationId, scnId, -qty, newSoh, unitCost],
     );
   }
 }
@@ -5259,37 +5385,59 @@ export const ImsSupplierCNRepo = {
     businessId: string,
     createdBy?: string,
   ): Promise<number> {
-    const scn_number = await nextSCNNumber(businessId);
     let subtotal = 0, tax_amount = 0;
     for (const item of items) {
       const line = Number(item.qty) * Number(item.unit_cost);
       subtotal   += line;
       tax_amount += line * Number(item.tax_rate ?? 0);
     }
-    const res = await imsExecute(
-      `INSERT INTO ims_supplier_credit_notes
-         (business_id,scn_number,supplier_id,po_id,location_id,status,scn_date,reference,supplier_credit_ref,
-          currency_code,exchange_rate,tax_treatment,subtotal,tax_amount,total_amount,notes,created_by)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId, scn_number, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
-       data.scn_date, data.reference ?? null, data.supplier_credit_ref ?? null,
-       data.currency_code ?? 'AUD', data.exchange_rate ?? 1, data.tax_treatment,
-       subtotal, tax_amount, subtotal + tax_amount, data.notes ?? null, createdBy ?? null],
-    );
-    const scn_id = (res as any).insertId;
-    for (const item of items) {
-      const line_total = Number(item.qty) * Number(item.unit_cost);
-      await imsExecute(
-        `INSERT INTO ims_supplier_credit_note_items
-           (scn_id,variant_id,code,name,qty,unit_cost,restock,tax_rate,line_total)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [scn_id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
-         item.qty, item.unit_cost,
-         item.restock === undefined ? 1 : (item.restock ? 1 : 0),
-         item.tax_rate ?? 0, line_total],
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    const numberLock = `ims:scn-number:${businessId}`;
+    let hasNumberLock = false;
+    try {
+      const [[lockResult]] = await conn.execute<any[]>('SELECT GET_LOCK(?, 10) AS acquired', [numberLock]);
+      if (Number(lockResult?.acquired) !== 1) throw new Error('Could not allocate a supplier credit note number. Please retry.');
+      hasNumberLock = true;
+      await conn.beginTransaction();
+      await validateSupplierReturnCapsTx(conn, businessId, data.po_id, items as ImsSupplierCNItem[]);
+      const [[numberRow]] = await conn.execute<any[]>(
+        `SELECT MAX(CAST(REGEXP_REPLACE(scn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
+           FROM ims_supplier_credit_notes WHERE business_id = ?`,
+        [businessId],
       );
+      const scnNumber = `SCN-${(Number(numberRow?.max_num ?? 0) + 1).toString().padStart(5, '0')}`;
+      const [res] = await conn.execute(
+        `INSERT INTO ims_supplier_credit_notes
+           (business_id,scn_number,supplier_id,po_id,location_id,status,scn_date,reference,supplier_credit_ref,
+            currency_code,exchange_rate,tax_treatment,subtotal,tax_amount,total_amount,notes,created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [businessId, scnNumber, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
+         data.scn_date, data.reference ?? null, data.supplier_credit_ref ?? null,
+         data.currency_code ?? 'AUD', data.exchange_rate ?? 1, data.tax_treatment,
+         subtotal, tax_amount, subtotal + tax_amount, data.notes ?? null, createdBy ?? null],
+      );
+      const scnId = (res as any).insertId;
+      for (const item of items) {
+        const lineTotal = Number(item.qty) * Number(item.unit_cost);
+        await conn.execute(
+          `INSERT INTO ims_supplier_credit_note_items
+             (scn_id,variant_id,code,name,qty,unit_cost,restock,source_po_item_id,tax_rate,line_total)
+           VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [scnId, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+           item.qty, item.unit_cost, item.restock === undefined ? 1 : (item.restock ? 1 : 0),
+           item.source_po_item_id ?? null, item.tax_rate ?? 0, lineTotal],
+        );
+      }
+      await conn.commit();
+      return scnId;
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      if (hasNumberLock) await conn.execute('SELECT RELEASE_LOCK(?)', [numberLock]);
+      conn.release();
     }
-    return scn_id;
   },
 
   async update(
@@ -5298,64 +5446,91 @@ export const ImsSupplierCNRepo = {
     data: Partial<Pick<ImsSupplierCN, 'location_id' | 'scn_date' | 'supplier_id' | 'po_id' | 'reference' | 'supplier_credit_ref' | 'currency_code' | 'exchange_rate' | 'tax_treatment' | 'notes'>>,
     items?: Omit<ImsSupplierCNItem, 'id' | 'scn_id' | 'line_total' | 'sku' | 'product_name' | 'variant_label'>[],
   ): Promise<void> {
-    const allowed = ['location_id','scn_date','supplier_id','po_id','reference','supplier_credit_ref','currency_code','exchange_rate','tax_treatment','notes'];
-    const sets: string[] = [];
-    const vals: any[] = [];
-    for (const f of allowed) {
-      if (data[f as keyof typeof data] !== undefined) {
-        sets.push(`${f} = ?`);
-        vals.push(data[f as keyof typeof data] ?? null);
-      }
-    }
-    if (items !== undefined) {
-      let subtotal = 0, tax_amount = 0;
-      for (const item of items) {
-        const line = Number(item.qty) * Number(item.unit_cost);
-        subtotal   += line;
-        tax_amount += line * Number(item.tax_rate ?? 0);
-      }
-      sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-      vals.push(subtotal, tax_amount, subtotal + tax_amount);
-    }
-    if (sets.length) {
-      vals.push(id, businessId);
-      await imsExecute(
-        `UPDATE ims_supplier_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
-        vals,
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[current]] = await conn.execute<any[]>(
+        `SELECT po_id FROM ims_supplier_credit_notes
+          WHERE id = ? AND business_id = ? AND status = 'draft' FOR UPDATE`,
+        [id, businessId],
       );
-    }
-    if (items !== undefined) {
-      await imsExecute(`DELETE FROM ims_supplier_credit_note_items WHERE scn_id = ?`, [id]);
-      for (const item of items) {
-        const line_total = Number(item.qty) * Number(item.unit_cost);
-        await imsExecute(
-          `INSERT INTO ims_supplier_credit_note_items
-             (scn_id,variant_id,code,name,qty,unit_cost,restock,tax_rate,line_total)
-           VALUES (?,?,?,?,?,?,?,?,?)`,
-          [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
-           item.qty, item.unit_cost,
-           item.restock === undefined ? 1 : (item.restock ? 1 : 0),
-           item.tax_rate ?? 0, line_total],
+      if (!current) throw new Error('Draft supplier credit note not found');
+      const allowed = ['location_id','scn_date','supplier_id','po_id','reference','supplier_credit_ref','currency_code','exchange_rate','tax_treatment','notes'];
+      const sets: string[] = [];
+      const vals: any[] = [];
+      for (const field of allowed) {
+        if (data[field as keyof typeof data] !== undefined) {
+          sets.push(`${field} = ?`);
+          vals.push(data[field as keyof typeof data] ?? null);
+        }
+      }
+      if (items !== undefined) {
+        await validateSupplierReturnCapsTx(conn, businessId, data.po_id ?? current.po_id, items as ImsSupplierCNItem[], id);
+        let subtotal = 0;
+        let taxAmount = 0;
+        for (const item of items) {
+          const line = Number(item.qty) * Number(item.unit_cost);
+          subtotal += line;
+          taxAmount += line * Number(item.tax_rate ?? 0);
+        }
+        sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
+        vals.push(subtotal, taxAmount, subtotal + taxAmount);
+      }
+      if (sets.length) {
+        await conn.execute(
+          `UPDATE ims_supplier_credit_notes SET ${sets.join(', ')} WHERE id = ? AND business_id = ? AND status = 'draft'`,
+          [...vals, id, businessId],
         );
       }
+      if (items !== undefined) {
+        await conn.execute(`DELETE FROM ims_supplier_credit_note_items WHERE scn_id = ?`, [id]);
+        for (const item of items) {
+          const lineTotal = Number(item.qty) * Number(item.unit_cost);
+          await conn.execute(
+            `INSERT INTO ims_supplier_credit_note_items
+               (scn_id,variant_id,code,name,qty,unit_cost,restock,source_po_item_id,tax_rate,line_total)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [id, item.variant_id ?? null, item.code ?? null, item.name ?? null,
+             item.qty, item.unit_cost, item.restock === undefined ? 1 : (item.restock ? 1 : 0),
+             item.source_po_item_id ?? null, item.tax_rate ?? 0, lineTotal],
+          );
+        }
+      }
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
     }
   },
 
   /** Complete a draft SCN: reduce stock for restock lines, mark complete. Atomic. */
   async complete(id: number, businessId: string): Promise<void> {
-    const scn = await ImsSupplierCNRepo.get(id, businessId);
-    if (!scn) throw new Error('Supplier credit note not found');
-    if (scn.status === 'complete') throw new Error('Supplier credit note is already complete');
-    if (scn.status !== 'draft') throw new Error('Only draft supplier credit notes can be completed');
-
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
-      await returnStockToSupplierTx(conn, scn.id, scn.location_id, scn.items ?? []);
-      await conn.execute(
-        `UPDATE ims_supplier_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ?`,
+      const [[scn]] = await conn.execute<any[]>(
+        `SELECT * FROM ims_supplier_credit_notes WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [id, businessId],
+      );
+      if (!scn) throw new Error('Supplier credit note not found');
+      if (scn.status === 'complete') {
+        await conn.commit();
+        return;
+      }
+      if (scn.status !== 'draft') throw new Error('Only draft supplier credit notes can be completed');
+      const [itemRows] = await conn.execute<any[]>(
+        `SELECT * FROM ims_supplier_credit_note_items WHERE scn_id = ? FOR UPDATE`,
         [id],
+      );
+      await validateSupplierReturnCapsTx(conn, businessId, scn.po_id, itemRows as ImsSupplierCNItem[], id);
+      await returnStockToSupplierTx(conn, businessId, id, Number(scn.location_id), itemRows as ImsSupplierCNItem[]);
+      await conn.execute(
+        `UPDATE ims_supplier_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ? AND business_id = ?`,
+        [id, businessId],
       );
       await conn.commit();
     } catch (err) {

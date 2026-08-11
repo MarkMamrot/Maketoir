@@ -870,6 +870,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   INDEX idx_status (status),
   INDEX idx_customer (customer_id),
   INDEX idx_shopify_return (business_id, shopify_return_id),
+  UNIQUE KEY uq_business_cn (business_id, cn_number),
   UNIQUE INDEX uq_cn_pos_sale (business_id, pos_sale_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -883,9 +884,11 @@ CREATE TABLE IF NOT EXISTS ims_credit_note_items (
   unit_price   DECIMAL(12,4) NOT NULL DEFAULT 0,
   price_basis  ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom',
   restock      TINYINT(1)    NOT NULL DEFAULT 1,
+  source_so_item_id INT      NULL,
   tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
   line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
-  INDEX idx_cn (cn_id)
+  INDEX idx_cn (cn_id),
+  INDEX idx_cn_source_so_item (source_so_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Supplier Credit Notes ───────────────────────────────────
@@ -930,9 +933,11 @@ CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_items (
   qty          DECIMAL(10,4) NOT NULL DEFAULT 1,
   unit_cost    DECIMAL(12,4) NOT NULL DEFAULT 0,
   restock      TINYINT(1)    NOT NULL DEFAULT 1,
+  source_po_item_id INT      NULL,
   tax_rate     DECIMAL(6,4)  NOT NULL DEFAULT 0,
   line_total   DECIMAL(12,4) NOT NULL DEFAULT 0,
-  INDEX idx_scn (scn_id)
+  INDEX idx_scn (scn_id),
+  INDEX idx_scn_source_po_item (source_po_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
