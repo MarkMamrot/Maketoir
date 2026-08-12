@@ -14412,11 +14412,14 @@ function CashBankingView() {
   const [data, setData] = useState<any>(null);
   const [deposits, setDeposits] = useState<any[]>([]);
   const [canPost, setCanPost] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState<Array<{ accountId: string; code: string; name: string }>>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [counts, setCounts] = useState<Record<string, string>>({});
-  const [lodgementDate, setLodgementDate] = useState(today());
-  const [bankReference, setBankReference] = useState('');
-  const [destinationAccountId, setDestinationAccountId] = useState('');
+  const [confirmingDeposit, setConfirmingDeposit] = useState<any>(null);
+  const [confirmationDate, setConfirmationDate] = useState(today());
+  const [confirmationReference, setConfirmationReference] = useState('');
+  const [confirmationDestinationId, setConfirmationDestinationId] = useState('');
+  const [confirmationAmount, setConfirmationAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [postingId, setPostingId] = useState<number | null>(null);
@@ -14427,7 +14430,7 @@ function CashBankingView() {
       if (result.success) setLocations(result.data ?? []);
     }).catch(() => {});
     fetch('/api/ims/money/cash-deposits').then(response => response.json()).then(result => {
-      if (result.success) { setDeposits(result.deposits ?? []); setCanPost(Boolean(result.canPost)); }
+      if (result.success) { setDeposits(result.deposits ?? []); setCanPost(Boolean(result.canPost)); setBankAccounts(result.bankAccounts ?? []); }
     }).catch(() => {});
   }, []);
 
@@ -14441,7 +14444,6 @@ function CashBankingView() {
       .then(({ ok, body }) => {
         if (!ok) throw new Error(body.error || 'Could not load cash days');
         setData(body);
-        setDestinationAccountId(body.defaultDestinationAccount?.destination_account_id ?? '');
       })
       .catch(reason => setError(reason.message))
       .finally(() => setLoading(false));
@@ -14468,14 +14470,45 @@ function CashBankingView() {
     try {
       const response = await fetch('/api/ims/money/cash-deposits', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locationId, lodgementDate, bankReference, destinationAccountId, days: selectedDays.map((day: any) => ({ date: day.date, countedAmount: Number(counts[day.date]) })) }),
+        body: JSON.stringify({ locationId, days: selectedDays.map((day: any) => ({ date: day.date, countedAmount: Number(counts[day.date]) })) }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Could not create deposit draft');
-      setSelected(new Set()); setCounts({}); setBankReference('');
+      setSelected(new Set()); setCounts({});
       const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json());
-      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); }
+      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); setBankAccounts(history.bankAccounts ?? []); }
       loadEligibility();
+    } catch (reason: any) { setError(reason.message); }
+    setSaving(false);
+  };
+
+  const openConfirmation = (deposit: any) => {
+    setConfirmingDeposit(deposit);
+    setConfirmationDate(today());
+    setConfirmationReference('');
+    setConfirmationDestinationId(deposit.default_destination_account_id ?? '');
+    setConfirmationAmount(Number(deposit.counted_total).toFixed(2));
+    setError('');
+  };
+
+  const confirmDeposit = async () => {
+    if (!confirmingDeposit) return;
+    setSaving(true); setError('');
+    try {
+      const response = await fetch(`/api/ims/money/cash-deposits/${confirmingDeposit.id}/confirm`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lodgementDate: confirmationDate,
+          bankReference: confirmationReference,
+          destinationAccountId: confirmationDestinationId,
+          depositedTotal: Number(confirmationAmount),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not confirm bank deposit');
+      setConfirmingDeposit(null);
+      const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json());
+      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); setBankAccounts(history.bankAccounts ?? []); }
     } catch (reason: any) { setError(reason.message); }
     setSaving(false);
   };
@@ -14489,7 +14522,7 @@ function CashBankingView() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Cash deposit posting was not completed');
       const history = await fetch('/api/ims/money/cash-deposits').then(item => item.json());
-      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); }
+      if (history.success) { setDeposits(history.deposits ?? []); setCanPost(Boolean(history.canPost)); setBankAccounts(history.bankAccounts ?? []); }
       loadEligibility();
     } catch (reason: any) {
       setError(reason.message);
@@ -14521,7 +14554,7 @@ function CashBankingView() {
         <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
           <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>
-              <th style={{ padding: 9, width: 38 }}></th><th style={{ padding: 9, textAlign: 'left' }}>Trading day</th><th style={{ padding: 9, textAlign: 'right' }}>Expected custody</th><th style={{ padding: 9, textAlign: 'right' }}>Till variance</th><th style={{ padding: 9, textAlign: 'left' }}>Deposit count</th><th style={{ padding: 9, textAlign: 'left' }}>Status</th>
+              <th style={{ padding: 9, width: 38 }}></th><th style={{ padding: 9, textAlign: 'left' }}>Trading day</th><th style={{ padding: 9, textAlign: 'right' }}>Store-reported cash</th><th style={{ padding: 9, textAlign: 'right' }}>Till variance</th><th style={{ padding: 9, textAlign: 'left' }}>Preparation recount</th><th style={{ padding: 9, textAlign: 'left' }}>Status</th>
             </tr></thead>
             <tbody>{(data.days ?? []).map((day: any) => <tr key={day.date} style={{ borderTop: '1px solid var(--sv-etch)', opacity: day.eligible ? 1 : .58 }}>
               <td style={{ padding: 9, textAlign: 'center' }}><input type="checkbox" checked={selected.has(day.date)} disabled={!day.eligible} onChange={() => toggleDay(day)} /></td>
@@ -14536,22 +14569,34 @@ function CashBankingView() {
         {(data.days ?? []).length === 0 && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No counted cash reconciliations in this date range.</div>}
         {selectedDays.length > 0 && <div style={{ marginTop: 14, padding: 14, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>LODGEMENT DATE<br /><input type="date" value={lodgementDate} onChange={event => setLodgementDate(event.target.value)} style={{ ...controlStyle, marginTop: 4 }} /></label>
-            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>BANK REFERENCE<br /><input value={bankReference} onChange={event => setBankReference(event.target.value)} style={{ ...controlStyle, marginTop: 4, width: 210 }} /></label>
-            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>DESTINATION BANK<br /><select title="Defaults from Xero settings and may be overridden for this draft." value={destinationAccountId} onChange={event => setDestinationAccountId(event.target.value)} style={{ ...controlStyle, display: 'block', marginTop: 4, minWidth: 220 }}><option value="">Select bank</option>{(data.bankAccounts ?? []).map((account: any) => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}</select></label>
             <span style={{ flex: 1 }} />
-            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Expected<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(expectedTotal)}</strong></div>
-            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Counted<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(countedTotal)}</strong></div>
-            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Variance<br /><strong style={{ fontSize: 17, color: Math.abs(countedTotal - expectedTotal) < .005 ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{fmtCurrency(countedTotal - expectedTotal)}</strong></div>
-            <button disabled={saving || !lodgementDate || !data.cashClearingAccount || !destinationAccountId} onClick={createDraft} style={{ padding: '9px 15px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? .6 : 1 }}>{saving ? 'Creating...' : 'Create draft'}</button>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Store reported<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(expectedTotal)}</strong></div>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Prepared<br /><strong style={{ fontSize: 17, color: 'var(--sv-text-strong)' }}>{fmtCurrency(countedTotal)}</strong></div>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Preparation variance<br /><strong style={{ fontSize: 17, color: Math.abs(countedTotal - expectedTotal) < .005 ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{fmtCurrency(countedTotal - expectedTotal)}</strong></div>
+            <button disabled={saving || !data.cashClearingAccount} onClick={createDraft} style={{ padding: '9px 15px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: saving ? .6 : 1 }}>{saving ? 'Creating...' : 'Create preparation draft'}</button>
           </div>
         </div>}
       </>}
       <h2 style={{ margin: '28px 0 10px', fontSize: 15, color: 'var(--sv-text-strong)' }}>Recent deposits</h2>
       <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => <div key={deposit.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
-        <strong style={{ color: 'var(--sv-text-strong)' }}>#{deposit.id}</strong><span>{String(deposit.lodgement_date).slice(0, 10)}</span><span style={{ color: 'var(--sv-text-dim)' }}>{deposit.destination_account_name}</span><span style={{ flex: 1 }} /><span>{fmtCurrency(deposit.counted_total)}</span><span title={deposit.error_detail || ''} style={{ minWidth: 65, textTransform: 'capitalize', color: deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)' }}>{deposit.status}</span>
-        {canPost && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Confirm and post the discrepancy entries and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Confirm & post' : 'Retry'}</button>}
+        <strong style={{ color: 'var(--sv-text-strong)' }}>#{deposit.id}</strong><span>{deposit.lodgement_date ? String(deposit.lodgement_date).slice(0, 10) : 'Awaiting lodgement'}</span><span style={{ color: 'var(--sv-text-dim)' }}>{deposit.destination_account_name ?? deposit.default_destination_account_name ?? 'Bank not confirmed'}</span><span style={{ flex: 1 }} /><span title="Cash counted when the batch was prepared">Prepared {fmtCurrency(deposit.counted_total)}</span>{deposit.deposited_total != null && <span title="Amount accepted by the bank">Deposited {fmtCurrency(deposit.deposited_total)}</span>}<span title={deposit.error_detail || ''} style={{ minWidth: 72, textTransform: 'capitalize', color: deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)' }}>{deposit.confirmation_status === 'planned' ? 'planned' : deposit.status}</span>
+        {canPost && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
+        {canPost && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
       </div>)}</div>
+      {confirmingDeposit && <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'grid', placeItems: 'center', padding: 18, background: 'rgba(0,0,0,.58)' }} onMouseDown={event => { if (event.target === event.currentTarget && !saving) setConfirmingDeposit(null); }}>
+        <div style={{ width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 20, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
+          <h2 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--sv-text-strong)' }}>Confirm bank lodgement #{confirmingDeposit.id}</h2>
+          <div style={{ marginBottom: 16, color: 'var(--sv-text-dim)', fontSize: 12 }}>Prepared batch: <strong style={{ color: 'var(--sv-text-strong)' }}>{fmtCurrency(confirmingDeposit.counted_total)}</strong></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 12 }}>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>LODGEMENT DATE<input type="date" value={confirmationDate} onChange={event => setConfirmationDate(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>BANK REFERENCE<input value={confirmationReference} onChange={event => setConfirmationReference(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
+            <label style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--sv-text-dim)' }}>DESTINATION BANK<select value={confirmationDestinationId} onChange={event => setConfirmationDestinationId(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }}><option value="">Select bank</option>{bankAccounts.map(account => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}</select></label>
+            <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>FINAL AMOUNT ACCEPTED BY BANK<input type="number" min="0" step="0.01" value={confirmationAmount} onChange={event => setConfirmationAmount(event.target.value)} style={{ ...controlStyle, display: 'block', width: '100%', marginTop: 4 }} /></label>
+            <div style={{ alignSelf: 'end', paddingBottom: 7, fontSize: 12, color: 'var(--sv-text-dim)' }}>Bank acceptance variance<br /><strong style={{ fontSize: 17, color: Math.abs(Number(confirmationAmount || 0) - Number(confirmingDeposit.counted_total)) < .005 ? 'var(--sv-mint)' : 'var(--sv-amber)' }}>{fmtCurrency(Number(confirmationAmount || 0) - Number(confirmingDeposit.counted_total))}</strong></div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 18 }}><button disabled={saving} onClick={() => setConfirmingDeposit(null)} style={{ ...controlStyle, padding: '8px 13px' }}>Cancel</button><button disabled={saving || !confirmationDate || !confirmationDestinationId || !Number.isFinite(Number(confirmationAmount)) || Number(confirmationAmount) < 0} onClick={confirmDeposit} style={{ padding: '8px 13px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontWeight: 700 }}>{saving ? 'Confirming...' : 'Confirm lodgement'}</button></div>
+        </div>
+      </div>}
     </div>
   );
 }
@@ -15985,8 +16030,8 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     load();
   };
   const exportCsv = () => {
-    const columns = ['Deposit ID', 'Lodgement Date', 'Branch', 'Destination Bank', 'Bank Reference', 'Expected', 'Counted', 'Variance', 'Status', 'Prepared By', 'Posted By', 'Posted At', 'Xero Bank Transfer ID'];
-    const values = rows.map(row => [row.id, String(row.lodgement_date).slice(0, 10), row.location_name, row.destination_account_name, row.bank_reference ?? '', row.expected_total, row.counted_total, row.variance_total, row.status, row.prepared_by_name, row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
+    const columns = ['Deposit ID', 'Lodgement Date', 'Branch', 'Destination Bank', 'Bank Reference', 'Store Reported Cash', 'Store Till Variance', 'Prepared Batch', 'Preparation Variance', 'Bank Accepted', 'Bank Acceptance Variance', 'Confirmation', 'Status', 'Prepared By', 'Confirmed By', 'Posted By', 'Posted At', 'Xero Bank Transfer ID'];
+    const values = rows.map(row => [row.id, row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : '', row.location_name, row.destination_account_name ?? '', row.bank_reference ?? '', row.expected_total, row.store_till_variance_total, row.counted_total, row.variance_total, row.deposited_total ?? '', row.bank_variance_total ?? '', row.confirmation_status, row.status, row.prepared_by_name, row.confirmed_by_name ?? '', row.posted_by_name ?? '', row.posted_at ?? '', row.xero_bank_transfer_id ?? '']);
     const escape = (value: any) => `"${String(value ?? '').replace(/"/g, '""')}"`;
     const blob = new Blob([[columns, ...values].map(line => line.map(escape).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
@@ -16000,9 +16045,9 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
     {error && <div style={{ color: 'var(--sv-red)', marginBottom: 12 }}>{error}</div>}
-    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1020, borderCollapse: 'collapse', fontSize: 12 }}>
-      <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Expected','Counted','Variance','Status','Prepared','Posted','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Expected','Counted','Variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
-      <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{String(row.lodgement_date).slice(0, 10)}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
+    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
+      <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance','Status','Prepared by','Confirmed by','Posted by','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
+      <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : 'Awaiting'}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name ?? '—'}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.store_till_variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.store_till_variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{row.deposited_total == null ? '—' : fmtCurrency(row.deposited_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.bank_variance_total ?? 0) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{row.bank_variance_total == null ? '—' : fmtCurrency(row.bank_variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.confirmation_status === 'planned' ? 'Planned' : row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.confirmed_by_name ?? '—'}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
     </table>{!rows.length && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No deposits match these filters.</div>}</div>}
   </div>;
 }

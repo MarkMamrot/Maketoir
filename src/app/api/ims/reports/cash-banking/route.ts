@@ -17,15 +17,19 @@ export async function GET(request: Request) {
   }
   const values: any[] = [auth.user.businessId, from, to];
   let statusClause = '';
-  if (status) { statusClause = ' AND status = ?'; values.push(status); }
+  if (status) { statusClause = ' AND d.status = ?'; values.push(status); }
   const deposits = await query<any>(
-    `SELECT id, ims_location_id, lodgement_date, bank_reference, source_account_name,
-            destination_account_name, expected_total, counted_total, variance_total,
-            status, prepared_by_name, posted_by_name, posted_at, xero_bank_transfer_id,
-            error_detail, external_correction_note, external_correction_ref, external_correction_date, created_at
-       FROM xero_cash_deposits
-      WHERE business_id = ? AND lodgement_date BETWEEN ? AND ?${statusClause}
-      ORDER BY lodgement_date DESC, id DESC`,
+    `SELECT d.id, d.ims_location_id, d.lodgement_date, d.bank_reference, d.source_account_name,
+            d.destination_account_name, d.expected_total, d.counted_total, d.variance_total,
+            d.deposited_total, d.bank_variance_total, d.confirmation_status,
+            d.status, d.prepared_by_name, d.confirmed_by_name, d.confirmed_at,
+            d.posted_by_name, d.posted_at, d.xero_bank_transfer_id,
+            d.error_detail, d.external_correction_note, d.external_correction_ref, d.external_correction_date, d.created_at,
+            COALESCE((SELECT SUM(s.till_variance) FROM xero_cash_deposit_sources s
+                       WHERE s.business_id = d.business_id AND s.cash_deposit_id = d.id), 0) AS store_till_variance_total
+       FROM xero_cash_deposits d
+      WHERE d.business_id = ? AND COALESCE(d.lodgement_date, DATE(d.created_at)) BETWEEN ? AND ?${statusClause}
+      ORDER BY COALESCE(d.lodgement_date, DATE(d.created_at)) DESC, d.id DESC`,
     values,
   );
   const locations = await imsQuery<{ id: number; name: string }>(

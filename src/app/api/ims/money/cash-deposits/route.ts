@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { buildCashDepositEligibility, CashEodPlanState, CashEodSource } from '@/lib/ims/cashDepositEligibility';
 import { requirePosManagerTier } from '@/lib/sessionUtils';
@@ -8,9 +7,6 @@ import { xeroApiFetch } from '@/services/XeroService';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const money = (value: unknown) => Math.round(Number(value) * 100) / 100;
-const actionKey = (businessId: string, depositId: number, type: string, date = '') =>
-  crypto.createHash('sha256').update(`${businessId}:cash-deposit:${depositId}:${type}:${date}`).digest('hex');
-
 async function loadSources(businessId: string, locationId: number, dates: string[]) {
   const placeholders = dates.map(() => '?').join(',');
   const sources = await imsQuery<CashEodSource>(
@@ -66,13 +62,27 @@ export async function GET() {
   const auth = requirePosManagerTier();
   if (auth.response) return auth.response;
   const deposits = await query<any>(
-    `SELECT id, ims_location_id, lodgement_date, bank_reference, source_account_name,
-            destination_account_name, expected_total, counted_total, variance_total,
-            status, prepared_by_name, posted_by_name, posted_at, error_detail, created_at
-       FROM xero_cash_deposits WHERE business_id = ? ORDER BY created_at DESC LIMIT 100`,
+    `SELECT d.id, d.ims_location_id, d.lodgement_date, d.bank_reference, d.source_account_name,
+            d.destination_account_id, d.destination_account_name, d.expected_total, d.counted_total, d.variance_total,
+            d.deposited_total, d.bank_variance_total, d.confirmation_status, d.confirmed_by_name, d.confirmed_at,
+            d.status, d.prepared_by_name, d.posted_by_name, d.posted_at, d.error_detail, d.created_at,
+            s.destination_account_id AS default_destination_account_id,
+            s.destination_account_name AS default_destination_account_name
+       FROM xero_cash_deposits d
+       LEFT JOIN xero_cash_deposit_settings s
+         ON s.business_id = d.business_id AND s.ims_location_id = d.ims_location_id
+      WHERE d.business_id = ? ORDER BY d.created_at DESC LIMIT 100`,
     [auth.user.businessId],
   );
-  return NextResponse.json({ success: true, canPost: ['Admin', 'SuperAdmin'].includes(auth.user.tier), deposits });
+  let bankAccounts: Array<{ accountId: string; code: string; name: string }> = [];
+  try {
+    const response = await xeroApiFetch(auth.user.businessId, '/Accounts');
+    bankAccounts = (response?.Accounts ?? [])
+      .filter((account: any) => account.Type === 'BANK' && account.Status === 'ACTIVE' && String(account.Code ?? '').trim())
+      .map((account: any) => ({ accountId: String(account.AccountID), code: String(account.Code), name: String(account.Name ?? '') }))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+  } catch {}
+  return NextResponse.json({ success: true, canPost: ['Admin', 'SuperAdmin'].includes(auth.user.tier), deposits, bankAccounts });
 }
 
 export async function POST(request: Request) {
@@ -80,10 +90,9 @@ export async function POST(request: Request) {
   if (auth.response) return auth.response;
   const body = await request.json();
   const locationId = Number(body.locationId);
-  const lodgementDate = typeof body.lodgementDate === 'string' ? body.lodgementDate : '';
   const selectedDays = Array.isArray(body.days) ? body.days : [];
-  if (!Number.isInteger(locationId) || locationId <= 0 || !DATE_PATTERN.test(lodgementDate) || !selectedDays.length) {
-    return NextResponse.json({ error: 'Location, lodgement date, and at least one day are required' }, { status: 400 });
+  if (!Number.isInteger(locationId) || locationId <= 0 || !selectedDays.length) {
+    return NextResponse.json({ error: 'Location and at least one day are required' }, { status: 400 });
   }
   const counts = new Map<string, number>();
   for (const day of selectedDays) {
@@ -111,26 +120,9 @@ export async function POST(request: Request) {
       WHERE business_id = ? AND role_key = 'cash_over_short' LIMIT 1`,
     [auth.user.businessId],
   );
-  const [configuredDestination] = await query<any>(
-    `SELECT destination_account_id, destination_account_code, destination_account_name FROM xero_cash_deposit_settings
-      WHERE business_id = ? AND ims_location_id = ? LIMIT 1`,
-    [auth.user.businessId, locationId],
-  );
   if (!clearing) return NextResponse.json({ error: 'Cash clearing account is not configured for this location' }, { status: 409 });
   const hasVariance = selected.some(day => money((counts.get(day!.date) ?? 0) - day!.expectedCustody) !== 0);
   if (hasVariance && !overShort) return NextResponse.json({ error: 'Cash Over / Short account is not configured' }, { status: 409 });
-
-  const overrideId = typeof body.destinationAccountId === 'string' ? body.destinationAccountId.trim() : '';
-  let destination = configuredDestination;
-  if (overrideId && overrideId !== configuredDestination?.destination_account_id) {
-    const response = await xeroApiFetch(auth.user.businessId, `/Accounts/${encodeURIComponent(overrideId)}`);
-    const account = (response?.Accounts ?? []).find((candidate: any) => candidate.AccountID === overrideId);
-    if (!account || account.Status !== 'ACTIVE' || account.Type !== 'BANK') {
-      return NextResponse.json({ error: 'Select an active Xero bank account' }, { status: 400 });
-    }
-    destination = { destination_account_id: account.AccountID, destination_account_code: String(account.Code ?? ''), destination_account_name: account.Name ?? '' };
-  }
-  if (!destination) return NextResponse.json({ error: 'A destination bank account is required' }, { status: 409 });
 
   const expectedTotal = money(selected.reduce((sum, day) => sum + day!.expectedCustody, 0));
   const countedTotal = money(Array.from(counts.values()).reduce((sum, amount) => sum + amount, 0));
@@ -144,13 +136,11 @@ export async function POST(request: Request) {
         source_account_id, source_account_code, source_account_name,
         over_short_account_id, over_short_account_code, over_short_account_name,
         destination_account_id, destination_account_code, destination_account_name,
-        expected_total, counted_total, variance_total, status, prepared_by_user_id, prepared_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`,
-      [auth.user.businessId, locationId, lodgementDate, String(body.bankReference ?? '').trim() || null,
-        String(body.notes ?? '').trim() || null, clearing.xero_account_id, clearing.xero_account_code,
+        expected_total, counted_total, variance_total, confirmation_status, status, prepared_by_user_id, prepared_by_name)
+       VALUES (?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, 'planned', 'draft', ?, ?)`,
+      [auth.user.businessId, locationId, String(body.notes ?? '').trim() || null, clearing.xero_account_id, clearing.xero_account_code,
         clearing.xero_account_name, overShort?.xero_account_id ?? null, overShort?.xero_account_code ?? null,
-        overShort?.xero_account_name ?? null, destination.destination_account_id, destination.destination_account_code,
-        destination.destination_account_name, expectedTotal, countedTotal, varianceTotal, auth.user.userId, auth.user.name],
+        overShort?.xero_account_name ?? null, expectedTotal, countedTotal, varianceTotal, auth.user.userId, auth.user.name],
     );
     const depositId = Number(headerResult.insertId);
     for (const day of selected) {
@@ -174,23 +164,7 @@ export async function POST(request: Request) {
             source.accountingVersion, source.xeroInvoiceId ?? null, source.xeroPaymentId ?? null],
         );
       }
-      if (variance !== 0) {
-        const key = actionKey(auth.user.businessId, depositId, 'variance', day!.date);
-        await connection.execute(
-          `INSERT INTO xero_cash_deposit_actions
-           (cash_deposit_id, business_id, action_key, action_type, business_date, amount, idempotency_key)
-           VALUES (?, ?, ?, 'variance', ?, ?, ?)`,
-          [depositId, auth.user.businessId, `${depositId}:variance:${day!.date}`, day!.date, variance, key],
-        );
-      }
     }
-    const transferKey = actionKey(auth.user.businessId, depositId, 'bank_transfer');
-    await connection.execute(
-      `INSERT INTO xero_cash_deposit_actions
-       (cash_deposit_id, business_id, action_key, action_type, amount, idempotency_key)
-        VALUES (?, ?, ?, 'bank_transfer', ?, ?)`,
-      [depositId, auth.user.businessId, `${depositId}:bank_transfer`, countedTotal, transferKey],
-    );
     await connection.commit();
     return NextResponse.json({ success: true, depositId, expectedTotal, countedTotal, varianceTotal }, { status: 201 });
   } catch (error: any) {

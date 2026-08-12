@@ -199,6 +199,36 @@ async function main() {
     }
   }
 
+  const cashDepositConfirmationColumns = [
+    ['deposited_total', 'DECIMAL(14,2) NULL AFTER variance_total'],
+    ['bank_variance_total', 'DECIMAL(14,2) NULL AFTER deposited_total'],
+    ['confirmation_status', "VARCHAR(30) NOT NULL DEFAULT 'confirmed' AFTER bank_variance_total"],
+    ['confirmed_by_user_id', 'BIGINT NULL AFTER confirmation_status'],
+    ['confirmed_by_name', 'VARCHAR(255) NULL AFTER confirmed_by_user_id'],
+    ['confirmed_at', 'DATETIME NULL AFTER confirmed_by_name'],
+  ];
+  for (const [columnName, definition] of cashDepositConfirmationColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_cash_deposits'
+          AND COLUMN_NAME = ? LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE xero_cash_deposits ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+  await conn.query(`ALTER TABLE xero_cash_deposits
+    MODIFY COLUMN lodgement_date DATE NULL,
+    MODIFY COLUMN destination_account_id VARCHAR(100) NULL,
+    MODIFY COLUMN destination_account_code VARCHAR(50) NULL,
+    MODIFY COLUMN destination_account_name VARCHAR(255) NULL`);
+  await conn.query(`UPDATE xero_cash_deposits
+    SET deposited_total = COALESCE(deposited_total, counted_total),
+        bank_variance_total = COALESCE(bank_variance_total, 0),
+        confirmed_at = COALESCE(confirmed_at, created_at)
+    WHERE confirmation_status = 'confirmed'`);
+
   console.log('✔ xero_account_mappings created');
   console.log('✔ xero_document_policies created/updated');
   console.log('✔ xero_document_policy_events created');

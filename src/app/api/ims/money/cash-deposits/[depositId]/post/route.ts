@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeCashDeposit } from '@/lib/ims/cashDepositExecutor';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
 
 export async function POST(_request: Request, { params }: { params: { depositId: string } }) {
@@ -15,6 +16,16 @@ export async function POST(_request: Request, { params }: { params: { depositId:
   } catch (error: any) {
     const message = error?.message ?? 'Cash deposit posting failed';
     const status = message === 'Cash deposit not found' ? 404 : message.includes('already being posted') ? 409 : 500;
+    if (status >= 500) {
+      await reportRuntimeIssue({
+        businessId: auth.user.businessId,
+        source: 'ims.cash_banking',
+        operation: 'post-deposit',
+        title: 'Cash deposit Xero posting failed',
+        error,
+        context: { depositId },
+      }).catch(() => {});
+    }
     return NextResponse.json({ error: message }, { status });
   }
 }

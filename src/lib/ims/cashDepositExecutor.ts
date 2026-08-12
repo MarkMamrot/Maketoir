@@ -8,13 +8,14 @@ type Deposit = {
   source_account_code: string;
   over_short_account_code: string | null;
   destination_account_code: string;
+  confirmation_status: string;
   status: string;
 };
 
 type Action = {
   id: number;
   action_key: string;
-  action_type: 'variance' | 'bank_transfer';
+  action_type: 'variance' | 'preparation_variance' | 'bank_acceptance_variance' | 'bank_transfer';
   business_date: string | Date | null;
   amount: number | string;
   status: string;
@@ -37,13 +38,14 @@ export async function executeCashDeposit(
   deps: CashDepositExecutorDependencies = defaults,
 ) {
   const [deposit] = await deps.query<Deposit>(
-    `SELECT id, lodgement_date, bank_reference, source_account_code, over_short_account_code,
-            destination_account_code, status
+        `SELECT id, lodgement_date, bank_reference, source_account_code, over_short_account_code,
+          destination_account_code, confirmation_status, status
        FROM xero_cash_deposits WHERE business_id = ? AND id = ? LIMIT 1`,
     [businessId, depositId],
   );
   if (!deposit) throw new Error('Cash deposit not found');
   if (deposit.status === 'posted') return { status: 'posted' as const };
+  if (deposit.confirmation_status !== 'confirmed') throw new Error('Cash deposit must be confirmed before posting');
   if (!['draft', 'partial', 'error'].includes(deposit.status)) throw new Error('Cash deposit is already being posted');
   const claim = await deps.execute(
     `UPDATE xero_cash_deposits SET status = 'posting', error_detail = NULL,
@@ -56,7 +58,9 @@ export async function executeCashDeposit(
   const actions = await deps.query<Action>(
     `SELECT id, action_key, action_type, business_date, amount, status, idempotency_key
        FROM xero_cash_deposit_actions WHERE business_id = ? AND cash_deposit_id = ?
-      ORDER BY CASE action_type WHEN 'variance' THEN 1 ELSE 2 END, business_date, id`,
+      ORDER BY CASE action_type
+        WHEN 'variance' THEN 1 WHEN 'preparation_variance' THEN 1
+        WHEN 'bank_acceptance_variance' THEN 2 ELSE 3 END, business_date, id`,
     [businessId, depositId],
   );
   try {
@@ -80,9 +84,11 @@ export async function executeCashDeposit(
       );
       let xeroId: string | undefined;
       try {
-        if (action.action_type === 'variance') {
+        if (action.action_type !== 'bank_transfer') {
           if (!deposit.over_short_account_code) throw new Error('Cash Over / Short account is missing from the deposit snapshot');
-          const date = dateString(action.business_date);
+          const isBankAcceptance = action.action_type === 'bank_acceptance_variance';
+          const date = isBankAcceptance ? dateString(deposit.lodgement_date) : dateString(action.business_date);
+          const varianceLabel = isBankAcceptance ? 'bank acceptance' : 'cash preparation';
           const response = await deps.xeroFetch(businessId, '/BankTransactions', {
             method: 'POST', idempotencyKey: action.idempotency_key,
             body: { BankTransactions: [{
@@ -90,9 +96,9 @@ export async function executeCashDeposit(
               Contact: { Name: 'POS Cash Banking' },
               BankAccount: { Code: deposit.source_account_code },
               Date: date,
-              Reference: `Cash banking variance ${date}`,
+              Reference: `${isBankAcceptance ? 'Bank acceptance' : 'Cash preparation'} variance #${depositId}`,
               LineAmountTypes: 'NoTax',
-              LineItems: [{ Description: `Cash deposit ${amount > 0 ? 'overage' : 'shortage'} ${date}`, Quantity: 1, UnitAmount: Math.abs(amount), AccountCode: deposit.over_short_account_code, TaxType: 'NONE' }],
+              LineItems: [{ Description: `${varianceLabel} ${amount > 0 ? 'overage' : 'shortage'} ${date}`, Quantity: 1, UnitAmount: Math.abs(amount), AccountCode: deposit.over_short_account_code, TaxType: 'NONE' }],
             }] },
           });
           xeroId = response?.BankTransactions?.[0]?.BankTransactionID;
