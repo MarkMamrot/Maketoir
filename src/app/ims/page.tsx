@@ -8777,7 +8777,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
-                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
+                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -8795,8 +8795,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                    <td style={{ padding: '10px 12px 10px 18px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}>
                         <select
                           value={selectedAction}
                           onChange={e => setPoActionSelections(curr => ({ ...curr, [po.id]: e.target.value }))}
@@ -12947,7 +12947,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
-                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
+                <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -12968,16 +12968,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
-                    <td style={{ padding: '10px 12px 10px 18px' }}>
+                    <td style={{ padding: '10px 12px' }}>
                       {so.is_pos_ledger ? (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
                           <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
                             POS Sale
                           </span>
                           <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}>
                           <select
                             value={selectedAction}
                             onChange={e => setSoActionSelections(curr => ({ ...curr, [so.id]: e.target.value }))}
