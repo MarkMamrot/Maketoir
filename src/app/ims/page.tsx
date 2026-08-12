@@ -1227,8 +1227,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
-              const slotW=Math.min(72, Math.max(16, (groupW*0.9)/nCh));
-              const barW=Math.max(12, slotW-Math.max(3, slotW*0.08));
+              const slotW=Math.min(78, Math.max(18, (groupW*0.92)/nCh));
+              const barW=Math.max(14, slotW-Math.max(2, slotW*0.06));
               const getLocChans=(loc:string) => activeChannels.filter(ch => getVal(ch,loc) > 0);
               const xBarLocal=(li:number, localCi:number, nLocalCh:number) => {
                 const offset=(groupW - slotW*nLocalCh)/2;
@@ -1316,7 +1316,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                   }}
                                   onMouseLeave={() => setChannelHover(null)}
                                 />
-                                {grossProfitOnScale > 0 && h >= 6 && (
+                                {grossProfitOnScale > 0 && h >= 6 && barW >= 18 && (
                                   <>
                                     <line
                                       x1={x + 2}
@@ -1355,7 +1355,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                 {h>24 && barW>14 && (
                                   <text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtCurrency(v)}</text>
                                 )}
-                                <title>{`${CH_LABEL[ch]} — ${loc}\nSales: ${fmtCurrency(v)}\nTax: ${fmtCurrency(tax)}\nCOGS: ${fmtCurrency(cogs)}\nGross Profit: ${fmtCurrency(grossProfit)}\nOrders: ${getOrd(ch,loc)}\nFormula: Sales - Tax - COGS`}</title>
                               </g>
                             );
                           })}
@@ -1368,14 +1367,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                   {channelHover && (() => {
                     const hostW = channelChartRef.current?.clientWidth ?? 760;
                     const left = Math.max(130, Math.min(channelHover.x, hostW - 130));
-                    const top = Math.max(56, channelHover.y - 10);
+                    const top = Math.min(channelHover.y + 18, 400);
                     return (
                       <div
                         style={{
                           position: 'absolute',
                           left,
                           top,
-                          transform: 'translate(-50%, -100%)',
+                          transform: 'translate(-50%, 0)',
                           pointerEvents: 'none',
                           background: 'rgba(15,23,42,.96)',
                           color: '#fff',
