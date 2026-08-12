@@ -57,7 +57,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -15524,8 +15524,8 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 
 const REPORT_CATALOG = [
   {
-    id: 'report-sales-by-branch' as ImsView,
-    title: 'Sales',
+    id: 'report-sales-detail' as ImsView,
+    title: 'Sales Detail',
     description: 'Product sales performance with per-branch stock levels. Filter by brand, supplier, or keyword.',
     icon: '📊',
   },
@@ -19658,7 +19658,7 @@ export default function ImsPage() {
     'purchase-orders','sales-orders','backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
-    'reports','report-sales-by-branch','report-sales-summary','report-sales-search',
+    'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking',
     'xero','shopify',
@@ -19677,6 +19677,7 @@ export default function ImsPage() {
       if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
+      if (h === 'report-sales-by-branch') return 'report-sales-detail' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
     const initial = readHash();

@@ -192,7 +192,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Reports
         </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales - Detail</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Detail</h1>
         <button
           onClick={downloadCsv}
           disabled={displayRows.length === 0}
@@ -257,7 +257,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', maxHeight: 'calc(100vh - 250px)' }}>
+        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto', overflowY: 'visible', height: '100vh' }}>
           <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>

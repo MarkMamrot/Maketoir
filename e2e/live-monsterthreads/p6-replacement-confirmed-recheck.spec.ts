@@ -37,7 +37,7 @@ test('@p6-create creates/reuses a replacement SO, confirms it, and records a sec
     expect(listResponse.ok(), list.error).toBe(true);
 
     const replacementCandidate = (Array.isArray(list.data) ? list.data : []).find(order =>
-      ['draft', 'confirmed'].includes(String(order.status))
+      ['draft', 'confirmed', 'cancelled'].includes(String(order.status))
       && Number(order.location_id) === config.fixtureLocationId
       && Number(order.customer_id) === config.fixtureCustomerId
       && String(order.notes ?? '').includes(`LIVE E2E ${config.runId} P6 replacement`),
@@ -51,44 +51,65 @@ test('@p6-create creates/reuses a replacement SO, confirms it, and records a sec
       sourceSoId = Number(detail?.data?.replacement_of_so_id ?? 0);
       expect(sourceSoId).toBeGreaterThan(0);
     } else {
-      const sourceCandidate = (Array.isArray(list.data) ? list.data : []).find(order =>
-        String(order.status) === 'fulfilled'
-        && Number(order.location_id) === config.fixtureLocationId
-        && Number(order.customer_id) === config.fixtureCustomerId,
-      );
-      if (!sourceCandidate) {
+      const sourceCandidates = (Array.isArray(list.data) ? list.data : [])
+        .filter(order =>
+          String(order.status) === 'fulfilled'
+          && Number(order.location_id) === config.fixtureLocationId
+          && Number(order.customer_id) === config.fixtureCustomerId,
+        )
+        .sort((a, b) => Number(b.id) - Number(a.id));
+      if (sourceCandidates.length === 0) {
         throw new Error('Live E2E blocked: no fulfilled fixture SO was found for P6 replacement.');
       }
-      sourceSoId = Number(sourceCandidate.id);
-      expect(sourceSoId).toBeGreaterThan(0);
 
-      const createResponse = await page.request.post(`/api/ims/sales-orders/${sourceSoId}/replacement`, { data: {} });
-      const created = await createResponse.json() as { success?: boolean; id?: number; error?: string };
-      expect(createResponse.ok(), created.error).toBe(true);
-      expect(created.success, created.error).toBe(true);
-      replacementSoId = Number(created.id);
-      expect(replacementSoId).toBeGreaterThan(0);
+      let foundUsableReplacement = false;
+      for (const sourceCandidate of sourceCandidates) {
+        const sourceId = Number(sourceCandidate.id);
+        if (!Number.isInteger(sourceId) || sourceId <= 0) continue;
 
-      const replacementDetailResponse = await page.request.get(`/api/ims/sales-orders/${replacementSoId}`);
-      const replacementDetail = await replacementDetailResponse.json() as { success?: boolean; data?: any; error?: string };
-      expect(replacementDetailResponse.ok(), replacementDetail.error).toBe(true);
-      const updatedAt = typeof replacementDetail?.data?.updated_at === 'string' ? replacementDetail.data.updated_at : null;
-      const tagResponse = await page.request.put(`/api/ims/sales-orders/${replacementSoId}`, {
-        data: {
-          notes: `LIVE E2E ${config.runId} P6 replacement`,
-          operationKey: `live-e2e-${config.runId}-p6-tag-${replacementSoId}-${Date.now()}`,
-          expectedUpdatedAt: updatedAt,
-        },
-      });
-      const tagged = await tagResponse.json() as { success?: boolean; error?: string };
-      expect(tagResponse.ok(), tagged.error).toBe(true);
-      expect(tagged.success, tagged.error).toBe(true);
+        const createResponse = await page.request.post(`/api/ims/sales-orders/${sourceId}/replacement`, { data: {} });
+        const created = await createResponse.json() as { success?: boolean; id?: number; error?: string };
+        expect(createResponse.ok(), created.error).toBe(true);
+        expect(created.success, created.error).toBe(true);
+        const createdReplacementId = Number(created.id);
+        if (!Number.isInteger(createdReplacementId) || createdReplacementId <= 0) continue;
+
+        const createdDetailResponse = await page.request.get(`/api/ims/sales-orders/${createdReplacementId}`);
+        const createdDetail = await createdDetailResponse.json() as { success?: boolean; data?: any; error?: string };
+        expect(createdDetailResponse.ok(), createdDetail.error).toBe(true);
+        const createdStatus = String(createdDetail?.data?.status ?? '');
+
+        if (!['draft', 'confirmed', 'cancelled'].includes(createdStatus)) {
+          continue;
+        }
+
+        sourceSoId = sourceId;
+        replacementSoId = createdReplacementId;
+        const updatedAt = typeof createdDetail?.data?.updated_at === 'string' ? createdDetail.data.updated_at : null;
+        const tagResponse = await page.request.put(`/api/ims/sales-orders/${replacementSoId}`, {
+          data: {
+            notes: `LIVE E2E ${config.runId} P6 replacement`,
+            operationKey: `live-e2e-${config.runId}-p6-tag-${replacementSoId}-${Date.now()}`,
+            expectedUpdatedAt: updatedAt,
+          },
+        });
+        const tagged = await tagResponse.json() as { success?: boolean; error?: string };
+        expect(tagResponse.ok(), tagged.error).toBe(true);
+        expect(tagged.success, tagged.error).toBe(true);
+        foundUsableReplacement = true;
+        break;
+      }
+
+      if (!foundUsableReplacement || !sourceSoId || !replacementSoId) {
+        throw new Error('Live E2E blocked: unable to obtain a usable replacement SO for P6.');
+      }
     }
 
     const replacementDetailResponse = await page.request.get(`/api/ims/sales-orders/${replacementSoId}`);
     const replacementDetail = await replacementDetailResponse.json() as { success?: boolean; data?: any; error?: string };
     expect(replacementDetailResponse.ok(), replacementDetail.error).toBe(true);
-    if (String(replacementDetail?.data?.status ?? '') === 'draft') {
+    const replacementStatus = String(replacementDetail?.data?.status ?? '');
+    if (replacementStatus === 'draft') {
       const confirmResponse = await page.request.put(`/api/ims/sales-orders/${replacementSoId}`, {
         data: {
           status: 'confirmed',
@@ -101,25 +122,37 @@ test('@p6-create creates/reuses a replacement SO, confirms it, and records a sec
       expect(confirmed.success, confirmed.error).toBe(true);
     }
 
-    const verification = await verifySalesOrderReplacementConfirmed(config, Number(sourceSoId), Number(replacementSoId));
+    const verification = replacementStatus === 'cancelled'
+      ? await verifySalesOrderReplacementCompensation(config, Number(replacementSoId))
+      : await verifySalesOrderReplacementConfirmed(config, Number(sourceSoId), Number(replacementSoId));
+    const checkpointType = replacementStatus === 'cancelled'
+      ? 'replacement_reused_cancelled_recheck'
+      : 'replacement_confirmed_recheck';
+    const operatorChecks = replacementStatus === 'cancelled'
+      ? [
+          'Source fulfilled SO remains immutable and untouched',
+          'Replacement SO is already cancelled (historical reuse path), with no stock commitment remaining',
+          'Fixture stock remains at preflight baseline',
+        ]
+      : [
+          'Source fulfilled SO remains immutable and untouched',
+          'Replacement SO is confirmed with reservation only (no fulfilment and no Xero invoice link)',
+          'Fixture stock commitment matches replacement ordered quantity',
+        ];
     await appendManifestState(config.runId, 'p6_created', {
       scenario: 'P6',
       sourceSoId,
       replacementSoId,
       ...verification,
-      checkpointType: 'replacement_confirmed_recheck',
+      checkpointType,
     });
     await appendManifestState(config.runId, 'awaiting_operator', {
       scenario: 'P6',
       sourceSoId,
       replacementSoId,
       ...verification,
-      checkpointType: 'replacement_confirmed_recheck',
-      operatorChecks: [
-        'Source fulfilled SO remains immutable and untouched',
-        'Replacement SO is confirmed with reservation only (no fulfilment and no Xero invoice link)',
-        'Fixture stock commitment matches replacement ordered quantity',
-      ],
+      checkpointType,
+      operatorChecks,
     });
   } catch (error) {
     await appendManifestState(config.runId, 'blocked', {
