@@ -181,6 +181,24 @@ async function main() {
     }
   }
 
+  const pettyCashPlanColumns = [
+    ['petty_cash_amount', 'DECIMAL(14,2) NOT NULL DEFAULT 0 AFTER cash_rounding'],
+    ['petty_cash_status', "VARCHAR(30) NOT NULL DEFAULT 'not_required' AFTER variance_status"],
+    ['petty_cash_idempotency_key', 'VARCHAR(64) NULL AFTER variance_idempotency_key'],
+    ['xero_petty_cash_id', 'VARCHAR(100) NULL AFTER xero_variance_id'],
+  ];
+  for (const [columnName, definition] of pettyCashPlanColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_pos_cash_eod_actions'
+          AND COLUMN_NAME = ? LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE xero_pos_cash_eod_actions ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+
   console.log('✔ xero_account_mappings created');
   console.log('✔ xero_document_policies created/updated');
   console.log('✔ xero_document_policy_events created');

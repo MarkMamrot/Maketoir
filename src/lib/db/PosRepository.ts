@@ -1118,25 +1118,40 @@ export const PosEodRepo = {
   },
 
   async getExpected(locationId: number, date: string, registerId?: number | null): Promise<Record<string, number>> {
-    const rows = await imsQuery<any>(
-      registerId != null
-        ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+    const [rows, pettyCashRows] = await Promise.all([
+      imsQuery<any>(
+        registerId != null
+          ? `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
            WHERE s.location_id = ? AND s.register_id = ? AND DATE(s.completed_at) = ?
              AND s.status IN ('completed','layby_complete')
            GROUP BY p.payment_method`
-        : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+          : `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
            FROM pos_payments p
            JOIN pos_sales s ON s.id = p.sale_id
            WHERE s.location_id = ? AND DATE(s.completed_at) = ?
              AND s.status IN ('completed','layby_complete')
            GROUP BY p.payment_method`,
-      registerId != null ? [locationId, registerId, date] : [locationId, date],
-    );
+        registerId != null ? [locationId, registerId, date] : [locationId, date],
+      ),
+      imsQuery<{ total: string }>(
+        registerId != null
+          ? `SELECT COALESCE(SUM(amount), 0) AS total FROM pos_petty_cash_transactions
+              WHERE location_id = ? AND register_id = ? AND transaction_date = ? AND status = 'recorded'`
+          : `SELECT COALESCE(SUM(amount), 0) AS total FROM pos_petty_cash_transactions
+              WHERE location_id = ? AND transaction_date = ? AND status = 'recorded'`,
+        registerId != null ? [locationId, registerId, date] : [locationId, date],
+      ),
+    ]);
     const result: Record<string, number> = {};
     for (const row of rows) {
       result[row.payment_method] = toNum(row.total);
+    }
+    const pettyCash = toNum(pettyCashRows[0]?.total);
+    if (pettyCash !== 0) {
+      const cashKey = Object.keys(result).find(key => key.trim().toLowerCase() === 'cash') ?? 'Cash';
+      result[cashKey] = Math.round(((result[cashKey] ?? 0) - pettyCash) * 100) / 100;
     }
     return result;
   },
@@ -1211,17 +1226,30 @@ export const PosEodRepo = {
     fallback?: { locationId: number; date: string; registerId: number | null },
   ): Promise<Record<string, number>> {
     const { clause, params } = await this._sessionMatchClause(registerSessionId, 's.', fallback);
-    const rows = await imsQuery<any>(
-      `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
+    const [rows, pettyCashRows] = await Promise.all([
+      imsQuery<any>(
+        `SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total
          FROM pos_payments p
          JOIN pos_sales s ON s.id = p.sale_id
         WHERE s.status IN ('completed','layby_complete')
           AND ${clause}
         GROUP BY p.payment_method`,
-      params,
-    );
+        params,
+      ),
+      imsQuery<{ total: string }>(
+        `SELECT COALESCE(SUM(amount), 0) AS total
+           FROM pos_petty_cash_transactions
+          WHERE register_session_id = ? AND status = 'recorded'`,
+        [registerSessionId],
+      ),
+    ]);
     const result: Record<string, number> = {};
     for (const row of rows) result[row.payment_method] = toNum(row.total);
+    const pettyCash = toNum(pettyCashRows[0]?.total);
+    if (pettyCash !== 0) {
+      const cashKey = Object.keys(result).find(key => key.trim().toLowerCase() === 'cash') ?? 'Cash';
+      result[cashKey] = Math.round(((result[cashKey] ?? 0) - pettyCash) * 100) / 100;
+    }
     return result;
   },
 

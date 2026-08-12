@@ -26,7 +26,7 @@ describe('buildCashDepositEligibility', () => {
   it('requires every corrected source action and the whole day to be ready', () => {
     const [day] = buildCashDepositEligibility({
       sources: [{ ...source, xero_payment_id: null, xero_payment_required: 1 }],
-      plans: [{ eod_reconciliation_id: 1, accounting_version: 2, payment_status: 'completed', variance_status: 'error', till_variance: -5 }],
+      plans: [{ eod_reconciliation_id: 1, accounting_version: 2, payment_status: 'completed', variance_status: 'error', petty_cash_status: 'not_required', till_variance: -5 }],
       reservedSourceIds: new Set(),
       openDates: new Set(['2026-07-25']),
     });
@@ -40,7 +40,7 @@ describe('buildCashDepositEligibility', () => {
   it('blocks a policy invoice-only source even though payment_required is false', () => {
     const [day] = buildCashDepositEligibility({
       sources: [{ ...source, xero_payment_id: null, xero_payment_required: 0 }],
-      plans: [{ eod_reconciliation_id: 1, accounting_version: 2, payment_status: 'pending', variance_status: 'not_required', till_variance: 0 }],
+      plans: [{ eod_reconciliation_id: 1, accounting_version: 2, payment_status: 'pending', variance_status: 'not_required', petty_cash_status: 'not_required', till_variance: 0 }],
       reservedSourceIds: new Set(),
       openDates: new Set(),
     });
@@ -48,6 +48,18 @@ describe('buildCashDepositEligibility', () => {
     expect(day.eligible).toBe(false);
     expect(day.blockers).toContain('Register reconciliation 1 has incomplete Xero cash accounting');
     expect(day.sources[0].legacy).toBe(false);
+  });
+
+  it('blocks banking while the petty cash expense action is unfinished', () => {
+    const [day] = buildCashDepositEligibility({
+      sources: [{ ...source, xero_payment_required: 1 }],
+      plans: [{ eod_reconciliation_id: 1, accounting_version: 3, payment_status: 'completed', variance_status: 'not_required', petty_cash_status: 'error', till_variance: 0 }],
+      reservedSourceIds: new Set(),
+      openDates: new Set(),
+    });
+
+    expect(day.eligible).toBe(false);
+    expect(day.blockers).toContain('Register reconciliation 1 has incomplete Xero cash accounting');
   });
 
   it('blocks a source already reserved in another deposit', () => {

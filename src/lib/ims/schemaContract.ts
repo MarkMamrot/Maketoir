@@ -53,6 +53,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_sales',
   'pos_sale_items',
   'pos_payments',
+  'pos_petty_cash_transactions',
   'pos_eod_reconciliations',
   'ims_sales_history',
   'ims_sales_cache',

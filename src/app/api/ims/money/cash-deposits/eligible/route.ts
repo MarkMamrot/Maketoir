@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   const sourceIds = sources.map(source => Number(source.id));
   const placeholders = sourceIds.map(() => '?').join(',');
   const plans = sourceIds.length ? await query<CashEodPlanState>(
-    `SELECT eod_reconciliation_id, accounting_version, payment_status, variance_status, till_variance
+    `SELECT eod_reconciliation_id, accounting_version, payment_status, variance_status, petty_cash_status, till_variance
        FROM xero_pos_cash_eod_actions
       WHERE business_id = ? AND eod_reconciliation_id IN (${placeholders})`,
     [auth.user.businessId, ...sourceIds],

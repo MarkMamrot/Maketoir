@@ -19,6 +19,7 @@ export type CashEodPlanState = {
   accounting_version: number;
   payment_status: string;
   variance_status: string;
+  petty_cash_status: string;
   till_variance: number | string;
 };
 
@@ -55,7 +56,8 @@ export function buildCashDepositEligibility(input: {
       const legacyPaid = !plan && (!!source.xero_payment_id || (!!source.xero_invoice_id && !source.xero_payment_required));
       const correctedReady = !!plan
         && plan.payment_status === 'completed'
-        && ['completed', 'not_required'].includes(plan.variance_status);
+        && ['completed', 'not_required'].includes(plan.variance_status)
+        && ['completed', 'not_required'].includes(plan.petty_cash_status ?? 'not_required');
       if (reserved) blockers.push(`Register reconciliation ${source.id} is already reserved by a deposit`);
       if (!legacyPaid && !correctedReady) blockers.push(`Register reconciliation ${source.id} has incomplete Xero cash accounting`);
       return {

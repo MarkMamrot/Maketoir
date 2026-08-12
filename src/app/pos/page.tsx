@@ -1220,6 +1220,87 @@ function PosSettingsModal({
   );
 }
 
+function PettyCashModal({ registerSessionId, onSaved, onCancel }: {
+  registerSessionId: number;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [amount, setAmount] = useState('');
+  const [reason, setReason] = useState('');
+  const [gstTreatment, setGstTreatment] = useState<'gst' | 'bas_excluded'>('gst');
+  const [receipt, setReceipt] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const operationKey = useRef(crypto.randomUUID());
+
+  const submit = async () => {
+    const numericAmount = Math.round(Number(amount) * 100) / 100;
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setError('Enter a valid amount.'); return; }
+    if (!reason.trim()) { setError('Enter the purchase reason.'); return; }
+    if (!receipt) { setError('Attach the receipt photo or PDF.'); return; }
+    setSaving(true); setError('');
+    try {
+      const form = new FormData();
+      form.set('operation_key', operationKey.current);
+      form.set('register_session_id', String(registerSessionId));
+      form.set('amount', numericAmount.toFixed(2));
+      form.set('reason', reason.trim());
+      form.set('gst_treatment', gstTreatment);
+      form.set('receipt', receipt);
+      const response = await fetch('/api/pos/petty-cash', { method: 'POST', body: form });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Petty cash could not be recorded.');
+      onSaved();
+    } catch (failure: any) {
+      setError(failure?.message ?? 'Petty cash could not be recorded.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box', padding: '9px 10px', borderRadius: 6,
+    border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 14,
+  };
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.68)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="petty-cash-title" style={{ width: 'min(430px, 100%)', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 18px 54px rgba(0,0,0,.5)', overflow: 'hidden' }}>
+        <div style={{ padding: '15px 17px', borderBottom: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 id="petty-cash-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)', flex: 1 }}>Petty Cash</h2>
+          <button onClick={onCancel} disabled={saving} title="Close" style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 20, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ padding: 17, display: 'grid', gap: 14 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>AMOUNT
+            <input autoFocus type="number" min="0.01" max="5000" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
+          </label>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>PURCHASE / SUPPLIER
+            <input maxLength={500} value={reason} onChange={event => setReason(event.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
+          </label>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', marginBottom: 5 }}>GST</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+              <button type="button" onClick={() => setGstTreatment('gst')} style={{ padding: '9px 8px', border: 0, borderRight: '1px solid var(--sv-etch)', background: gstTreatment === 'gst' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'gst' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>GST on Expenses</button>
+              <button type="button" onClick={() => setGstTreatment('bas_excluded')} style={{ padding: '9px 8px', border: 0, background: gstTreatment === 'bas_excluded' ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: gstTreatment === 'bas_excluded' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>BAS Excluded</button>
+            </div>
+          </div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)' }}>RECEIPT
+            <span style={{ ...inputStyle, marginTop: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, cursor: 'pointer', fontWeight: 500, color: receipt ? 'var(--sv-text-main)' : 'var(--sv-text-dim)' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{receipt?.name ?? 'Take photo or choose file'}</span>
+              <span aria-hidden="true" style={{ fontSize: 18 }}>+</span>
+              <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,image/*" capture="environment" onChange={event => setReceipt(event.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+            </span>
+          </label>
+          {error && <div style={{ padding: '9px 10px', borderRadius: 6, border: '1px solid rgba(248,113,113,.4)', color: 'var(--sv-red)', fontSize: 12 }}>{error}</div>}
+        </div>
+        <div style={{ padding: '12px 17px', borderTop: '1px solid var(--sv-etch)', display: 'flex', justifyContent: 'flex-end', gap: 9 }}>
+          <button onClick={onCancel} disabled={saving} style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={submit} disabled={saving} style={{ padding: '8px 15px', borderRadius: 6, border: 0, background: 'var(--sv-action)', color: '#fff', fontWeight: 800, cursor: saving ? 'wait' : 'pointer', opacity: saving ? .65 : 1 }}>{saving ? 'Recording…' : 'Record & open till'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
 type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
@@ -1297,6 +1378,7 @@ function MainPos({
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [posSettingsOpen, setPosSettingsOpen] = useState(false);
+  const [pettyCashOpen, setPettyCashOpen] = useState(false);
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [posSettings, setPosSettings] = useState<PosLocationSettings>(DEFAULT_POS_SETTINGS);
   const [posTheme, setPosTheme] = useState<Record<string, string>>({});
@@ -2051,6 +2133,16 @@ function MainPos({
           </svg>
         </button>
         <button
+          onClick={() => setPettyCashOpen(true)}
+          disabled={!isOnline || regSession?.status !== 'open'}
+          title={regSession?.status !== 'open' ? 'Open the register before recording petty cash' : !isOnline ? 'Petty cash requires an online connection' : 'Record petty cash'}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isOnline && regSession?.status === 'open' ? 'pointer' : 'default', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, opacity: isOnline && regSession?.status === 'open' ? 1 : .4 }}
+          onMouseEnter={event => { if (isOnline && regSession?.status === 'open') event.currentTarget.style.background = 'var(--pos-btn-bg)'; }}
+          onMouseLeave={event => (event.currentTarget.style.background = 'none')}
+        >
+          <span aria-hidden="true" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>$↓</span>
+        </button>
+        <button
           onClick={() => setHelpOpen(true)}
           title="Help"
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
@@ -2516,6 +2608,19 @@ function MainPos({
             setGcIssueOpen(false);
           }}
           onCancel={() => setGcIssueOpen(false)}
+        />
+      )}
+
+      {pettyCashOpen && regSession?.id && (
+        <PettyCashModal
+          registerSessionId={Number(regSession.id)}
+          onSaved={() => {
+            setPettyCashOpen(false);
+            setSyncMsg('Petty cash recorded');
+            setTimeout(() => setSyncMsg(null), 3000);
+            handleOpenTill();
+          }}
+          onCancel={() => setPettyCashOpen(false)}
         />
       )}
 

@@ -63,6 +63,7 @@ export async function POST(req: Request) {
     'credit_note', 'freight', 'stock_adjustment',
     'rounding',
     'cash_over_short',
+    'petty_cash_expense',
     'gift_card_liability',
     'store_credit_liability',
     'supplier_credit_note',
@@ -76,6 +77,9 @@ export async function POST(req: Request) {
     const account = (accountResponse?.Accounts ?? []).find((candidate: any) => candidate.AccountID === xeroAccountId);
     if (!account || account.Status !== 'ACTIVE' || String(account.Code ?? '') !== String(xeroAccountCode ?? '') || String(account.Name ?? '') !== String(xeroAccountName ?? '')) {
       return NextResponse.json({ error: 'Select an active Xero account and try again.' }, { status: 400 });
+    }
+    if (roleKey === 'petty_cash_expense' && account.Class !== 'EXPENSE') {
+      return NextResponse.json({ error: 'Petty Cash Expense must use an active Xero expense account.' }, { status: 400 });
     }
     await execute(
       `INSERT INTO xero_account_mappings (business_id, role_key, xero_account_id, xero_account_code, xero_account_name)

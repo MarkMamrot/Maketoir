@@ -34,6 +34,7 @@ const accountRoles: Array<{ key: string; label: string; required: (policy: XeroD
   { key: 'inventory_asset', label: 'Inventory Asset', required: policy => policy.poCompletedAction !== 'none' || policy.supplierCreditNoteAction !== 'none' },
   { key: 'inventory_in_transit', label: 'Inventory in Transit', required: policy => policy.poCompletedAction !== 'none' },
   { key: 'sales_revenue', label: 'Sales Revenue', required: policy => policy.soApprovedAction !== 'none' || policy.soCompletedAction !== 'none' || policy.manualCustomerCreditNoteAction !== 'none' || policy.posBatchSyncEnabled || policy.onlineBatchAction !== 'none' },
+  { key: 'petty_cash_expense', label: 'Petty Cash Expense', required: policy => policy.posBatchSyncEnabled && policy.posBatchPaymentSyncEnabled },
   { key: 'credit_note', label: 'Customer Returns / Refunds', required: () => false },
   { key: 'supplier_credit_note', label: 'Supplier Credit Notes', required: () => false },
 ];

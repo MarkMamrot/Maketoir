@@ -257,6 +257,63 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(results).toEqual([expect.objectContaining({ method: 'Cash', status: 'paid' })]);
   });
 
+  it('keeps gross cash sales on the invoice and posts petty cash as a separate expense', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) {
+        return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      }
+      if (sql.includes('xero_account_mappings')) {
+        return Promise.resolve([
+          { role_key: 'sales_revenue', xero_account_code: '200' },
+          { role_key: 'petty_cash_expense', xero_account_code: '429' },
+        ]);
+      }
+      if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    mockImsQuery.mockImplementation((sql: string) => {
+      if (sql.includes('pos_petty_cash_transactions')) {
+        return Promise.resolve([{ id: 7, amount: '6.85', gst_treatment: 'gst', reason: 'Paper towels' }]);
+      }
+      if (sql.includes('net_rounding')) return Promise.resolve([{ net_rounding: '0' }]);
+      if (sql.includes('issued_total')) return Promise.resolve([{ issued_total: '0' }]);
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-cash', AmountDue: 100 }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-cash' }] })
+      .mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'petty-cash-1' }] });
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{
+        id: 44,
+        payment_method: 'Cash',
+        expected_amount: 93.15,
+        counted_amount: 493.15,
+        opening_float: 400,
+        register_session_id: 8,
+      }],
+      'Newtown', 2, persistence(), 'Front Till',
+    );
+
+    expect(mockXeroApiFetch.mock.calls.map(call => call[1])).toEqual(['/Invoices', '/Payments', '/BankTransactions']);
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0].UnitAmount).toBe(100);
+    expect(mockXeroApiFetch.mock.calls[1][2].body.Payments[0].Amount).toBe(100);
+    expect(mockXeroApiFetch.mock.calls[2][2].body.BankTransactions[0]).toEqual(expect.objectContaining({
+      Type: 'SPEND',
+      BankAccount: { Code: '090' },
+      LineAmountTypes: 'Inclusive',
+      LineItems: [expect.objectContaining({
+        Description: 'Paper towels',
+        UnitAmount: 6.85,
+        AccountCode: '429',
+        TaxType: 'INPUT',
+      })],
+    }));
+    expect(results).toEqual([expect.objectContaining({ method: 'Cash', status: 'paid' })]);
+  });
+
   it('retries only an unfinished till variance after the cash payment completed', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) {

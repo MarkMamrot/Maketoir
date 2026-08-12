@@ -190,6 +190,33 @@ const TABLE_DDLS = [
     CONSTRAINT fk_pos_chat_attachment_message FOREIGN KEY (message_id)
       REFERENCES pos_chat_messages(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS pos_petty_cash_transactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    operation_key VARCHAR(191) NOT NULL,
+    location_id INT NOT NULL,
+    register_id INT NULL,
+    register_session_id INT NOT NULL,
+    transaction_date DATE NOT NULL,
+    amount DECIMAL(12,2) NOT NULL,
+    gst_treatment ENUM('gst','bas_excluded') NOT NULL DEFAULT 'gst',
+    gst_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    reason VARCHAR(500) NOT NULL,
+    receipt_original_name VARCHAR(255) NOT NULL,
+    receipt_stored_name VARCHAR(255) NOT NULL,
+    receipt_mime_type VARCHAR(100) NOT NULL,
+    receipt_file_size INT UNSIGNED NOT NULL,
+    cashier_id INT NULL,
+    cashier_name VARCHAR(255) NULL,
+    status ENUM('recorded','voided') NOT NULL DEFAULT 'recorded',
+    voided_at DATETIME NULL,
+    voided_by_name VARCHAR(255) NULL,
+    void_reason VARCHAR(500) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_pos_petty_cash_operation (business_id, operation_key),
+    INDEX idx_pos_petty_cash_session (business_id, register_session_id, status),
+    INDEX idx_pos_petty_cash_location_date (business_id, location_id, transaction_date)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,

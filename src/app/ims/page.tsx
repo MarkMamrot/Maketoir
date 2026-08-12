@@ -8625,8 +8625,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' });
     }
     if (!isAdvisor && po.status === 'partially_received') {
-      actions.push({ label: 'Continue Receiving', value: 'receive' });
-      if (onResolve) actions.push({ label: 'Resolve Outstanding', value: 'resolve' });
+      actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Resolve Outstanding', value: 'resolve' });
     }
     if (!isAdvisor && po.status === 'backordered') {
       actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
@@ -17698,6 +17697,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'credit_note', label: 'Customer Returns / Refunds', help: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note.', example: 'Refund a $110 sale: this account gets the $110 credit note line. If left blank, Sales Revenue is used.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'rounding', label: 'Cash Rounding', help: 'Optional account for small cash-rounding differences on POS sales. If not set, the app falls back to Sales Revenue.', example: 'Sale total is $10.02 and cash collected is rounded to $10.00: the 2c difference posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
     { key: 'cash_over_short', label: 'Cash Over / Short', help: 'Required account for till variances and cash-banking discrepancies. These entries post without GST.', example: 'Expected cash is $500 but counted cash is $490: the $10 shortfall posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
+    { key: 'petty_cash_expense', label: 'Petty Cash Expense', help: 'Expense account for purchases paid directly from a POS till. Each withdrawal posts separately from sales and reduces expected bankable cash.', example: 'Staff spend $6.85 on paper towels: gross cash sales remain revenue and a separate Spend Money transaction posts $6.85 here.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'freight', label: 'Freight / Shipping', help: 'Expense account for supplier freight when PO Freight Treatment is set to Expense. Not used when freight is capitalised into stock.', example: 'Supplier charges $25 freight on a PO and freight treatment is Expense: that $25 posts here.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'stock_adjustment', label: 'Stock Adjustment / Shrinkage', help: 'Expense account used for stocktake write-offs and surpluses.', example: 'Write off 3 units costing $12 each during a stocktake: the $36 variance posts here.', filter: (a: any) => a.class === 'EXPENSE' },
     { key: 'gift_card_liability', label: 'Gift Card Liability', help: 'Liability account for unused gift card balances until they are redeemed.', example: 'Sell a $100 gift card: Gift Card Liability increases by $100 until the customer spends it.', filter: (a: any) => a.class === 'LIABILITY' },
@@ -25650,6 +25650,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
           { role: 'sales_revenue',         type: 'Revenue', description: 'Sales income — used for SO and batch POS/online invoice lines', required: true },
           { role: 'rounding',              type: 'Revenue/Expense', description: 'Optional account for POS cash-rounding adjustments; defaults to Sales Revenue when not mapped', required: false },
           { role: 'cash_over_short',        type: 'Revenue/Expense', description: 'Required for POS till and cash-banking discrepancies; entries are posted without GST', required: true },
+          { role: 'petty_cash_expense',     type: 'Expense', description: 'Required for POS petty cash; posts Spend Money from branch Cash clearing with per-withdrawal GST treatment', required: true },
           { role: 'freight',               type: 'Expense', description: 'Freight / shipping expense — used when freight treatment is set to "Expense"', required: false },
           { role: 'credit_note',           type: 'Revenue', description: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note. If not mapped, the credit note uses sales_revenue.', required: false },
           { role: 'supplier_credit_note',  type: 'Expense/Asset', description: 'Used only for supplier credit note lines that do not return stock, such as rebates, pricing corrections, and overcharges. Returned-stock lines post to inventory_asset instead. If not mapped, non-stock lines fall back to cogs.', required: false },
