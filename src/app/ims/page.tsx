@@ -82,7 +82,6 @@ const NAV = [
     { id: 'backorders',       label: 'Backorders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
-    { id: 'smart-device-receive', label: 'Smart Device Receive' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
@@ -8692,6 +8691,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
+        {!isAdvisor && <button onClick={() => window.open('/receive', '_blank')} style={btnStyle('ghost')}>📱 Smart Device Receive</button>}
         {!isAdvisor && <button onClick={() => setImportPOsOpen(true)} style={btnStyle('ghost')}>⬆ Import POs</button>}
         {!isAdvisor && <button data-testid="po-new" onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
@@ -8766,7 +8766,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
-              <col style={{ width: 210 }} />
+              <col style={{ width: 250 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -8786,7 +8786,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 return (
                   <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                     <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 12, fontWeight: 600, padding: 0 }}>{po.po_number}</button>
+                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{po.po_number}</button>
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
@@ -8799,7 +8799,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                         <select
                           value={selectedAction}
                           onChange={e => setPoActionSelections(curr => ({ ...curr, [po.id]: e.target.value }))}
-                          style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                          style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 170, width: 170, background: 'var(--sv-bg-2)' }}
                         >
                           {poActions.map(action => (
                             <option key={action.value} value={action.value}>{action.label}</option>
@@ -12936,7 +12936,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
-              <col style={{ width: 200 }} />
+              <col style={{ width: 250 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -12957,9 +12957,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                     <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {so.is_pos_ledger ? (
-                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       ) : (
-                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       )}
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
@@ -12980,7 +12980,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           <select
                             value={selectedAction}
                             onChange={e => setSoActionSelections(curr => ({ ...curr, [so.id]: e.target.value }))}
-                            style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                            style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 170, width: 170, background: 'var(--sv-bg-2)' }}
                           >
                             {soActions.map(action => (
                               <option key={action.value} value={action.value}>{action.label}</option>
@@ -20455,7 +20455,7 @@ export default function ImsPage() {
       />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setViewSafe(v); }} />
+        <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
         <main style={{ flex: 1, height: 'calc(100vh - 52px)', overflow: 'auto', padding: 28, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
           <MainSections
             view={view}
