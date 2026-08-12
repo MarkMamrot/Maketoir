@@ -82,7 +82,7 @@ export function SalesOrderFulfilmentModal({
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: 16 }} onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
+    <div data-testid="so-fulfil-modal" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.68)', display: 'grid', placeItems: 'center', padding: 16 }} onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div style={{ width: 'min(760px, 100%)', maxHeight: '92vh', overflow: 'auto', background: 'var(--sv-surface,#18202b)', color: 'var(--sv-text,#fff)', border: '1px solid var(--sv-border,#364152)', borderRadius: 14, padding: 22, boxShadow: '0 24px 80px rgba(0,0,0,.45)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
           <div>
@@ -97,14 +97,14 @@ export function SalesOrderFulfilmentModal({
 
         <div style={{ display: 'grid', gap: 10, marginTop: 20 }}>
           <label style={{ display: 'block', padding: 12, border: `1px solid ${mode === 'partial' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 9, cursor: 'pointer' }}>
-            <input type="radio" checked={mode === 'partial'} onChange={() => setMode('partial')} />
+            <input data-testid="so-fulfil-mode-partial" type="radio" checked={mode === 'partial'} onChange={() => setMode('partial')} />
             <strong>Partially fulfil now</strong>
             <div style={{ margin: '4px 0 0 22px', fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
               Ship the quantities entered below now and leave any remaining amount outstanding for a short delay.
             </div>
           </label>
           <label style={{ display: 'block', padding: 12, border: `1px solid ${mode === 'backorder' ? 'var(--sv-mint,#34d399)' : 'var(--sv-border,#364152)'}`, borderRadius: 9, cursor: 'pointer' }}>
-            <input type="radio" checked={mode === 'backorder'} onChange={() => setMode('backorder')} />
+            <input data-testid="so-fulfil-mode-backorder" type="radio" checked={mode === 'backorder'} onChange={() => setMode('backorder')} />
             <strong>Create backorder for remainder</strong>
             <div style={{ margin: '4px 0 0 22px', fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>
               Fulfil the quantities entered now and move the rest to a held child backorder for later dispatch.
@@ -124,7 +124,7 @@ export function SalesOrderFulfilmentModal({
                   <div style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>{item.sku || item.product_name || `Line ${item.id}`}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <label style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>Qty</label>
-                    <input type="number" min={0} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
+                    <input data-testid={`so-fulfil-qty-${item.id}`} type="number" min={0} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>of {outstanding}</span>
                   </div>
                 </div>
@@ -137,7 +137,7 @@ export function SalesOrderFulfilmentModal({
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 18 }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'transparent', border: '1px solid var(--sv-border,#364152)', color: 'inherit', cursor: 'pointer' }}>Cancel</button>
-          <button onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
+          <button data-testid="so-fulfil-confirm" onClick={() => submit()} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--sv-mint,#34d399)', color: '#052e16', fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Saving…' : 'Confirm'}</button>
         </div>
       </div>
     </div>

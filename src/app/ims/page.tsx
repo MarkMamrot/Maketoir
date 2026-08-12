@@ -13121,7 +13121,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
     btns.push(<button key="delete" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
   if (!isAdvisor && so.status === 'confirmed') {
-    btns.push(<button key="fulfil" onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfil</button>);
+    btns.push(<button key="fulfil" data-testid={`so-fulfil-${so.id}`} onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfil</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="revert" onClick={() => onStatus(so, 'draft')} style={btnStyle('ghost', 'xs')}>Revert to Draft</button>);
     btns.push(<button key="cancel" data-testid={`so-cancel-${so.id}`} onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
@@ -16105,8 +16105,15 @@ function XeroView({
   };
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
-    padding: '8px 16px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: active ? 600 : 400,
-    background: active ? 'var(--sv-action)' : 'var(--sv-bg-2)', color: active ? '#fff' : 'var(--sv-text-main)',
+    padding: '8px 16px',
+    border: active ? '1px solid transparent' : '1px solid var(--sv-etch)',
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: active ? 600 : 500,
+    background: active ? 'var(--sv-action)' : 'var(--sv-bg-1)',
+    color: active ? '#fff' : 'var(--sv-text-main)',
+    boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,.08)' : 'none',
   });
 
   if (loading) return <div style={{ padding: 40, color: 'var(--sv-text-dim)' }}>Loading Xero status...</div>;

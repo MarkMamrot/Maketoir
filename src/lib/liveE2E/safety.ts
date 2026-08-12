@@ -1,6 +1,6 @@
 export const LIVE_CONFIRMATION = 'MONSTERTHREADS_LIVE_E2E';
 
-export type LiveE2EAction = 'preflight' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
+export type LiveE2EAction = 'preflight' | 'p1' | 'p1-repair' | 'p1-compensate' | 'p2' | 'p2-compensate' | 'p3' | 'inspect' | 'acknowledge' | 'retry-compensation' | 'compensate' | 'verify-clean' | 'report';
 
 export type LiveE2EConfig = {
   action: LiveE2EAction;
@@ -20,7 +20,7 @@ export type LiveE2EConfig = {
   maxDocumentTotal: number;
 };
 
-const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
+const ALLOWED_ACTIONS = new Set<LiveE2EAction>(['preflight', 'p1', 'p1-repair', 'p1-compensate', 'p2', 'p2-compensate', 'p3', 'inspect', 'acknowledge', 'retry-compensation', 'compensate', 'verify-clean', 'report']);
 
 function required(env: NodeJS.ProcessEnv, key: string): string {
   const value = env[key]?.trim();
