@@ -8786,9 +8786,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 const poActions = getPoActionOptions(po);
                 const selectedAction = poActionSelections[po.id] ?? poActions[0]?.value ?? 'open';
                 return (
-                  <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{po.po_number}</button>
+                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button>
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
@@ -10807,8 +10807,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 const actions = getCnActionOptions(cn);
                 const selectedAction = cnActionSelections[cn.id] ?? actions[0]?.value ?? 'view';
                 return (
-                  <tr key={cn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined, cursor: 'pointer' }} onClick={() => openView(cn)}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <tr key={cn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent', cursor: 'pointer' }} onClick={() => openView(cn)}>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--sv-mint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>
                       {cn.cn_number}{sourceBadge(cn.source)}
                       {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
                     </td>
@@ -11546,7 +11546,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                 const actions = getScnActionOptions(scn);
                 const selectedAction = scnActionSelections[scn.id] ?? actions[0]?.value ?? 'view';
                 return (
-                  <tr key={scn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <tr key={scn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.supplier_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
@@ -12956,12 +12956,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 const soActions = getSoActionOptions(so);
                 const selectedAction = soActionSelections[so.id] ?? soActions[0]?.value ?? 'open';
                 return (
-                  <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {so.is_pos_ledger ? (
-                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
+                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       ) : (
-                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 15, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
+                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       )}
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
@@ -13610,13 +13610,13 @@ function ImsTable({ cols, rows, render }: {
     <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+          <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
             {cols.map((c, idx) => <th key={idx} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
               {render(row).map((cell, j) => (
                 <td key={j} style={{ padding: '9px 12px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' }}>{cell}</td>
               ))}
@@ -20163,8 +20163,8 @@ export default function ImsPage() {
   if (!user) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eef1f4', padding: 0, boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
-      <div style={{ background: '#0b1220', borderRadius: '24px 24px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: '#eef1f4', padding: '14px 14px 18px', boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
+      <div style={{ background: '#0b1220', borderRadius: '18px 18px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'hidden' }}>
         {/* Xero Queued Banner */}
         {xeroQueuedCount > 0 && (
           <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
@@ -20388,7 +20388,7 @@ export default function ImsPage() {
 
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
           <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
-          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
             <MainSections
               view={view}
               isAdvisor={isAdvisor}
@@ -22783,13 +22783,13 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               </tr>
             </thead>
             <tbody>
-              {visible.map((st: any) => {
+              {visible.map((st: any, rowIndex: number) => {
                 const actions = getStocktakeRowActions(st);
                 const selectedAction = stocktakeActionSelections[st.id] ?? actions[0]?.value ?? 'view';
                 return (
-                <tr key={st.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                <tr key={st.id} style={{ borderTop: '1px solid var(--sv-etch)', background: rowIndex % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                   <td style={{ padding: '10px 12px' }}>
-                    <button onClick={() => openDetail(st)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{st.reference}</button>
+                    <button onClick={() => openDetail(st)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0, fontWeight: 600 }}>{st.reference}</button>
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.location_name}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={st.status} /></td>
