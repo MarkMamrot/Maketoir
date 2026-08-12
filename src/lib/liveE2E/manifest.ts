@@ -6,6 +6,7 @@ export type LiveRunState =
   | 'p1_created'
   | 'p2_created'
   | 'p3_created'
+  | 'p4_created'
   | 'awaiting_operator'
   | 'acknowledged'
   | 'compensation_retry_authorized'
@@ -27,6 +28,7 @@ const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   p1_created: new Set(['p1_created', 'awaiting_operator', 'blocked']),
   p2_created: new Set(['p2_created', 'awaiting_operator', 'blocked']),
   p3_created: new Set(['p3_created', 'awaiting_operator', 'blocked']),
+  p4_created: new Set(['p4_created', 'awaiting_operator', 'blocked']),
   awaiting_operator: new Set(['awaiting_operator', 'acknowledged', 'blocked']),
   acknowledged: new Set(['compensating', 'blocked']),
   compensation_retry_authorized: new Set(['compensating', 'blocked']),
