@@ -543,21 +543,24 @@ export async function triggerSupplierCNXeroSync(businessId: string, scnId: numbe
   }
 }
 
+export async function resolveCNXeroCreditNoteId(businessId: string, cnId: number): Promise<string | null> {
+  const cn = await ImsCNRepo.get(cnId, businessId);
+  if (!cn) return null;
+  const storedXeroId = (cn as any).xero_credit_note_id ?? null;
+  if (storedXeroId) return storedXeroId;
+  const logRows = await query(
+    `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'cn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+    [businessId, cnId],
+  );
+  return logRows[0]?.xero_id ?? null;
+}
+
 export async function triggerCNXeroVoid(businessId: string, cnId: number): Promise<string | null> {
   if (!(await isXeroConnected(businessId))) return null;
 
   const cn = await ImsCNRepo.get(cnId, businessId);
   if (!cn) return null;
-
-  const storedXeroId = (cn as any).xero_credit_note_id ?? null;
-  let xeroCreditNoteId = storedXeroId;
-  if (!xeroCreditNoteId) {
-    const logRows = await query(
-      `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'cn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
-      [businessId, cnId],
-    );
-    xeroCreditNoteId = logRows[0]?.xero_id ?? null;
-  }
+  const xeroCreditNoteId = await resolveCNXeroCreditNoteId(businessId, cnId);
 
   if (!xeroCreditNoteId) return null;
 
@@ -568,21 +571,24 @@ export async function triggerCNXeroVoid(businessId: string, cnId: number): Promi
   return null;
 }
 
+export async function resolveSupplierCNXeroCreditNoteId(businessId: string, scnId: number): Promise<string | null> {
+  const scn = await ImsSupplierCNRepo.get(scnId, businessId);
+  if (!scn) return null;
+  const storedXeroId = (scn as any).xero_credit_note_id ?? null;
+  if (storedXeroId) return storedXeroId;
+  const logRows = await query(
+    `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'scn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+    [businessId, scnId],
+  );
+  return logRows[0]?.xero_id ?? null;
+}
+
 export async function triggerSupplierCNXeroVoid(businessId: string, scnId: number): Promise<string | null> {
   if (!(await isXeroConnected(businessId))) return null;
 
   const scn = await ImsSupplierCNRepo.get(scnId, businessId);
   if (!scn) return null;
-
-  const storedXeroId = (scn as any).xero_credit_note_id ?? null;
-  let xeroCreditNoteId = storedXeroId;
-  if (!xeroCreditNoteId) {
-    const logRows = await query(
-      `SELECT xero_id FROM xero_sync_log WHERE business_id = ? AND sync_type = 'scn_credit_note' AND reference_id = ? AND status = 'success' AND xero_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
-      [businessId, scnId],
-    );
-    xeroCreditNoteId = logRows[0]?.xero_id ?? null;
-  }
+  const xeroCreditNoteId = await resolveSupplierCNXeroCreditNoteId(businessId, scnId);
 
   if (!xeroCreditNoteId) return null;
 

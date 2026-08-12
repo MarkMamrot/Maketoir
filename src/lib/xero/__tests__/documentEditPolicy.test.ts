@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assessXeroCreditNoteEdit,
+  assessXeroCreditNoteVoid,
   assessXeroDocumentEdit,
   hasXeroVisibleCreditNoteChanges,
   hasXeroVisibleOrderChanges,
@@ -82,5 +83,32 @@ describe('credit-note edit policy', () => {
     expect(assessXeroCreditNoteEdit(true, {
       status: 'DRAFT', total: 20, remainingCredit: 20, documentDate: '2026-06-30', periodLockDate: '2026-06-30',
     }).reason).toBe('locked_period');
+  });
+});
+
+describe('credit-note void policy', () => {
+  it.each(['DRAFT', 'SUBMITTED', 'AUTHORISED'])('allows an unallocated %s credit note', status => {
+    expect(assessXeroCreditNoteVoid({
+      status, total: 20, remainingCredit: 20, documentDate: '2026-08-09', periodLockDate: '2026-06-30',
+    }).allowed).toBe(true);
+  });
+
+  it('allows an already voided credit note as a local-only replay', () => {
+    expect(assessXeroCreditNoteVoid({
+      status: 'VOIDED', total: 20, remainingCredit: 20, documentDate: '2026-08-09',
+    })).toMatchObject({ allowed: true, reason: 'local_only' });
+  });
+
+  it('blocks allocated and locked credit notes', () => {
+    expect(assessXeroCreditNoteVoid({
+      status: 'AUTHORISED', total: 20, remainingCredit: 5, documentDate: '2026-08-09',
+    }).reason).toBe('settled');
+    expect(assessXeroCreditNoteVoid({
+      status: 'DRAFT', total: 20, remainingCredit: 20, documentDate: '2026-06-30', periodLockDate: '2026-06-30',
+    }).reason).toBe('locked_period');
+  });
+
+  it('fails closed when Xero cannot be verified', () => {
+    expect(assessXeroCreditNoteVoid(null).reason).toBe('unverifiable');
   });
 });

@@ -12,6 +12,13 @@ import {
 } from './orderLifecyclePolicy';
 import { OrderAmendmentConflict, planStockRebalance, reconcileOrderLines } from './orderAmendmentPlan';
 import { assessPurchaseOrderUndo, OrderCorrectionConflict } from './orderCorrectionPolicy';
+import { assertAllowedInventoryDocumentAction } from './inventoryDocumentLifecycle';
+import { assertExpectedInventoryDocumentRevision } from './creditNoteStatusCommands';
+import {
+  claimInventoryDocumentOperation,
+  completeInventoryDocumentOperation,
+  type InventoryDocumentOperationContext,
+} from './inventoryDocumentOperations';
 import {
   computeAverageCostAfterReversal,
   computeLandedCostPerUnit,
@@ -3629,7 +3636,8 @@ export const ImsStocktakeRepo = {
       `SELECT st.*,
               l.name AS location_name,
               COUNT(i.id) AS item_count,
-              SUM(i.counted_qty IS NOT NULL AND i.counted_qty <> i.expected_qty) AS variance_count
+              SUM(i.counted_qty IS NOT NULL AND i.counted_qty <> i.expected_qty) AS variance_count,
+              SUM(i.counted_qty IS NOT NULL AND i.applied_delta IS NULL) AS missing_apply_snapshot_count
        FROM ims_stocktakes st
        JOIN ims_locations l ON l.id = st.location_id AND l.business_id = st.business_id
        LEFT JOIN ims_stocktake_items i ON i.stocktake_id = st.id
@@ -3888,8 +3896,7 @@ export const ImsStocktakeRepo = {
   async delete(id: number, businessId: string): Promise<void> {
     await ensureStocktakeTenantTables();
     const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
-    const deletable = ['draft', 'cancelled', 'in_progress', 'reverted'];
-    if (!deletable.includes(rows[0]?.status)) throw new Error('Only incomplete or reverted stocktakes can be deleted');
+    if (rows[0]?.status !== 'draft') throw new Error('Only Draft stocktakes can be deleted');
     await imsExecute(`DELETE FROM ims_stocktake_items WHERE stocktake_id = ?`, [id]);
     await imsExecute(`DELETE FROM ims_stocktakes WHERE id = ? AND business_id = ?`, [id, businessId]);
   },
@@ -4922,7 +4929,7 @@ export const ImsPaymentMethodsRepo = {
 // Credit Notes
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type CNStatus = 'draft' | 'awaiting_product' | 'complete';
+export type CNStatus = 'draft' | 'awaiting_product' | 'complete' | 'cancelled' | 'reversed';
 
 export interface ImsCN {
   id: number;
@@ -5295,7 +5302,7 @@ export const ImsCNRepo = {
   },
 
   /** Complete a CN, applying stock and its settlement exactly once in one transaction. */
-  async complete(id: number, businessId: string): Promise<void> {
+  async complete(id: number, businessId: string, context?: InventoryDocumentOperationContext): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -5307,13 +5314,28 @@ export const ImsCNRepo = {
       );
       const cn = (cnRows as ImsCN[])[0];
       if (!cn) throw new Error('Credit note not found');
+      const operation = context
+        ? await claimInventoryDocumentOperation(conn, context, {
+            businessId,
+            documentKind: 'customer_credit_note',
+            documentId: id,
+            action: 'complete',
+            documentStatus: cn.status,
+            beforeMetadata: { status: cn.status, source: cn.source },
+          })
+        : null;
+      if (operation?.replayed) {
+        await conn.commit();
+        return;
+      }
+      if (context) assertExpectedInventoryDocumentRevision(cn.updated_at, context.expectedUpdatedAt);
       if (cn.status === 'complete') {
         await conn.commit();
         return;
       }
-      if (cn.status !== 'draft' && cn.status !== 'awaiting_product') {
-        throw new Error('Only draft or awaiting credit notes can be completed');
-      }
+      assertAllowedInventoryDocumentAction(
+        'customer_credit_note', cn.status, 'complete', { customerCreditNoteSource: cn.source },
+      );
 
       const [itemRows] = await conn.execute(
         `SELECT * FROM ims_credit_note_items WHERE cn_id = ?`,
@@ -5376,6 +5398,16 @@ export const ImsCNRepo = {
           WHERE id = ? AND business_id = ?`,
         [settlementMethod, storeCreditTransactionId, id, businessId],
       );
+      if (operation) {
+        await completeInventoryDocumentOperation(
+          conn,
+          businessId,
+          operation.operationId,
+          'complete',
+          { id, status: 'complete' },
+          { status: 'complete', settlementMethod, storeCreditTransactionId },
+        );
+      }
       await conn.commit();
     } catch (err) {
       await conn.rollback();
@@ -5503,7 +5535,7 @@ export const ImsCNRepo = {
 // Supplier Credit Notes (credits RECEIVED FROM suppliers → Xero ACCPAY)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type SupplierCNStatus = 'draft' | 'complete' | 'cancelled';
+export type SupplierCNStatus = 'draft' | 'complete' | 'cancelled' | 'reversed';
 
 export interface ImsSupplierCN {
   id: number;
@@ -5936,7 +5968,7 @@ export const ImsSupplierCNRepo = {
   },
 
   /** Complete a draft SCN: reduce stock for restock lines, mark complete. Atomic. */
-  async complete(id: number, businessId: string): Promise<void> {
+  async complete(id: number, businessId: string, context?: InventoryDocumentOperationContext): Promise<void> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     try {
@@ -5946,11 +5978,26 @@ export const ImsSupplierCNRepo = {
         [id, businessId],
       );
       if (!scn) throw new Error('Supplier credit note not found');
+      const operation = context
+        ? await claimInventoryDocumentOperation(conn, context, {
+            businessId,
+            documentKind: 'supplier_credit_note',
+            documentId: id,
+            action: 'complete',
+            documentStatus: scn.status,
+            beforeMetadata: { status: scn.status },
+          })
+        : null;
+      if (operation?.replayed) {
+        await conn.commit();
+        return;
+      }
+      if (context) assertExpectedInventoryDocumentRevision(scn.updated_at, context.expectedUpdatedAt);
       if (scn.status === 'complete') {
         await conn.commit();
         return;
       }
-      if (scn.status !== 'draft') throw new Error('Only draft supplier credit notes can be completed');
+      assertAllowedInventoryDocumentAction('supplier_credit_note', scn.status, 'complete');
       const [itemRows] = await conn.execute<any[]>(
         `SELECT * FROM ims_supplier_credit_note_items WHERE scn_id = ? FOR UPDATE`,
         [id],
@@ -5961,6 +6008,16 @@ export const ImsSupplierCNRepo = {
         `UPDATE ims_supplier_credit_notes SET status = 'complete', completed_at = NOW() WHERE id = ? AND business_id = ?`,
         [id, businessId],
       );
+      if (operation) {
+        await completeInventoryDocumentOperation(
+          conn,
+          businessId,
+          operation.operationId,
+          'complete',
+          { id, status: 'complete' },
+          { status: 'complete' },
+        );
+      }
       await conn.commit();
     } catch (err) {
       await conn.rollback();

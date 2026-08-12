@@ -13,11 +13,25 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 
 import { ImsSupplierCNRepo } from '../ImsRepository';
 
-function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; sourceVariantId?: string; returnedQty?: number } = {}) {
+function connectionFor(options: { status?: string; onHand?: number; isStockItem?: number; sourcePoItemId?: number; sourceVariantId?: string; returnedQty?: number; operationState?: 'processing' | 'complete' } = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from ims_supplier_credit_notes') && normalized.includes('for update')) {
-      return [[{ id: 7, business_id: 'biz-1', status: options.status ?? 'draft', location_id: 4, po_id: options.sourcePoItemId ? 9 : null }]];
+      return [[{ id: 7, business_id: 'biz-1', status: options.status ?? 'draft', location_id: 4, po_id: options.sourcePoItemId ? 9 : null, updated_at: '2026-08-12T09:00:00.000Z' }]];
+    }
+    if (normalized.includes('from ims_inventory_document_operations') && normalized.includes('for update')) {
+      return [options.operationState ? [{
+        id: 81,
+        request_hash: 'request-hash',
+        document_kind: 'supplier_credit_note',
+        document_id: 7,
+        action: 'complete',
+        state: options.operationState,
+        response_json: JSON.stringify({ id: 7, status: 'complete' }),
+      }] : []];
+    }
+    if (normalized.startsWith('insert into ims_inventory_document_operations')) {
+      return [{ insertId: 81, affectedRows: 1 }];
     }
     if (normalized.includes('from ims_supplier_credit_note_items') && normalized.includes('for update')) {
       return [[{ id: 11, scn_id: 7, variant_id: 'v-1', qty: 3, unit_cost: 5, restock: 1, source_po_item_id: options.sourcePoItemId }]];
@@ -50,6 +64,14 @@ function connectionFor(options: { status?: string; onHand?: number; isStockItem?
 describe('ImsSupplierCNRepo.complete', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  const operationContext = {
+    operationKey: 'supplier_credit_note:7:complete:revision:r1:request:request-hash',
+    requestHash: 'request-hash',
+    expectedUpdatedAt: '2026-08-12T09:00:00.000Z',
+    actorId: 9,
+    actorName: 'Morgan',
+  };
+
   it('locks stock and records one tenant-scoped physical return', async () => {
     const connection = connectionFor();
 
@@ -81,6 +103,50 @@ describe('ImsSupplierCNRepo.complete', () => {
       expect.stringContaining('FROM ims_supplier_credit_note_items'),
       expect.anything(),
     );
+  });
+
+  it('replays a completed operation before any stock side effects', async () => {
+    const connection = connectionFor({ operationState: 'complete' });
+
+    await expect(ImsSupplierCNRepo.complete(7, 'biz-1', operationContext)).resolves.toBeUndefined();
+
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('FROM ims_supplier_credit_note_items'),
+      expect.anything(),
+    );
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining("'scn_returned'"),
+      expect.anything(),
+    );
+  });
+
+  it('rolls back a stale revision before any stock side effects', async () => {
+    const connection = connectionFor();
+
+    await expect(ImsSupplierCNRepo.complete(7, 'biz-1', {
+      ...operationContext,
+      expectedUpdatedAt: '2026-08-12T08:00:00.000Z',
+    })).rejects.toThrow('This document changed after you opened it. Refresh and review the latest values before continuing.');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('FROM ims_supplier_credit_note_items'),
+      expect.anything(),
+    );
+  });
+
+  it('completes the operation record in the same stock transaction', async () => {
+    const connection = connectionFor();
+
+    await ImsSupplierCNRepo.complete(7, 'biz-1', operationContext);
+
+    expect(connection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET state = 'complete'"),
+      ['complete', JSON.stringify({ id: 7, status: 'complete' }), JSON.stringify({ status: 'complete' }), 81, 'biz-1'],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 
   it('rolls back before stock mutation when the return exceeds on-hand quantity', async () => {

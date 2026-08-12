@@ -21,6 +21,16 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_inventory_document_operations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL, document_kind ENUM('customer_credit_note','supplier_credit_note','stocktake') NOT NULL,
+    document_id INT NOT NULL, action VARCHAR(64) NOT NULL, previous_status VARCHAR(32) NOT NULL, resulting_status VARCHAR(32) NULL,
+    state ENUM('processing','complete') NOT NULL DEFAULT 'processing', before_metadata_json JSON NULL,
+    after_metadata_json JSON NULL, response_json JSON NULL, actor_id INT NULL, actor_name VARCHAR(255) NULL,
+    safe_error VARCHAR(500) NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    UNIQUE KEY uq_inventory_document_operation (business_id, operation_key),
+    INDEX idx_inventory_document_history (business_id, document_kind, document_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_order_amendment_operations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
     request_hash CHAR(64) NOT NULL, order_kind VARCHAR(32) NOT NULL, order_id INT NOT NULL, order_status VARCHAR(32) NOT NULL,
@@ -412,7 +422,7 @@ const TABLE_DDLS = [
     so_id               INT          NULL,
     original_so_number  VARCHAR(100) NULL,
     location_id         INT          NOT NULL,
-    status              ENUM('draft','awaiting_product','complete','cancelled') NOT NULL DEFAULT 'draft',
+    status              ENUM('draft','awaiting_product','complete','cancelled','reversed') NOT NULL DEFAULT 'draft',
     source              ENUM('manual','shopify','pos') NOT NULL DEFAULT 'manual',
     pos_sale_id         INT          NULL,
     settlement_method   ENUM('store_credit','refund','external') NOT NULL DEFAULT 'store_credit',
@@ -421,6 +431,9 @@ const TABLE_DDLS = [
     shopify_return_id   VARCHAR(100) NULL,
     cn_date             DATE         NOT NULL,
     completed_at        DATETIME     NULL,
+    reversed_at         DATETIME     NULL,
+    reversal_reason     VARCHAR(500) NULL,
+    reversed_by         INT          NULL,
     reference           VARCHAR(255) NULL,
     tax_treatment       ENUM('ex_tax','inc_tax') NOT NULL DEFAULT 'ex_tax',
     tax_code            VARCHAR(50)  NULL,
@@ -431,6 +444,9 @@ const TABLE_DDLS = [
     xero_credit_note_id VARCHAR(100) NULL,
     xero_synced_at      DATETIME     NULL,
     xero_sync_status    ENUM('synced','queued','error') NULL,
+    xero_correction_status ENUM('not_required','queued','synced','error','blocked') NULL,
+    xero_correction_reference VARCHAR(100) NULL,
+    xero_correction_error TEXT NULL,
     created_by          VARCHAR(150) NULL,
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -461,9 +477,12 @@ const TABLE_DDLS = [
     supplier_id         INT          NULL,
     po_id               INT          NULL,
     location_id         INT          NOT NULL,
-    status              ENUM('draft','complete','cancelled') NOT NULL DEFAULT 'draft',
+    status              ENUM('draft','complete','cancelled','reversed') NOT NULL DEFAULT 'draft',
     scn_date            DATE         NOT NULL,
     completed_at        DATETIME     NULL,
+    reversed_at         DATETIME     NULL,
+    reversal_reason     VARCHAR(500) NULL,
+    reversed_by         INT          NULL,
     reference           VARCHAR(255) NULL,
     supplier_credit_ref VARCHAR(100) NULL,
     currency_code       VARCHAR(10)  NOT NULL DEFAULT 'AUD',
@@ -476,6 +495,9 @@ const TABLE_DDLS = [
     xero_credit_note_id VARCHAR(100) NULL,
     xero_synced_at      DATETIME     NULL,
     xero_sync_status    ENUM('synced','queued','error') NULL,
+    xero_correction_status ENUM('not_required','queued','synced','error','blocked') NULL,
+    xero_correction_reference VARCHAR(100) NULL,
+    xero_correction_error TEXT NULL,
     created_by          VARCHAR(150) NULL,
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -674,9 +696,15 @@ const COLUMNS = [
   ['ims_credit_notes', 'store_credit_transaction_id', 'INT NULL'],
   ['ims_credit_notes', 'shopify_return_id',   'VARCHAR(100) NULL'],
   ['ims_credit_notes', 'completed_at',        'DATETIME NULL'],
+  ['ims_credit_notes', 'reversed_at',         'DATETIME NULL'],
+  ['ims_credit_notes', 'reversal_reason',     'VARCHAR(500) NULL'],
+  ['ims_credit_notes', 'reversed_by',         'INT NULL'],
   ['ims_credit_notes', 'xero_credit_note_id', 'VARCHAR(100) NULL'],
   ['ims_credit_notes', 'xero_synced_at',      'DATETIME NULL'],
   ['ims_credit_notes', 'xero_sync_status',    "ENUM('synced','queued','error') NULL"],
+  ['ims_credit_notes', 'xero_correction_status', "ENUM('not_required','queued','synced','error','blocked') NULL"],
+  ['ims_credit_notes', 'xero_correction_reference', 'VARCHAR(100) NULL'],
+  ['ims_credit_notes', 'xero_correction_error', 'TEXT NULL'],
   ['ims_credit_notes', 'created_by',          'VARCHAR(150) NULL'],
   // ── ims_credit_note_items ────────────────────────────────────────────────
   ['ims_credit_note_items', 'price_basis',    "ENUM('cost','wholesale','rrp','custom') NOT NULL DEFAULT 'custom'"],
@@ -689,10 +717,28 @@ const COLUMNS = [
   ['ims_supplier_credit_notes', 'xero_credit_note_id', 'VARCHAR(100) NULL'],
   ['ims_supplier_credit_notes', 'xero_synced_at',      'DATETIME NULL'],
   ['ims_supplier_credit_notes', 'xero_sync_status',    "ENUM('synced','queued','error') NULL"],
+  ['ims_supplier_credit_notes', 'reversed_at',         'DATETIME NULL'],
+  ['ims_supplier_credit_notes', 'reversal_reason',     'VARCHAR(500) NULL'],
+  ['ims_supplier_credit_notes', 'reversed_by',         'INT NULL'],
+  ['ims_supplier_credit_notes', 'xero_correction_status', "ENUM('not_required','queued','synced','error','blocked') NULL"],
+  ['ims_supplier_credit_notes', 'xero_correction_reference', 'VARCHAR(100) NULL'],
+  ['ims_supplier_credit_notes', 'xero_correction_error', 'TEXT NULL'],
   ['ims_supplier_credit_notes', 'created_by',          'VARCHAR(150) NULL'],
   // ── ims_supplier_credit_note_items ───────────────────────────────────────
   ['ims_supplier_credit_note_items', 'restock',        'TINYINT(1) NOT NULL DEFAULT 1'],
   ['ims_supplier_credit_note_items', 'source_po_item_id', 'INT NULL AFTER restock'],
+  // ── ims_stocktakes / items ───────────────────────────────────────────────
+  ['ims_stocktakes', 'reverted_at', 'DATETIME NULL'],
+  ['ims_stocktakes', 'reversal_reason', 'VARCHAR(500) NULL'],
+  ['ims_stocktakes', 'reversed_by', 'INT NULL'],
+  ['ims_stocktakes', 'xero_reversal_journal_id', 'VARCHAR(100) NULL'],
+  ['ims_stocktakes', 'xero_reversal_synced_at', 'DATETIME NULL'],
+  ['ims_stocktakes', 'xero_reversal_sync_status', "ENUM('queued','synced','error','blocked','not_required') NULL"],
+  ['ims_stocktakes', 'xero_reversal_error', 'TEXT NULL'],
+  ['ims_stocktakes', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'],
+  ['ims_stocktake_items', 'soh_at_apply', 'DECIMAL(12,4) NULL'],
+  ['ims_stocktake_items', 'applied_delta', 'DECIMAL(12,4) NULL'],
+  ['ims_stocktake_items', 'unit_cost_at_apply', 'DECIMAL(15,4) NULL'],
   // ── ims_product_variants ─────────────────────────────────────────────────
   ['ims_product_variants', 'cost_aud',                  'DECIMAL(12,4) NULL'],
   ['ims_product_variants', 'avg_cost',                  'DECIMAL(15,4) NULL'],
@@ -886,9 +932,10 @@ async function migrateSchema(schema) {
   try {
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
-    await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled']);
+    await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
+    await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
-    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned']);
+    await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
@@ -952,6 +999,73 @@ async function verifyOutstandingResolutionSchema(schema) {
   console.log(`  verified ${schema} outstanding-resolution schema`);
 }
 
+async function verifyInventoryDocumentOperationSchema(schema) {
+  const requiredColumns = [
+    'business_id', 'operation_key', 'request_hash', 'document_kind', 'document_id', 'action',
+    'previous_status', 'resulting_status', 'state', 'before_metadata_json', 'after_metadata_json',
+    'response_json', 'actor_id', 'actor_name', 'created_at', 'completed_at',
+  ];
+  const [columnRows] = await conn.query(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_inventory_document_operations'`,
+    [schema],
+  );
+  const columns = new Set(columnRows.map(row => row.COLUMN_NAME));
+  for (const column of requiredColumns) {
+    if (!columns.has(column)) throw new Error(`${schema}.ims_inventory_document_operations is missing ${column}`);
+  }
+
+  const [indexRows] = await conn.query(
+    `SELECT INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_inventory_document_operations'`,
+    [schema],
+  );
+  const indexes = new Set(indexRows.map(row => row.INDEX_NAME));
+  for (const index of ['PRIMARY', 'uq_inventory_document_operation', 'idx_inventory_document_history']) {
+    if (!indexes.has(index)) throw new Error(`${schema}.ims_inventory_document_operations is missing ${index}`);
+  }
+  console.log(`  verified ${schema}.ims_inventory_document_operations`);
+}
+
+async function verifyInventoryDocumentCorrectionSchema(schema) {
+  const requiredColumns = {
+    ims_credit_notes: ['reversed_at', 'reversal_reason', 'reversed_by', 'xero_correction_status', 'xero_correction_reference', 'xero_correction_error'],
+    ims_supplier_credit_notes: ['reversed_at', 'reversal_reason', 'reversed_by', 'xero_correction_status', 'xero_correction_reference', 'xero_correction_error'],
+    ims_stocktakes: ['reverted_at', 'reversal_reason', 'reversed_by', 'xero_reversal_journal_id', 'xero_reversal_synced_at', 'xero_reversal_sync_status', 'xero_reversal_error', 'updated_at'],
+    ims_stocktake_items: ['soh_at_apply', 'applied_delta', 'unit_cost_at_apply'],
+  };
+  const [columnRows] = await conn.query(
+    `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('ims_credit_notes','ims_supplier_credit_notes','ims_stocktakes','ims_stocktake_items','ims_stock_movements')`,
+    [schema],
+  );
+  const columnsByTable = new Map();
+  for (const row of columnRows) {
+    if (!columnsByTable.has(row.TABLE_NAME)) columnsByTable.set(row.TABLE_NAME, new Map());
+    columnsByTable.get(row.TABLE_NAME).set(row.COLUMN_NAME, row.COLUMN_TYPE);
+  }
+  for (const [table, columns] of Object.entries(requiredColumns)) {
+    for (const column of columns) {
+      if (!columnsByTable.get(table)?.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+    }
+  }
+  const requiredEnumValues = {
+    'ims_credit_notes.status': ['cancelled', 'reversed'],
+    'ims_supplier_credit_notes.status': ['cancelled', 'reversed'],
+    'ims_stocktakes.status': ['cancelled', 'reverted'],
+    'ims_stock_movements.movement_type': ['cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted'],
+  };
+  for (const [qualifiedColumn, values] of Object.entries(requiredEnumValues)) {
+    const [table, column] = qualifiedColumn.split('.');
+    const columnType = String(columnsByTable.get(table)?.get(column) ?? '');
+    for (const value of values) {
+      if (!columnType.includes(`'${value}'`)) throw new Error(`${schema}.${qualifiedColumn} is missing enum value ${value}`);
+    }
+  }
+  console.log(`  verified ${schema} inventory-document correction schema`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -967,6 +1081,8 @@ try {
     await migrateSchema(schema);
     await verifyBackorderMergeSchema(schema);
     await verifyOutstandingResolutionSchema(schema);
+    await verifyInventoryDocumentOperationSchema(schema);
+    await verifyInventoryDocumentCorrectionSchema(schema);
   }
   console.log('Done.');
 } finally {

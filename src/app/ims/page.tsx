@@ -27,6 +27,7 @@ import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import {
   EMPTY_MULTI,
@@ -357,6 +358,7 @@ function useImsSettings() {
 const STATUS_COLORS: Record<string, string> = {
   draft:              'background:rgba(100,116,139,.18);color:#94a3b8',
   confirmed:          'background:rgba(37,99,235,.18);color:#60a5fa',
+  awaiting_product:   'background:rgba(37,99,235,.18);color:#60a5fa',
   partially_received: 'background:rgba(251,146,60,.18);color:#f97316',
   received:           'background:rgba(16,185,129,.18);color:#34d399',
   complete:           'background:rgba(16,185,129,.18);color:#34d399',
@@ -367,11 +369,14 @@ const STATUS_COLORS: Record<string, string> = {
   in_progress:        'background:rgba(251,191,36,.15);color:#fbbf24',
   completed:          'background:rgba(16,185,129,.18);color:#34d399',
   reverted:           'background:rgba(139,92,246,.18);color:#a78bfa',
+  reversed:           'background:rgba(139,92,246,.18);color:#a78bfa',
 };
 
 function StatusBadge({ status, orderKind }: { status: string; orderKind?: OrderKind }) {
   const style = STATUS_COLORS[status] ?? STATUS_COLORS.draft;
-  const label = orderKind ? getOrderStatusLabel(orderKind, status as any) : status;
+  const label = orderKind
+    ? getOrderStatusLabel(orderKind, status as any)
+    : status.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
   return (
     <span style={{ ...parseStyleStr(style), padding: '2px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
       {label}
@@ -10326,6 +10331,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [completing, setCompleting] = useState(false);
   const [retryingCnXero, setRetryingCnXero] = useState(false);
   const [voidingCnXero, setVoidingCnXero] = useState(false);
+  const [cnActionSelections, setCnActionSelections] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
@@ -10502,7 +10508,14 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
     if (!confirm(`Complete ${cn.cn_number}? Stock will be returned for lines marked "Restock". The status cannot be changed after this.`)) return;
     setCompleting(true);
     try {
-      const d = await apiFetch(`/api/ims/credit-notes/${cn.id}/complete`, { method: 'POST' });
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'customer_credit_note', Number(cn.id), 'complete', cn.updated_at, {},
+      );
+      const d = await apiFetch(`/api/ims/credit-notes/${cn.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: cn.updated_at }),
+      });
       setViewModal({ open: true, cn: d.data });
       load();
     } catch (err: any) {
@@ -10512,12 +10525,63 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
     }
   };
 
+  const runCnStatusCommand = async (cn: any, action: 'mark_awaiting_product' | 'resume_draft' | 'cancel', endpoint: string) => {
+    const operationKey = await buildInventoryDocumentOperationKey(
+      'customer_credit_note', Number(cn.id), action, cn.updated_at, {},
+    );
+    await apiFetch(`/api/ims/credit-notes/${cn.id}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operationKey, expectedUpdatedAt: cn.updated_at }),
+    });
+  };
+
   const handleAwaiting = async (cn: any) => {
     try {
-      await apiFetch(`/api/ims/credit-notes/${cn.id}/awaiting`, { method: 'POST' });
+      await runCnStatusCommand(cn, 'mark_awaiting_product', 'awaiting');
       load();
     } catch (err: any) {
       alert(err.message || 'Failed to set awaiting');
+    }
+  };
+
+  const handleResumeDraft = async (cn: any) => {
+    try {
+      await runCnStatusCommand(cn, 'resume_draft', 'resume');
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Failed to resume draft');
+    }
+  };
+
+  const handleCancel = async (cn: any) => {
+    if (!confirm(`Cancel ${cn.cn_number}? The credit note will be retained for audit and no stock or store credit will be changed.`)) return;
+    try {
+      await runCnStatusCommand(cn, 'cancel', 'cancel');
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Cancel failed');
+    }
+  };
+
+  const handleReverse = async (cn: any) => {
+    const reason = prompt(`Why is ${cn.cn_number} being reversed? This removes its returned stock and issued store credit, and corrects Xero when linked.`)?.trim();
+    if (!reason) return;
+    if (!confirm(`Reverse mistaken completion for ${cn.cn_number}? This is an append-only correction and cannot be undone.`)) return;
+    try {
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'customer_credit_note', Number(cn.id), 'revert_mistaken_completion', cn.updated_at, { reason },
+      );
+      const result = await apiFetch(`/api/ims/credit-notes/${cn.id}/reverse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: cn.updated_at, reason }),
+      });
+      setViewModal({ open: true, cn: result.data });
+      load();
+      if (result.xeroWarning) alert(`The credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
+    } catch (err: any) {
+      alert(err.message || 'Reversal failed');
     }
   };
 
@@ -10580,14 +10644,40 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const dateFilterActive = dateRange.kind !== 'window' || dateRange.window !== 90;
   const creditNoteFiltersActive = recordType !== 'credit_notes' || sourceFilter !== 'all' || statusFilter !== '' || dateFilterActive || !!filterCustomer.trim() || !!filterReference.trim();
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, { label: string; color: string; bg: string }> = {
-      draft:            { label: 'Draft',            color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
-      awaiting_product: { label: 'Awaiting product', color: '#60a5fa', bg: 'rgba(96,165,250,.12)' },
-      complete:         { label: 'Complete',         color: '#34d399', bg: 'rgba(52,211,153,.12)' },
-    };
-    const s = map[status] ?? { label: status, color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)' };
-    return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: s.bg, color: s.color }}>{s.label}</span>;
+  const getCnActionOptions = (cn: any) => {
+    const actions = [{ value: 'view', label: 'View' }];
+    if (isAdvisor) return actions;
+    if (cn.status === 'draft') actions.push(
+      { value: 'edit', label: 'Edit' },
+      { value: 'awaiting', label: 'Mark Awaiting Product' },
+      { value: 'complete', label: 'Complete' },
+      { value: 'cancel', label: 'Cancel' },
+      { value: 'delete', label: 'Delete Draft' },
+    );
+    if (cn.status === 'awaiting_product') actions.push(
+      { value: 'resume', label: 'Resume Draft' },
+      { value: 'complete', label: 'Complete Received Return' },
+      { value: 'cancel', label: 'Cancel' },
+    );
+    if (cn.status === 'complete' && ['queued', 'error'].includes(cn.xero_sync_status)) {
+      actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
+    }
+    if (cn.status === 'complete' && cn.source === 'manual') {
+      actions.push({ value: 'reverse', label: 'Reverse Mistaken Completion' });
+    }
+    return actions;
+  };
+
+  const executeCnRowAction = (cn: any, action: string) => {
+    if (action === 'view') return void openView(cn);
+    if (action === 'edit') return void openEdit(cn);
+    if (action === 'awaiting') return void handleAwaiting(cn);
+    if (action === 'resume') return void handleResumeDraft(cn);
+    if (action === 'complete') return void handleComplete(cn);
+    if (action === 'cancel') return void handleCancel(cn);
+    if (action === 'delete') return void handleDelete(cn);
+    if (action === 'retry_xero') return void retryCnXeroSync(cn.id);
+    if (action === 'reverse') return void handleReverse(cn);
   };
 
   const sourceBadge = (source: string) => {
@@ -10671,6 +10761,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     <option value="draft">Draft</option>
                     <option value="awaiting_product">Awaiting product</option>
                     <option value="complete">Complete</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
                 <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>
@@ -10700,9 +10791,12 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
               </tr>
             </thead>
             <tbody>
-              {filtered.map((cn, ri) => (
+              {filtered.map((cn, ri) => {
+                const actions = getCnActionOptions(cn);
+                const selectedAction = cnActionSelections[cn.id] ?? actions[0]?.value ?? 'view';
+                return (
                 <tr key={cn.id} style={{ borderBottom: ri < filtered.length - 1 ? '1px solid var(--sv-etch)' : 'none', cursor: 'pointer' }}
-                  onClick={() => cn.status === 'draft' ? openEdit(cn) : openView(cn)}>
+                  onClick={() => openView(cn)}>
                   <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>
                     {cn.cn_number}{sourceBadge(cn.source)}
                     {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
@@ -10710,7 +10804,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                   <td style={{ padding: '10px 12px' }}>{cn.cn_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
                   <td style={{ padding: '10px 12px' }}>{cn.location_name}</td>
-                  <td style={{ padding: '10px 12px' }}>{statusBadge(cn.status)}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
                   <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
                   <td style={{ padding: '10px 12px' }}>
                     {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
@@ -10721,20 +10815,20 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                       : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
                   </td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    {!isAdvisor && cn.status === 'draft' && (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => openEdit(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11 }}>Edit</button>
-                        <button onClick={() => handleAwaiting(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#60a5fa' }}>Awaiting</button>
-                        <button onClick={() => handleComplete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#34d399' }}>Complete</button>
-                        <button onClick={() => handleDelete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#f87171' }}>Delete</button>
-                      </div>
-                    )}
-                    {!isAdvisor && cn.status === 'awaiting_product' && (
-                      <button onClick={() => handleComplete(cn)} style={{ ...btnStyle('ghost'), padding: '3px 8px', fontSize: 11, color: '#34d399' }}>Complete (received)</button>
-                    )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select
+                        aria-label={`Action for ${cn.cn_number}`}
+                        value={selectedAction}
+                        onChange={e => setCnActionSelections(current => ({ ...current, [cn.id]: e.target.value }))}
+                        style={{ ...inputStyle, width: 174, padding: '5px 7px', fontSize: 11 }}
+                      >
+                        {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
+                      </select>
+                      <button onClick={() => executeCnRowAction(cn, selectedAction)} style={btnStyle('secondary', 'xs')}>Go</button>
+                    </div>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
@@ -11000,11 +11094,6 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     {xeroId && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>}
                     {xeroId && <a href={`https://go.xero.com/AccountsReceivable/EditCreditNote.aspx?CreditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>}
-                    {!isAdvisor && xeroId && (
-                      <button type="button" onClick={() => voidCnInXero(viewModal.cn.id)} disabled={voidingCnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingCnXero ? .7 : 1 }}>
-                        {voidingCnXero ? 'Voiding…' : 'Void in Xero'}
-                      </button>
-                    )}
                   </div>
                 );
               }
@@ -11031,12 +11120,25 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
               );
             })()}
 
+            {viewModal.cn.status === 'reversed' && (
+              <div style={{ padding: '7px 10px', marginBottom: 12, borderRadius: 6, background: 'rgba(251,191,36,.1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                Reversed{viewModal.cn.reversal_reason ? `: ${viewModal.cn.reversal_reason}` : ''}. Xero correction: {String(viewModal.cn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.
+              </div>
+            )}
+
+            <OrderActivityHistory entries={viewModal.cn.activity_history} />
+
             {viewModal.cn.status === 'draft' && (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => { setViewModal({ open: false, cn: null }); openEdit(viewModal.cn); }} style={btnStyle('ghost')}>Edit</button>
                 <button disabled={completing} onClick={() => handleComplete(viewModal.cn)} style={{ ...btnStyle('action'), background: '#34d399', borderColor: '#34d399' }}>
                   {completing ? 'Completing…' : 'Complete & Return Stock'}
                 </button>
+              </div>
+            )}
+            {!isAdvisor && viewModal.cn.status === 'complete' && viewModal.cn.source === 'manual' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+                <button data-testid={`cn-reverse-${viewModal.cn.id}`} onClick={() => handleReverse(viewModal.cn)} style={btnStyle('danger')}>Reverse Mistaken Completion</button>
               </div>
             )}
           </div>
@@ -11070,6 +11172,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', currency_code: 'AUD', exchange_rate: 1, tax_treatment: 'ex_tax', notes: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [scnActionSelections, setScnActionSelections] = useState<Record<string, string>>({});
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
@@ -11305,8 +11408,57 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   };
   const handleComplete = async (scn: any) => {
     if (!confirm(`Complete ${scn.scn_number}? Stock will be REDUCED for lines marked "Return stock" (goods going back to the supplier). This cannot be undone.`)) return;
-    try { const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/complete`, { method: 'POST' }); setViewModal({ open: true, scn: d.data }); load(); }
+    try {
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'supplier_credit_note', Number(scn.id), 'complete', scn.updated_at, {},
+      );
+      const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: scn.updated_at }),
+      });
+      setViewModal({ open: true, scn: d.data });
+      load();
+    }
     catch (err: any) { alert(err.message || 'Complete failed'); }
+  };
+
+  const handleCancel = async (scn: any) => {
+    if (!confirm(`Cancel ${scn.scn_number}? The supplier credit note will be retained for audit and no stock will be changed.`)) return;
+    try {
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'supplier_credit_note', Number(scn.id), 'cancel', scn.updated_at, {},
+      );
+      await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: scn.updated_at }),
+      });
+      load();
+    } catch (err: any) {
+      alert(err.message || 'Cancel failed');
+    }
+  };
+
+  const handleReverse = async (scn: any) => {
+    const reason = prompt(`Why is ${scn.scn_number} being reversed? This restores the stock previously returned to the supplier and corrects Xero when linked.`)?.trim();
+    if (!reason) return;
+    if (!confirm(`Reverse mistaken completion for ${scn.scn_number}? This is an append-only correction and cannot be undone.`)) return;
+    try {
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'supplier_credit_note', Number(scn.id), 'revert_mistaken_completion', scn.updated_at, { reason },
+      );
+      const result = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/reverse`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: scn.updated_at, reason }),
+      });
+      setViewModal({ open: true, scn: result.data });
+      load();
+      if (result.xeroWarning) alert(`The supplier credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
+    } catch (err: any) {
+      alert(err.message || 'Reversal failed');
+    }
   };
 
   const filtered = scns.filter(s => {
@@ -11314,14 +11466,30 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
     if (!inDateRange(s.scn_date, dateRange)) return false;
     return true;
   });
-  const statusBadge = (status: string) => {
-    const map: Record<string, { label: string; color: string; bg: string }> = {
-      draft:     { label: 'Draft',     color: '#fbbf24', bg: 'rgba(251,191,36,.12)' },
-      complete:  { label: 'Complete',  color: '#34d399', bg: 'rgba(52,211,153,.12)' },
-      cancelled: { label: 'Cancelled', color: '#f87171', bg: 'rgba(248,113,113,.12)' },
-    };
-    const s = map[status] ?? { label: status, color: 'var(--sv-text-dim)', bg: 'var(--sv-bg-1)' };
-    return <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: s.bg, color: s.color }}>{s.label}</span>;
+  const getScnActionOptions = (scn: any) => {
+    const actions = [{ value: 'view', label: 'View' }];
+    if (isAdvisor) return actions;
+    if (scn.status === 'draft') actions.push(
+      { value: 'edit', label: 'Edit' },
+      { value: 'complete', label: 'Complete' },
+      { value: 'cancel', label: 'Cancel' },
+      { value: 'delete', label: 'Delete Draft' },
+    );
+    if (scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) {
+      actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
+    }
+    if (scn.status === 'complete') actions.push({ value: 'reverse', label: 'Reverse Mistaken Completion' });
+    return actions;
+  };
+
+  const executeScnRowAction = (scn: any, action: string) => {
+    if (action === 'view') return void openView(scn);
+    if (action === 'edit') return void openEdit(scn);
+    if (action === 'complete') return void handleComplete(scn);
+    if (action === 'cancel') return void handleCancel(scn);
+    if (action === 'delete') return void handleDelete(scn);
+    if (action === 'retry_xero') return void retryScnXeroSync(scn.id);
+    if (action === 'reverse') return void handleReverse(scn);
   };
   const money = (n: any) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -11351,26 +11519,32 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               <tr>{['Number','Supplier','Date','Total','Status','Xero','Actions'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>{h}</th>)}</tr>
             </thead>
             <tbody>
-              {filtered.map(scn => (
+              {filtered.map(scn => {
+                const actions = getScnActionOptions(scn);
+                const selectedAction = scnActionSelections[scn.id] ?? actions[0]?.value ?? 'view';
+                return (
                 <tr key={scn.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-text-strong)' }}>{scn.scn_number}</td>
+                  <td style={{ padding: '10px 12px', fontWeight: 600 }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{scn.supplier_name ?? '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}>{statusBadge(scn.status)}</td>
+                  <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
                   <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => openView(scn)} style={btnStyle('ghost', 'xs')}>View</button>
-                      {!isAdvisor && scn.status === 'draft' && <>
-                        <button onClick={() => openEdit(scn)} style={btnStyle('ghost', 'xs')}>Edit</button>
-                        <button onClick={() => handleComplete(scn)} style={btnStyle('mint', 'xs')}>Complete</button>
-                        <button onClick={() => handleDelete(scn)} style={btnStyle('danger', 'xs')}>Delete</button>
-                      </>}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <select
+                        aria-label={`Action for ${scn.scn_number}`}
+                        value={selectedAction}
+                        onChange={e => setScnActionSelections(current => ({ ...current, [scn.id]: e.target.value }))}
+                        style={{ ...inputStyle, width: 174, padding: '5px 7px', fontSize: 11 }}
+                      >
+                        {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
+                      </select>
+                      <button onClick={() => executeScnRowAction(scn, selectedAction)} style={btnStyle('secondary', 'xs')}>Go</button>
                     </div>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </table>
         </div>
@@ -11653,11 +11827,6 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                     {xeroAt && <span style={{ color: 'var(--sv-text-dim)' }}>{xeroAt}</span>}
                     <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 10 }}>{xeroId.slice(0, 8)}…</span>
                     <a href={`https://go.xero.com/AccountsPayable/EditCreditNote.aspx?CreditNoteID=${xeroId}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sv-mint)' }}>View in Xero ↗</a>
-                    {!isAdvisor && (
-                      <button type="button" onClick={() => voidScnInXero(viewModal.scn.id)} disabled={voidingScnXero} style={{ ...btnStyle('danger', 'xs'), opacity: voidingScnXero ? .7 : 1 }}>
-                        {voidingScnXero ? 'Voiding…' : 'Void in Xero'}
-                      </button>
-                    )}
                   </div>
                 );
               }
@@ -11698,10 +11867,21 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                 </div>
               );
             })()}
+            {viewModal.scn.status === 'reversed' && (
+              <div style={{ padding: '7px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(251,191,36,.1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                Reversed{viewModal.scn.reversal_reason ? `: ${viewModal.scn.reversal_reason}` : ''}. Xero correction: {String(viewModal.scn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.
+              </div>
+            )}
+            <OrderActivityHistory entries={viewModal.scn.activity_history} />
             {!isAdvisor && viewModal.scn.status === 'draft' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={() => { setViewModal({ open: false, scn: null }); openEdit(viewModal.scn); }} style={btnStyle('ghost')}>Edit</button>
                 <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>Complete &amp; Post to Xero</button>
+              </div>
+            )}
+            {!isAdvisor && viewModal.scn.status === 'complete' && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                <button data-testid={`scn-reverse-${viewModal.scn.id}`} onClick={() => handleReverse(viewModal.scn)} style={btnStyle('danger')}>Reverse Mistaken Completion</button>
               </div>
             )}
           </div>
@@ -19485,11 +19665,12 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
   if (v === 'sales-orders')    return 'sales-orders';
+  if (v === 'credit-notes' || v === 'supplier-credit-notes' || v === 'stocktakes') return 'inventory-documents';
   if (v === 'xero')            return 'xero';
   if (v === 'pos-sales')       return 'pos';
   if (v === 'online-sales')    return 'shopify';
@@ -22155,6 +22336,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [sortCol, setSortCol]   = useState<string>('created_at');
   const [sortDir, setSortDir]   = useState<'asc' | 'desc'>('desc');
   const [page, setPage]         = useState(1);
+  const [stocktakeActionSelections, setStocktakeActionSelections] = useState<Record<number, string>>({});
 
   // Create modal
   const [createModal, setCreateModal] = useState(false);
@@ -22251,12 +22433,16 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     // Auto-start: silently move draft → in_progress so counting can begin immediately
     let stocktakeData = d;
     if (d.status === 'draft') {
-      await fetch(`/api/ims/stocktakes/${st.id}`, {
+      const operationKey = await buildInventoryDocumentOperationKey('stocktake', Number(st.id), 'start', d.updated_at, {});
+      const startResponse = await fetch(`/api/ims/stocktakes/${st.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'change_status', status: 'in_progress' }),
+        body: JSON.stringify({ action: 'change_status', status: 'in_progress', operationKey, expectedUpdatedAt: d.updated_at }),
       });
-      stocktakeData = { ...d, status: 'in_progress' };
+      const startResult = await startResponse.json();
+      if (!startResponse.ok) throw new Error(startResult.error || 'Failed to start stocktake');
+      const refreshedResponse = await fetch(`/api/ims/stocktakes/${st.id}`);
+      stocktakeData = await refreshedResponse.json();
       load();
     }
     setDetailModal({ open: true, st: stocktakeData });
@@ -22277,14 +22463,19 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     setDetailItems(p => p.map((i: any) => i.id === item.id ? { ...i, counted_qty, counted_input: value } : i));
   };
 
-  const changeStatus = async (id: number, status: string) => {
+  const changeStatus = async (stocktake: any, status: string) => {
+    const id = Number(stocktake.id);
     const labels: Record<string, string> = { in_progress: 'start count', cancelled: 'cancel' };
     if (!confirm(`${labels[status] || status} this stocktake?`)) return;
-    await fetch(`/api/ims/stocktakes/${id}`, {
+    const action = status === 'in_progress' ? 'start' : 'cancel';
+    const operationKey = await buildInventoryDocumentOperationKey('stocktake', id, action, stocktake.updated_at, {});
+    const response = await fetch(`/api/ims/stocktakes/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'change_status', status }),
+      body: JSON.stringify({ action: 'change_status', status, operationKey, expectedUpdatedAt: stocktake.updated_at }),
     });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `Failed to ${labels[status] || status} stocktake`);
     load();
     if (detailModal.open && detailModal.st?.id === id) {
       const res = await fetch(`/api/ims/stocktakes/${id}`);
@@ -22326,7 +22517,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     if (uncounted.length > 0) {
       if (!confirm(`⚠ ${uncounted.length} item${uncounted.length !== 1 ? 's' : ''} have not been counted and will be IGNORED — their stock quantities will remain unchanged.\n\nContinue anyway? (Or cancel and use “Apply 0 to uncounted” if you meant to count them as zero.)`)) return;
     }
-    if (!confirm('Mark complete and apply counted quantities to stock? This will update qty_on_hand for all counted items.')) return;
+    if (!confirm('Complete and apply this count? Each counted quantity will be applied against current stock on hand.')) return;
     setApplying(true);
     try {
       // 0. Flush any counts that are in the input but not yet saved to DB
@@ -22335,8 +22526,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
         i.counted_input !== '' && i.counted_input != null &&
         String(i.counted_qty ?? '') !== String(i.counted_input)
       );
+      let stocktakeRevision = detailModal.st.updated_at;
       if (unsaved.length > 0) {
-        await fetch(`/api/ims/stocktakes/${id}`, {
+        const saveResponse = await fetch(`/api/ims/stocktakes/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -22344,19 +22536,23 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             items: unsaved.map((i: any) => ({ item_id: i.id, counted_qty: Number(i.counted_input) })),
           }),
         });
+        if (!saveResponse.ok) { const error = await saveResponse.json(); throw new Error(error.error || 'Failed to save pending counts'); }
+        const latestResponse = await fetch(`/api/ims/stocktakes/${id}`);
+        const latestStocktake = await latestResponse.json();
+        if (!latestResponse.ok) throw new Error(latestStocktake.error || 'Failed to refresh stocktake revision');
+        stocktakeRevision = latestStocktake.updated_at;
       }
-      // 1. Mark as completed
-      const statusRes = await fetch(`/api/ims/stocktakes/${id}`, {
-        method: 'PUT',
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'stocktake', id, 'complete', stocktakeRevision, {},
+      );
+      const applyRes = await fetch(`/api/ims/stocktakes/${id}/apply`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'change_status', status: 'completed' }),
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: stocktakeRevision }),
       });
-      if (!statusRes.ok) { const e = await statusRes.json(); throw new Error(e.error || 'Failed to mark complete'); }
-      // 2. Apply to stock
-      const applyRes = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
       const d        = await applyRes.json();
       if (!applyRes.ok) throw new Error(d.error || 'Failed to apply');
-      // 3. Auto-sync to Xero
+      // Auto-sync to Xero
       let xeroMsg = '';
       try {
         setXeroSyncing(true);
@@ -22382,20 +22578,6 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     finally { setApplying(false); }
   };
 
-  // kept for external use (barcode tab still calls apply separately)
-  const handleApply = async (id: number) => {
-    setApplying(true);
-    try {
-      const res = await fetch(`/api/ims/stocktakes/${id}/apply`, { method: 'POST' });
-      const d   = await res.json();
-      if (!res.ok) throw new Error(d.error);
-      alert(`Applied ${d.applied} items. ${d.variances} variance movements recorded.`);
-      load();
-      setDetailModal({ open: false, st: null });
-    } catch (e: any) { alert(e.message); }
-    finally { setApplying(false); }
-  };
-
   const handleApplyZeroCounts = async () => {
     const uncounted = detailItems.filter((i: any) => i.counted_qty === null && (i.counted_input === '' || i.counted_input == null));
     if (!uncounted.length) return;
@@ -22417,18 +22599,27 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     if (detailModal.open && detailModal.st?.id === id) setDetailModal({ open: false, st: null });
   };
 
-  const handleRevert = async (id: number) => {
-    if (!confirm('Revert this stocktake? Stock quantities will be restored to their pre-stocktake values and all variance movements will be removed.')) return;
+  const handleRevert = async (stocktake: any) => {
+    const id = Number(stocktake.id);
+    const detailResponse = await fetch(`/api/ims/stocktakes/${id}`);
+    const currentStocktake = await detailResponse.json();
+    if (!detailResponse.ok) { alert(currentStocktake.error || 'Failed to load stocktake'); return; }
+    const reason = prompt('Why is this completed stocktake being reversed? The exact applied adjustment will be compensated while later stock movements are preserved.')?.trim();
+    if (!reason) return;
+    if (!confirm('Revert this mistaken stocktake? This creates append-only compensation movements and cannot be undone.')) return;
     setApplying(true);
     try {
-      const res = await fetch(`/api/ims/stocktakes/${id}`, {
-        method: 'PUT',
+      const operationKey = await buildInventoryDocumentOperationKey(
+        'stocktake', id, 'revert_mistaken_completion', currentStocktake.updated_at, { reason },
+      );
+      const res = await fetch(`/api/ims/stocktakes/${id}/revert`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'revert' }),
+        body: JSON.stringify({ operationKey, expectedUpdatedAt: currentStocktake.updated_at, reason }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'Failed to revert');
-      alert(`Reverted. ${d.reverted} item${d.reverted !== 1 ? 's' : ''} restored to pre-stocktake quantities.`);
+      alert(`Stocktake reversed. ${d.reverted} compensation movement${d.reverted !== 1 ? 's' : ''} recorded.${d.xeroWarning ? `\n\nXero needs attention: ${d.xeroWarning}` : ''}`);
       load();
       if (detailModal.open && detailModal.st?.id === id) {
         const r2 = await fetch(`/api/ims/stocktakes/${id}`);
@@ -22495,6 +22686,29 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
 
+  const getStocktakeRowActions = (stocktake: any) => {
+    const actions = [{ value: 'view', label: stocktake.status === 'in_progress' ? 'Continue Count' : 'View' }];
+    if (isAdvisor) return actions;
+    if (stocktake.status === 'draft') actions.push(
+      { value: 'start', label: 'Start Count' },
+      { value: 'cancel', label: 'Cancel' },
+      { value: 'delete', label: 'Delete Draft' },
+    );
+    if (stocktake.status === 'in_progress') actions.push({ value: 'cancel', label: 'Cancel' });
+    if (stocktake.status === 'completed' && Number(stocktake.missing_apply_snapshot_count ?? 0) === 0) {
+      actions.push({ value: 'revert', label: 'Revert Mistaken Stocktake' });
+    }
+    return actions;
+  };
+
+  const executeStocktakeRowAction = async (stocktake: any, action: string) => {
+    if (action === 'view') return openDetail(stocktake);
+    if (action === 'start') return changeStatus(stocktake, 'in_progress');
+    if (action === 'cancel') return changeStatus(stocktake, 'cancelled');
+    if (action === 'delete') return handleDelete(stocktake.id, stocktake.reference);
+    if (action === 'revert') return handleRevert(stocktake);
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -22521,8 +22735,8 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       </div>
 
       {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stocktakes yet. Create one to get started." /> : (
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
                 {([
@@ -22543,7 +22757,10 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               </tr>
             </thead>
             <tbody>
-              {visible.map((st: any) => (
+              {visible.map((st: any) => {
+                const actions = getStocktakeRowActions(st);
+                const selectedAction = stocktakeActionSelections[st.id] ?? actions[0]?.value ?? 'view';
+                return (
                 <tr key={st.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td style={{ padding: '10px 12px' }}>
                     <button onClick={() => openDetail(st)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{st.reference}</button>
@@ -22554,16 +22771,22 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   <td style={{ padding: '10px 12px', color: Number(st.variance_count) > 0 ? 'var(--sv-warn,#fbbf24)' : 'var(--sv-text-dim)', fontSize: 13, fontWeight: Number(st.variance_count) > 0 ? 600 : 400 }}>{st.variance_count ?? 0}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.created_at?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{st.completed_at?.slice(0, 10) || '—'}</td>
-                  <td style={{ padding: '10px 12px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button onClick={() => openDetail(st)} style={btnStyle('ghost', 'xs')}>View</button>
-                    {!isAdvisor && st.status === 'draft'       && <button onClick={() => changeStatus(st.id, 'in_progress')} style={btnStyle('action', 'xs')}>Start</button>}
-                    {!isAdvisor && st.status === 'in_progress' && <button onClick={() => handleComplete(st.id)} style={btnStyle('action', 'xs')} disabled={applying}>Complete</button>}
-                    {!isAdvisor && st.status === 'completed'   && <button onClick={() => handleRevert(st.id)} style={btnStyle('secondary', 'xs')} disabled={applying}>Revert</button>}
-                    {!isAdvisor && (st.status === 'draft' || st.status === 'in_progress') && <button onClick={() => changeStatus(st.id, 'cancelled')} style={btnStyle('secondary', 'xs')}>Cancel</button>}
-                    {!isAdvisor && ['draft','cancelled','in_progress','reverted'].includes(st.status) && <button onClick={() => handleDelete(st.id, st.reference)} style={btnStyle('danger', 'xs')}>Delete</button>}
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', gap: 6, minWidth: 210 }}>
+                      <select
+                        data-testid={`stocktake-action-${st.id}`}
+                        value={selectedAction}
+                        onChange={event => setStocktakeActionSelections(previous => ({ ...previous, [st.id]: event.target.value }))}
+                        style={{ ...inputStyle, minWidth: 155, padding: '4px 7px', fontSize: 12 }}
+                      >
+                        {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
+                      </select>
+                      <button data-testid={`stocktake-action-go-${st.id}`} onClick={() => executeStocktakeRowAction(st, selectedAction)} style={btnStyle('secondary', 'xs')}>Go</button>
+                    </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -22715,10 +22938,10 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   {savingDraft ? 'Saving…' : '💾 Save & Close'}
                 </button>
               )}
-              {detailModal.st.status === 'in_progress' && !isAdvisor && <button onClick={() => handleComplete(detailModal.st.id)} disabled={applying || savingDraft} style={btnStyle('action', 'sm')}>Mark Complete</button>}
-              {detailModal.st.status === 'completed'   && <button onClick={() => handleRevert(detailModal.st.id)} disabled={applying} style={btnStyle('secondary', 'sm')}>Revert</button>}
-              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && !isAdvisor && <button onClick={() => changeStatus(detailModal.st.id, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
-              {['draft','cancelled','in_progress','reverted'].includes(detailModal.st.status) && !isAdvisor && <button onClick={() => handleDelete(detailModal.st.id, detailModal.st.reference)} style={btnStyle('danger', 'sm')}>Delete</button>}
+              {detailModal.st.status === 'in_progress' && !isAdvisor && <button data-testid="stocktake-complete-apply" onClick={() => handleComplete(detailModal.st.id)} disabled={applying || savingDraft} style={btnStyle('action', 'sm')}>Complete & Apply Count</button>}
+              {detailModal.st.status === 'completed' && detailItems.every((item: any) => item.counted_qty == null || item.applied_delta != null) && !isAdvisor && <button data-testid="stocktake-revert-mistaken" onClick={() => handleRevert(detailModal.st)} disabled={applying} style={btnStyle('secondary', 'sm')}>Revert Mistaken Stocktake</button>}
+              {(detailModal.st.status === 'draft' || detailModal.st.status === 'in_progress') && !isAdvisor && <button onClick={() => changeStatus(detailModal.st, 'cancelled')} style={btnStyle('secondary', 'sm')}>Cancel</button>}
+              {detailModal.st.status === 'draft' && !isAdvisor && <button onClick={() => handleDelete(detailModal.st.id, detailModal.st.reference)} style={btnStyle('danger', 'sm')}>Delete</button>}
             </div>
           </div>
 
@@ -22739,7 +22962,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             if (!uncountedCount) return null;
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, padding: '9px 14px', background: 'rgba(251,191,36,.1)', border: '1px solid rgba(251,191,36,.4)', borderRadius: 8 }}>
-                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{uncountedCount}</strong> item{uncountedCount !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when you mark complete (stock qty unchanged).</span>
+                <span style={{ fontSize: 13, color: '#fbbf24', flex: 1 }}>⚠ <strong>{uncountedCount}</strong> item{uncountedCount !== 1 ? 's' : ''} not yet counted — will be <strong>ignored</strong> when you complete and apply (stock qty unchanged).</span>
                 <button type="button" onClick={handleApplyZeroCounts} style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', borderColor: '#fbbf24', color: '#fbbf24' }}>
                   Apply 0 to uncounted
                 </button>
@@ -22764,7 +22987,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1 }}>
-                    {['SKU', 'Product', 'Variant', 'Barcode', 'Expected', 'Counted', 'Variance', 'Notes', ''].map(h => (
+                    {['SKU', 'Product', 'Variant', 'Barcode', 'Expected at Start', 'Counted', 'Count-start Variance', 'Applied Adjustment', 'Notes', ''].map(h => (
                       <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .7, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -22797,6 +23020,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: varColor, fontWeight: variance !== null && variance !== 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
                           {variance !== null ? (variance >= 0 ? '+' : '') + Math.round(variance * 10000) / 10000 : '—'}
+                        </td>
+                        <td style={{ padding: '6px 10px', fontSize: 12, color: Number(item.applied_delta) === 0 ? 'var(--sv-text-dim)' : Number(item.applied_delta) > 0 ? '#34d399' : '#f87171', fontWeight: Number(item.applied_delta) !== 0 ? 600 : 400, whiteSpace: 'nowrap' }}>
+                          {item.applied_delta == null ? '—' : `${Number(item.applied_delta) >= 0 ? '+' : ''}${Number(item.applied_delta)}`}
                         </td>
                         <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.notes || ''}</td>
                         <td style={{ padding: '6px 4px' }}>
@@ -22869,12 +23095,14 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
             </div>
           )}
 
-          {/* ── Accounting / Xero panel ── shown for completed stocktakes ── */}
-          {detailModal.st.status === 'completed' && (() => {
-            const varItems = detailItems.filter((i: any) => i.counted_qty !== null && Number(i.counted_qty) !== Number(i.expected_qty));
-            const netValue = varItems.reduce((s: number, i: any) => s + (Number(i.counted_qty) - Number(i.expected_qty)) * Number(i.avg_cost ?? 0), 0);
-            const hasZeroCost = varItems.some((i: any) => Number(i.avg_cost ?? 0) === 0);
+          {/* Accounting uses the immutable apply snapshot, not count-start variance or current cost. */}
+          {(detailModal.st.status === 'completed' || detailModal.st.status === 'reverted') && (() => {
+            const missingApplySnapshot = detailItems.some((item: any) => item.counted_qty != null && item.applied_delta == null);
+            const varItems = detailItems.filter((i: any) => Math.abs(Number(i.applied_delta ?? 0)) > 0.00001);
+            const netValue = varItems.reduce((sum: number, item: any) => sum + Number(item.applied_delta) * Number(item.unit_cost_at_apply ?? 0), 0);
+            const hasZeroCost = varItems.some((i: any) => Number(i.unit_cost_at_apply ?? 0) === 0);
             const ss = detailModal.st.xero_sync_status;
+            const reversalStatus = detailModal.st.xero_reversal_sync_status;
             return (
               <div style={{ marginTop: 20, padding: '14px 16px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -22882,7 +23110,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   {ss === 'synced' && <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>✓ Synced to Xero{detailModal.st.xero_synced_at ? ` — ${String(detailModal.st.xero_synced_at).slice(0, 10)}` : ''}</span>}
                   {ss === 'error'  && <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>⚠ Sync failed</span>}
                   {!ss            && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>○ Not yet synced to Xero</span>}
-                  {ss !== 'synced' && (
+                  {detailModal.st.status === 'completed' && ss !== 'synced' && (
                     <button type="button" disabled={applying || xeroSyncing} onClick={async () => {
                       setXeroSyncing(true);
                       try {
@@ -22906,33 +23134,58 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                       {xeroSyncing ? '…' : ss === 'error' ? 'Retry Xero Sync' : 'Sync to Xero'}
                     </button>
                   )}
+                  {detailModal.st.status === 'reverted' && reversalStatus && (
+                    <span style={{ fontSize: 12, color: reversalStatus === 'synced' || reversalStatus === 'not_required' ? '#34d399' : reversalStatus === 'blocked' || reversalStatus === 'error' ? '#f87171' : '#fbbf24', fontWeight: 600 }}>
+                      Reversal: {reversalStatus === 'blocked' ? 'Needs Attention' : String(reversalStatus).replaceAll('_', ' ')}
+                    </span>
+                  )}
+                  {detailModal.st.status === 'reverted' && (reversalStatus === 'queued' || reversalStatus === 'error') && !isAdvisor && (
+                    <button type="button" disabled={xeroSyncing} onClick={async () => {
+                      setXeroSyncing(true);
+                      try {
+                        const response = await fetch(`/api/ims/stocktakes/${detailModal.st.id}/xero-reversal`, { method: 'POST' });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.error || 'Xero correction retry failed');
+                        const detailResponse = await fetch(`/api/ims/stocktakes/${detailModal.st.id}`);
+                        const current = await detailResponse.json();
+                        setDetailModal({ open: true, st: current });
+                        setDetailItems((current.items || []).map((item: any) => ({ ...item, counted_input: item.counted_qty !== null ? String(item.counted_qty) : '' })));
+                      } catch (error: any) { alert(error.message); }
+                      finally { setXeroSyncing(false); }
+                    }} style={btnStyle('action', 'sm')}>
+                      {xeroSyncing ? 'Retrying…' : 'Retry Xero Correction'}
+                    </button>
+                  )}
                 </div>
-                {varItems.length === 0
-                  ? <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No variances — all counted quantities matched expected. Nothing to post to Xero.</div>
+                {missingApplySnapshot
+                  ? <div style={{ fontSize: 12, color: '#fbbf24' }}>Exact apply snapshots are unavailable for this legacy stocktake. Automatic reversal and snapshot valuation are disabled; use a reviewed stock adjustment and accounting correction if needed.</div>
+                  : varItems.length === 0
+                  ? <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No stock adjustments were applied. Nothing to post to Xero.</div>
                   : (
                     <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                         <thead>
                           <tr style={{ background: 'var(--sv-bg-2)' }}>
-                            {['SKU', 'Product', 'Expected', 'Counted', 'Variance Qty', 'Avg Cost', 'Variance Value'].map(h => (
+                            {['SKU', 'Product', 'Expected at Start', 'Counted', 'Applied Adjustment', 'Cost at Apply', 'Applied Value'].map(h => (
                               <th key={h} style={{ padding: '5px 10px', textAlign: ['SKU','Product'].includes(h) ? 'left' : 'right', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
                           {varItems.map((i: any) => {
-                            const vq  = Number(i.counted_qty) - Number(i.expected_qty);
-                            const val = vq * Number(i.avg_cost ?? 0);
-                            const col = vq < 0 ? '#f87171' : '#34d399';
+                            const appliedDelta = Number(i.applied_delta);
+                            const unitCost = Number(i.unit_cost_at_apply ?? 0);
+                            const val = appliedDelta * unitCost;
+                            const col = appliedDelta < 0 ? '#f87171' : '#34d399';
                             return (
                               <tr key={i.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                                 <td style={{ padding: '4px 10px', color: 'var(--sv-text-dim)' }}>{i.sku || '—'}</td>
                                 <td style={{ padding: '4px 10px', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.product_name}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.expected_qty)}</td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right' }}>{Number(i.counted_qty)}</td>
-                                <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{vq > 0 ? '+' : ''}{vq}</td>
-                                <td style={{ padding: '4px 10px', textAlign: 'right', color: Number(i.avg_cost ?? 0) === 0 ? '#fbbf24' : undefined }}>
-                                  {Number(i.avg_cost ?? 0) === 0 ? <span title="No avg cost — will post $0">$0 ⚠</span> : `$${Number(i.avg_cost).toFixed(2)}`}
+                                <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{appliedDelta > 0 ? '+' : ''}{appliedDelta}</td>
+                                <td style={{ padding: '4px 10px', textAlign: 'right', color: unitCost === 0 ? '#fbbf24' : undefined }}>
+                                  {unitCost === 0 ? <span title="No captured cost — posts $0">$0 ⚠</span> : `$${unitCost.toFixed(2)}`}
                                 </td>
                                 <td style={{ padding: '4px 10px', textAlign: 'right', color: col, fontWeight: 600 }}>{val < 0 ? '-' : ''}${Math.abs(val).toFixed(2)}</td>
                               </tr>
@@ -22949,13 +23202,15 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                           </tr>
                         </tfoot>
                       </table>
-                      {hasZeroCost && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>⚠ Some items have avg cost $0 — their lines will post as $0 to Xero. Check Cin7 cost sync.</div>}
+                      {hasZeroCost && <div style={{ marginTop: 8, fontSize: 12, color: '#fbbf24' }}>⚠ Some items had a $0 cost when this count was applied, so their journal value is $0.</div>}
                     </div>
                   )
                 }
               </div>
             );
           })()}
+
+          <OrderActivityHistory entries={detailModal.st.activity_history} />
         </Modal>
       )}
     </div>
@@ -23985,6 +24240,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
+    { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
@@ -25037,6 +25293,40 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
   );
 
   const Content = () => {
+    if (active === 'inventory-documents') return (
+      <div style={{ padding: 32, maxWidth: 760 }}>
+        <h2 style={h2}>Credit Notes &amp; Stocktakes</h2>
+        <p style={p}>These are retained business documents. Complete actions can change stock, customer credit, and Xero; corrections preserve the original activity and append the exact opposite evidence.</p>
+
+        <h3 style={h3}>Customer credit notes</h3>
+        <ul style={ul}>
+          <li><strong>Awaiting Product</strong> records that the refund workflow exists but returned goods have not arrived. Resume Draft when the goods arrive, then complete the note.</li>
+          <li><strong>Money-only</strong> credits do not return stock. Physical returns must identify the returned item quantities and location.</li>
+          <li>POS, Shopify, and sales-order shortfall notes are owned by their source workflow; correct them from that source rather than using the manual reversal action.</li>
+        </ul>
+
+        <h3 style={h3}>Supplier credit notes</h3>
+        <p style={p}>Use <strong>Return stock</strong> when goods physically leave your location. Clear it for rebates, overcharges, and other money-only supplier credits. Linked purchase-order return limits are checked when the note completes.</p>
+
+        <h3 style={h3}>Cancel, Delete, and corrections</h3>
+        <ul style={ul}>
+          <li><strong>Delete</strong> is available only for Draft documents that have no retained lifecycle history.</li>
+          <li><strong>Cancel</strong> retains an uncompleted document for audit and does not change stock or credit.</li>
+          <li><strong>Reverse Mistaken Completion</strong> is for a completion that should never have happened. It appends exact compensation; it is not the workflow for a genuine later return or sale.</li>
+        </ul>
+
+        <h3 style={h3}>Stocktake quantities</h3>
+        <ul style={ul}>
+          <li><strong>Count-start variance</strong> compares the count with stock on hand when the stocktake began.</li>
+          <li><strong>Applied adjustment</strong> compares the count with locked current stock when Complete &amp; Apply runs. This is the quantity and captured cost used by Xero.</li>
+          <li>Reverting a mistaken stocktake compensates the applied adjustment against current stock, preserving sales, receipts, and transfers that happened afterward.</li>
+        </ul>
+
+        <h3 style={h3}>Xero corrections</h3>
+        <p style={p}>A confirmed stocktake journal is corrected with one linked opposite journal. A transient failure leaves the local correction complete and exposes Retry Xero Correction. Needs Attention means the original Xero outcome is unknown and must be verified before another journal is posted.</p>
+      </div>
+    );
+
     // ── Wholesale Portal ──────────────────────────────────────────────────────
     if (active === 'wholesale') return (
       <div style={{ padding: 32, maxWidth: 760 }}>

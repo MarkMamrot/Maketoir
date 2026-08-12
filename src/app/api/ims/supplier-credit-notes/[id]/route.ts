@@ -6,6 +6,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assessXeroCreditNoteEdit, hasXeroVisibleCreditNoteChanges, type XeroCreditNoteEditState } from '@/lib/xero/documentEditPolicy';
 import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/repository';
 import { getXeroCreditNoteEditState } from '@/services/XeroSyncService';
+import { getInventoryDocumentActivityHistory } from '@/lib/ims/inventoryDocumentHistory';
 
 function normalizeAndValidateSupplierCNItems(items: any[] | undefined): { items?: any[]; error: string | null } {
   if (items === undefined) return { items: undefined, error: null };
@@ -33,7 +34,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsSupplierCNRepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ success: true, data });
+    let activityHistory: Awaited<ReturnType<typeof getInventoryDocumentActivityHistory>> = [];
+    try {
+      activityHistory = await getInventoryDocumentActivityHistory(businessId, 'supplier_credit_note', Number(params.id));
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_supplier_credit_notes', operation: 'activity_history_load',
+        title: 'Supplier credit note activity history failed to load', error,
+        reference: { type: 'supplier_credit_note', id: params.id },
+      }).catch(() => {});
+    }
+    return NextResponse.json({ success: true, data: { ...data, activity_history: activityHistory } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

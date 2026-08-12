@@ -5,9 +5,6 @@ import { executeCreditNoteStatusCommand, InventoryDocumentRevisionConflict } fro
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
 
-
-// POST /api/ims/credit-notes/[id]/awaiting — draft → awaiting_product
-// (goods not yet received; refund pending). No stock/Xero effect.
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -21,7 +18,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       businessId,
       documentKind: 'customer_credit_note',
       documentId: cnId,
-      action: 'mark_awaiting_product',
+      action: 'cancel',
       context: {
         operationKey: body.operationKey,
         requestHash: await hashInventoryDocumentRequest({}),

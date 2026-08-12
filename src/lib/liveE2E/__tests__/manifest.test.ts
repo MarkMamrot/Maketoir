@@ -3,6 +3,18 @@ import { describe, expect, it } from 'vitest';
 import { appendLiveRunEvent, assertRunMayStart } from '../manifest';
 
 describe('live E2E manifest', () => {
+  it('supports the P9 stocktake lifecycle through clean compensation', () => {
+    let events = appendLiveRunEvent([], 'initialized', {});
+    events = appendLiveRunEvent(events, 'preflight_passed', {});
+    events = appendLiveRunEvent(events, 'p9_created', { stocktakeId: 101 });
+    events = appendLiveRunEvent(events, 'awaiting_operator', {});
+    events = appendLiveRunEvent(events, 'acknowledged', {});
+    events = appendLiveRunEvent(events, 'compensating', {});
+    events = appendLiveRunEvent(events, 'clean', { qtyOnHand: 0 });
+
+    expect(events.at(-1)).toMatchObject({ sequence: 7, state: 'clean' });
+  });
+
   it('enforces the operator gate before compensation', () => {
     const initialized = appendLiveRunEvent([], 'initialized', { runId: 'run-1' });
     const preflight = appendLiveRunEvent(initialized, 'preflight_passed', {});

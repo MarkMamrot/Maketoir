@@ -2,13 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getImportSession } from '@/app/api/ims/import/_helpers';
 import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
+import { applyStocktake, StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCommands';
+import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
+import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getImportSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
+  const id = parseInt(params.id, 10);
   try {
-    const session = await getImportSession();
-    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-    const id = parseInt(params.id, 10);
-    const result = await ImsStocktakeRepo.applyToStock(id, session.businessId);
+    const body = await req.json().catch(() => null);
+    if (!body?.operationKey) return NextResponse.json({ error: 'operationKey is required.' }, { status: 400 });
+    const result = await applyStocktake({
+      businessId: session.businessId,
+      stocktakeId: id,
+      context: {
+        operationKey: body.operationKey,
+        requestHash: await hashInventoryDocumentRequest({}),
+        expectedUpdatedAt: body.expectedUpdatedAt,
+        actorId: session.userId,
+        actorName: session.name ?? session.email,
+      },
+    });
 
     // EVENT-DRIVEN CACHE UPDATE: Refresh for variants affected by this stocktake
     const stocktake = await ImsStocktakeRepo.get(id, session.businessId);
@@ -21,6 +39,16 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 
     return NextResponse.json(result);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 400 });
+    const conflict = e instanceof StocktakeOperationConflict
+      || e instanceof InventoryDocumentLifecycleConflict
+      || e instanceof InventoryDocumentOperationConflict
+      || e instanceof InventoryDocumentRevisionConflict;
+    if (!conflict) {
+      await reportRuntimeIssue({
+        businessId: session.businessId, source: 'ims_stocktakes', operation: 'complete_apply',
+        title: 'Stocktake completion failed', error: e, reference: { type: 'stocktake', id },
+      }).catch(() => {});
+    }
+    return NextResponse.json({ error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: conflict ? 409 : 500 });
   }
 }

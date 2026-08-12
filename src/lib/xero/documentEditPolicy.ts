@@ -173,3 +173,28 @@ export function assessXeroCreditNoteEdit(
   }
   return { allowed: true, reason: 'editable', message: null };
 }
+
+export function assessXeroCreditNoteVoid(
+  state: XeroCreditNoteEditState | null,
+): XeroDocumentEditAssessment {
+  if (!state?.status) {
+    return { allowed: false, reason: 'unverifiable', message: 'The linked Xero credit note could not be verified.' };
+  }
+
+  const status = state.status.toUpperCase();
+  if (['VOIDED', 'DELETED'].includes(status)) {
+    return { allowed: true, reason: 'local_only', message: null };
+  }
+  if (status === 'PAID' || (state.total > 0.005 && state.remainingCredit < state.total - 0.005)) {
+    return { allowed: false, reason: 'settled', message: 'The linked Xero credit note has allocations or refunds applied.' };
+  }
+
+  const lockDate = latestLockDate(state);
+  if (lockDate && state.documentDate && state.documentDate.slice(0, 10) <= lockDate) {
+    return { allowed: false, reason: 'locked_period', message: `The linked Xero credit note is dated in a locked period ending ${lockDate}.` };
+  }
+  if (!['DRAFT', 'SUBMITTED', 'AUTHORISED'].includes(status)) {
+    return { allowed: false, reason: 'terminal_status', message: `The linked Xero credit note status ${status} cannot be voided safely.` };
+  }
+  return { allowed: true, reason: 'editable', message: null };
+}

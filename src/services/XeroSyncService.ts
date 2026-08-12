@@ -232,14 +232,32 @@ export async function markStocktakeXeroStatus(
   } catch { /* non-critical */ }
 }
 
+export async function markStocktakeXeroReversalStatus(
+  businessId: string,
+  stocktakeId: number,
+  status: 'queued' | 'synced' | 'error' | 'blocked' | 'not_required',
+  xeroId?: string | null,
+  error?: string | null,
+): Promise<void> {
+  await imsExecute(
+    `UPDATE ims_stocktakes
+        SET xero_reversal_sync_status = ?, xero_reversal_synced_at = NOW(), xero_reversal_error = ?
+            ${xeroId != null ? ', xero_reversal_journal_id = ?' : ''}
+      WHERE id = ? AND business_id = ?`,
+    xeroId != null
+      ? [status, error ?? null, xeroId, stocktakeId, businessId]
+      : [status, error ?? null, stocktakeId, businessId],
+  );
+}
+
 // ─── Stocktake → Xero Manual Journal ─────────────────────────────────────────
 
 /**
- * Post a Xero Manual Journal for all non-zero variances in a completed stocktake.
- * For each variant where counted_qty ≠ expected_qty:
+ * Post a Xero Manual Journal for the adjustments actually applied by a completed stocktake.
+ * For each variant where applied_delta is non-zero:
  *   Shrinkage (missing stock): DR Stock Adjustment expense / CR Inventory Asset
  *   Surplus  (extra stock):    DR Inventory Asset / CR Stock Adjustment expense
- * Valued at avg_cost from ims_stock at the stocktake location.
+ * Valued at the immutable unit-cost snapshot captured in the apply transaction.
  */
 export async function syncStocktakeJournal(
   businessId: string,
@@ -255,7 +273,7 @@ export async function syncStocktakeJournal(
     throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
   }
 
-  // Fetch stocktake header + items with avg_cost joined from ims_stock
+  // Fetch stocktake header + immutable item apply snapshots.
   const [stRows] = await Promise.all([
     imsQuery<{ id: number; reference: string; location_id: number; completed_at: string | null; status: string }>(
       `SELECT id, reference, location_id, completed_at, status FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
@@ -269,15 +287,15 @@ export async function syncStocktakeJournal(
   const items = await imsQuery<{
     variant_id: string; sku: string | null; product_name: string;
     expected_qty: string; counted_qty: string | null;
-    variant_avg_cost: string | null; cost_aud: string | null;
+    applied_delta: string | null; unit_cost_at_apply: string | null;
   }>(
     `SELECT si.variant_id,
             pv.sku,
             p.name AS product_name,
             si.expected_qty,
             si.counted_qty,
-            pv.avg_cost AS variant_avg_cost,
-            pv.cost_aud
+            si.applied_delta,
+            si.unit_cost_at_apply
        FROM ims_stocktake_items si
        JOIN ims_stocktakes st ON st.id = si.stocktake_id
        LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
@@ -296,14 +314,12 @@ export async function syncStocktakeJournal(
 
   for (const item of items) {
     const expected = Number(item.expected_qty);
-    const counted  = Number(item.counted_qty);
-    const variance = counted - expected;
-    if (Math.abs(variance) < 0.00001) continue; // zero variance — skip
+    const counted = Number(item.counted_qty);
+    const appliedDelta = Number(item.applied_delta ?? 0);
+    if (Math.abs(appliedDelta) < 0.00001) continue;
 
-    const variantAvg  = Number(item.variant_avg_cost ?? 0);
-    const fallbackAud = Number(item.cost_aud ?? 0);
-    const avgCost     = variantAvg > 0 ? variantAvg : fallbackAud > 0 ? fallbackAud : 0;
-    const absValue    = Math.abs(variance * avgCost);
+    const unitCost = Number(item.unit_cost_at_apply ?? 0);
+    const absValue = Math.abs(appliedDelta * unitCost);
     if (absValue < 0.00001) {
       skippedZeroValue += 1;
       continue;
@@ -311,7 +327,7 @@ export async function syncStocktakeJournal(
     totalValue       += absValue;
     const description = `${item.sku || item.variant_id} — ${item.product_name || 'Unknown'} (exp ${expected}, counted ${counted})`;
 
-    if (variance < 0) {
+    if (appliedDelta < 0) {
       // Stock MISSING → DR Stock Adjustment expense / CR Inventory Asset
       journalLines.push({ LineAmount: absValue, AccountCode: accounts.stock_adjustment, Description: description, Tracking: tracking });
       journalLines.push({ LineAmount: -absValue, AccountCode: accounts.inventory_asset,  Description: description, Tracking: tracking });
@@ -340,6 +356,7 @@ export async function syncStocktakeJournal(
   try {
     const result = await xeroApiFetch(businessId, '/ManualJournals', {
       method: 'POST',
+      idempotencyKey: crypto.createHash('sha256').update(`${businessId}|stocktake-journal|${stocktakeId}`).digest('hex'),
       body: { ManualJournals: [journal] },
     });
     const journalId = result.ManualJournals?.[0]?.ManualJournalID ?? null;
@@ -356,6 +373,95 @@ export async function syncStocktakeJournal(
     await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'error', err.message);
     await markStocktakeXeroStatus(businessId, stocktakeId, 'error');
     throw err;
+  }
+}
+
+export async function syncStocktakeReversalJournal(
+  businessId: string,
+  stocktakeId: number,
+): Promise<{ journalId: string; lines: number; totalValue: number }> {
+  const accounts = await getAccountMappings(businessId);
+  const trackingMappings = await getTrackingMappings(businessId);
+  if (!accounts.inventory_asset || !accounts.stock_adjustment) {
+    throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
+  }
+  const rows = await imsQuery<{
+    id: number; reference: string; location_id: number; reverted_at: string | null;
+    status: string; xero_journal_id: string | null; xero_sync_status: string | null;
+    xero_reversal_journal_id: string | null;
+  }>(
+    `SELECT id, reference, location_id, reverted_at, status, xero_journal_id, xero_sync_status,
+            xero_reversal_journal_id
+       FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
+    [stocktakeId, businessId],
+  );
+  const stocktake = rows[0];
+  if (!stocktake) throw new Error('Stocktake not found');
+  if (stocktake.status !== 'reverted') throw new Error('Stocktake must be reverted before posting a reversing journal');
+  if (stocktake.xero_reversal_journal_id) {
+    return { journalId: stocktake.xero_reversal_journal_id, lines: 0, totalValue: 0 };
+  }
+  if (!stocktake.xero_journal_id || stocktake.xero_sync_status !== 'synced') {
+    await markStocktakeXeroReversalStatus(businessId, stocktakeId, 'blocked', null, 'Original journal posting is not confirmed.');
+    throw new Error('Original stocktake journal posting is not confirmed; verify it in Xero before retrying.');
+  }
+
+  const items = await imsQuery<{
+    variant_id: string; sku: string | null; product_name: string;
+    expected_qty: string; counted_qty: string | null;
+    applied_delta: string | null; unit_cost_at_apply: string | null;
+  }>(
+    `SELECT si.variant_id, pv.sku, p.name AS product_name, si.expected_qty, si.counted_qty,
+            si.applied_delta, si.unit_cost_at_apply
+       FROM ims_stocktake_items si
+       JOIN ims_stocktakes st ON st.id = si.stocktake_id
+       LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
+       LEFT JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = st.business_id
+      WHERE si.stocktake_id = ? AND st.business_id = ? AND si.applied_delta IS NOT NULL`,
+    [stocktakeId, businessId],
+  );
+  const tracking = getTrackingForLocation(trackingMappings, stocktake.location_id);
+  const journalLines: any[] = [];
+  let totalValue = 0;
+  for (const item of items) {
+    const appliedDelta = Number(item.applied_delta ?? 0);
+    const absValue = Math.abs(appliedDelta * Number(item.unit_cost_at_apply ?? 0));
+    if (Math.abs(appliedDelta) < 0.00001 || absValue < 0.00001) continue;
+    totalValue += absValue;
+    const description = `${item.sku || item.variant_id} — ${item.product_name || 'Unknown'} (reverses stocktake ${stocktake.reference})`;
+    if (appliedDelta < 0) {
+      journalLines.push({ LineAmount: absValue, AccountCode: accounts.inventory_asset, Description: description, Tracking: tracking });
+      journalLines.push({ LineAmount: -absValue, AccountCode: accounts.stock_adjustment, Description: description, Tracking: tracking });
+    } else {
+      journalLines.push({ LineAmount: absValue, AccountCode: accounts.stock_adjustment, Description: description, Tracking: tracking });
+      journalLines.push({ LineAmount: -absValue, AccountCode: accounts.inventory_asset, Description: description, Tracking: tracking });
+    }
+  }
+  if (journalLines.length === 0) {
+    await markStocktakeXeroReversalStatus(businessId, stocktakeId, 'not_required');
+    throw new Error('The original journal has no non-zero value lines to reverse.');
+  }
+  const journal = {
+    Narration: `Reversal of stocktake ${stocktake.reference} — original journal ${stocktake.xero_journal_id}`,
+    Date: stocktake.reverted_at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+    JournalLines: journalLines,
+  };
+  try {
+    const result = await xeroApiFetch(businessId, '/ManualJournals', {
+      method: 'POST',
+      idempotencyKey: crypto.createHash('sha256').update(`${businessId}|stocktake-reversal-journal|${stocktakeId}|${stocktake.xero_journal_id}`).digest('hex'),
+      body: { ManualJournals: [journal] },
+    });
+    const journalId = result.ManualJournals?.[0]?.ManualJournalID;
+    if (!journalId) throw new Error('Xero did not return a reversing journal ID.');
+    await markStocktakeXeroReversalStatus(businessId, stocktakeId, 'synced', journalId);
+    await logSync(businessId, 'stocktake_reversal_journal', stocktakeId, journalId, 'success',
+      `Reversing journal posted against ${stocktake.xero_journal_id}: ${journalLines.length / 2} lines, total $${totalValue.toFixed(2)}`);
+    return { journalId, lines: journalLines.length / 2, totalValue };
+  } catch (error: any) {
+    await markStocktakeXeroReversalStatus(businessId, stocktakeId, 'error', null, error?.message ?? String(error));
+    await logSync(businessId, 'stocktake_reversal_journal', stocktakeId, null, 'error', error?.message ?? String(error));
+    throw error;
   }
 }
 
