@@ -16,6 +16,24 @@ const source = {
 };
 
 describe('buildCashDepositEligibility', () => {
+  it('allows a zero-sales day whose Xero actions are not required', () => {
+    const result = buildCashDepositEligibility({
+      sources: [{
+        id: 474, recon_date: '2026-07-30', register_id: 1, register_session_id: 114,
+        register_name: 'Register 1', expected_amount: 0, counted_amount: 420, opening_float: 420,
+        xero_invoice_id: null, xero_payment_id: null, xero_payment_required: 0,
+      }],
+      plans: [{
+        eod_reconciliation_id: 474, accounting_version: 2, payment_status: 'not_required',
+        variance_status: 'not_required', petty_cash_status: 'not_required', till_variance: 0,
+      }],
+      reservedSourceIds: new Set(),
+      openDates: new Set(),
+    });
+
+    expect(result[0]).toEqual(expect.objectContaining({ eligible: true, expectedCustody: 0, tillVariance: 0 }));
+  });
+
   it('allows a paid legacy source and exposes physical custody', () => {
     const [day] = buildCashDepositEligibility({
       sources: [source], plans: [], reservedSourceIds: new Set(), openDates: new Set(),

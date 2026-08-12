@@ -55,7 +55,7 @@ export function buildCashDepositEligibility(input: {
       const reserved = input.reservedSourceIds.has(Number(source.id));
       const legacyPaid = !plan && (!!source.xero_payment_id || (!!source.xero_invoice_id && !source.xero_payment_required));
       const correctedReady = !!plan
-        && plan.payment_status === 'completed'
+        && ['completed', 'not_required'].includes(plan.payment_status)
         && ['completed', 'not_required'].includes(plan.variance_status)
         && ['completed', 'not_required'].includes(plan.petty_cash_status ?? 'not_required');
       if (reserved) blockers.push(`Register reconciliation ${source.id} is already reserved by a deposit`);

@@ -2683,7 +2683,7 @@ type EodSyncPersistence = {
 
 export type EodXeroSyncResult = {
   method: string;
-  status: 'paid' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
+  status: 'paid' | 'not_required' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
   xeroId?: string;
   invoiceNumber?: string;
   error?: string;
@@ -3022,7 +3022,23 @@ export async function triggerEodXeroSync(
       salesAmount = cashPlan.sales_amount;
     }
     if (cashPlan) salesAmount = Number(cashPlan.sales_amount);
-    if (salesAmount <= 0) continue;
+    if (salesAmount <= 0) {
+      if (cashPlan
+        && Number(cashPlan.till_variance) === 0
+        && Number(cashPlan.petty_cash_amount) === 0) {
+        await execute(
+          `UPDATE xero_pos_cash_eod_actions
+              SET invoice_status = 'not_required', payment_status = 'not_required',
+                  variance_status = 'not_required', petty_cash_status = 'not_required',
+                  error_detail = NULL, completed_at = NOW(),
+                  attempt_count = attempt_count + 1, last_attempt_at = NOW()
+            WHERE business_id = ? AND eod_reconciliation_id = ?`,
+          [businessId, cashPlan.eod_reconciliation_id],
+        );
+        results.push({ method: row.payment_method, status: 'not_required' });
+      }
+      continue;
+    }
 
     const paymentAlreadyComplete = !!row.xero_payment_id || (!!row.xero_invoice_id && !row.xero_payment_required);
     if (paymentAlreadyComplete && cashPlan && Number(cashPlan.petty_cash_amount) > 0 && cashPlan.petty_cash_status !== 'completed') {

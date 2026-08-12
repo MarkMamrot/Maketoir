@@ -83,6 +83,35 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(store.setXeroInvoice).not.toHaveBeenCalled();
   });
 
+  it('completes a zero-sales cash plan without posting an invoice or payment', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
+      if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([{
+        eod_reconciliation_id: 474,
+        sales_amount: '0.00',
+        till_variance: '0.00',
+        petty_cash_amount: '0.00',
+        variance_status: 'not_required',
+        petty_cash_status: 'not_required',
+      }]);
+      return Promise.resolve([]);
+    });
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-30',
+      [{ id: 474, payment_method: 'Cash', expected_amount: 0, counted_amount: 420, opening_float: 420 }],
+      'Newtown', 2, persistence(),
+    );
+
+    expect(results).toEqual([{ method: 'Cash', status: 'not_required' }]);
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(mockExecute).toHaveBeenCalledWith(
+      expect.stringContaining("payment_status = 'not_required'"),
+      ['biz-1', 474],
+    );
+  });
+
   it('creates an invoice without payment or variance when POS payment sync is disabled', async () => {
     mockGetPolicy.mockResolvedValue({
       ...DEFAULT_XERO_DOCUMENT_POLICY,
