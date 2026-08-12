@@ -41,6 +41,17 @@ describe('live E2E manifest', () => {
     expect(appendLiveRunEvent(retryable, 'awaiting_operator', {}).at(-1)?.state).toBe('awaiting_operator');
   });
 
+  it('keeps a created P2 sales order resumable before operator inspection', () => {
+    const initialized = appendLiveRunEvent([], 'initialized', {});
+    const preflight = appendLiveRunEvent(initialized, 'preflight_passed', {});
+    const created = appendLiveRunEvent(preflight, 'p2_created', { salesOrderId: 52 });
+    const retryable = appendLiveRunEvent(created, 'p2_created', { salesOrderId: 52, confirmError: 'response lost' });
+
+    expect(retryable.at(-1)).toMatchObject({ state: 'p2_created', details: { salesOrderId: 52 } });
+    expect(() => appendLiveRunEvent(retryable, 'compensating', {})).toThrow('invalid manifest transition');
+    expect(appendLiveRunEvent(retryable, 'awaiting_operator', {}).at(-1)?.state).toBe('awaiting_operator');
+  });
+
   it('keeps a repaired external artifact behind renewed operator inspection', () => {
     const initialized = appendLiveRunEvent([], 'initialized', {});
     const preflight = appendLiveRunEvent(initialized, 'preflight_passed', {});

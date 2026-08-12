@@ -12428,7 +12428,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
-        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
+        {!isAdvisor && <button data-testid="so-new" onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <input
@@ -12538,7 +12538,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     {so.is_pos_ledger ? (
                       <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
                     ) : (
-                      <button onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                      <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
                     )}
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
@@ -12585,13 +12585,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             )}
             <Row3>
               <Field label="Customer">
-                <select value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle} disabled={shippedEditLocked}>
+                <select data-testid="so-customer" value={form.customer_id} onChange={handleSOCustomerChange} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="">— None —</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle} disabled={shippedEditLocked}>
+                <select data-testid="so-location" required value={form.location_id} onChange={sf('location_id')} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
@@ -12600,7 +12600,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row3>
             <Row2>
               <Field label="Customer PO #"><input value={form.customer_po_number} onChange={sf('customer_po_number')} style={inputStyle} placeholder="Customer's PO reference" /></Field>
-              <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+              <Field label="Notes"><input data-testid="so-notes" value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
             </Row2>
             <Row2>
               <Field label="Payment Terms">
@@ -12617,7 +12617,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </Row2>
             <Row2>
               <Field label="Amounts Entered">
-                <select value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle} disabled={shippedEditLocked}>
+                <select data-testid="so-tax-treatment" value={soTaxTreatment} onChange={handleSOTaxTreatmentChange} style={inputStyle} disabled={shippedEditLocked}>
                   <option value="ex_tax">Tax exclusive (tax added on top)</option>
                   <option value="inc_tax">Tax inclusive (tax already included)</option>
                   <option value="no_tax">No tax / zero-rated</option>
@@ -12659,10 +12659,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                             variants={variants}
                             onChange={vid => selectSOVariant(i, vid)}
                             style={shippedEditLocked ? { pointerEvents: 'none', opacity: 0.7 } : undefined}
+                            testId={`so-line-${i}-variant`}
                           />
                         </td>
-                        <td style={{ padding: 4, width: 70 }}><input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
-                        <td style={{ padding: 4, width: 90 }}><input type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
+                        <td style={{ padding: 4, width: 70 }}><input data-testid={`so-line-qty-${i}`} type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
+                        <td style={{ padding: 4, width: 90 }}><input data-testid={`so-line-price-${i}`} type="number" min="0" step="0.0001" value={item.unit_price} onChange={e => updateLine(i, 'unit_price', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} disabled={shippedEditLocked} /></td>
                         <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct || 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" disabled={shippedEditLocked} /></td>
                         {soTaxTreatment !== 'no_tax' && (
                           <td style={{ padding: 4, width: 70 }}><input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" disabled={shippedEditLocked} /></td>
@@ -12700,7 +12701,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 </div>
               </div>
             </div>
-            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+            <FormActions
+              onCancel={() => setModal({ open: false, edit: null })}
+              saving={saving}
+              isEdit={!!modal.edit}
+              submitTestId={!modal.edit ? 'so-create-draft' : undefined}
+            />
           </form>
         </Modal>
       )}
@@ -13110,7 +13116,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
   }
   const btns = [];
   if (!isAdvisor && so.status === 'draft') {
-    btns.push(<button key="confirm" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
+    btns.push(<button key="confirm" data-testid={`so-confirm-${so.id}`} onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="delete" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
@@ -13118,7 +13124,7 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
     btns.push(<button key="fulfil" onClick={() => onFulfill?.()} style={btnStyle('mint', 'xs')}>Fulfil</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="revert" onClick={() => onStatus(so, 'draft')} style={btnStyle('ghost', 'xs')}>Revert to Draft</button>);
-    btns.push(<button key="cancel" onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+    btns.push(<button key="cancel" data-testid={`so-cancel-${so.id}`} onClick={() => onStatus(so, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && so.status === 'partially_fulfilled') {
     btns.push(<button key="continue" onClick={() => onFulfill?.()} style={btnStyle('action', 'xs')}>Continue Fulfilment</button>);
@@ -13206,11 +13212,11 @@ function RowActions({ onEdit, onDelete, isAdvisor = false }: { onEdit: () => voi
   );
 }
 
-function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; testId?: string; onClick: (e: React.MouseEvent) => void }[] }) {
+function FormActions({ onCancel, saving, isEdit, extraActions, submitTestId }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; testId?: string; onClick: (e: React.MouseEvent) => void }[]; submitTestId?: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
-      <button type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
+      <button data-testid={submitTestId} type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
       {extraActions?.map((a, i) => (
         <button key={i} data-testid={a.testId} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
       ))}

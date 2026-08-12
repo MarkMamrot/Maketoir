@@ -7061,6 +7061,9 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
   const [notes, setNotes]             = useState('');
   const [items, setItems]             = useState<{ variant_id: string; sku: string; name: string; qty: number; unit_cost: number }[]>([]);
   const [search, setSearch]           = useState('');
+  const [scanInput, setScanInput]     = useState('');
+  const [scanBusy, setScanBusy]       = useState(false);
+  const [scanError, setScanError]     = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching]     = useState(false);
   const [saving, setSaving]           = useState(false);
@@ -7101,6 +7104,30 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
       setItems(p => [...p, { variant_id: v.variant_id, sku: v.sku ?? '', name: `${v.product_name ?? ''}${v.option1_value ? ' · ' + v.option1_value : ''}`, qty: 1, unit_cost: Number(v.cost_aud ?? 0) }]);
     }
     setSearch(''); setSearchResults([]);
+  }
+
+  async function handleScanAddKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const code = scanInput.trim();
+    if (!code || scanBusy) return;
+
+    setScanBusy(true);
+    setScanError(null);
+    try {
+      const res = await fetch(`/api/ims/variants/by-barcode?barcode=${encodeURIComponent(code)}`);
+      const d = await res.json();
+      if (!res.ok || !d?.success || !d?.data?.variant_id) {
+        setScanError(`Item not found: ${code}`);
+        return;
+      }
+      addItem(d.data);
+      setScanInput('');
+    } catch {
+      setScanError('Scan lookup failed. Check connection and try again.');
+    } finally {
+      setScanBusy(false);
+    }
   }
 
   async function createTransfer(managerPin?: string) {
@@ -7167,6 +7194,19 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
         {/* Product search */}
         <div style={card}>
           <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>Add Items</label>
+
+          <input
+            value={scanInput}
+            onChange={e => { setScanInput(e.target.value); if (scanError) setScanError(null); }}
+            onKeyDown={handleScanAddKey}
+            placeholder="Scan to add (barcode or SKU) and press Enter…"
+            style={{ ...inp, marginBottom: 10, borderColor: scanError ? 'var(--sv-red)' : inp.border as string }}
+            autoComplete="off"
+          />
+          {scanError && (
+            <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--sv-red)' }}>{scanError}</div>
+          )}
+
           <div style={{ position: 'relative' }}>
             <input
               value={search}
