@@ -20195,7 +20195,7 @@ export default function ImsPage() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar active={view} onSelect={(v) => { if (v === 'smart-device-receive') { window.open('/receive', '_blank'); return; } setViewSafe(v); }} />
-        <main style={{ flex: 1, height: 'calc(100vh - 52px)', overflow: 'hidden', padding: '0 28px 28px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
+        <main style={{ flex: 1, height: 'calc(100vh - 52px)', overflow: 'auto', padding: 28, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
           <MainSections
             view={view}
             isAdvisor={isAdvisor}
