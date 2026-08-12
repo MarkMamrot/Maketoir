@@ -30,12 +30,12 @@ export async function GET(request: Request) {
             r.opening_float, r.xero_invoice_id, r.xero_payment_id, r.xero_payment_required
        FROM pos_eod_reconciliations r
        LEFT JOIN pos_registers pr ON pr.id = r.register_id
-      WHERE r.business_id = ? AND r.location_id = ?
+      WHERE r.location_id = ?
         AND LOWER(TRIM(r.payment_method)) = 'cash'
         AND r.counted_amount IS NOT NULL
         AND r.recon_date BETWEEN ? AND ?
       ORDER BY r.recon_date, r.id`,
-    [auth.user.businessId, locationId, from, to],
+    [locationId, from, to],
   );
   const openSessions = await imsQuery<{ session_date: string | Date }>(
     `SELECT DISTINCT session_date FROM pos_register_sessions

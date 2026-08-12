@@ -1964,11 +1964,14 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         const isCustomerView = typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
         const isSupplierView = typeFilter === 'supplier' || typeFilter === 'both';
         const typeBadge = (c: any) => (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
-            background: c.type === 'supplier' ? 'rgba(99,179,117,.15)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
-            color: c.type === 'supplier' ? '#4ade80' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
+          <span style={{ display: 'inline-flex', minWidth: 144, fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+            background: c.type === 'supplier' ? 'rgba(34,197,94,.12)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
+            color: c.type === 'supplier' ? '#166534' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
             {CONTACT_TYPE_LABEL[c.type] ?? c.type}
           </span>
+        );
+        const codeCell = (value: string | number | null | undefined) => (
+          <span style={{ display: 'inline-block', minWidth: 108, fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{value || '—'}</span>
         );
         const actions = (c: any) => (
           <div style={{ display: 'flex', gap: 4 }}>
@@ -1985,27 +1988,27 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', 'Store Credit', 'On Account', 'Promo', 'Active', '',
+              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', 'Active', '',
             ]}
             rows={visible}
             render={(c) => [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
-              <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{c.customer_code || '—'}</span>,
+              codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
               c.email || '—',
               c.mobile || c.phone || '—',
-              Number(c.store_credit) > 0
-                ? <span style={{ color: 'var(--sv-mint)', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${Number(c.store_credit).toFixed(2)}</span>
-                : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
+              typeFilter === 'b2b_customer'
+                ? (c.price_tier === 'wholesale'
+                  ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
+                  : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>)
+                : Number(c.store_credit) > 0
+                  ? <span style={{ color: 'var(--sv-mint)', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>${Number(c.store_credit).toFixed(2)}</span>
+                  : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
               c.on_account_limit != null
                 ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(c.on_account_limit).toFixed(2)}</span>
                 : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
-              <span style={{ fontSize: 11, display: 'flex', gap: 6 }}>
-                <span title="Promo emails" style={{ color: c.promo_email ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_email ? '✉ on' : '✉ off'}</span>
-                <span title="Promo SMS" style={{ color: c.promo_sms ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>{c.promo_sms ? '📱 on' : '📱 off'}</span>
-              </span>,
               <ActiveDot active={c.is_active} />,
               actions(c),
             ]}
@@ -2021,7 +2024,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
               ...(isSupplierView
-                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Order Freq.', 'Active', '']
+                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Active', '']
                 : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', 'Active', ''])
             ]}
             rows={visible}
@@ -2035,7 +2038,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
               c.email || '—',
               c.phone || '—',
-              <span style={{ color: 'var(--sv-text-main)', fontVariantNumeric: 'tabular-nums' }}>{c.order_frequency_days ?? 45}d</span>,
               <ActiveDot active={c.is_active} />,
               actions(c),
             ] : [
