@@ -1638,12 +1638,13 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
 };
 
 function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+  const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('supplier');
   const [priceTierFilter, setPriceTierFilter] = useState('all');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState(DEFAULT_STATUS_FILTER);
   const [storeCreditFilter, setStoreCreditFilter] = useState('all');
   const [promoEmailFilter, setPromoEmailFilter] = useState('all');
   const [promoSmsFilter, setPromoSmsFilter] = useState('all');
@@ -1842,7 +1843,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     if (typeFilter === 'supplier_only') return c.type === 'supplier' || c.type === 'both';
     return c.type === typeFilter;
   };
-  const filterActive = priceTierFilter !== 'all' || activeFilter !== 'all' || storeCreditFilter !== 'all' || promoEmailFilter !== 'all' || promoSmsFilter !== 'all';
+  const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all' || promoEmailFilter !== 'all' || promoSmsFilter !== 'all';
   const filtered = contacts.filter(c =>
     typeMatchFn(c) &&
     (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase())) &&
@@ -1885,7 +1886,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         {filterActive && (
           <button onClick={() => {
             setPriceTierFilter('all');
-            setActiveFilter('all');
+            setActiveFilter(DEFAULT_STATUS_FILTER);
             setStoreCreditFilter('all');
             setPromoEmailFilter('all');
             setPromoSmsFilter('all');
@@ -1910,7 +1911,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                   </select>
                 </div>
                 <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Active</label>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Status</label>
                   <select value={activeFilter} onChange={e => { setActiveFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
                     <option value="all">All</option>
                     <option value="1">Active</option>
@@ -1964,7 +1965,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         const isCustomerView = typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
         const isSupplierView = typeFilter === 'supplier' || typeFilter === 'both';
         const typeBadge = (c: any) => (
-          <span style={{ display: 'inline-flex', minWidth: 144, fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
+          <span style={{ display: 'inline-flex', fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
             background: c.type === 'supplier' ? 'rgba(34,197,94,.12)' : c.type === 'b2b_customer' ? 'rgba(139,92,246,.15)' : c.type === 'retail_customer' ? 'rgba(37,99,235,.15)' : c.type === 'lead' ? 'rgba(251,146,60,.15)' : 'rgba(100,116,139,.15)',
             color: c.type === 'supplier' ? '#166534' : c.type === 'b2b_customer' ? '#a78bfa' : c.type === 'retail_customer' ? '#60a5fa' : c.type === 'lead' ? '#fb923c' : '#94a3b8' }}>
             {CONTACT_TYPE_LABEL[c.type] ?? c.type}
@@ -1988,7 +1989,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', 'Active', '',
+              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
             ]}
             rows={visible}
             render={(c) => [
@@ -2009,7 +2010,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               c.on_account_limit != null
                 ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>${Number(c.on_account_limit).toFixed(2)}</span>
                 : <span style={{ color: 'var(--sv-text-dim)' }}>—</span>,
-              <ActiveDot active={c.is_active} />,
               actions(c),
             ]}
           />
@@ -2024,8 +2024,8 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
               ...(isSupplierView
-                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', 'Active', '']
-                : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', 'Active', ''])
+                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', '']
+                : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', ''])
             ]}
             rows={visible}
             render={(c) => isSupplierView ? [
@@ -2038,7 +2038,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
               c.email || '—',
               c.phone || '—',
-              <ActiveDot active={c.is_active} />,
               actions(c),
             ] : [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
@@ -2047,7 +2046,6 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               typeBadge(c),
               c.email || '—',
               c.mobile || c.phone || '—',
-              <ActiveDot active={c.is_active} />,
               actions(c),
             ]}
           />
@@ -8762,14 +8760,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: 90 }} />
-              <col style={{ width: 170 }} />
-              <col style={{ width: 150 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 165 }} />
+              <col style={{ width: 145 }} />
               <col style={{ width: 120 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 90 }} />
-              <col style={{ width: 250 }} />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 96 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 228 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -8797,7 +8795,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                    <td style={{ padding: '10px 12px' }}>
+                    <td style={{ padding: '10px 12px 10px 18px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <select
                           value={selectedAction}
@@ -12970,7 +12968,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
-                    <td style={{ padding: '10px 12px' }}>
+                    <td style={{ padding: '10px 12px 10px 18px' }}>
                       {so.is_pos_ledger ? (
                         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
@@ -18856,8 +18854,8 @@ function XeroSyncTab({
     online_batch: { color: '#22d3ee', background: 'rgba(34,211,238,.14)' },
     shopify_payout: { color: '#2dd4bf', background: 'rgba(45,212,191,.14)' },
     cogs_journal: { color: '#c084fc', background: 'rgba(192,132,252,.14)' },
-    eod_reconciliation: { color: '#facc15', background: 'rgba(250,204,21,.14)' },
-    stocktake_journal: { color: '#a3e635', background: 'rgba(163,230,53,.14)' },
+    eod_reconciliation: { color: '#8a5a00', background: 'rgba(250,204,21,.14)' },
+    stocktake_journal: { color: '#3f6212', background: 'rgba(163,230,53,.14)' },
     gift_card_issue: { color: '#f472b6', background: 'rgba(244,114,182,.14)' },
     gift_card_liability: { color: '#a78bfa', background: 'rgba(167,139,250,.14)' },
     gift_card_redeem: { color: '#f97316', background: 'rgba(249,115,22,.14)' },
