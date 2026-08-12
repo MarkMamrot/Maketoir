@@ -502,9 +502,9 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
   });
 
   return (
-    <aside style={{ width: collapsed ? 52 : 220, flexShrink: 0, background: '#f4f5f7', border: '1px solid #e5e7eb', borderRadius: '18px 0 0 18px', display: 'flex', flexDirection: 'column', padding: '12px 0 10px', transition: 'width .2s ease', overflow: 'hidden', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75)' }}>
+    <aside style={{ width: collapsed ? 52 : 220, flexShrink: 0, background: '#f1f3f5', border: '1px solid #dfe3e8', borderRadius: 0, display: 'flex', flexDirection: 'column', padding: '12px 0 10px', transition: 'width .2s ease', overflow: 'hidden' }}>
       {/* Header row: IMS label + collapse toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', padding: collapsed ? '0 0 16px' : '0 10px 12px 14px', borderBottom: '1px solid #e5e7eb', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', padding: collapsed ? '0 0 16px' : '0 10px 12px 14px', borderBottom: '1px solid #dfe3e8', marginBottom: 8 }}>
         {!collapsed && <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.4, color: '#475569', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>IMS</div>}
         <button
           onClick={() => setCollapsed(c => !c)}
@@ -549,11 +549,12 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
               onClick={() => { if (hasChildren) toggleSection(item.id); else onSelect(item.id as ImsView); }}
               style={{
                 width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8,
-                color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
-                backgroundColor: isActive && !hasChildren ? 'rgba(37,99,235,.12)' : (hasChildren && isGroupOpen ? 'rgba(148,163,184,.10)' : 'transparent'),
+                padding: '8px 14px 8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+                color: isActive ? '#0f172a' : '#334155',
+                backgroundColor: isActive && !hasChildren ? '#e8edf1' : (hasChildren && isGroupOpen ? '#e8edf1' : 'transparent'),
                 textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 600,
-                borderLeft: isActive && !hasChildren ? '3px solid var(--sv-action)' : '3px solid transparent',
+                borderLeft: isActive && !hasChildren ? '3px solid #1ea8c2' : '3px solid transparent',
+                borderRadius: 6,
                 transition: 'all .15s',
               }}
             >
@@ -567,17 +568,18 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
               )}
             </button>
             {hasChildren && isGroupOpen && (
-              <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,.06)', borderRadius: 8, overflow: 'hidden' }}>
+              <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
                 {(item as any).children.map((child: any) => (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => onSelect(child.id as ImsView)}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                      padding: '7px 14px 7px 26px', display: 'flex', alignItems: 'center',
-                      color: active === child.id ? 'var(--sv-text-strong)' : 'var(--sv-text-main)',
-                      backgroundColor: active === child.id ? 'rgba(37,99,235,.12)' : 'transparent',
+                      padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center',
+                      color: active === child.id ? '#0f172a' : '#475569',
+                      backgroundColor: active === child.id ? '#e8edf1' : 'transparent',
                       fontSize: 13, fontWeight: active === child.id ? 700 : 500,
                       textAlign: 'left',
-                      borderLeft: active === child.id ? '3px solid var(--sv-action)' : '3px solid transparent',
+                      borderLeft: active === child.id ? '3px solid #1ea8c2' : '3px solid transparent',
+                      borderRadius: 0,
                     }}
                   >
                     {child.label}
@@ -20161,8 +20163,8 @@ export default function ImsPage() {
   if (!user) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#eef1f4', padding: 18, boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
-      <div style={{ background: '#0b1220', borderRadius: 24, border: '1px solid rgba(148,163,184,.26)', boxShadow: '0 18px 42px rgba(15,23,42,.16)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: '#eef1f4', padding: 0, boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
+      <div style={{ background: '#0b1220', borderRadius: '24px 24px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'hidden' }}>
         {/* Xero Queued Banner */}
         {xeroQueuedCount > 0 && (
           <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
@@ -20384,9 +20386,9 @@ export default function ImsPage() {
           </div>
         </header>
 
-        <div style={{ display: 'flex', gap: 12, padding: 12, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
+        <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
           <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
-          <main style={{ flex: 1, minHeight: 0, borderRadius: 18, background: '#ffffff', border: '1px solid #e5e7eb', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             <MainSections
               view={view}
               isAdvisor={isAdvisor}
