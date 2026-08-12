@@ -12517,15 +12517,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       actions.push({ label: 'Fulfil', value: 'fulfill' }, { label: 'Edit', value: 'edit' }, { label: 'Revert to Draft', value: 'revert' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && so.status === 'partially_fulfilled') {
-      actions.push({ label: 'Continue Fulfilment', value: 'fulfill' });
-      if (onResolve) actions.push({ label: 'Resolve Outstanding', value: 'resolve' });
+      actions.push({ label: 'Continue Fulfilment', value: 'fulfill' }, { label: 'Resolve Outstanding', value: 'resolve' });
     }
     if (!isAdvisor && so.status === 'backordered') {
       actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
     }
     if (!isAdvisor && so.status === 'fulfilled') {
-      actions.push({ label: 'Edit Notes', value: 'edit' });
-      if (onReturn) actions.push({ label: 'Return / Credit', value: 'return' });
+      actions.push({ label: 'Edit Notes', value: 'edit' }, { label: 'Return / Credit', value: 'return' });
     }
     if (!isAdvisor && ['fulfilled', 'cancelled'].includes(so.status)) {
       actions.push({ label: 'Create Replacement Draft', value: 'replacement' });

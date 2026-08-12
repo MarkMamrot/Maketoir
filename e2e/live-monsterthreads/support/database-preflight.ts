@@ -111,6 +111,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const checkpointedP4ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p4_created')?.details as any)?.replacementSoId);
     const checkpointedP5ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p5_created')?.details as any)?.replacementSoId);
     const checkpointedP6ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p6_created')?.details as any)?.replacementSoId);
+    const checkpointedP7SourceSoId = Number((existingEvents.findLast(event => event.state === 'p7_created')?.details as any)?.sourceSoId);
+    const checkpointedP7ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p7_created')?.details as any)?.replacementSoId);
     const [openPurchaseOrders] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT po.id, po.status, po.location_id, item.qty_received, po.notes
          FROM ${schema}.ims_purchase_order_items item
@@ -244,11 +246,28 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         && Number(order.customer_id) === config.fixtureCustomerId
         && Number(order.location_id) === config.fixtureLocationId
       );
+    const p7ActionStateAllowed = (config.action === 'p7' && ['preflight_passed', 'p7_created', 'blocked'].includes(currentState ?? ''))
+      || (config.action === 'p7-compensate' && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? ''));
+    const p7OpenSalesOrdersAreExpected = ['p7', 'p7-compensate'].includes(config.action)
+      && openSalesOrders.length > 0
+      && openSalesOrders.every(order =>
+        Number(order.customer_id) === config.fixtureCustomerId
+        && Number(order.location_id) === config.fixtureLocationId
+        && Number(order.qty_ordered) >= 1
+        && Number(order.qty_fulfilled) >= 0
+        && ['draft', 'confirmed', 'backordered', 'partially_fulfilled'].includes(String(order.status)),
+      );
+    const resumableP7Series = p7ActionStateAllowed
+      && Number.isInteger(checkpointedP7SourceSoId)
+      && Number.isInteger(checkpointedP7ReplacementSoId)
+      && p7OpenSalesOrdersAreExpected
+      && openSalesOrders.some(order => Number(order.id) === checkpointedP7SourceSoId || Number(order.id) === checkpointedP7ReplacementSoId);
     const allowP4PreflightCarry = config.action === 'p4' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP5PreflightCarry = config.action === 'p5' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP6PreflightCarry = config.action === 'p6' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
+    const allowP7PreflightCarry = config.action === 'p7' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
-    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
+    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
@@ -292,6 +311,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p5-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p6' ? ['preflight_passed', 'p6_created', 'blocked']
         : config.action === 'p6-compensate' ? ['acknowledged', 'compensation_retry_authorized']
+        : config.action === 'p7' ? ['preflight_passed', 'p7_created', 'blocked']
+        : config.action === 'p7-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);
@@ -628,6 +649,133 @@ export async function verifySalesOrderPartialCompensation(config: LiveE2EConfig,
       backorderSoStatus: String(backorder.status),
       creditNoteId: Number(creditNote.id),
       creditNoteNumber: String(creditNote.cn_number),
+      stock: actual,
+    };
+  } finally {
+    await connection.end();
+  }
+}
+
+export async function verifySalesOrderComplexSeriesCheckpoint(config: LiveE2EConfig, sourceSoId: number, replacementSoId: number): Promise<{
+  sourceSoNumber: string;
+  sourceSoStatus: string;
+  sourceQtyOrdered: number;
+  sourceQtyFulfilled: number;
+  backorderSoId: number;
+  backorderSoNumber: string;
+  backorderSoStatus: string;
+  backorderQtyOrdered: number;
+  replacementSoNumber: string;
+  replacementStatus: string;
+  replacementQtyOrdered: number;
+  stock: { qtyOnHand: number; qtyIncoming: number; qtyCommitted: number };
+}> {
+  const events = await readManifest(config.runId);
+  const baseline = (events[0]?.details as any)?.baseline;
+  if (!baseline) throw new Error('Live E2E blocked: manifest baseline is missing.');
+  const connection = await mysql.createConnection({
+    host: envRequired('MYSQL_HOST'),
+    port: Number(process.env.MYSQL_PORT ?? 3306),
+    database: envRequired('MYSQL_DATABASE'),
+    user: envRequired('MYSQL_USER'),
+    password: envRequired('MYSQL_PASSWORD'),
+    connectTimeout: 20000,
+  });
+  try {
+    const schema = connection.escapeId(config.expectedImsSchema);
+    const [[source]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT so.so_number, so.status, so.customer_id, so.location_id, so.xero_invoice_id,
+              COALESCE(SUM(CASE WHEN item.variant_id = ? THEN item.qty_ordered ELSE 0 END), 0) AS ordered_qty,
+              COALESCE(SUM(CASE WHEN item.variant_id = ? THEN item.qty_fulfilled ELSE 0 END), 0) AS fulfilled_qty
+         FROM ${schema}.ims_sales_orders so
+         LEFT JOIN ${schema}.ims_sales_order_items item ON item.so_id = so.id
+        WHERE so.business_id = ? AND so.id = ?
+        GROUP BY so.id
+        LIMIT 1`,
+      [config.fixtureVariantId, config.fixtureVariantId, config.expectedBusinessId, sourceSoId],
+    );
+    const [[backorder]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT bo.id, bo.so_number, bo.status,
+              COALESCE(SUM(CASE WHEN boi.variant_id = ? THEN boi.qty_ordered ELSE 0 END), 0) AS ordered_qty,
+              COALESCE(SUM(CASE WHEN boi.variant_id = ? THEN boi.qty_fulfilled ELSE 0 END), 0) AS fulfilled_qty
+         FROM ${schema}.ims_sales_orders bo
+         JOIN ${schema}.ims_so_backorder_lines bl ON bl.backorder_so_id = bo.id
+         LEFT JOIN ${schema}.ims_sales_order_items boi ON boi.so_id = bo.id
+        WHERE bl.business_id = ? AND bl.source_so_id = ?
+        GROUP BY bo.id
+        ORDER BY bo.id DESC
+        LIMIT 1`,
+      [config.fixtureVariantId, config.fixtureVariantId, config.expectedBusinessId, sourceSoId],
+    );
+    const [[replacement]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT so.so_number, so.status, so.customer_id, so.location_id, so.xero_invoice_id,
+              COALESCE(SUM(CASE WHEN item.variant_id = ? THEN item.qty_ordered ELSE 0 END), 0) AS ordered_qty,
+              COALESCE(SUM(CASE WHEN item.variant_id = ? THEN item.qty_fulfilled ELSE 0 END), 0) AS fulfilled_qty
+         FROM ${schema}.ims_sales_orders so
+         LEFT JOIN ${schema}.ims_sales_order_items item ON item.so_id = so.id
+        WHERE so.business_id = ? AND so.id = ?
+        GROUP BY so.id
+        LIMIT 1`,
+      [config.fixtureVariantId, config.fixtureVariantId, config.expectedBusinessId, replacementSoId],
+    );
+    const [[stock]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT qty_on_hand, qty_incoming, qty_committed FROM ${schema}.ims_stock
+        WHERE business_id = ? AND variant_id = ? AND location_id = ? LIMIT 1`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+
+    const sourceQtyOrdered = Number(source?.ordered_qty ?? 0);
+    const sourceQtyFulfilled = Number(source?.fulfilled_qty ?? 0);
+    const backorderQtyOrdered = Number(backorder?.ordered_qty ?? 0);
+    const replacementQtyOrdered = Number(replacement?.ordered_qty ?? 0);
+    const actual = {
+      qtyOnHand: Number(stock?.qty_on_hand),
+      qtyIncoming: Number(stock?.qty_incoming),
+      qtyCommitted: Number(stock?.qty_committed),
+    };
+
+    if (!source
+      || String(source.status) !== 'fulfilled'
+      || Number(source.customer_id) !== config.fixtureCustomerId
+      || Number(source.location_id) !== config.fixtureLocationId
+      || sourceQtyOrdered < 3
+      || sourceQtyFulfilled !== 1
+      || !source.xero_invoice_id) {
+      throw new Error('Live E2E blocked: P7 source SO is not in the expected fulfilled-partial state.');
+    }
+    if (!backorder
+      || String(backorder.status) !== 'backordered'
+      || backorderQtyOrdered < 2
+      || Number(backorder.fulfilled_qty ?? 0) !== 0) {
+      throw new Error('Live E2E blocked: P7 backorder SO is not in the expected open remainder state.');
+    }
+    if (!replacement
+      || !['confirmed', 'backordered'].includes(String(replacement.status))
+      || Number(replacement.customer_id) !== config.fixtureCustomerId
+      || Number(replacement.location_id) !== config.fixtureLocationId
+      || replacementQtyOrdered < 1
+      || Number(replacement.fulfilled_qty ?? 0) !== 0
+      || replacement.xero_invoice_id) {
+      throw new Error('Live E2E blocked: P7 replacement SO is not in the expected confirmed reserved state.');
+    }
+    if (actual.qtyOnHand !== Number(baseline.qtyOnHand) - 1
+      || actual.qtyIncoming !== Number(baseline.qtyIncoming)
+      || actual.qtyCommitted !== Number(baseline.qtyCommitted) + 3) {
+      throw new Error('Live E2E blocked: P7 complex chain did not produce the expected stock signature (-1 SOH, +3 committed).');
+    }
+
+    return {
+      sourceSoNumber: String(source.so_number),
+      sourceSoStatus: String(source.status),
+      sourceQtyOrdered,
+      sourceQtyFulfilled,
+      backorderSoId: Number(backorder.id),
+      backorderSoNumber: String(backorder.so_number),
+      backorderSoStatus: String(backorder.status),
+      backorderQtyOrdered,
+      replacementSoNumber: String(replacement.so_number),
+      replacementStatus: String(replacement.status),
+      replacementQtyOrdered,
       stock: actual,
     };
   } finally {

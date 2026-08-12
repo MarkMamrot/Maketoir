@@ -256,7 +256,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: 'calc(100vh - 245px)', minHeight: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: 'calc(100vh - 150px)', minHeight: 0 }}>
         <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', flex: 1, minHeight: 0 }}>
           <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
