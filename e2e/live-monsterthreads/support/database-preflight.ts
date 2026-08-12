@@ -113,6 +113,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     const checkpointedP6ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p6_created')?.details as any)?.replacementSoId);
     const checkpointedP7SourceSoId = Number((existingEvents.findLast(event => event.state === 'p7_created')?.details as any)?.sourceSoId);
     const checkpointedP7ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p7_created')?.details as any)?.replacementSoId);
+    const checkpointedP8SourceSoId = Number((existingEvents.findLast(event => event.state === 'p8_created')?.details as any)?.sourceSoId);
+    const checkpointedP8ReplacementSoId = Number((existingEvents.findLast(event => event.state === 'p8_created')?.details as any)?.replacementSoId);
     const [openPurchaseOrders] = await connection.query<mysql.RowDataPacket[]>(
       `SELECT po.id, po.status, po.location_id, item.qty_received, po.notes
          FROM ${schema}.ims_purchase_order_items item
@@ -262,12 +264,29 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       && Number.isInteger(checkpointedP7ReplacementSoId)
       && p7OpenSalesOrdersAreExpected
       && openSalesOrders.some(order => Number(order.id) === checkpointedP7SourceSoId || Number(order.id) === checkpointedP7ReplacementSoId);
+    const p8ActionStateAllowed = (config.action === 'p8' && ['preflight_passed', 'p8_created', 'blocked'].includes(currentState ?? ''))
+      || (config.action === 'p8-compensate' && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? ''));
+    const p8OpenSalesOrdersAreExpected = ['p8', 'p8-compensate'].includes(config.action)
+      && openSalesOrders.length > 0
+      && openSalesOrders.every(order =>
+        Number(order.customer_id) === config.fixtureCustomerId
+        && Number(order.location_id) === config.fixtureLocationId
+        && Number(order.qty_ordered) >= 1
+        && Number(order.qty_fulfilled) >= 0
+        && ['draft', 'confirmed', 'backordered', 'partially_fulfilled'].includes(String(order.status)),
+      );
+    const resumableP8Series = p8ActionStateAllowed
+      && Number.isInteger(checkpointedP8SourceSoId)
+      && Number.isInteger(checkpointedP8ReplacementSoId)
+      && p8OpenSalesOrdersAreExpected
+      && openSalesOrders.some(order => Number(order.id) === checkpointedP8SourceSoId || Number(order.id) === checkpointedP8ReplacementSoId);
     const allowP4PreflightCarry = config.action === 'p4' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP5PreflightCarry = config.action === 'p5' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP6PreflightCarry = config.action === 'p6' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP7PreflightCarry = config.action === 'p7' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
+    const allowP8PreflightCarry = config.action === 'p8' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
-    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
+    if (!allowP3PreflightCarry && !allowP4PreflightCarry && !allowP5PreflightCarry && !allowP6PreflightCarry && !allowP7PreflightCarry && !allowP8PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement && !resumableP5Replacement && !resumableP6Replacement && !resumableP7Series && !resumableP8Series) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
@@ -313,6 +332,8 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p6-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p7' ? ['preflight_passed', 'p7_created', 'blocked']
         : config.action === 'p7-compensate' ? ['acknowledged', 'compensation_retry_authorized']
+        : config.action === 'p8' ? ['preflight_passed', 'p8_created', 'blocked']
+        : config.action === 'p8-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);
