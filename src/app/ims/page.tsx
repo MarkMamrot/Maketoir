@@ -8152,6 +8152,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [poBrands, setPoBrands] = useState<Array<{ id: number; name: string }>>([]);
   const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
+  const [poBulkDiscountPct, setPoBulkDiscountPct] = useState('');
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
   const [lcForm, setLcForm] = useState<{ label: string; reference: string; amount: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -8228,6 +8229,20 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+  const applyPoDiscountToAllLines = () => {
+    if (lineItems.length === 0) {
+      alert('Add at least one line item first.');
+      return;
+    }
+    const parsed = Number(poBulkDiscountPct);
+    if (!Number.isFinite(parsed)) {
+      alert('Enter a valid discount percentage.');
+      return;
+    }
+    const normalized = Math.max(0, Math.min(100, Math.round(parsed)));
+    setLineItems(p => p.map(item => ({ ...item, discount_pct: normalized })));
+    setPoBulkDiscountPct(String(normalized));
+  };
 
   const selectPOVariant = (i: number, variant_id: string) => {
     const v = variants.find((v: any) => v.variant_id === variant_id);
@@ -8293,6 +8308,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     setForm({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', tax_code: settings?.purchase_tax_code ?? '', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
     const defaultTaxRate = Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_cost: 0, tax_rate: defaultTaxRate }]);
+    setPoBulkDiscountPct('');
     setLandedCosts([]);
     setLcForm(null);
     setModal({ open: true, edit: null });
@@ -8313,6 +8329,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       : '';
     setForm({ supplier_id: d.data.supplier_id ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), expected_date: d.data.expected_date?.slice(0, 10) ?? '', notes: d.data.notes ?? '', supplier_invoice_number: d.data.supplier_invoice_number ?? '', supplier_invoice_date: d.data.supplier_invoice_date?.slice(0, 10) ?? '', payment_terms: d.data.payment_terms ?? '', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', currency_code: cur, exchange_rate: derivedRate ? String(derivedRate.toFixed(6)) : String(d.data.exchange_rate ?? 1), _rateHint: rateHint });
     setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_cost: i.unit_cost, discount_pct: i.discount_pct ?? 0, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setPoBulkDiscountPct('');
     const initQtys: Record<string, number> = {};
     (d.data.items || []).forEach((i: any) => { if (i.variant_id) initQtys[i.variant_id] = Number(i.qty_received || 0); });
     const finalQtys = pendingReceiveOverrideRef.current ? { ...initQtys, ...pendingReceiveOverrideRef.current } : initQtys;
@@ -8442,6 +8459,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       }
       load();
       setModal({ open: false, edit: null });
+      setPoBulkDiscountPct('');
       setLandedCosts([]);
       setLcForm(null);
       if (savedPoId && ['confirmed', 'complete'].includes(resultingPoStatus)) await openView({ id: savedPoId });
@@ -8887,6 +8905,17 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                   <button data-testid="po-add-line" type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={poBulkDiscountPct}
+                    onChange={e => setPoBulkDiscountPct(e.target.value)}
+                    placeholder="Disc %"
+                    style={{ ...inputStyle, width: 82, fontSize: 12, padding: '4px 8px' }}
+                  />
+                  <button type="button" onClick={applyPoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
                   {isReceiving && (
                     <button type="button" onClick={() => {
                       const all: Record<string, number> = {};
@@ -12052,6 +12081,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [variants, setVariants] = useState<any[]>([]);
   const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
+  const [soBulkDiscountPct, setSoBulkDiscountPct] = useState('');
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importSOsOpen, setImportSOsOpen] = useState(false);
@@ -12175,6 +12205,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
   const removeLine = (i: number) => setLineItems(p => p.filter((_, idx) => idx !== i));
   const updateLine = (i: number, k: string, v: any) => setLineItems(p => p.map((item, idx) => idx === i ? { ...item, [k]: v } : item));
+  const applySoDiscountToAllLines = () => {
+    if (lineItems.length === 0) {
+      alert('Add at least one line item first.');
+      return;
+    }
+    const parsed = Number(soBulkDiscountPct);
+    if (!Number.isFinite(parsed)) {
+      alert('Enter a valid discount percentage.');
+      return;
+    }
+    const normalized = Math.max(0, Math.min(100, Math.round(parsed)));
+    setLineItems(p => p.map(item => ({ ...item, discount_pct: normalized })));
+    setSoBulkDiscountPct(String(normalized));
+  };
 
   // Auto-fill unit_price from variant pricing based on customer tier
   const selectSOVariant = (i: number, variant_id: string) => {
@@ -12207,6 +12251,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier, tax_treatment, freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
     const defaultTaxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
+    setSoBulkDiscountPct('');
     setModal({ open: true, edit: null });
   };
 
@@ -12224,6 +12269,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
     setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', price_tier: normalizeSOPriceTier(d.data.price_tier), tax_treatment: d.data.tax_treatment ?? 'ex_tax', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, shopify_line_item_id: i.shopify_line_item_id ?? null, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
+    setSoBulkDiscountPct('');
     setModal({ open: true, edit: d.data });
   };
 
@@ -12377,6 +12423,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       }
       load();
       setModal({ open: false, edit: null });
+      setSoBulkDiscountPct('');
       if (savedSoId && ['confirmed', 'fulfilled'].includes(resultingSoStatus)) await openView({ id: savedSoId });
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
@@ -12820,6 +12867,17 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
                     <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={soBulkDiscountPct}
+                      onChange={e => setSoBulkDiscountPct(e.target.value)}
+                      placeholder="Disc %"
+                      style={{ ...inputStyle, width: 82, fontSize: 12, padding: '4px 8px' }}
+                    />
+                    <button type="button" onClick={applySoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
                   </div>
                 )}
               </div>
