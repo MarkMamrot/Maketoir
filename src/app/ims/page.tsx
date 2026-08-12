@@ -6097,7 +6097,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{}}>
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
@@ -6119,8 +6119,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+              <tr style={{ background: 'rgba(148,163,184,0.04)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'rgba(148,163,184,0.04)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
@@ -13812,15 +13812,15 @@ function BrandsView() {
         <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 720 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
                 {['Brand Name', 'Website URL', 'Added', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {brands.map(b => (
-                <tr key={b.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+              {brands.map((b, i) => (
+                <tr key={b.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                   {editId === b.id ? (
                     <>
                       <td style={{ padding: '8px 14px' }}>
@@ -14179,15 +14179,15 @@ function GiftCardsView() {
         <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
                 {['Code', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {cards.map(card => (
-                <tr key={card.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+              {cards.map((card, i) => (
+                <tr key={card.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                   <td style={{ padding: '8px 14px', fontWeight: 600, fontSize: 13, fontFamily: 'monospace', letterSpacing: .5 }}>{card.code}</td>
                   <td style={{ padding: '8px 14px', fontSize: 13 }}>{fmtCurrency(card.balance)}</td>
                   <td style={{ padding: '8px 14px' }}>{statusBadge(card.status)}</td>
