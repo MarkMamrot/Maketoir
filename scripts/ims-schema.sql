@@ -1262,6 +1262,8 @@ CREATE TABLE IF NOT EXISTS pos_petty_cash_transactions (
   gst_treatment        ENUM('gst','bas_excluded') NOT NULL DEFAULT 'gst',
   gst_amount           DECIMAL(12,2) NOT NULL DEFAULT 0,
   reason               VARCHAR(500) NOT NULL,
+  evidence_type        ENUM('receipt','admin_attestation') NOT NULL DEFAULT 'receipt',
+  evidence_note        VARCHAR(500) NULL,
   receipt_original_name VARCHAR(255) NOT NULL,
   receipt_stored_name   VARCHAR(255) NOT NULL,
   receipt_mime_type     VARCHAR(100) NOT NULL,

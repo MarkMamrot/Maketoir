@@ -46,21 +46,25 @@ export async function POST(request: Request) {
     const reason = String(form.get('reason') ?? '').trim();
     const gstTreatment = String(form.get('gst_treatment') ?? 'gst');
     const receipt = form.get('receipt');
+    const noReceiptAttestation = String(form.get('no_receipt_attestation') ?? '') === 'true';
     if (!/^[a-zA-Z0-9-]{16,64}$/.test(operationKey)
       || !Number.isInteger(reconciliationId) || reconciliationId <= 0
       || !Number.isFinite(amount) || amount <= 0
       || !reason || reason.length > 500
       || !['gst', 'bas_excluded'].includes(gstTreatment)
-      || !(receipt instanceof File)) {
+      || (!(receipt instanceof File) && !noReceiptAttestation)) {
       return NextResponse.json({ error: 'Reconciliation, amount, reason, GST treatment, receipt, and operation key are required.' }, { status: 400 });
     }
-    const expectedExtension = ALLOWED_TYPES.get(receipt.type);
-    const suppliedExtension = path.extname(receipt.name).toLowerCase();
-    if (!expectedExtension || (receipt.type === 'image/jpeg' ? !['.jpg', '.jpeg'].includes(suppliedExtension) : suppliedExtension !== expectedExtension)) {
-      return NextResponse.json({ error: 'Receipt must be a JPG, PNG, WebP, or PDF file.' }, { status: 400 });
-    }
-    if (receipt.size <= 0 || receipt.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: 'Receipt must be no larger than 10 MB.' }, { status: 400 });
+    let expectedExtension = '';
+    if (receipt instanceof File) {
+      expectedExtension = ALLOWED_TYPES.get(receipt.type) ?? '';
+      const suppliedExtension = path.extname(receipt.name).toLowerCase();
+      if (!expectedExtension || (receipt.type === 'image/jpeg' ? !['.jpg', '.jpeg'].includes(suppliedExtension) : suppliedExtension !== expectedExtension)) {
+        return NextResponse.json({ error: 'Receipt must be a JPG, PNG, WebP, or PDF file.' }, { status: 400 });
+      }
+      if (receipt.size <= 0 || receipt.size > MAX_FILE_BYTES) {
+        return NextResponse.json({ error: 'Receipt must be no larger than 10 MB.' }, { status: 400 });
+      }
     }
 
     const reconciliations = await imsQuery<{
@@ -113,24 +117,31 @@ export async function POST(request: Request) {
 
     let transactionId = Number(replay?.id ?? 0);
     if (!transactionId) {
-      const storedName = `${crypto.randomUUID()}${expectedExtension}`;
-      const directory = uploadDirectory(auth.user.businessId, operationKey);
-      await fs.mkdir(directory, { recursive: true });
-      storedPath = path.join(directory, storedName);
-      await fs.writeFile(storedPath, Buffer.from(await receipt.arrayBuffer()), { flag: 'wx' });
-      const originalName = path.basename(receipt.name).replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 255) || `receipt${expectedExtension}`;
+      const hasReceipt = receipt instanceof File;
+      const storedName = hasReceipt ? `${crypto.randomUUID()}${expectedExtension}` : '';
+      if (hasReceipt) {
+        const directory = uploadDirectory(auth.user.businessId, operationKey);
+        await fs.mkdir(directory, { recursive: true });
+        storedPath = path.join(directory, storedName);
+        await fs.writeFile(storedPath, Buffer.from(await receipt.arrayBuffer()), { flag: 'wx' });
+      }
+      const originalName = hasReceipt
+        ? path.basename(receipt.name).replace(/[^a-zA-Z0-9._ -]/g, '_').slice(0, 255) || `receipt${expectedExtension}`
+        : 'No receipt - admin attestation';
       const gstAmount = gstTreatment === 'gst' ? Math.round((amount - amount / 1.1) * 100) / 100 : 0;
       const result = await imsExecute(
         `INSERT INTO pos_petty_cash_transactions
          (business_id, operation_key, location_id, register_id, register_session_id,
-          transaction_date, amount, gst_treatment, gst_amount, reason,
+          transaction_date, amount, gst_treatment, gst_amount, reason, evidence_type, evidence_note,
           receipt_original_name, receipt_stored_name, receipt_mime_type, receipt_file_size,
           cashier_id, cashier_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           auth.user.businessId, operationKey, reconciliation.location_id, reconciliation.register_id,
           reconciliation.register_session_id, String(reconciliation.recon_date).slice(0, 10), amount,
-          gstTreatment, gstAmount, reason, originalName, storedName, receipt.type, receipt.size,
+          gstTreatment, gstAmount, reason, hasReceipt ? 'receipt' : 'admin_attestation',
+          hasReceipt ? null : `Historical correction approved without receipt by ${auth.user.name}`,
+          originalName, storedName, hasReceipt ? receipt.type : 'application/x-admin-attestation', hasReceipt ? receipt.size : 0,
           auth.user.userId, auth.user.name,
         ],
       );
