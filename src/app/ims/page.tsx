@@ -20812,6 +20812,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const [loading, setLoading]       = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
+  const [dateRange, setDateRange]   = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol]       = useState<string>('transfer_date');
   const [sortDir, setSortDir]       = useState<'asc' | 'desc'>('desc');
   const [page, setPage]             = useState(1);
@@ -21130,6 +21131,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   // Filter + sort
   const filtered = transfers.filter(bt => {
     if (filterStatus && bt.status !== filterStatus) return false;
+    if (!inDateRange(bt.transfer_date, dateRange)) return false;
     if (filterSearch) {
       const q = filterSearch.toLowerCase();
       if (!bt.transfer_number.toLowerCase().includes(q) &&
@@ -21167,20 +21169,23 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <input
-          placeholder="Search transfer #, location…"
-          value={filterSearch}
-          onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
-          style={{ ...inputStyle, width: 240, flex: 'none' }}
-        />
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 160, flex: 'none' }}>
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="sent">Sent</option>
-          <option value="received">Received</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            placeholder="Search transfer #, location…"
+            value={filterSearch}
+            onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
+            style={{ ...inputStyle, width: 240, flex: 'none' }}
+          />
+          <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }} style={{ ...inputStyle, width: 160, flex: 'none' }}>
+            <option value="">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="received">Received</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <SBDatePicker value={dateRange} onChange={(r) => { setDateRange(r); setPage(1); }} />
       </div>
 
       {/* Table */}
