@@ -105,8 +105,9 @@ try {
       [business.business_id, exactVariant.variant_id],
     );
     const [recentPurchaseOrders] = await connection.query(
-      `SELECT po.id, po.po_number, po.status, po.location_id, po.total_amount, po.xero_bill_id,
-              item.qty_ordered, item.qty_received, po.notes, po.created_at
+            `SELECT po.id, po.po_number, po.status, po.location_id, po.tax_treatment, po.subtotal,
+              po.tax_amount, po.total_amount, po.xero_bill_id, item.qty_ordered, item.qty_received,
+              item.unit_cost, item.tax_rate, item.line_total, po.notes, po.created_at
          FROM ${schema}.ims_purchase_order_items item
          JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
         WHERE po.business_id = ? AND item.variant_id = ? AND po.notes LIKE 'LIVE E2E %'

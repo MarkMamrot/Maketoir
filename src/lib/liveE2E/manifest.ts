@@ -6,7 +6,9 @@ export type LiveRunState =
   | 'p1_created'
   | 'awaiting_operator'
   | 'acknowledged'
+  | 'compensation_retry_authorized'
   | 'compensating'
+  | 'verification_authorized'
   | 'clean'
   | 'blocked';
 
@@ -21,11 +23,13 @@ const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   initialized: new Set(['preflight_passed', 'blocked']),
   preflight_passed: new Set(['p1_created', 'blocked']),
   p1_created: new Set(['p1_created', 'awaiting_operator', 'blocked']),
-  awaiting_operator: new Set(['acknowledged', 'blocked']),
+  awaiting_operator: new Set(['awaiting_operator', 'acknowledged', 'blocked']),
   acknowledged: new Set(['compensating', 'blocked']),
+  compensation_retry_authorized: new Set(['compensating', 'blocked']),
   compensating: new Set(['clean', 'blocked']),
+  verification_authorized: new Set(['verification_authorized', 'clean', 'blocked']),
   clean: new Set(),
-  blocked: new Set(),
+  blocked: new Set(['compensation_retry_authorized', 'verification_authorized']),
 };
 
 export function appendLiveRunEvent(

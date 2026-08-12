@@ -178,12 +178,13 @@ function buildFakeConnection(state: {
 
     if (s.startsWith('insert into ims_stock_movements')) {
       state.movements.push({
-        variant_id: params[0],
-        location_id: params[1],
-        reference_id: params[2],
-        qty_change: Number(params[3]),
-        qty_after_soh: Number(params[4]),
-        unit_cost: Number(params[5]),
+        business_id: params[0],
+        variant_id: params[1],
+        location_id: params[2],
+        reference_id: params[3],
+        qty_change: Number(params[4]),
+        qty_after_soh: Number(params[5]),
+        unit_cost: Number(params[6]),
       });
       return [{ affectedRows: 1 }];
     }
@@ -306,6 +307,7 @@ describe('POST /api/ims/receive/batch', () => {
     expect(stock.avg_cost).toBeCloseTo((10 * 8 + 2 * 18) / 12, 8);
 
     expect(state.movements).toHaveLength(1);
+    expect(state.movements[0].business_id).toBe('biz-1');
     expect(state.movements[0].qty_change).toBe(2);
     expect(state.movements[0].unit_cost).toBeCloseTo(18, 8);
 

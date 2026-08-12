@@ -1088,11 +1088,11 @@ async function reversePurchaseOrderReceiptTx(
       `SELECT SUM(qty_change) AS receipt_qty,
               SUM(qty_change * COALESCE(unit_cost, 0)) / NULLIF(SUM(qty_change), 0) AS receipt_unit_cost
          FROM ims_stock_movements
-        WHERE business_id = ? AND reference_type = 'purchase_order' AND reference_id = ?
+        WHERE (business_id = ? OR business_id = '') AND reference_type = 'purchase_order' AND reference_id = ?
           AND movement_type = 'po_received' AND variant_id = ? AND location_id = ?
           AND id > COALESCE((
             SELECT MAX(reversal.id) FROM ims_stock_movements reversal
-             WHERE reversal.business_id = ? AND reversal.reference_type = 'purchase_order'
+             WHERE (reversal.business_id = ? OR reversal.business_id = '') AND reversal.reference_type = 'purchase_order'
                AND reversal.reference_id = ? AND reversal.movement_type = 'po_unapproved'
                AND reversal.variant_id = ? AND reversal.location_id = ?
           ), 0) AND qty_change > 0`,

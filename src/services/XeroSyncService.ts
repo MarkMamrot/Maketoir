@@ -477,7 +477,6 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
   const tracking = getTrackingForLocation(trackingMappings, po.location_id);
 
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
-  const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
 
   const lineItems = (po.items ?? []).map(item => {
     const quantity = Number(item.qty_ordered);
@@ -485,6 +484,9 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
       ? Number((storedLineTotal / quantity).toFixed(4))
       : Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100);
+    const lineTaxType = taxTreatment !== 'no_tax' && Number(item.tax_rate) > 0
+      ? taxTypes.purchases
+      : taxTypes.exempt;
     return {
       Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
       Quantity: quantity,
@@ -504,12 +506,15 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
     const freightAccount = freightTreatment === 'capitalise'
       ? lineAccountCode
       : (accounts.freight || lineAccountCode);
+    const freightTaxType = taxTreatment !== 'no_tax' && (po.items ?? []).some(item => Number(item.tax_rate) > 0)
+      ? taxTypes.purchases
+      : taxTypes.exempt;
     lineItems.push({
       Description: freightTreatment === 'capitalise' ? 'Freight / Shipping (capitalised to stock)' : 'Freight / Shipping',
       Quantity: 1,
       UnitAmount: po.freight,
       AccountCode: freightAccount,
-      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
+      ...(freightTaxType ? { TaxType: freightTaxType } : {}),
       Tracking: tracking,
     });
   }
@@ -594,7 +599,6 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
 
   const tracking = getTrackingForLocation(trackingMappings, po.location_id);
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
-  const lineTaxType = taxTreatment === 'no_tax' ? taxTypes.exempt : taxTypes.purchases;
 
   const lineItems = (po.items ?? []).map(item => {
     const quantity = Number(item.qty_ordered);
@@ -602,6 +606,9 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     const unitAmount = quantity > 0 && Number.isFinite(storedLineTotal)
       ? Number((storedLineTotal / quantity).toFixed(4))
       : Number(item.unit_cost) * (1 - Number(item.discount_pct ?? 0) / 100);
+    const lineTaxType = taxTreatment !== 'no_tax' && Number(item.tax_rate) > 0
+      ? taxTypes.purchases
+      : taxTypes.exempt;
     return {
       Description: `${item.sku || ''} ${item.product_name || ''}`.trim() || 'Inventory',
       Quantity: quantity,
@@ -618,12 +625,15 @@ export async function updateXeroDraftBill(businessId: string, po: POForSync, xer
     const freightAccount = freightTreatment === 'capitalise'
       ? lineAccountCode
       : (accounts.freight || lineAccountCode);
+    const freightTaxType = taxTreatment !== 'no_tax' && (po.items ?? []).some(item => Number(item.tax_rate) > 0)
+      ? taxTypes.purchases
+      : taxTypes.exempt;
     lineItems.push({
       Description: freightTreatment === 'capitalise' ? 'Freight / Shipping (capitalised to stock)' : 'Freight / Shipping',
       Quantity: 1,
       UnitAmount: po.freight,
       AccountCode: freightAccount,
-      ...(lineTaxType ? { TaxType: lineTaxType } : {}),
+      ...(freightTaxType ? { TaxType: freightTaxType } : {}),
       Tracking: tracking,
     });
   }

@@ -429,7 +429,7 @@ describe('ImsPORepo.undoCompletedReceipt', () => {
     await expect(ImsPORepo.undoCompletedReceipt(42, 'biz-1', revision, context)).resolves.toEqual({ replayed: false });
 
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining("WHERE business_id = ? AND reference_type = 'purchase_order'"),
+      expect.stringContaining("WHERE (business_id = ? OR business_id = '') AND reference_type = 'purchase_order'"),
       ['biz-1', 42, 'v-1', 4, 'biz-1', 42, 'v-1', 4],
     );
     expect(execute).toHaveBeenCalledWith(

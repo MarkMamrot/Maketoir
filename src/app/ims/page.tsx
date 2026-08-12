@@ -9060,7 +9060,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
             const displayTotal = displayForeignCurrencyAmount(Number(viewModal.po.total_amount || 0), currency, viewModal.po.exchange_rate);
             const displayPaid = displayForeignCurrencyAmount(Number(viewModal.po.amount_paid || 0), currency, viewModal.po.exchange_rate);
-            const displayBalance = displayForeignCurrencyAmount(Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount || 0) - Number(viewModal.po.amount_paid || 0)), currency, viewModal.po.exchange_rate);
+            const displayBalance = displayForeignCurrencyAmount(Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount || 0) - Number(viewModal.po.amount_paid || 0))), currency, viewModal.po.exchange_rate);
             return (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
                 <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>

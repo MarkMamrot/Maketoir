@@ -101,6 +101,53 @@ test('@p1-receive fully receives the existing isolated low-value PO', async ({ p
   }
 });
 
+test('@p1-repair corrects the exact untaxed P1 Xero bill and renews operator review', async ({ page }) => {
+  const config = loadLiveE2EConfig();
+  const events = await readManifest(config.runId);
+  const poId = purchaseOrderId(events);
+  const manifestXeroId = String((events.findLast(event => event.state === 'awaiting_operator')?.details as any)?.xeroBillId ?? '');
+  expect(events.at(-1)?.state).toBe('awaiting_operator');
+  await loginToIms(page, config);
+
+  const beforeResponse = await page.request.get(`/api/ims/purchase-orders/${poId}`);
+  const before = (await beforeResponse.json())?.data;
+  const lines = Array.isArray(before?.items) ? before.items : [];
+  expect(beforeResponse.ok()).toBe(true);
+  expect(before).toMatchObject({
+    id: poId,
+    status: 'complete',
+    tax_treatment: 'ex_tax',
+    xero_bill_id: manifestXeroId,
+  });
+  expect(Number(before.total_amount)).toBe(config.maxDocumentTotal);
+  expect(Number(before.tax_amount)).toBe(0);
+  expect(lines).toHaveLength(1);
+  expect(String(lines[0].variant_id)).toBe(config.fixtureVariantId);
+  expect(Number(lines[0].tax_rate)).toBe(0);
+  expect(Number(lines[0].line_total)).toBe(config.maxDocumentTotal);
+
+  const pushResponse = await page.request.post('/api/ims/xero/push', { data: { type: 'po', id: poId } });
+  const pushed = await pushResponse.json() as { success?: boolean; xeroId?: string; error?: string };
+  expect(pushResponse.ok(), pushed.error).toBe(true);
+  expect(pushed.success, pushed.error).toBe(true);
+  expect(pushed.xeroId).toBe(manifestXeroId);
+
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/ims/xero/bill-details?poId=${poId}`);
+    const body = await response.json();
+    return Number(body?.total);
+  }, { timeout: 30_000, message: 'Corrected Xero bill did not read back at the IMS total.' }).toBe(config.maxDocumentTotal);
+
+  await appendManifestState(config.runId, 'awaiting_operator', {
+    scenario: 'P1',
+    phase: 'xero_tax_repaired',
+    purchaseOrderId: poId,
+    xeroBillId: manifestXeroId,
+    xeroTotal: config.maxDocumentTotal,
+    operatorChecks: ['Xero bill is Tax Exclusive with No GST and total AUD 1.00', 'IMS PO remains complete with quantity 1 received'],
+  });
+});
+
 test('@p1-compensate undoes only the acknowledged mistaken receipt and verifies baseline stock', async ({ page }) => {
   const config = loadLiveE2EConfig();
   const events = await readManifest(config.runId);

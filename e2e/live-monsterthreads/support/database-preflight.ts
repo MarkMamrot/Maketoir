@@ -103,19 +103,35 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         LIMIT 1`,
       [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
     );
-    const [[openWork]] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT
-         (SELECT COUNT(*) FROM ${schema}.ims_purchase_order_items item
-           JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
-          WHERE po.business_id = ? AND item.variant_id = ?
-            AND po.status IN ('draft','confirmed','partially_received','backordered')) AS open_po_count,
-         (SELECT COUNT(*) FROM ${schema}.ims_sales_order_items item
-           JOIN ${schema}.ims_sales_orders so ON so.id = item.so_id
-          WHERE so.business_id = ? AND item.variant_id = ?
-            AND so.status IN ('draft','confirmed','partially_fulfilled','backordered')) AS open_so_count`,
-      [config.expectedBusinessId, config.fixtureVariantId, config.expectedBusinessId, config.fixtureVariantId],
+    const existingEvents = config.action === 'preflight' ? [] : await readManifest(config.runId);
+    const currentState = existingEvents.at(-1)?.state;
+    const checkpointedPoId = Number((existingEvents.findLast(event => event.state === 'p1_created')?.details as any)?.purchaseOrderId);
+    const [openPurchaseOrders] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT po.id, po.status, po.location_id, item.qty_received, po.notes
+         FROM ${schema}.ims_purchase_order_items item
+         JOIN ${schema}.ims_purchase_orders po ON po.id = item.po_id
+        WHERE po.business_id = ? AND item.variant_id = ?
+          AND po.status IN ('draft','confirmed','partially_received','backordered')`,
+      [config.expectedBusinessId, config.fixtureVariantId],
     );
-    if (Number(openWork.open_po_count) || Number(openWork.open_so_count)) {
+    const [[openSalesOrders]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS count
+         FROM ${schema}.ims_sales_order_items item
+         JOIN ${schema}.ims_sales_orders so ON so.id = item.so_id
+        WHERE so.business_id = ? AND item.variant_id = ?
+          AND so.status IN ('draft','confirmed','partially_fulfilled','backordered')`,
+      [config.expectedBusinessId, config.fixtureVariantId],
+    );
+    const resumablePurchaseOrder = config.action === 'p1'
+      && currentState === 'p1_created'
+      && Number.isInteger(checkpointedPoId)
+      && openPurchaseOrders.length === 1
+      && Number(openPurchaseOrders[0].id) === checkpointedPoId
+      && openPurchaseOrders[0].status === 'confirmed'
+      && Number(openPurchaseOrders[0].location_id) === config.fixtureLocationId
+      && Number(openPurchaseOrders[0].qty_received) === 0
+      && String(openPurchaseOrders[0].notes ?? '').includes(`LIVE E2E ${config.runId} P1`);
+    if (Number(openSalesOrders.count) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder)) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
     }
 
@@ -146,10 +162,9 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     if (config.action === 'preflight') {
       await createManifest(config.runId, initialEvents[0]);
     } else {
-      const events = await readManifest(config.runId);
-      const currentState = events.at(-1)?.state;
       const allowedStates = config.action === 'p1' ? ['preflight_passed', 'p1_created']
-        : config.action === 'p1-compensate' ? ['acknowledged']
+        : config.action === 'p1-repair' ? ['awaiting_operator']
+        : config.action === 'p1-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
         throw new Error(`Live E2E blocked: action ${config.action} requires manifest state ${allowedStates.join(' or ') || 'unsupported'}, found ${currentState ?? 'missing'}.`);
@@ -179,30 +194,41 @@ export async function verifyPurchaseOrderCompensation(config: LiveE2EConfig, poI
   xeroBillId: string | null;
   stock: { qtyOnHand: number; qtyIncoming: number; qtyCommitted: number };
 }> {
-  if (!activeConnection) throw new Error('Live E2E blocked: database preflight lock is not active.');
   const events = await readManifest(config.runId);
   const baseline = (events[0]?.details as any)?.baseline;
   if (!baseline) throw new Error('Live E2E blocked: manifest baseline is missing.');
-  const schema = activeConnection.escapeId(config.expectedImsSchema);
-  const [[po]] = await activeConnection.query<mysql.RowDataPacket[]>(
-    `SELECT status, xero_bill_id FROM ${schema}.ims_purchase_orders WHERE business_id = ? AND id = ? LIMIT 1`,
-    [config.expectedBusinessId, poId],
-  );
-  const [[stock]] = await activeConnection.query<mysql.RowDataPacket[]>(
-    `SELECT qty_on_hand, qty_incoming, qty_committed FROM ${schema}.ims_stock
-      WHERE business_id = ? AND variant_id = ? AND location_id = ? LIMIT 1`,
-    [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
-  );
-  const actual = {
-    qtyOnHand: Number(stock?.qty_on_hand),
-    qtyIncoming: Number(stock?.qty_incoming),
-    qtyCommitted: Number(stock?.qty_committed),
-  };
-  if (!po || po.status !== 'cancelled') throw new Error('Live E2E blocked: compensated PO is not cancelled.');
-  if (actual.qtyOnHand !== Number(baseline.qtyOnHand)
-    || actual.qtyIncoming !== Number(baseline.qtyIncoming)
-    || actual.qtyCommitted !== Number(baseline.qtyCommitted)) {
-    throw new Error('Live E2E blocked: fixture stock did not return to its preflight baseline.');
+  const connection = await mysql.createConnection({
+    host: envRequired('MYSQL_HOST'),
+    port: Number(process.env.MYSQL_PORT ?? 3306),
+    database: envRequired('MYSQL_DATABASE'),
+    user: envRequired('MYSQL_USER'),
+    password: envRequired('MYSQL_PASSWORD'),
+    connectTimeout: 20000,
+  });
+  try {
+    const schema = connection.escapeId(config.expectedImsSchema);
+    const [[po]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT status, xero_bill_id FROM ${schema}.ims_purchase_orders WHERE business_id = ? AND id = ? LIMIT 1`,
+      [config.expectedBusinessId, poId],
+    );
+    const [[stock]] = await connection.query<mysql.RowDataPacket[]>(
+      `SELECT qty_on_hand, qty_incoming, qty_committed FROM ${schema}.ims_stock
+        WHERE business_id = ? AND variant_id = ? AND location_id = ? LIMIT 1`,
+      [config.expectedBusinessId, config.fixtureVariantId, config.fixtureLocationId],
+    );
+    const actual = {
+      qtyOnHand: Number(stock?.qty_on_hand),
+      qtyIncoming: Number(stock?.qty_incoming),
+      qtyCommitted: Number(stock?.qty_committed),
+    };
+    if (!po || po.status !== 'cancelled') throw new Error('Live E2E blocked: compensated PO is not cancelled.');
+    if (actual.qtyOnHand !== Number(baseline.qtyOnHand)
+      || actual.qtyIncoming !== Number(baseline.qtyIncoming)
+      || actual.qtyCommitted !== Number(baseline.qtyCommitted)) {
+      throw new Error('Live E2E blocked: fixture stock did not return to its preflight baseline.');
+    }
+    return { poStatus: String(po.status), xeroBillId: po.xero_bill_id ? String(po.xero_bill_id) : null, stock: actual };
+  } finally {
+    await connection.end();
   }
-  return { poStatus: String(po.status), xeroBillId: po.xero_bill_id ? String(po.xero_bill_id) : null, stock: actual };
 }

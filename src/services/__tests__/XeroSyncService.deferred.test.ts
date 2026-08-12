@@ -346,6 +346,44 @@ describe('PO bill sync', () => {
     expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0].LineItems[0].UnitAmount).toBe(3.3333);
   });
 
+  it('does not add Xero GST to an untaxed PO line under an exclusive header', async () => {
+    const po = {
+      id: 4855,
+      po_number: 'PO-2026-0019',
+      supplier_name: 'Supplier',
+      location_id: 4,
+      order_date: '2026-07-27',
+      subtotal: 1,
+      tax_amount: 0,
+      total_amount: 1,
+      tax_treatment: 'ex_tax' as const,
+      items: [{
+        variant_id: 'variant-1',
+        qty_ordered: 1,
+        unit_cost: 1,
+        discount_pct: 0,
+        tax_rate: 0,
+        line_total: 1,
+      }],
+    };
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-5', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-5', Status: 'AUTHORISED', AmountPaid: 0, AmountCredited: 0 }] })
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'bill-5', Status: 'AUTHORISED' }] });
+
+    await syncPOAsDraftBill('biz-1', po);
+    await updateXeroDraftBill('biz-1', po, 'bill-5');
+
+    expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toMatchObject({
+      LineAmountTypes: 'Exclusive',
+      LineItems: [expect.objectContaining({ UnitAmount: 1, TaxType: 'NONE' })],
+    });
+    expect(mockXeroApiFetch.mock.calls[2][2].body.Invoices[0]).toMatchObject({
+      LineAmountTypes: 'Exclusive',
+      LineItems: [expect.objectContaining({ UnitAmount: 1, TaxType: 'NONE' })],
+    });
+  });
+
   it('adds a non-taxable account adjustment for a small printed-line subtotal difference', async () => {
     const po = {
       id: 4854,

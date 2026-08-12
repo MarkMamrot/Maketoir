@@ -314,9 +314,9 @@ export async function POST(req: Request) {
         // Stock movement record
         await conn.execute(
           `INSERT INTO ims_stock_movements
-           (variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
-           VALUES (?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?)`,
-          [variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud]
+           (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id, qty_change, qty_after_soh, unit_cost)
+           VALUES (?, ?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?)`,
+          [businessId, variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud]
         );
 
         if (barcode_new) {
