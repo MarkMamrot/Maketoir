@@ -1,6 +1,13 @@
 ﻿node_modules
 .next
 
+# Playwright and gated live-E2E artifacts
+/playwright-report/
+/test-results/
+/.auth/
+/.next-e2e/
+/.live-e2e-runs/
+
 deploy.zip
 
 # Environment secrets — never commit

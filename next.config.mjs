@@ -1,4 +1,5 @@
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   productionBrowserSourceMaps: false,
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },

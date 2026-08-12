@@ -113,6 +113,22 @@ const fmtFx = (n: number | null | undefined, currency?: string) => {
   return (!currency || currency === 'AUD') ? `$${num}` : `${currency} ${num}`;
 };
 
+const normalizeDisplayFxRate = (currency?: string, exchangeRate?: number | string | null) => {
+  const cur = (currency ?? 'AUD').toUpperCase();
+  const rate = Number(exchangeRate ?? 1);
+  if (cur === 'AUD' || !Number.isFinite(rate) || rate <= 0) return 1;
+  return rate < 1 ? 1 / rate : rate;
+};
+
+const displayForeignCurrencyAmount = (amount: number | null | undefined, currency?: string, exchangeRate?: number | string | null) => {
+  const cur = (currency ?? 'AUD').toUpperCase();
+  const raw = Number(amount ?? 0);
+  if (cur === 'AUD' || !Number.isFinite(raw) || raw === 0) return raw;
+  const rate = Number(exchangeRate ?? 1);
+  if (rate > 0 && rate < 1) return raw / normalizeDisplayFxRate(cur, rate);
+  return raw;
+};
+
 const fmtQty = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('en-AU', { maximumFractionDigits: 4 });
 
@@ -163,11 +179,12 @@ function effectiveRRP(v: any, today: string): number {
 }
 
 // Searchable variant picker for PO/SO line items
-function VariantSearch({ value, variants, onChange, style }: {
+function VariantSearch({ value, variants, onChange, style, testId }: {
   value: string;
   variants: any[];
   onChange: (variant_id: string) => void;
   style?: React.CSSProperties;
+  testId?: string;
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
@@ -210,6 +227,7 @@ function VariantSearch({ value, variants, onChange, style }: {
     <div ref={ref} style={{ position: 'relative', ...style }}>
       <input
         ref={inputRef}
+        data-testid={testId}
         type="text"
         value={open ? query : displayLabel}
         title={!open && displayLabel ? displayLabel : undefined}
@@ -239,6 +257,7 @@ function VariantSearch({ value, variants, onChange, style }: {
           {filtered.map(v => (
             <div
               key={v.variant_id}
+              data-testid={testId ? `${testId}-option-${v.variant_id}` : undefined}
               onMouseDown={() => { onChange(v.variant_id); setOpen(false); setQuery(''); }}
               style={{
                 padding: '7px 12px', cursor: 'pointer', fontSize: 12,
@@ -505,7 +524,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
           { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
         ];
         return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
-          <button key={entry.icon} onClick={() => onSelect(entry.navigate)} title={entry.label}
+          <button key={entry.icon} data-testid={`ims-nav-${entry.navigate}`} onClick={() => onSelect(entry.navigate)} title={entry.label}
             style={collapsedItemStyle(entry.activeFor.includes(active))}>
             <NavIcon id={entry.icon} />
           </button>
@@ -522,6 +541,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
         return (
           <div key={item.id} style={{ marginBottom: 2 }}>
             <button
+              data-testid={`ims-nav-${item.id}`}
               onClick={() => { if (hasChildren) toggleSection(item.id); else onSelect(item.id as ImsView); }}
               style={{
                 width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -545,7 +565,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,.06)', borderRadius: 8, overflow: 'hidden' }}>
                 {(item as any).children.map((child: any) => (
-                  <button key={child.id} onClick={() => onSelect(child.id as ImsView)}
+                  <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => onSelect(child.id as ImsView)}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
                       padding: '7px 14px 7px 26px', display: 'flex', alignItems: 'center',
@@ -856,7 +876,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   };
 
   return (
-    <div>
+    <div data-testid="purchase-orders-view">
       {/* ─ Onboarding panel (hidden once all steps complete) ───────────────────── */}
       {onboarding && !onboarding.complete && (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 24, marginBottom: 28 }}>
@@ -8567,7 +8587,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
         {!isAdvisor && <button onClick={() => setImportPOsOpen(true)} style={btnStyle('ghost')}>⬆ Import POs</button>}
-        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
+        {!isAdvisor && <button data-testid="po-new" onClick={openNew} style={btnStyle('action')}>+ New PO</button>}
       </div>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
         <input
@@ -8656,7 +8676,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {visiblePOs.map((po: any, i: number) => (
                 <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
                   <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <button onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
+                    <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
                   </td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
@@ -8683,7 +8703,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       {/* Create / Edit PO Modal */}
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.po_number}` : 'New Purchase Order'} onClose={() => setModal({ open: false, edit: null })} wide>
-          <form onSubmit={handleSubmit}>
+          <form data-testid="po-form" onSubmit={handleSubmit}>
             {!modal.edit && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
                 <span style={{ fontSize: 20 }}>📄</span>
@@ -8703,13 +8723,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             )}
             <Row3>
               <Field label="Supplier">
-                <select value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
+                <select data-testid="po-supplier" value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
                   <option value="">— None —</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                <select data-testid="po-location" required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
@@ -8718,7 +8738,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </Row3>
             <Row2>
               <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
-              <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+              <Field label="Notes"><input data-testid="po-notes" value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
             </Row2>
             <Row3>
               <Field label="Supplier Invoice #"><input value={form.supplier_invoice_number} onChange={sf('supplier_invoice_number')} style={inputStyle} placeholder="e.g. INV-00123" /></Field>
@@ -8760,7 +8780,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <span>LINE ITEMS</span>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
-                  <button type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                  <button data-testid="po-add-line" type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   {isReceiving && (
                     <button type="button" onClick={() => {
                       const all: Record<string, number> = {};
@@ -8781,7 +8801,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   </thead>
                   <tbody>
                     {lineItems.map((item, i) => (
-                      <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                      <tr key={i} data-testid={`po-line-${i}`} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: '4px 2px', width: 30 }}>
                           <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
                         </td>
@@ -8790,13 +8810,14 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             value={item.variant_id}
                             variants={variants}
                             onChange={vid => selectPOVariant(i, vid)}
+                            testId={`po-line-${i}-variant`}
                           />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
-                          <input type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-qty`} type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 100 }}>
-                          <input type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-unit-cost`} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 70 }}>
                           <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
@@ -8811,7 +8832,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                           const awaiting = Math.max(0, Number(item.qty_ordered || 0) - received);
                           return (<>
                             <td style={{ padding: 4, width: 80 }}>
-                              <input type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
+                              <input data-testid={`po-line-${i}-received`} type="number" min="0" max={Number(item.qty_ordered)} step="any" value={received} onChange={e => setReceiveQtys(q => ({ ...q, [item.variant_id]: Math.min(Number(e.target.value), Number(item.qty_ordered)) }))} style={{ ...inputStyle, fontSize: 12 }} />
                             </td>
                             <td style={{ padding: '4px 8px', width: 70, fontSize: 12, fontVariantNumeric: 'tabular-nums', color: awaiting > 0 ? '#fbbf24' : '#34d399', fontWeight: awaiting > 0 ? 600 : 400 }}>
                               {awaiting}
@@ -8935,11 +8956,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
                 <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
-                <button type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
+                <button data-testid="po-receive-complete" type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
-                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
+                extraActions={!modal.edit ? [{ label: saving ? 'Creating…' : 'Create & Confirm', testId: 'po-create-confirm', onClick: (e: React.MouseEvent) => handleSubmit(e as any, true) }] : []} />
             )}
           </form>
         </Modal>
@@ -9034,20 +9055,36 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               >✉ Email</button>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
-            <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
-            <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} orderKind="purchase_order" /></div>
-            <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
-            <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
-            <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
-            <div><div style={labelStyle}>Supplier Invoice #</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_number || '—'}</div></div>
-            <div><div style={labelStyle}>Supplier Invoice Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_date?.slice(0, 10) || '—'}</div></div>
-            <div><div style={labelStyle}>Payment Terms</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.payment_terms || '—'}</div></div>
-            <div><div style={labelStyle}>Tax Treatment</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.tax_treatment ? (viewModal.po.tax_treatment === 'inc_tax' ? 'Inc-tax' : viewModal.po.tax_treatment === 'no_tax' ? 'No tax' : 'Ex-tax') : '—'}</div></div>
-            <div><div style={labelStyle}>Currency</div><div style={{ color: 'var(--sv-text-main)' }}>{(viewModal.po.currency_code || 'AUD').toUpperCase()}</div></div>
-            <div><div style={labelStyle}>Exchange Rate</div><div style={{ color: 'var(--sv-text-main)' }}>{Number(viewModal.po.exchange_rate || 1).toFixed(4)}</div></div>
-          </div>
+          {(() => {
+            const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
+            const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
+            const displayTotal = displayForeignCurrencyAmount(Number(viewModal.po.total_amount || 0), currency, viewModal.po.exchange_rate);
+            const displayPaid = displayForeignCurrencyAmount(Number(viewModal.po.amount_paid || 0), currency, viewModal.po.exchange_rate);
+            const displayBalance = displayForeignCurrencyAmount(Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount || 0) - Number(viewModal.po.amount_paid || 0)), currency, viewModal.po.exchange_rate);
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div><div style={labelStyle}>Supplier</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_name || '—'}</div></div>
+                <div><div style={labelStyle}>Location</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.location_name}</div></div>
+                <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.po.status} orderKind="purchase_order" /></div>
+                <div><div style={labelStyle}>Order Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.order_date?.slice(0, 10)}</div></div>
+                <div><div style={labelStyle}>Expected</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.expected_date?.slice(0, 10) || '—'}</div></div>
+                <div><div style={labelStyle}>Received</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.received_date?.slice(0, 10) || '—'}</div></div>
+                <div><div style={labelStyle}>Supplier Invoice #</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_number || '—'}</div></div>
+                <div><div style={labelStyle}>Supplier Invoice Date</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.supplier_invoice_date?.slice(0, 10) || '—'}</div></div>
+                <div><div style={labelStyle}>Payment Terms</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.payment_terms || '—'}</div></div>
+                <div><div style={labelStyle}>Tax Treatment</div><div style={{ color: 'var(--sv-text-main)' }}>{viewModal.po.tax_treatment ? (viewModal.po.tax_treatment === 'inc_tax' ? 'Inc-tax' : viewModal.po.tax_treatment === 'no_tax' ? 'No tax' : 'Ex-tax') : '—'}</div></div>
+                <div><div style={labelStyle}>Currency</div><div style={{ color: 'var(--sv-text-main)' }}>{currency}</div></div>
+                <div><div style={labelStyle}>Exchange Rate</div><div style={{ color: 'var(--sv-text-main)' }}>{displayRate.toFixed(4)}</div></div>
+                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, alignItems: 'center', color: 'var(--sv-text-dim)', fontSize: 11 }}>
+                  <span>FX note:</span>
+                  <strong style={{ color: 'var(--sv-text-main)' }}>{currency} {displayTotal.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                  <span>≈</span>
+                  <strong style={{ color: 'var(--sv-text-main)' }}>{fmtCurrency(Number(viewModal.po.total_amount || 0) * displayRate)}</strong>
+                  <span>AUD</span>
+                </div>
+              </div>
+            );
+          })()}
           {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
@@ -9191,8 +9228,12 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
           {(() => {
             const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
             const isFx = currency !== 'AUD';
+            const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
             const amountPaid = Number(viewModal.po.amount_paid || 0);
-            const balance = Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount) - amountPaid));
+            const rawBalance = Number(viewModal.po.balance ?? (Number(viewModal.po.total_amount) - amountPaid));
+            const displayAmountPaid = displayForeignCurrencyAmount(amountPaid, currency, viewModal.po.exchange_rate);
+            const displayBalance = displayForeignCurrencyAmount(rawBalance, currency, viewModal.po.exchange_rate);
+            const totalDisplay = displayForeignCurrencyAmount(Number(viewModal.po.total_amount || 0), currency, viewModal.po.exchange_rate);
             return (
               <div style={{ marginTop: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -9229,10 +9270,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 )}
 
                 <div style={{ display: 'flex', gap: 16, padding: '8px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, marginBottom: poPayForm ? 10 : 0, flexWrap: 'wrap' }}>
-                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(viewModal.po.total_amount, currency)}</strong></span>
-                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(amountPaid, currency)}</strong></span>
-                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: balance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(balance, currency)}</strong></span>
-                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(viewModal.po.balance_local)} AUD remaining</span>}
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Total: </span><strong>{fmtFx(totalDisplay, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Paid: </span><strong style={{ color: 'var(--sv-mint,#0c9)' }}>{fmtFx(displayAmountPaid, currency)}</strong></span>
+                  <span><span style={{ color: 'var(--sv-text-dim)' }}>Balance: </span><strong style={{ color: displayBalance > 0.005 ? 'var(--sv-orange,#f80)' : 'var(--sv-mint,#0c9)' }}>{fmtFx(displayBalance, currency)}</strong></span>
+                  {isFx && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>≈ {fmtCurrency(Number(viewModal.po.total_amount || 0) * displayRate)} AUD remaining</span>}
                 </div>
 
                 {poPayForm && (
@@ -9416,16 +9457,16 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   }
   const btns = [];
   if (!isAdvisor && po.status === 'draft') {
-    btns.push(<button key="confirm" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
+    btns.push(<button key="confirm" data-testid={`po-confirm-${po.id}`} onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Confirm</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     btns.push(<button key="delete" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>);
   }
   if (!isAdvisor && po.status === 'confirmed') {
-    btns.push(<button key="receive" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Receive</button>);
+    btns.push(<button key="receive" data-testid={`po-receive-${po.id}`} onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Receive</button>);
     btns.push(<button key="edit" onClick={onEdit} style={btnStyle('ghost', 'xs')}>Edit</button>);
     if (context !== 'list') {
       btns.push(<button key="revert" onClick={() => onStatus(po, 'draft')} style={btnStyle('ghost', 'xs')}>Revert to Draft</button>);
-      btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
+      btns.push(<button key="cancel" data-testid={`po-cancel-${po.id}`} onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
     }
   }
   if (!isAdvisor && po.status === 'partially_received') {
@@ -9437,7 +9478,7 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
     btns.push(<button key="cancel" onClick={() => onStatus(po, 'cancelled')} style={btnStyle('danger', 'xs')}>Cancel</button>);
   }
   if (!isAdvisor && po.status === 'complete') {
-    btns.push(<button key="undo-receipt" onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
+    btns.push(<button key="undo-receipt" data-testid={`po-undo-receipt-${po.id}`} onClick={onUndoReceipt} style={btnStyle('danger', 'xs')} title="Use only when the recorded receipt never physically happened">Undo Mistaken Receipt</button>);
     btns.push(<button key="supplier-return" onClick={onSupplierReturn} style={btnStyle('ghost', 'xs')} title="Create a linked supplier credit for goods returned or a financial correction">Supplier Return / Credit</button>);
   }
   if (!isAdvisor && ['complete', 'cancelled'].includes(po.status)) {
@@ -9572,6 +9613,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   const xeroStatus = (xeroRetried === true ? 'synced' : po.xero_sync_status) as string | null;
   const xeroId = po.xero_bill_id as string | null;
   const xeroAt = po.xero_synced_at ? new Date(po.xero_synced_at).toLocaleString() : null;
+  const xeroDraftDeleted = po.status === 'cancelled' && xeroStatus === 'synced' && !xeroId;
 
   // Fetch live Xero bill details (number + total) whenever a linked bill exists
   useEffect(() => {
@@ -9588,10 +9630,10 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
 
   const XeroBadge = () => (
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
-      ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
+      ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' || xeroDraftDeleted ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-            {xeroVoidResult === 'voided'
-              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>✕ Removed from Xero</span>
+            {xeroVoidResult === 'voided' || xeroDraftDeleted
+              ? <span style={{ color:'#fbbf24', fontWeight:700 }}>{xeroDraftDeleted ? '✕ Xero draft deleted' : '✕ Removed from Xero'}</span>
               : <span style={{ color:'#34d399', fontWeight:700 }}>✓ Synced to Xero</span>}
             {xeroAt && <span style={{ color:'var(--sv-text-dim)' }}>{xeroAt}</span>}
             {xeroId && <span style={{ color:'var(--sv-text-dim)', fontFamily:'monospace', fontSize:10 }}>{xeroId.slice(0,8)}…</span>}
@@ -13164,13 +13206,13 @@ function RowActions({ onEdit, onDelete, isAdvisor = false }: { onEdit: () => voi
   );
 }
 
-function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; onClick: (e: React.MouseEvent) => void }[] }) {
+function FormActions({ onCancel, saving, isEdit, extraActions }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; testId?: string; onClick: (e: React.MouseEvent) => void }[] }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
       <button type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
       {extraActions?.map((a, i) => (
-        <button key={i} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
+        <button key={i} data-testid={a.testId} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
       ))}
     </div>
   );

@@ -38,6 +38,15 @@ describe('normalizeCin7PurchaseOrderMetadata', () => {
     });
   });
 
+  it('canonicalizes inverse FX rates for imported foreign-currency POs', () => {
+    const res = normalizeCin7PurchaseOrderMetadata({
+      currencyCode: 'USD',
+      exchangeRate: '0.7005',
+    });
+    expect(res.currencyCode).toBe('USD');
+    expect(res.exchangeRate).toBeCloseTo(1 / 0.7005, 6);
+  });
+
   it('falls back to safe defaults when Cin7 values are missing', () => {
     expect(normalizeCin7PurchaseOrderMetadata({})).toMatchObject({
       currencyCode: 'AUD',

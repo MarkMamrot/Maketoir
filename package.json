@@ -10,6 +10,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "e2e:live:preflight": "playwright test --project=live-monsterthreads --grep @preflight",
+    "e2e:live:p1": "playwright test --project=live-monsterthreads --grep @p1-",
+    "e2e:live:p1:create": "playwright test --project=live-monsterthreads --grep @p1-create",
+    "e2e:live:p1:receive": "playwright test --project=live-monsterthreads --grep @p1-receive",
+    "e2e:live:p1:compensate": "playwright test --project=live-monsterthreads --grep @p1-compensate",
+    "e2e:live:p1:recover": "tsx e2e/live-monsterthreads/recover-interrupted-p1.ts",
+    "e2e:live:list": "playwright test --project=live-monsterthreads --list",
+    "e2e:live:fixtures": "node scripts/live-e2e-inspect-fixtures.mjs",
+    "e2e:live:gate": "tsx e2e/live-monsterthreads/controller.ts",
+    "e2e:report": "playwright show-report test-results/playwright-report",
     "brand:export": "node scripts/export-solvantis-logo.mjs"
   },
   "dependencies": {
@@ -35,6 +45,7 @@
     "shopify-api-node": "^3.12.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.37",
     "@types/react": "^18",
@@ -49,6 +60,7 @@
     "sharp": "^0.35.3",
     "tailwindcss": "^3.3.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.12",
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   }

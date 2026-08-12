@@ -16,6 +16,24 @@ export function normalizePurchaseOrderField(field: string, value: unknown): unkn
   return value;
 }
 
+export function normalizeCurrencyExchangeRate(currencyCode?: string | null, exchangeRate?: string | number | null): number {
+  const cur = String(currencyCode ?? 'AUD').trim().toUpperCase();
+  const raw = Number(exchangeRate ?? 1);
+  if (!Number.isFinite(raw) || raw <= 0) return 1;
+  if (cur !== 'AUD' && raw < 1) return 1 / raw;
+  return raw;
+}
+
+export function toForeignCurrencyAmount(amount: number | string | null | undefined, currencyCode?: string | null, exchangeRate?: string | number | null): number {
+  const rawAmount = Number(amount ?? 0);
+  const cur = String(currencyCode ?? 'AUD').trim().toUpperCase();
+  if (!Number.isFinite(rawAmount) || rawAmount === 0 || cur === 'AUD') return rawAmount;
+  const rate = normalizeCurrencyExchangeRate(cur, exchangeRate);
+  const inverseRate = Number(exchangeRate ?? 1);
+  if (inverseRate > 0 && inverseRate < 1) return rawAmount / rate;
+  return rawAmount;
+}
+
 export function normalizeCin7PurchaseOrderMetadata(input: {
   currencyCode?: string | null;
   exchangeRate?: string | number | null;
@@ -25,8 +43,7 @@ export function normalizeCin7PurchaseOrderMetadata(input: {
   invoiceDate?: string | null;
 } = {}) {
   const normalizedCurrencyCode = String(input.currencyCode ?? 'AUD').trim().toUpperCase() || 'AUD';
-  const parsedRate = Number(input.exchangeRate ?? 1);
-  const safeRate = Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : 1;
+  const exchangeRate = normalizeCurrencyExchangeRate(normalizedCurrencyCode, input.exchangeRate);
   const paymentTerms = typeof input.paymentTerms === 'string' ? input.paymentTerms.trim() || null : input.paymentTerms ?? null;
   const supplierInvoiceNumber = typeof input.supplierInvoiceNumber === 'string'
     ? input.supplierInvoiceNumber.trim() || null
@@ -35,7 +52,7 @@ export function normalizeCin7PurchaseOrderMetadata(input: {
 
   return {
     currencyCode: normalizedCurrencyCode,
-    exchangeRate: safeRate,
+    exchangeRate,
     paymentTerms,
     supplierInvoiceNumber,
     supplierInvoiceDate,

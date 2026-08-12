@@ -98,16 +98,18 @@ function LoginForm() {
 
         <form onSubmit={handleLogin} className="flex flex-col gap-4">
           <div>
-            <label className="text-xs font-bold text-gray-600 uppercase">Email Address</label>
+            <label htmlFor="login-email" className="text-xs font-bold text-gray-600 uppercase">Email Address</label>
             <input
+              id="login-email"
               type="email" value={email} onChange={e => setEmail(e.target.value)} required
               autoComplete="email"
               className="w-full p-2 border border-gray-300 rounded mt-1"
             />
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-600 uppercase">Password</label>
+            <label htmlFor="login-password" className="text-xs font-bold text-gray-600 uppercase">Password</label>
             <input
+              id="login-password"
               type="password" value={password} onChange={e => setPassword(e.target.value)} required
               autoComplete="current-password"
               className="w-full p-2 border border-gray-300 rounded mt-1"
