@@ -3024,6 +3024,7 @@ export async function triggerEodXeroSync(
     if (cashPlan) salesAmount = Number(cashPlan.sales_amount);
     if (salesAmount <= 0) {
       if (cashPlan
+        && Math.abs(salesAmount) < 0.005
         && Number(cashPlan.till_variance) === 0
         && Number(cashPlan.petty_cash_amount) === 0) {
         await execute(
