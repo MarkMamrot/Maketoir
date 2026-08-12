@@ -5241,6 +5241,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [brands, setBrands] = useState<{ id: number; name: string }[]>([]);
+  const [productTypeOptions, setProductTypeOptions] = useState<string[]>([]);
   const [brandPrompt, setBrandPrompt] = useState<{ inputBrand: string } | null>(null);
   const [brandPromptChoice, setBrandPromptChoice] = useState<'new' | 'existing'>('new');
   const [brandPromptSelected, setBrandPromptSelected] = useState('');
@@ -5374,13 +5375,19 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     }).catch(() => {});
   }, []);
 
+  const loadProductTypeOptions = useCallback(() => {
+    fetch('/api/ims/product-types').then(r => r.json()).then(d => {
+      if (d.success) setProductTypeOptions((d.data ?? []).filter((value: string) => Boolean(value && value.trim())));
+    }).catch(() => {});
+  }, []);
+
   const loadContacts = useCallback(() => {
     fetch('/api/ims/contacts').then(r => r.json()).then(d => {
       if (d.success) setContacts(d.data);
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); loadBrands(); loadContacts(); }, [load, loadBrands, loadContacts]);
+  useEffect(() => { load(); loadBrands(); loadProductTypeOptions(); loadContacts(); }, [load, loadBrands, loadProductTypeOptions, loadContacts]);
 
   // Deep-link: auto-open a product when the URL hash is #products/<product_id>
   // Works on first load AND when navigating back/forward.
@@ -6345,7 +6352,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
             <Field label="Product SKU *"><input required value={form.base_sku ?? ''} onChange={sf('base_sku')} style={inputStyle} placeholder="e.g. MT-PROD (used to generate variant SKUs)" /></Field>
             <Row2>
-              <Field label="Product Type"><input value={form.product_type} onChange={sf('product_type')} style={inputStyle} /></Field>
+              <Field label="Product Type">
+                <input list="product-type-list" value={form.product_type ?? ''} onChange={sf('product_type')} style={inputStyle} placeholder="Type or select…" />
+                <datalist id="product-type-list">
+                  {productTypeOptions.map(pt => <option key={pt} value={pt} />)}
+                </datalist>
+              </Field>
               <Field label="Brand">
                 <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or select…" />
                 <datalist id="brand-list">
@@ -6860,6 +6872,7 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     if (m.po_number) return `${m.po_number}${m.supplier_name ? ` · ${m.supplier_name}` : ''}`;
     if (m.is_online_order && m.so_number) return `Online ${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
     if (m.so_number) return `${m.so_number}${m.customer_name ? ` · ${m.customer_name}` : ''}`;
+    if (m.cn_number) return m.cn_number;
     if (m.pos_sale_local_id) return `POS ${m.pos_sale_local_id}`;
     if (m.notes) return m.notes;
     return '—';
@@ -8154,6 +8167,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [poActionSelections, setPoActionSelections] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [showInvoiceImport, setShowInvoiceImport] = useState(false);
@@ -8576,6 +8590,72 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const totalPagesPO = Math.max(1, Math.ceil(sortedFilteredPOs.length / PAGE_SIZE));
   const safePagePO = Math.min(page, totalPagesPO);
   const visiblePOs = sortedFilteredPOs.slice((safePagePO - 1) * PAGE_SIZE, safePagePO * PAGE_SIZE);
+  const getPoActionOptions = (po: any) => {
+    const actions: Array<{ label: string; value: string }> = [];
+    if (!isAdvisor && po.status === 'draft') {
+      actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
+    }
+    if (!isAdvisor && po.status === 'confirmed') {
+      actions.push({ label: 'Receive', value: 'receive' }, { label: 'Edit', value: 'edit' });
+    }
+    if (!isAdvisor && po.status === 'partially_received') {
+      actions.push({ label: 'Continue Receiving', value: 'receive' });
+      if (onResolve) actions.push({ label: 'Resolve Outstanding', value: 'resolve' });
+    }
+    if (!isAdvisor && po.status === 'backordered') {
+      actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+    }
+    if (!isAdvisor && po.status === 'complete') {
+      actions.push({ label: 'Undo Mistaken Receipt', value: 'undo-receipt' }, { label: 'Supplier Return / Credit', value: 'supplier-return' });
+    }
+    if (!isAdvisor && ['complete', 'cancelled'].includes(po.status)) {
+      actions.push({ label: 'Create Replacement Draft', value: 'replacement' });
+    }
+    if (actions.length === 0) actions.push({ label: 'Open', value: 'open' });
+    return actions;
+  };
+  const executePoRowAction = (po: any, action: string) => {
+    switch (action) {
+      case 'open':
+        openView(po);
+        break;
+      case 'confirm':
+        changeStatus(po, 'confirmed');
+        break;
+      case 'edit':
+        editPoWithWarn(po, undefined, true);
+        break;
+      case 'delete':
+        deletePoWithWarn(po);
+        break;
+      case 'receive':
+        openEdit(po);
+        break;
+      case 'resolve':
+        setResolveOrder(po);
+        break;
+      case 'revert':
+        changeStatus(po, 'draft');
+        break;
+      case 'cancel':
+        changeStatus(po, 'cancelled');
+        break;
+      case 'release':
+        changeStatus(po, 'confirmed');
+        break;
+      case 'undo-receipt':
+        undoMistakenReceipt(po);
+        break;
+      case 'supplier-return':
+        createSupplierReturn(po);
+        break;
+      case 'replacement':
+        createPoReplacement(po);
+        break;
+      default:
+        openView(po);
+    }
+  };
   const toggleSort = (col: string) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortCol(col); setSortDir('asc'); }
@@ -8656,17 +8736,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col />
-              <col style={{ width: 160 }} />
+              <col style={{ width: 90 }} />
+              <col style={{ width: 170 }} />
+              <col style={{ width: 150 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
-              <col style={{ width: 180 }} />
+              <col style={{ width: 190 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {([['po_number','PO #'],['supplier_name','Supplier'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
+                {([['po_number','PO #'],['supplier_name','Supplier'],['supplier_invoice_number','Supplier Inv #'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
                     style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
                     {label}<SortIcon col={col} />
@@ -8676,19 +8757,41 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </tr>
             </thead>
             <tbody>
-              {visiblePOs.map((po: any, i: number) => (
-                <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
-                  <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{po.po_number}</button>
-                  </td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
-                  <td style={{ padding: '10px 12px' }}><POActions isAdvisor={isAdvisor} po={po} onEdit={() => editPoWithWarn(po, undefined, true)} onReceive={() => openEdit(po)} onResolve={() => setResolveOrder(po)} onDelete={() => deletePoWithWarn(po)} onStatus={changeStatus} onUndoReceipt={() => undoMistakenReceipt(po)} onSupplierReturn={() => createSupplierReturn(po)} onReplacement={() => createPoReplacement(po)} /></td>
-                </tr>
-              ))}
+              {visiblePOs.map((po: any, i: number) => {
+                const poActions = getPoActionOptions(po);
+                const selectedAction = poActionSelections[po.id] ?? poActions[0]?.value ?? 'open';
+                return (
+                  <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 12, fontWeight: 600, padding: 0 }}>{po.po_number}</button>
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
+                    <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <select
+                          value={selectedAction}
+                          onChange={e => setPoActionSelections(curr => ({ ...curr, [po.id]: e.target.value }))}
+                          style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                        >
+                          {poActions.map(action => (
+                            <option key={action.value} value={action.value}>{action.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => executePoRowAction(po, selectedAction)}
+                          style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', padding: '4px 10px' }}
+                        >Go</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

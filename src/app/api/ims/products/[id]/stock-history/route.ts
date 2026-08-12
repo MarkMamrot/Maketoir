@@ -99,7 +99,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       movement_type: string; reference_type: string; reference_id: number | null;
       qty_change: number; qty_after_soh: number; unit_cost: number | null;
       notes: string | null; created_at: string;
-      po_number: string | null; so_number: string | null;
+      po_number: string | null; so_number: string | null; cn_number: string | null;
       shopify_order_id: string | null; so_type: string | null;
       supplier_name: string | null; customer_name: string | null;
       pos_sale_local_id: string | null;
@@ -111,6 +111,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
          m.qty_change, m.qty_after_soh, m.unit_cost, m.notes, m.created_at,
          po.po_number,
          so.so_number,
+         cn.cn_number,
          so.shopify_order_id,
          so.so_type,
          sup.name AS supplier_name,
@@ -129,6 +130,8 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
        LEFT JOIN ims_contacts sup ON sup.id = po.supplier_id
        LEFT JOIN ims_sales_orders so
          ON so.id = m.reference_id AND m.reference_type = 'sales_order'
+       LEFT JOIN ims_credit_notes cn
+         ON cn.id = m.reference_id AND m.reference_type = 'credit_note'
        LEFT JOIN ims_contacts cust ON cust.id = so.customer_id
        LEFT JOIN pos_sales ps
          ON ps.id = m.reference_id AND m.reference_type = 'pos_sale'
