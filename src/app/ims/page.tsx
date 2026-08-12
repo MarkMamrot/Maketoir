@@ -10690,7 +10690,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>{recordType === 'pos_returns' ? 'POS Returns / Exchanges' : 'Customer Credit Notes'}</h1>
@@ -10781,12 +10781,22 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
       {/* Table */}
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No credit notes match your filters." /> : (
-        <div style={{ background: 'var(--sv-card)', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--sv-etch)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 150 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 200 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 100 }} />
+              <col style={{ width: 210 }} />
+            </colgroup>
             <thead>
-              <tr style={{ background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
-                {['CN #', 'Date', 'Customer', 'Location', 'Status', 'Total', 'Xero', ''].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' }}>{h}</th>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                {['CN #', 'Date', 'Customer', 'Location', 'Status', 'Total', 'Xero', 'Actions'].map(h => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -10795,40 +10805,40 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 const actions = getCnActionOptions(cn);
                 const selectedAction = cnActionSelections[cn.id] ?? actions[0]?.value ?? 'view';
                 return (
-                <tr key={cn.id} style={{ borderBottom: ri < filtered.length - 1 ? '1px solid var(--sv-etch)' : 'none', cursor: 'pointer' }}
-                  onClick={() => openView(cn)}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)' }}>
-                    {cn.cn_number}{sourceBadge(cn.source)}
-                    {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
-                  </td>
-                  <td style={{ padding: '10px 12px' }}>{cn.cn_date?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
-                  <td style={{ padding: '10px 12px' }}>{cn.location_name}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
-                  <td style={{ padding: '10px 12px', fontWeight: 600 }}>{fmtCurrency(cn.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
-                      : cn.source === 'pos' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Included in the POS end-of-day accounting flow">POS / EOD</span>
-                      : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
-                      : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
-                      : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
-                      : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
-                  </td>
-                  <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <select
-                        aria-label={`Action for ${cn.cn_number}`}
-                        value={selectedAction}
-                        onChange={e => setCnActionSelections(current => ({ ...current, [cn.id]: e.target.value }))}
-                        style={{ ...inputStyle, width: 174, padding: '5px 7px', fontSize: 11 }}
-                      >
-                        {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
-                      </select>
-                      <button onClick={() => executeCnRowAction(cn, selectedAction)} style={btnStyle('secondary', 'xs')}>Go</button>
-                    </div>
-                  </td>
-                </tr>
-              );})}
+                  <tr key={cn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined, cursor: 'pointer' }} onClick={() => openView(cn)}>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--sv-mint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {cn.cn_number}{sourceBadge(cn.source)}
+                      {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{cn.cn_date?.slice(0, 10)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.location_name}</td>
+                    <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtCurrency(cn.total_amount)}</td>
+                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                      {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
+                        : cn.source === 'pos' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Included in the POS end-of-day accounting flow">POS / EOD</span>
+                        : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
+                        : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
+                        : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
+                        : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <select
+                          aria-label={`Action for ${cn.cn_number}`}
+                          value={selectedAction}
+                          onChange={e => setCnActionSelections(current => ({ ...current, [cn.id]: e.target.value }))}
+                          style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                        >
+                          {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
+                        </select>
+                        <button onClick={() => executeCnRowAction(cn, selectedAction)} style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', padding: '4px 10px' }}>Go</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -11494,7 +11504,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   const money = (n: any) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ width: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Notes</h1>
@@ -11513,38 +11523,50 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       </div>
 
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No supplier credit notes yet." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 150 }} />
+              <col style={{ width: 220 }} />
+              <col style={{ width: 120 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 220 }} />
+            </colgroup>
             <thead>
-              <tr>{['Number','Supplier','Date','Total','Status','Xero','Actions'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>{h}</th>)}</tr>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+                {['Number','Supplier','Date','Total','Status','Xero','Actions'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5 }}>{h}</th>)}
+              </tr>
             </thead>
             <tbody>
-              {filtered.map(scn => {
+              {filtered.map((scn, ri) => {
                 const actions = getScnActionOptions(scn);
                 const selectedAction = scnActionSelections[scn.id] ?? actions[0]?.value ?? 'view';
                 return (
-                <tr key={scn.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '10px 12px', fontWeight: 600 }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{scn.supplier_name ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
-                  <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
-                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <select
-                        aria-label={`Action for ${scn.scn_number}`}
-                        value={selectedAction}
-                        onChange={e => setScnActionSelections(current => ({ ...current, [scn.id]: e.target.value }))}
-                        style={{ ...inputStyle, width: 174, padding: '5px 7px', fontSize: 11 }}
-                      >
-                        {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
-                      </select>
-                      <button onClick={() => executeScnRowAction(scn, selectedAction)} style={btnStyle('secondary', 'xs')}>Go</button>
-                    </div>
-                  </td>
-                </tr>
-              );})}
+                  <tr key={scn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 600 }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.supplier_name ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
+                    <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
+                    <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <select
+                          aria-label={`Action for ${scn.scn_number}`}
+                          value={selectedAction}
+                          onChange={e => setScnActionSelections(current => ({ ...current, [scn.id]: e.target.value }))}
+                          style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                        >
+                          {actions.map(action => <option key={action.value} value={action.value}>{action.label}</option>)}
+                        </select>
+                        <button onClick={() => executeScnRowAction(scn, selectedAction)} style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', padding: '4px 10px' }}>Go</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
