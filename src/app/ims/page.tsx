@@ -8743,7 +8743,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
-              <col style={{ width: 190 }} />
+              <col style={{ width: 210 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -12063,6 +12063,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const [sortCol, setSortCol] = useState<string>('order_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [soActionSelections, setSoActionSelections] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
@@ -12507,6 +12508,70 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
+  const getSoActionOptions = (so: any) => {
+    const actions: Array<{ label: string; value: string }> = [];
+    if (!isAdvisor && so.status === 'draft') {
+      actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
+    }
+    if (!isAdvisor && so.status === 'confirmed') {
+      actions.push({ label: 'Fulfil', value: 'fulfill' }, { label: 'Edit', value: 'edit' }, { label: 'Revert to Draft', value: 'revert' }, { label: 'Cancel', value: 'cancel' });
+    }
+    if (!isAdvisor && so.status === 'partially_fulfilled') {
+      actions.push({ label: 'Continue Fulfilment', value: 'fulfill' });
+      if (onResolve) actions.push({ label: 'Resolve Outstanding', value: 'resolve' });
+    }
+    if (!isAdvisor && so.status === 'backordered') {
+      actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
+    }
+    if (!isAdvisor && so.status === 'fulfilled') {
+      actions.push({ label: 'Edit Notes', value: 'edit' });
+      if (onReturn) actions.push({ label: 'Return / Credit', value: 'return' });
+    }
+    if (!isAdvisor && ['fulfilled', 'cancelled'].includes(so.status)) {
+      actions.push({ label: 'Create Replacement Draft', value: 'replacement' });
+    }
+    if (actions.length === 0) actions.push({ label: 'Open', value: 'open' });
+    return actions;
+  };
+  const executeSoRowAction = (so: any, action: string) => {
+    switch (action) {
+      case 'open':
+        openView(so);
+        break;
+      case 'confirm':
+        changeStatus(so, 'confirmed');
+        break;
+      case 'edit':
+        editSoWithWarn(so);
+        break;
+      case 'delete':
+        deleteSoWithWarn(so);
+        break;
+      case 'fulfill':
+        openSoFulfilmentModal(so);
+        break;
+      case 'revert':
+        changeStatus(so, 'draft');
+        break;
+      case 'cancel':
+        changeStatus(so, 'cancelled');
+        break;
+      case 'resolve':
+        setResolveOrder(so);
+        break;
+      case 'release':
+        changeStatus(so, 'confirmed');
+        break;
+      case 'return':
+        handleReturn(so);
+        break;
+      case 'replacement':
+        createSoReplacement(so);
+        break;
+      default:
+        openView(so);
+    }
+  };
   const totalPagesSO = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePageSO = Math.min(page, totalPagesSO);
   const visibleSOs = sos;
@@ -12618,13 +12683,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
-              <col />
-              <col style={{ width: 160 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 190 }} />
               <col style={{ width: 120 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 100 }} />
               <col style={{ width: 90 }} />
-              <col style={{ width: 180 }} />
+              <col style={{ width: 200 }} />
             </colgroup>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -12638,34 +12703,53 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </tr>
             </thead>
             <tbody>
-              {visibleSOs.map((so: any, i: number) => (
-                <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
-                  <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {so.is_pos_ledger ? (
-                      <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
-                    ) : (
-                      <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
-                    )}
-                  </td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
-                  <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
-                  <td style={{ padding: '10px 12px' }}>
-                    {so.is_pos_ledger ? (
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
-                          POS Sale
-                        </span>
-                        <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
-                      </div>
-                    ) : (
-                      <SOActions isAdvisor={isAdvisor} so={so} onEdit={() => editSoWithWarn(so)} onDelete={() => deleteSoWithWarn(so)} onStatus={changeStatus} onReturn={() => handleReturn(so)} onReplacement={() => createSoReplacement(so)} onFulfill={() => openSoFulfilmentModal(so)} onResolve={() => setResolveOrder(so)} />
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {visibleSOs.map((so: any, i: number) => {
+                const soActions = getSoActionOptions(so);
+                const selectedAction = soActionSelections[so.id] ?? soActions[0]?.value ?? 'open';
+                return (
+                  <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {so.is_pos_ledger ? (
+                        <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                      ) : (
+                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0 }}>{so.so_number}</button>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
+                    <td style={{ padding: '10px 12px' }}><StatusBadge status={so.status} orderKind="sales_order" /></td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {so.is_pos_ledger ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, color: 'var(--sv-text-muted,#888)', fontStyle: 'italic', border: '1px solid var(--sv-border,#444)', borderRadius: 4, padding: '2px 6px' }}>
+                            POS Sale
+                          </span>
+                          <button onClick={() => openPosView(so)} style={btnStyle('ghost', 'xs')}>View</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <select
+                            value={selectedAction}
+                            onChange={e => setSoActionSelections(curr => ({ ...curr, [so.id]: e.target.value }))}
+                            style={{ ...inputStyle, fontSize: 12, padding: '4px 8px', minWidth: 135, width: 135, background: 'var(--sv-bg-2)' }}
+                          >
+                            {soActions.map(action => (
+                              <option key={action.value} value={action.value}>{action.label}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => executeSoRowAction(so, selectedAction)}
+                            style={{ ...btnStyle('secondary', 'xs'), whiteSpace: 'nowrap', padding: '4px 10px' }}
+                          >Go</button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
