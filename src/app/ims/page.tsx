@@ -6870,6 +6870,9 @@ function StockHistoryModal({ productId, productName, onClose, onNavigateToPO, on
     const label = refLabel(m);
     if (m.reference_type === 'purchase_order' && m.reference_id && onNavigateToPO)
       return <button style={linkBtn} onClick={() => { onNavigateToPO(m.reference_id); onClose(); }}>{label}</button>;
+    if (m.reference_type === 'sales_order' && m.reference_id && onNavigateToSO)
+      return <button style={linkBtn} onClick={() => { onNavigateToSO(m.reference_id); onClose(); }}>{label}</button>;
+    return <span style={{ color: 'var(--sv-text-dim)' }}>{label}</span>;
   };
 
   const totalSoh = locationRows.reduce((s, r) => s + r.qty_on_hand, 0);
