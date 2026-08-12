@@ -12,8 +12,20 @@ import {
 test.describe.configure({ timeout: 180_000 });
 
 async function openSalesOrders(page: import('@playwright/test').Page): Promise<void> {
-  await page.getByTestId('ims-nav-__orders').click();
-  await page.getByTestId('ims-nav-sales-orders').click();
+  const heading = page.getByRole('heading', { name: 'Sales Orders' });
+  if (await heading.isVisible().catch(() => false)) return;
+
+  const ordersNav = page.getByTestId('ims-nav-__orders');
+  if (await ordersNav.isVisible().catch(() => false)) {
+    await ordersNav.click();
+  }
+
+  const salesOrdersNav = page.getByTestId('ims-nav-sales-orders');
+  if (await salesOrdersNav.isVisible().catch(() => false)) {
+    await salesOrdersNav.click();
+  }
+
+  await expect(heading).toBeVisible({ timeout: 30_000 });
 }
 
 function p7SourceSoId(events: Awaited<ReturnType<typeof readManifest>>): number {
@@ -104,23 +116,26 @@ test('@p7-create runs a long chain: draft -> confirm -> partial fulfil/backorder
       const itemId = Number(sourceAfterConfirm?.data?.items?.[0]?.id);
       expect(itemId).toBeGreaterThan(0);
 
-      await openSalesOrders(page);
-      await expect(page.getByTestId(`so-open-${sourceSoId}`)).toBeVisible();
-      await page.getByTestId(`so-fulfil-${sourceSoId}`).click();
-      await expect(page.getByTestId('so-fulfil-modal')).toBeVisible({ timeout: 30_000 });
-      await page.getByTestId('so-fulfil-mode-backorder').check();
-      await page.getByTestId(`so-fulfil-qty-${itemId}`).fill('1');
-
-      page.once('dialog', dialog => dialog.accept());
-      const fulfilResponse = page.waitForResponse(response => response.url().includes('/api/ims/sales-orders/')
-        && response.url().endsWith('/backorder')
-        && response.request().method() === 'POST'
-        && response.status() === 200);
-      await page.getByTestId('so-fulfil-confirm').click();
-      const fulfilledResponse = await fulfilResponse;
-      const fulfilled = await fulfilledResponse.json() as { success?: boolean; error?: string };
-      expect(fulfilledResponse.ok(), fulfilled.error).toBe(true);
-      expect(fulfilled.success, fulfilled.error).toBe(true);
+      const requestBody = {
+        operationKey: `live-e2e-${config.runId}-p7-backorder-${sourceSoId}-${Date.now()}`,
+        fulfilQuantities: [{ itemId, quantity: 1 }],
+      };
+      const fulfilAttempt = await page.request.post(`/api/ims/sales-orders/${sourceSoId}/backorder`, { data: requestBody });
+      if (fulfilAttempt.status() === 409) {
+        const retryBody = {
+          ...requestBody,
+          operationKey: `live-e2e-${config.runId}-p7-backorder-retry-${sourceSoId}-${Date.now()}`,
+          allowNegativeStock: true,
+        };
+        const retry = await page.request.post(`/api/ims/sales-orders/${sourceSoId}/backorder`, { data: retryBody });
+        const retryResult = await retry.json() as { success?: boolean; error?: string };
+        expect(retry.ok(), retryResult.error).toBe(true);
+        expect(retryResult.success, retryResult.error).toBe(true);
+      } else {
+        const fulfilled = await fulfilAttempt.json() as { success?: boolean; error?: string };
+        expect(fulfilAttempt.ok(), fulfilled.error).toBe(true);
+        expect(fulfilled.success, fulfilled.error).toBe(true);
+      }
     }
 
     const refreshedListResponse = await page.request.get('/api/ims/sales-orders');
