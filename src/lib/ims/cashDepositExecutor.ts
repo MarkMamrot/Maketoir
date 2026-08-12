@@ -63,6 +63,15 @@ export async function executeCashDeposit(
     for (const action of actions) {
       if (action.status === 'completed') continue;
       const amount = Math.round(Number(action.amount) * 100) / 100;
+      if (amount === 0) {
+        await deps.execute(
+          `UPDATE xero_cash_deposit_actions
+              SET status = 'completed', error_detail = NULL, completed_at = NOW()
+            WHERE business_id = ? AND id = ?`,
+          [businessId, action.id],
+        );
+        continue;
+      }
       await deps.execute(
         `UPDATE xero_cash_deposit_actions SET status = 'processing', error_detail = NULL,
                 attempt_count = attempt_count + 1, last_attempt_at = NOW()

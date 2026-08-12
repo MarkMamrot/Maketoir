@@ -18,6 +18,28 @@ function dependencies(actions: any[], failVariance = false) {
 }
 
 describe('executeCashDeposit', () => {
+  it('completes a zero-value transfer locally without calling Xero', async () => {
+    const query = vi.fn(async (sql: string) => sql.includes('FROM xero_cash_deposits') ? [{
+      id: 7, lodgement_date: '2026-07-30', bank_reference: null,
+      source_account_code: '1111111111', over_short_account_code: '41006',
+      destination_account_code: '11110', status: 'draft',
+    }] : [{
+      id: 2, action_key: '7:bank_transfer', action_type: 'bank_transfer', business_date: null,
+      amount: 0, status: 'pending', idempotency_key: 'transfer-key',
+    }]);
+    const execute = vi.fn(async () => ({ affectedRows: 1 }));
+    const xeroFetch = vi.fn();
+
+    const result = await executeCashDeposit('biz-1', 7, { userId: 1, name: 'Admin' }, { query, execute, xeroFetch });
+
+    expect(result).toEqual({ status: 'posted' });
+    expect(xeroFetch).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("SET status = 'completed'"),
+      ['biz-1', 2],
+    );
+  });
+
   it('posts daily variance before transferring counted cash', async () => {
     const deps = dependencies([
       { id: 1, action_key: '7:variance:2026-07-25', action_type: 'variance', business_date: '2026-07-25', amount: -2, status: 'pending', idempotency_key: 'variance-key' },
