@@ -109,4 +109,31 @@ describe('normalizeParsedInvoice', () => {
 
     expect(normalized.line_items.map(line => line.product_code)).toEqual(['IN-STOCK']);
   });
+
+  it('derives net unit price from line total when discount columns are descriptive', () => {
+    const normalized = normalizeParsedInvoice({
+      currency: 'AUD',
+      prices_include_tax: 'ex_tax',
+      line_items: [
+        {
+          product_code: '9781923457720',
+          product_name: 'Bella Grows A Bicycle',
+          qty: 5,
+          unit_price: 24.99,
+          discount_pct: 40,
+          line_total: 68.15,
+          tax_rate: 0.1,
+          rrp: 24.99,
+        },
+      ],
+    });
+
+    expect(normalized.line_items[0]).toMatchObject({
+      qty: 5,
+      line_total: 68.15,
+      unit_price: 13.63,
+      discount_pct: 0,
+      rrp: 24.99,
+    });
+  });
 });

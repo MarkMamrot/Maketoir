@@ -68,20 +68,31 @@ export function normalizeParsedInvoice(raw: Partial<ParsedInvoice> | null | unde
   const freightLines = rawLines.filter(isFreightLine);
   const line_items = rawLines
     .filter((line: any) => !isFreightLine(line) && String(line?.line_type ?? '').toLowerCase() !== 'backorder')
-    .map((line: any) => ({
-      line_type: 'product' as const,
-      product_code: line?.product_code ?? null,
-      barcode: line?.barcode ?? null,
-      product_name: line?.product_name ?? '',
-      qty: Number(line?.qty ?? 0),
-      unit_price: Number(line?.unit_price ?? 0),
-      rrp: line?.rrp == null ? null : Number(line.rrp),
-      discount_pct: Number(line?.discount_pct ?? 0),
-      line_total: Number(line?.line_total ?? 0),
-      tax_rate: Number(line?.tax_rate ?? 0),
-      product_type: line?.product_type ?? null,
-      brand: line?.brand ?? null,
-    }));
+    .map((line: any) => {
+      const qty = Number(line?.qty ?? 0);
+      const rawUnitPrice = Number(line?.unit_price ?? 0);
+      const rawDiscountPct = Number(line?.discount_pct ?? 0);
+      const discountMultiplier = 1 - (Number.isFinite(rawDiscountPct) ? Math.max(0, rawDiscountPct) : 0) / 100;
+      const fallbackNetUnitPrice = Math.max(0, rawUnitPrice) * Math.max(0, discountMultiplier);
+      const derived = deriveInvoicePoLine(qty, Number(line?.line_total), fallbackNetUnitPrice);
+
+      return {
+        line_type: 'product' as const,
+        product_code: line?.product_code ?? null,
+        barcode: line?.barcode ?? null,
+        product_name: line?.product_name ?? '',
+        qty,
+        // Always use the effective net unit derived from line total / qty so decorative discount columns do not distort import cost.
+        unit_price: derived.unitCost,
+        rrp: line?.rrp == null ? null : Number(line.rrp),
+        // Discount semantics vary by supplier layout; once unit is derived from line total we keep discount neutral to avoid double-discounting.
+        discount_pct: 0,
+        line_total: derived.lineTotal,
+        tax_rate: Number(line?.tax_rate ?? 0),
+        product_type: line?.product_type ?? null,
+        brand: line?.brand ?? null,
+      };
+    });
   const freightFromLines = freightLines.reduce((total: number, line: any) => {
     const lineTotal = Number(line?.line_total);
     if (Number.isFinite(lineTotal)) return total + lineTotal;

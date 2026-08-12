@@ -176,7 +176,8 @@ Use ONLY values from the business catalog for product_type and brand. If the inv
 Allowed product types: ${JSON.stringify(allowedProductTypes.map(r => r.product_type).filter(Boolean))}
 Allowed brands: ${JSON.stringify(allowedBrands.map(r => r.name).filter(Boolean))}
 
-Return unit_price and line_total EXACTLY as they appear on the invoice — do NOT convert inc-tax prices to ex-tax. The system handles the tax arithmetic using prices_include_tax.
+Treat each product line_total as the source of truth. Derive the effective unit_price as line_total / qty for supplied product rows, even when the invoice shows RRP and a discount column that may be descriptive rather than a true wholesale discount. Keep RRP in the rrp field when available.
+Do NOT convert inc-tax prices to ex-tax. The system handles tax arithmetic using prices_include_tax.
 
 Return ONLY a valid JSON object — no markdown fences, no extra text:
 {
@@ -216,9 +217,9 @@ Notes:
 - Extract ALL supplied stock product line items even if there are many
 - line_type = "product" for supplied items, "freight" for freight rows, or "backorder" for items not supplied on this invoice
 - Freight/delivery/shipping/postage rows must use line_type "freight", not "product"
-- unit_price and line_total = values AS PRINTED on the invoice, never convert
 - line_total is the authoritative amount for each product. Preserve it exactly to two decimal places after line-level dollar or percentage discounts
-- A DISCOUNTS column may contain a dollar amount, not a percentage. Only set discount_pct when the invoice explicitly prints a percentage; otherwise set discount_pct to 0 and preserve the discounted line_total
+- unit_price must be the effective invoiced unit price for import, derived as line_total / qty for supplied lines
+- A DISCOUNTS column may contain a dollar amount, not a percentage. If discount meaning is ambiguous, set discount_pct to 0 and rely on line_total-derived unit_price
 - barcode = barcode/EAN/UPC/GTIN printed for that product; preserve leading zeroes and return it as a string
 - rrp = recommended retail price, retail price, MSRP, or SRP if shown for that product; use null if not shown
 - tax_rate: 0.1 for Australian GST, 0 for GST-free items (applies even when prices_include_tax is inc_tax)
