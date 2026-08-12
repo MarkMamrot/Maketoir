@@ -153,8 +153,11 @@ export async function POST(req: Request) {
       );
       return NextResponse.json({ success: true, removed: true });
     }
-    if (!accountId || !accountCode) {
-      return NextResponse.json({ success: false, error: 'xeroAccountId and xeroAccountCode are required' }, { status: 400 });
+    if (!accountId) {
+      return NextResponse.json({ success: false, error: 'Select a Xero account' }, { status: 400 });
+    }
+    if (!accountCode) {
+      return NextResponse.json({ success: false, error: 'This Xero account has no account code. Add a unique code in Xero, refresh Xero accounts, then map it again.' }, { status: 400 });
     }
 
     const accountResponse = await xeroApiFetch(databaseId, `/Accounts/${encodeURIComponent(accountId)}`);

@@ -114,6 +114,17 @@ export async function POST(request: Request) {
     if (currentPettyCash !== 0 && Math.abs(currentPettyCash - amount) > 0.005) {
       return NextResponse.json({ error: 'This reconciliation already has a different petty cash correction.' }, { status: 409 });
     }
+    const clearingMappings = await query<{ xero_account_code: string }>(
+      `SELECT xero_account_code
+         FROM xero_pos_clearing_mappings
+        WHERE business_id = ? AND ims_location_id = ? AND payment_method = 'Cash'
+        LIMIT 1`,
+      [auth.user.businessId, reconciliation.location_id],
+    );
+    const clearingAccountCode = String(clearingMappings[0]?.xero_account_code ?? '').trim();
+    if (!clearingAccountCode) {
+      return NextResponse.json({ error: 'The location requires a current Xero Cash clearing mapping.' }, { status: 409 });
+    }
 
     let transactionId = Number(replay?.id ?? 0);
     if (!transactionId) {
@@ -157,11 +168,12 @@ export async function POST(request: Request) {
                 petty_cash_amount = ?,
                 variance_status = IF(ABS(till_variance + ?) < 0.005, 'not_required', 'pending'),
                 till_variance = till_variance + ?,
+                clearing_account_code = ?,
                 petty_cash_status = 'pending', petty_cash_idempotency_key = ?,
                 error_detail = NULL, completed_at = NULL
           WHERE business_id = ? AND eod_reconciliation_id = ?
             AND petty_cash_amount = 0 AND xero_petty_cash_id IS NULL`,
-        [amount, amount, amount, amount, actionKey(auth.user.businessId, reconciliationId), auth.user.businessId, reconciliationId],
+        [amount, amount, amount, amount, clearingAccountCode, actionKey(auth.user.businessId, reconciliationId), auth.user.businessId, reconciliationId],
       );
       if (!update.affectedRows) {
         const latest = await query<{ petty_cash_amount: number | string }>(

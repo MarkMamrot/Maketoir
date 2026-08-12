@@ -17576,7 +17576,9 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                         >
                           <option value="">{clearingAccounts.length ? '— mapping required —' : '— no eligible Xero accounts —'}</option>
                           {clearingAccounts.map(account => (
-                            <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>
+                            <option key={account.accountId} value={account.accountId} disabled={!account.code}>
+                              {account.code ? `${account.code} — ${account.name}` : `${account.name} — add an account code in Xero`}
+                            </option>
                           ))}
                         </select>
                         {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
@@ -17596,7 +17598,11 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                           style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : setting ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: setting ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
                         >
                           <option value="">— deposit bank required —</option>
-                          {bankAccounts.map(account => <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>)}
+                          {bankAccounts.map(account => (
+                            <option key={account.accountId} value={account.accountId} disabled={!account.code}>
+                              {account.code ? `${account.code} — ${account.name}` : `${account.name} — add an account code in Xero`}
+                            </option>
+                          ))}
                         </select>
                         {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
                       </>;
