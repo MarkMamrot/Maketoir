@@ -35,7 +35,7 @@ const TRANSITIONS: Record<LiveRunState, ReadonlySet<LiveRunState>> = {
   compensating: new Set(['clean', 'blocked']),
   verification_authorized: new Set(['verification_authorized', 'clean', 'blocked']),
   clean: new Set(),
-  blocked: new Set(['compensation_retry_authorized', 'verification_authorized', 'p3_created']),
+  blocked: new Set(['compensation_retry_authorized', 'verification_authorized', 'p3_created', 'p4_created']),
 };
 
 export function appendLiveRunEvent(

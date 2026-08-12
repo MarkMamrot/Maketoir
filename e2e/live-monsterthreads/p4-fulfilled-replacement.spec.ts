@@ -26,7 +26,7 @@ function p4SourceSoId(events: Awaited<ReturnType<typeof readManifest>>): number 
 test('@p4-create creates a replacement draft from a fulfilled SO and pauses for inspection', async ({ page }) => {
   const config = loadLiveE2EConfig();
   const events = await readManifest(config.runId);
-  expect(['preflight_passed', 'p4_created']).toContain(events.at(-1)?.state);
+  expect(['preflight_passed', 'p4_created', 'blocked']).toContain(events.at(-1)?.state);
   await loginToIms(page, config);
 
   let sourceSoId: number | null = null;

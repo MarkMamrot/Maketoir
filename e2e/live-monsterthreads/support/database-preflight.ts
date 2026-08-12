@@ -212,7 +212,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       && String(checkpointedP3SourceOrder.status) === 'fulfilled'
       && Number(checkpointedP3SourceOrder.qty_fulfilled) === 1
       && p3OpenSalesOrdersAreExpected;
-    const p4ActionStateAllowed = (config.action === 'p4' && ['preflight_passed', 'p4_created'].includes(currentState ?? ''))
+    const p4ActionStateAllowed = (config.action === 'p4' && ['preflight_passed', 'p4_created', 'blocked'].includes(currentState ?? ''))
       || (config.action === 'p4-compensate' && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? ''));
     const resumableP4Replacement = p4ActionStateAllowed
       && Number.isInteger(checkpointedP4ReplacementSoId)
@@ -222,7 +222,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         && Number(order.customer_id) === config.fixtureCustomerId
         && Number(order.location_id) === config.fixtureLocationId
       );
-    const allowP4PreflightCarry = config.action === 'p4' && currentState === 'preflight_passed' && openPurchaseOrders.length === 0;
+    const allowP4PreflightCarry = config.action === 'p4' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     const allowP3PreflightCarry = config.action === 'p3' && ['preflight_passed', 'blocked'].includes(currentState ?? '') && openPurchaseOrders.length === 0;
     if (!allowP3PreflightCarry && !allowP4PreflightCarry && ((openSalesOrders.length > 0 && !resumableSalesOrder && !resumableP3Source && !resumableP3Completed && !resumableP3Compensation && !resumableP4Replacement) || (openPurchaseOrders.length > 0 && !resumablePurchaseOrder))) {
       throw new Error('Live E2E blocked: the dedicated fixture variant has open PO or SO work.');
@@ -262,7 +262,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p2-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p3' ? ['preflight_passed', 'p3_created', 'blocked']
         : config.action === 'p3-compensate' ? ['acknowledged', 'compensation_retry_authorized']
-        : config.action === 'p4' ? ['preflight_passed', 'p4_created']
+        : config.action === 'p4' ? ['preflight_passed', 'p4_created', 'blocked']
         : config.action === 'p4-compensate' ? ['acknowledged', 'compensation_retry_authorized']
           : [];
       if (!allowedStates.includes(currentState ?? '')) {
@@ -632,9 +632,12 @@ export async function verifySalesOrderReplacementDraft(config: LiveE2EConfig, so
       [config.expectedBusinessId, sourceSoId],
     );
     const [[replacement]] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT so_number, status, qty_fulfilled, xero_invoice_id
-         FROM ${schema}.ims_sales_orders
-        WHERE business_id = ? AND id = ? LIMIT 1`,
+      `SELECT so.so_number, so.status, so.xero_invoice_id, COALESCE(SUM(item.qty_fulfilled), 0) AS qty_fulfilled
+         FROM ${schema}.ims_sales_orders so
+         LEFT JOIN ${schema}.ims_sales_order_items item ON item.so_id = so.id
+        WHERE so.business_id = ? AND so.id = ?
+        GROUP BY so.id
+        LIMIT 1`,
       [config.expectedBusinessId, replacementSoId],
     );
     const [[stock]] = await connection.query<mysql.RowDataPacket[]>(
