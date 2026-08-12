@@ -20519,67 +20519,6 @@ export default function ImsPage() {
         setPoMonthsInput={setPoMonthsInput}
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
-        <main style={{ flex: 1, height: 'calc(100vh - 52px)', overflow: 'auto', padding: 28, boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
-          <MainSections
-            view={view}
-            isAdvisor={isAdvisor}
-            advisorMappingEnabled={advisorXeroMappingEnabled}
-            businessId={user?.businessId ?? ''}
-            hasForesight={user?.hasForesight ?? false}
-            pendingOpenPO={pendingOpenPO}
-            pendingOpenSO={pendingOpenSO}
-            pendingOpenCN={pendingOpenCN}
-            pendingOpenSCN={pendingOpenSCN}
-            pendingOpenPosSale={pendingOpenPosSale}
-            pendingOpenPosDay={pendingOpenPosDay}
-            cnPrefill={cnPrefill}
-            scnPrefill={scnPrefill}
-            setView={setViewSafe}
-            setSettingsSection={setSettingsSection}
-            setSettingsOpen={setSettingsOpen}
-            setPendingOpenPO={setPendingOpenPO}
-            setPendingOpenSO={setPendingOpenSO}
-            setPendingOpenCN={setPendingOpenCN}
-            setPendingOpenSCN={setPendingOpenSCN}
-            setPendingOpenPosSale={setPendingOpenPosSale}
-            setPendingOpenPosDay={setPendingOpenPosDay}
-            setCnPrefill={setCnPrefill}
-            setScnPrefill={setScnPrefill}
-            DashboardView={DashboardView}
-            ProductsView={ProductsView}
-            StockView={StockView}
-            BulkEditView={BulkEditView}
-            ContactsView={ContactsView}
-            LocationsView={LocationsView}
-            PurchaseOrdersView={PurchaseOrdersView}
-            SalesOrdersView={SalesOrdersView}
-            BackordersView={BackordersView}
-            CreditNotesView={CreditNotesView}
-            SupplierCreditNotesView={SupplierCreditNotesView}
-            BranchTransfersView={BranchTransfersView}
-            ReceiveTransfersView={ReceiveTransfersView}
-            BrandsView={BrandsView}
-            GiftCardsView={GiftCardsView}
-            PosSalesView={PosSalesView}
-            OnlineSalesView={OnlineSalesView}
-            StocktakesView={StocktakesView}
-            ReportsView={ReportsView}
-            SalesByBranchView={SalesByBranchView}
-            SalesSummaryView={SalesSummaryView}
-            SalesSearchView={SalesSearchView}
-            InventoryValuationView={InventoryValuationView}
-            ProductMarginView={ProductMarginView}
-            PosPriceChangesView={PosPriceChangesView}
-            PosRegistersReportView={PosRegistersReportView}
-            CashBankingReportView={CashBankingReportView}
-            XeroView={XeroView}
-            ShopifyView={ShopifyView}
-            OrderPlannerView={OrderPlannerView}
-          />
-        </main>
-      </div>
     </div>
   );
 }
