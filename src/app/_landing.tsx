@@ -489,23 +489,23 @@ export default function Landing() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          WORKFLOW VIDEOS — dark navy
+          WORKFLOW VIDEOS — softened light grey
       ══════════════════════════════════════════════════════════════════════ */}
-      <section id="workflow-videos" className="bg-slate-900 py-20">
+      <section id="workflow-videos" className="bg-slate-100 py-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="max-w-3xl mb-12">
-            <Eyebrow light>See Solvantis at Work</Eyebrow>
-            <h2 className="text-4xl font-black text-white tracking-tight leading-tight">
+            <Eyebrow>See Solvantis at Work</Eyebrow>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
               Less admin. More work finished.
             </h2>
-            <p className="text-slate-400 mt-4 text-base leading-relaxed">
+            <p className="text-slate-600 mt-4 text-base leading-relaxed">
               Short, practical walkthroughs of the everyday jobs Solvantis makes faster, from building product listings to answering customers.
             </p>
           </div>
 
           <div className="space-y-6">
-            <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black shadow-2xl shadow-black/40 relative">
-              <div className="bg-black relative">
+            <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-slate-200 shadow-[0_30px_80px_rgba(15,23,42,0.12)] relative">
+              <div className="bg-slate-950 relative">
                 {selectedFeature.videoSrc ? (
                   <>
                     <video
@@ -534,45 +534,38 @@ export default function Landing() {
                     </video>
 
                     {!isVideoPlaying && showVideoOverlay && (
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/15 to-slate-950/20">
-                        <button
-                          type="button"
-                          onClick={handleVideoToggle}
-                          className="absolute left-1/2 top-[22%] -translate-x-1/2 flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/80 bg-cyan-400/95 text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.35)] transition hover:scale-105"
-                          aria-label={`Play ${selectedFeature.title}`}
-                        >
-                          <Play className="h-10 w-10 fill-current ml-1" aria-hidden="true" />
-                        </button>
-                      </div>
-                    )}
-
-                    {!isVideoPlaying && showVideoOverlay && (
-                      <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-20 bg-gradient-to-t from-slate-950 via-slate-950/85 to-transparent">
-                        <div className="rounded-[22px] border border-cyan-400/25 bg-slate-950/75 p-5 backdrop-blur-sm shadow-2xl">
-                          <div className="inline-flex items-center gap-2 text-cyan-300 text-[11px] font-bold uppercase tracking-[0.2em] mb-3">
-                            <Play className="w-4 h-4" aria-hidden="true" />
-                            Now playing
-                          </div>
-                          <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
-                          <p className="text-slate-300 text-sm leading-relaxed mb-5">{selectedFeature.description}</p>
-                          <ol className="grid gap-3 md:grid-cols-2">
-                            {[
-                              ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
-                              ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
-                              ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
-                              ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
-                            ].map(([title, description], index) => (
-                              <li key={title} className="flex gap-3 rounded-xl border border-white/5 bg-slate-900/60 p-3">
-                                <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
-                                  {index + 1}
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/35 to-slate-900/50">
+                        <div className="absolute inset-0 flex items-end p-5 md:p-7">
+                          <div className="w-full rounded-[22px] border border-white/10 bg-slate-950/65 p-5 md:p-7 backdrop-blur-md shadow-2xl">
+                            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                              <div className="max-w-xl">
+                                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">
+                                  Preview Demo
                                 </span>
-                                <div>
-                                  <p className="text-white text-sm font-bold">{title}</p>
-                                  <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
-                                </div>
-                              </li>
-                            ))}
-                          </ol>
+                                <h3 className="mt-4 text-3xl font-black uppercase tracking-tight text-white md:text-5xl">
+                                  {selectedFeature.title}
+                                </h3>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={handleVideoToggle}
+                                className="group inline-flex items-center justify-center gap-3 rounded-full border border-cyan-300/80 bg-cyan-400/95 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.22em] text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.35)] transition hover:scale-[1.02]"
+                                aria-label={`Play ${selectedFeature.title}`}
+                              >
+                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/10">
+                                  <Play className="h-5 w-5 fill-current ml-0.5" aria-hidden="true" />
+                                </span>
+                                <span>View video</span>
+                              </button>
+                            </div>
+
+                            <div className="mt-5 border-t border-white/10 pt-5">
+                              <p className="text-base font-medium leading-relaxed text-slate-200 md:text-lg">
+                                {selectedFeature.description}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -604,11 +597,11 @@ export default function Landing() {
                       setIsVideoPlaying(false);
                       setShowVideoOverlay(true);
                     }}
-                    className={`group text-left border rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-200 ${
-                      isSelected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 -translate-y-1' : 'border-white/10 hover:-translate-y-1'
+                    className={`group text-left border rounded-2xl overflow-hidden bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 ${
+                      isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 -translate-y-1' : 'border-slate-200 hover:-translate-y-1 hover:border-slate-300'
                     }`}
                   >
-                    <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                    <div className="aspect-[16/10] bg-slate-100 border-b border-slate-200 flex flex-col items-center justify-center gap-3 px-4 text-center">
                       <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
                         <Icon className="w-5 h-5" aria-hidden="true" />
                       </div>
@@ -617,9 +610,9 @@ export default function Landing() {
                       </span>
                     </div>
                     <div className="p-5">
-                      <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
-                      <p className="text-slate-400 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
-                      <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
+                      <h3 className="text-slate-900 font-bold text-base mb-2">{item.title}</h3>
+                      <p className="text-slate-600 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
+                      <p className="text-blue-700 text-xs leading-relaxed border-t border-slate-200 pt-4 mt-4">{item.steps}</p>
                     </div>
                   </button>
                 );
