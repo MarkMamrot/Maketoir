@@ -56,7 +56,8 @@ export default function Landing() {
       description: 'Drop in a supplier invoice as a PDF, JPEG, or PNG. AI reads it and pre-fills the purchase order, ready for your team to check and save.',
       steps: 'Upload invoice → Review extracted details → Save PO',
       accent: 'text-amber-300 bg-amber-300/10 border-amber-300/20',
-      kind: 'static',
+      videoSrc: '/landing/Upload%20Invoice.mp4',
+      kind: 'video',
     },
     {
       icon: Sparkles,
