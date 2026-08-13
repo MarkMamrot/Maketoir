@@ -165,13 +165,13 @@ export default function Landing() {
 
             {/* Right — hero image */}
             <div className="relative">
-              <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10">
+              <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10 bg-slate-950/40">
                 <Image
-                  src="/landing/pos-cashier.jpg"
-                  alt="Solvantis POS in a retail store"
+                  src="/landing/Soldiagram3.png"
+                  alt="Solvantis retail operating system diagram"
                   width={640}
                   height={430}
-                  className="w-full object-cover"
+                  className="w-full h-auto object-contain"
                   priority
                 />
               </div>

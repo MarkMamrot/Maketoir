@@ -19264,7 +19264,8 @@ function BulkEditView() {
 
   const perPage  = 50;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
-  const isDirty  = Object.keys(edits).length > 0 || Object.keys(variantEdits).length > 0;
+  const unsavedCount = Object.keys(edits).length + Object.keys(variantEdits).length;
+  const isDirty  = unsavedCount > 0;
 
   // Load static data on mount
   useEffect(() => {
@@ -19341,10 +19342,15 @@ function BulkEditView() {
     setSaving(true);
     setSaveMsg('');
     try {
-      const updates = Object.entries(edits).map(([product_id, draft]) => {
+      const allProductIds = new Set<string>([
+        ...Object.keys(edits),
+        ...Object.keys(variantEdits).map(key => key.split('|')[0]),
+      ]);
+
+      const updates = Array.from(allProductIds).map((product_id) => {
+        const draft = edits[product_id] ?? {};
         const variantOverrides: Array<{ variant_id: string; barcode?: string | null; zone?: string | null; bin?: string | null }> = [];
-        
-        // Collect variant overrides for this product
+
         Object.entries(variantEdits).forEach(([key, vDraft]) => {
           const [pId, vId] = key.split('|');
           if (pId === product_id && (vDraft.barcode !== undefined || vDraft.zone !== undefined || vDraft.bin !== undefined)) {
@@ -19414,7 +19420,7 @@ function BulkEditView() {
         <div style={{ flex: 1 }} />
         {isDirty && (
           <span style={{ fontSize: 12, color: 'var(--sv-action)', fontWeight: 600 }}>
-            {Object.keys(edits).length} unsaved change{Object.keys(edits).length !== 1 ? 's' : ''}
+            {unsavedCount} unsaved change{unsavedCount !== 1 ? 's' : ''}
           </span>
         )}
         {saveMsg && <span style={{ fontSize: 12, color: saveMsg.startsWith('Error') ? 'var(--sv-red)' : 'var(--sv-mint)', fontWeight: 600 }}>{saveMsg}</span>}
