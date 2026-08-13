@@ -47,6 +47,54 @@ interface DemoForm { name: string; email: string; company: string; message: stri
 export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
+  const [selectedWorkflow, setSelectedWorkflow] = useState('AI Creative Studio');
+
+  const workflowFeatures = [
+    {
+      icon: FileUp,
+      title: 'Invoice to Purchase Order',
+      description: 'Drop in a supplier invoice as a PDF, JPEG, or PNG. AI reads it and pre-fills the purchase order, ready for your team to check and save.',
+      steps: 'Upload invoice → Review extracted details → Save PO',
+      accent: 'text-amber-300 bg-amber-300/10 border-amber-300/20',
+      kind: 'static',
+    },
+    {
+      icon: Sparkles,
+      title: 'AI Creative Studio',
+      description: 'Create polished product imagery and short branded videos in a few clicks. Select your product image, choose a backdrop, add description modifiers, and Solvantis generates visuals tailored to your brand.',
+      steps: 'Choose product → Apply brand references → Generate creative',
+      accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+      videoSrc: '/landing/Creative%20Stuido%20.mp4',
+      kind: 'video',
+    },
+    {
+      icon: Sparkles,
+      title: 'Automated Product Content Studio',
+      description: 'Stop writing product descriptions from scratch. Solvantis researches the item, builds the listing, and prepares it for review and publishing.',
+      steps: 'Select products → Research automatically → Format listing',
+      accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+      videoSrc: '/landing/Automated%20Content%20Studio.mp4',
+      kind: 'video',
+    },
+    {
+      icon: Megaphone,
+      title: 'Marketing Assistant',
+      description: 'Bring catalogue, sales, advertising, and website performance into one guided conversation that turns business data into a practical marketing direction.',
+      steps: 'Connect context → Answer key questions → Build your strategy',
+      accent: 'text-blue-300 bg-blue-300/10 border-blue-300/20',
+      kind: 'static',
+    },
+    {
+      icon: MessagesSquare,
+      title: 'Customer Service Inbox',
+      description: 'Bring customer emails into one queue, classify enquiries, and prepare informed replies using live product, stock, location, contact, and order data.',
+      steps: 'Sync inbox → Review AI draft → Edit, save, or send',
+      accent: 'text-emerald-300 bg-emerald-300/10 border-emerald-300/20',
+      kind: 'static',
+    },
+  ];
+
+  const selectedFeature = workflowFeatures.find((feature) => feature.title === selectedWorkflow) ?? workflowFeatures[1];
 
   function handleDemoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -447,13 +495,16 @@ export default function Landing() {
           <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)] gap-8 lg:gap-10 items-start mb-12">
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/40 aspect-[16/9]">
               <video
+                key={selectedFeature.title}
                 controls
                 preload="metadata"
-                poster="/landing/ai-products.jpg"
+                poster={selectedFeature.title === 'AI Creative Studio' ? '/landing/ai-products.jpg' : '/landing/ai-products.jpg'}
                 className="w-full h-full object-cover"
-                aria-label="AI Creative Studio walkthrough"
+                aria-label={`${selectedFeature.title} walkthrough`}
               >
-                <source src="/landing/Creative%20Stuido%20.mp4" type="video/mp4" />
+                {selectedFeature.videoSrc ? (
+                  <source src={selectedFeature.videoSrc} type="video/mp4" />
+                ) : null}
                 Your browser does not support embedded video.
               </video>
             </div>
@@ -463,16 +514,14 @@ export default function Landing() {
                 <Play className="w-4 h-4" aria-hidden="true" />
                 Now playing
               </div>
-              <h3 className="text-2xl font-black text-white leading-tight mb-3">AI Creative Studio</h3>
-              <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                Create polished product imagery and short branded videos in a few clicks. Select your product image, choose a backdrop, add description modifiers, and Solvantis generates visuals tailored to your brand, its models, and the look you want to present online.
-              </p>
+              <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
+              <p className="text-slate-300 text-sm leading-relaxed mb-6">{selectedFeature.description}</p>
               <ol className="space-y-4">
                 {[
-                  ['Pick your product', 'Choose the item you want to showcase from your catalogue.'],
-                  ['Set the look', 'Select a brand-matched backdrop, model style, and visual modifiers.'],
-                  ['Generate creative', 'AI builds an image that fits your brand and saves it directly to the product.'],
-                  ['Publish to store', 'Send the finished creative straight to your online shop and keep selling without delays.'],
+                  ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
+                  ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
+                  ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
+                  ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
                 ].map(([title, description], index) => (
                   <li key={title} className="flex gap-3">
                     <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
@@ -488,68 +537,34 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
-            {[
-              {
-                icon: FileUp,
-                title: 'Invoice to Purchase Order',
-                description: 'Drop in a supplier invoice as a PDF, JPEG, or PNG. AI reads it and pre-fills the purchase order, ready for your team to check and save.',
-                steps: 'Upload invoice → Review extracted details → Save PO',
-                accent: 'text-amber-300 bg-amber-300/10 border-amber-300/20',
-              },
-              {
-                icon: Sparkles,
-                title: 'Automated Product Content Studio',
-                description: 'Stop writing product descriptions from scratch. Solvantis researches the item, builds the listing, and prepares it for review and publishing.',
-                steps: 'Select products → Research automatically → Format listing',
-                accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
-                videoSrc: '/landing/Automated%20Content%20Studio.mp4',
-              },
-              {
-                icon: Megaphone,
-                title: 'Marketing Assistant',
-                description: 'Bring catalogue, sales, advertising, and website performance into one guided conversation that turns business data into a practical marketing direction.',
-                steps: 'Connect context → Answer key questions → Build your strategy',
-                accent: 'text-blue-300 bg-blue-300/10 border-blue-300/20',
-              },
-              {
-                icon: MessagesSquare,
-                title: 'Customer Service Inbox',
-                description: 'Bring customer emails into one queue, classify enquiries, and prepare informed replies using live product, stock, location, contact, and order data.',
-                steps: 'Sync inbox → Review AI draft → Edit, save, or send',
-                accent: 'text-emerald-300 bg-emerald-300/10 border-emerald-300/20',
-              },
-            ].map((item) => {
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5 lg:gap-6">
+            {workflowFeatures.map((item) => {
               const Icon = item.icon;
+              const isSelected = item.title === selectedFeature.title;
+
               return (
-                <article key={item.title} className="group border border-white/10 rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-transform duration-200 hover:-translate-y-1">
-                  {item.videoSrc ? (
-                    <div className="aspect-[16/10] bg-slate-950 border-b border-white/10 overflow-hidden">
-                      <video
-                        controls
-                        preload="metadata"
-                        playsInline
-                        className="w-full h-full object-cover"
-                        aria-label={`${item.title} demo video`}
-                      >
-                        <source src={item.videoSrc} type="video/mp4" />
-                        Your browser does not support embedded video.
-                      </video>
+                <button
+                  key={item.title}
+                  type="button"
+                  onClick={() => setSelectedWorkflow(item.title)}
+                  className={`group text-left border rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-200 ${
+                    isSelected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 -translate-y-1' : 'border-white/10 hover:-translate-y-1'
+                  }`}
+                >
+                  <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                    <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
+                      <Icon className="w-5 h-5" aria-hidden="true" />
                     </div>
-                  ) : (
-                    <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
-                      <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
-                        <Icon className="w-5 h-5" aria-hidden="true" />
-                      </div>
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Video coming soon</span>
-                    </div>
-                  )}
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                      {isSelected ? 'Selected' : 'View demo'}
+                    </span>
+                  </div>
                   <div className="p-5">
                     <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
                     <p className="text-slate-400 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
                     <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
                   </div>
-                </article>
+                </button>
               );
             })}
           </div>
