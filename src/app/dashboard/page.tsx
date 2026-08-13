@@ -9100,7 +9100,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col solvantis-shell" style={{ paddingTop: 12, paddingLeft: 12, paddingRight: 12 }}>
+    <div className="h-screen overflow-hidden flex flex-col solvantis-shell" style={{ paddingTop: 12, paddingLeft: 12, paddingRight: 12, background: '#f3f4f6', border: '1px solid var(--sv-header-bg)', boxSizing: 'border-box' }}>
       {/* Top bar */}
       <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar rounded-t-2xl">
         <div className="flex items-center gap-0 shrink-0">
