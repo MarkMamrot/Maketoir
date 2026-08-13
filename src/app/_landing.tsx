@@ -503,6 +503,7 @@ export default function Landing() {
                 description: 'Turn a product image into on-brand campaign creative using your saved models, poses, backdrops, scenes, and visual references.',
                 steps: 'Choose product → Apply brand references → Generate creative',
                 accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+                videoSrc: '/landing/Creative%20Stuido%20.mp4',
               },
               {
                 icon: Megaphone,
@@ -522,12 +523,27 @@ export default function Landing() {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="border border-white/10 rounded-lg overflow-hidden bg-white/[0.04]">
-                  <div className="aspect-video bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
-                    <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
-                      <Icon className="w-5 h-5" aria-hidden="true" />
+                  {item.videoSrc ? (
+                    <div className="aspect-video bg-slate-950 border-b border-white/10 overflow-hidden">
+                      <video
+                        controls
+                        preload="metadata"
+                        playsInline
+                        className="w-full h-full object-cover"
+                        aria-label={`${item.title} demo video`}
+                      >
+                        <source src={item.videoSrc} type="video/mp4" />
+                        Your browser does not support embedded video.
+                      </video>
                     </div>
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Video coming soon</span>
-                  </div>
+                  ) : (
+                    <div className="aspect-video bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                      <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
+                        <Icon className="w-5 h-5" aria-hidden="true" />
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">Video coming soon</span>
+                    </div>
+                  )}
                   <div className="p-5">
                     <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
                     <p className="text-slate-400 text-sm leading-relaxed min-h-[6.5rem]">{item.description}</p>
