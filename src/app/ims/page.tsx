@@ -3052,7 +3052,7 @@ function ImportLineItemsModal({
 const IMPORT_FX_COST_HEADERS = ['Cost_USD', 'Cost_EUR', 'Cost_GBP', 'Cost_THB', 'Cost_CNY', 'Cost_JPY'] as const;
 
 const IMPORT_BASE_HEADERS = [
-  'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
+  'Product_Name','Product_SKU','SKU','Barcode','Description','Brand','Supplier','Product_Type',
   'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
@@ -5792,7 +5792,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         .map(([id, name]) => ({ id, name }));
 
       // Build headers — same structure as the import template
-      const catCols: string[]    = showCategories ? ['Category', 'Subcategory'] : [];
       const perLocCols: string[] = [];
       for (const loc of locs) {
         if (showZoneBin) perLocCols.push(`${loc.name} - Zone`, `${loc.name} - Bin`);
@@ -5801,7 +5800,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       const baseHeaders = showFxCosts
         ? IMPORT_BASE_HEADERS
         : IMPORT_BASE_HEADERS.filter(h => !(IMPORT_FX_COST_HEADERS as readonly string[]).includes(h));
-      const headers = [...baseHeaders, ...catCols, ...perLocCols];
+      const headers = [...baseHeaders, ...perLocCols];
 
       // CSV escape helper
       const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -5823,6 +5822,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             p.brand ?? '',
             p.supplier_name ?? '',
             p.product_type ?? '',
+            p.category ?? '',
+            p.subcategory ?? '',
+            p.website_title ?? '',
+            p.allow_indent_wholesale ? 'yes' : 'no',
             p.tags ?? '',
             p.is_online ? 'yes' : 'no',
             v.pack_size ?? '',
@@ -5838,8 +5841,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             ...(showFxCosts ? CURRENCIES.map(c => fc[c] ?? '') : []),
             v.weight_kg ?? '',
           ];
-
-          if (showCategories) cells.push(p.category ?? '', p.subcategory ?? '');
 
           const varStock = stockMap.get(v.variant_id) ?? new Map();
           for (const loc of locs) {

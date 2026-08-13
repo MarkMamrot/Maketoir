@@ -120,6 +120,21 @@ export async function POST(req: Request) {
     try {
       if (row.action === 'error') { skipped++; continue; }
 
+      // Never trust client-side classification as the final identity check. A stale
+      // product list or malformed template must not create a duplicate variant.
+      if (row.action === 'new_product' || row.action === 'new_variant') {
+        const existingVariant = row.sku?.trim()
+          ? await ImsVariantsRepo.findBySku(row.sku.trim())
+          : row.barcode?.trim()
+            ? await ImsVariantsRepo.findByBarcodeOrSku(row.barcode.trim())
+            : null;
+        if (existingVariant) {
+          row.action = 'update';
+          row.existing_variant_id = existingVariant.variant_id;
+          row.existing_product_id = existingVariant.product_id;
+        }
+      }
+
       // Resolve supplier contact id
       const supplierContactId = row.supplier_name
         ? contactByName.get(row.supplier_name.trim().toLowerCase()) ?? undefined
