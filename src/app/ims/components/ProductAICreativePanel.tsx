@@ -727,9 +727,16 @@ export default function ProductAICreativePanel({ productId, productName, busines
           transform-origin: center center;
           background: ${bg2};
         }
+        /* Keep click targeting on the tile container so zoomed previews
+           from neighboring tiles cannot steal selection clicks. */
+        .ai-creative-ref-tile > .ai-creative-ref-thumb,
+        .ai-creative-ref-tile > .ai-creative-ref-label,
+        .ai-creative-ref-thumb * {
+          pointer-events: none;
+        }
         .ai-creative-ref-tile:hover .ai-creative-ref-thumb {
-          transform: scale(2.75);
-          box-shadow: 0 18px 52px rgba(0,0,0,.48), 0 0 0 1px rgba(255,255,255,.20);
+          transform: scale(2.2);
+          box-shadow: 0 14px 40px rgba(0,0,0,.42), 0 0 0 1px rgba(255,255,255,.16);
         }
         .ai-creative-ref-label {
           font-size: 9px;
