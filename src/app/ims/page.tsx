@@ -14534,6 +14534,7 @@ function CashBankingView() {
   };
 
   const controlStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
+  const xeroBankTransferLink = (id?: string | null) => id ? `https://go.xero.com/Banking/ViewBankTransfer.aspx?BankTransferID=${encodeURIComponent(id)}` : null;
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
@@ -14579,11 +14580,27 @@ function CashBankingView() {
         </div>}
       </>}
       <h2 style={{ margin: '28px 0 10px', fontSize: 15, color: 'var(--sv-text-strong)' }}>Recent deposits</h2>
-      <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => <div key={deposit.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12 }}>
-        <strong style={{ color: 'var(--sv-text-strong)' }}>#{deposit.id}</strong><span>{deposit.lodgement_date ? String(deposit.lodgement_date).slice(0, 10) : 'Awaiting lodgement'}</span><span style={{ color: 'var(--sv-text-dim)' }}>{deposit.destination_account_name ?? deposit.default_destination_account_name ?? 'Bank not confirmed'}</span><span style={{ flex: 1 }} /><span title="Cash counted when the batch was prepared">Prepared {fmtCurrency(deposit.counted_total)}</span>{deposit.deposited_total != null && <span title="Amount accepted by the bank">Deposited {fmtCurrency(deposit.deposited_total)}</span>}<span title={deposit.error_detail || ''} style={{ minWidth: 72, textTransform: 'capitalize', color: deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)' }}>{deposit.confirmation_status === 'planned' ? 'planned' : deposit.status}</span>
-        {canPost && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
-        {canPost && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
-      </div>)}</div>
+      <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => {
+        const deepLink = xeroBankTransferLink(deposit.xero_bank_transfer_id ?? undefined);
+        const statusColor = deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)';
+        const statusLabel = deposit.confirmation_status === 'planned' ? 'planned' : deposit.status;
+        return (
+          <div key={deposit.id} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', fontSize: 12, minHeight: 44 }}>
+            <strong style={{ color: 'var(--sv-text-strong)', fontSize: 13 }}>#{deposit.id}</strong>
+            <span style={{ fontSize: 13 }}>{deposit.lodgement_date ? String(deposit.lodgement_date).slice(0, 10) : 'Awaiting lodgement'}</span>
+            <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{deposit.destination_account_name ?? deposit.default_destination_account_name ?? 'Bank not confirmed'}</span>
+            <span style={{ flex: 1 }} />
+            <span title="Cash counted when the batch was prepared" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Prepared {fmtCurrency(deposit.counted_total)}</span>
+            {deposit.deposited_total != null && <span title="Amount accepted by the bank" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Deposited {fmtCurrency(deposit.deposited_total)}</span>}
+            <span title={deposit.error_detail || ''} style={{ minWidth: 62, textAlign: 'right', textTransform: 'capitalize', color: statusColor, fontSize: 13, fontWeight: 600 }}>{statusLabel}</span>
+            {deepLink ? (
+              <a href={deepLink} target="_blank" rel="noopener noreferrer" title="Open bank transfer in Xero" style={{ color: 'var(--sv-action)', textDecoration: 'none', fontSize: 11, fontWeight: 700, border: '1px solid var(--sv-action)', borderRadius: 5, padding: '4px 7px', lineHeight: 1.2 }}>Xero</a>
+            ) : null}
+            {canPost && deposit.confirmation_status === 'planned' && deposit.status === 'draft' && <button onClick={() => openConfirmation(deposit)} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Enter lodgement</button>}
+            {canPost && deposit.confirmation_status === 'confirmed' && ['draft', 'partial', 'error'].includes(deposit.status) && <button onClick={() => postDeposit(deposit)} disabled={postingId === Number(deposit.id)} title={deposit.status === 'draft' ? 'Post confirmed variances and bank transfer to Xero' : 'Retry only unfinished Xero actions'} style={{ padding: '5px 9px', borderRadius: 5, border: '1px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{postingId === Number(deposit.id) ? 'Posting...' : deposit.status === 'draft' ? 'Post to Xero' : 'Retry'}</button>}
+          </div>
+        );
+      })}</div>
       {confirmingDeposit && <div style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'grid', placeItems: 'center', padding: 18, background: 'rgba(0,0,0,.58)' }} onMouseDown={event => { if (event.target === event.currentTarget && !saving) setConfirmingDeposit(null); }}>
         <div style={{ width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 20, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
           <h2 style={{ margin: '0 0 6px', fontSize: 18, color: 'var(--sv-text-strong)' }}>Confirm bank lodgement #{confirmingDeposit.id}</h2>
