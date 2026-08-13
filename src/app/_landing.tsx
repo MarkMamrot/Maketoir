@@ -175,23 +175,6 @@ export default function Landing() {
                   priority
                 />
               </div>
-              {/* Badge: AI — oval pill */}
-              <div className="absolute -bottom-5 -left-4 bg-white rounded-full shadow-xl px-5 py-3 flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-slate-900">Automate your Most Tedious Tasks</p>
-                  <p className="text-xs text-slate-500">with Smart AI</p>
-                </div>
-              </div>
-              {/* Badge: support — oval pill */}
-              <div className="absolute -top-4 -right-4 bg-blue-600 text-white rounded-full shadow-xl px-5 py-3 text-center">
-                <p className="text-sm font-black leading-none">100% Aussie</p>
-                <p className="text-xs opacity-80 mt-0.5">Phone Support</p>
-              </div>
             </div>
           </div>
         </div>
@@ -257,11 +240,11 @@ export default function Landing() {
             </div>
             <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
               <Image
-                src="/landing/efficient%20warehouse%20operation.jpg"
-                alt="Efficient retail warehouse operations"
+                src="/landing/pos-cashier.jpg"
+                alt="Retail POS cashier at checkout"
                 width={600}
                 height={400}
-                className="w-full object-cover"
+                className="w-full h-[420px] object-cover"
               />
             </div>
           </div>
@@ -358,13 +341,13 @@ export default function Landing() {
       <section className="bg-slate-50 py-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
+            <div className="w-full max-w-[480px] mx-auto rounded-full overflow-hidden shadow-xl border border-slate-200 aspect-square">
               <Image
                 src="/landing/efficient%20warehouse%20operation.jpg"
                 alt="Advanced inventory management"
                 width={600}
-                height={400}
-                className="w-full object-cover"
+                height={600}
+                className="w-full h-full object-cover"
               />
             </div>
             <div>
