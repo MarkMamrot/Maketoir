@@ -2025,7 +2025,8 @@ function MainPos({
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6', border: '1px solid var(--pos-topbar-bg, var(--sv-bg-1))', boxSizing: 'border-box', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', paddingTop: 12, paddingLeft: 12, paddingRight: 12, ...posTheme } as React.CSSProperties}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f3f4f6', boxSizing: 'border-box', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', paddingTop: 12, paddingLeft: 12, paddingRight: 12, ...posTheme } as React.CSSProperties}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid #dfe3e8', boxSizing: 'border-box', overflow: 'hidden', background: 'var(--sv-bg-0)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
         <SolvantisMark size={28} variant="tile" />
@@ -2691,6 +2692,7 @@ function MainPos({
         saleRefreshTick={saleRefreshTick}
         cartLeft={cartLeft}
       />
+      </div>
     </div>
   );
 }
