@@ -3895,7 +3895,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--sv-bg-0)' }}>
       {/* ── Combined header block: search + scan bar + results banner ───────── */}
       <div style={{ background: 'var(--sv-bg-0)', flexShrink: 0, borderBottom: 'none' }}>
         <div style={{ padding: '.5rem .75rem', display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', gap: '.75rem', alignItems: 'center' }}>
@@ -4023,7 +4023,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
       </div>{/* end header block */}
 
       {/* Product grid */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: 'var(--sv-bg-0)' }}>
         {/* Background image — sits behind the scrollable grid */}
         {bgImage && (
           <img src={bgImage} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: bgScale === 'original' ? 'none' : 'contain', objectPosition: bgPosition === 'bottom' ? 'center bottom' : 'center center', opacity: bgOpacity / 100, pointerEvents: 'none', zIndex: 0 }} />
