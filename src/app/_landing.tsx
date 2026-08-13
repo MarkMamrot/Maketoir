@@ -49,6 +49,7 @@ export default function Landing() {
   const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
   const [selectedWorkflow, setSelectedWorkflow] = useState('AI Creative Studio');
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [showVideoOverlay, setShowVideoOverlay] = useState(true);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const workflowFeatures = [
@@ -104,11 +105,22 @@ export default function Landing() {
     if (!video) return;
 
     if (video.paused) {
-      await video.play();
+      setShowVideoOverlay(false);
       setIsVideoPlaying(true);
+      video.currentTime = 0;
+      video.muted = false;
+
+      try {
+        await video.play();
+      } catch (error) {
+        setIsVideoPlaying(false);
+        setShowVideoOverlay(true);
+        console.error('Landing page video playback failed:', error);
+      }
     } else {
       video.pause();
       setIsVideoPlaying(false);
+      setShowVideoOverlay(true);
     }
   };
 
@@ -503,8 +515,17 @@ export default function Landing() {
                       preload="metadata"
                       playsInline
                       poster="/landing/ai-products.jpg"
-                      onPlay={() => setIsVideoPlaying(true)}
-                      onPause={() => setIsVideoPlaying(false)}
+                      onPlay={() => {
+                        setIsVideoPlaying(true);
+                        setShowVideoOverlay(false);
+                      }}
+                      onPause={() => {
+                        setIsVideoPlaying(false);
+                      }}
+                      onEnded={() => {
+                        setIsVideoPlaying(false);
+                        setShowVideoOverlay(true);
+                      }}
                       className="block w-full h-[560px] object-cover bg-black"
                       aria-label={`${selectedFeature.title} walkthrough`}
                     >
@@ -512,7 +533,7 @@ export default function Landing() {
                       Your browser does not support embedded video.
                     </video>
 
-                    {!isVideoPlaying && (
+                    {!isVideoPlaying && showVideoOverlay && (
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/15 to-slate-950/20">
                         <button
                           type="button"
@@ -525,7 +546,7 @@ export default function Landing() {
                       </div>
                     )}
 
-                    {!isVideoPlaying && (
+                    {!isVideoPlaying && showVideoOverlay && (
                       <div className="absolute inset-x-0 bottom-0 px-5 pb-5 pt-20 bg-gradient-to-t from-slate-950 via-slate-950/85 to-transparent">
                         <div className="rounded-[22px] border border-cyan-400/25 bg-slate-950/75 p-5 backdrop-blur-sm shadow-2xl">
                           <div className="inline-flex items-center gap-2 text-cyan-300 text-[11px] font-bold uppercase tracking-[0.2em] mb-3">
@@ -581,6 +602,7 @@ export default function Landing() {
                     onClick={() => {
                       setSelectedWorkflow(item.title);
                       setIsVideoPlaying(false);
+                      setShowVideoOverlay(true);
                     }}
                     className={`group text-left border rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-200 ${
                       isSelected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 -translate-y-1' : 'border-white/10 hover:-translate-y-1'
