@@ -444,8 +444,8 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)] gap-8 lg:gap-12 items-start mb-12">
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-black shadow-2xl shadow-black/40 aspect-video">
+          <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)] gap-8 lg:gap-10 items-start mb-12">
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/40 aspect-[16/9]">
               <video
                 controls
                 preload="metadata"
@@ -458,7 +458,7 @@ export default function Landing() {
               </video>
             </div>
 
-            <div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 lg:p-5">
               <div className="inline-flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-widest mb-3">
                 <Play className="w-4 h-4" aria-hidden="true" />
                 Now playing
@@ -488,7 +488,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
             {[
               {
                 icon: FileUp,
@@ -522,9 +522,9 @@ export default function Landing() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <article key={item.title} className="border border-white/10 rounded-lg overflow-hidden bg-white/[0.04]">
+                <article key={item.title} className="group border border-white/10 rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-transform duration-200 hover:-translate-y-1">
                   {item.videoSrc ? (
-                    <div className="aspect-video bg-slate-950 border-b border-white/10 overflow-hidden">
+                    <div className="aspect-[16/10] bg-slate-950 border-b border-white/10 overflow-hidden">
                       <video
                         controls
                         preload="metadata"
@@ -537,7 +537,7 @@ export default function Landing() {
                       </video>
                     </div>
                   ) : (
-                    <div className="aspect-video bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                    <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
                       <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
                         <Icon className="w-5 h-5" aria-hidden="true" />
                       </div>
@@ -546,7 +546,7 @@ export default function Landing() {
                   )}
                   <div className="p-5">
                     <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed min-h-[6.5rem]">{item.description}</p>
+                    <p className="text-slate-400 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
                     <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
                   </div>
                 </article>
