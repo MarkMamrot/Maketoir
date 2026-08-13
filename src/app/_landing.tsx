@@ -492,48 +492,60 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,.55fr)] gap-8 lg:gap-10 items-start mb-12">
-            <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/40 aspect-[16/9]">
-              <video
-                key={selectedFeature.title}
-                controls
-                preload="metadata"
-                poster={selectedFeature.title === 'AI Creative Studio' ? '/landing/ai-products.jpg' : '/landing/ai-products.jpg'}
-                className="w-full h-full object-cover"
-                aria-label={`${selectedFeature.title} walkthrough`}
-              >
+          <div className="mb-12">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40">
+              <div className="bg-black">
                 {selectedFeature.videoSrc ? (
-                  <source src={selectedFeature.videoSrc} type="video/mp4" />
-                ) : null}
-                Your browser does not support embedded video.
-              </video>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-6 lg:p-5">
-              <div className="inline-flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-widest mb-3">
-                <Play className="w-4 h-4" aria-hidden="true" />
-                Now playing
-              </div>
-              <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
-              <p className="text-slate-300 text-sm leading-relaxed mb-6">{selectedFeature.description}</p>
-              <ol className="space-y-4">
-                {[
-                  ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
-                  ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
-                  ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
-                  ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
-                ].map(([title, description], index) => (
-                  <li key={title} className="flex gap-3">
-                    <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
-                      {index + 1}
-                    </span>
+                  <video
+                    key={selectedFeature.title}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    poster="/landing/ai-products.jpg"
+                    className="block w-full h-auto max-h-[72vh] object-contain bg-black"
+                    aria-label={`${selectedFeature.title} walkthrough`}
+                  >
+                    <source src={selectedFeature.videoSrc} type="video/mp4" />
+                    Your browser does not support embedded video.
+                  </video>
+                ) : (
+                  <div className="flex min-h-[420px] items-center justify-center bg-slate-950/80 px-6 text-center text-slate-300">
                     <div>
-                      <p className="text-white text-sm font-bold">{title}</p>
-                      <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                        <Play className="h-6 w-6 text-cyan-300" aria-hidden="true" />
+                      </div>
+                      <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Preview</p>
                     </div>
-                  </li>
-                ))}
-              </ol>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-white/10 bg-white/[0.02] p-6 lg:p-8">
+                <div className="inline-flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-widest mb-3">
+                  <Play className="w-4 h-4" aria-hidden="true" />
+                  Now playing
+                </div>
+                <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
+                <p className="text-slate-300 text-sm leading-relaxed mb-6">{selectedFeature.description}</p>
+                <ol className="grid gap-4 md:grid-cols-2">
+                  {[
+                    ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
+                    ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
+                    ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
+                    ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
+                  ].map(([title, description], index) => (
+                    <li key={title} className="flex gap-3 rounded-xl border border-white/5 bg-slate-950/40 p-3">
+                      <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="text-white text-sm font-bold">{title}</p>
+                        <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </div>
           </div>
 
