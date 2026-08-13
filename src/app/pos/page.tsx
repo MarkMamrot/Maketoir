@@ -3895,7 +3895,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── Combined header block: search + scan bar + results banner ───────── */}
-      <div style={{ background: 'var(--pos-searchbar-bg, var(--sv-bg-1))', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)' }}>
+      <div style={{ background: 'var(--sv-bg-0)', flexShrink: 0, borderBottom: '1px solid var(--sv-etch)' }}>
         <div style={{ padding: '.5rem .75rem', display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', gap: '.75rem', alignItems: 'center' }}>
           {/* Left: search input + controls */}
           <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center' }}>
@@ -3914,7 +3914,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
             onFocus={() => { if (search.length >= 2) setDropdownOpen(true); }}
             onBlur={() => { blurTimer.current = setTimeout(() => setDropdownOpen(false), 150); }}
             placeholder='Search by name, brand or scan barcode…'
-            style={{ ...inputStyle, width: '100%', marginBottom: 0, background: 'var(--sv-bg-0)', border: '1px solid var(--sv-text-dim)' }}
+            style={{ ...inputStyle, width: '100%', marginBottom: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }}
           />
           {/* Autocomplete dropdown */}
           {dropdownOpen && dropdownItems.length > 0 && (
@@ -3976,8 +3976,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
               onKeyDown={handleScanKey}
               placeholder="📷 Scan sales here"
               style={{ ...inputStyle, width: '100%', marginBottom: 0, boxSizing: 'border-box',
-                background: scanError ? 'var(--sv-red-tint)' : 'var(--sv-bg-0)',
-                border: `1px solid ${scanError ? 'var(--sv-red)' : 'var(--sv-text-dim)'}`,
+                background: scanError ? 'var(--sv-red-tint)' : 'var(--sv-bg-1)',
+                border: `1px solid ${scanError ? 'var(--sv-red)' : 'var(--sv-etch)'}`,
                 transition: 'border-color .2s, background .2s' }}
             />
           </div>

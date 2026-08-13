@@ -34,9 +34,32 @@ export async function POST(req: Request) {
   if (!category || !name?.trim()) {
     return NextResponse.json({ error: 'category and name are required' }, { status: 400 });
   }
+
+  const normalizedName = name.trim();
+  const normalizedContent = (content ?? '').trim();
+
+  const existing = await query<any>(
+    `SELECT id
+     FROM brand_assets
+     WHERE business_id = ?
+       AND category = ?
+       AND name = ?
+       AND is_active = 1
+       AND content = ?
+       AND ((image_data IS NULL AND ? IS NULL) OR image_data = ?)
+       AND ((image_mime IS NULL AND ? IS NULL) OR image_mime = ?)
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [biz, category, normalizedName, normalizedContent, imageData ?? null, imageData ?? null, imageMime ?? null, imageMime ?? null],
+  );
+
+  if (existing?.[0]?.id) {
+    return NextResponse.json({ success: true, id: existing[0].id, duplicate: true });
+  }
+
   const res = await execute(
     `INSERT INTO brand_assets (business_id, category, name, content, notes, image_data, image_mime) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [biz, category, name.trim(), (content ?? '').trim(), notes?.trim() ?? null, imageData ?? null, imageMime ?? null],
+    [biz, category, normalizedName, normalizedContent, notes?.trim() ?? null, imageData ?? null, imageMime ?? null],
   );
   return NextResponse.json({ success: true, id: res.insertId });
 }

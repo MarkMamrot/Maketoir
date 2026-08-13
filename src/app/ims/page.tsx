@@ -461,7 +461,18 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
   // Default to showing (treat unset as 'yes') so existing users aren't locked out.
   const showLocations = sidebarSettings.use_multiple_locations !== 'no';
 
-  const toggleSection = (id: string) => setSectionOpen(p => ({ ...p, [id]: !p[id] }));
+  const toggleSection = (id: string) => setSectionOpen(prev => {
+    const shouldOpen = !prev[id];
+    const next: Record<string, boolean> = {};
+    for (const key of Object.keys(prev)) next[key] = key === id ? shouldOpen : false;
+    return next;
+  });
+
+  const openOnlySection = (id: string) => setSectionOpen(prev => {
+    const next: Record<string, boolean> = {};
+    for (const key of Object.keys(prev)) next[key] = key === id;
+    return next;
+  });
 
   const ICONS: Record<string, string> = {
     dashboard:          'M3 12l2-2m0 0l7-7 7 7m-14 0v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9m-14 0h14',
@@ -540,6 +551,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
+        const isChildActive = hasChildren && (item as any).children.some((child: any) => child.id === active);
+        const isMainActive = isActive || isChildActive;
 
         // Expanded mode
         return (
@@ -553,12 +566,14 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                 color: isActive ? '#0f172a' : '#334155',
                 backgroundColor: isActive && !hasChildren ? '#e8edf1' : (hasChildren && isGroupOpen ? '#e8edf1' : 'transparent'),
                 textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 600,
-                borderLeft: isActive && !hasChildren ? '3px solid #1ea8c2' : '3px solid transparent',
+                borderLeft: '3px solid transparent',
                 borderRadius: 6,
                 transition: 'all .15s',
               }}
             >
-              <NavIcon id={item.id} />
+              <span style={{ color: isMainActive ? '#1ea8c2' : '#334155', display: 'inline-flex', alignItems: 'center' }}>
+                <NavIcon id={item.id} />
+              </span>
               <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{item.label}</span>
               {hasChildren && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
@@ -570,7 +585,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
                 {(item as any).children.map((child: any) => (
-                  <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => onSelect(child.id as ImsView)}
+                  <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
                       padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center',
@@ -578,7 +593,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                       backgroundColor: active === child.id ? '#e8edf1' : 'transparent',
                       fontSize: 13, fontWeight: active === child.id ? 700 : 500,
                       textAlign: 'left',
-                      borderLeft: active === child.id ? '3px solid #1ea8c2' : '3px solid transparent',
+                      borderLeft: '3px solid transparent',
                       borderRadius: 0,
                     }}
                   >

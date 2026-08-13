@@ -8115,6 +8115,10 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   // Model reference photo (used when aiCategory === 'models')
   const modelRefInputRef = useRef<HTMLInputElement>(null);
   const [modelRefImage, setModelRefImage] = useState<{ data: string; mime: string } | null>(null);
+  // Reference photo for other asset categories (backdrops / poses / scenes)
+  const referenceImageInputRef = useRef<HTMLInputElement>(null);
+  const [referenceImage, setReferenceImage] = useState<{ data: string; mime: string } | null>(null);
+  const saveRequestKeyRef = useRef<string | null>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -8160,7 +8164,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setChatInput('');
     setChatError('');
     setSavingIdx(null);
-    setSaveName('');
+    setSaveName(withCategoryPrefix(category, ''));
     setSavedIdx(null);
     setShowContextPreview(false);
     setContextPreviewText('');
@@ -8168,6 +8172,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     setContextPreviewDebug(null);
     setEditingSummary(false);
     setModelRefImage(null);
+    setReferenceImage(null);
+    setGeneratedImages({});
+    setImageErrors({});
     setAiOpen(true);
     // Fetch creative brief in background
     if (databaseId) {
@@ -8297,7 +8304,9 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
 
   const generateImage = async (msgIdx: number, promptOverride?: string) => {
     const prompt = promptOverride ?? chatMsgs[msgIdx].text;
+    const activeReferenceImage = aiCategory === 'models' ? modelRefImage : referenceImage;
     setGeneratingImageIdx(msgIdx);
+    setGeneratedImages(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
     setImageErrors(prev => { const n = { ...prev }; delete n[msgIdx]; return n; });
     try {
       const res = await fetch('/api/ai/brand-asset-generate-image', {
@@ -8306,12 +8315,11 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
         body: JSON.stringify({
           prompt,
           imageModel,
-          ...(aiCategory === 'models' && {
-            forceWhiteBackground: true,
-            ...(modelRefImage && {
-              referenceImageData: modelRefImage.data,
-              referenceImageMime: modelRefImage.mime,
-            }),
+          category: aiCategory,
+          ...(aiCategory === 'models' && { forceWhiteBackground: true }),
+          ...(activeReferenceImage && {
+            referenceImageData: activeReferenceImage.data,
+            referenceImageMime: activeReferenceImage.mime,
           }),
         }),
       });
@@ -8328,26 +8336,38 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
   };
 
   const confirmSave = async (msgIdx: number) => {
-    if (!saveName.trim()) return;
-    const img = generatedImages[msgIdx];
-    const res = await fetch('/api/dashboard/brand-assets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        category: aiCategory,
-        name: saveName.trim(),
-        content: chatMsgs[msgIdx].text,
-        imageData: img?.data ?? null,
-        imageMime: img?.mimeType ?? null,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      await loadAssets();
-      setSavedIdx(msgIdx);
-      setSavingIdx(null);
-      setSaveName('');
-      setTimeout(() => setSavedIdx(null), 4000);
+    const normalizedName = withCategoryPrefix(aiCategory, saveName.trim());
+    if (!normalizedName.trim()) return;
+
+    const requestKey = `${aiCategory}:${msgIdx}:${normalizedName}`;
+    if (saveRequestKeyRef.current === requestKey) return;
+    saveRequestKeyRef.current = requestKey;
+
+    try {
+      const img = generatedImages[msgIdx];
+      const res = await fetch('/api/dashboard/brand-assets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: aiCategory,
+          name: normalizedName,
+          content: chatMsgs[msgIdx].text,
+          imageData: img?.data ?? null,
+          imageMime: img?.mimeType ?? null,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await loadAssets();
+        setSavedIdx(msgIdx);
+        setSavingIdx(null);
+        setSaveName('');
+        setTimeout(() => setSavedIdx(null), 4000);
+      }
+    } finally {
+      if (saveRequestKeyRef.current === requestKey) {
+        saveRequestKeyRef.current = null;
+      }
     }
   };
 
@@ -8357,6 +8377,14 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
       : category === 'poses' ? 'Pose-'
       : category === 'scenes' ? 'Scene-'
       : '';
+
+  const withCategoryPrefix = (category: string, rawName: string) => {
+    const prefix = categoryPrefix(category);
+    const trimmed = rawName.trim();
+    if (!prefix) return trimmed;
+    if (!trimmed) return prefix;
+    return trimmed.startsWith(prefix) ? trimmed : `${prefix}${trimmed}`;
+  };
 
   const openManualUpload = (category: string) => {
     setManualUploadCategory(category);
@@ -8675,33 +8703,33 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
               </select>
             </div>
 
-            {/* Model reference photo (models category only) */}
-            {aiCategory === 'models' && (
+            {/* Reference photo for AI asset creation */}
+            {aiCategory !== 'templates' && (
               <div>
                 <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 7px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📸 Reference Photo</p>
-                {modelRefImage ? (
+                {(aiCategory === 'models' ? modelRefImage : referenceImage) ? (
                   <div style={{ position: 'relative' }}>
                     <img
-                      src={`data:${modelRefImage.mime};base64,${modelRefImage.data}`}
+                      src={`data:${(aiCategory === 'models' ? modelRefImage : referenceImage)?.mime};base64,${(aiCategory === 'models' ? modelRefImage : referenceImage)?.data}`}
                       alt="Reference"
                       style={{ width: '100%', borderRadius: 7, border: '1px solid #d1d5db', display: 'block' }}
                     />
                     <button
-                      onClick={() => setModelRefImage(null)}
+                      onClick={() => aiCategory === 'models' ? setModelRefImage(null) : setReferenceImage(null)}
                       title="Remove reference photo"
                       style={{ position: 'absolute', top: 5, right: 5, background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: 4, color: '#fff', fontSize: 14, cursor: 'pointer', padding: '1px 6px', lineHeight: 1.4 }}
                     >×</button>
                   </div>
                 ) : (
                   <button
-                    onClick={() => modelRefInputRef.current?.click()}
+                    onClick={() => (aiCategory === 'models' ? modelRefInputRef : referenceImageInputRef).current?.click()}
                     style={{ width: '100%', padding: '10px 8px', borderRadius: 7, border: '2px dashed #d1d5db', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 11, textAlign: 'center' }}
                   >
                     + Upload reference photo
                   </button>
                 )}
                 <input
-                  ref={modelRefInputRef}
+                  ref={aiCategory === 'models' ? modelRefInputRef : referenceImageInputRef}
                   type="file"
                   accept="image/*"
                   style={{ display: 'none' }}
@@ -8713,18 +8741,28 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                       const result = ev.target?.result as string;
                       const [header, data] = result.split(',');
                       const mime = header.split(':')[1].split(';')[0];
-                      setModelRefImage({ data, mime });
+                      if (aiCategory === 'models') setModelRefImage({ data, mime });
+                      else setReferenceImage({ data, mime });
                     };
                     reader.readAsDataURL(file);
                     e.target.value = '';
                   }}
                 />
-                {modelRefImage ? (
-                  <p style={{ fontSize: 10, color: '#6b7280', margin: '5px 0 0', lineHeight: 1.4 }}>Model identity taken from this photo · <button onClick={() => modelRefInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', fontSize: 10, padding: 0 }}>change</button></p>
+                {(aiCategory === 'models' ? modelRefImage : referenceImage) ? (
+                  <p style={{ fontSize: 10, color: '#6b7280', margin: '5px 0 0', lineHeight: 1.4 }}>
+                    {aiCategory === 'models' ? 'Model identity taken from this photo' : 'Style and composition taken from this reference'} · &nbsp;
+                    <button onClick={() => (aiCategory === 'models' ? modelRefInputRef : referenceImageInputRef).current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0ea5e9', fontSize: 10, padding: 0 }}>change</button>
+                  </p>
                 ) : (
-                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0', lineHeight: 1.4 }}>Optional — upload a photo to use that person&apos;s exact face &amp; identity.</p>
+                  <p style={{ fontSize: 10, color: '#9ca3af', margin: '5px 0 0', lineHeight: 1.4 }}>
+                    {aiCategory === 'models'
+                      ? 'Optional — upload a photo to use that person&apos;s exact face &amp; identity.'
+                      : 'Optional — upload a visual reference to guide the look, environment, or composition.'}
+                  </p>
                 )}
-                <p style={{ fontSize: 10, color: '#0ea5e9', margin: '4px 0 0', fontWeight: 600 }}>✓ White background applied automatically to all model images</p>
+                {aiCategory === 'models' && (
+                  <p style={{ fontSize: 10, color: '#0ea5e9', margin: '4px 0 0', fontWeight: 600 }}>✓ White background applied automatically to all model images</p>
+                )}
               </div>
             )}
           </div>
@@ -8793,7 +8831,7 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                           value={saveName}
                           onChange={e => setSaveName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') confirmSave(i); if (e.key === 'Escape') setSavingIdx(null); }}
-                          placeholder="Asset name…"
+                          placeholder={`${categoryPrefix(aiCategory) || 'Asset'} name…`}
                           // eslint-disable-next-line jsx-a11y/no-autofocus
                           autoFocus
                           style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, border: `1px solid ${catInfo.accentColor}66`, background: 'var(--sv-bg-2, #fff)', color: 'var(--sv-text-strong, #111827)', outline: 'none', flex: 1 }}
@@ -8821,7 +8859,7 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
                           🔄 Regenerate
                         </button>
                         {generatedImages[i] && (
-                          <button onClick={() => { setSavingIdx(i); setSaveName(''); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: catInfo.accentColor, color: '#fff', border: 'none', cursor: 'pointer' }}>
+                          <button onClick={() => { setSavingIdx(i); setSaveName(withCategoryPrefix(aiCategory, '')); }} style={{ fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6, background: catInfo.accentColor, color: '#fff', border: 'none', cursor: 'pointer' }}>
                             + Save as Asset
                           </button>
                         )}
@@ -9062,9 +9100,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col solvantis-shell">
+    <div className="h-screen overflow-hidden flex flex-col solvantis-shell" style={{ paddingTop: 12, paddingLeft: 12, paddingRight: 12 }}>
       {/* Top bar */}
-      <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar">
+      <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar rounded-t-2xl">
         <div className="flex items-center gap-0 shrink-0">
           {/* Brand icon */}
           <SolvantisMark size={24} variant="reversed" className="mr-2" />
