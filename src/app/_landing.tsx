@@ -451,9 +451,9 @@ export default function Landing() {
                 preload="metadata"
                 poster="/landing/ai-products.jpg"
                 className="w-full h-full object-cover"
-                aria-label="Automated Product Content Studio walkthrough"
+                aria-label="AI Creative Studio walkthrough"
               >
-                <source src="/landing/Automated%20Content%20Studio.mp4" type="video/mp4" />
+                <source src="/landing/Creative%20Stuido%20.mp4" type="video/mp4" />
                 Your browser does not support embedded video.
               </video>
             </div>
@@ -463,16 +463,16 @@ export default function Landing() {
                 <Play className="w-4 h-4" aria-hidden="true" />
                 Now playing
               </div>
-              <h3 className="text-2xl font-black text-white leading-tight mb-3">Automated Product Content Studio</h3>
+              <h3 className="text-2xl font-black text-white leading-tight mb-3">AI Creative Studio</h3>
               <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                Stop writing product descriptions from scratch and hunting through supplier websites for usable photos. Start with the product data you already have and Solvantis researches the item, finds relevant supplier imagery, and prepares a complete online listing for review.
+                Create polished product imagery and short branded videos in a few clicks. Select your product image, choose a backdrop, add description modifiers, and Solvantis generates visuals tailored to your brand, its models, and the look you want to present online.
               </p>
               <ol className="space-y-4">
                 {[
-                  ['Choose the products', 'Select the catalogue items you want to prepare for your online store.'],
-                  ['Research automatically', 'Solvantis checks supplier and brand sources for useful details and relevant images.'],
-                  ['Build the listing', 'AI writes the title and description, then formats the content to suit your store.'],
-                  ['Review and publish', 'Make any final changes and push the finished listing to your connected online shop.'],
+                  ['Pick your product', 'Choose the item you want to showcase from your catalogue.'],
+                  ['Set the look', 'Select a brand-matched backdrop, model style, and visual modifiers.'],
+                  ['Generate creative', 'AI builds an image that fits your brand and saves it directly to the product.'],
+                  ['Publish to store', 'Send the finished creative straight to your online shop and keep selling without delays.'],
                 ].map(([title, description], index) => (
                   <li key={title} className="flex gap-3">
                     <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
@@ -499,11 +499,11 @@ export default function Landing() {
               },
               {
                 icon: Sparkles,
-                title: 'AI Creative Studio',
-                description: 'Turn a product image into on-brand campaign creative using your saved models, poses, backdrops, scenes, and visual references.',
-                steps: 'Choose product → Apply brand references → Generate creative',
+                title: 'Automated Product Content Studio',
+                description: 'Stop writing product descriptions from scratch. Solvantis researches the item, builds the listing, and prepares it for review and publishing.',
+                steps: 'Select products → Research automatically → Format listing',
                 accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
-                videoSrc: '/landing/Creative%20Stuido%20.mp4',
+                videoSrc: '/landing/Automated%20Content%20Studio.mp4',
               },
               {
                 icon: Megaphone,
