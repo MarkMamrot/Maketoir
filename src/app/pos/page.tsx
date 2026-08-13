@@ -7243,6 +7243,7 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          requestSource: 'pos',
           from_location_id: session.location_id,
           to_location_id: Number(toLocationId),
           transfer_date: new Date().toISOString().slice(0, 10),

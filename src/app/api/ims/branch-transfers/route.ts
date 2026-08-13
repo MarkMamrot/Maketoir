@@ -36,16 +36,20 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const posSession = readPosSession();
-  const session = await getImsSession(posSession ? ['pos_session'] : ['marketoir_session']);
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  let businessId = '';
   let operationContext: Record<string, unknown> = {};
   try {
     const body = await req.json();
+    const requestSource = String(body.requestSource ?? '').toLowerCase();
+    const isPosRequest = requestSource === 'pos';
+    const posSession = isPosRequest ? readPosSession() : null;
+    const session = await getImsSession(isPosRequest ? ['pos_session'] : ['marketoir_session']);
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    businessId = session.businessId;
     const { items, ...btData } = body;
     let id: number;
 
-    if (posSession) {
+    if (isPosRequest) {
       const sourceLocationId = Number(posSession.location_id);
       const requestedSourceId = Number(body.from_location_id);
       const destinationLocationId = Number(body.to_location_id);
@@ -136,10 +140,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, id });
   } catch (e: any) {
     await reportRuntimeIssue({
-      businessId: session.businessId,
+      businessId,
       source: 'pos.branch-transfer',
-      operation: posSession ? 'create-and-send' : 'create-draft',
-      title: posSession ? 'POS branch transfer creation failed' : 'IMS branch transfer creation failed',
+      operation: 'create',
+      title: 'Branch transfer creation failed',
       error: e,
       context: operationContext,
     });
