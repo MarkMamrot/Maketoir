@@ -183,7 +183,18 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [similarBrand, setSimilarBrand]     = useState('');
   const [similarOpen, setSimilarOpen]       = useState(false);
   const [loadingRefs, setLoadingRefs]   = useState<string | null>(null);
+  const [assetPickerLocked, setAssetPickerLocked] = useState(false);
+  const assetPickerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const lockAssetPickerBriefly = useCallback(() => {
+    if (assetPickerTimerRef.current) clearTimeout(assetPickerTimerRef.current);
+    setAssetPickerLocked(true);
+    assetPickerTimerRef.current = setTimeout(() => {
+      setAssetPickerLocked(false);
+      assetPickerTimerRef.current = null;
+    }, 180);
+  }, []);
 
   // ── Load data ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -210,6 +221,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
   }, [productId]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMsgs, chatLoading]);
+  useEffect(() => () => {
+    if (assetPickerTimerRef.current) clearTimeout(assetPickerTimerRef.current);
+  }, []);
 
   // ── Ref image helpers ───────────────────────────────────────────────────────
   const addRefFromAsset = useCallback(async (asset: BrandAsset) => {
@@ -224,8 +238,8 @@ export default function ProductAICreativePanel({ productId, productName, busines
       }
       if (data) {
         setSelectedRefs(p => {
-          // Toggle: deselect if already selected
-          if (p.some(r => r.label === asset.name)) return p.filter(r => r.label !== asset.name);
+          // Add-only from picker: avoid accidental deselect while selecting other refs.
+          if (p.some(r => r.label === asset.name)) return p;
           return [...p, { data, mimeType: mime, label: asset.name, thumbnail: `data:${mime};base64,${data}` }];
         });
       }
@@ -233,6 +247,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   }, []);
 
   const addRefFromProductImage = useCallback(async (img: ProductImage, label: string) => {
+    lockAssetPickerBriefly();
     setLoadingRefs(String(img.id));
     try {
       if (img.url.startsWith('/')) {
@@ -253,7 +268,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
           reader.readAsDataURL(blob);
         });
         setSelectedRefs(p => {
-          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+          if (p.some(r => r.label === label)) return p;
           return [...p, { data, mimeType: mime, label, thumbnail: img.url }];
         });
       } else {
@@ -265,14 +280,13 @@ export default function ProductAICreativePanel({ productId, productName, busines
         const d = await parseJsonResponse(res);
         if (d.success && d.data) {
           setSelectedRefs(p => {
-            // Toggle: deselect if already selected
-            if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+            if (p.some(r => r.label === label)) return p;
             return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: img.url }];
           });
         }
       }
     } finally { setLoadingRefs(null); }
-  }, [productId]);
+  }, [productId, lockAssetPickerBriefly]);
 
   // ── Upload a reference photo from disk ────────────────────────────────────────────
   const handleUploadRef = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -331,7 +345,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
       const d = await parseJsonResponse(res);
       if (d.success && d.data) {
         setSelectedRefs(p => {
-          if (p.some(r => r.label === label)) return p.filter(r => r.label !== label);
+          if (p.some(r => r.label === label)) return p;
           return [...p, { data: d.data, mimeType: d.mimeType, label, thumbnail: imgUrl }];
         });
       }
@@ -890,7 +904,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                   <span style={{ flex: 1, textAlign: 'left' as const }}>{label} ({catAssets.length}) <span style={{ color, fontSize: 11 }}>{expanded ? '▾' : '▸'}</span></span>
                 </button>
                 {expanded && (
-                  <div className="ai-creative-ref-grid" style={{ marginTop: 6 }}>
+                  <div className="ai-creative-ref-grid" style={{ marginTop: 6, opacity: (assetPickerLocked && (key === 'models' || key === 'backdrops')) ? 0.45 : 1, pointerEvents: (assetPickerLocked && (key === 'models' || key === 'backdrops')) ? 'none' : 'auto' }}>
                     {catAssets.map(a => {
                       const sel = selectedRefs.some(r => r.label === a.name);
                       const loading = loadingRefs === a.name;
@@ -920,6 +934,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
                       );
                     })}
                   </div>
+                )}
+                {expanded && assetPickerLocked && (key === 'models' || key === 'backdrops') && (
+                  <div style={{ marginTop: 5, fontSize: 10, color: textDim }}>Preparing references…</div>
                 )}
               </div>
             );
