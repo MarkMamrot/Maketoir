@@ -300,7 +300,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
   const recommendationLink = detail?.links.find((link) => link.link_type === 'recommendation') ?? null;
 
   return (
-    <section className="min-h-[680px] overflow-hidden border border-gray-200 bg-white" aria-label="Foresight planning workspace">
+    <section className="min-h-[680px] overflow-hidden rounded-t-2xl border border-gray-200 bg-white" aria-label="Foresight planning workspace">
       <div className="grid min-h-[680px] grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_280px]">
         <aside className="border-b border-gray-200 bg-gray-50/70 lg:border-b-0 lg:border-r" aria-label="Planning threads">
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">

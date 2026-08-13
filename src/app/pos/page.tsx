@@ -2025,9 +2025,9 @@ function MainPos({
   );
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', ...posTheme } as React.CSSProperties}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-0)', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)', paddingTop: 12, paddingLeft: 12, paddingRight: 12, ...posTheme } as React.CSSProperties}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '.6rem 1rem', background: 'var(--pos-topbar-bg, var(--sv-bg-1))', borderBottom: '1px solid var(--sv-etch)', gap: '.5rem', flexShrink: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18, ...(posTheme['--pos-topbar-btn-bg'] ? { '--pos-btn-bg': posTheme['--pos-topbar-btn-bg'], '--pos-btn-border': posTheme['--pos-topbar-btn-border'] ?? 'rgba(255,255,255,.3)', '--sv-text-strong': posTheme['--pos-topbar-text-strong'] ?? '#e2e8f0', '--sv-text-dim': posTheme['--pos-topbar-text-dim'] ?? '#94a3b8' } : {}) } as React.CSSProperties}>
         <SolvantisMark size={28} variant="tile" />
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', marginRight: '.25rem' }}>
           <span style={{ fontWeight: 800, color: 'var(--sv-action)', fontSize: '.95rem', letterSpacing: -.3, lineHeight: 1.2 }}>Solvantis POS</span>
