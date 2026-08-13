@@ -127,11 +127,35 @@ export async function POST(req: Request) {
           ? await ImsVariantsRepo.findBySku(row.sku.trim())
           : row.barcode?.trim()
             ? await ImsVariantsRepo.findByBarcodeOrSku(row.barcode.trim())
-            : null;
+            : row.base_sku?.trim()
+              ? await ImsVariantsRepo.findBySku(row.base_sku.trim())
+              : null;
         if (existingVariant) {
           row.action = 'update';
           row.existing_variant_id = existingVariant.variant_id;
           row.existing_product_id = existingVariant.product_id;
+        } else if (!row.sku?.trim() && !row.barcode?.trim()) {
+          const productCandidate = row.base_sku?.trim()
+            ? await ImsProductsRepo.findByBaseSku(row.base_sku.trim(), businessId)
+            : row.product_name?.trim()
+              ? await ImsProductsRepo.findByName(row.product_name.trim())
+              : null;
+
+          if (productCandidate) {
+            const productWithVariants = await ImsProductsRepo.get(productCandidate.product_id, businessId);
+            const defaultVariant = productWithVariants?.variants?.find((variant) => {
+              const hasNoIdentity = !variant.sku && !variant.barcode;
+              const matchesBaseSku = !!row.base_sku && variant.sku && variant.sku.toLowerCase() === row.base_sku.trim().toLowerCase();
+              const matchesProductSku = !!row.base_sku && variant.sku && variant.sku.toLowerCase() === row.base_sku.trim().toLowerCase();
+              return hasNoIdentity || matchesBaseSku || matchesProductSku;
+            }) ?? (productWithVariants?.variants?.length === 1 ? productWithVariants.variants[0] : null);
+
+            if (defaultVariant) {
+              row.action = 'update';
+              row.existing_variant_id = defaultVariant.variant_id;
+              row.existing_product_id = productCandidate.product_id;
+            }
+          }
         }
       }
 

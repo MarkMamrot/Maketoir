@@ -7,6 +7,7 @@ import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
+import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
@@ -3259,16 +3260,25 @@ function ImportProductsModal({
       let existing_product_id: string | undefined;
       let changedFields: string[] = [];
 
-      if (sku) {
-        const match = variantBySkuMap.get(normStr(sku));
+      const resolved = resolveImportMatch({
+        sku: raw['sku'] ?? '',
+        barcode: raw['barcode'] ?? '',
+        product_sku: raw['product_sku'] ?? '',
+        product_name: raw['product_name'] ?? '',
+        variantBySkuMap,
+        productByNameMap,
+        productByBaseSkuMap,
+      });
+
+      action = resolved.action;
+      existing_variant_id = resolved.existing_variant_id;
+      existing_product_id = resolved.existing_product_id;
+
+      if (action === 'update' && existing_variant_id) {
+        const match = variantBySkuMap.get(normStr(raw['sku'] || '')) || Array.from(variantBySkuMap.values()).find(({ variant }) => variant.variant_id === existing_variant_id);
         if (match) {
-          action = 'update';
-          existing_variant_id = match.variant.variant_id;
-          existing_product_id = match.product.product_id;
-          // Compute changed fields for display
           const v = match.variant;
           const p = match.product;
-          // numOrNull: treat undefined AND '' as null (undefined happens when the column is absent from the CSV)
           const numOrNull = (s: string | undefined) => (s == null || s === '') ? null : Number(s);
           if (raw['rrp'] != null && raw['rrp'] !== '' && numOrNull(raw['rrp']) !== (v.price_rrp ?? null)) changedFields.push('RRP');
           if (raw['cost_aud'] != null && raw['cost_aud'] !== '' && numOrNull(raw['cost_aud']) !== (v.cost_aud ?? null)) changedFields.push('Cost');
@@ -3284,28 +3294,6 @@ function ImportProductsModal({
           if (category != null && category !== '' && category !== (p.category ?? '')) changedFields.push('Category');
           const subcategory = rawValue(raw, 'subcategory', 'sub category', 'subcateogry');
           if (subcategory != null && subcategory !== '' && subcategory !== (p.subcategory ?? '')) changedFields.push('Subcategory');
-        } else {
-          // SKU not found — check by Product_SKU column, then product name
-          const existingProduct =
-            (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
-            (product_name && productByNameMap.get(normStr(product_name)));
-          if (existingProduct) {
-            action = 'new_variant';
-            existing_product_id = existingProduct.product_id;
-          } else {
-            action = 'new_product';
-          }
-        }
-      } else {
-        // No SKU — check by Product_SKU column, then product name
-        const existingProduct =
-          (product_sku && productByBaseSkuMap.get(normStr(product_sku))) ||
-          (product_name && productByNameMap.get(normStr(product_name)));
-        if (existingProduct) {
-          action = 'new_variant';
-          existing_product_id = existingProduct.product_id;
-        } else {
-          action = 'new_product';
         }
       }
 
