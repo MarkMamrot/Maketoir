@@ -6111,7 +6111,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
@@ -6133,8 +6133,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
             </colgroup>
             <thead>
-              <tr style={{ background: 'rgba(148,163,184,0.04)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'rgba(148,163,184,0.04)', zIndex: 10 }}>
+              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
+                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
@@ -6174,7 +6174,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
                 return (
                 <React.Fragment key={p.product_id}>
-                  <tr style={{ background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}>
+                  <tr style={{ background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
                     <td style={{ padding: '10px 8px' }}>
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
