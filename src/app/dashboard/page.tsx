@@ -9101,7 +9101,7 @@ export default function DashboardPage() {
 
   return (
     <div className="h-screen overflow-hidden flex flex-col solvantis-shell" style={{ paddingTop: 12, paddingLeft: 12, paddingRight: 12, background: '#f3f4f6', boxSizing: 'border-box' }}>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', border: '1px solid rgba(148,163,184,.26)', borderRadius: '18px 18px 0 0', overflow: 'hidden', boxShadow: '0 18px 42px rgba(15,23,42,.08)' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', border: '1px solid var(--sv-header-bg)', borderRadius: '18px 18px 0 0', overflow: 'hidden', boxShadow: '0 18px 42px rgba(15,23,42,.08)' }}>
       {/* Top bar */}
       <header className="h-14 flex items-center justify-between px-6 shrink-0 sticky top-0 z-30 backdrop-blur-md solvantis-topbar rounded-t-2xl">
         <div className="flex items-center gap-0 shrink-0">
