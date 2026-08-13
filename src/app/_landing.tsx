@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FileUp, Megaphone, MessagesSquare, Play, Sparkles } from 'lucide-react';
@@ -48,6 +48,8 @@ export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
   const [selectedWorkflow, setSelectedWorkflow] = useState('AI Creative Studio');
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   const workflowFeatures = [
     {
@@ -96,6 +98,19 @@ export default function Landing() {
   ];
 
   const selectedFeature = workflowFeatures.find((feature) => feature.title === selectedWorkflow) ?? workflowFeatures[1];
+
+  const handleVideoToggle = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      await video.play();
+      setIsVideoPlaying(true);
+    } else {
+      video.pause();
+      setIsVideoPlaying(false);
+    }
+  };
 
   function handleDemoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -238,13 +253,13 @@ export default function Landing() {
                 Solvantis brings together everything — inventory, sales, staff, customers, and AI — into one platform that actually makes sense to use. No consultants required.
               </p>
             </div>
-            <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
+            <div className="w-full max-w-[480px] mx-auto rounded-full overflow-hidden shadow-xl border border-slate-200 aspect-square">
               <Image
                 src="/landing/pos-cashier.jpg"
                 alt="Retail POS cashier at checkout"
                 width={600}
-                height={400}
-                className="w-full h-[420px] object-cover"
+                height={600}
+                className="w-full h-full object-cover"
               />
             </div>
           </div>
@@ -476,22 +491,40 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="mb-12">
-            <div className="overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40">
-              <div className="bg-black">
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1.4fr)_360px] items-start">
+            <div className="overflow-hidden rounded-3xl border border-white/10 bg-black shadow-2xl shadow-black/40 relative">
+              <div className="bg-black relative">
                 {selectedFeature.videoSrc ? (
-                  <video
-                    key={selectedFeature.title}
-                    controls
-                    preload="metadata"
-                    playsInline
-                    poster="/landing/ai-products.jpg"
-                    className="block w-full h-auto max-h-[72vh] object-contain bg-black"
-                    aria-label={`${selectedFeature.title} walkthrough`}
-                  >
-                    <source src={selectedFeature.videoSrc} type="video/mp4" />
-                    Your browser does not support embedded video.
-                  </video>
+                  <>
+                    <video
+                      ref={videoRef}
+                      key={selectedFeature.title}
+                      controls={false}
+                      preload="metadata"
+                      playsInline
+                      poster="/landing/ai-products.jpg"
+                      onPlay={() => setIsVideoPlaying(true)}
+                      onPause={() => setIsVideoPlaying(false)}
+                      className="block w-full h-auto max-h-[72vh] object-contain bg-black"
+                      aria-label={`${selectedFeature.title} walkthrough`}
+                    >
+                      <source src={selectedFeature.videoSrc} type="video/mp4" />
+                      Your browser does not support embedded video.
+                    </video>
+
+                    {!isVideoPlaying && (
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-slate-950/10 to-slate-950/20">
+                        <button
+                          type="button"
+                          onClick={handleVideoToggle}
+                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-24 w-24 items-center justify-center rounded-full border border-cyan-300/80 bg-cyan-400/90 text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.35)] transition hover:scale-105"
+                          aria-label={`Play ${selectedFeature.title}`}
+                        >
+                          <Play className="h-10 w-10 fill-current ml-1" aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="flex min-h-[420px] items-center justify-center bg-slate-950/80 px-6 text-center text-slate-300">
                     <div>
@@ -504,65 +537,70 @@ export default function Landing() {
                 )}
               </div>
 
-              <div className="border-t border-white/10 bg-white/[0.02] p-6 lg:p-8">
-                <div className="inline-flex items-center gap-2 text-cyan-300 text-xs font-bold uppercase tracking-widest mb-3">
-                  <Play className="w-4 h-4" aria-hidden="true" />
-                  Now playing
+              {!isVideoPlaying && (
+                <div className="absolute left-5 top-5 max-w-md rounded-2xl border border-cyan-400/30 bg-slate-950/80 p-5 shadow-2xl backdrop-blur-sm">
+                  <div className="inline-flex items-center gap-2 text-cyan-300 text-[11px] font-bold uppercase tracking-[0.2em] mb-3">
+                    <Play className="w-4 h-4" aria-hidden="true" />
+                    Now playing
+                  </div>
+                  <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-5">{selectedFeature.description}</p>
+                  <ol className="grid gap-3 md:grid-cols-2">
+                    {[
+                      ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
+                      ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
+                      ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
+                      ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
+                    ].map(([title, description], index) => (
+                      <li key={title} className="flex gap-3 rounded-xl border border-white/5 bg-slate-900/60 p-3">
+                        <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                        <div>
+                          <p className="text-white text-sm font-bold">{title}</p>
+                          <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-                <h3 className="text-2xl font-black text-white leading-tight mb-3">{selectedFeature.title}</h3>
-                <p className="text-slate-300 text-sm leading-relaxed mb-6">{selectedFeature.description}</p>
-                <ol className="grid gap-4 md:grid-cols-2">
-                  {[
-                    ['Start with the product', 'Choose the item you want to showcase from your catalogue.'],
-                    ['Set the style', 'Apply the brand-matched backdrop, model look, and visual direction.'],
-                    ['Generate the creative', 'AI creates an on-brand image and saves it directly to the product.'],
-                    ['Publish instantly', 'Send the finished result to your online store without extra steps.'],
-                  ].map(([title, description], index) => (
-                    <li key={title} className="flex gap-3 rounded-xl border border-white/5 bg-slate-950/40 p-3">
-                      <span className="w-7 h-7 flex-shrink-0 rounded-full bg-cyan-400 text-slate-950 text-xs font-black flex items-center justify-center">
-                        {index + 1}
-                      </span>
-                      <div>
-                        <p className="text-white text-sm font-bold">{title}</p>
-                        <p className="text-slate-400 text-xs leading-relaxed mt-0.5">{description}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
+              )}
             </div>
-          </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-5 lg:gap-6">
-            {workflowFeatures.map((item) => {
-              const Icon = item.icon;
-              const isSelected = item.title === selectedFeature.title;
+            <div className="grid gap-5 lg:gap-6">
+              {workflowFeatures.map((item) => {
+                const Icon = item.icon;
+                const isSelected = item.title === selectedFeature.title;
 
-              return (
-                <button
-                  key={item.title}
-                  type="button"
-                  onClick={() => setSelectedWorkflow(item.title)}
-                  className={`group text-left border rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-200 ${
-                    isSelected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 -translate-y-1' : 'border-white/10 hover:-translate-y-1'
-                  }`}
-                >
-                  <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
-                    <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
-                      <Icon className="w-5 h-5" aria-hidden="true" />
+                return (
+                  <button
+                    key={item.title}
+                    type="button"
+                    onClick={() => {
+                      setSelectedWorkflow(item.title);
+                      setIsVideoPlaying(false);
+                    }}
+                    className={`group text-left border rounded-2xl overflow-hidden bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)] transition-all duration-200 ${
+                      isSelected ? 'border-cyan-400/60 ring-1 ring-cyan-400/40 -translate-y-1' : 'border-white/10 hover:-translate-y-1'
+                    }`}
+                  >
+                    <div className="aspect-[16/10] bg-slate-950/70 border-b border-white/10 flex flex-col items-center justify-center gap-3 px-4 text-center">
+                      <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
+                        <Icon className="w-5 h-5" aria-hidden="true" />
+                      </div>
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                        {isSelected ? 'Selected' : 'View demo'}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                      {isSelected ? 'Selected' : 'View demo'}
-                    </span>
-                  </div>
-                  <div className="p-5">
-                    <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
-                    <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
-                  </div>
-                </button>
-              );
-            })}
+                    <div className="p-5">
+                      <h3 className="text-white font-bold text-base mb-2">{item.title}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
+                      <p className="text-cyan-300/80 text-xs leading-relaxed border-t border-white/10 pt-4 mt-4">{item.steps}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
