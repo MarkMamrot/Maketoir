@@ -1,5 +1,15 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+
+const { cookieJar } = vi.hoisted(() => ({ cookieJar: {} as Record<string, { value: string }> }));
+
+vi.mock('next/headers', () => ({
+  cookies: () => ({
+    get: (name: string) => cookieJar[name] ?? undefined,
+  }),
+}));
+
 import { redirectToLogin, installSessionExpiredGuard } from '../sessionGuard';
+import { readSession } from '../imsSession';
 
 describe('sessionGuard', () => {
   const originalWindow = (globalThis as any).window;
@@ -36,6 +46,14 @@ describe('sessionGuard', () => {
   it('redirects to the login page when the app is on a protected route', () => {
     redirectToLogin();
     expect((globalThis as any).window.location.assign).toHaveBeenCalledWith('/login');
+  });
+
+  it('reads a POS session cookie when no admin session is present', () => {
+    cookieJar.pos_session = { value: JSON.stringify({ businessId: 'biz-456', location_id: 12 }) };
+    delete cookieJar.marketoir_session;
+
+    const session = readSession(['marketoir_session', 'pos_session']);
+    expect(session).toMatchObject({ businessId: 'biz-456', location_id: 12 });
   });
 
   it('wraps fetch and redirects immediately on a 401 response', async () => {
