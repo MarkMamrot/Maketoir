@@ -7613,9 +7613,13 @@ export default function PosPage() {
 
   // Register service worker for offline shell caching
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    if (!('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.getRegistrations()
+      .then(registrations => Promise.all(registrations.map(reg => reg.unregister())))
+      .catch(() => {})
+      .finally(() => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
   }, []);
 
   useEffect(() => {

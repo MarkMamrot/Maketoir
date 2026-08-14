@@ -1,8 +1,8 @@
 // POS Service Worker — caches the /pos shell and JS chunks for offline use,
 // plus product images from known external CDNs so they persist across days
 // on the same device instead of re-fetching from Shopify/Drive every morning.
-// Bump CACHE_VER after a major deploy to evict old cached HTML.
-const CACHE_VER = 'v3';
+// Bump CACHE_VER after a major deploy to evict old cached HTML / JS bundles.
+const CACHE_VER = 'v4';
 const PAGE_CACHE   = `pos-pages-${CACHE_VER}`;
 const STATIC_CACHE = `pos-static-${CACHE_VER}`;
 const IMAGE_CACHE  = `pos-images-${CACHE_VER}`;
