@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, Fragment, forwardRef, useImperativeHandle } from 'react';
 import Link from 'next/link';
+import { installSessionExpiredGuard } from '@/lib/auth/sessionGuard';
 import { SpaceAnalysisView } from './SpaceAnalysisView';
 import { StockTurnoverView } from './StockTurnoverView';
 import { CustomerServiceView } from './CustomerServiceView';
@@ -9007,6 +9008,11 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
 }
 
 export default function DashboardPage() {
+  useEffect(() => {
+    const restore = installSessionExpiredGuard();
+    return () => restore();
+  }, []);
+
   const [activeView, setActiveView] = useState('home');
   const [hashReady, setHashReady] = useState(false);
   const [databaseId, setDatabaseId] = useState('');

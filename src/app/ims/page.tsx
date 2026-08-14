@@ -19973,6 +19973,11 @@ function UsersListView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function ImsPage() {
+  useEffect(() => {
+    const restore = installSessionExpiredGuard();
+    return () => restore();
+  }, []);
+
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
