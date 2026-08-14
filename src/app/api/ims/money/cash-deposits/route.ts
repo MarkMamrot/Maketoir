@@ -66,6 +66,7 @@ export async function GET() {
             d.destination_account_id, d.destination_account_name, d.expected_total, d.counted_total, d.variance_total,
             d.deposited_total, d.bank_variance_total, d.confirmation_status, d.confirmed_by_name, d.confirmed_at,
             d.status, d.prepared_by_name, d.posted_by_name, d.posted_at, d.error_detail, d.created_at,
+            d.xero_bank_transfer_id,
             s.destination_account_id AS default_destination_account_id,
             s.destination_account_name AS default_destination_account_name
        FROM xero_cash_deposits d
