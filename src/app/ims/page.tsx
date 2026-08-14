@@ -30,6 +30,7 @@ import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal'
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
+import { installSessionExpiredGuard } from '@/lib/auth/sessionGuard';
 import {
   EMPTY_MULTI,
   MultiFilter,
