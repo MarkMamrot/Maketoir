@@ -6170,7 +6170,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                     {showCols.sku && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || '—'}</code>
                     </td>}
-                    <td style={{ padding: '10px 12px', overflow: 'hidden' }}>
+                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                         {showCols.thumbnails && (
                           primaryImages[p.product_id]
