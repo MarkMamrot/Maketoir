@@ -51,10 +51,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (status) {
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-      if (status === 'fulfilled') {
+      if (status === 'fulfilled' && existing.status !== 'partially_fulfilled') {
         throw new OrderLifecycleConflict('Use Fulfil to record shipment quantities before completing a sales order.');
       }
-      if (existing.status === 'partially_fulfilled') {
+      if (existing.status === 'partially_fulfilled' && status !== 'fulfilled') {
         throw new OrderLifecycleConflict('Use Continue Fulfilment or Resolve Outstanding for a partially fulfilled sales order.');
       }
       const statusOperationKey = typeof operationKey === 'string' && operationKey.trim() ? operationKey.trim() : randomUUID();

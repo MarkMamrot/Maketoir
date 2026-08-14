@@ -7,6 +7,7 @@ import { getCustomerBackorderReadinessConflict } from './backorders/domain';
 import {
   assertAllowedPOStatusTransition,
   assertAllowedSOStatusTransition,
+  OrderLifecycleConflict,
   type POStatus,
   type SOStatus,
 } from './orderLifecyclePolicy';
@@ -1733,6 +1734,14 @@ export const ImsPORepo = {
       const from = po.status as POStatus;
       const to   = newStatus;
       assertAllowedPOStatusTransition(from, to);
+      if (from === 'partially_received' && to === 'complete') {
+        const hasOutstandingQuantity = items.some(item =>
+          Number(item.qty_received ?? 0) < Number(item.qty_ordered),
+        );
+        if (hasOutstandingQuantity) {
+          throw new OrderLifecycleConflict('Receive or resolve all outstanding quantities before completing this purchase order.');
+        }
+      }
       const includeLandedCosts = avgCostInclusion?.includeLandedCosts !== false;
       const includeFreight = avgCostInclusion?.includeFreight ?? (freightTreatment === 'capitalise');
 
@@ -3029,6 +3038,14 @@ export const ImsSORepo = {
       const from = so.status as SOStatus;
       const to   = newStatus;
       assertAllowedSOStatusTransition(from, to);
+      if (from === 'partially_fulfilled' && to === 'fulfilled') {
+        const hasOutstandingQuantity = items.some(item =>
+          Number(item.qty_fulfilled ?? 0) < Number(item.qty_ordered),
+        );
+        if (hasOutstandingQuantity) {
+          throw new OrderLifecycleConflict('Fulfil or resolve all outstanding quantities before completing this sales order.');
+        }
+      }
 
       if (from === to) {
         await completeOrderAmendment(

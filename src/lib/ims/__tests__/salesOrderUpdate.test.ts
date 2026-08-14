@@ -294,7 +294,7 @@ describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
     vi.clearAllMocks();
   });
 
-  it('fulfils only the outstanding quantity from a partially fulfilled order', async () => {
+  it('rejects completion while shipment quantities remain outstanding', async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) {
         return [[{
@@ -304,22 +304,34 @@ describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
       if (sql.includes('SELECT * FROM ims_sales_order_items')) {
         return [[{ id: 10, variant_id: 'v-1', qty_ordered: 10, qty_fulfilled: 7, unit_cost: 4 }]];
       }
-      if (sql.includes('COALESCE(pv.avg_cost')) {
-        return [[{ qty_on_hand: 8, qty_committed: 3, avg_cost: 5 }]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(ImsSORepo.changeStatus(42, 'fulfilled')).rejects.toThrow(
+      'Fulfil or resolve all outstanding quantities before completing this sales order.',
+    );
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('completes an already fully shipped order without another stock movement', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_sales_orders')) {
+        return [[{
+          id: 42, status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', so_type: 'b2b', is_historical: 0,
+        }]];
+      }
+      if (sql.includes('SELECT * FROM ims_sales_order_items')) {
+        return [[{ id: 10, variant_id: 'v-1', qty_ordered: 10, qty_fulfilled: 10, unit_cost: 4 }]];
       }
       return [{ affectedRows: 1 }];
     });
 
     await ImsSORepo.changeStatus(42, 'fulfilled');
 
-    expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining('qty_committed = GREATEST(0, qty_committed - ?)'),
-      [5, 3, 'v-1', 4],
-    );
-    expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining("VALUES (?,?,'so_fulfilled'"),
-      ['v-1', 4, 'wholesale', 42, -3, 5, 5],
-    );
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes("'so_fulfilled'"))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
   });
 

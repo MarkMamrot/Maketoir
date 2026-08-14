@@ -62,6 +62,7 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     mockUpdate.mockResolvedValue(undefined);
     mockChangeStatus.mockResolvedValue(undefined);
     mockDelete.mockResolvedValue(undefined);
+    mockXeroSync.mockResolvedValue(null);
     mockXeroUpdate.mockResolvedValue({ attempted: true, updated: true, warning: null });
     mockXeroVoid.mockResolvedValue(null);
     mockReportRuntimeIssue.mockResolvedValue(undefined);
@@ -118,6 +119,21 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     });
     expect(mockChangeStatus).not.toHaveBeenCalled();
     expect(mockXeroVoid).not.toHaveBeenCalled();
+  });
+
+  it('allows an in-progress SO to be explicitly marked complete', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'partially_fulfilled', items: [] });
+    const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'fulfilled' }),
+    });
+
+    const response = await PUT(statusRequest, params);
+
+    expect(response.status).toBe(200);
+    expect(mockChangeStatus).toHaveBeenCalledWith(
+      42, 'fulfilled', null, expect.objectContaining({ requestHash: expect.stringMatching(/^[a-f0-9]{64}$/) }),
+    );
+    expect(mockXeroSync).toHaveBeenCalledWith('biz-1', 42, 'fulfilled');
   });
 
   it('forwards the loaded revision to an allowed SO status transaction', async () => {

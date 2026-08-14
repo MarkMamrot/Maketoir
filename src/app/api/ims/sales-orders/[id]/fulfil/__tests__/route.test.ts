@@ -57,10 +57,10 @@ describe('POST sales order fulfilment', () => {
     expect(mockXeroSync).not.toHaveBeenCalled();
   });
 
-  it('approves the Xero invoice only after the final shipment', async () => {
+  it('does not approve the Xero invoice after the final shipment until completion is explicit', async () => {
     mockFulfil.mockResolvedValue({
       soId: 42,
-      status: 'fulfilled',
+      status: 'partially_fulfilled',
       operationKey: 'shipment-2',
       fulfilledVariantIds: ['variant-1'],
     });
@@ -70,7 +70,7 @@ describe('POST sales order fulfilment', () => {
     }), { params: { id: '42' } });
 
     expect(response.status).toBe(200);
-    expect(mockXeroSync).toHaveBeenCalledWith('biz-1', 42, 'fulfilled');
+    expect(mockXeroSync).not.toHaveBeenCalled();
   });
 
   it('reports unexpected operational failures', async () => {

@@ -8620,6 +8620,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const visiblePOs = sortedFilteredPOs.slice((safePagePO - 1) * PAGE_SIZE, safePagePO * PAGE_SIZE);
   const getPoActionOptions = (po: any) => {
     const actions: Array<{ label: string; value: string }> = [];
+    const fullyReceived = !Array.isArray(po.items) || (po.items.length > 0 && po.items.every((item: any) =>
+      Number(item.qty_received ?? 0) >= Number(item.qty_ordered),
+    ));
     if (!isAdvisor && po.status === 'draft') {
       actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
     }
@@ -8628,6 +8631,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     }
     if (!isAdvisor && po.status === 'partially_received') {
       actions.push({ label: 'Continue Receiving', value: 'receive' }, { label: 'Resolve Outstanding', value: 'resolve' });
+      if (fullyReceived) actions.push({ label: 'Mark Complete', value: 'complete' });
     }
     if (!isAdvisor && po.status === 'backordered') {
       actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
@@ -8660,6 +8664,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         break;
       case 'resolve':
         setResolveOrder(po);
+        break;
+      case 'complete':
+        changeStatus(po, 'complete');
         break;
       case 'revert':
         changeStatus(po, 'draft');
@@ -8740,7 +8747,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <option value="">All</option>
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
-                    <option value="partially_received">Partially received</option>
+                    <option value="partially_received">In Progress</option>
                     <option value="complete">Complete</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
@@ -9100,8 +9107,16 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {isReceiving ? (
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
                 <button type="button" onClick={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} style={btnStyle('ghost')}>Cancel</button>
-                <button type="button" disabled={saving} title="Saves received quantities. PO becomes Partially Received if any items have been received, or stays Confirmed if nothing received yet. Does NOT sync to Xero." onClick={e => { const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0); handleSubmit(e as any, false, undefined, (hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined); }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
-                <button data-testid="po-receive-complete" type="button" disabled={saving} title="Saves received quantities and marks this PO as complete. Triggers Xero sync: bill is approved and inventory journal is posted." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
+                <button type="button" disabled={saving} title="Saves received quantities and leaves the PO In Progress. Completion and any configured Xero completion action happen only when you explicitly mark it Complete." onClick={e => {
+                  const hasAny = lineItems.some(item => item.variant_id && Number(receiveQtys[item.variant_id] || 0) > 0);
+                  const fullyReceived = lineItems.length > 0 && lineItems.every(item =>
+                    item.variant_id && Number(receiveQtys[item.variant_id] ?? 0) >= Number(item.qty_ordered),
+                  );
+                  const completeNow = fullyReceived && String(form.supplier_invoice_number ?? '').trim().length > 0
+                    && confirm('All stock has been received and a supplier invoice number is present. Mark this purchase order Complete now?\n\nSelect Cancel to save it as In Progress.');
+                  handleSubmit(e as any, false, undefined, completeNow ? 'complete' : ((hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined));
+                }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
+                <button data-testid="po-receive-complete" type="button" disabled={saving} title="Saves received quantities and explicitly marks this PO Complete. Xero then follows the configured completion policy." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
@@ -9617,6 +9632,9 @@ function POActions({ po, onEdit, onReceive, onResolve, onDelete, onStatus, onUnd
   if (!isAdvisor && po.status === 'partially_received') {
     btns.push(<button key="continue" onClick={onReceive ?? onEdit} style={btnStyle('action', 'xs')}>Continue Receiving</button>);
     if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
+    if ((po.items?.length ?? 0) > 0 && po.items.every((item: any) => Number(item.qty_received ?? 0) >= Number(item.qty_ordered))) {
+      btns.push(<button key="complete" onClick={() => onStatus(po, 'complete')} style={btnStyle('mint', 'xs')}>Mark Complete</button>);
+    }
   }
   if (!isAdvisor && po.status === 'backordered') {
     btns.push(<button key="release" onClick={() => onStatus(po, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
@@ -12759,6 +12777,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     '': 'All',
     draft: 'Draft',
     confirmed: 'Confirmed',
+    partially_fulfilled: 'In Progress',
     fulfilled: 'Fulfilled',
     cancelled: 'Cancelled',
   };
@@ -12772,6 +12791,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     }
     if (!isAdvisor && so.status === 'partially_fulfilled') {
       actions.push({ label: 'Continue Fulfilment', value: 'fulfill' }, { label: 'Resolve Outstanding', value: 'resolve' });
+      if (!Array.isArray(so.items) || (so.items.length > 0 && so.items.every((item: any) => Number(item.qty_fulfilled ?? 0) >= Number(item.qty_ordered)))) {
+        actions.push({ label: 'Mark Complete', value: 'complete' });
+      }
     }
     if (!isAdvisor && so.status === 'backordered') {
       actions.push({ label: 'Release', value: 'release' }, { label: 'Cancel', value: 'cancel' });
@@ -12810,6 +12832,9 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         break;
       case 'resolve':
         setResolveOrder(so);
+        break;
+      case 'complete':
+        changeStatus(so, 'fulfilled');
         break;
       case 'release':
         changeStatus(so, 'confirmed');
@@ -12913,7 +12938,8 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                     <option value="">All</option>
                     <option value="draft">Draft</option>
                     <option value="confirmed">Confirmed</option>
-                    <option value="fulfilled">Fulfilled</option>
+                    <option value="partially_fulfilled">In Progress</option>
+                    <option value="fulfilled">Completed</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
@@ -13582,6 +13608,9 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
   if (!isAdvisor && so.status === 'partially_fulfilled') {
     btns.push(<button key="continue" onClick={() => onFulfill?.()} style={btnStyle('action', 'xs')}>Continue Fulfilment</button>);
     if (onResolve) btns.push(<button key="resolve" onClick={onResolve} style={btnStyle('ghost', 'xs')}>Resolve Outstanding</button>);
+    if ((so.items?.length ?? 0) > 0 && so.items.every((item: any) => Number(item.qty_fulfilled ?? 0) >= Number(item.qty_ordered))) {
+      btns.push(<button key="complete" onClick={() => onStatus(so, 'fulfilled')} style={btnStyle('mint', 'xs')}>Mark Complete</button>);
+    }
   }
   if (!isAdvisor && so.status === 'backordered') {
     btns.push(<button key="release" onClick={() => onStatus(so, 'confirmed')} style={btnStyle('mint', 'xs')}>Release</button>);
@@ -25529,8 +25558,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet sent to supplier. No stock impact. No Xero action.</li>
           <li><strong>Confirmed</strong> — PO placed with supplier. Increments <em>qty_incoming</em> in stock. Triggers a <em>Draft Bill</em> in Xero (ACCPAY).</li>
-          <li><strong>Partially Received</strong> — Some items have been scanned in via the smart device receive page but the PO is not yet complete. Stock levels are updated per item as each receive session is saved. The Xero bill stays in <em>Draft</em> until fully received.</li>
-          <li><strong>Completed — Fully received</strong> — All goods are in stock. The Xero bill follows the configured completion policy, normally Authorised.</li>
+          <li><strong>In Progress</strong> — Goods have been received, possibly in full, but the PO remains open until a user marks it Complete. Stock levels update with each saved receive session; receiving alone does not trigger the Xero completion action.</li>
+          <li><strong>Completed</strong> — A user has explicitly completed the fully received PO. The Xero bill follows the configured completion policy.</li>
           <li><strong>Backordered</strong> — A held child PO owns the short quantity. Release it when the supplier can deliver.</li>
           <li><strong>Cancelled</strong> — An immutable audit record. Use <strong>Create Replacement Draft</strong> to start the next linked order.</li>
         </ul>
@@ -25555,8 +25584,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>Partial receives &amp; backorder POs</h3>
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
-          <li><strong>Save Progress</strong> — Records the quantities scanned so far. The PO moves to <em>Partially Received</em> and the receive page reloads, showing updated counts. You can return and scan more items in multiple sessions.</li>
-          <li><strong>Mark as Received</strong> — Finalises the PO as fully received. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
+          <li><strong>Save Progress</strong> — Records the quantities scanned so far and leaves the PO <em>In Progress</em>, even when every item has arrived. When all stock is received and a supplier invoice number is present, Save asks whether to mark the PO Complete.</li>
+          <li><strong>Save and Complete</strong> — Explicitly completes the PO. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock. A supplier invoice number is not required.</li>
           <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (for example <span style={code}>PO-2026-0042-B</span>) and remain held until released.</li>
           <li><strong>Resolve Outstanding</strong> can leave the remainder open, cancel it, or move it to a held child without repeating any receipt movement.</li>
         </ul>
@@ -25594,8 +25623,8 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <ul style={ul}>
           <li><strong>Draft</strong> — Created, not yet finalised. No Xero action.</li>
           <li><strong>Confirmed</strong> — Commits stock. The Xero invoice follows the configured confirmation policy, normally Draft.</li>
-          <li><strong>Partially Fulfilled</strong> — Some goods have shipped; only the outstanding remainder remains committed.</li>
-          <li><strong>Completed — Fully fulfilled</strong> — All goods have shipped. The Xero invoice follows the configured completion policy, normally Authorised.</li>
+          <li><strong>In Progress</strong> — Goods have shipped, possibly in full, but the SO remains open until a user marks it Complete. Only the outstanding remainder remains committed.</li>
+          <li><strong>Completed</strong> — A user has explicitly completed the fully fulfilled SO. The Xero invoice follows the configured completion policy.</li>
           <li><strong>Backordered</strong> — A held child SO owns the outstanding commitment until it is ready for release.</li>
           <li><strong>Cancelled</strong> — An immutable audit record. Use <strong>Create Replacement Draft</strong> to create the next linked order.</li>
         </ul>
@@ -25699,13 +25728,13 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <h3 style={h3}>What gets synced — trigger table</h3>
         <TriggerTable rows={[
           { trigger: 'PO status → Ordered',           object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Draft. One bill per PO; configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
-          { trigger: 'PO status → Partially Received', object: 'Bill (ACCPAY)',       status: 'DRAFT',        notes: 'Bill remains DRAFT and is re-synced on any edit. Approved only on full receive.' },
-          { trigger: 'PO status → Received',          object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Default: Authorised. If deposits exist, the inventory journal still transfers In Transit → Inventory Asset.' },
+          { trigger: 'PO status → In Progress',       object: 'Bill (ACCPAY)',        status: 'No change',    notes: 'Receiving stock does not run a Xero completion action.' },
+          { trigger: 'PO status → Completed',         object: 'Bill (ACCPAY)',        status: 'Policy',       notes: 'Runs only when a user explicitly completes the PO. If deposits exist, the inventory journal still transfers In Transit → Inventory Asset.' },
           { trigger: 'PO received — edit or delete',  object: 'Bill (ACCPAY)',        status: 'Manual',       notes: '⚠️ Xero bill is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'PO reverted or cancelled',      object: 'Bill (ACCPAY)',        status: 'VOIDED',       notes: 'Draft bill is voided automatically — safe because no payments can be on a draft bill' },
           { trigger: 'Payment added to PO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero bill; bill approved if not already' },
           { trigger: 'SO (wholesale) → Confirmed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Draft. Configurable as No sync, Draft, or Authorised in Ledger Mapping.' },
-          { trigger: 'SO (wholesale) → Fulfilled',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Default: Authorised. Existing Xero documents are never moved backwards.' },
+          { trigger: 'SO (wholesale) → Completed',    object: 'Invoice (ACCREC)',     status: 'Policy',       notes: 'Runs only when a user explicitly completes the SO. Existing Xero documents are never moved backwards.' },
           { trigger: 'SO fulfilled — edit or delete', object: 'Invoice (ACCREC)',     status: 'Manual',       notes: '⚠️ Xero invoice is AUTHORISED — changes do not auto-sync. A warning with a bookkeeper draft message is shown.' },
           { trigger: 'SO reverted or cancelled',      object: 'Invoice (ACCREC)',     status: 'VOIDED',       notes: 'Voided automatically if no payments applied; warning shown if payments exist (manual action required)' },
           { trigger: 'Payment added to SO',           object: 'Payment',              status: 'Applied',      notes: 'Applied to the Xero invoice' },

@@ -249,7 +249,7 @@ describe('POST /api/ims/receive/batch', () => {
     mockRefreshVariantCache.mockResolvedValue(undefined);
   });
 
-  it('recalculates avg cost with tax-exclusive FX AUD cost, applies over-receive clamp, and completes PO', async () => {
+  it('recalculates avg cost, clamps over-receive, and leaves a fully received PO in progress', async () => {
     const state = {
       po: {
         id: 11,
@@ -295,7 +295,7 @@ describe('POST /api/ims/receive/batch', () => {
     const json = await res.json();
     expect(res.status).toBe(200);
     expect(json.success).toBe(true);
-    expect(json.newStatus).toBe('complete');
+    expect(json.newStatus).toBe('partially_received');
 
     // Requested 5 but only 2 outstanding (10 ordered, 8 already received).
     const stock = state.stockByVariant.get('v-1|4')!;
@@ -311,7 +311,7 @@ describe('POST /api/ims/receive/batch', () => {
     expect(state.movements[0].qty_change).toBe(2);
     expect(state.movements[0].unit_cost).toBeCloseTo(18, 8);
 
-    expect(mockTriggerPOXeroSync).toHaveBeenCalledWith('biz-1', 11, 'complete');
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
   it('replays a completed receive operation without applying stock twice', async () => {

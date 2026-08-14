@@ -77,6 +77,21 @@ describe('fulfilSalesOrderPartial', () => {
     expect(connection.rollback).not.toHaveBeenCalled();
   });
 
+  it('leaves a fully shipped order in progress until completion is explicit', async () => {
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1',
+      soId: 42,
+      operationKey: 'shipment-42-full',
+      shipmentQuantities: [{ itemId: 10, quantity: 10 }, { itemId: 11, quantity: 2 }],
+    });
+
+    expect(result.status).toBe('partially_fulfilled');
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET status = ?'),
+      ['partially_fulfilled', 'partially_fulfilled', 42, 'biz-1'],
+    );
+  });
+
   it('returns the stored response without moving stock on an exact retry', async () => {
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {

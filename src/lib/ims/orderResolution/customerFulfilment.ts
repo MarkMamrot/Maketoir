@@ -186,10 +186,7 @@ export async function fulfilSalesOrderPartial(input: {
       fulfilledVariantIds.push(String(item.variant_id));
     }
 
-    const complete = items.every(item =>
-      scaledQuantity(Number(item.qty_fulfilled ?? 0)) >= scaledQuantity(Number(item.qty_ordered)),
-    );
-    const status = complete ? 'fulfilled' : 'partially_fulfilled';
+    const status = 'partially_fulfilled' as const;
     await conn.execute(
       `UPDATE ims_sales_orders
           SET status = ?, fulfilled_date = CASE WHEN ? = 'fulfilled' THEN CURDATE() ELSE NULL END

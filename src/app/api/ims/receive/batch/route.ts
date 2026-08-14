@@ -384,7 +384,7 @@ export async function POST(req: Request) {
       }));
 
       const allReceived = shortfallItems.length === 0;
-      const newStatus = (mark_po_received || allReceived) ? 'complete' : 'partially_received';
+      const newStatus = mark_po_received ? 'complete' : 'partially_received';
 
       if (newStatus === 'complete') {
         await conn.execute(

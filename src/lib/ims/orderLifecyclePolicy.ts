@@ -7,7 +7,7 @@ export type OrderStatus = POStatus | SOStatus;
 const PO_TRANSITIONS: Record<POStatus, readonly POStatus[]> = {
   draft: ['confirmed'],
   confirmed: ['draft', 'cancelled'],
-  partially_received: [],
+  partially_received: ['complete'],
   backordered: ['confirmed', 'cancelled'],
   complete: [],
   cancelled: [],
@@ -55,6 +55,10 @@ export function getOrderStatusLabel(kind: OrderKind, status: OrderStatus): strin
   if ((kind === 'purchase_order' && status === 'complete') ||
       (kind === 'sales_order' && status === 'fulfilled')) {
     return 'Completed';
+  }
+  if ((kind === 'purchase_order' && status === 'partially_received') ||
+      (kind === 'sales_order' && status === 'partially_fulfilled')) {
+    return 'In Progress';
   }
 
   return status
