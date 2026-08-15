@@ -69,6 +69,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     const existing = await ImsCNRepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    const linkedSoId = data.so_id ?? existing.so_id;
+    if (linkedSoId && normalizedItems?.some((item: any) => item.source_so_item_id == null)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Every line on a sales-order return must be linked to its original sales-order line. Reopen Return / Credit from the sales order.',
+      }, { status: 400 });
+    }
     const hasXeroChanges = hasXeroVisibleCreditNoteChanges(
       'customer_credit_note', existing as unknown as Record<string, unknown>, data, normalizedItems,
     );

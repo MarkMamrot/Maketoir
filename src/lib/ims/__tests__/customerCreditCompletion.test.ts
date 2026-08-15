@@ -13,7 +13,12 @@ vi.mock('../backorders/domain', () => ({ getCustomerBackorderReadinessConflict: 
 
 import { ImsCNRepo } from '../ImsRepository';
 
-function connectionFor(operationState?: 'processing' | 'complete') {
+function connectionFor(options: {
+  operationState?: 'processing' | 'complete';
+  sourceSoItemId?: number;
+  fulfilledQty?: number;
+  returnedQty?: number;
+} = {}) {
   const execute = vi.fn(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from ims_credit_notes') && normalized.includes('for update')) {
@@ -25,27 +30,41 @@ function connectionFor(operationState?: 'processing' | 'complete') {
         source: 'shopify',
         settlement_method: 'external',
         location_id: 4,
-        so_id: null,
+        so_id: options.sourceSoItemId ? 9 : null,
         customer_id: null,
         total_amount: 10,
         updated_at: '2026-08-12T09:00:00.000Z',
       }]];
     }
     if (normalized.includes('from ims_inventory_document_operations') && normalized.includes('for update')) {
-      return [operationState ? [{
+      return [options.operationState ? [{
         id: 82,
         request_hash: 'request-hash',
         document_kind: 'customer_credit_note',
         document_id: 12,
         action: 'complete',
-        state: operationState,
+        state: options.operationState,
         response_json: JSON.stringify({ id: 12, status: 'complete' }),
       }] : []];
     }
     if (normalized.startsWith('insert into ims_inventory_document_operations')) {
       return [{ insertId: 82, affectedRows: 1 }];
     }
-    if (normalized.includes('from ims_credit_note_items')) return [[]];
+    if (normalized.includes('sum(cni.qty)')) {
+      return [[{ returned_qty: options.returnedQty ?? 0 }]];
+    }
+    if (normalized.includes('from ims_credit_note_items')) {
+      return [options.sourceSoItemId ? [{
+        id: 31, cn_id: 12, source_so_item_id: options.sourceSoItemId,
+        variant_id: 'v-1', qty: 2, unit_price: 5, restock: 0,
+      }] : []];
+    }
+    if (normalized.includes('from ims_sales_order_items soi')) {
+      return [[{ qty_fulfilled: options.fulfilledQty ?? 2 }]];
+    }
+    if (normalized.includes('select so_type from ims_sales_orders')) {
+      return [[{ so_type: 'wholesale' }]];
+    }
     return [{ affectedRows: 1 }];
   });
   const connection = {
@@ -71,7 +90,7 @@ describe('ImsCNRepo.complete', () => {
   };
 
   it('replays a completed operation before settlement or stock side effects', async () => {
-    const connection = connectionFor('complete');
+    const connection = connectionFor({ operationState: 'complete' });
 
     await expect(ImsCNRepo.complete(12, 'biz-1', operationContext)).resolves.toBeUndefined();
 
@@ -117,5 +136,20 @@ describe('ImsCNRepo.complete', () => {
     );
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('blocks cumulative linked returns above the fulfilled source quantity', async () => {
+    const connection = connectionFor({ sourceSoItemId: 21, fulfilledQty: 3, returnedQty: 2 });
+
+    await expect(ImsCNRepo.complete(12, 'biz-1')).rejects.toThrow(
+      'Return quantity for sales order line 21 exceeds the remaining returnable quantity of 1.',
+    );
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining('store_credit_transactions'),
+      expect.anything(),
+    );
   });
 });

@@ -10402,6 +10402,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
       variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? '',
       qty: i.qty ?? 1, unit_price: i.unit_price ?? 0, price_basis: 'custom',
       tax_rate: i.tax_rate ?? defaultTaxRate, restock: true,
+      source_so_item_id: i.source_so_item_id ?? null,
     })));
     setModal({ open: true, edit: null });
     onPrefillConsumed?.();
@@ -10482,7 +10483,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
     const d = await apiFetch(`/api/ims/credit-notes/${cn.id}`);
     const savedBasis = d.data.items?.[0]?.price_basis ?? 'custom';
     setForm({ customer_id: d.data.customer_id ?? '', so_id: d.data.so_id ?? '', original_so_number: d.data.original_so_number ?? '', location_id: d.data.location_id, cn_date: d.data.cn_date?.slice(0, 10), reference: d.data.reference ?? '', tax_treatment: d.data.tax_treatment ?? 'ex_tax', tax_code: d.data.tax_code ?? '', notes: d.data.notes ?? '', price_basis: savedBasis });
-    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? savedBasis, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock) })));
+    setLineItems((d.data.items || []).map((i: any) => ({ variant_id: i.variant_id ?? '', code: i.code ?? '', name: i.name ?? i.product_name ?? '', qty: i.qty, unit_price: i.unit_price, price_basis: i.price_basis ?? savedBasis, tax_rate: i.tax_rate, restock: i.restock === undefined ? true : !!Number(i.restock), source_so_item_id: i.source_so_item_id ?? null })));
     setModal({ open: true, edit: d.data });
   };
 
@@ -12743,9 +12744,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         variant_id: it.variant_id ?? '',
         code: it.sku ?? it.code ?? '',
         name: it.product_name ?? it.name ?? '',
-        qty: Number(it.qty_ordered ?? it.qty ?? 0),
+        qty: Number(it.qty_fulfilled ?? it.qty_ordered ?? it.qty ?? 0),
         unit_price: Number(it.unit_price ?? 0),
         tax_rate: Number(it.tax_rate ?? 0),
+        source_so_item_id: it.id,
       }));
       onReturnOrder?.({
         so_id: detail.id,

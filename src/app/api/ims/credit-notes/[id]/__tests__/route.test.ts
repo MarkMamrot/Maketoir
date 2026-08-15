@@ -46,6 +46,16 @@ describe('PUT /api/ims/credit-notes/[id]', () => {
     expect(mockXeroUpdate).not.toHaveBeenCalled();
   });
 
+  it('rejects linked return lines that have lost their source sales-order line', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'draft', customer_id: 3, so_id: 9, xero_credit_note_id: null, items: [] });
+
+    const response = await PUT(request({ items: [{ qty: 1, unit_price: 10, tax_rate: 0.1 }] }), params);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('original sales-order line') });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it('synchronously updates an editable linked Xero Draft', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'draft', customer_id: 3, xero_credit_note_id: 'xero-cn-1', items: [] });
     mockGetXeroCreditNoteEditState.mockResolvedValue({

@@ -53,6 +53,12 @@ export async function POST(req: NextRequest) {
     if (normalized.error) {
       return NextResponse.json({ success: false, error: normalized.error }, { status: 400 });
     }
+    if (data.so_id && normalized.items.some((item: any) => item.source_so_item_id == null)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Every line on a sales-order return must be linked to its original sales-order line. Reopen Return / Credit from the sales order.',
+      }, { status: 400 });
+    }
     const id = await ImsCNRepo.create({
       ...data,
       source: 'manual',
