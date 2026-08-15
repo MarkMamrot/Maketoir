@@ -316,7 +316,7 @@ describe('POST /api/ims/receive/batch', () => {
 
   it('replays a completed receive operation without applying stock twice', async () => {
     const state = {
-      po: { id: 12, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0 },
+      po: { id: 12, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: 'INV-12' },
       settings: [],
       items: [{ id: 102, po_id: 12, variant_id: 'v-2', qty_ordered: 2, qty_received: 0, unit_cost: 5, tax_rate: 0.1 }],
       stockByVariant: new Map<string, Row>([['v-2|4', { variant_id: 'v-2', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2, avg_cost: 0 }]]),
@@ -412,6 +412,35 @@ describe('POST /api/ims/receive/batch', () => {
     expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
+  it('rejects completion without a supplier invoice number before moving stock', async () => {
+    const state = {
+      po: { id: 23, status: 'confirmed', is_historical: 0, exchange_rate: 1, tax_treatment: 'ex_tax', freight: 0, supplier_invoice_number: '   ' },
+      settings: [],
+      items: [{ id: 203, po_id: 23, variant_id: 'v-23', qty_ordered: 2, qty_received: 0, unit_cost: 5, tax_rate: 0.1 }],
+      stockByVariant: new Map<string, Row>([['v-23|4', { variant_id: 'v-23', location_id: 4, business_id: 'biz-1', qty_on_hand: 0, qty_incoming: 2, avg_cost: 0 }]]),
+      landedRows: [],
+      paymentAgg: { tot_foreign: 0, tot_local: 0 },
+      movements: [] as Row[],
+      variantAvgById: new Map<string, number>([['v-23', 0]]),
+    };
+    mockGetConnection.mockResolvedValue(buildFakeConnection(state));
+
+    const res = await POST(makeRequest({
+      po_id: 23,
+      location_id: 4,
+      received_items: [{ variant_id: 'v-23', qty_received: 2 }],
+      mark_po_received: true,
+    }));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      error: 'A supplier invoice number is required before completing this purchase order.',
+    });
+    expect(state.stockByVariant.get('v-23|4')?.qty_on_hand).toBe(0);
+    expect(state.movements).toHaveLength(0);
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
+  });
+
   it('moves supplier shortfalls to a held PO and resizes the original to actual receipts', async () => {
     const state = {
       po: {
@@ -427,6 +456,7 @@ describe('POST /api/ims/receive/batch', () => {
         freight: 0,
         discount: 0,
         xero_bill_id: null,
+        supplier_invoice_number: 'INV-33',
       },
       settings: [],
       items: [{

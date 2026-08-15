@@ -1734,6 +1734,9 @@ export const ImsPORepo = {
       const from = po.status as POStatus;
       const to   = newStatus;
       assertAllowedPOStatusTransition(from, to);
+      if (to === 'complete' && !String(po.supplier_invoice_number ?? '').trim()) {
+        throw new OrderLifecycleConflict('A supplier invoice number is required before completing this purchase order.');
+      }
       if (from === 'partially_received' && to === 'complete') {
         const hasOutstandingQuantity = items.some(item =>
           Number(item.qty_received ?? 0) < Number(item.qty_ordered),

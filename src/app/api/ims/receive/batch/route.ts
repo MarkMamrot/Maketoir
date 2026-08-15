@@ -127,7 +127,7 @@ export async function POST(req: Request) {
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
       const [[poRow]] = await conn.execute<any[]>(
-        `SELECT status, is_historical, exchange_rate, tax_treatment, freight, discount, xero_bill_id
+        `SELECT status, is_historical, exchange_rate, tax_treatment, freight, discount, xero_bill_id, supplier_invoice_number
          FROM ims_purchase_orders
          WHERE id = ? FOR UPDATE`,
         [po_id]
@@ -143,6 +143,10 @@ export async function POST(req: Request) {
       if (poRow.status === 'complete') {
         await conn.rollback();
         return NextResponse.json({ error: 'This purchase order is already fully received.' }, { status: 409 });
+      }
+      if (mark_po_received && !String(poRow.supplier_invoice_number ?? '').trim()) {
+        await conn.rollback();
+        return NextResponse.json({ error: 'A supplier invoice number is required before completing this purchase order.' }, { status: 409 });
       }
       if (poRow.status === 'backordered') {
         await conn.rollback();

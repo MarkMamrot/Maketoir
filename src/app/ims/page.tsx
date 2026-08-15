@@ -8406,6 +8406,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
+    if (targetStatus === 'complete' && !String(form.supplier_invoice_number ?? '').trim()) {
+      alert('Enter the supplier invoice number before marking this purchase order Complete.');
+      return;
+    }
     setSaving(true);
     try {
       let savedPoId: number | null = modal.edit?.id ?? null;
@@ -8479,6 +8483,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
   const changeStatus = async (po: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', draft: 'revert to draft', cancelled: 'cancel' };
+    if (status === 'complete' && !String(po.supplier_invoice_number ?? '').trim()) {
+      alert('Enter the supplier invoice number before marking this purchase order Complete.');
+      return;
+    }
     if (!confirm(`${labels[status] || status} PO ${po.po_number}?`)) return;
     try {
       const res = await apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, operationKey: buildOrderStatusOperationKey('purchase_order', Number(po.id), status, po.updated_at), expectedUpdatedAt: po.updated_at ?? null }) });
@@ -9116,7 +9124,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     && confirm('All stock has been received and a supplier invoice number is present. Mark this purchase order Complete now?\n\nSelect Cancel to save it as In Progress.');
                   handleSubmit(e as any, false, undefined, completeNow ? 'complete' : ((hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined));
                 }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
-                <button data-testid="po-receive-complete" type="button" disabled={saving} title="Saves received quantities and explicitly marks this PO Complete. Xero then follows the configured completion policy." onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
+                <button data-testid="po-receive-complete" type="button" disabled={saving || !String(form.supplier_invoice_number ?? '').trim()} title={String(form.supplier_invoice_number ?? '').trim() ? 'Saves received quantities and explicitly marks this PO Complete. Xero then follows the configured completion policy.' : 'Enter a supplier invoice number before completing this PO.'} onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
@@ -25585,7 +25593,7 @@ function HelpModal({ isOpen, onClose, defaultSection }: { isOpen: boolean; onClo
         <p style={p}>When receiving via the <strong>📱 Smart Device Receive</strong> page:</p>
         <ul style={ul}>
           <li><strong>Save Progress</strong> — Records the quantities scanned so far and leaves the PO <em>In Progress</em>, even when every item has arrived. When all stock is received and a supplier invoice number is present, Save asks whether to mark the PO Complete.</li>
-          <li><strong>Save and Complete</strong> — Explicitly completes the PO. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock. A supplier invoice number is not required.</li>
+          <li><strong>Save and Complete</strong> — Explicitly completes the PO and requires a supplier invoice number. If any items are short, you are prompted to create a <strong>Backorder PO</strong> for the missing stock.</li>
           <li>Backorder POs are named <span style={code}>{'{original}-B'}</span> (for example <span style={code}>PO-2026-0042-B</span>) and remain held until released.</li>
           <li><strong>Resolve Outstanding</strong> can leave the remainder open, cancel it, or move it to a held child without repeating any receipt movement.</li>
         </ul>
