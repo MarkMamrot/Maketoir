@@ -464,7 +464,7 @@ const TABLE_DDLS = [
     reversal_reason     VARCHAR(500) NULL,
     reversed_by         INT          NULL,
     reference           VARCHAR(255) NULL,
-    tax_treatment       ENUM('ex_tax','inc_tax') NOT NULL DEFAULT 'ex_tax',
+    tax_treatment       ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
     tax_code            VARCHAR(50)  NULL,
     subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
     tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
@@ -966,6 +966,7 @@ async function migrateSchema(schema) {
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
+    await ensureEnumValues(schema, 'ims_credit_notes', 'tax_treatment', ['ex_tax', 'inc_tax', 'no_tax']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
@@ -1011,6 +1012,8 @@ async function verifyOutstandingResolutionSchema(schema) {
   }
   const [sourceRows] = await conn.query(`SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='ims_credit_notes' AND COLUMN_NAME='source'`, [schema]);
   if (!String(sourceRows[0]?.COLUMN_TYPE ?? '').includes("'so_shortfall'")) throw new Error(`${schema}.ims_credit_notes.source is missing so_shortfall`);
+  const [taxTreatmentRows] = await conn.query(`SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME='ims_credit_notes' AND COLUMN_NAME='tax_treatment'`, [schema]);
+  if (!String(taxTreatmentRows[0]?.COLUMN_TYPE ?? '').includes("'no_tax'")) throw new Error(`${schema}.ims_credit_notes.tax_treatment is missing no_tax`);
   for (const [table, referenceTable] of [
     ['ims_po_shortfall_resolutions', 'ims_purchase_orders'],
     ['ims_supplier_credit_settlements', 'ims_purchase_orders'],

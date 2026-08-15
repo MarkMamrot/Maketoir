@@ -10464,7 +10464,9 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const normalizedTaxRate = (item: any) => Math.abs(Number(item.tax_rate || 0));
   const lineTotal = (item: any) => normalizedQty(item) * normalizedUnitPrice(item);
   const cnSubtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const cnTax      = lineItems.reduce((s, i) => s + lineTotal(i) * normalizedTaxRate(i), 0);
+  const cnTax      = form.tax_treatment === 'no_tax'
+    ? 0
+    : lineItems.reduce((s, i) => s + lineTotal(i) * normalizedTaxRate(i), 0);
   const grandTotal = cnSubtotal + cnTax;
   const hasInvalidQty = lineItems.some(i => !(normalizedQty(i) > 0));
 
@@ -10907,6 +10909,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 <select value={form.tax_treatment} onChange={sf('tax_treatment')} style={inputStyle}>
                   <option value="ex_tax">Ex-Tax (prices entered excluding tax)</option>
                   <option value="inc_tax">Inc-Tax (prices entered including tax)</option>
+                  <option value="no_tax">No Tax</option>
                 </select>
               </Field>
               <Field label="Tax Code">
@@ -11018,7 +11021,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 ['Reference', viewModal.cn.reference ?? '—'],
                 ['Source', viewModal.cn.source === 'pos' ? 'POS return' : viewModal.cn.source === 'shopify' ? 'Shopify' : 'Manual IMS'],
                 ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Cash / card refund' : 'External (Shopify)'],
-                ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : 'Ex-Tax'],
+                ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : viewModal.cn.tax_treatment === 'no_tax' ? 'No Tax' : 'Ex-Tax'],
                 ['Status', viewModal.cn.status],
               ].map(([label, val]) => (
                 <div key={label as string}>

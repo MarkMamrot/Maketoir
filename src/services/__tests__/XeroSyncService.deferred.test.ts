@@ -96,6 +96,28 @@ describe('credit-note edit helpers', () => {
     await expect(updateXeroDraftCustomerCreditNote('biz-1', cn, 'credit-1')).resolves.toBe(false);
     expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
   });
+
+  it('maps a no-tax customer credit note to Xero NONE', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'credit_note', xero_account_code: '201' }]);
+      if (sql.includes('xero_tracking_mappings')) return Promise.resolve([]);
+      return Promise.resolve([]);
+    });
+    const cn = {
+      id: 42, cn_number: 'CN-00042', customer_id: 3, customer_name: 'Customer', location_id: 4,
+      cn_date: '2026-08-15', reference: 'SO-2026-0007', tax_treatment: 'no_tax' as const, total_amount: 0.3,
+      items: [{ code: 'SKU-1', name: 'Item', qty: 1, unit_price: 0.3, tax_rate: 0.1, line_total: 0.3 }],
+    };
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'credit-2', Status: 'DRAFT' }] })
+      .mockResolvedValueOnce({ CreditNotes: [{ CreditNoteID: 'credit-2', Status: 'DRAFT' }] });
+
+    await expect(updateXeroDraftCustomerCreditNote('biz-1', cn, 'credit-2')).resolves.toBe(true);
+    expect(mockXeroApiFetch.mock.calls[1][2].body.CreditNotes[0]).toEqual(expect.objectContaining({
+      LineAmountTypes: 'Exclusive',
+      LineItems: [expect.objectContaining({ TaxType: 'NONE' })],
+    }));
+  });
 });
 
 describe('Deferred liability lifecycle sync helpers', () => {

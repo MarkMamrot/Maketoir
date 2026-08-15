@@ -4970,7 +4970,7 @@ export interface ImsCN {
   cn_date: string;
   completed_at?: string | null;
   reference?: string | null;
-  tax_treatment: 'ex_tax' | 'inc_tax';
+  tax_treatment: 'ex_tax' | 'inc_tax' | 'no_tax';
   tax_code?: string | null;
   subtotal: number;
   tax_amount: number;
@@ -5017,7 +5017,9 @@ export function calculateCNTotals(
   for (const item of items) {
     const lineAmount = Number(item.qty) * Number(item.unit_price);
     const taxRate = Number(item.tax_rate ?? 0);
-    if (taxTreatment === 'inc_tax' && taxRate > 0) {
+    if (taxTreatment === 'no_tax') {
+      subtotal += lineAmount;
+    } else if (taxTreatment === 'inc_tax' && taxRate > 0) {
       const lineSubtotal = lineAmount / (1 + taxRate);
       subtotal += lineSubtotal;
       taxAmount += lineAmount - lineSubtotal;

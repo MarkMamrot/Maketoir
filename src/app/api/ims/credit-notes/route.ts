@@ -21,6 +21,10 @@ function normalizeAndValidateCNItems(rawItems: any[]) {
   return { items, error: null as string | null };
 }
 
+function isCustomerCreditTaxTreatment(value: unknown): value is 'ex_tax' | 'inc_tax' | 'no_tax' {
+  return value === 'ex_tax' || value === 'inc_tax' || value === 'no_tax';
+}
+
 
 export async function GET(req: NextRequest) {
   const session = await getImsSession();
@@ -42,6 +46,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { items, ...data } = body;
+    if (!isCustomerCreditTaxTreatment(data.tax_treatment)) {
+      return NextResponse.json({ success: false, error: 'Tax treatment must be ex_tax, inc_tax, or no_tax.' }, { status: 400 });
+    }
     const normalized = normalizeAndValidateCNItems(items ?? []);
     if (normalized.error) {
       return NextResponse.json({ success: false, error: normalized.error }, { status: 400 });

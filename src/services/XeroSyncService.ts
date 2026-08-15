@@ -1400,8 +1400,8 @@ export async function updateXeroDraftCustomerCreditNote(businessId: string, cn: 
     Quantity: item.qty,
     UnitAmount: item.unit_price,
     AccountCode: accountCode,
-    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt)
-      ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt }
+    ...((item.tax_rate > 0 && cn.tax_treatment !== 'no_tax' ? taxTypes.sales : taxTypes.exempt)
+      ? { TaxType: item.tax_rate > 0 && cn.tax_treatment !== 'no_tax' ? taxTypes.sales : taxTypes.exempt }
       : {}),
     Tracking: tracking,
   }));
@@ -3326,7 +3326,7 @@ export interface CNForSync {
   location_id: number;
   cn_date: string;
   reference?: string | null;
-  tax_treatment?: 'ex_tax' | 'inc_tax';
+  tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax';
   total_amount: number;
   items?: {
     code?: string | null;
@@ -3388,8 +3388,8 @@ export async function syncCNAsCreditNote(
     Quantity: item.qty,
     UnitAmount: item.unit_price,
     AccountCode: accountCode,
-    ...((item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt)
-      ? { TaxType: item.tax_rate > 0 ? taxTypes.sales : taxTypes.exempt }
+    ...((item.tax_rate > 0 && cn.tax_treatment !== 'no_tax' ? taxTypes.sales : taxTypes.exempt)
+      ? { TaxType: item.tax_rate > 0 && cn.tax_treatment !== 'no_tax' ? taxTypes.sales : taxTypes.exempt }
       : {}),
     Tracking: tracking,
   }));

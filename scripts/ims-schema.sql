@@ -884,7 +884,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_notes (
   reversal_reason     VARCHAR(500) NULL,
   reversed_by         INT          NULL,
   reference           VARCHAR(255) NULL COMMENT 'e.g. original SO or invoice number',
-  tax_treatment       ENUM('ex_tax','inc_tax') NOT NULL DEFAULT 'ex_tax',
+  tax_treatment       ENUM('ex_tax','inc_tax','no_tax') NOT NULL DEFAULT 'ex_tax',
   tax_code            VARCHAR(50)  NULL,
   subtotal            DECIMAL(12,2) NOT NULL DEFAULT 0,
   tax_amount          DECIMAL(12,2) NOT NULL DEFAULT 0,
