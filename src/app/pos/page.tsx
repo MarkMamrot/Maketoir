@@ -8,7 +8,6 @@ import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
-import { installSessionExpiredGuard } from '@/lib/auth/sessionGuard';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -7555,11 +7554,6 @@ function PosHelpModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 // ─── Root Page ────────────────────────────────────────────────────────────────
 
 export default function PosPage() {
-  useEffect(() => {
-    const restore = installSessionExpiredGuard();
-    return () => restore();
-  }, []);
-
   const [screen, setScreen] = useState<'loading' | 'setup' | 'login' | 'register_gate' | 'pos' | 'receipt'>('loading');
   const [deviceConfig, setDeviceConfig] = useState<DeviceConfig | null>(null);
   const [session, setSession]           = useState<PosSession | null>(null);
