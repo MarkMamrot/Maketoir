@@ -19,6 +19,7 @@ const targetName = String(args['target-name'] ?? 'Monsterthreads DEV SANDBOX').t
 const targetSchema = safeIdentifier(String(args['target-schema'] ?? '').trim(), 'target schema');
 const confirmedSourceName = String(args['confirm-source-name'] ?? '').trim();
 const backupConfirmedAt = String(args['backup-confirmed-at'] ?? '').trim();
+const excludedSourceTablePatterns = [/^_archived_/];
 const reportPath = path.resolve(
   process.cwd(),
   String(args['report'] ?? `tmp/sandbox-clone-${targetBusinessId || 'manifest'}-${Date.now()}.json`),
@@ -103,18 +104,6 @@ async function rowCounts(connection, schema, tableNames) {
   return counts;
 }
 
-function loadSchemaStatements() {
-  const sql = fs.readFileSync(path.join(__dirname, 'ims-schema.sql'), 'utf8');
-  return sql
-    .split(';')
-    .map((statement) => statement.trim())
-    .map((statement) => statement.split('\n')
-      .filter((line) => !line.trimStart().startsWith('--'))
-      .join('\n')
-      .trim())
-    .filter((statement) => statement.length > 0 && !statement.toUpperCase().startsWith('SET NAMES'));
-}
-
 async function installBusinessIdTriggers(connection) {
   const derive = (column) =>
     `SET NEW.business_id = IF(NEW.business_id IS NULL OR NEW.business_id = '',` +
@@ -157,13 +146,22 @@ function compareSchemas(sourceTables, targetTables) {
   return errors;
 }
 
-async function createTargetSchema(server) {
+async function createTargetSchema(server, sourceSchema, tableNames) {
   await server.query(
     `CREATE DATABASE ${quoteIdentifier(targetSchema)} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
   );
   const target = await mysql.createConnection(serverConfig(targetSchema));
   try {
-    for (const statement of loadSchemaStatements()) await target.query(statement);
+    await target.query('SET FOREIGN_KEY_CHECKS = 0');
+    for (const table of tableNames) {
+      const [rows] = await server.query(
+        `SHOW CREATE TABLE ${quoteIdentifier(sourceSchema)}.${quoteIdentifier(table)}`,
+      );
+      const statement = rows[0]?.['Create Table'];
+      if (!statement) fail(`Unable to read source DDL for ${table}`);
+      await target.query(statement);
+    }
+    await target.query('SET FOREIGN_KEY_CHECKS = 1');
     await installBusinessIdTriggers(target);
   } finally {
     await target.end();
@@ -194,9 +192,14 @@ async function copyImsSnapshot(connection, sourceSchema, sourceTables) {
           `THEN ${quoteIdentifier(column.name)} ELSE ? END`;
       });
       const params = columns.some((column) => column.name === 'business_id') ? [targetBusinessId] : [];
+      if (table === 'ims_sales_history') continue;
+      const sourceFilter = table === 'ims_contacts'
+        ? ` WHERE type <> 'retail_customer' OR shopify_customer_id IS NULL OR shopify_customer_id = ''` +
+          ` OR id IN (SELECT contact_id FROM ${quoteIdentifier(targetSchema)}.sandbox_retained_contact_ids)`
+        : '';
       await connection.execute(
         `INSERT INTO ${quoteIdentifier(targetSchema)}.${quoteIdentifier(table)} (${names}) ` +
-        `SELECT ${expressions.join(', ')} FROM ${quoteIdentifier(sourceSchema)}.${quoteIdentifier(table)}`,
+        `SELECT ${expressions.join(', ')} FROM ${quoteIdentifier(sourceSchema)}.${quoteIdentifier(table)}${sourceFilter}`,
         params,
       );
     }
@@ -207,6 +210,42 @@ async function copyImsSnapshot(connection, sourceSchema, sourceTables) {
   } finally {
     await connection.query('SET FOREIGN_KEY_CHECKS = 1');
   }
+}
+
+async function contactRetentionPlan(connection, sourceSchema, sourceTables) {
+  const referenceColumns = [];
+  for (const [table, columns] of sourceTables) {
+    if (table === 'ims_contacts') continue;
+    for (const column of columns) {
+      if (['customer_id', 'supplier_id', 'contact_id'].includes(column.name)) {
+        referenceColumns.push({ table, column: column.name });
+      }
+    }
+  }
+  const unions = referenceColumns.map(({ table, column }) =>
+    `SELECT ${quoteIdentifier(column)} AS contact_id FROM ${quoteIdentifier(sourceSchema)}.${quoteIdentifier(table)} ` +
+    `WHERE ${quoteIdentifier(column)} IS NOT NULL`,
+  );
+  const referenceSql = unions.length ? unions.join(' UNION ') : 'SELECT NULL AS contact_id WHERE FALSE';
+  const [rows] = await connection.query(
+    `SELECT COUNT(*) AS retained
+       FROM ${quoteIdentifier(sourceSchema)}.ims_contacts c
+      WHERE c.type <> 'retail_customer'
+         OR c.shopify_customer_id IS NULL OR c.shopify_customer_id = ''
+         OR c.id IN (SELECT contact_id FROM (${referenceSql}) referenced_contacts)`,
+  );
+  return { referenceColumns, retainedCount: Number(rows[0]?.retained ?? 0), referenceSql };
+}
+
+async function createRetainedContactIds(connection, sourceSchema, plan) {
+  await connection.query(
+    `CREATE TEMPORARY TABLE ${quoteIdentifier(targetSchema)}.sandbox_retained_contact_ids (` +
+    `contact_id INT PRIMARY KEY) ENGINE=MEMORY`,
+  );
+  await connection.query(
+    `INSERT IGNORE INTO ${quoteIdentifier(targetSchema)}.sandbox_retained_contact_ids (contact_id) ` +
+    `SELECT contact_id FROM (${plan.referenceSql}) referenced_contacts WHERE contact_id IS NOT NULL`,
+  );
 }
 
 function integrationIdentityColumns(columns) {
@@ -343,14 +382,14 @@ async function seedDenyFirstMainState(main) {
   }
 }
 
-async function verifyTarget(main, sourceSchema, sourceCounts, targetTables) {
+async function verifyTarget(main, sourceSchema, expectedCounts, targetTables) {
   const target = await mysql.createConnection(serverConfig(targetSchema));
   const checks = [];
   try {
     const targetCounts = await rowCounts(target, targetSchema, [...targetTables.keys()]);
     const intentionallyEmptiedTables = new Set(['ims_shopify_inventory_queue', 'ims_shopify_sync_log']);
-    for (const [table, sourceCount] of Object.entries(sourceCounts)) {
-      const expected = intentionallyEmptiedTables.has(table) ? 0 : sourceCount;
+    for (const [table, transformedCount] of Object.entries(expectedCounts)) {
+      const expected = intentionallyEmptiedTables.has(table) ? 0 : transformedCount;
       checks.push({
         check: `row_count:${table}`,
         passed: targetCounts[table] === expected,
@@ -458,8 +497,19 @@ async function main() {
     if (await schemaExists(server, targetSchema)) fail(`Target schema already exists: ${targetSchema}`);
     if (!(await schemaExists(server, sourceSchema))) fail(`Source schema not found: ${sourceSchema}`);
 
-    const sourceTables = await tableMetadata(server, sourceSchema);
+    const allSourceTables = await tableMetadata(server, sourceSchema);
+    const excludedSourceTables = [...allSourceTables.keys()]
+      .filter((table) => excludedSourceTablePatterns.some((pattern) => pattern.test(table)));
+    const sourceTables = new Map(
+      [...allSourceTables].filter(([table]) => !excludedSourceTables.includes(table)),
+    );
     const sourceCounts = await rowCounts(server, sourceSchema, [...sourceTables.keys()]);
+    const contactPlan = await contactRetentionPlan(server, sourceSchema, sourceTables);
+    const expectedCounts = {
+      ...sourceCounts,
+      ims_contacts: contactPlan.retainedCount,
+      ims_sales_history: 0,
+    };
     const manifest = {
       generatedAt: new Date().toISOString(),
       mode: apply ? 'apply' : 'dry-run',
@@ -476,6 +526,18 @@ async function main() {
       },
       sourceTableCount: sourceTables.size,
       sourceRowCounts: sourceCounts,
+      expectedTargetRowCounts: expectedCounts,
+      excludedSourceTables,
+      filteredData: {
+        ims_sales_history: 'Excluded: historical Cin7 sales import',
+        ims_contacts: {
+          rule: 'Keep non-retail contacts and retail contacts referenced by retained operational tables',
+          sourceCount: sourceCounts.ims_contacts,
+          retainedCount: contactPlan.retainedCount,
+          excludedCount: sourceCounts.ims_contacts - contactPlan.retainedCount,
+          referenceColumns: contactPlan.referenceColumns,
+        },
+      },
       transformations: [
         'Rewrite non-empty IMS business_id values to the target business ID',
         'Clear Shopify, Xero, and Zeller external identity columns',
@@ -494,17 +556,18 @@ async function main() {
 
     await createQuarantinedBusiness(main, source);
     businessCreated = true;
-    await createTargetSchema(server);
+    await createTargetSchema(server, sourceSchema, [...sourceTables.keys()]);
     targetCreated = true;
 
     const targetTables = await tableMetadata(server, targetSchema);
     const schemaErrors = compareSchemas(sourceTables, targetTables);
     if (schemaErrors.length) fail(`Source/target schema mismatch:\n${schemaErrors.join('\n')}`);
 
+    await createRetainedContactIds(server, sourceSchema, contactPlan);
     await copyImsSnapshot(server, sourceSchema, sourceTables);
     await sanitizeTargetIms(targetTables);
     await seedDenyFirstMainState(main);
-    const verification = await verifyTarget(main, sourceSchema, sourceCounts, targetTables);
+    const verification = await verifyTarget(main, sourceSchema, expectedCounts, targetTables);
     if (!verification.passed) fail(`Sandbox verification failed: ${JSON.stringify(verification.failed)}`);
 
     await main.execute(
