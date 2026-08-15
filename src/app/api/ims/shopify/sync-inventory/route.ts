@@ -110,7 +110,9 @@ async function handlePost(req: Request) {
     // Each tenant's queue lives in its own schema — drain them one by one
     // inside a bound schema context.
     const businesses = await query<{ business_id: string }>(
-      'SELECT business_id FROM businesses WHERE deleted_at IS NULL',
+      `SELECT business_id FROM businesses
+        WHERE deleted_at IS NULL
+          AND COALESCE(automation_paused, 0) = 0`,
     ).catch(() => [] as { business_id: string }[]);
     const totals = { processed: 0, pushed: 0, businesses: 0, skipped: 0, errors: [] as string[] };
     for (const { business_id } of businesses) {

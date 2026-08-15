@@ -57,7 +57,9 @@ export async function POST(request: Request) {
               s.digest_weekly_day, s.last_digest_completed_at
          FROM xero_reconciliation_settings s
          JOIN businesses b ON BINARY b.business_id = BINARY s.business_id
-        WHERE b.deleted_at IS NULL AND s.digest_frequency IN ('daily', 'weekly')
+        WHERE b.deleted_at IS NULL
+          AND COALESCE(b.automation_paused, 0) = 0
+          AND s.digest_frequency IN ('daily', 'weekly')
         ORDER BY COALESCE(s.last_digest_completed_at, '1970-01-01'), s.business_id`,
       [],
     );

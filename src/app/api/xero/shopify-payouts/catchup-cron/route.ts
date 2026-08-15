@@ -29,6 +29,7 @@ export async function POST(request: Request) {
        FROM businesses b
        JOIN connections c ON c.business_id = b.business_id
       WHERE b.deleted_at IS NULL
+        AND COALESCE(b.automation_paused, 0) = 0
         AND c.shopify_shop_id IS NOT NULL AND c.shopify_shop_id != ''
         AND c.shopify_access_token IS NOT NULL AND c.shopify_access_token != ''
       ORDER BY b.business_id`,

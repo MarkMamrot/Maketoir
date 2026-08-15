@@ -52,6 +52,7 @@ function setupDefaultMocks() {
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
     if (normalized.includes('from businesses where deleted_at is null')) {
+      expect(normalized).toContain('coalesce(automation_paused, 0) = 0');
       return [{ business_id: 'biz-1' }];
     }
 
@@ -107,6 +108,7 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
       const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
 
       if (normalized.includes('from businesses where deleted_at is null')) {
+        expect(normalized).toContain('coalesce(automation_paused, 0) = 0');
         return [{ business_id: 'biz-1' }];
       }
 
@@ -147,7 +149,10 @@ describe('POST /api/ims/online-sales/auto-sync-cron', () => {
   it('defers Shopify Payments while paying other gateways on the combined invoice', async () => {
     mockQuery.mockImplementation(async (sql: string) => {
       const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
-      if (normalized.includes('from businesses where deleted_at is null')) return [{ business_id: 'biz-1' }];
+      if (normalized.includes('from businesses where deleted_at is null')) {
+        expect(normalized).toContain('coalesce(automation_paused, 0) = 0');
+        return [{ business_id: 'biz-1' }];
+      }
       if (normalized.includes('from xero_sync_log')) return [];
       throw new Error(`Unhandled SQL in query mock: ${sql}`);
     });

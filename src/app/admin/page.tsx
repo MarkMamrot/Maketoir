@@ -9,6 +9,7 @@ import RuntimeIssuesView from './RuntimeIssuesView';
 interface Business {
   business_id: string; name: string; drive_folder_id: string | null;
   has_foresight: number; has_ims: number; has_pos: number;
+  is_sandbox: number; automation_paused: number;
   max_locations: number | null; max_users: number | null; cost_per_location: number | null;
   created_at: string; deleted_at: string | null;
 }
@@ -120,6 +121,7 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
   const [form, setForm] = useState({
     name: biz.name,
     has_foresight: !!biz.has_foresight, has_ims: !!biz.has_ims, has_pos: !!biz.has_pos,
+    is_sandbox: !!biz.is_sandbox, automation_paused: !!biz.automation_paused,
     max_locations: biz.max_locations !== null && biz.max_locations !== undefined ? String(biz.max_locations) : '',
     max_users: biz.max_users !== null && biz.max_users !== undefined ? String(biz.max_users) : '',
     cost_per_location: biz.cost_per_location !== null && biz.cost_per_location !== undefined ? String(biz.cost_per_location) : '',
@@ -134,6 +136,7 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
       body: JSON.stringify({
         name: form.name,
         has_foresight: form.has_foresight, has_ims: form.has_ims, has_pos: form.has_pos,
+        is_sandbox: form.is_sandbox, automation_paused: form.automation_paused,
         max_locations: form.max_locations.trim() === '' ? null : Number(form.max_locations),
         max_users: form.max_users.trim() === '' ? null : Number(form.max_users),
         cost_per_location: form.cost_per_location.trim() === '' ? null : Number(form.cost_per_location),
@@ -174,6 +177,30 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
         <AccessCheck label="Foresight (BI Dashboard)" field="has_foresight" />
         <AccessCheck label="IMS (Inventory Management)" field="has_ims" />
         <AccessCheck label="POS (Point of Sale)" field="has_pos" />
+
+        <div style={{ height: 1, background: 'var(--sv-etch,rgba(255,255,255,.1))', margin: '18px 0' }} />
+        <label style={S.label}>Environment Safety</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={form.is_sandbox}
+            onChange={e => setForm(p => ({ ...p, is_sandbox: e.target.checked }))}
+          />
+          <span style={{ fontSize: 13 }}>Sandbox tenant</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={form.automation_paused}
+            onChange={e => setForm(p => ({ ...p, automation_paused: e.target.checked }))}
+          />
+          <span>
+            <span style={{ display: 'block', fontSize: 13 }}>Pause scheduled automation</span>
+            <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)' }}>
+              Shared cron jobs skip this tenant; manual actions remain available.
+            </span>
+          </span>
+        </label>
 
         <div style={{ height: 1, background: 'var(--sv-etch,rgba(255,255,255,.1))', margin: '18px 0' }} />
         <label style={S.label}>Plan Limits & Billing</label>
@@ -400,7 +427,12 @@ function BusinessesView() {
                 {visible.map(b => (
                   <tr key={b.business_id} style={{ opacity: b.deleted_at ? .45 : 1 }}>
                     <td style={S.td}>
-                      <div style={{ fontWeight: 600, color: 'var(--sv-text-main,#e2e8f0)' }}>{b.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--sv-text-main,#e2e8f0)' }}>{b.name}</span>
+                        {!!b.is_sandbox && (
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(245,158,11,.16)', color: '#fbbf24', fontWeight: 700 }}>SANDBOX</span>
+                        )}
+                      </div>
                       <div style={{ fontSize: 11, color: 'var(--sv-text-dim,#94a3b8)', fontFamily: 'monospace', marginTop: 2 }}>{b.business_id.slice(0, 24)}…</div>
                     </td>
                     {(['has_foresight','has_ims','has_pos'] as const).map(f => (
@@ -412,6 +444,8 @@ function BusinessesView() {
                     <td style={S.td}>
                       {b.deleted_at
                         ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(239,68,68,.15)', color: '#fca5a5' }}>Deleted</span>
+                        : b.automation_paused
+                          ? <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,.15)', color: '#fbbf24' }}>Automation paused</span>
                         : <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(34,197,94,.12)', color: '#86efac' }}>Active</span>
                       }
                     </td>

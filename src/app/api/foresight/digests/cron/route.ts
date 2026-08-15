@@ -26,7 +26,9 @@ export async function POST(request: Request) {
 
   const businesses = await query<{ business_id: string }>(
     `SELECT business_id FROM businesses
-     WHERE deleted_at IS NULL ORDER BY business_id`,
+     WHERE deleted_at IS NULL
+       AND COALESCE(automation_paused, 0) = 0
+     ORDER BY business_id`,
   );
   const results: Array<{
     businessId: string;

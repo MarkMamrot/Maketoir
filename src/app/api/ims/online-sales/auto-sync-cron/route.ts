@@ -33,7 +33,8 @@ export async function POST(req: Request) {
     businesses = await query<{ business_id: string }>(
       `SELECT business_id
        FROM businesses
-       WHERE deleted_at IS NULL`,
+       WHERE deleted_at IS NULL
+         AND COALESCE(automation_paused, 0) = 0`,
       [],
     );
   } catch (e: any) {

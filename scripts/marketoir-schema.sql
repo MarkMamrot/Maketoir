@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   drive_folder_id     VARCHAR(100),
   inventory_sheet_id  VARCHAR(100),
   marketing_sheet_id  VARCHAR(100),
+  is_sandbox          TINYINT(1) NOT NULL DEFAULT 0,
+  automation_paused   TINYINT(1) NOT NULL DEFAULT 0,
   created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -9,7 +9,10 @@ export async function POST(req: Request) {
   if (cronSecret) {
     if (cronSecret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     const businesses = await query<{ business_id: string; name: string }>(
-      'SELECT business_id, name FROM businesses WHERE deleted_at IS NULL ORDER BY name',
+      `SELECT business_id, name FROM businesses
+        WHERE deleted_at IS NULL
+          AND COALESCE(automation_paused, 0) = 0
+        ORDER BY name`,
     );
     const results = [];
     for (const business of businesses) {

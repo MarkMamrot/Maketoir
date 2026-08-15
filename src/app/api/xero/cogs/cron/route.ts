@@ -44,7 +44,8 @@ export async function POST(req: Request) {
         WHERE s.enabled = 1
           AND s.reliable_from IS NOT NULL
           AND s.held_reason IS NULL
-          AND b.deleted_at IS NULL`,
+          AND b.deleted_at IS NULL
+          AND COALESCE(b.automation_paused, 0) = 0`,
       [],
     );
   } catch (error: unknown) {

@@ -43,6 +43,7 @@ export async function POST(request: Request) {
          JOIN connections c ON BINARY c.business_id = BINARY b.business_id
          LEFT JOIN xero_reconciliation_settings s ON BINARY s.business_id = BINARY b.business_id
         WHERE b.deleted_at IS NULL
+          AND COALESCE(b.automation_paused, 0) = 0
           AND c.xero_tenant_id IS NOT NULL AND c.xero_tenant_id != ''
           AND c.xero_refresh_token IS NOT NULL AND c.xero_refresh_token != ''
           AND COALESCE(s.enabled, 1) = 1
