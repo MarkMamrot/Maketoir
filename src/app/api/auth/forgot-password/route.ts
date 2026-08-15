@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { query, execute } from '@/services/MySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /**
  * POST /api/auth/forgot-password
@@ -18,8 +19,8 @@ export async function POST(req: Request) {
     const normalised = email.toLowerCase().trim();
 
     // Look up user — don't reveal if they exist or not
-    const users = await query<{ id: number; name: string | null }>(
-      'SELECT id, name FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1',
+    const users = await query<{ id: number; name: string | null; business_id: string | null }>(
+      'SELECT id, name, business_id FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1',
       [normalised],
     );
 
@@ -44,8 +45,8 @@ export async function POST(req: Request) {
       const resetUrl = `${appUrl}/reset-password?token=${token}`;
 
       const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: 'Solvantis <onboarding@resend.dev>',
+      const { error } = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL ?? 'Solvantis <onboarding@resend.dev>',
         to: normalised,
         subject: 'Reset your Solvantis password',
         html: `
@@ -59,6 +60,17 @@ export async function POST(req: Request) {
           </div>
         `,
       });
+      if (error) {
+        await reportRuntimeIssue({
+          businessId: user.business_id,
+          source: 'auth',
+          operation: 'forgot-password-email',
+          title: 'Password reset email delivery failed',
+          error,
+          context: { userId: user.id, provider: 'resend' },
+          reference: { type: 'user', id: user.id },
+        });
+      }
     }
 
     // Always return success to prevent email enumeration
