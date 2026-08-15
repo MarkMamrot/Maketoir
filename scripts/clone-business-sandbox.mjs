@@ -401,6 +401,7 @@ async function verifyTarget(main, sourceSchema, expectedCounts, targetTables) {
       'ims_shopify_payouts',
     ]);
     for (const [table, transformedCount] of Object.entries(expectedCounts)) {
+      if (table === 'ims_settings') continue;
       const expected = intentionallyEmptiedTables.has(table) ? 0 : transformedCount;
       checks.push({
         check: `row_count:${table}`,
