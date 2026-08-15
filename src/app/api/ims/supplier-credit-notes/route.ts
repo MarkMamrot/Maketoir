@@ -46,6 +46,12 @@ export async function POST(req: NextRequest) {
     if (normalized.error) {
       return NextResponse.json({ success: false, error: normalized.error }, { status: 400 });
     }
+    if (data.po_id && normalized.items.some(item => item.restock && item.source_po_item_id == null)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Every physical return line linked to a purchase order must identify its original purchase-order line. Reopen Supplier Return / Credit from the purchase order.',
+      }, { status: 400 });
+    }
     const id = await ImsSupplierCNRepo.create(data, normalized.items, businessId, session.username ?? undefined);
     const scn = await ImsSupplierCNRepo.get(id, businessId);
     return NextResponse.json({ success: true, data: scn });

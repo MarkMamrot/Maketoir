@@ -191,10 +191,17 @@ describe('POST /api/ims/xero/push', () => {
 
   it('replays an SO payment only after tenant payment ownership is verified', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 44 }]);
+    mockTriggerSOPaymentXeroSync.mockResolvedValueOnce({
+      posted: true,
+      status: 'posted',
+      xeroPaymentId: 'xero-payment-44',
+      warning: null,
+    });
 
     const res = await POST(makeRequest({ type: 'so_payment', id: 44, parentId: 9 }));
 
     expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ success: true, status: 'posted', xeroId: 'xero-payment-44' });
     expect(mockTriggerSOPaymentXeroSync).toHaveBeenCalledWith('biz-1', 9, 44);
   });
 

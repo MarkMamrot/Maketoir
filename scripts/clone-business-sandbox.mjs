@@ -250,10 +250,12 @@ async function createRetainedContactIds(connection, sourceSchema, plan) {
 
 function integrationIdentityColumns(columns) {
   return columns.filter((column) =>
-    /^(shopify|xero)_.+_id$/.test(column.name) ||
-    /^(target_)?xero_.+_id$/.test(column.name) ||
-    /^(shopify|xero)_(id|status|state|error)$/.test(column.name) ||
-    /^(zeller_site_id|zeller_terminal_id|zeller_api_key)$/.test(column.name),
+    column.name !== 'shopify_payout_id' && (
+      /^(shopify|xero)_.+_id$/.test(column.name) ||
+      /^(target_)?xero_.+_id$/.test(column.name) ||
+      /^(shopify|xero)_(id|status|state|error)$/.test(column.name) ||
+      /^(zeller_site_id|zeller_terminal_id|zeller_api_key)$/.test(column.name)
+    ),
   );
 }
 
@@ -305,7 +307,12 @@ async function sanitizeTargetIms(targetTables) {
       if (historical) await target.query(`UPDATE ${quoteIdentifier(table)} SET is_historical = 1`);
     }
 
-    for (const table of ['ims_shopify_inventory_queue', 'ims_shopify_sync_log']) {
+    for (const table of [
+      'ims_shopify_inventory_queue',
+      'ims_shopify_sync_log',
+      'ims_shopify_payout_lines',
+      'ims_shopify_payouts',
+    ]) {
       if (targetTables.has(table)) await target.query(`DELETE FROM ${quoteIdentifier(table)}`);
     }
 
@@ -387,7 +394,12 @@ async function verifyTarget(main, sourceSchema, expectedCounts, targetTables) {
   const checks = [];
   try {
     const targetCounts = await rowCounts(target, targetSchema, [...targetTables.keys()]);
-    const intentionallyEmptiedTables = new Set(['ims_shopify_inventory_queue', 'ims_shopify_sync_log']);
+    const intentionallyEmptiedTables = new Set([
+      'ims_shopify_inventory_queue',
+      'ims_shopify_sync_log',
+      'ims_shopify_payout_lines',
+      'ims_shopify_payouts',
+    ]);
     for (const [table, transformedCount] of Object.entries(expectedCounts)) {
       const expected = intentionallyEmptiedTables.has(table) ? 0 : transformedCount;
       checks.push({

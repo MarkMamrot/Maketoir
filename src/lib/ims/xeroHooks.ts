@@ -15,7 +15,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftCustomerCreditNote, updateXeroDraftSupplierCreditNote, approveCreditNote } from '@/services/XeroSyncService';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
 /**
@@ -174,26 +174,88 @@ export async function triggerPOXeroUpdate(businessId: string, poId: number): Pro
   }
 }
 
-/**
- * Triggered when a payment is added to a PO.
- * Approves the Bill (if not already) and records the payment in Xero.
- */
-export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<void> {
-  if (!await isXeroConnected(businessId)) return;
+export type OrderPaymentXeroResult = {
+  posted: boolean;
+  status: 'posted' | 'failed' | 'unknown';
+  xeroPaymentId: string | null;
+  warning: string | null;
+};
+
+async function setOrderPaymentXeroState(
+  orderType: 'po' | 'so',
+  businessId: string,
+  paymentId: number,
+  status: 'pending' | 'posted' | 'failed' | 'unknown',
+  xeroPaymentId: string | null = null,
+  error: string | null = null,
+): Promise<void> {
+  const table = orderType === 'po' ? 'ims_purchase_order_payments' : 'ims_sales_order_payments';
+  await imsExecute(
+    `UPDATE ${table}
+        SET xero_post_intent = 'post_to_xero', xero_post_status = ?, xero_payment_id = ?,
+            xero_post_error = ?, xero_posted_at = ${status === 'posted' ? 'NOW()' : 'NULL'}
+      WHERE id = ? AND business_id = ?`,
+    [status, xeroPaymentId, error?.slice(0, 500) ?? null, paymentId, businessId],
+  );
+}
+
+async function failOrderPaymentXeroPost(
+  orderType: 'po' | 'so',
+  businessId: string,
+  paymentId: number,
+  warning: string,
+  status: 'failed' | 'unknown' = 'failed',
+): Promise<OrderPaymentXeroResult> {
+  await setOrderPaymentXeroState(orderType, businessId, paymentId, status, null, warning);
+  return { posted: false, status, xeroPaymentId: null, warning };
+}
+
+async function resolveAccountingActionFailure(
+  orderType: 'po' | 'so',
+  businessId: string,
+  orderId: number,
+  paymentId: number,
+): Promise<OrderPaymentXeroResult> {
+  const rows = await query(
+    `SELECT status, safe_error FROM xero_accounting_actions
+      WHERE business_id = ? AND operation_key = ? LIMIT 1`,
+    [businessId, `${orderType}-payment:${orderId}:${paymentId}`],
+  );
+  const action = rows[0];
+  const status = action?.status === 'unknown' ? 'unknown' : 'failed';
+  const warning = status === 'unknown'
+    ? 'Xero payment outcome is unknown. Check Xero before retrying.'
+    : String(action?.safe_error || 'Xero could not post this payment.');
+  return failOrderPaymentXeroPost(orderType, businessId, paymentId, warning, status);
+}
+
+/** Triggered when staff explicitly choose Post to Xero for a PO payment. */
+export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<OrderPaymentXeroResult> {
+  await setOrderPaymentXeroState('po', businessId, paymentId, 'pending');
+  if (!await isXeroConnected(businessId)) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'Xero is not connected for this business.');
+  }
   const policy = await loadDocumentPolicy(businessId);
-  if (!policy) return;
-  if (!policy.poPaymentSyncEnabled) return;
+  if (!policy?.poPaymentSyncEnabled) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'PO payment posting is disabled in Xero Document Status & Payments settings.');
+  }
 
   const po = await ImsPORepo.get(poId, businessId);
-  if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return;
+  if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'This purchase order is not eligible for Xero payment posting.');
+  }
 
-  const payment = (po as any).payments?.find((candidate: any) => candidate.id === paymentId);
-  if (!payment?.payment_method_id) return;
+  const payment = (po as any).payments?.find((candidate: any) => Number(candidate.id) === paymentId);
+  if (!payment?.payment_method_id) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'Choose a payment method before posting to Xero.');
+  }
   const [method] = await imsQuery<{ xero_account_code: string }>(
     'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
     [payment.payment_method_id],
   );
-  if (!method?.xero_account_code) return;
+  if (!method?.xero_account_code) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'The selected payment method has no Xero account mapping.');
+  }
 
   // Prefer stored xero_bill_id, fall back to sync_log
   const storedXeroId = (po as any).xero_bill_id ?? null;
@@ -212,37 +274,52 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
     );
   }
 
-  if (!xeroInvoiceId) return;
+  if (!xeroInvoiceId) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'The Xero bill could not be created.');
+  }
 
   await updateXeroDraftBill(businessId, po as any, xeroInvoiceId);
   const approved = await approveBill(businessId, xeroInvoiceId, poId);
-  if (!approved) return;
+  if (!approved) {
+    return failOrderPaymentXeroPost('po', businessId, paymentId, 'The Xero bill could not be Authorised, so the payment was not posted.');
+  }
 
-  await syncPOPayment(businessId, xeroInvoiceId, poId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  const xeroPaymentId = await syncPOPayment(businessId, xeroInvoiceId, poId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  if (!xeroPaymentId) return resolveAccountingActionFailure('po', businessId, poId, paymentId);
+  await setOrderPaymentXeroState('po', businessId, paymentId, 'posted', xeroPaymentId);
+  return { posted: true, status: 'posted', xeroPaymentId, warning: null };
 }
 
 /**
  * Triggered when a payment is added to an SO.
  * Ensures invoice exists and is approved, then records the payment in Xero.
  */
-export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<void> {
-  if (!await isXeroConnected(businessId)) return;
+export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<OrderPaymentXeroResult> {
+  await setOrderPaymentXeroState('so', businessId, paymentId, 'pending');
+  if (!await isXeroConnected(businessId)) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'Xero is not connected for this business.');
+  }
   const policy = await loadDocumentPolicy(businessId);
-  if (!policy) return;
-  if (!policy.soPaymentSyncEnabled) return;
+  if (!policy?.soPaymentSyncEnabled) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'SO payment posting is disabled in Xero Document Status & Payments settings.');
+  }
 
   const so = await ImsSORepo.get(soId, businessId);
-  if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) return;
+  if (!so || !isOrderXeroEligible(String((so as any).status ?? ''))) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'This sales order is not eligible for Xero payment posting.');
+  }
 
   const payment = (so as any).payments?.find((p: any) => p.id === paymentId);
-  if (!payment) return;
-  // Skip Xero payment sync if no payment method is set
-  if (!payment.payment_method_id) return;
+  if (!payment?.payment_method_id) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'Choose a payment method before posting to Xero.');
+  }
   const [method] = await imsQuery<{ xero_account_code: string }>(
     'SELECT xero_account_code FROM ims_payment_methods WHERE id = ?',
     [payment.payment_method_id],
   );
-  if (!method?.xero_account_code) return;
+  if (!method?.xero_account_code) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'The selected payment method has no Xero account mapping.');
+  }
 
   // Ensure invoice exists (and is approved) before applying payment
   let xeroInvoiceId = (so as any).xero_invoice_id ?? null;
@@ -253,12 +330,19 @@ export async function triggerSOPaymentXeroSync(businessId: string, soId: number,
       (error) => notifyXeroFinalFailure(businessId, 'Sales Invoice', `SO ${so.so_number}`, error),
     );
   }
-  if (!xeroInvoiceId) return;
+  if (!xeroInvoiceId) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'The Xero invoice could not be created.');
+  }
   await updateXeroDraftInvoice(businessId, so as any, xeroInvoiceId);
   const approved = await approveInvoice(businessId, xeroInvoiceId, Number(soId));
-  if (!approved) return;
+  if (!approved) {
+    return failOrderPaymentXeroPost('so', businessId, paymentId, 'The Xero invoice could not be Authorised, so the payment was not posted.');
+  }
 
-  await syncSOPayment(businessId, xeroInvoiceId, soId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  const xeroPaymentId = await syncSOPayment(businessId, xeroInvoiceId, soId, paymentId, payment.amount, payment.payment_date, payment.currency_code || 'AUD', method.xero_account_code);
+  if (!xeroPaymentId) return resolveAccountingActionFailure('so', businessId, soId, paymentId);
+  await setOrderPaymentXeroState('so', businessId, paymentId, 'posted', xeroPaymentId);
+  return { posted: true, status: 'posted', xeroPaymentId, warning: null };
 }
 
 /**

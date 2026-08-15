@@ -77,6 +77,25 @@ describe('PUT /api/ims/supplier-credit-notes/[id]', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  it('rejects a linked physical return line without source PO provenance', async () => {
+    mockGet.mockResolvedValue({ id: 52, status: 'draft', supplier_id: 3, po_id: 9, xero_credit_note_id: null, items: [] });
+
+    const response = await PUT(request({ items: [{ qty: 1, unit_cost: 10, tax_rate: 0.1, restock: true }] }), params);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('original purchase-order line') });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('allows an unlinked financial correction line that does not move stock', async () => {
+    mockGet.mockResolvedValue({ id: 52, status: 'draft', supplier_id: 3, po_id: 9, xero_credit_note_id: null, items: [] });
+
+    const response = await PUT(request({ items: [{ qty: 1, unit_cost: 10, tax_rate: 0.1, restock: false }] }), params);
+
+    expect(response.status).toBe(200);
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
   it('returns a structured 409 for an expected linked-return cap conflict', async () => {
     mockGet.mockResolvedValue({ id: 52, status: 'draft', supplier_id: 3, xero_credit_note_id: null, items: [] });
     mockUpdate.mockRejectedValue(new SupplierReturnConflict('Only 2 units remain returnable.'));

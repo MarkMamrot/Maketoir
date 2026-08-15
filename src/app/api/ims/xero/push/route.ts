@@ -167,8 +167,15 @@ export async function POST(req: Request) {
         [id, parentId],
       );
       if (!paymentRows[0]) return NextResponse.json({ error: 'Payment not found.' }, { status: 404 });
-      if (type === 'po_payment') await triggerPOPaymentXeroSync(businessId, parentId, id);
-      else await triggerSOPaymentXeroSync(businessId, parentId, id);
+      const paymentResult = type === 'po_payment'
+        ? await triggerPOPaymentXeroSync(businessId, parentId, id)
+        : await triggerSOPaymentXeroSync(businessId, parentId, id);
+      return NextResponse.json({
+        success: paymentResult.posted,
+        status: paymentResult.status,
+        xeroId: paymentResult.xeroPaymentId,
+        ...(paymentResult.warning ? { error: paymentResult.warning } : {}),
+      }, { status: paymentResult.posted ? 200 : 409 });
     } else if (type === 'cn') {
       const cnRows = await imsQuery<{ xero_sync_status: string | null; xero_credit_note_id: string | null }>(
         `SELECT xero_sync_status, xero_credit_note_id FROM ims_credit_notes WHERE id = ? LIMIT 1`,

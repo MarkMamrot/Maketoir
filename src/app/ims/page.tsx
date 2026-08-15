@@ -8152,7 +8152,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [modal, setModal] = useState<{ open: boolean; edit: any | null; editOnly?: boolean }>({ open: false, edit: null });
   const [viewModal, setViewModal] = useState<{ open: boolean; po: any | null }>({ open: false, po: null });
   const [resolveOrder, setResolveOrder] = useState<any | null>(null);
-  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
+  const [poPayForm, setPoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero' } | null>(null);
+  const [syncingPoPaymentId, setSyncingPoPaymentId] = useState<number | null>(null);
   const [poFiles, setPoFiles] = useState<any[]>([]);
   const [poFileUploading, setPoFileUploading] = useState(false);
   const [suppliers, setSuppliers] = useState<any[]>([]);
@@ -8370,14 +8371,31 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
     const rate = Number(poPayForm.rate || 1);
     try {
-      await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
+      const result = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined }),
+        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined, xero_post_intent: poPayForm.xeroIntent }),
       });
+      if (result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
       setPoPayForm(null);
       await refreshPoView(viewModal.po.id);
     } catch (e: any) { alert(e.message); }
+  };
+
+  const handleManualSyncPoPayment = async (payment: any) => {
+    if (!viewModal.po || !payment?.payment_method_id) return;
+    if (!confirm('Post this payment to Xero? If the linked bill is Draft, Xero must Authorise it before applying the payment.')) return;
+    setSyncingPoPaymentId(Number(payment.id));
+    try {
+      await apiFetch('/api/ims/xero/push', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'po_payment', id: Number(payment.id), parentId: Number(viewModal.po.id) }),
+      });
+    } catch (e: any) { alert(e.message || 'Xero payment posting failed.'); }
+    finally {
+      await refreshPoView(viewModal.po.id);
+      setSyncingPoPaymentId(null);
+    }
   };
 
   const handleDeletePoPayment = async (payment: any) => {
@@ -9407,7 +9425,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!poPayForm && (
-                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setPoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -9415,7 +9433,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--sv-bg-1)' }}>
-                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Notes', '']).map((h: string, idx: number) => (
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', 'Xero', '']).map((h: string, idx: number) => (
                           <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                         ))}
                       </tr>
@@ -9427,7 +9445,13 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                           <td style={{ padding: '5px 10px', fontWeight: 600 }}>{fmtFx(p.amount, currency)}</td>
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{Number(p.exchange_rate).toFixed(4)}</td>}
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
+                          <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
+                          <td style={{ padding: '5px 10px' }}>
+                            {p.xero_post_status === 'posted'
+                              ? <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 700 }}>Posted</span>
+                              : <div><div style={{ color: p.xero_post_status === 'failed' || p.xero_post_status === 'unknown' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 10, marginBottom: 3 }}>{({ pending: 'Pending', failed: 'Failed', unknown: 'Outcome unknown' } as Record<string, string>)[p.xero_post_status] || 'Solvantis only'}</div><button disabled={syncingPoPaymentId === Number(p.id) || !p.payment_method_id} onClick={() => handleManualSyncPoPayment(p)} title={!p.payment_method_id ? 'Assign a payment method first' : p.xero_post_error || 'Post this payment to Xero'} style={btnStyle('ghost', 'xs')}>{syncingPoPaymentId === Number(p.id) ? 'Posting…' : 'Post to Xero'}</button></div>}
+                          </td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeletePoPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
@@ -9446,9 +9470,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
                 {poPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                    <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Ledger Mapping. When PO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero bill before applying payment. Otherwise the payment remains in IMS only.
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                      {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setPoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(poPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
                     </div>
+                    {poPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero bill. A linked Draft will be Authorised before the payment is applied.</div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -9470,7 +9495,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
                         <select value={poPayForm.method} onChange={e => setPoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
-                          <option value="">— None (no Xero sync) —</option>
+                          <option value="">— Select method —</option>
                           {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
                       </div>
@@ -9478,7 +9503,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={poPayForm.notes} onChange={e => setPoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
                       </div>
-                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={handleAddPoPayment} disabled={!poPayForm.amount || !poPayForm.date || (poPayForm.xeroIntent === 'post_to_xero' && !poPayForm.method)} style={btnStyle('mint', 'sm')}>Save</button>
                       <button onClick={() => setPoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                     </div>
                   </div>
@@ -12311,7 +12336,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [posViewModal, setPosViewModal] = useState<{ open: boolean; sale: any | null; items: any[]; payments: any[] }>({ open: false, sale: null, items: [], payments: [] });
   const [soFulfilmentModal, setSoFulfilmentModal] = useState<{ open: boolean; so: any | null; items: any[] }>({ open: false, so: null, items: [] });
   const [posVoiding, setPosVoiding] = useState(false);
-  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string } | null>(null);
+  const [soPayForm, setSoPayForm] = useState<{ date: string; amount: string; rate: string; notes: string; method: string; xeroIntent: 'solvantis_only' | 'post_to_xero' } | null>(null);
   const [syncingSoPaymentId, setSyncingSoPaymentId] = useState<number | null>(null);
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -12578,11 +12603,12 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     const currency = (viewModal.so.currency_code || 'AUD').toUpperCase();
     const rate = Number(soPayForm.rate || 1);
     try {
-      await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments`, {
+      const result = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined, payment_method_id: soPayForm.method ? Number(soPayForm.method) : undefined }),
+        body: JSON.stringify({ payment_date: soPayForm.date, amount: Number(soPayForm.amount), currency_code: currency, exchange_rate: rate, notes: soPayForm.notes || undefined, payment_method_id: soPayForm.method ? Number(soPayForm.method) : undefined, xero_post_intent: soPayForm.xeroIntent }),
       });
+      if (result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
       setSoPayForm(null);
       await refreshSoView(viewModal.so.id);
     } catch (e: any) { alert(e.message); }
@@ -12616,9 +12642,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const handleManualSyncSoPayment = async (payment: any) => {
     if (!viewModal.so) return;
     if (!payment?.payment_method_id) {
-      alert('Assign a payment method before syncing this payment to Xero.');
+      alert('Assign a payment method before posting this payment to Xero.');
       return;
     }
+    if (!confirm('Post this payment to Xero? If the linked invoice is Draft, Xero must Authorise it before applying the payment.')) return;
     setSyncingSoPaymentId(Number(payment.id));
     try {
       const res = await apiFetch('/api/ims/xero/push', {
@@ -12631,13 +12658,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         }),
       });
       if (!res?.success) throw new Error(res?.error || 'Xero payment sync failed.');
-      alert('Payment synced to Xero.');
-      await refreshSoView(viewModal.so.id);
-      load();
+      alert('Payment posted to Xero.');
     } catch (e: any) {
       alert(e.message || 'Xero payment sync failed.');
+    } finally {
+      await refreshSoView(viewModal.so.id);
+      setSyncingSoPaymentId(null);
     }
-    setSyncingSoPaymentId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -13378,7 +13405,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Payments</div>
                   {!soPayForm && (
-                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
+                    <button onClick={() => setSoPayForm({ date: today(), amount: '', rate: '1', notes: '', method: '', xeroIntent: 'solvantis_only' })} style={btnStyle('mint', 'xs')}>+ Add Payment</button>
                   )}
                 </div>
 
@@ -13401,14 +13428,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
                           <td style={{ padding: '5px 10px' }}>
-                            <button
+                            {p.xero_post_status === 'posted' ? <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 700 }}>Posted</span> : <div><div style={{ color: p.xero_post_status === 'failed' || p.xero_post_status === 'unknown' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 10, marginBottom: 3 }}>{({ pending: 'Pending', failed: 'Failed', unknown: 'Outcome unknown' } as Record<string, string>)[p.xero_post_status] || 'Solvantis only'}</div><button
                               disabled={syncingSoPaymentId === Number(p.id) || !p.payment_method_id}
                               onClick={() => handleManualSyncSoPayment(p)}
-                              title={!p.payment_method_id ? 'Assign a payment method first' : 'Manually sync this payment to Xero'}
+                              title={!p.payment_method_id ? 'Assign a payment method first' : p.xero_post_error || 'Post this payment to Xero'}
                               style={btnStyle('ghost', 'xs')}
                             >
-                              {syncingSoPaymentId === Number(p.id) ? 'Syncing…' : 'Sync Xero'}
-                            </button>
+                              {syncingSoPaymentId === Number(p.id) ? 'Posting…' : 'Post to Xero'}
+                            </button></div>}
                           </td>
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
@@ -13428,9 +13455,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
                 {soPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                    <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>
-                      Xero payment behaviour follows Ledger Mapping. When SO payment sync is enabled and the selected method is mapped, saving may create and authorise the Xero invoice before applying payment. Otherwise the payment remains in IMS only.
+                    <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                      {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setSoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(soPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
                     </div>
+                    {soPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero invoice. A linked Draft will be Authorised before the payment is applied.</div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -13452,7 +13480,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Payment Method</div>
                         <select value={soPayForm.method} onChange={e => setSoPayForm(f => f ? { ...f, method: e.target.value } : f)} style={{ padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13, minWidth: 130 }}>
-                          <option value="">— None (no Xero sync) —</option>
+                          <option value="">— Select method —</option>
                           {paymentMethods.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
                         </select>
                       </div>
@@ -13460,7 +13488,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Notes</div>
                         <input type="text" value={soPayForm.notes} onChange={e => setSoPayForm(f => f ? { ...f, notes: e.target.value } : f)} style={{ width: '100%', padding: '5px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text)', fontSize: 13 }} placeholder="Optional" />
                       </div>
-                      <button onClick={handleAddSoPayment} disabled={!soPayForm.amount || !soPayForm.date} style={btnStyle('mint', 'sm')}>Save</button>
+                      <button onClick={handleAddSoPayment} disabled={!soPayForm.amount || !soPayForm.date || (soPayForm.xeroIntent === 'post_to_xero' && !soPayForm.method)} style={btnStyle('mint', 'sm')}>Save</button>
                       <button onClick={() => setSoPayForm(null)} style={btnStyle('ghost', 'sm')}>Cancel</button>
                     </div>
                   </div>

@@ -21,6 +21,28 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', po_id INT NOT NULL,
+    payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+    exchange_rate DECIMAL(12,6) NOT NULL DEFAULT 1.000000, amount_local DECIMAL(12,4) NOT NULL,
+    notes VARCHAR(500) NULL, payment_method_id INT NULL,
+    xero_post_intent ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only',
+    xero_post_status ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested',
+    xero_payment_id VARCHAR(100) NULL, xero_post_error VARCHAR(500) NULL, xero_posted_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_pop_po (po_id),
+    FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', so_id INT NOT NULL,
+    payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
+    exchange_rate DECIMAL(12,6) NOT NULL DEFAULT 1.000000, amount_local DECIMAL(12,4) NOT NULL,
+    notes VARCHAR(500) NULL, payment_method_id INT NULL,
+    xero_post_intent ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only',
+    xero_post_status ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested',
+    xero_payment_id VARCHAR(100) NULL, xero_post_error VARCHAR(500) NULL, xero_posted_at DATETIME NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP, INDEX idx_sop_so (so_id),
+    FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_inventory_document_operations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
     request_hash CHAR(64) NOT NULL, document_kind ENUM('customer_credit_note','supplier_credit_note','stocktake') NOT NULL,
@@ -661,6 +683,20 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_purchase_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
+  ['ims_purchase_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
+  ['ims_purchase_order_payments', 'xero_post_intent', "ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only' AFTER payment_method_id"],
+  ['ims_purchase_order_payments', 'xero_post_status', "ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested' AFTER xero_post_intent"],
+  ['ims_purchase_order_payments', 'xero_payment_id', 'VARCHAR(100) NULL AFTER xero_post_status'],
+  ['ims_purchase_order_payments', 'xero_post_error', 'VARCHAR(500) NULL AFTER xero_payment_id'],
+  ['ims_purchase_order_payments', 'xero_posted_at', 'DATETIME NULL AFTER xero_post_error'],
+  ['ims_sales_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
+  ['ims_sales_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
+  ['ims_sales_order_payments', 'xero_post_intent', "ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only' AFTER payment_method_id"],
+  ['ims_sales_order_payments', 'xero_post_status', "ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested' AFTER xero_post_intent"],
+  ['ims_sales_order_payments', 'xero_payment_id', 'VARCHAR(100) NULL AFTER xero_post_status'],
+  ['ims_sales_order_payments', 'xero_post_error', 'VARCHAR(500) NULL AFTER xero_payment_id'],
+  ['ims_sales_order_payments', 'xero_posted_at', 'DATETIME NULL AFTER xero_post_error'],
   ['ims_so_fulfilment_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
@@ -1100,6 +1136,30 @@ async function verifyInventoryDocumentCorrectionSchema(schema) {
   console.log(`  verified ${schema} inventory-document correction schema`);
 }
 
+async function verifyOrderPaymentSchema(schema) {
+  const requiredColumns = [
+    'business_id', 'payment_method_id', 'xero_post_intent', 'xero_post_status',
+    'xero_payment_id', 'xero_post_error', 'xero_posted_at',
+  ];
+  for (const table of ['ims_purchase_order_payments', 'ims_sales_order_payments']) {
+    const [rows] = await conn.query(
+      `SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?`,
+      [schema, table],
+    );
+    const columns = new Map(rows.map(row => [row.COLUMN_NAME, String(row.COLUMN_TYPE ?? '')]));
+    for (const column of requiredColumns) {
+      if (!columns.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+    }
+    for (const value of ['solvantis_only', 'post_to_xero']) {
+      if (!columns.get('xero_post_intent')?.includes(`'${value}'`)) throw new Error(`${schema}.${table}.xero_post_intent is missing ${value}`);
+    }
+    for (const value of ['not_requested', 'pending', 'posted', 'failed', 'unknown']) {
+      if (!columns.get('xero_post_status')?.includes(`'${value}'`)) throw new Error(`${schema}.${table}.xero_post_status is missing ${value}`);
+    }
+    console.log(`  verified ${schema}.${table}`);
+  }
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -1117,6 +1177,7 @@ try {
     await verifyOutstandingResolutionSchema(schema);
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);
+    await verifyOrderPaymentSchema(schema);
   }
   console.log('Done.');
 } finally {

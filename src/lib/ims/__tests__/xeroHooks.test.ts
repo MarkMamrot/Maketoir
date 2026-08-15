@@ -86,7 +86,7 @@ vi.mock('@/services/XeroSyncService', () => ({
   updateXeroDraftSupplierCreditNote: mockUpdateXeroDraftSupplierCreditNote,
   approveCreditNote: mockApproveCreditNote,
 }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: vi.fn(), imsQuery: mockImsQuery }));
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 
 import {

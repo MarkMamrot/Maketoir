@@ -64,6 +64,13 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     const existing = await ImsSupplierCNRepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    const linkedPoId = data.po_id ?? existing.po_id;
+    if (linkedPoId && normalized.items?.some(item => item.restock && item.source_po_item_id == null)) {
+      return NextResponse.json({
+        success: false,
+        error: 'Every physical return line linked to a purchase order must identify its original purchase-order line. Reopen Supplier Return / Credit from the purchase order.',
+      }, { status: 400 });
+    }
     const hasXeroChanges = hasXeroVisibleCreditNoteChanges(
       'supplier_credit_note', existing as unknown as Record<string, unknown>, data, normalized.items,
     );

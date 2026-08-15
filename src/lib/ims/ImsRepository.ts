@@ -172,6 +172,11 @@ export interface ImsPayment {
   notes?: string;
   payment_method_id?: number;
   payment_method_name?: string;
+  xero_post_intent?: 'solvantis_only' | 'post_to_xero';
+  xero_post_status?: 'not_requested' | 'pending' | 'posted' | 'failed' | 'unknown';
+  xero_payment_id?: string | null;
+  xero_post_error?: string | null;
+  xero_posted_at?: string | null;
   created_at?: string;
 }
 
@@ -1360,14 +1365,14 @@ export const ImsPORepo = {
 
   async addPayment(
     poId: number,
-    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
+    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number; xero_post_intent: 'solvantis_only' | 'post_to_xero' },
     businessId?: string,
   ): Promise<ImsPayment> {
     if (!businessId) throw new Error('businessId is required');
     const res = await imsExecute(
-      `INSERT INTO ims_purchase_order_payments (business_id, po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [businessId, poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
+      `INSERT INTO ims_purchase_order_payments (business_id, po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id, xero_post_intent, xero_post_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null, data.xero_post_intent, data.xero_post_intent === 'post_to_xero' ? 'pending' : 'not_requested'],
     );
     const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [res.insertId, businessId]);
     return rows[0];
@@ -2658,14 +2663,14 @@ export const ImsSORepo = {
 
   async addPayment(
     soId: number,
-    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number },
+    data: { payment_date: string; amount: number; currency_code: string; exchange_rate: number; amount_local: number; notes?: string; payment_method_id?: number; xero_post_intent: 'solvantis_only' | 'post_to_xero' },
     businessId?: string,
   ): Promise<ImsPayment> {
     if (!businessId) throw new Error('businessId is required');
     const res = await imsExecute(
-      `INSERT INTO ims_sales_order_payments (business_id, so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [businessId, soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null],
+      `INSERT INTO ims_sales_order_payments (business_id, so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id, xero_post_intent, xero_post_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [businessId, soId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null, data.xero_post_intent, data.xero_post_intent === 'post_to_xero' ? 'pending' : 'not_requested'],
     );
     const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_sales_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [res.insertId, businessId]);
     return rows[0];

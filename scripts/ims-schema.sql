@@ -562,6 +562,27 @@ CREATE TABLE IF NOT EXISTS ims_purchase_order_items (
   INDEX idx_poi_po (po_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  po_id             INT NOT NULL,
+  payment_date      DATE NOT NULL,
+  amount            DECIMAL(12,4) NOT NULL,
+  currency_code     VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  exchange_rate     DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
+  amount_local      DECIMAL(12,4) NOT NULL,
+  notes             VARCHAR(500),
+  payment_method_id INT NULL,
+  xero_post_intent  ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only',
+  xero_post_status  ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested',
+  xero_payment_id   VARCHAR(100) NULL,
+  xero_post_error   VARCHAR(500) NULL,
+  xero_posted_at    DATETIME NULL,
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id) ON DELETE CASCADE,
+  INDEX idx_pop_po (po_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Sales Orders ─────────────────────────────────────────────
 -- draft     → confirmed  (adds qty_committed)
 -- confirmed → partially_fulfilled → fulfilled (deducts shipped qty from on-hand + committed)
@@ -631,6 +652,27 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
   INDEX idx_soi_so (so_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
+  id               INT AUTO_INCREMENT PRIMARY KEY,
+  business_id      VARCHAR(100) NOT NULL DEFAULT '',
+  so_id             INT NOT NULL,
+  payment_date      DATE NOT NULL,
+  amount            DECIMAL(12,4) NOT NULL,
+  currency_code     VARCHAR(10) NOT NULL DEFAULT 'AUD',
+  exchange_rate     DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
+  amount_local      DECIMAL(12,4) NOT NULL,
+  notes             VARCHAR(500),
+  payment_method_id INT NULL,
+  xero_post_intent  ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only',
+  xero_post_status  ENUM('not_requested','pending','posted','failed','unknown') NOT NULL DEFAULT 'not_requested',
+  xero_payment_id   VARCHAR(100) NULL,
+  xero_post_error   VARCHAR(500) NULL,
+  xero_posted_at    DATETIME NULL,
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
+  INDEX idx_sop_so (so_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (

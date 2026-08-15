@@ -30,6 +30,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     const body = await req.json();
     const { payment_date, amount, currency_code, exchange_rate, notes, payment_method_id } = body;
+    const xeroPostIntent = body.xero_post_intent ?? 'solvantis_only';
+    if (!['solvantis_only', 'post_to_xero'].includes(xeroPostIntent)) {
+      return NextResponse.json({ success: false, error: 'Choose Record in Solvantis only or Post to Xero.' }, { status: 400 });
+    }
+    if (xeroPostIntent === 'post_to_xero' && !payment_method_id) {
+      return NextResponse.json({ success: false, error: 'Choose a payment method before posting to Xero.' }, { status: 400 });
+    }
     if (!payment_date || !amount) {
       return NextResponse.json({ success: false, error: 'payment_date and amount are required' }, { status: 400 });
     }
@@ -49,14 +56,18 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       amount_local: parsedAmount * parsedRate,
       notes: notes || undefined,
       payment_method_id: payment_method_id ? Number(payment_method_id) : undefined,
+      xero_post_intent: xeroPostIntent,
     }, session.businessId);
 
-    // Fire-and-forget Xero payment sync (skipped silently if no payment method set)
-    if (session?.businessId && payment?.id) {
-      triggerSOPaymentXeroSync(session.businessId, Number(params.id), payment.id).catch(() => {});
-    }
+    const xeroResult = xeroPostIntent === 'post_to_xero' && session?.businessId && payment?.id
+      ? await triggerSOPaymentXeroSync(session.businessId, Number(params.id), payment.id)
+      : null;
 
-    return NextResponse.json({ success: true, data: payment });
+    return NextResponse.json({
+      success: true,
+      data: xeroResult ? { ...payment, xero_post_status: xeroResult.status, xero_payment_id: xeroResult.xeroPaymentId, xero_post_error: xeroResult.warning } : payment,
+      ...(xeroResult?.warning ? { xeroWarning: xeroResult.warning } : {}),
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

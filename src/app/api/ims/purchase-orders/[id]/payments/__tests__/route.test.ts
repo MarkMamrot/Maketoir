@@ -15,16 +15,36 @@ vi.mock('@/lib/ims/xeroHooks', () => ({ triggerPOPaymentXeroSync: mockXeroSync }
 
 import { POST } from '../route';
 
-const request = () => new Request('http://localhost/api/ims/purchase-orders/42/payments', {
+const request = (overrides: Record<string, unknown> = {}) => new Request('http://localhost/api/ims/purchase-orders/42/payments', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ payment_date: '2026-08-09', amount: 10, payment_method_id: 3 }),
+  body: JSON.stringify({ payment_date: '2026-08-09', amount: 10, payment_method_id: 3, ...overrides }),
 });
 
 describe('POST /api/ims/purchase-orders/[id]/payments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSession.mockResolvedValue({ businessId: 'biz-1' });
+    mockAddPayment.mockResolvedValue({ id: 7 });
+  });
+
+  it('records in Solvantis only by default without calling Xero', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed' });
+
+    const response = await POST(request() as any, { params: { id: '42' } });
+
+    expect(response.status).toBe(200);
+    expect(mockAddPayment).toHaveBeenCalledWith(42, expect.objectContaining({ xero_post_intent: 'solvantis_only' }), 'biz-1');
+    expect(mockXeroSync).not.toHaveBeenCalled();
+  });
+
+  it('posts to Xero only when explicitly selected', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'confirmed' });
+
+    const response = await POST(request({ xero_post_intent: 'post_to_xero' }) as any, { params: { id: '42' } });
+
+    expect(response.status).toBe(200);
+    expect(mockXeroSync).toHaveBeenCalledWith('biz-1', 42, 7);
   });
 
   it('blocks payments while a supplier backorder is held', async () => {
