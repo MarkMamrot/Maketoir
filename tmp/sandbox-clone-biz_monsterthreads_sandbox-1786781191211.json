@@ -1,0 +1,1062 @@
+{
+  "generatedAt": "2026-08-15T08:07:15.237Z",
+  "mode": "apply",
+  "backupConfirmedAt": "2026-08-15T07:24:00.000Z",
+  "source": {
+    "businessId": "1wzuBk0M_FjEFdZkWyz0PVHcQsIh8s0Ejve-MTV3_8Ps",
+    "name": "Monsterthreads",
+    "schema": "readyedu_MonsterthreadsIMS"
+  },
+  "target": {
+    "businessId": "biz_monsterthreads_sandbox",
+    "name": "Monsterthreads DEV SANDBOX",
+    "schema": "readyedu_MonsterthreadsSandboxIMS"
+  },
+  "safeguards": {
+    "sandbox": true,
+    "automationPaused": true,
+    "quarantinedDuringClone": true,
+    "credentialsCopied": false,
+    "mainBusinessDataCopied": false,
+    "fullImsSnapshotCopied": true
+  },
+  "sourceTableCount": 77,
+  "sourceRowCounts": {
+    "gift_card_transactions": 9,
+    "gift_cards": 565,
+    "ims_backorder_merges": 0,
+    "ims_branch_transfer_items": 4753,
+    "ims_branch_transfers": 110,
+    "ims_brands": 574,
+    "ims_contacts": 85415,
+    "ims_credit_note_items": 20,
+    "ims_credit_notes": 20,
+    "ims_cs_draft_revisions": 21,
+    "ims_cs_drafts": 14,
+    "ims_cs_events": 9,
+    "ims_cs_knowledge_documents": 2,
+    "ims_cs_knowledge_versions": 0,
+    "ims_cs_learning_candidates": 1,
+    "ims_cs_learning_evidence": 3,
+    "ims_cs_messages": 43,
+    "ims_cs_processing_runs": 0,
+    "ims_cs_settings": 1,
+    "ims_cs_threads": 32,
+    "ims_customer_credit_settlements": 0,
+    "ims_inventory_document_operations": 12,
+    "ims_locations": 5,
+    "ims_notifications": 6,
+    "ims_order_amendment_lines": 67,
+    "ims_order_amendment_operations": 42,
+    "ims_payment_methods": 5,
+    "ims_po_backorder_lines": 0,
+    "ims_po_files": 12,
+    "ims_po_landed_costs": 29,
+    "ims_po_receive_operations": 5,
+    "ims_po_shortfall_resolutions": 0,
+    "ims_product_images": 13466,
+    "ims_product_variants": 8125,
+    "ims_products": 6450,
+    "ims_purchase_order_items": 28820,
+    "ims_purchase_order_payments": 0,
+    "ims_purchase_orders": 2094,
+    "ims_sales_cache": 8088,
+    "ims_sales_history": 370683,
+    "ims_sales_order_items": 27429,
+    "ims_sales_order_payments": 0,
+    "ims_sales_orders": 13400,
+    "ims_settings": 64,
+    "ims_shopify_inventory_queue": 1,
+    "ims_shopify_payout_lines": 77,
+    "ims_shopify_payouts": 11,
+    "ims_shopify_sync_log": 559,
+    "ims_so_backorder_lines": 3,
+    "ims_so_fulfilment_operations": 0,
+    "ims_so_shortfall_resolutions": 0,
+    "ims_stock": 24595,
+    "ims_stock_movements": 21606,
+    "ims_stocktake_items": 8307,
+    "ims_stocktakes": 88,
+    "ims_supplier_credit_note_files": 2,
+    "ims_supplier_credit_note_items": 6,
+    "ims_supplier_credit_notes": 4,
+    "ims_supplier_credit_settlements": 0,
+    "ims_website_content_attempts": 14,
+    "loyalty_accounts": 0,
+    "loyalty_redemptions": 0,
+    "loyalty_rewards": 0,
+    "loyalty_transactions": 0,
+    "pos_chat_attachments": 0,
+    "pos_chat_messages": 176,
+    "pos_eod_reconciliations": 488,
+    "pos_payments": 5968,
+    "pos_petty_cash_transactions": 1,
+    "pos_register_sessions": 138,
+    "pos_registers": 5,
+    "pos_sale_items": 353308,
+    "pos_sales": 206607,
+    "pos_users": 1,
+    "store_credit_transactions": 3,
+    "wholesale_draft_order_items": 0,
+    "wholesale_draft_orders": 0
+  },
+  "expectedTargetRowCounts": {
+    "gift_card_transactions": 9,
+    "gift_cards": 565,
+    "ims_backorder_merges": 0,
+    "ims_branch_transfer_items": 4753,
+    "ims_branch_transfers": 110,
+    "ims_brands": 574,
+    "ims_contacts": 1050,
+    "ims_credit_note_items": 20,
+    "ims_credit_notes": 20,
+    "ims_cs_draft_revisions": 21,
+    "ims_cs_drafts": 14,
+    "ims_cs_events": 9,
+    "ims_cs_knowledge_documents": 2,
+    "ims_cs_knowledge_versions": 0,
+    "ims_cs_learning_candidates": 1,
+    "ims_cs_learning_evidence": 3,
+    "ims_cs_messages": 43,
+    "ims_cs_processing_runs": 0,
+    "ims_cs_settings": 1,
+    "ims_cs_threads": 32,
+    "ims_customer_credit_settlements": 0,
+    "ims_inventory_document_operations": 12,
+    "ims_locations": 5,
+    "ims_notifications": 6,
+    "ims_order_amendment_lines": 67,
+    "ims_order_amendment_operations": 42,
+    "ims_payment_methods": 5,
+    "ims_po_backorder_lines": 0,
+    "ims_po_files": 12,
+    "ims_po_landed_costs": 29,
+    "ims_po_receive_operations": 5,
+    "ims_po_shortfall_resolutions": 0,
+    "ims_product_images": 13466,
+    "ims_product_variants": 8125,
+    "ims_products": 6450,
+    "ims_purchase_order_items": 28820,
+    "ims_purchase_order_payments": 0,
+    "ims_purchase_orders": 2094,
+    "ims_sales_cache": 8088,
+    "ims_sales_history": 0,
+    "ims_sales_order_items": 27429,
+    "ims_sales_order_payments": 0,
+    "ims_sales_orders": 13400,
+    "ims_settings": 64,
+    "ims_shopify_inventory_queue": 1,
+    "ims_shopify_payout_lines": 77,
+    "ims_shopify_payouts": 11,
+    "ims_shopify_sync_log": 559,
+    "ims_so_backorder_lines": 3,
+    "ims_so_fulfilment_operations": 0,
+    "ims_so_shortfall_resolutions": 0,
+    "ims_stock": 24595,
+    "ims_stock_movements": 21606,
+    "ims_stocktake_items": 8307,
+    "ims_stocktakes": 88,
+    "ims_supplier_credit_note_files": 2,
+    "ims_supplier_credit_note_items": 6,
+    "ims_supplier_credit_notes": 4,
+    "ims_supplier_credit_settlements": 0,
+    "ims_website_content_attempts": 14,
+    "loyalty_accounts": 0,
+    "loyalty_redemptions": 0,
+    "loyalty_rewards": 0,
+    "loyalty_transactions": 0,
+    "pos_chat_attachments": 0,
+    "pos_chat_messages": 176,
+    "pos_eod_reconciliations": 488,
+    "pos_payments": 5968,
+    "pos_petty_cash_transactions": 1,
+    "pos_register_sessions": 138,
+    "pos_registers": 5,
+    "pos_sale_items": 353308,
+    "pos_sales": 206607,
+    "pos_users": 1,
+    "store_credit_transactions": 3,
+    "wholesale_draft_order_items": 0,
+    "wholesale_draft_orders": 0
+  },
+  "excludedSourceTables": [
+    "_archived_ims_sales_order_refunds"
+  ],
+  "filteredData": {
+    "ims_sales_history": "Excluded: historical Cin7 sales import",
+    "ims_contacts": {
+      "rule": "Keep non-retail contacts and retail contacts referenced by retained operational tables",
+      "sourceCount": 85415,
+      "retainedCount": 1050,
+      "excludedCount": 84365,
+      "referenceColumns": [
+        {
+          "table": "gift_cards",
+          "column": "customer_id"
+        },
+        {
+          "table": "ims_credit_notes",
+          "column": "customer_id"
+        },
+        {
+          "table": "ims_cs_threads",
+          "column": "customer_id"
+        },
+        {
+          "table": "ims_purchase_orders",
+          "column": "supplier_id"
+        },
+        {
+          "table": "ims_sales_orders",
+          "column": "customer_id"
+        },
+        {
+          "table": "ims_supplier_credit_notes",
+          "column": "supplier_id"
+        },
+        {
+          "table": "loyalty_accounts",
+          "column": "contact_id"
+        },
+        {
+          "table": "pos_sales",
+          "column": "customer_id"
+        },
+        {
+          "table": "store_credit_transactions",
+          "column": "contact_id"
+        },
+        {
+          "table": "wholesale_draft_orders",
+          "column": "contact_id"
+        }
+      ]
+    }
+  },
+  "transformations": [
+    "Rewrite non-empty IMS business_id values to the target business ID",
+    "Clear Shopify, Xero, and Zeller external identity columns",
+    "Mark cloned records historical where is_historical exists",
+    "Disable Shopify, Xero, COGS, reconciliation, email, and shared scheduled automation",
+    "Replace POS passwords and clear contact password/PIN hashes"
+  ],
+  "excludedMainData": "All source business-scoped main DB rows; target starts with an empty connections row and deny-first Xero settings",
+  "result": "applied_and_verified",
+  "verification": {
+    "sourceSchema": "readyedu_MonsterthreadsIMS",
+    "targetCounts": {
+      "gift_card_transactions": 9,
+      "gift_cards": 565,
+      "ims_backorder_merges": 0,
+      "ims_branch_transfer_items": 4753,
+      "ims_branch_transfers": 110,
+      "ims_brands": 574,
+      "ims_contacts": 1050,
+      "ims_credit_note_items": 20,
+      "ims_credit_notes": 20,
+      "ims_cs_draft_revisions": 21,
+      "ims_cs_drafts": 14,
+      "ims_cs_events": 9,
+      "ims_cs_knowledge_documents": 2,
+      "ims_cs_knowledge_versions": 0,
+      "ims_cs_learning_candidates": 1,
+      "ims_cs_learning_evidence": 3,
+      "ims_cs_messages": 43,
+      "ims_cs_processing_runs": 0,
+      "ims_cs_settings": 1,
+      "ims_cs_threads": 32,
+      "ims_customer_credit_settlements": 0,
+      "ims_inventory_document_operations": 12,
+      "ims_locations": 5,
+      "ims_notifications": 6,
+      "ims_order_amendment_lines": 67,
+      "ims_order_amendment_operations": 42,
+      "ims_payment_methods": 5,
+      "ims_po_backorder_lines": 0,
+      "ims_po_files": 12,
+      "ims_po_landed_costs": 29,
+      "ims_po_receive_operations": 5,
+      "ims_po_shortfall_resolutions": 0,
+      "ims_product_images": 13466,
+      "ims_product_variants": 8125,
+      "ims_products": 6450,
+      "ims_purchase_order_items": 28820,
+      "ims_purchase_order_payments": 0,
+      "ims_purchase_orders": 2094,
+      "ims_sales_cache": 8088,
+      "ims_sales_history": 0,
+      "ims_sales_order_items": 27429,
+      "ims_sales_order_payments": 0,
+      "ims_sales_orders": 13400,
+      "ims_settings": 59,
+      "ims_shopify_inventory_queue": 0,
+      "ims_shopify_payout_lines": 0,
+      "ims_shopify_payouts": 0,
+      "ims_shopify_sync_log": 0,
+      "ims_so_backorder_lines": 3,
+      "ims_so_fulfilment_operations": 0,
+      "ims_so_shortfall_resolutions": 0,
+      "ims_stock": 24595,
+      "ims_stock_movements": 21606,
+      "ims_stocktake_items": 8307,
+      "ims_stocktakes": 88,
+      "ims_supplier_credit_note_files": 2,
+      "ims_supplier_credit_note_items": 6,
+      "ims_supplier_credit_notes": 4,
+      "ims_supplier_credit_settlements": 0,
+      "ims_website_content_attempts": 14,
+      "loyalty_accounts": 0,
+      "loyalty_redemptions": 0,
+      "loyalty_rewards": 0,
+      "loyalty_transactions": 0,
+      "pos_chat_attachments": 0,
+      "pos_chat_messages": 176,
+      "pos_eod_reconciliations": 488,
+      "pos_payments": 5968,
+      "pos_petty_cash_transactions": 1,
+      "pos_register_sessions": 138,
+      "pos_registers": 5,
+      "pos_sale_items": 353308,
+      "pos_sales": 206607,
+      "pos_users": 1,
+      "store_credit_transactions": 3,
+      "wholesale_draft_order_items": 0,
+      "wholesale_draft_orders": 0
+    },
+    "checks": [
+      {
+        "check": "row_count:gift_card_transactions",
+        "passed": true,
+        "expected": 9,
+        "actual": 9
+      },
+      {
+        "check": "row_count:gift_cards",
+        "passed": true,
+        "expected": 565,
+        "actual": 565
+      },
+      {
+        "check": "row_count:ims_backorder_merges",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_branch_transfer_items",
+        "passed": true,
+        "expected": 4753,
+        "actual": 4753
+      },
+      {
+        "check": "row_count:ims_branch_transfers",
+        "passed": true,
+        "expected": 110,
+        "actual": 110
+      },
+      {
+        "check": "row_count:ims_brands",
+        "passed": true,
+        "expected": 574,
+        "actual": 574
+      },
+      {
+        "check": "row_count:ims_contacts",
+        "passed": true,
+        "expected": 1050,
+        "actual": 1050
+      },
+      {
+        "check": "row_count:ims_credit_note_items",
+        "passed": true,
+        "expected": 20,
+        "actual": 20
+      },
+      {
+        "check": "row_count:ims_credit_notes",
+        "passed": true,
+        "expected": 20,
+        "actual": 20
+      },
+      {
+        "check": "row_count:ims_cs_draft_revisions",
+        "passed": true,
+        "expected": 21,
+        "actual": 21
+      },
+      {
+        "check": "row_count:ims_cs_drafts",
+        "passed": true,
+        "expected": 14,
+        "actual": 14
+      },
+      {
+        "check": "row_count:ims_cs_events",
+        "passed": true,
+        "expected": 9,
+        "actual": 9
+      },
+      {
+        "check": "row_count:ims_cs_knowledge_documents",
+        "passed": true,
+        "expected": 2,
+        "actual": 2
+      },
+      {
+        "check": "row_count:ims_cs_knowledge_versions",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_cs_learning_candidates",
+        "passed": true,
+        "expected": 1,
+        "actual": 1
+      },
+      {
+        "check": "row_count:ims_cs_learning_evidence",
+        "passed": true,
+        "expected": 3,
+        "actual": 3
+      },
+      {
+        "check": "row_count:ims_cs_messages",
+        "passed": true,
+        "expected": 43,
+        "actual": 43
+      },
+      {
+        "check": "row_count:ims_cs_processing_runs",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_cs_settings",
+        "passed": true,
+        "expected": 1,
+        "actual": 1
+      },
+      {
+        "check": "row_count:ims_cs_threads",
+        "passed": true,
+        "expected": 32,
+        "actual": 32
+      },
+      {
+        "check": "row_count:ims_customer_credit_settlements",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_inventory_document_operations",
+        "passed": true,
+        "expected": 12,
+        "actual": 12
+      },
+      {
+        "check": "row_count:ims_locations",
+        "passed": true,
+        "expected": 5,
+        "actual": 5
+      },
+      {
+        "check": "row_count:ims_notifications",
+        "passed": true,
+        "expected": 6,
+        "actual": 6
+      },
+      {
+        "check": "row_count:ims_order_amendment_lines",
+        "passed": true,
+        "expected": 67,
+        "actual": 67
+      },
+      {
+        "check": "row_count:ims_order_amendment_operations",
+        "passed": true,
+        "expected": 42,
+        "actual": 42
+      },
+      {
+        "check": "row_count:ims_payment_methods",
+        "passed": true,
+        "expected": 5,
+        "actual": 5
+      },
+      {
+        "check": "row_count:ims_po_backorder_lines",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_po_files",
+        "passed": true,
+        "expected": 12,
+        "actual": 12
+      },
+      {
+        "check": "row_count:ims_po_landed_costs",
+        "passed": true,
+        "expected": 29,
+        "actual": 29
+      },
+      {
+        "check": "row_count:ims_po_receive_operations",
+        "passed": true,
+        "expected": 5,
+        "actual": 5
+      },
+      {
+        "check": "row_count:ims_po_shortfall_resolutions",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_product_images",
+        "passed": true,
+        "expected": 13466,
+        "actual": 13466
+      },
+      {
+        "check": "row_count:ims_product_variants",
+        "passed": true,
+        "expected": 8125,
+        "actual": 8125
+      },
+      {
+        "check": "row_count:ims_products",
+        "passed": true,
+        "expected": 6450,
+        "actual": 6450
+      },
+      {
+        "check": "row_count:ims_purchase_order_items",
+        "passed": true,
+        "expected": 28820,
+        "actual": 28820
+      },
+      {
+        "check": "row_count:ims_purchase_order_payments",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_purchase_orders",
+        "passed": true,
+        "expected": 2094,
+        "actual": 2094
+      },
+      {
+        "check": "row_count:ims_sales_cache",
+        "passed": true,
+        "expected": 8088,
+        "actual": 8088
+      },
+      {
+        "check": "row_count:ims_sales_history",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_sales_order_items",
+        "passed": true,
+        "expected": 27429,
+        "actual": 27429
+      },
+      {
+        "check": "row_count:ims_sales_order_payments",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_sales_orders",
+        "passed": true,
+        "expected": 13400,
+        "actual": 13400
+      },
+      {
+        "check": "row_count:ims_shopify_inventory_queue",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_shopify_payout_lines",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_shopify_payouts",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_shopify_sync_log",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_so_backorder_lines",
+        "passed": true,
+        "expected": 3,
+        "actual": 3
+      },
+      {
+        "check": "row_count:ims_so_fulfilment_operations",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_so_shortfall_resolutions",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_stock",
+        "passed": true,
+        "expected": 24595,
+        "actual": 24595
+      },
+      {
+        "check": "row_count:ims_stock_movements",
+        "passed": true,
+        "expected": 21606,
+        "actual": 21606
+      },
+      {
+        "check": "row_count:ims_stocktake_items",
+        "passed": true,
+        "expected": 8307,
+        "actual": 8307
+      },
+      {
+        "check": "row_count:ims_stocktakes",
+        "passed": true,
+        "expected": 88,
+        "actual": 88
+      },
+      {
+        "check": "row_count:ims_supplier_credit_note_files",
+        "passed": true,
+        "expected": 2,
+        "actual": 2
+      },
+      {
+        "check": "row_count:ims_supplier_credit_note_items",
+        "passed": true,
+        "expected": 6,
+        "actual": 6
+      },
+      {
+        "check": "row_count:ims_supplier_credit_notes",
+        "passed": true,
+        "expected": 4,
+        "actual": 4
+      },
+      {
+        "check": "row_count:ims_supplier_credit_settlements",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:ims_website_content_attempts",
+        "passed": true,
+        "expected": 14,
+        "actual": 14
+      },
+      {
+        "check": "row_count:loyalty_accounts",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:loyalty_redemptions",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:loyalty_rewards",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:loyalty_transactions",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:pos_chat_attachments",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:pos_chat_messages",
+        "passed": true,
+        "expected": 176,
+        "actual": 176
+      },
+      {
+        "check": "row_count:pos_eod_reconciliations",
+        "passed": true,
+        "expected": 488,
+        "actual": 488
+      },
+      {
+        "check": "row_count:pos_payments",
+        "passed": true,
+        "expected": 5968,
+        "actual": 5968
+      },
+      {
+        "check": "row_count:pos_petty_cash_transactions",
+        "passed": true,
+        "expected": 1,
+        "actual": 1
+      },
+      {
+        "check": "row_count:pos_register_sessions",
+        "passed": true,
+        "expected": 138,
+        "actual": 138
+      },
+      {
+        "check": "row_count:pos_registers",
+        "passed": true,
+        "expected": 5,
+        "actual": 5
+      },
+      {
+        "check": "row_count:pos_sale_items",
+        "passed": true,
+        "expected": 353308,
+        "actual": 353308
+      },
+      {
+        "check": "row_count:pos_sales",
+        "passed": true,
+        "expected": 206607,
+        "actual": 206607
+      },
+      {
+        "check": "row_count:pos_users",
+        "passed": true,
+        "expected": 1,
+        "actual": 1
+      },
+      {
+        "check": "row_count:store_credit_transactions",
+        "passed": true,
+        "expected": 3,
+        "actual": 3
+      },
+      {
+        "check": "row_count:wholesale_draft_order_items",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "row_count:wholesale_draft_orders",
+        "passed": true,
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "check": "source_stamp_absent:ims_backorder_merges",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_branch_transfer_items",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_branch_transfers",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_brands",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_contacts",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_credit_notes",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_draft_revisions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_drafts",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_events",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_knowledge_documents",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_knowledge_versions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_learning_candidates",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_learning_evidence",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_messages",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_processing_runs",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_settings",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_cs_threads",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_customer_credit_settlements",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_inventory_document_operations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_locations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_notifications",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_order_amendment_lines",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_order_amendment_operations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_payment_methods",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_po_backorder_lines",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_po_files",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_po_landed_costs",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_po_receive_operations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_po_shortfall_resolutions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_product_variants",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_products",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_purchase_order_items",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_purchase_order_payments",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_purchase_orders",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_sales_cache",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_sales_history",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_sales_order_items",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_sales_order_payments",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_sales_orders",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_settings",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_shopify_payout_lines",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_shopify_payouts",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_shopify_sync_log",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_so_backorder_lines",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_so_fulfilment_operations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_so_shortfall_resolutions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_stock",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_stock_movements",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_stocktake_items",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_stocktakes",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_supplier_credit_note_files",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_supplier_credit_notes",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_supplier_credit_settlements",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:ims_website_content_attempts",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:loyalty_accounts",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:loyalty_redemptions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:loyalty_rewards",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:loyalty_transactions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_eod_reconciliations",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_payments",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_petty_cash_transactions",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_sale_items",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_sales",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:pos_users",
+        "passed": true
+      },
+      {
+        "check": "source_stamp_absent:wholesale_draft_orders",
+        "passed": true
+      },
+      {
+        "check": "external_identity_columns_empty",
+        "passed": true,
+        "failures": []
+      },
+      {
+        "check": "shopify_automation_disabled",
+        "passed": true
+      },
+      {
+        "check": "connections_empty",
+        "passed": true,
+        "failures": []
+      }
+    ],
+    "passed": true,
+    "failed": []
+  },
+  "reportSha256": "f9831d059d9b048478f959dc58799d91de6beb8b76ae8f0bc362974bbd6c8220"
+}
