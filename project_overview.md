@@ -48,6 +48,7 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 
 ## 🏗️ Architecture & Core Technologies
 - **Frontend/Backend:** Next.js 14 (App Router, TypeScript)
+- **IMS data tables:** Follow [docs/table-scrolling-conventions.md](docs/table-scrolling-conventions.md): split sticky header/horizontal body, explicit frozen identity columns, and shared four-arrow keyboard scrolling. Standard list views retain normal page-level vertical scrolling.
 - **Deployment:** Railway (auto-deploy from `main` branch)
 - **Databases:**
   - Main MySQL (Railway): users, business config, connections
