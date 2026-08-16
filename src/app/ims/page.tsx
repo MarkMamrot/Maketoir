@@ -5922,16 +5922,23 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   );
 
   useEffect(() => {
-    const handleHorizontalArrow = (event: KeyboardEvent) => {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const handleArrowScroll = (event: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
       if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
+        return;
+      }
+
       const scroller = productsBodyScrollRef.current;
       if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
       event.preventDefault();
       scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
     };
-    window.addEventListener('keydown', handleHorizontalArrow);
-    return () => window.removeEventListener('keydown', handleHorizontalArrow);
+    window.addEventListener('keydown', handleArrowScroll);
+    return () => window.removeEventListener('keydown', handleArrowScroll);
   }, []);
 
   return (
