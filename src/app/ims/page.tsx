@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
+import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
@@ -1190,6 +1191,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
             <style>{`@media (max-width: 900px) { .ims-sales-chart-panel, .ims-sales-summary-panel { grid-column: 1 / -1 !important; } }`}</style>
+            <DashboardSalesComparison />
             <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 2 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Reporting period</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
