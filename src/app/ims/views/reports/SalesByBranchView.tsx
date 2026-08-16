@@ -16,6 +16,7 @@ interface SalesByBranchViewProps {
 }
 
 export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) {
+  const tableHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(tableScrollRef, 'element');
   const [rows, setRows]             = useState<any[]>([]);
@@ -174,6 +175,22 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right' };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'center' };
   const frozenDivider = '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)';
+  const tableWidth = 980 + displayLocations.length * 200;
+  const renderColGroup = () => (
+    <colgroup>
+      <col style={{ width: 44 }} />
+      <col style={{ width: 220 }} />
+      <col style={{ width: 120 }} />
+      <col style={{ width: 120 }} />
+      <col style={{ width: 160 }} />
+      <col style={{ width: 130 }} />
+      <col style={{ width: 186 }} />
+      {displayLocations.flatMap(location => [
+        <col key={`${location.id}-qty-col`} style={{ width: 85 }} />,
+        <col key={`${location.id}-amount-col`} style={{ width: 115 }} />,
+      ])}
+    </colgroup>
+  );
 
   const headingLabel = (primary: React.ReactNode, secondary: React.ReactNode, col?: string) => (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, lineHeight: 1.05, whiteSpace: 'normal' }}>
@@ -260,10 +277,12 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, height: '100%' }}>
-        <div ref={tableScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll sales-detail-table-scroll" tabIndex={0} role="region" aria-label="Sales detail table. Use arrow keys to scroll." style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', flex: 1, minHeight: 0, height: 'calc(100% - 56px)', outline: 'none' }}>
-          <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+          <div ref={tableHeaderScrollRef} style={{ flexShrink: 0, overflow: 'hidden', background: 'var(--sv-bg-2)', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+            <table style={{ width: tableWidth, minWidth: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
+              {renderColGroup()}
             <thead>
-              <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
                 <th style={{ ...hCell, width: 44, minWidth: 44, maxWidth: 44 }}>{headingLabel('Row', 'No.')}</th>
                 {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
                 {sortTh('sku', 'Product', 'SKU')}
@@ -284,7 +303,22 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                   </th>,
                 ])}
               </tr>
-              </thead>
+            </thead>
+            </table>
+          </div>
+          <div
+            ref={tableScrollRef}
+            className="ims-sticky-table ims-sticky-table--self-scroll sales-detail-table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Sales detail table. Use arrow keys to scroll."
+            onScroll={event => {
+              if (tableHeaderScrollRef.current) tableHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+            style={{ overflow: 'auto', flex: 1, minHeight: 0, outline: 'none' }}
+          >
+            <table style={{ width: tableWidth, minWidth: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
+              {renderColGroup()}
               <tbody>
                 {loading && (
                   <tr><td colSpan={7 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
@@ -352,6 +386,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               )}
             </table>
           </div>
+        </div>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 2, flexShrink: 0, marginTop: 2 }}>

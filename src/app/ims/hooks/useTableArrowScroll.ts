@@ -24,8 +24,9 @@ export function useTableArrowScroll(
         return;
       }
 
-      if (scroller.scrollWidth <= scroller.clientWidth) return;
       event.preventDefault();
+      const maxScrollLeft = scroller.scrollWidth - scroller.clientWidth;
+      if (maxScrollLeft <= 2) return;
       scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
     };
 
