@@ -5264,6 +5264,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [brandPromptSelected, setBrandPromptSelected] = useState('');
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
+  const productsHeaderScrollRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize columns with saved preferences or defaults
   const [showCols, setShowCols] = useState<{ [key: string]: boolean }>(() => {
@@ -5878,6 +5879,47 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     (showCols.online ? 90 : 0) + (showCols.shopify_synced ? 90 : 0) +
     (showCols.active ? 70 : 0) + (showCols.created ? 100 : 0);
 
+  const productHeaderColumns: [string, string][] = [
+    ...(showCols.sku ? [['sku', 'SKU'] as [string, string]] : []),
+    ['name', 'Product'],
+    ...(showCols.barcode ? [['barcode', 'Barcode'] as [string, string]] : []),
+    ...(showCols.product_type ? [['product_type', 'Product Type'] as [string, string]] : []),
+    ...(showCols.brand ? [['brand', 'Brand'] as [string, string]] : []),
+    ...(showCols.supplier ? [['supplier_name', 'Supplier'] as [string, string]] : []),
+    ...(showCols.cb_cost ? [['cost_aud', 'Cost'] as [string, string]] : []),
+    ...(showCols.sell_price ? [['price', 'Sell Price'] as [string, string]] : []),
+    ...(showCols.avg_cost ? [['avg_cost', 'Avg Cost'] as [string, string]] : []),
+    ...(showCols.ws_price ? [['ws_price', 'WS Price'] as [string, string]] : []),
+    ...(showCols.soh ? [['stock', 'SOH / Avail'] as [string, string]] : []),
+    ...(showCols.variants ? [['variants', 'Variants'] as [string, string]] : []),
+    ...(showCols.online ? [['is_online', 'Website Product'] as [string, string]] : []),
+    ...(showCols.shopify_synced ? [['shopify_product_id', 'Shopify Synced'] as [string, string]] : []),
+    ...(showCols.active ? [['is_active', 'Active'] as [string, string]] : []),
+    ...(showCols.created ? [['created_at', 'Created'] as [string, string]] : []),
+  ];
+
+  const renderProductsColGroup = () => (
+    <colgroup>
+      <col style={{ width: 32, minWidth: 32 }} />
+      {showCols.sku && <col style={{ width: 150, minWidth: 150 }} />}
+      <col style={{ width: 384, minWidth: 384 }} />
+      {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}
+      {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}
+      {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}
+      {showCols.supplier && <col style={{ width: 140, minWidth: 140 }} />}
+      {showCols.cb_cost && <col style={{ width: 100, minWidth: 100 }} />}
+      {showCols.sell_price && <col style={{ width: 120, minWidth: 120 }} />}
+      {showCols.avg_cost && <col style={{ width: 110, minWidth: 110 }} />}
+      {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}
+      {showCols.soh && <col style={{ width: 120, minWidth: 120 }} />}
+      {showCols.variants && <col style={{ width: 80, minWidth: 80 }} />}
+      {showCols.online && <col style={{ width: 90, minWidth: 90 }} />}
+      {showCols.shopify_synced && <col style={{ width: 90, minWidth: 90 }} />}
+      {showCols.active && <col style={{ width: 70, minWidth: 70 }} />}
+      {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}
+    </colgroup>
+  );
+
   const handleProductsTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     if ((event.target as HTMLElement).closest('input, select, textarea, button, a')) return;
@@ -6124,67 +6166,39 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div
-          className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll"
-          tabIndex={0}
-          role="region"
-          aria-label="Products table. Use Left and Right arrow keys to scroll columns."
-          onKeyDown={handleProductsTableKeyDown}
-          onPointerDown={event => {
-            if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
-          }}
-          style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
-        >
-          <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
-              {showCols.sku && <col style={{ width: 150, minWidth: 150 }} />}{/* SKU */}
-              <col style={{ width: 384, minWidth: 384 }} />{/* name */}
-              {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
-              {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
-              {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}{/* brand */}
-              {showCols.supplier && <col style={{ width: 140, minWidth: 140 }} />}{/* supplier */}
-              {showCols.cb_cost && <col style={{ width: 100, minWidth: 100 }} />}{/* Cost Price */}
-              {showCols.sell_price && <col style={{ width: 120, minWidth: 120 }} />}{/* Sell Price */}
-              {showCols.avg_cost && <col style={{ width: 110, minWidth: 110 }} />}{/* Avg Cost */}
-              {showCols.ws_price && <col style={{ width: 120, minWidth: 120 }} />}{/* WS Price */}
-              {showCols.soh && <col style={{ width: 120, minWidth: 120 }} />}{/* SOH */}
-              {showCols.variants && <col style={{ width: 80, minWidth: 80 }} />}{/* variants */}
-              {showCols.online && <col style={{ width: 90, minWidth: 90 }} />}{/* online */}
-              {showCols.shopify_synced && <col style={{ width: 90, minWidth: 90 }} />}{/* shopify */}
-              {showCols.active && <col style={{ width: 70, minWidth: 70 }} />}{/* active */}
-              {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}{/* created */}
-            </colgroup>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={productsHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+            <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+              {renderProductsColGroup()}
             <thead>
-              <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ width: 32, minWidth: 32, padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, left: 0, background: 'var(--sv-bg-2)', zIndex: 13 }}>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
+                <th style={{ width: 32, minWidth: 32, padding: '10px 8px', position: 'sticky', left: 0, background: 'var(--sv-bg-2)', zIndex: 3 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
-                {([
-                  ...(showCols.sku ? [['sku','SKU']] : []),
-                  ['name','Product'],
-                  ...(showCols.barcode ? [['barcode','Barcode']] : []),
-                  ...(showCols.product_type ? [['product_type','Product Type']] : []),
-                  ...(showCols.brand ? [['brand','Brand']] : []),
-                  ...(showCols.supplier ? [['supplier_name','Supplier']] : []),
-                  ...(showCols.cb_cost ? [['cost_aud','Cost']] : []),
-                  ...(showCols.sell_price ? [['price','Sell Price']] : []),
-                  ...(showCols.avg_cost ? [['avg_cost','Avg Cost']] : []),
-                  ...(showCols.ws_price ? [['ws_price','WS Price']] : []),
-                  ...(showCols.soh ? [['stock','SOH / Avail']] : []),
-                  ...(showCols.variants ? [['variants','Variants']] : []),
-                  ...(showCols.online ? [['is_online','Website Product']] : []),
-                  ...(showCols.shopify_synced ? [['shopify_product_id','Shopify Synced']] : []),
-                  ...(showCols.active ? [['is_active','Active']] : []),
-                  ...(showCols.created ? [['created_at','Created']] : [])
-                ] as [string,string][]).map(([col, label]) => (
+                {productHeaderColumns.map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', lineHeight: 1.3, position: 'sticky', top: 0, left: col === 'sku' ? 32 : col === 'name' ? (showCols.sku ? 182 : 32) : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'sku' || col === 'name' ? 12 : 10 }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', lineHeight: 1.3, position: 'sticky', left: col === 'sku' ? 32 : col === 'name' ? (showCols.sku ? 182 : 32) : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'sku' || col === 'name' ? 2 : 1 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
               </tr>
             </thead>
+            </table>
+          </div>
+          <div
+            className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Products table. Use Left and Right arrow keys to scroll columns."
+            onScroll={event => { if (productsHeaderScrollRef.current) productsHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}
+            onKeyDown={handleProductsTableKeyDown}
+            onPointerDown={event => {
+              if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
+            }}
+            style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
+          >
+            <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+              {renderProductsColGroup()}
             <tbody>
               {visible.map((p, i) => {
                 const variants = p.variants || [];
@@ -6357,6 +6371,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               )})}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
