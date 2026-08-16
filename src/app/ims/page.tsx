@@ -25,7 +25,7 @@ import { MainSections } from './views/MainSections';
 import { BackordersView } from './views/backorders/BackordersView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
-import { SalesSummaryView } from './views/reports/SalesSummaryView';
+import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
 import { ReportScrollTable } from './views/reports/ReportScrollTable';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
@@ -16344,6 +16344,10 @@ function SalesByBranchView({ onBack }: { onBack: () => void }) {
 
 function SalesSearchView({ onBack }: { onBack: () => void }) {
   return <SalesSearchViewComponent onBack={onBack} apiFetch={apiFetch} today={today} fmtCurrency={fmtCurrency} />;
+}
+
+function SalesSummaryView({ onBack }: { onBack: () => void }) {
+  return <SalesSummaryViewComponent onBack={onBack} apiFetch={apiFetch} />;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
