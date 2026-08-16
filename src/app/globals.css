@@ -232,6 +232,16 @@ input[type=number] {
   }
 }
 
+.ims-report-table-header th,
+.ims-report-table-body td {
+  text-align: left !important;
+}
+
+.ims-report-table-header th > span {
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
 @layer utilities {
   .bg-gray-50 { background-color: var(--sv-bg-0) !important; }
   .bg-white { background-color: var(--sv-bg-1) !important; }

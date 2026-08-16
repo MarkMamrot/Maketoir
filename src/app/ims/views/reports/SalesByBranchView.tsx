@@ -277,7 +277,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
 
       <div style={{ width: '100%', minWidth: 0 }}>
         <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-          <div ref={tableHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+          <div ref={tableHeaderScrollRef} className="ims-report-table-header" style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
             <table style={{ width: tableWidth, minWidth: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
               {renderColGroup()}
             <thead>
@@ -306,7 +306,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
           </div>
           <div
             ref={tableScrollRef}
-            className="ims-sticky-table ims-sticky-table--self-scroll sales-detail-table-scroll"
+            className="ims-sticky-table ims-sticky-table--self-scroll ims-report-table-body sales-detail-table-scroll"
             tabIndex={0}
             role="region"
             aria-label="Sales detail table. Use arrow keys to scroll."

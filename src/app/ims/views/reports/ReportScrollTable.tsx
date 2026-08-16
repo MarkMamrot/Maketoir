@@ -54,7 +54,7 @@ export function ReportScrollTable({
       {frozenRules && <style>{frozenRules}</style>}
       <div
         ref={headerScrollRef}
-        className={`${bodyClassName}__header`}
+        className={`ims-report-table-header ${bodyClassName}__header`}
         style={{
           position: 'sticky',
           top: 0,
@@ -72,7 +72,7 @@ export function ReportScrollTable({
       </div>
       <div
         ref={bodyScrollRef}
-        className={`ims-sticky-table ims-sticky-table--self-scroll ${bodyClassName}`}
+        className={`ims-sticky-table ims-sticky-table--self-scroll ims-report-table-body ${bodyClassName}`}
         tabIndex={0}
         role="region"
         aria-label={ariaLabel}
