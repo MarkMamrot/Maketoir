@@ -39,6 +39,15 @@ try {
   );
   if (!business) throw new Error(`No active business maps to ${expectedSchema}.`);
 
+  const [[documentPolicy]] = await connection.query(
+    `SELECT po_approved_action, po_completed_action, po_payment_sync_enabled,
+            so_approved_action, so_completed_action, so_payment_sync_enabled
+       FROM xero_document_policies
+      WHERE business_id = ?
+      LIMIT 1`,
+    [business.business_id],
+  );
+
   const schema = connection.escapeId(expectedSchema);
   const [variants] = await connection.query(
     `SELECT v.variant_id, v.sku, p.name AS product_name, p.is_active AS product_active, p.is_online,
@@ -138,6 +147,7 @@ try {
       shopifyShop: business.shopify_shop_id,
       xeroTenantId: business.xero_tenant_id,
       xeroTenantName: business.xero_tenant_name,
+      documentPolicy: documentPolicy ?? null,
     },
     candidates: { variants, locations, contacts, exactStock, exactOpenOrders },
   }, null, 2));

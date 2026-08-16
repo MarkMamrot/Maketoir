@@ -1,0 +1,554 @@
+﻿[
+    {
+        "commentId":  5,
+        "allText":  "the Delivered Equipment is Fit for Purpose and is otherwise of merchantable quality;",
+        "currentText":  "the Delivered Equipment is Fit for Purpose and is otherwise of merchantable quality;",
+        "proposedText":  ";"
+    },
+    {
+        "commentId":  8,
+        "allText":  "the Acceptance Tests: demonstrate that all the Minimum Performance Criteria have been achieved in accordance with this Contract; If the Principal does not complete the Acceptance Tests within 60 days after Delivery, the Goods shall be deemed to have achieved Acceptance on the expiry of that 60-day period. have otherwise been carried out and passed to the reasonable satisfaction of the Principal.",
+        "currentText":  "the Acceptance Tests: demonstrate that all the Minimum Performance Criteria have been achieved; have otherwise been carried out and passed to the reasonable satisfaction of the Principal.",
+        "proposedText":  "the Acceptance Tests: demonstrate that all the Minimum Performance Criteria have been achieved in accordance with this Contract; If the Principal does not complete the Acceptance Tests within 60 days after Delivery, the Goods shall be deemed to have achieved Acceptance on the expiry of that 60-day period. ."
+    },
+    {
+        "commentId":  20,
+        "allText":  "within Australia,",
+        "currentText":  ",",
+        "proposedText":  "within Australia,"
+    },
+    {
+        "commentId":  26,
+        "allText":  "aspect of the Equipment which is not in accordance with this Contract (including any failure of the Equipment to meet any of the Minimum Performance Criteria)defect in material or workmanship in the Equipment that causes the Equipment to fail to perform in accordance with the Supplier’s applicable published specifications for the Equipment in effect at the time of Delivery; or defect, deficiency, damage, omission, fault, non-conformity, failure, or malfunction in workmanship, quality or makeup in the Equipment or the Services which is not in accordance with this Contractdefect in workmanship in the Services that causes the Services to fail to conform with the requirements of this Contract. For the avoidance of doubt, “Defect” does not include:. minor defects that do not materially impact the functionality or operability of the Equipment; any failure to meet performance criteria not expressly set out in the Supplier’s published specifications; or any matter arising from an excluded clause under Clause 18.2(f).",
+        "currentText":  "aspect of the Equipment which is not in accordance with this Contract (including any failure of the Equipment to meet any of the Minimum Performance Criteria); or defect, deficiency, damage, omission, fault, non-conformity, failure, or malfunction in workmanship, quality or makeup in the Equipment or the Services .",
+        "proposedText":  "defect in material or workmanship in the Equipment that causes the Equipment to fail to perform in accordance with the Supplier’s applicable published specifications for the Equipment in effect at the time of Delivery; or defect in workmanship in the Services that causes the Services to fail to conform with the requirements of this Contract. For the avoidance of doubt, “Defect” does not include: minor defects that do not materially impact the functionality or operability of the Equipment; any failure to meet performance criteria not expressly set out in the Supplier’s published specifications; or any matter arising from an excluded clause under Clause 18.2(f)."
+    },
+    {
+        "commentId":  73,
+        "allText":  "any disruption, delay or inability to transport, ship or deliver Goods arising from marine perils, acts of maritime authorities, closure or congestion of ports, shortage of vessels or containers, blockage of shipping routes, or other events affecting ocean, sea or inland waterway transportation.",
+        "currentText":  "",
+        "proposedText":  "any disruption, delay or inability to transport, ship or deliver Goods arising from marine perils, acts of maritime authorities, closure or congestion of ports, shortage of vessels or containers, blockage of shipping routes, or other events affecting ocean, sea or inland waterway transportation."
+    },
+    {
+        "commentId":  77,
+        "allText":  "to achieve the asset life for the Equipment which is referred to in clause 14.1(i)(f); and",
+        "currentText":  "to achieve the asset life for the Equipment which is referred to in clause 14.1(i)(f); and",
+        "proposedText":  "and"
+    },
+    {
+        "commentId":  80,
+        "allText":  "Gross Negligence means, in respect of a Partythe Supplier, an act or omission that constitutes a serious andarises as a result of a significant departure from the standard of care that would ordinarily be expected of a reasonable person in the same or similar circumstancesRelevant Supplier.",
+        "currentText":  "Gross Negligence means, in respect of the Supplier, an act or omission that arises as a result of a significant departure from the standard of care that would ordinarily be expected of a Relevant Supplier.",
+        "proposedText":  "Gross Negligence means, in respect of a Party, an act or omission that constitutes a serious and significant departure from the standard of care that would ordinarily be expected of a reasonable person in the same or similar circumstances."
+    },
+    {
+        "commentId":  94,
+        "allText":  "Loss means any direct loss (whether direct or indirect), debt, obligation, cost (including reasonable legal costs, deductibles or increased premiums), expense, damages, fine, penalty, compensation, or charge or any other liability of any kind, whether: actual, prospective or contingent; currently ascertainable or not; or arising under or for breach of contract, in tort (including negligence), restitution, or otherwise at Law.",
+        "currentText":  "Loss means any loss (whether direct or indirect), debt, obligation, cost (including legal costs, deductibles or increased premiums), expense, damages, fine, penalty, compensation, charge or any other liability of any kind, whether: actual, prospective or contingent; currently ascertainable or not; or arising under or for breach of contract, in tort (including negligence), restitution, or otherwise at Law.",
+        "proposedText":  "Loss means any direct loss , debt, obligation, cost (including reasonable legal costs, ), expense, damages, fine, penalty, compensation, or charge"
+    },
+    {
+        "commentId":  112,
+        "allText":  "Parent Company Guarantee has the meaning given in clause 8.10(a)(a).",
+        "currentText":  "Parent Company Guarantee has the meaning given in clause 8.10(a)(a).",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  116,
+        "allText":  "Project IP means deliverables specifically developed for Principal under the Contract and expressly identified as \u0027Principal IP\u0027 in the SOW. Supplier\u0027s pre-existing IP, technology improvements, product developments, and know-how remain Supplier\u0027s property.",
+        "currentText":  "Project IP",
+        "proposedText":  "Project IP means deliverables specifically developed for Principal under the Contract and expressly identified as \u0027Principal IP\u0027 in the SOW. Supplier\u0027s pre-existing IP, technology improvements, product developments, and know-how remain Supplier\u0027s property."
+    },
+    {
+        "commentId":  128,
+        "allText":  "a deliberate and consciouswilful or intentional breach of or reckless disregard for, of a material term or condition of this Contract, but does not include any error of judgment or mistake made by:",
+        "currentText":  "a wilful or intentional breach or disregard of a material term or condition of this Contract, but does not include any error of judgment or mistake made by:",
+        "proposedText":  "a deliberate and conscious breach of or reckless disregard for, a material term or condition of this Contract, but does not include any error of judgment or mistake made by:"
+    },
+    {
+        "commentId":  141,
+        "allText":  "Any right or benefit conferred under this clause is subject to the limitations, exclusions and caps on liability contained in this Contract.",
+        "currentText":  "",
+        "proposedText":  "Any right or benefit conferred under this clause is subject to the limitations, exclusions and caps on liability contained in this Contract."
+    },
+    {
+        "commentId":  151,
+        "allText":  "Principal may request the other by written notice to the Supplier extend this Contract. Provided the parties mutually agree to such extension, the Contract may be extended on any number of occasions on the same terms and conditions, on each occasion for a period which is no greater than the Further Term.",
+        "currentText":  "Principal may by written notice to the Supplier extend this Contract on any number of occasions on the same terms and conditions, on each occasion for a period which is no greater than the Further Term.",
+        "proposedText":  "may request the other by written notice to extend this Contract. Provided the parties mutually agree to such extension, the Contract may be extended on the same terms and conditions, for a period which is no greater than the Further Term."
+    },
+    {
+        "commentId":  164,
+        "allText":  "provided that each Supply Order is subject to the Supplier\u0027s then-current pricing, lead times and product availability, as notified by the Supplier from time to time.The Supplier may, acting reasonably, decline to accept a Supply Order where it is unable to fulfil the Supply Order due to product availability, manufacturing capacity constraints, supply chain constraints, changes in Law, force majeure events, or where the Supply Order is inconsistent with the Supplier\u0027s then-current pricing, specifications or delivery lead times.",
+        "currentText":  "",
+        "proposedText":  "provided that each Supply Order is subject to the Supplier\u0027s then-current pricing, lead times and product availability, as notified by the Supplier from time to time.The Supplier may, acting reasonably, decline to accept a Supply Order where it is unable to fulfil the Supply Order due to product availability, manufacturing capacity constraints, supply chain constraints, changes in Law, force majeure events, or where the Supply Order is inconsistent with the Supplier\u0027s then-current pricing, specifications or delivery lead times."
+    },
+    {
+        "commentId":  169,
+        "allText":  "Item 37 of",
+        "currentText":  "Item 7 of",
+        "proposedText":  "Item 3 of"
+    },
+    {
+        "commentId":  179,
+        "allText":  "If the Supply Order or request for proposal contain Delivery or other requirements which are not consistent with this Contract or not reasonably achievable by the Supplier, the Supplier shall not be obliged to accept the Supply Order.",
+        "currentText":  "",
+        "proposedText":  "If the Supply Order or request for proposal contain Delivery or other requirements which are not consistent with this Contract or not reasonably achievable by the Supplier, the Supplier shall not be obliged to accept the Supply Order."
+    },
+    {
+        "commentId":  198,
+        "allText":  "such Discrepancy shall be resolved in the order set out under clause 2.4, failing which: the Principal will Direct the Supplier as to the interpretation to be followed by the Supplier for the purpose of resolving the Discrepancy; and the Supplier must comply with any Directions given by the Principal under clause 2.5(a)(a). If the Supplier does not agree with the Principal’s interpretation or Direction given under 2.5(a) \u0026 (b), it shall be refer the matter in accordance with clause 27 of this Contract. The Supplier is not entitled to make any Claim against the Principal in connection with any Discrepancy (including any Direction given by the Principal under clause 2.5(a)(a)).",
+        "currentText":  ": the Principal will Direct the Supplier as to the interpretation to be followed by the Supplier for the purpose of resolving the Discrepancy; and the Supplier must comply with any Directions given by the Principal under clause 2.5(a)(a). The Supplier is not entitled to make any Claim against the Principal in connection with any Discrepancy (including any Direction given by the Principal under clause 2.5(a)(a)).",
+        "proposedText":  "such Discrepancy shall be resolved in the order set out under clause 2.4, failing which: the Principal will Direct the Supplier as to the interpretation to be followed by the Supplier for the purpose of resolving the Discrepancy; and the Supplier must comply with any Directions given by the Principal under clause 2.5(a)(a). If the Supplier does not agree with the Principal’s interpretation or Direction given under 2.5(a) \u0026 (b), it shall be refer the matter in accordance with clause 27 of this Contract."
+    },
+    {
+        "commentId":  228,
+        "allText":  "Each PartyThe Supplier: acknowledges that the Principalparties haves reporting obligations in relation to Modern Slavery and Human Rights; must promptly notify the other partyPrincipal upon becoming aware of incidents of Modern Slavery or Human Rights breaches within the partiesSupplier’s operations or supply chain and the actions undertaken by the partySupplier to remedy the issue; and must, at the partyPrincipal’s request and at the party’sSupplier’s own expense, provide such information as is reasonably requested by the other partyPrincipal for the purpose of complying with clauses 3.1(b) and 3.1(c).",
+        "currentText":  "The Supplier: acknowledges that the Principal has reporting obligations in relation to Modern Slavery and Human Rights; must promptly notify the Principal upon becoming aware of incidents of Modern Slavery or Human Rights breaches within the Supplier’s operations or supply chain and the actions undertaken by the Supplier to remedy the issue; and must, at the Principal’s request and at the Supplier’s own expense, provide such information as is reasonably requested by the Principal for the purpose of complying with clauses 3.1(b) and 3.1(c).",
+        "proposedText":  "Each Party: acknowledges that the parties have reporting obligations in relation to Modern Slavery and Human Rights; must promptly notify the other party upon becoming aware of incidents of Modern Slavery or Human Rights breaches within the parties operations or supply chain and the actions undertaken by the party to remedy the issue; and must, a party request and at the party’s own expense, provide such information as is reasonably requested by the other party for the purpose of complying with clauses 3.1(b) and 3.1(c)."
+    },
+    {
+        "commentId":  252,
+        "allText":  "Throughout the term of this Contract, the neither partySupplier and its Related Bodies Corporate must:",
+        "currentText":  "Throughout the term of this Contract, the Supplier and its Related Bodies Corporate must:",
+        "proposedText":  "Throughout the term of this Contract, the neither party and its Related Bodies Corporate must:"
+    },
+    {
+        "commentId":  279,
+        "allText":  "The Parties shall comply, and shall ensure that their employees, directors, officers, affiliates and third parties to comply, with all applicable laws (including anti-bribery and anti-corruption laws, human rights, environment, health and safety and sanctions and trade control laws and regulations) and trade sanctions requirements and prohibitions applicable to the Parties (including comprehensive sanctions by the United States, European Union, or Switzerland). Any violation of this clause shall constitute a material breach of the Agreement and, in addition to any other remedies under the law and/or this Agreement, non-infringing Party shall be entitled to unilaterally terminate this Agreement with immediate effect and without liability for any claim, losses or damages whatsoever related to the termination",
+        "currentText":  "",
+        "proposedText":  "The Parties shall comply, and shall ensure that their employees, directors, officers, affiliates and third parties to comply, with all applicable laws (including anti-bribery and anti-corruption laws, human rights, environment, health and safety and sanctions and trade control laws and regulations) and trade sanctions requirements and prohibitions applicable to the Parties (including comprehensive sanctions by the United States, European Union, or Switzerland). Any violation of this clause shall constitute a material breach of the Agreement and, in addition to any other remedies under the law and/or this Agreement, non-infringing Party shall be entitled to unilaterally terminate this Agreement with immediate effect and without liability for any claim, losses or damages whatsoever related to the termination"
+    },
+    {
+        "commentId":  284,
+        "allText":  "Without limiting any of the Principal’s rights or remedies under the Contract or otherwise at Law, either Partythe Principal may terminate the Contract under clause 25.4(b) (without being required to issue a Supplier Default Notice) if the PartyPrincipal considers that: the partySupplier has not remedied, or demonstrated to the other party’sPrincipal’s satisfaction that it is taking steps to remedy, any identified instance of Modern Slavery or conduct inconsistent with Human Rights, within such time frame as is reasonably specified by the other PartyPrincipal; the Contract violates any applicable Sanction or Export Control Laws; or either partythe Supplier or any of its Personnel breaches clause 3.",
+        "currentText":  "Without limiting any of the Principal’s rights or remedies under the Contract or otherwise at Law, the Principal may terminate the Contract under clause 25.4(b) (without being required to issue a Supplier Default Notice) if the Principal considers that: the Supplier has not remedied, or demonstrated to the Principal’s satisfaction that it is taking steps to remedy, any identified instance of Modern Slavery or conduct inconsistent with Human Rights, within such time frame as is reasonably specified by the Principal; the Contract violates any applicable Sanction or Export Control Laws; or the Supplier or any of its Personnel breaches clause 3.",
+        "proposedText":  "Without limiting any of the rights or remedies under the Contract or otherwise at Law, either Party may terminate the Contract under clause 25.4(b) (without being required to issue a Default Notice) if the Party considers that: the party has not remedied, or demonstrated to the other party’s satisfaction that it is taking steps to remedy, any identified instance of Modern Slavery or conduct inconsistent with Human Rights, within such time frame as is reasonably specified by the other Party; the Contract violates any applicable Sanction or Export Control Laws; or either party or any of its Personnel breaches clause 3."
+    },
+    {
+        "commentId":  303,
+        "allText":  "any Direction of the Principal in accordance with this Contract;",
+        "currentText":  "any Direction of the Principal;",
+        "proposedText":  "any Direction of the Principal in accordance with this Contract;"
+    },
+    {
+        "commentId":  322,
+        "allText":  "The Supplier is not entitled to make any Claim against the Principal in connection with the ambiguity, inaccuracy or insufficiency (including any Direction given by the Principal under clause 4.5(b)).",
+        "currentText":  "The Supplier is not entitled to make any Claim against the Principal in connection with the ambiguity, inaccuracy or insufficiency (including any Direction given by the Principal under clause 4.5(b)).",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  343,
+        "allText":  "Without limiting clauses 7.2(a) and 7.2(b), to the extent permitted by Law, the Supplier must take disciplinary action that is, in the reasonable opinion of the Principal, appropriate against any of the Supplier\u0027s Personnel who fails to comply with the Principal’s Policies and Procedures.",
+        "currentText":  "Without limiting clauses 7.2(a) and 7.2(b), to the extent permitted by Law, the Supplier must take disciplinary action that is, in the reasonable opinion of the Principal, appropriate against any of the Supplier\u0027s Personnel who fails to comply with the Principal’s Policies and Procedures.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  350,
+        "allText":  "in the form and the terms set out in Schedule 8; or",
+        "currentText":  "the terms set out in Schedule 8; or",
+        "proposedText":  "in the form and the terms set out in Schedule 8;"
+    },
+    {
+        "commentId":  374,
+        "allText":  "Not UsedRetention Moneys",
+        "currentText":  "Retention Moneys",
+        "proposedText":  "Not Used"
+    },
+    {
+        "commentId":  422,
+        "allText":  "Not UsedParent Company Guarantee",
+        "currentText":  "Parent Company Guarantee",
+        "proposedText":  "Not Used"
+    },
+    {
+        "commentId":  470,
+        "allText":  "If the Supplier submits a Supplier Document earlier than the date prescribed under clause 9.1(a)(b), it will be deemed to have been received on that prescribed date, unless notified otherwise by the Principal in writing.",
+        "currentText":  "If the Supplier submits a Supplier Document earlier than the date prescribed under clause 9.1(a)(b), it will be deemed to have been received on that prescribed date, unless notified otherwise by the Principal in writing.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  473,
+        "allText":  "entitle the Supplier to make a Claim against the Principal;",
+        "currentText":  "entitle the Supplier to make a Claim against the Principal;",
+        "proposedText":  ";"
+    },
+    {
+        "commentId":  494,
+        "allText":  "The Supplier grants to the Principal (or, where the Supplier does not own all Intellectual Property Rights in the Supplier\u0027s Background IP, shall procure that the relevant third party grants to the Principal) a non-exclusive, non-transferable, royalty-free licence to use the Supplier\u0027s Background IP solely to the extent necessary to: (i) install, commission, test, operate, maintain and repair the Equipment; (ii) enjoy the benefit of the Equipment for its intended purpose; and The licence granted under clause 10.3(a): (i) does not confer any ownership rights in the Supplier\u0027s Background IP; (ii) does not permit the Principal to copy, modify, adapt, reverse engineer, commercialise, distribute, exploit or create derivative works from the Supplier\u0027s Background IP, except to the extent strictly required for the purposes set out in clause 10.3(a); (iii) may not be transferred or sublicensed except to an End User or a permitted successor in title to the Equipment, solely for the purposes set out in clause 10.3(a); and (iv) terminates upon cessation of the Principal\u0027s ownership or lawful use of the Equipment, except to the extent required for ongoing operation of the Equipment by a permitted transferee.",
+        "currentText":  "",
+        "proposedText":  "The Supplier grants to the Principal (or, where the Supplier does not own all Intellectual Property Rights in the Supplier\u0027s Background IP, shall procure that the relevant third party grants to the Principal) a non-exclusive, non-transferable, royalty-free licence to use the Supplier\u0027s Background IP solely to the extent necessary to: (i) install, commission, test, operate, maintain and repair the Equipment; (ii) enjoy the benefit of the Equipment for its intended purpose; and The licence granted under clause 10.3(a): (i) does not confer any ownership rights in the Supplier\u0027s Background IP; (ii) does not permit the Principal to copy, modify, adapt, reverse engineer, commercialise, distribute, exploit or create derivative works from the Supplier\u0027s Background IP, except to the extent strictly required for the purposes set out in clause 10.3(a); (iii) may not be transferred or sublicensed except to an End User or a permitted successor in title to the Equipment, solely for the purposes set out in clause 10.3(a); and (iv) terminates upon cessation of the Principal\u0027s ownership or lawful use of the Equipment, except to the extent required for ongoing operation of the Equipment by a permitted transferee."
+    },
+    {
+        "commentId":  593,
+        "allText":  "The Supplier acknowledges and agrees that ownership of the Project IP (whether complete or not) will vest in the Supplier. The Supplier shall grant to the Principal a liscense on the terms set out in clause 10.3 (a) for the sole purpose of using the Equipment in accordance with clause 10.3. Principal on its creation and nothing in this Contract limits the Principal\u0027s subsequent use or exploitation of the Project IP. To the extent the Project IP does not automatically vest in the Principal, the Supplier assigns all rights, title and interest in and to the Project IP to the Principal as and when it is created.",
+        "currentText":  "The Supplier acknowledges and agrees that ownership of the Project IP (whether complete or not) will vest in the Principal on its creation and nothing in this Contract limits the Principal\u0027s subsequent use or exploitation of the Project IP. To the extent the Project IP does not automatically vest in the Principal, the Supplier assigns all rights, title and interest in and to the Project IP to the Principal as and when it is created.",
+        "proposedText":  "The Supplier acknowledges and agrees that ownership of the Project IP will vest in the Supplier. The Supplier shall grant to the Principal a liscense on the terms set out in clause 10.3 (a) for the sole purpose of using the Equipment in accordance with clause 10.3."
+    },
+    {
+        "commentId":  673,
+        "allText":  "The Supplier must, prior to disclosure of Confidential Information to any person referred to in clause 11.3(a)(b), procure from that person a confidentiality undertaking for the benefit of the Principal which is consistent with the terms of this clause 11.",
+        "currentText":  "The Supplier must, prior to disclosure of Confidential Information to any person referred to in clause 11.3(a)(b), procure from that person a confidentiality undertaking for the benefit of the Principal which is consistent with the terms of this clause 11.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  686,
+        "allText":  "Not UsedWarranties from Subcontractors No later than 10 Business Days after execution of the relevant Subcontracts, the Supplier must procure and provide the Principal with the Subcontractor warranties described in the Supply Order, in the form set out in Schedule 11. The Subcontractor warranties referred to in clause 13.2(a) do not limit any right which the Principal, its Related Bodies Corporate or any other End User may have against the Supplier under this Contract or at Law in respect of the subject matter of those Subcontractor warranties.",
+        "currentText":  "Warranties from Subcontractors No later than 10 Business Days after execution of the relevant Subcontracts, the Supplier must procure and provide the Principal with the Subcontractor warranties described in the Supply Order, in the form set out in Schedule 11. The Subcontractor warranties referred to in clause 13.2(a) do not limit any right which the Principal, its Related Bodies Corporate or any other End User may have against the Supplier under this Contract or at Law in respect of the subject matter of those Subcontractor warranties.",
+        "proposedText":  "Not Used"
+    },
+    {
+        "commentId":  717,
+        "allText":  "upon Acceptance, be Fit for Purpose; remain Fit for Purpose at all relevant times after the Date of Acceptance, subject to the Principal operating and maintaining the Equipment in accordance with the Supplier Documents",
+        "currentText":  "upon Acceptance, be Fit for Purpose; remain Fit for Purpose at all relevant times after the Date of Acceptance, subject to the Principal operating and maintaining the Equipment in accordance with the Supplier Documents",
+        "proposedText":  ";"
+    },
+    {
+        "commentId":  722,
+        "allText":  "and latent Defects;",
+        "currentText":  "and latent Defects;",
+        "proposedText":  ";"
+    },
+    {
+        "commentId":  725,
+        "allText":  "have the design lifelife expectancy: specified in the Scope of Work; or if none is specified, commensurate with what would ordinarily be expected of a Relevant Supplier for equipment similar to the Equipment;",
+        "currentText":  "have the life expectancy: specified in the Scope of Work; or if none is specified, commensurate with what would ordinarily be expected of a Relevant Supplier for equipment similar to the Equipment;",
+        "proposedText":  "have the design life: specified in the Scope of Work; or if none is specified, commensurate with what would ordinarily be expected of a Relevant Supplier for equipment similar to the Equipment;"
+    },
+    {
+        "commentId":  738,
+        "allText":  "each calendar week;",
+        "currentText":  "each calendar week;",
+        "proposedText":  ";"
+    },
+    {
+        "commentId":  743,
+        "allText":  "The Principal is not required to use the Program for any purpose, including for the purposes of assessing any Claim made by the Supplier under this Contract, but may choose to do so.",
+        "currentText":  "The Principal is not required to use the Program for any purpose, including for the purposes of assessing any Claim made by the Supplier under this Contract, but may choose to do so.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  748,
+        "allText":  "by or",
+        "currentText":  "by or",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  784,
+        "allText":  "For any suspension directed by the Principal for convenience or any other reason not attributable to the Supplier, the Principal shall reimburse the Supplier for all costs, expenses and impacts reasonably incurred as a result of the suspension, including but not limited to demobilisation, remobilisation, storage, standby and delay-related costs. The Supplier shall be entitled to a corresponding extension of time and equitable adjustment to the Supply Order Sum. If such suspension continues for more than 90 days in the cumulative aggregate, the Supplier may, by notice to the Principal, terminate the affected Supply Order and recover its reasonable costs arising from such termination.",
+        "currentText":  "",
+        "proposedText":  "For any suspension directed by the Principal for convenience or any other reason not attributable to the Supplier, the Principal shall reimburse the Supplier for all costs, expenses and impacts reasonably incurred as a result of the suspension, including but not limited to demobilisation, remobilisation, storage, standby and delay-related costs. The Supplier shall be entitled to a corresponding extension of time and equitable adjustment to the Supply Order Sum. If such suspension continues for more than 90 days in the cumulative aggregate, the Supplier may, by notice to the Principal, terminate the affected Supply Order and recover its reasonable costs arising from such termination."
+    },
+    {
+        "commentId":  815,
+        "allText":  "Installation and commissioning",
+        "currentText":  "Installation and commissioning",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  883,
+        "allText":  "If the Principal fails to complete the Acceptance Tests or provide notice of rejection within 28 days after Delivery, the Equipment shall be deemed accepted.",
+        "currentText":  "",
+        "proposedText":  "If the Principal fails to complete the Acceptance Tests or provide notice of rejection within 28 days after Delivery, the Equipment shall be deemed accepted."
+    },
+    {
+        "commentId":  893,
+        "allText":  "7 days\u0027 prior notice",
+        "currentText":  "7 days\u0027 prior notice",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  950,
+        "allText":  "The carrying out of assembly, erection, installation or commissioning of the Equipment by the Principal or the Principal\u0027s Acceptance of the Equipment (in whole or in part) does not: relieve or limit the Supplier\u0027s obligations and liabilities under this Contract; or limit the Principal\u0027s rights in connection with the Supplier’s breach of any of its obligations under this Contract.",
+        "currentText":  "The carrying out of assembly, erection, installation or commissioning of the Equipment by the Principal or the Principal\u0027s Acceptance of the Equipment (in whole or in part) does not: relieve or limit the Supplier\u0027s obligations and liabilities under this Contract; or limit the Principal\u0027s rights in connection with the Supplier’s breach of any of its obligations under this Contract.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  964,
+        "allText":  "16.10 If delivery of the Equipment is delayed due to any act, omission, request or failure of the Principal, the Equipment shall be deemed delivered on the originally scheduled delivery date. The Supplier shall be entitled to invoice the Equipment as if delivery had occurred and recover any reasonable storage, handling, demobilisation, remobilisation and associated costs incurred as a result of such delay.",
+        "currentText":  "",
+        "proposedText":  "16.10 If delivery of the Equipment is delayed due to any act, omission, request or failure of the Principal, the Equipment shall be deemed delivered on the originally scheduled delivery date. The Supplier shall be entitled to invoice the Equipment as if delivery had occurred and recover any reasonable storage, handling, demobilisation, remobilisation and associated costs incurred as a result of such delay."
+    },
+    {
+        "commentId":  975,
+        "allText":  "Provided however, if the Date of Delivery is met by the Supplier subsequently, any Liquidated Damages imposed before Delivery shall be refunded to the Suppler.",
+        "currentText":  "",
+        "proposedText":  "Provided however, if the Date of Delivery is met by the Supplier subsequently, any Liquidated Damages imposed before Delivery shall be refunded to the Suppler."
+    },
+    {
+        "commentId":  983,
+        "allText":  "The payment of Delay Liquidated Damages does not relieve the Supplier from its obligation to achieve Delivery, or from any other of its obligations, warranties and liabilities under or in connection with this Contract. Liquidated Damages shall be the sole and exclusive remedy of the Principal with respect to any delay’s under the relevant Supply Order, other than the Principal’s right to terminate the Supply Order.",
+        "currentText":  "The payment of Delay Liquidated Damages does not relieve the Supplier from its obligation to achieve Delivery, or from any other of its obligations, warranties and liabilities under or in connection with this Contract.",
+        "proposedText":  "The payment of Delay Liquidated Damages does not relieve the Supplier from its obligation to achieve Delivery, or from any other of its obligations, warranties under or in connection with this Contract. Liquidated Damages shall be the sole and exclusive remedy of the Principal with respect to any delay’s under the relevant Supply Order, other than the Principal’s right to terminate the Supply Order."
+    },
+    {
+        "commentId":  994,
+        "allText":  "If any part of this clause 17.1 is found for any reason to be void, invalid or otherwise inoperative so as to disentitle the Principal from claiming Delay Liquidated Damages: the Principal will be entitled to claim against the Supplier damages at Law for the Supplier\u0027s failure to achieve Delivery by the Date for Delivery; and the Supplier\u0027s liability will not be limited by the amount of the Delay Liquidated Damages or the maximum aggregate liability for Delay Liquidated Damages specified in the Supply Order.",
+        "currentText":  "If any part of this clause 17.1 is found for any reason to be void, invalid or otherwise inoperative so as to disentitle the Principal from claiming Delay Liquidated Damages: the Principal will be entitled to claim against the Supplier damages at Law for the Supplier\u0027s failure to achieve Delivery by the Date for Delivery; and the Supplier\u0027s liability will not be limited by the amount of the Delay Liquidated Damages or the maximum aggregate liability for Delay Liquidated Damages specified in the Supply Order.",
+        "proposedText":  "If any part of this clause 17.1 is found for any reason to be void, invalid or otherwise inoperative so as to disentitle the Principal from claiming Delay Liquidated Damages: the Principal will be entitled to claim against the Supplier damages at Law for the Supplier\u0027s failure to achieve Delivery by the Date for Delivery; and the Supplier\u0027s liability will be limited by the amount of the Delay Liquidated Damages or the maximum aggregate liability for Delay Liquidated Damages specified in the Supply Order."
+    },
+    {
+        "commentId":  1002,
+        "allText":  "and any damage caused by the Defect (Remedial Work) within the time agreed between the parties and reasonably specified in the",
+        "currentText":  "and any damage caused by the Defect (Remedial Work) within the time specified in the",
+        "proposedText":  "(Remedial Work) within the time agreed between the parties and reasonably specified in the"
+    },
+    {
+        "commentId":  1043,
+        "allText":  "The Supplier shall assess the Principal\u0027s Direction and, where reasonably practicable, use reasonable endeavors to facilitate the temporary solution. The Supplier shall not be obliged to comply with a Direction where the proposed temporary solution is not technically feasible, would compromise the safe operation of the Equipment, would adversely affect the Supplier\u0027s warranty obligations, or cannot reasonably be implemented by the Supplier. Where the Supplier agrees to implement a temporary solution, the Parties shall agree any resulting costs, delay and other consequences, which shall constitute a Variation and be borne by the Principal.",
+        "currentText":  "",
+        "proposedText":  "The Supplier shall assess the Principal\u0027s Direction and, where reasonably practicable, use reasonable endeavors to facilitate the temporary solution. The Supplier shall not be obliged to comply with a Direction where the proposed temporary solution is not technically feasible, would compromise the safe operation of the Equipment, would adversely affect the Supplier\u0027s warranty obligations, or cannot reasonably be implemented by the Supplier. Where the Supplier agrees to implement a temporary solution, the Parties shall agree any resulting costs, delay and other consequences, which shall constitute a Variation and be borne by the Principal."
+    },
+    {
+        "commentId":  1057,
+        "allText":  "The warranty shall not apply to any defect arising from: (a) misuse, neglect or improper operation; (b) installation, modification or repair by persons other than the Supplier or its authorisedauthorized representatives; (c) normal wear and tear; or (d) failure to operate or maintain the Equipment in accordance with the Supplier\u0027s documentation; (e) The Equipment not being properly installed in accordance with the Supplier’s instructions, including improperly powering up the Equipment before commissioning by a Supplier-certified technician; (f) Any Software not being timely updated to the most recent version made available by the Supplier; (g) Power outages, loss of network connectivity, or disruptions to the electrical supply; (h) Insufficient ventilation, excessive dirt accumulation, corrosion, ingress of foreign substances, vermin or insect infestation, or vandalism; (i) Cyber security intrusion, including viruses and hacking; (j) Natural hazards including fire, flood, storm, Earthquake, lightening, spillage or leakage of chemicals or harmful substances, excessive voltage or mechanical shock, or water damage; (k) The Equipment being installed or operated: (i) in proximity to seawater of 0-500m or aerosol salt concentration larger than 100µg/m³; or (ii) in the presence of conductive dust (PM10 \u003e100µg/m³) or with condensing humidity (i.e., 100%) for more than 130 days per year; or (l) Any other cause beyond the reasonable control of the Supplier..",
+        "currentText":  "",
+        "proposedText":  "The warranty shall not apply to any defect arising from: (a) misuse, neglect or improper operation; (b) installation, modification or repair by persons other than the Supplier or its authorized representatives; (c) normal wear and tear; or (d) failure to operate or maintain the Equipment in accordance with the Supplier\u0027s documentation; (e) The Equipment not being properly installed in accordance with the Supplier’s instructions, including improperly powering up the Equipment before commissioning by a Supplier-certified technician; (f) Any Software not being timely updated to the most recent version made available by the Supplier; (g) Power outages, loss of network connectivity, or disruptions to the electrical supply; (h) Insufficient ventilation, excessive dirt accumulation, corrosion, ingress of foreign substances, vermin or insect infestation, or vandalism; (i) Cyber security intrusion, including viruses and hacking; (j) Natural hazards including fire, flood, storm, Earthquake, lightening, spillage or leakage of chemicals or harmful substances, excessive voltage or mechanical shock, or water damage; (k) The Equipment being installed or operated: (i) in proximity to seawater of 0-500m or aerosol salt concentration larger than 100µg/m³; or (ii) in the presence of conductive dust (PM10 \u003e100µg/m³) or with condensing humidity (i.e., 100%) for more than 130 days per year; or (l) Any other cause beyond the reasonable control of the Supplier."
+    },
+    {
+        "commentId":  1197,
+        "allText":  "any off site or corporate overheads,",
+        "currentText":  "any off site or corporate overheads,",
+        "proposedText":  "any ,"
+    },
+    {
+        "commentId":  1209,
+        "allText":  "immediately",
+        "currentText":  "immediately",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1246,
+        "allText":  "the Supplier must obtain all customs duty concessions it is entitled to obtain in respect of the Equipment and hold those concessions for the benefit of the Principal.",
+        "currentText":  "the Supplier must obtain all customs duty concessions it is entitled to obtain in respect of the Equipment and hold those concessions for the benefit of the Principal.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1268,
+        "allText":  "Title in the Equipment transfers to the Principal on the laterearlier of: Delivery of the Equipment (or any part thereof) to the Delivery Point; or Full payment by the Principal for the Equipment.",
+        "currentText":  "Title in the Equipment transfers to the Principal on the earlier of: Delivery of the Equipment (or any part thereof) to the Delivery Point; or payment by the Principal for the Equipment.",
+        "proposedText":  "Title in the Equipment transfers to the Principal on the later of: Delivery of the Equipment (or any part thereof) to the Delivery Point; or Full payment by the Principal for the Equipment."
+    },
+    {
+        "commentId":  1276,
+        "allText":  "the responsibility for care and custody of the Equipment, together with the risk of loss or damage to the Equipment, remains with the Supplier until the Equipment is delivered at the first point of Delivery.Date of Delivery; and the Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.",
+        "currentText":  "the responsibility for care and custody of the Equipment, together with the risk of loss or damage to the Equipment, remains with the Supplier until the Date of Delivery; and the Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.",
+        "proposedText":  "the responsibility for care and custody of the Equipment, together with the risk of loss or damage to the Equipment, remains with the Supplier until the Equipment is delivered at the first point of Delivery.; and"
+    },
+    {
+        "commentId":  1282,
+        "allText":  "the Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.",
+        "currentText":  "the Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1301,
+        "allText":  "In the event that there is a deductible payable under any Principal’s Insurance and the Supplier was responsible for the Loss or damage giving rise to the insurance claim, the Supplier shall be responsible for paying the deductible.",
+        "currentText":  "In the event that there is a deductible payable under any Principal’s Insurance and the Supplier was responsible for the Loss or damage giving rise to the insurance claim, the Supplier shall be responsible for paying the deductible.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1319,
+        "allText":  "Where the Principal terminates this Contract or any Supply Order for convenience, the Principal shall pay the Supplier for: (a) all work performed up to the date of termination; (b) all Equipment manufactured, procured or committed for manufacture or procurement; (c) all reasonable cancellation charges incurred by the Supplier; and (d) all reasonable demobilization costs arising from the termination.",
+        "currentText":  "",
+        "proposedText":  "Where the Principal terminates this Contract or any Supply Order for convenience, the Principal shall pay the Supplier for: (a) all work performed up to the date of termination; (b) all Equipment manufactured, procured or committed for manufacture or procurement; (c) all reasonable cancellation charges incurred by the Supplier; and (d) all reasonable demobilization costs arising from the termination."
+    },
+    {
+        "commentId":  1332,
+        "allText":  "Supplier materially breaches",
+        "currentText":  "Supplier breaches",
+        "proposedText":  "Supplier materially breaches"
+    },
+    {
+        "commentId":  1370,
+        "allText":  "or 25.4:",
+        "currentText":  "or 25.4:",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1401,
+        "allText":  "Chief Executive Officer.",
+        "currentText":  "Chief Executive Officer.",
+        "proposedText":  "."
+    },
+    {
+        "commentId":  1441,
+        "allText":  "The Supplier must indemnify each the Principal Indemnitee, all Principal’s Personnel and any End User from and against: any loss or damage to its property caused due to the negligence of Supplier, whether within or outside the Site (with the exception of any loss or damage to the Equipment to which clause 23.3 applies); or any Claim or Loss suffered or incurred by it in connection with: illness, injury to, or death of any person caused by the negligence of the Supplier; the loss or damage of any third party property; or violation of any applicable Laws, Infringement of Intellectual Property Rightsin each case, in connection with the performance of the Supplier Scope, this Contract, or any relevant Supply Order. Supplier\u0027s liability under this clause shall be reduced proportionately to the extent that the Principal or its Personnel contributed to the loss, damage, cost, expense or liability.",
+        "currentText":  "The Supplier must indemnify each Principal Indemnitee, all Principal’s Personnel and any End User from and against: any loss or damage to its property, whether within or outside the Site (with the exception of any loss or damage to the Equipment to which clause 23.3 applies); or any Claim or Loss suffered or incurred by it in connection with: illness, injury to, or death of any person; the loss or damage of any third party property; or violation of any applicable Laws,in each case, in connection with the performance of the Supplier Scope, this Contract, or any relevant Supply Order.",
+        "proposedText":  "The Supplier must indemnify the Principal, all Principal’s Personnel from and against: any loss or damage to its property caused due to the negligence of Supplier (with the exception of any loss or damage to the Equipment to which clause 23.3 applies); or any Claim or Loss suffered or incurred by it in connection with: illness, injury to, or death of any person caused by the negligence of the Supplier; ; or , Infringement of Intellectual Property Rightsin each case, in connection with the performance of the Supplier Scope, this Contract, or any relevant Supply Order. Supplier\u0027s liability under this clause shall be reduced proportionately to the extent that the Principal or its Personnel contributed to the loss, damage, cost, expense or liability."
+    },
+    {
+        "commentId":  1465,
+        "allText":  "under its indemnity obligations under clauses 10.6(a), 22.1(d), 22.1(g) and 30.1(except clause 30.1(b)(c)); illness, injury to, or death of any person caused by the negligence of the Supplier for any breach of clauses 3, 10, 11, or 33; Infringement of Intellectual Property Rights for any breach of applicable Legislation or Licences by the Supplier or any of its Personnel; to the extent that it is insured and the Supplier is entitled to be indemnified for the relevant Claim or Loss under an insurance policy in accordance with the Schedule of Insurances, or would have been so insured but for: the application of this clause 30.2; or any act or omission of the Supplier, including: any breach of this Contract, or any relevant Supply Order, including a failure to procure or maintain any insurance policy required to be procured or maintained by the Supplier; breach of the relevant insurance policy by the Supplier; or failure by the Supplier to diligently pursue a claim under such insurance policy; or",
+        "currentText":  "under its indemnity obligations under clauses 10.6(a), 22.1(d), 22.1(g) and 30.1(except clause 30.1(b)(c)); for any breach of clauses 3, 10, 11, or 33; for any breach of applicable Legislation or Licences by the Supplier or any of its Personnel; to the extent that it is insured and the Supplier is entitled to be indemnified for the relevant Claim or Loss under an insurance policy in accordance with the Schedule of Insurances, or would have been so insured but for: the application of this clause 30.2; or any act or omission of the Supplier, including: any breach of this Contract, or any relevant Supply Order, including a failure to procure or maintain any insurance policy required to be procured or maintained by the Supplier; breach of the relevant insurance policy by the Supplier; or failure by the Supplier to diligently pursue a claim under such insurance policy; or",
+        "proposedText":  "); illness, injury to, or death of any person caused by the negligence of the Supplier Infringement of Intellectual Property Rights"
+    },
+    {
+        "commentId":  1501,
+        "allText":  "Notwithstanding anything else contained in this Contract to the contrary, the Supplier shall not be liable under, arising out of or in connection with the Contract (to the fullest extent permitted at law) whether by way of indemnity, guarantee, or by reason of any breach of contract, or of statutory duty or by reason of tort (including but not limited to negligence) or any other legal principle or doctrine for any loss of profits, loss of use, loss of revenue, loss of data or loss of anticipated savings or for any financial or economic loss (whether direct or indirect) or for any consequential or indirect loss or damage whatsoever.",
+        "currentText":  "",
+        "proposedText":  "Notwithstanding anything else contained in this Contract to the contrary, the Supplier shall not be liable under, arising out of or in connection with the Contract (to the fullest extent permitted at law) whether by way of indemnity, guarantee, or by reason of any breach of contract, or of statutory duty or by reason of tort (including but not limited to negligence) or any other legal principle or doctrine for any loss of profits, loss of use, loss of revenue, loss of data or loss of anticipated savings or for any financial or economic loss (whether direct or indirect) or for any consequential or indirect loss or damage whatsoever."
+    },
+    {
+        "commentId":  1513,
+        "allText":  "cover the Supplier for potential Loss to the Principal assumed by reason of the exclusion of the Legislation; and do not exclude cover for any potential Loss the Supplier may have to the Principal under or by reason of this Contract, or any relevant Supply Order",
+        "currentText":  "cover the Supplier for potential Loss to the Principal assumed by reason of the exclusion of the Legislation; and do not exclude cover for any potential Loss the Supplier may have to the Principal under or by reason of this Contract, or any relevant Supply Order",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1524,
+        "allText":  "Local content",
+        "currentText":  "Local content",
+        "proposedText":  "Local content"
+    },
+    {
+        "commentId":  1542,
+        "allText":  "n a form acceptable to the Principal, acting",
+        "currentText":  "n a form acceptable to the Principal, acting",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1546,
+        "allText":  "If requested by the Principal, the Supplier agrees to enter into (and will procure that any Guarantor enters into) a direct deed with Financiers, the Principal on terms which are consistent with market practice for project financing of a resource based project and as reasonably required by Financiers (including in relation to notices to be provided by the Supplier, consent to security and enforcement, termination, step-in, variations and assignment).",
+        "currentText":  "If requested by the Principal, the Supplier agrees to enter into (and will procure that any Guarantor enters into) a direct deed with Financiers, the Principal on terms which are consistent with market practice for project financing of a resource based project and as reasonably required by Financiers (including in relation to notices to be provided by the Supplier, consent to security and enforcement, termination, step-in, variations and assignment).",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1552,
+        "allText":  "Supplier reserves it right to assign, transfer, or novate this Contract to any third party in the event of sale, divestment, or transfer of all or portion of its business or assets. The Supplier shall notify the other party in writing at least 30 days in advance of such assignment, transfer, or novation.",
+        "currentText":  "",
+        "proposedText":  "Supplier reserves it right to assign, transfer, or novate this Contract to any third party in the event of sale, divestment, or transfer of all or portion of its business or assets. The Supplier shall notify the other party in writing at least 30 days in advance of such assignment, transfer, or novation."
+    },
+    {
+        "commentId":  1557,
+        "allText":  "on the same term and conditions. in the form that the Principal reasonably requires and will effect a release in favour of the Principal in respect of all its liability under this Contract arising on or after the effective date of the novation, but (unless otherwise accepted by the person to whom the Contract is novated) will not release its liability for all breaches committed by it prior to that date. If the Supplier fails to enter into any one or more of the deeds of novation the Principal may require it to enter into in accordance with this Contract: the Supplier is deemed by this clause 35.1(d), and in consideration for the Principal’s obligations under this Contract, to have irrevocably appointed the Principal as its attorney to execute that or those deeds of novation on its behalf and to bind the Supplier accordingly; and Waiver the Principal is entitled to suspend payment to the Supplier of any amounts otherwise payable under this Contract, until the date on which the Supplier has entered into the required deeds of novation whether by the Principal acting as its attorney or otherwise.",
+        "currentText":  "in the form that the Principal reasonably requires and will effect a release in favour of the Principal in respect of all its liability under this Contract arising on or after the effective date of the novation, but (unless otherwise accepted by the person to whom the Contract is novated) will not release its liability for all breaches committed by it prior to that date. If the Supplier fails to enter into any one or more of the deeds of novation the Principal may require it to enter into in accordance with this Contract: the Supplier is deemed by this clause 35.1(d), and in consideration for the Principal’s obligations under this Contract, to have irrevocably appointed the Principal as its attorney to execute that or those deeds of novation on its behalf and to bind the Supplier accordingly; and Waiver the Principal is entitled to suspend payment to the Supplier of any amounts otherwise payable under this Contract, until the date on which the Supplier has entered into the required deeds of novation whether by the Principal acting as its attorney or otherwise.",
+        "proposedText":  "on the same term and conditions. Waiver ."
+    },
+    {
+        "commentId":  1598,
+        "allText":  "Equipment Price: Not applicable Services Price: Not applicable",
+        "currentText":  "Equipment Price: Not applicable Services Price: Not applicable",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1602,
+        "allText":  "Where the relevant Supply Order Sum is to be increased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs. Where the relevant Supply Order Sum is to be decreased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs.",
+        "currentText":  "Where the relevant Supply Order Sum is to be increased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs. Where the relevant Supply Order Sum is to be decreased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1623,
+        "allText":  "24 months from the Date of DeliveryAcceptance.",
+        "currentText":  "24 months from the Date of Acceptance.",
+        "proposedText":  "24 months from the Date of Delivery."
+    },
+    {
+        "commentId":  1647,
+        "allText":  "Professional Indemnity Insurance(Section 2.1 of Schedule of Insurances)Not ApplicableProfessional Indemnity Insurance:☒ is required is not required",
+        "currentText":  "Professional Indemnity Insurance(Section 2.1 of Schedule of Insurances)Professional Indemnity Insurance:☒ is required is not required",
+        "proposedText":  "Professional Indemnity Insurance(Section 2.1 of Schedule of Insurances)Not Applicable"
+    },
+    {
+        "commentId":  1730,
+        "allText":  "Tariff and Duties",
+        "currentText":  "Tariff and Duties",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1760,
+        "allText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "currentText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "proposedText":  "Annexure I - Performance requirements and Acceptance Tests"
+    },
+    {
+        "commentId":  1761,
+        "allText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "currentText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "proposedText":  "Annexure I - Performance requirements and Acceptance Tests"
+    },
+    {
+        "commentId":  1762,
+        "allText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "currentText":  "Annexure I - Performance requirements and Acceptance Tests",
+        "proposedText":  "Annexure I - Performance requirements and Acceptance Tests"
+    },
+    {
+        "commentId":  1903,
+        "allText":  "Schedule 3 – Pricing Schedule",
+        "currentText":  "Schedule 3 – Pricing Schedule",
+        "proposedText":  "Schedule 3 – Pricing Schedule"
+    },
+    {
+        "commentId":  1904,
+        "allText":  "Schedule 3 – Pricing Schedule",
+        "currentText":  "Schedule 3 – Pricing Schedule",
+        "proposedText":  "Schedule 3 – Pricing Schedule"
+    },
+    {
+        "commentId":  1926,
+        "allText":  "Framework Milestones for each Supply Order",
+        "currentText":  "Framework Milestones for each Supply Order",
+        "proposedText":  "Framework Milestones for each Supply Order"
+    },
+    {
+        "commentId":  1988,
+        "allText":  "used",
+        "currentText":  "used",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  1998,
+        "allText":  "Schedule 7 – Not UsedForm of Parent Company Guarantee",
+        "currentText":  "Schedule 7 – Form of Parent Company Guarantee",
+        "proposedText":  "Schedule 7 – Not Used"
+    },
+    {
+        "commentId":  2412,
+        "allText":  "Schedule 8 – Form of Security",
+        "currentText":  "Schedule 8 – Form of Security",
+        "proposedText":  "Schedule 8 – Form of Security"
+    },
+    {
+        "commentId":  2413,
+        "allText":  "Schedule 8 – Form of Security",
+        "currentText":  "Schedule 8 – Form of Security",
+        "proposedText":  "Schedule 8 – Form of Security"
+    },
+    {
+        "commentId":  2553,
+        "allText":  "Deductibles AU$250,000 for each and every occurrence for “worker to worker”claims on Site (costs inclusive); and AU$100,000 for each and every other occurrence (costs inclusive).",
+        "currentText":  "Deductibles AU$250,000 for each and every occurrence for “worker to worker”claims on Site (costs inclusive); and AU$100,000 for each and every other occurrence (costs inclusive).",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  2563,
+        "allText":  "include a principal\u0027s indemnity extension in favour of the Principal and its Related Bodies Corporate with respect to the Principal’s vicarious liability incurred as a result of the acts or omissions of the Supplier or the Supplier’s Personnel; be endorsed by the insurer to act as primary cover to (and therefore not as excess of or secondary cover to) any other insurance or indemnities provided by the Supplier under this Contract;",
+        "currentText":  "include a principal\u0027s indemnity extension in favour of the Principal and its Related Bodies Corporate with respect to the Principal’s vicarious liability incurred as a result of the acts or omissions of the Supplier or the Supplier’s Personnel; be endorsed by the insurer to act as primary cover to (and therefore not as excess of or secondary cover to) any other insurance or indemnities provided by the Supplier under this Contract;",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  2581,
+        "allText":  "Maximum of $10,000 for each and every loss.",
+        "currentText":  "Maximum of $10,000 for each and every loss.",
+        "proposedText":  ""
+    },
+    {
+        "commentId":  2585,
+        "allText":  "Schedule 11 – Not UsedSubcontractor Warranty",
+        "currentText":  "Schedule 11 – Subcontractor Warranty",
+        "proposedText":  "Schedule 11 – Not Used"
+    },
+    {
+        "commentId":  2698,
+        "allText":  "Schedule 12 – Review Procedures",
+        "currentText":  "Schedule 12 – Review Procedures",
+        "proposedText":  "Schedule 12 – Review Procedures"
+    },
+    {
+        "commentId":  2712,
+        "allText":  "Schedule 15 – Deed of Novation",
+        "currentText":  "Schedule 15 – Deed of Novation",
+        "proposedText":  "Schedule 15 – Deed of Novation"
+    }
+]

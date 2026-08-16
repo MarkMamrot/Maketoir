@@ -31,7 +31,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     lockHeld = true;
 
     const [[business]] = await connection.query<mysql.RowDataPacket[]>(
-      `SELECT business_id, name, ims_db_name
+      `SELECT business_id, name, ims_db_name, is_sandbox, automation_paused
          FROM businesses
         WHERE business_id = ? AND deleted_at IS NULL
         LIMIT 1`,
@@ -39,6 +39,9 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
     );
     if (!business || business.ims_db_name !== config.expectedImsSchema) {
       throw new Error('Live E2E blocked: business-to-IMS-schema mapping does not match the expected identity.');
+    }
+    if (Number(business.is_sandbox) !== 1 || Number(business.automation_paused) !== 1) {
+      throw new Error('Live E2E blocked: target business must be a sandbox with automation paused.');
     }
 
     const [[integration]] = await connection.query<mysql.RowDataPacket[]>(
@@ -149,7 +152,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       && Number(openPurchaseOrders[0].location_id) === config.fixtureLocationId
       && Number(openPurchaseOrders[0].qty_received) === 0
       && String(openPurchaseOrders[0].notes ?? '').includes(`LIVE E2E ${config.runId} P1`);
-    const p2ActionStateAllowed = (config.action === 'p2' && currentState === 'p2_created')
+    const p2ActionStateAllowed = (config.action === 'p2' && ['p2_created', 'awaiting_operator'].includes(currentState ?? ''))
       || (config.action === 'p2-compensate' && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? ''));
     const resumableSalesOrder = p2ActionStateAllowed
       && Number.isInteger(checkpointedSoId)
@@ -206,7 +209,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         )
       );
     const resumableP3Completed = config.action === 'p3'
-      && currentState === 'p3_created'
+      && ['p3_created', 'awaiting_operator'].includes(currentState ?? '')
       && checkpointedP3SourceOrder
       && String(checkpointedP3SourceOrder.status) === 'fulfilled'
       && Number(checkpointedP3SourceOrder.qty_fulfilled) === 1;
@@ -248,7 +251,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         && Number(order.customer_id) === config.fixtureCustomerId
         && Number(order.location_id) === config.fixtureLocationId
       );
-    const p7ActionStateAllowed = (config.action === 'p7' && ['preflight_passed', 'p7_created', 'blocked'].includes(currentState ?? ''))
+    const p7ActionStateAllowed = (config.action === 'p7' && ['preflight_passed', 'p7_created', 'awaiting_operator', 'blocked'].includes(currentState ?? ''))
       || (config.action === 'p7-compensate' && ['acknowledged', 'compensation_retry_authorized'].includes(currentState ?? ''));
     const p7OpenSalesOrdersAreExpected = ['p7', 'p7-compensate'].includes(config.action)
       && openSalesOrders.length > 0
@@ -320,9 +323,9 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
       const allowedStates = config.action === 'p1' ? ['preflight_passed', 'p1_created']
         : config.action === 'p1-repair' ? ['awaiting_operator']
         : config.action === 'p1-compensate' ? ['acknowledged', 'compensation_retry_authorized']
-        : config.action === 'p2' ? ['preflight_passed', 'p2_created']
+        : config.action === 'p2' ? ['preflight_passed', 'p2_created', 'awaiting_operator']
         : config.action === 'p2-compensate' ? ['acknowledged', 'compensation_retry_authorized']
-        : config.action === 'p3' ? ['preflight_passed', 'p3_created', 'blocked']
+        : config.action === 'p3' ? ['preflight_passed', 'p3_created', 'awaiting_operator', 'blocked']
         : config.action === 'p3-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p4' ? ['preflight_passed', 'p4_created', 'blocked']
         : config.action === 'p4-compensate' ? ['acknowledged', 'compensation_retry_authorized']
@@ -330,7 +333,7 @@ export async function runDatabasePreflight(config: LiveE2EConfig): Promise<void>
         : config.action === 'p5-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p6' ? ['preflight_passed', 'p6_created', 'blocked']
         : config.action === 'p6-compensate' ? ['acknowledged', 'compensation_retry_authorized']
-        : config.action === 'p7' ? ['preflight_passed', 'p7_created', 'blocked']
+        : config.action === 'p7' ? ['preflight_passed', 'p7_created', 'awaiting_operator', 'blocked']
         : config.action === 'p7-compensate' ? ['acknowledged', 'compensation_retry_authorized']
         : config.action === 'p8' ? ['preflight_passed', 'p8_created', 'blocked']
         : config.action === 'p8-compensate' ? ['acknowledged', 'compensation_retry_authorized']

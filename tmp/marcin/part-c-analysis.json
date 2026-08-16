@@ -1,0 +1,1306 @@
+﻿{
+    "paragraphs":  [
+                       {
+                           "index":  1,
+                           "start":  0,
+                           "end":  4,
+                           "text":  "Rev",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  2,
+                           "start":  4,
+                           "end":  9,
+                           "text":  "Date",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  3,
+                           "start":  9,
+                           "end":  36,
+                           "text":  "Relevant Party’s response",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  4,
+                           "start":  36,
+                           "end":  40,
+                           "text":  "Rev",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  5,
+                           "start":  40,
+                           "end":  45,
+                           "text":  "Date",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  6,
+                           "start":  45,
+                           "end":  71,
+                           "text":  "Relevant Party’s response",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  8,
+                           "start":  72,
+                           "end":  74,
+                           "text":  "A",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  9,
+                           "start":  74,
+                           "end":  100,
+                           "text":  "[Insert date of revision]",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  10,
+                           "start":  100,
+                           "end":  182,
+                           "text":  "[Insert e.g., Contractor’s initial submission (Clause ref of the Draft Contract)]",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  15,
+                           "start":  186,
+                           "end":  188,
+                           "text":  "B",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  22,
+                           "start":  195,
+                           "end":  197,
+                           "text":  "C",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  29,
+                           "start":  204,
+                           "end":  206,
+                           "text":  "D",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  36,
+                           "start":  212,
+                           "end":  214,
+                           "text":  "E",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  43,
+                           "start":  220,
+                           "end":  222,
+                           "text":  "F",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  51,
+                           "start":  229,
+                           "end":  325,
+                           "text":  "NB. Coloured text may be used to highlight the latest issue raised which requires clarification",
+                           "style":  "Header",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  false
+                       },
+                       {
+                           "index":  53,
+                           "start":  326,
+                           "end":  335,
+                           "text":  "Item No.",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  54,
+                           "start":  335,
+                           "end":  352,
+                           "text":  "Section / Clause",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  55,
+                           "start":  352,
+                           "end":  357,
+                           "text":  "Date",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  56,
+                           "start":  357,
+                           "end":  368,
+                           "text":  "Comment By",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  57,
+                           "start":  368,
+                           "end":  382,
+                           "text":  "Clarification",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  58,
+                           "start":  382,
+                           "end":  389,
+                           "text":  "Status",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  59,
+                           "start":  389,
+                           "end":  403,
+                           "text":  "(Open/Closed)",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  64,
+                           "start":  407,
+                           "end":  416,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  71,
+                           "start":  422,
+                           "end":  432,
+                           "text":  "Fortescue",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  78,
+                           "start":  438,
+                           "end":  447,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  86,
+                           "start":  454,
+                           "end":  463,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  93,
+                           "start":  469,
+                           "end":  479,
+                           "text":  "Fortescue",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  100,
+                           "start":  485,
+                           "end":  494,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  108,
+                           "start":  501,
+                           "end":  510,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  115,
+                           "start":  517,
+                           "end":  527,
+                           "text":  "Fortescue",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  122,
+                           "start":  533,
+                           "end":  542,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  130,
+                           "start":  549,
+                           "end":  558,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  137,
+                           "start":  565,
+                           "end":  575,
+                           "text":  "Fortescue",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  144,
+                           "start":  581,
+                           "end":  590,
+                           "text":  "Tenderer",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  151,
+                           "start":  596,
+                           "end":  656,
+                           "text":  "For and on behalf of Fortescue by a duly authorised person:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  152,
+                           "start":  656,
+                           "end":  710,
+                           "text":  "For and on behalf of XXX by a duly authorised person:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  154,
+                           "start":  711,
+                           "end":  722,
+                           "text":  "SIGNATURE:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  156,
+                           "start":  723,
+                           "end":  734,
+                           "text":  "SIGNATURE:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  159,
+                           "start":  736,
+                           "end":  742,
+                           "text":  "NAME:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  161,
+                           "start":  743,
+                           "end":  749,
+                           "text":  "NAME:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  164,
+                           "start":  751,
+                           "end":  761,
+                           "text":  "POSITION:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  166,
+                           "start":  762,
+                           "end":  772,
+                           "text":  "POSITION:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  169,
+                           "start":  774,
+                           "end":  780,
+                           "text":  "DATE:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       },
+                       {
+                           "index":  171,
+                           "start":  781,
+                           "end":  787,
+                           "text":  "DATE:",
+                           "style":  "Normal",
+                           "list":  "",
+                           "outlineLevel":  10,
+                           "inTable":  true
+                       }
+                   ],
+    "tableCount":  6,
+    "tables":  [
+                   {
+                       "index":  1,
+                       "rows":  7,
+                       "columns":  6,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "Rev",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "Date",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  3,
+                                         "text":  "Relevant Party’s response",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  4,
+                                         "text":  "Rev",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  5,
+                                         "text":  "Date",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  6,
+                                         "text":  "Relevant Party’s response",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  1,
+                                         "text":  "A",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  2,
+                                         "text":  "[Insert date of revision]",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "[Insert e.g., Contractor’s initial submission (Clause ref of the Draft Contract)]",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  1,
+                                         "text":  "B",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  1,
+                                         "text":  "C",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  1,
+                                         "text":  "D",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  1,
+                                         "text":  "E",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  6,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  1,
+                                         "text":  "F",
+                                         "width":  39.8,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  89.4,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  251.05,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  27.35,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  87.5,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  7,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  284.55,
+                                         "verticalAlignment":  0
+                                     }
+                                 ]
+                   },
+                   {
+                       "index":  2,
+                       "rows":  4,
+                       "columns":  6,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "Item No.",
+                                         "width":  33.75,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "Section / Clause",
+                                         "width":  70.9,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  3,
+                                         "text":  "Date",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  4,
+                                         "text":  "Comment By",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  5,
+                                         "text":  "Clarification",
+                                         "width":  418.2,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  6,
+                                         "text":  "Status (Open/Closed)",
+                                         "width":  99.2,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  1,
+                                         "text":  "",
+                                         "width":  33.75,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  70.9,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  99.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "Fortescue",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     }
+                                 ]
+                   },
+                   {
+                       "index":  3,
+                       "rows":  3,
+                       "columns":  6,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "",
+                                         "width":  33.75,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  70.9,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  99.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "Fortescue",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     }
+                                 ]
+                   },
+                   {
+                       "index":  4,
+                       "rows":  3,
+                       "columns":  6,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "",
+                                         "width":  33.75,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  70.9,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  99.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "Fortescue",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     }
+                                 ]
+                   },
+                   {
+                       "index":  5,
+                       "rows":  3,
+                       "columns":  6,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "",
+                                         "width":  33.75,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  70.9,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  6,
+                                         "text":  "",
+                                         "width":  99.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "Fortescue",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "",
+                                         "width":  63.8,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "Tenderer",
+                                         "width":  92.1,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  5,
+                                         "text":  "",
+                                         "width":  418.2,
+                                         "verticalAlignment":  0
+                                     }
+                                 ]
+                   },
+                   {
+                       "index":  6,
+                       "rows":  5,
+                       "columns":  4,
+                       "cells":  [
+                                     {
+                                         "row":  1,
+                                         "column":  1,
+                                         "text":  "For and on behalf of Fortescue by a duly authorised person:",
+                                         "width":  390.2,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  1,
+                                         "column":  2,
+                                         "text":  "For and on behalf of XXX by a duly authorised person:",
+                                         "width":  390.3,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  1,
+                                         "text":  "SIGNATURE:",
+                                         "width":  104.65,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  285.55,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  3,
+                                         "text":  "SIGNATURE:",
+                                         "width":  104.25,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  2,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  286.05,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  1,
+                                         "text":  "NAME:",
+                                         "width":  104.65,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  285.55,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  3,
+                                         "text":  "NAME:",
+                                         "width":  104.25,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  3,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  286.05,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  1,
+                                         "text":  "POSITION:",
+                                         "width":  104.65,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  285.55,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  3,
+                                         "text":  "POSITION:",
+                                         "width":  104.25,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  4,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  286.05,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  1,
+                                         "text":  "DATE:",
+                                         "width":  104.65,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  2,
+                                         "text":  "",
+                                         "width":  285.55,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  3,
+                                         "text":  "DATE:",
+                                         "width":  104.25,
+                                         "verticalAlignment":  1
+                                     },
+                                     {
+                                         "row":  5,
+                                         "column":  4,
+                                         "text":  "",
+                                         "width":  286.05,
+                                         "verticalAlignment":  1
+                                     }
+                                 ]
+                   }
+               ],
+    "sections":  [
+                     {
+                         "index":  1,
+                         "orientation":  1,
+                         "pageWidth":  841.7,
+                         "pageHeight":  595.45,
+                         "margins":  {
+                                         "top":  7.85,
+                                         "bottom":  28.4,
+                                         "left":  36,
+                                         "right":  36
+                                     }
+                     }
+                 ],
+    "revisions":  0,
+    "comments":  0,
+    "contentControls":  0,
+    "shapes":  0,
+    "inlineShapes":  0
+}

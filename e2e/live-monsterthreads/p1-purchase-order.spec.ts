@@ -31,6 +31,7 @@ test('@p1-create creates and confirms the isolated low-value PO', async ({ page 
     await page.getByTestId('po-new').click();
     await page.getByTestId('po-supplier').selectOption(String(config.fixtureSupplierId));
     await page.getByTestId('po-location').selectOption(String(config.fixtureLocationId));
+    await page.getByTestId('po-tax-treatment').selectOption('no_tax');
     await page.getByTestId('po-notes').fill(`LIVE E2E ${config.runId} P1 - permanent audit artifact`);
     await page.getByTestId('po-line-0-variant').fill(config.fixtureSku);
     await page.getByTestId(`po-line-0-variant-option-${config.fixtureVariantId}`).click();
@@ -70,8 +71,11 @@ test('@p1-receive fully receives the existing isolated low-value PO', async ({ p
   await loginToIms(page, config);
   try {
     await openPurchaseOrders(page);
-    await page.getByTestId(`po-receive-${poId}`).last().click();
+    const poRow = page.getByTestId(`po-open-${poId}`).locator('xpath=ancestor::tr');
+    await poRow.getByRole('combobox').selectOption('receive');
+    await poRow.getByRole('button', { name: 'Go' }).click();
     await page.getByTestId('po-line-0-received').fill('1');
+    await page.getByTestId('po-supplier-invoice-number').fill(`E2E-${config.runId}`);
     const editResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/purchase-orders/${poId}`)
       && response.request().method() === 'PUT');
     const receiveResponse = page.waitForResponse(response => response.url().endsWith('/api/ims/receive/batch')
@@ -116,7 +120,7 @@ test('@p1-repair corrects the exact untaxed P1 Xero bill and renews operator rev
   expect(before).toMatchObject({
     id: poId,
     status: 'complete',
-    tax_treatment: 'ex_tax',
+    tax_treatment: 'no_tax',
     xero_bill_id: manifestXeroId,
   });
   expect(Number(before.total_amount)).toBe(config.maxDocumentTotal);

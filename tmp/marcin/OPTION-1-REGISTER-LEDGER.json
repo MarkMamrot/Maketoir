@@ -1,0 +1,1594 @@
+﻿[
+    {
+        "itemNumber":  1,
+        "sourceCommentIndexes":  [
+                                     1
+                                 ],
+        "sourceCommentIds":  [
+                                 5
+                             ],
+        "sourcePages":  [
+                            8
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Acceptance\" / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nthe Delivered Equipment is Fit for Purpose and is otherwise of merchantable quality;\r\n\r\nWith:\r\n;\r\n\r\nReason:\r\nComment 1: Supplier requests deletion of this requirement as \"fitness for purpose\" and \"merchantable quality\" are broad concepts that are not appropriate for the supply of complex off-the-shelf electrical equipment. The Supplier\u0027s obligations should be limited to compliance with the agreed specifications, Minimum Performance Criteria and the express warranties provided under the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  2,
+        "sourceCommentIndexes":  [
+                                     2
+                                 ],
+        "sourceCommentIds":  [
+                                 8
+                             ],
+        "sourcePages":  [
+                            8
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Acceptance\" / paragraph (d)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nthe Acceptance Tests: demonstrate that all the Minimum Performance Criteria have been achieved; have otherwise been carried out and passed to the reasonable satisfaction of the Principal.\r\n\r\nWith:\r\nthe Acceptance Tests: demonstrate that all the Minimum Performance Criteria have been achieved in accordance with this Contract; If the Principal does not complete the Acceptance Tests within 60 days after Delivery, the Goods shall be deemed to have achieved Acceptance on the expiry of that 60-day period. .\r\n\r\nReason:\r\nComment 2: Supplier requests for inclusion of the proposed wording. As currently drafted, Acceptance is linked to completion of Acceptance Tests by the Principal, which is an event outside the Supplier\u0027s control. This creates an open-ended Acceptance date, resulting in uncertainty for both scope close-out and accounting purposes.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  3,
+        "sourceCommentIndexes":  [
+                                     3
+                                 ],
+        "sourceCommentIds":  [
+                                 20
+                             ],
+        "sourcePages":  [
+                            9
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Associated Site(s)\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\n,\r\n\r\nWith:\r\nwithin Australia,\r\n\r\nReason:\r\nComment 3: We request to add the proposed wording to ensure that the sites are restricted within Australia.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  4,
+        "sourceCommentIndexes":  [
+                                     4
+                                 ],
+        "sourceCommentIds":  [
+                                 26
+                             ],
+        "sourcePages":  [
+                            11
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Defect\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\naspect of the Equipment which is not in accordance with this Contract (including any failure of the Equipment to meet any of the Minimum Performance Criteria); or defect, deficiency, damage, omission, fault, non-conformity, failure, or malfunction in workmanship, quality or makeup in the Equipment or the Services .\r\n\r\nWith:\r\ndefect in material or workmanship in the Equipment that causes the Equipment to fail to perform in accordance with the Supplier’s applicable published specifications for the Equipment in effect at the time of Delivery; or defect in workmanship in the Services that causes the Services to fail to conform with the requirements of this Contract. For the avoidance of doubt, “Defect” does not include: minor defects that do not materially impact the functionality or operability of the Equipment; any failure to meet performance criteria not expressly set out in the Supplier’s published specifications; or any matter arising from an excluded clause under Clause 18.2(f).\r\n\r\nReason:\r\nComment 4: The proposed amendments clarify that a Defect relates to a material non-conformance that impacts the Equipment\u0027s or Services\u0027 compliance with the Contract. This provides greater certainty regarding the operation of the defect rectification provisions and ensures that the defect regime remains focused on issues that materially affect contractual performance.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  5,
+        "sourceCommentIndexes":  [
+                                     5
+                                 ],
+        "sourceCommentIds":  [
+                                 73
+                             ],
+        "sourcePages":  [
+                            14
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Force Majeure Event\" / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nany disruption, delay or inability to transport, ship or deliver Goods arising from marine perils, acts of maritime authorities, closure or congestion of ports, shortage of vessels or containers, blockage of shipping routes, or other events affecting ocean, sea or inland waterway transportation.\r\n\r\nReason:\r\nComment 5: We request the inclusion of shipping disruptions and perils of the sea within the definition of Force Majeure. Given the marine transportation and global supply chain risks associated with the supply of the Goods, events such as port closures, vessel unavailability, shipping route disruptions and maritime casualties may materially impact performance despite being beyond the reasonable control of the affected Party. Inclusion of this wording appropriately allocates such risks and reflects current market practice for international supply contracts.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  6,
+        "sourceCommentIndexes":  [
+                                     6
+                                 ],
+        "sourceCommentIds":  [
+                                 77
+                             ],
+        "sourcePages":  [
+                            16
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Good Industry Practice\" / paragraph (e)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nto achieve the asset life for the Equipment which is referred to in clause 14.1(i)(f); and\r\n\r\nWith:\r\nand\r\n\r\nReason:\r\nComment 6: Supplier requests the deletion of the proposed wording, as clause 14.1 contains no asset life requirement. Further, asset life is dependent on numerous factors beyond the Supplier\u0027s control and is not typically incorporated into the definition of Good Industry Practice.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  7,
+        "sourceCommentIndexes":  [
+                                     7
+                                 ],
+        "sourceCommentIds":  [
+                                 80
+                             ],
+        "sourcePages":  [
+                            16
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Gross Negligence\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nGross Negligence means, in respect of the Supplier, an act or omission that arises as a result of a significant departure from the standard of care that would ordinarily be expected of a Relevant Supplier.\r\n\r\nWith:\r\nGross Negligence means, in respect of a Party, an act or omission that constitutes a serious and significant departure from the standard of care that would ordinarily be expected of a reasonable person in the same or similar circumstances.\r\n\r\nReason:\r\nComment 7: Request the proposed amendment to ensure the definition reflects the elevated standard of fault intended by the concept of gross negligence. The revised wording applies on a mutual basis and clarifies that gross negligence requires a serious departure from the standard of care reasonably expected in the relevant circumstances.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  8,
+        "sourceCommentIndexes":  [
+                                     8
+                                 ],
+        "sourceCommentIds":  [
+                                 94
+                             ],
+        "sourcePages":  [
+                            18
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Loss\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nLoss means any loss (whether direct or indirect), debt, obligation, cost (including legal costs, deductibles or increased premiums), expense, damages, fine, penalty, compensation, charge or any other liability of any kind, whether: actual, prospective or contingent; currently ascertainable or not; or arising under or for breach of contract, in tort (including negligence), restitution, or otherwise at Law.\r\n\r\nWith:\r\nLoss means any direct loss , debt, obligation, cost (including reasonable legal costs, ), expense, damages, fine, penalty, compensation, or charge\r\n\r\nReason:\r\nComment 8: Supplier requests the proposed amendments. The current definition is extremely broad and captures indirect losses, unquantified future liabilities, insurance-related costs and other potentially remote forms of loss. The proposed wording provides a clearer and more proportionate allocation of risk by limiting recovery to direct losses actually suffered and reasonable associated costs.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  9,
+        "sourceCommentIndexes":  [
+                                     9
+                                 ],
+        "sourceCommentIds":  [
+                                 112
+                             ],
+        "sourcePages":  [
+                            19
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Parent Company Guarantee\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nParent Company Guarantee has the meaning given in clause 8.10(a)(a).\r\n\r\nReason:\r\nComment 9: Supplier respectfully requests deletion of the Parent Company Guarantee requirement, as ABB Australia does not provide Parent Company Guarantees and has the financial standing and capability to support performance of its obligations under the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  10,
+        "sourceCommentIndexes":  [
+                                     10
+                                 ],
+        "sourceCommentIds":  [
+                                 116
+                             ],
+        "sourcePages":  [
+                            21
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Project IP\"",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nProject IP\r\n\r\nWith:\r\nProject IP means deliverables specifically developed for Principal under the Contract and expressly identified as \u0027Principal IP\u0027 in the SOW. Supplier\u0027s pre-existing IP, technology improvements, product developments, and know-how remain Supplier\u0027s property.\r\n\r\nReason:\r\nComment 10: The proposed amendment clarifies the distinction between contract-specific deliverables developed for the Principal and the Supplier\u0027s pre-existing intellectual property, know-how, technology and improvements. This ensures that ownership of deliverables created specifically for the Principal is preserved, while allowing the Supplier to retain and continue using its underlying intellectual property, methodologies and developments developed in the course of its business.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  11,
+        "sourceCommentIndexes":  [
+                                     11
+                                 ],
+        "sourceCommentIds":  [
+                                 128
+                             ],
+        "sourcePages":  [
+                            25
+                        ],
+        "sectionClause":  "Clause 1.1 - Defined terms / \"Wilful Default\" / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\na wilful or intentional breach or disregard of a material term or condition of this Contract, but does not include any error of judgment or mistake made by:\r\n\r\nWith:\r\na deliberate and conscious breach of or reckless disregard for, a material term or condition of this Contract, but does not include any error of judgment or mistake made by:\r\n\r\nReason:\r\nComment 11: Supplier requests the proposed amendments to ensure that Wilful Default is limited to deliberate misconduct or reckless disregard of contractual obligations and does not capture ordinary contractual disputes, errors of judgment or good faith decisions. The proposed wording provides a clear and appropriately high threshold consistent with the serious nature of a Wilful Default carve-out.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  12,
+        "sourceCommentIndexes":  [
+                                     12
+                                 ],
+        "sourceCommentIds":  [
+                                 141
+                             ],
+        "sourcePages":  [
+                            27
+                        ],
+        "sectionClause":  "Clause 1.2 - Interpretation / paragraph (q)(b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nAny right or benefit conferred under this clause is subject to the limitations, exclusions and caps on liability contained in this Contract.\r\n\r\nReason:\r\nComment 12: Supplier requests the proposed amendment to limit the class of third-party beneficiaries to those with a legitimate interest in the performance of the Contract. The current drafting extends contractual rights to a broad range of non-contracting parties and should, at a minimum, remain subject to the Contract\u0027s agreed liability limitations and exclusions.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  13,
+        "sourceCommentIndexes":  [
+                                     13
+                                 ],
+        "sourceCommentIds":  [
+                                 151
+                             ],
+        "sourcePages":  [
+                            27
+                        ],
+        "sectionClause":  "Clause 2.1 Term / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nPrincipal may by written notice to the Supplier extend this Contract on any number of occasions on the same terms and conditions, on each occasion for a period which is no greater than the Further Term.\r\n\r\nWith:\r\nmay request the other by written notice to extend this Contract. Provided the parties mutually agree to such extension, the Contract may be extended on the same terms and conditions, for a period which is no greater than the Further Term.\r\n\r\nReason:\r\nComment 13: Supplier requests amendment so that any further term may only be granted by mutual written agreement between the parties. This provides certainty that both parties remain aligned on the commercial and operational arrangements applicable to the extension period.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  14,
+        "sourceCommentIndexes":  [
+                                     14
+                                 ],
+        "sourceCommentIds":  [
+                                 164
+                             ],
+        "sourcePages":  [
+                            28
+                        ],
+        "sectionClause":  "Clause 2.2 Standing offer agreement",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nprovided that each Supply Order is subject to the Supplier\u0027s then-current pricing, lead times and product availability, as notified by the Supplier from time to time.The Supplier may, acting reasonably, decline to accept a Supply Order where it is unable to fulfil the Supply Order due to product availability, manufacturing capacity constraints, supply chain constraints, changes in Law, force majeure events, or where the Supply Order is inconsistent with the Supplier\u0027s then-current pricing, specifications or delivery lead times.\r\n\r\nReason:\r\nComment 14: Supplier requests the proposed amendments. As the Contract operates as a long-term standing offer arrangement, the Supplier requires flexibility to manage changes in product availability, manufacturing capacity, supply chain conditions, delivery lead times and other circumstances that may arise during the Term. The proposed wording provides reasonable protection by ensuring future Supply Orders are subject to the Supplier\u0027s then-current commercial and operational capabilities and does not oblige the Supplier to accept orders that it cannot reasonably fulfil.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  15,
+        "sourceCommentIndexes":  [
+                                     15
+                                 ],
+        "sourceCommentIds":  [
+                                 169
+                             ],
+        "sourcePages":  [
+                            29
+                        ],
+        "sectionClause":  "Clause 2.3 Supply Orders / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nItem 7 of\r\n\r\nWith:\r\nItem 3 of\r\n\r\nReason:\r\nComment 15: Correcting the right reference number of the Contract Particulars.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  16,
+        "sourceCommentIndexes":  [
+                                     16
+                                 ],
+        "sourceCommentIds":  [
+                                 179
+                             ],
+        "sourcePages":  [
+                            29
+                        ],
+        "sectionClause":  "Clause 2.3 Supply Orders / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nIf the Supply Order or request for proposal contain Delivery or other requirements which are not consistent with this Contract or not reasonably achievable by the Supplier, the Supplier shall not be obliged to accept the Supply Order.\r\n\r\nReason:\r\nComment 16: Supplier requests the proposed amendment as the Agreement operates on a standing offer basis. The proposed wording provides a reasonable mechanism to ensure that future Supply Orders remain consistent with the agreed contractual framework and the Supplier\u0027s then-current ability to perform, including with respect to delivery requirements, capacity constraints and product availability.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  17,
+        "sourceCommentIndexes":  [
+                                     17
+                                 ],
+        "sourceCommentIds":  [
+                                 198
+                             ],
+        "sourcePages":  [
+                            31
+                        ],
+        "sectionClause":  "Clause 2.5 Discrepancies / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\n: the Principal will Direct the Supplier as to the interpretation to be followed by the Supplier for the purpose of resolving the Discrepancy; and the Supplier must comply with any Directions given by the Principal under clause 2.5(a)(a). The Supplier is not entitled to make any Claim against the Principal in connection with any Discrepancy (including any Direction given by the Principal under clause 2.5(a)(a)).\r\n\r\nWith:\r\nsuch Discrepancy shall be resolved in the order set out under clause 2.4, failing which: the Principal will Direct the Supplier as to the interpretation to be followed by the Supplier for the purpose of resolving the Discrepancy; and the Supplier must comply with any Directions given by the Principal under clause 2.5(a)(a). If the Supplier does not agree with the Principal’s interpretation or Direction given under 2.5(a) \u0026 (b), it shall be refer the matter in accordance with clause 27 of this Contract.\r\n\r\nReason:\r\nComment 17: As per standard industry practice, any such Discrepancy shall first be evaluated based on the order of precedence, failing which the Principal can issue directions as per its discretion to which the Supplier shall have reasonable grounds of appeal, if needed.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  18,
+        "sourceCommentIndexes":  [
+                                     18
+                                 ],
+        "sourceCommentIds":  [
+                                 228
+                             ],
+        "sourcePages":  [
+                            33
+                        ],
+        "sectionClause":  "Clause 3.1 Modern Slavery and Human Rights / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nThe Supplier: acknowledges that the Principal has reporting obligations in relation to Modern Slavery and Human Rights; must promptly notify the Principal upon becoming aware of incidents of Modern Slavery or Human Rights breaches within the Supplier’s operations or supply chain and the actions undertaken by the Supplier to remedy the issue; and must, at the Principal’s request and at the Supplier’s own expense, provide such information as is reasonably requested by the Principal for the purpose of complying with clauses 3.1(b) and 3.1(c).\r\n\r\nWith:\r\nEach Party: acknowledges that the parties have reporting obligations in relation to Modern Slavery and Human Rights; must promptly notify the other party upon becoming aware of incidents of Modern Slavery or Human Rights breaches within the parties operations or supply chain and the actions undertaken by the party to remedy the issue; and must, a party request and at the party’s own expense, provide such information as is reasonably requested by the other party for the purpose of complying with clauses 3.1(b) and 3.1(c).\r\n\r\nReason:\r\nComment 18: Supplier requests mutuality of these obligations to ensure both parties are held to consistent standards in respect of Modern Slavery and Human Rights compliance.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  19,
+        "sourceCommentIndexes":  [
+                                     19
+                                 ],
+        "sourceCommentIds":  [
+                                 252
+                             ],
+        "sourcePages":  [
+                            34
+                        ],
+        "sectionClause":  "Clause 3.2 Sanctions / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nThroughout the term of this Contract, the Supplier and its Related Bodies Corporate must:\r\n\r\nWith:\r\nThroughout the term of this Contract, the neither party and its Related Bodies Corporate must:\r\n\r\nReason:\r\nComment 19: Supplier requests these obligations apply equally to both parties, as compliance with applicable sanctions laws and regulations is a responsibility shared by all parties to the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  20,
+        "sourceCommentIndexes":  [
+                                     20
+                                 ],
+        "sourceCommentIds":  [
+                                 279
+                             ],
+        "sourcePages":  [
+                            35
+                        ],
+        "sectionClause":  "Clause 3.4 Bribery and Corruption / paragraph (e)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nThe Parties shall comply, and shall ensure that their employees, directors, officers, affiliates and third parties to comply, with all applicable laws (including anti-bribery and anti-corruption laws, human rights, environment, health and safety and sanctions and trade control laws and regulations) and trade sanctions requirements and prohibitions applicable to the Parties (including comprehensive sanctions by the United States, European Union, or Switzerland). Any violation of this clause shall constitute a material breach of the Agreement and, in addition to any other remedies under the law and/or this Agreement, non-infringing Party shall be entitled to unilaterally terminate this Agreement with immediate effect and without liability for any claim, losses or damages whatsoever related to the termination\r\n\r\nReason:\r\nComment 20: We request inclusion of the proposed wording, as the Supplier is required to flow down these compliance obligations through its contracts in accordance with its procurement and compliance policies. In addition, similar compliance obligations elsewhere in the Agreement currently apply only to the Supplier, and the proposed wording provides a more balanced and consistent allocation of responsibilities.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  21,
+        "sourceCommentIndexes":  [
+                                     21
+                                 ],
+        "sourceCommentIds":  [
+                                 284
+                             ],
+        "sourcePages":  [
+                            37
+                        ],
+        "sectionClause":  "Clause 3.6 Verification rights and failure to comply / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nWithout limiting any of the Principal’s rights or remedies under the Contract or otherwise at Law, the Principal may terminate the Contract under clause 25.4(b) (without being required to issue a Supplier Default Notice) if the Principal considers that: the Supplier has not remedied, or demonstrated to the Principal’s satisfaction that it is taking steps to remedy, any identified instance of Modern Slavery or conduct inconsistent with Human Rights, within such time frame as is reasonably specified by the Principal; the Contract violates any applicable Sanction or Export Control Laws; or the Supplier or any of its Personnel breaches clause 3.\r\n\r\nWith:\r\nWithout limiting any of the rights or remedies under the Contract or otherwise at Law, either Party may terminate the Contract under clause 25.4(b) (without being required to issue a Default Notice) if the Party considers that: the party has not remedied, or demonstrated to the other party’s satisfaction that it is taking steps to remedy, any identified instance of Modern Slavery or conduct inconsistent with Human Rights, within such time frame as is reasonably specified by the other Party; the Contract violates any applicable Sanction or Export Control Laws; or either party or any of its Personnel breaches clause 3.\r\n\r\nReason:\r\nComment 21: We request that this provision be amended to provide equivalent termination rights to both parties, as each party is subject to the same compliance obligations and should have access to the same remedies in the event of a material breach.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  22,
+        "sourceCommentIndexes":  [
+                                     22
+                                 ],
+        "sourceCommentIds":  [
+                                 303
+                             ],
+        "sourcePages":  [
+                            37
+                        ],
+        "sectionClause":  "Clause 4.1 Supplier Scope / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nany Direction of the Principal;\r\n\r\nWith:\r\nany Direction of the Principal in accordance with this Contract;\r\n\r\nReason:\r\nComment 22: We request inclusion of the proposed wording to clarify that any Direction issued by the Principal must be consistent with, and authorised by, the Contract. As currently drafted, the provision could be interpreted broadly and may inadvertently extend the Supplier\u0027s obligations beyond the agreed scope.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  23,
+        "sourceCommentIndexes":  [
+                                     23
+                                 ],
+        "sourceCommentIds":  [
+                                 322
+                             ],
+        "sourcePages":  [
+                            40
+                        ],
+        "sectionClause":  "Clause 4.5 Disclosed Information / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nThe Supplier is not entitled to make any Claim against the Principal in connection with the ambiguity, inaccuracy or insufficiency (including any Direction given by the Principal under clause 4.5(b)).\r\n\r\nReason:\r\nComment 23: We request deletion of this provision, as there may be circumstances where ambiguities, inaccuracies or insufficiencies in the Disclosed Information give rise to a valid Claim under the Contract. Any entitlement or remedy should be assessed in accordance with the Contract and the specific circumstances on a case by case basis, rather than being excluded through a blanket waiver.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  24,
+        "sourceCommentIndexes":  [
+                                     24
+                                 ],
+        "sourceCommentIds":  [
+                                 343
+                             ],
+        "sourcePages":  [
+                            45
+                        ],
+        "sectionClause":  "Clause 7.2 Removal of persons / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nWithout limiting clauses 7.2(a) and 7.2(b), to the extent permitted by Law, the Supplier must take disciplinary action that is, in the reasonable opinion of the Principal, appropriate against any of the Supplier\u0027s Personnel who fails to comply with the Principal’s Policies and Procedures.\r\n\r\nReason:\r\nComment 24: Request for deletion as the supplier’s obligation shall end at removal of the Employee from any performance in connection with this Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  25,
+        "sourceCommentIndexes":  [
+                                     25
+                                 ],
+        "sourceCommentIds":  [
+                                 350
+                             ],
+        "sourcePages":  [
+                            45
+                        ],
+        "sectionClause":  "Clause 8.1 Provision of Security / paragraph A.",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nthe terms set out in Schedule 8; or\r\n\r\nWith:\r\nin the form and the terms set out in Schedule 8;\r\n\r\nReason:\r\nComment 25: BG Template provided separately for prior approval and incorporation into schedule 8.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  26,
+        "sourceCommentIndexes":  [
+                                     26
+                                 ],
+        "sourceCommentIds":  [
+                                 374
+                             ],
+        "sourcePages":  [
+                            47
+                        ],
+        "sectionClause":  "Clause 8.7 Additional Security",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nRetention Moneys\r\n\r\nWith:\r\nNot Used\r\n\r\nReason:\r\nComment 26: Supplier requests deletion of the Retention Monies provisions. Given the availability of Performance Security and the other protections afforded to the Principal under the Contract, Retention Monies would constitute an additional and duplicative form of security.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  27,
+        "sourceCommentIndexes":  [
+                                     27
+                                 ],
+        "sourceCommentIds":  [
+                                 422
+                             ],
+        "sourcePages":  [
+                            48
+                        ],
+        "sectionClause":  "Clause 8.10 Not UsedParent Company Guarantee",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nParent Company Guarantee\r\n\r\nWith:\r\nNot Used\r\n\r\nReason:\r\nComment 27: As stated in the earlier comments, Supplier respectfully requests deletion of the Parent Company Guarantee requirement, as ABB Australia does not provide Parent Company Guarantees and has the financial standing and capability to support performance of its obligations under the Contract",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  28,
+        "sourceCommentIndexes":  [
+                                     28
+                                 ],
+        "sourceCommentIds":  [
+                                 470
+                             ],
+        "sourcePages":  [
+                            49
+                        ],
+        "sectionClause":  "Clause 9.1 Supplier Documents / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nIf the Supplier submits a Supplier Document earlier than the date prescribed under clause 9.1(a)(b), it will be deemed to have been received on that prescribed date, unless notified otherwise by the Principal in writing.\r\n\r\nReason:\r\nComment 28: We request deletion of this provision, as the early submission of Supplier Documents does not impose any additional obligation on the Principal. Further, given the accelerated delivery requirements contemplated under the Contract, the Supplier may need to submit documents ahead of the prescribed date to facilitate timely review and project execution.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  29,
+        "sourceCommentIndexes":  [
+                                     29
+                                 ],
+        "sourceCommentIds":  [
+                                 473
+                             ],
+        "sourcePages":  [
+                            49
+                        ],
+        "sectionClause":  "Clause 9.2 Effect of review of Supplier Documents / paragraph (d)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nentitle the Supplier to make a Claim against the Principal;\r\n\r\nWith:\r\n;\r\n\r\nReason:\r\nComment 29: We request deletion of this provision. While the Principal\u0027s review or approval of a Supplier Document should not, of itself, give rise to a Claim, it should also not operate to exclude a Claim that may otherwise arise under the Contract based on the particular facts and circumstances on a case to case basis.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  30,
+        "sourceCommentIndexes":  [
+                                     30
+                                 ],
+        "sourceCommentIds":  [
+                                 494
+                             ],
+        "sourcePages":  [
+                            52
+                        ],
+        "sectionClause":  "Clause 10.3 - Use of Supplier\u0027s Background IP / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nThe Supplier grants to the Principal (or, where the Supplier does not own all Intellectual Property Rights in the Supplier\u0027s Background IP, shall procure that the relevant third party grants to the Principal) a non-exclusive, non-transferable, royalty-free licence to use the Supplier\u0027s Background IP solely to the extent necessary to: (i) install, commission, test, operate, maintain and repair the Equipment; (ii) enjoy the benefit of the Equipment for its intended purpose; and The licence granted under clause 10.3(a): (i) does not confer any ownership rights in the Supplier\u0027s Background IP; (ii) does not permit the Principal to copy, modify, adapt, reverse engineer, commercialise, distribute, exploit or create derivative works from the Supplier\u0027s Background IP, except to the extent strictly required for the purposes set out in clause 10.3(a); (iii) may not be transferred or sublicensed except to an End User or a permitted successor in title to the Equipment, solely for the purposes set out in clause 10.3(a); and (iv) terminates upon cessation of the Principal\u0027s ownership or lawful use of the Equipment, except to the extent required for ongoing operation of the Equipment by a permitted transferee.\r\n\r\nReason:\r\nComment 30: Supplier requests the proposed amendments as the Supplier\u0027s Background IP comprises the Supplier\u0027s proprietary technology, know-how, software and other intellectual property. The licence should be limited to the rights reasonably required to install, operate, maintain and repair the Equipment. Transferable, sublicensable and commercialisation rights are not appropriate for the supply of off-the-shelf equipment and could permit use of the Supplier\u0027s technology beyond the intended purpose of the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  31,
+        "sourceCommentIndexes":  [
+                                     31
+                                 ],
+        "sourceCommentIds":  [
+                                 593
+                             ],
+        "sourcePages":  [
+                            54
+                        ],
+        "sectionClause":  "Clause 10.4 Project IP / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nThe Supplier acknowledges and agrees that ownership of the Project IP (whether complete or not) will vest in the Principal on its creation and nothing in this Contract limits the Principal\u0027s subsequent use or exploitation of the Project IP. To the extent the Project IP does not automatically vest in the Principal, the Supplier assigns all rights, title and interest in and to the Project IP to the Principal as and when it is created.\r\n\r\nWith:\r\nThe Supplier acknowledges and agrees that ownership of the Project IP will vest in the Supplier. The Supplier shall grant to the Principal a liscense on the terms set out in clause 10.3 (a) for the sole purpose of using the Equipment in accordance with clause 10.3.\r\n\r\nReason:\r\nComment 31: We request the proposed amendment, as Project IP may comprise or incorporate the Supplier\u0027s proprietary technology, know-how, methodologies and other intellectual property, which the Supplier is not in a position to assign to the Principal. The proposed licence provides the Principal with the rights required to use the Project IP for the purposes contemplated by the Contract while preserving ownership of the Supplier\u0027s intellectual property.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  32,
+        "sourceCommentIndexes":  [
+                                     32
+                                 ],
+        "sourceCommentIds":  [
+                                 673
+                             ],
+        "sourcePages":  [
+                            56
+                        ],
+        "sectionClause":  "Clause 11.3 Disclosure of Confidential Information / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nThe Supplier must, prior to disclosure of Confidential Information to any person referred to in clause 11.3(a)(b), procure from that person a confidentiality undertaking for the benefit of the Principal which is consistent with the terms of this clause 11.\r\n\r\nReason:\r\nComment 32: We request deletion of this requirement. The Supplier is subject to contractual and internal confidentiality obligations in respect of persons to whom Confidential Information may be disclosed, and obtaining separate confidentiality undertakings from each recipient would create an unnecessary administrative burden without providing any additional practical protection to the Principal.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  33,
+        "sourceCommentIndexes":  [
+                                     33
+                                 ],
+        "sourceCommentIds":  [
+                                 686
+                             ],
+        "sourcePages":  [
+                            58
+                        ],
+        "sectionClause":  "Clause 13.2 Not UsedWarranties from Subcontractors",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nWarranties from Subcontractors No later than 10 Business Days after execution of the relevant Subcontracts, the Supplier must procure and provide the Principal with the Subcontractor warranties described in the Supply Order, in the form set out in Schedule 11. The Subcontractor warranties referred to in clause 13.2(a) do not limit any right which the Principal, its Related Bodies Corporate or any other End User may have against the Supplier under this Contract or at Law in respect of the subject matter of those Subcontractor warranties.\r\n\r\nWith:\r\nNot Used\r\n\r\nReason:\r\nComment 33: We request deletion of this provision. The Supplier remains fully responsible for its obligations and warranties under the Contract and warrants the Equipment as a whole. Separate warranties from subcontractors are unnecessary and may not be available from all subcontractors engaged by the Supplier.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  34,
+        "sourceCommentIndexes":  [
+                                     34
+                                 ],
+        "sourceCommentIds":  [
+                                 717
+                             ],
+        "sourcePages":  [
+                            62
+                        ],
+        "sectionClause":  "Clause 14.1 Warranties / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nupon Acceptance, be Fit for Purpose; remain Fit for Purpose at all relevant times after the Date of Acceptance, subject to the Principal operating and maintaining the Equipment in accordance with the Supplier Documents\r\n\r\nWith:\r\n;\r\n\r\nReason:\r\nComment 34: As explained in previous points, Supplier requests deletion of this requirement as \"fitness for purpose\" is a broad concept that is not appropriate for the supply of complex off-the-shelf electrical equipment. The Supplier\u0027s obligations should be limited to compliance with the agreed specifications, Minimum Performance Criteria and the express warranties provided under the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  35,
+        "sourceCommentIndexes":  [
+                                     35
+                                 ],
+        "sourceCommentIds":  [
+                                 722
+                             ],
+        "sourcePages":  [
+                            62
+                        ],
+        "sectionClause":  "Clause 14.1 Warranties / paragraph (e)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nand latent Defects;\r\n\r\nWith:\r\n;\r\n\r\nReason:\r\nComment 35: We request deletion of the reference to latent Defects. The Supplier\u0027s obligations in respect of defects are comprehensively addressed through the warranty provisions of the Contract, and a separate warranty regarding latent Defects is unnecessary and may create uncertainty regarding the scope and duration of the Supplier\u0027s obligations.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  36,
+        "sourceCommentIndexes":  [
+                                     36
+                                 ],
+        "sourceCommentIds":  [
+                                 725
+                             ],
+        "sourcePages":  [
+                            62
+                        ],
+        "sectionClause":  "Clause 14.1 Warranties / paragraph (f)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nhave the life expectancy: specified in the Scope of Work; or if none is specified, commensurate with what would ordinarily be expected of a Relevant Supplier for equipment similar to the Equipment;\r\n\r\nWith:\r\nhave the design life: specified in the Scope of Work; or if none is specified, commensurate with what would ordinarily be expected of a Relevant Supplier for equipment similar to the Equipment;\r\n\r\nReason:\r\nComment 36: Request that \"life expectancy\" be replaced with \"design life\" as specified in the Scope of Work. \"Life expectancy\" is a broad and subjective concept that may be influenced by factors beyond the Supplier\u0027s control, whereas \"design life\" is an objective and measurable engineering criterion which is a part of the Scope of Work document.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  37,
+        "sourceCommentIndexes":  [
+                                     37
+                                 ],
+        "sourceCommentIds":  [
+                                 738
+                             ],
+        "sourcePages":  [
+                            64
+                        ],
+        "sectionClause":  "Clause 15.2 Program",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\neach calendar week;\r\n\r\nWith:\r\n;\r\n\r\nReason:\r\nComment 37: Weekly updates to Program are not standard and considered unnecessary, we request for deletion.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  38,
+        "sourceCommentIndexes":  [
+                                     38
+                                 ],
+        "sourceCommentIds":  [
+                                 743
+                             ],
+        "sourcePages":  [
+                            65
+                        ],
+        "sectionClause":  "Clause 15.2 Program",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nThe Principal is not required to use the Program for any purpose, including for the purposes of assessing any Claim made by the Supplier under this Contract, but may choose to do so.\r\n\r\nReason:\r\nComment 38: We request deletion of this provision, as the Program is the agreed planning and scheduling tool for the Contract and provides the basis for assessing progress, time impacts and any associated entitlement to relief. Disregarding the Program for claim assessment purposes creates uncertainty as to the basis on which time-related matters will be evaluated.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  39,
+        "sourceCommentIndexes":  [
+                                     39
+                                 ],
+        "sourceCommentIds":  [
+                                 748
+                             ],
+        "sourcePages":  [
+                            65
+                        ],
+        "sectionClause":  "Clause 15.3 Acceleration by the Supplier",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nby or\r\n\r\nReason:\r\nComment 39: It will be Supplier’s obligation to accelerate to meet the Delivery Date if required and in such instances, Principal should be required to assist the Supplier.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  40,
+        "sourceCommentIndexes":  [
+                                     40
+                                 ],
+        "sourceCommentIds":  [
+                                 784
+                             ],
+        "sourcePages":  [
+                            68
+                        ],
+        "sectionClause":  "Clause 15.9 Suspension by the Principal / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nFor any suspension directed by the Principal for convenience or any other reason not attributable to the Supplier, the Principal shall reimburse the Supplier for all costs, expenses and impacts reasonably incurred as a result of the suspension, including but not limited to demobilisation, remobilisation, storage, standby and delay-related costs. The Supplier shall be entitled to a corresponding extension of time and equitable adjustment to the Supply Order Sum. If such suspension continues for more than 90 days in the cumulative aggregate, the Supplier may, by notice to the Principal, terminate the affected Supply Order and recover its reasonable costs arising from such termination.\r\n\r\nReason:\r\nComment 40: For any suspension directed by the Principal for convenience, the Principal shall reimburse the Supplier for all costs, expenses and impacts reasonably incurred as a result of the suspension, including demobilisation, remobilisation, storage, standby and delay-related costs. The Supplier shall be entitled to a corresponding extension of time and equitable adjustment to the Supply Order Sum. If such suspension continues for more than 90 days, the Supplier may, by notice to the Principal, terminate the affected Supply Order and recover its reasonable costs arising from such termination.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  41,
+        "sourceCommentIndexes":  [
+                                     41
+                                 ],
+        "sourceCommentIds":  [
+                                 815
+                             ],
+        "sourcePages":  [
+                            71
+                        ],
+        "sectionClause":  "Clause 16.5 Not UsedInstallation and commissioning",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nInstallation and commissioning\r\n\r\nReason:\r\nComment 41: We request deletion of this clause, as the Supplier\u0027s obligations under this Contract are limited to the supply of Equipment. Installation, erection and commissioning activities will not form part of the Supplier\u0027s scope, other than any limited training or technical assistance expressly specified / elected in the relevant Supply Order.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  42,
+        "sourceCommentIndexes":  [
+                                     42
+                                 ],
+        "sourceCommentIds":  [
+                                 883
+                             ],
+        "sourcePages":  [
+                            73
+                        ],
+        "sectionClause":  "Clause 16.6 Acceptance / paragraph (o)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nIf the Principal fails to complete the Acceptance Tests or provide notice of rejection within 28 days after Delivery, the Equipment shall be deemed accepted.\r\n\r\nReason:\r\nComment 42: We request the proposed amendment as the current drafting links Acceptance to an action required to be performed by the Principal. Absent a deemed acceptance mechanism, Acceptance may be delayed indefinitely, leaving the Supplier exposed to ongoing uncertainty.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  43,
+        "sourceCommentIndexes":  [
+                                     43
+                                 ],
+        "sourceCommentIds":  [
+                                 893
+                             ],
+        "sourcePages":  [
+                            74
+                        ],
+        "sectionClause":  "Clause 16.7 Not UsedSite arrangements for the Services / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\n7 days\u0027 prior notice\r\n\r\nReason:\r\nComment 43: We request deletion of this provision, as the Supplier\u0027s scope under this Contract is limited to the supply of Equipment. Site-based services, manpower requirements and related site arrangements are not contemplated other than any limited training or technical assistance expressly agreed in the relevant Supply Order.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  44,
+        "sourceCommentIndexes":  [
+                                     44
+                                 ],
+        "sourceCommentIds":  [
+                                 950
+                             ],
+        "sourcePages":  [
+                            75
+                        ],
+        "sectionClause":  "Clause 16.8 Not UsedRights and obligations not affected",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nThe carrying out of assembly, erection, installation or commissioning of the Equipment by the Principal or the Principal\u0027s Acceptance of the Equipment (in whole or in part) does not: relieve or limit the Supplier\u0027s obligations and liabilities under this Contract; or limit the Principal\u0027s rights in connection with the Supplier’s breach of any of its obligations under this Contract.\r\n\r\nReason:\r\nComment 44: Supplier requests deletion of this provision, as it relates to assembly, erection, installation and commissioning activities that do not form part of the Supplier\u0027s scope under this supply-only arrangement. The Supplier\u0027s obligations will be limited to the supply of Equipment and any expressly agreed ancillary services.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  45,
+        "sourceCommentIndexes":  [
+                                     45
+                                 ],
+        "sourceCommentIds":  [
+                                 964
+                             ],
+        "sourcePages":  [
+                            76
+                        ],
+        "sectionClause":  "Clause 16.10 - Principal-caused delivery delay (proposed new clause)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\n16.10 If delivery of the Equipment is delayed due to any act, omission, request or failure of the Principal, the Equipment shall be deemed delivered on the originally scheduled delivery date. The Supplier shall be entitled to invoice the Equipment as if delivery had occurred and recover any reasonable storage, handling, demobilisation, remobilisation and associated costs incurred as a result of such delay.\r\n\r\nReason:\r\nComment 45: We request the proposed amendment as delays may arise due to site readiness, access restrictions or other matters outside the Supplier\u0027s control. The Supplier should not be required to bear storage, handling, financing or remobilisation costs resulting from Principal-caused delay.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  46,
+        "sourceCommentIndexes":  [
+                                     46
+                                 ],
+        "sourceCommentIds":  [
+                                 975
+                             ],
+        "sourcePages":  [
+                            76
+                        ],
+        "sectionClause":  "Clause 17.1 Delay Liquidated Damages / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nProvided however, if the Date of Delivery is met by the Supplier subsequently, any Liquidated Damages imposed before Delivery shall be refunded to the Suppler.\r\n\r\nReason:\r\nComment 46: Supplier requests inclusion of the proposed wording to ensure that Delay Liquidated Damages are only retained where a delay has ultimately occurred. Where the Supplier achieves Delivery by the applicable Date for Delivery, any Delay Liquidated Damages previously imposed should be refunded to reflect the actual contractual position.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  47,
+        "sourceCommentIndexes":  [
+                                     47
+                                 ],
+        "sourceCommentIds":  [
+                                 983
+                             ],
+        "sourcePages":  [
+                            76
+                        ],
+        "sectionClause":  "Clause 17.1 Delay Liquidated Damages / paragraph (e)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nThe payment of Delay Liquidated Damages does not relieve the Supplier from its obligation to achieve Delivery, or from any other of its obligations, warranties and liabilities under or in connection with this Contract.\r\n\r\nWith:\r\nThe payment of Delay Liquidated Damages does not relieve the Supplier from its obligation to achieve Delivery, or from any other of its obligations, warranties under or in connection with this Contract. Liquidated Damages shall be the sole and exclusive remedy of the Principal with respect to any delay’s under the relevant Supply Order, other than the Principal’s right to terminate the Supply Order.\r\n\r\nReason:\r\nComment 47: Supplier requests inclusion of the proposed wording to ensure that Delay Liquidated Damages operate as the agreed and exclusive remedy for delay. This preserves the parties\u0027 agreed allocation of risk and provides certainty as to the Supplier\u0027s liability in respect of delayed Delivery.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  48,
+        "sourceCommentIndexes":  [
+                                     48
+                                 ],
+        "sourceCommentIds":  [
+                                 994
+                             ],
+        "sourcePages":  [
+                            76
+                        ],
+        "sectionClause":  "Clause 17.1 Delay Liquidated Damages / paragraph (f)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nIf any part of this clause 17.1 is found for any reason to be void, invalid or otherwise inoperative so as to disentitle the Principal from claiming Delay Liquidated Damages: the Principal will be entitled to claim against the Supplier damages at Law for the Supplier\u0027s failure to achieve Delivery by the Date for Delivery; and the Supplier\u0027s liability will not be limited by the amount of the Delay Liquidated Damages or the maximum aggregate liability for Delay Liquidated Damages specified in the Supply Order.\r\n\r\nWith:\r\nIf any part of this clause 17.1 is found for any reason to be void, invalid or otherwise inoperative so as to disentitle the Principal from claiming Delay Liquidated Damages: the Principal will be entitled to claim against the Supplier damages at Law for the Supplier\u0027s failure to achieve Delivery by the Date for Delivery; and the Supplier\u0027s liability will be limited by the amount of the Delay Liquidated Damages or the maximum aggregate liability for Delay Liquidated Damages specified in the Supply Order.\r\n\r\nReason:\r\nComment 48: We request the proposed amendment. If Delay Liquidated Damages are found to be unenforceable and replaced by a claim for general damages, such damages should remain subject to the same liability allocation and limitations that would otherwise have applied to the Delay Liquidated Damages regime.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  49,
+        "sourceCommentIndexes":  [
+                                     49
+                                 ],
+        "sourceCommentIds":  [
+                                 1002
+                             ],
+        "sourcePages":  [
+                            78
+                        ],
+        "sectionClause":  "Clause 18.2 Warranty Period / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nand any damage caused by the Defect (Remedial Work) within the time specified in the\r\n\r\nWith:\r\n(Remedial Work) within the time agreed between the parties and reasonably specified in the\r\n\r\nReason:\r\nComment 49: Supplier requests the proposed amendment to align with the Supplier\u0027s standard warranty offering, which is limited to the repair, rectification or replacement of defective Equipment, together with the direct costs of undertaking such work. Any indirect, consequential or broader remedial works costs fall outside the intended scope of the warranty remedy.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  50,
+        "sourceCommentIndexes":  [
+                                     50
+                                 ],
+        "sourceCommentIds":  [
+                                 1043
+                             ],
+        "sourcePages":  [
+                            79
+                        ],
+        "sectionClause":  "Clause 18.2 Warranty Period / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nThe Supplier shall assess the Principal\u0027s Direction and, where reasonably practicable, use reasonable endeavors to facilitate the temporary solution. The Supplier shall not be obliged to comply with a Direction where the proposed temporary solution is not technically feasible, would compromise the safe operation of the Equipment, would adversely affect the Supplier\u0027s warranty obligations, or cannot reasonably be implemented by the Supplier. Where the Supplier agrees to implement a temporary solution, the Parties shall agree any resulting costs, delay and other consequences, which shall constitute a Variation and be borne by the Principal.\r\n\r\nReason:\r\nComment 50: Supplier requests the proposed amendment as temporary solutions may not always be technically feasible, safe or compatible with the Equipment and associated warranty requirements. The Supplier should retain discretion to assess the requested temporary solution and decline implementation where it cannot reasonably be achieved. Where a temporary solution is requested by the Principal and agreed by the Supplier, any associated costs and schedule impacts should be borne by the Principal as a Variation.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  51,
+        "sourceCommentIndexes":  [
+                                     51
+                                 ],
+        "sourceCommentIds":  [
+                                 1057
+                             ],
+        "sourcePages":  [
+                            80
+                        ],
+        "sectionClause":  "Clause 18.2 Warranty Period",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nThe warranty shall not apply to any defect arising from: (a) misuse, neglect or improper operation; (b) installation, modification or repair by persons other than the Supplier or its authorized representatives; (c) normal wear and tear; or (d) failure to operate or maintain the Equipment in accordance with the Supplier\u0027s documentation; (e) The Equipment not being properly installed in accordance with the Supplier’s instructions, including improperly powering up the Equipment before commissioning by a Supplier-certified technician; (f) Any Software not being timely updated to the most recent version made available by the Supplier; (g) Power outages, loss of network connectivity, or disruptions to the electrical supply; (h) Insufficient ventilation, excessive dirt accumulation, corrosion, ingress of foreign substances, vermin or insect infestation, or vandalism; (i) Cyber security intrusion, including viruses and hacking; (j) Natural hazards including fire, flood, storm, Earthquake, lightening, spillage or leakage of chemicals or harmful substances, excessive voltage or mechanical shock, or water damage; (k) The Equipment being installed or operated: (i) in proximity to seawater of 0-500m or aerosol salt concentration larger than 100µg/m³; or (ii) in the presence of conductive dust (PM10 \u003e100µg/m³) or with condensing humidity (i.e., 100%) for more than 130 days per year; or (l) Any other cause beyond the reasonable control of the Supplier.\r\n\r\nReason:\r\nComment 51: We request the proposed amendment to incorporate standard warranty exclusions for matters outside the Supplier\u0027s control.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  52,
+        "sourceCommentIndexes":  [
+                                     52
+                                 ],
+        "sourceCommentIds":  [
+                                 1197
+                             ],
+        "sourcePages":  [
+                            85
+                        ],
+        "sectionClause":  "Clause 20.3 Principal’s determination / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nany off site or corporate overheads,\r\n\r\nWith:\r\nany ,\r\n\r\nReason:\r\nComment 52: Supplier requests the proposed amendment, as the omission of Supplier Scope may adversely impact the Supplier\u0027s recovery of costs incurred in planning, resourcing and administering the omitted work. Reasonable overhead costs should therefore remain recoverable.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  53,
+        "sourceCommentIndexes":  [
+                                     53
+                                 ],
+        "sourceCommentIds":  [
+                                 1209
+                             ],
+        "sourcePages":  [
+                            86
+                        ],
+        "sectionClause":  "Clause 20.5 Principal’s Directions as Variations / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nimmediately\r\n\r\nReason:\r\nComment 53: Supplier requests deletion of “immediately”, as when read together with the claim bar mechanism under clause 20.5, this may have the effect of barring a valid Variation entitlement unless notice is given immediately. The prescribed notice period should provide the applicable timeframe for notification, to ensure certainty and avoid an unintended immediate bar to entitlement.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  54,
+        "sourceCommentIndexes":  [
+                                     54
+                                 ],
+        "sourceCommentIds":  [
+                                 1246
+                             ],
+        "sourcePages":  [
+                            92
+                        ],
+        "sectionClause":  "Clause 22.1 Payment of Taxes / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nthe Supplier must obtain all customs duty concessions it is entitled to obtain in respect of the Equipment and hold those concessions for the benefit of the Principal.\r\n\r\nReason:\r\nComment 54: Supplier requests deletion of this provision. The Contract Sum has been established taking into account the customs duty concessions reasonably expected to be available in connection with the supply of the Equipment. Accordingly, the benefit of such concessions is already reflected in the agreed pricing.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  55,
+        "sourceCommentIndexes":  [
+                                     55
+                                 ],
+        "sourceCommentIds":  [
+                                 1268
+                             ],
+        "sourcePages":  [
+                            93
+                        ],
+        "sectionClause":  "Clause 23.1 Title / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nTitle in the Equipment transfers to the Principal on the earlier of: Delivery of the Equipment (or any part thereof) to the Delivery Point; or payment by the Principal for the Equipment.\r\n\r\nWith:\r\nTitle in the Equipment transfers to the Principal on the later of: Delivery of the Equipment (or any part thereof) to the Delivery Point; or Full payment by the Principal for the Equipment.\r\n\r\nReason:\r\nComment 55: Supplier requests the proposed amendment, as title to the Equipment should transfer only upon full payment of the relevant amounts due. This reflects a standard retention of title arrangement and provides the Supplier with security for payment of the Equipment supplied under the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  56,
+        "sourceCommentIndexes":  [
+                                     56
+                                 ],
+        "sourceCommentIds":  [
+                                 1276
+                             ],
+        "sourcePages":  [
+                            94
+                        ],
+        "sectionClause":  "Clause 23.2 Risk",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nthe responsibility for care and custody of the Equipment, together with the risk of loss or damage to the Equipment, remains with the Supplier until the Date of Delivery; and the Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.\r\n\r\nWith:\r\nthe responsibility for care and custody of the Equipment, together with the risk of loss or damage to the Equipment, remains with the Supplier until the Equipment is delivered at the first point of Delivery.; and\r\n\r\nReason:\r\nComment 56: Supplier requests the proposed amendment to align the transfer of risk with the agreed delivery point. As the Equipment may be delivered in stages or to multiple locations, reference to the first point of Delivery provides greater certainty as to when responsibility for care, custody and risk transfers",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  57,
+        "sourceCommentIndexes":  [
+                                     57
+                                 ],
+        "sourceCommentIds":  [
+                                 1282
+                             ],
+        "sourcePages":  [
+                            94
+                        ],
+        "sectionClause":  "Clause 23.2 Risk / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nthe Supplier is responsible for any loss or damage to the Equipment caused by the Supplier or its Personnel in the course of performing any Services including, where clause 16.5 applies, any installation or commissioning or undertaking the Acceptance Tests or undertaking any Remedial Work under clause 18.\r\n\r\nReason:\r\nComment 57: Supplier requests deletion of this provision, as it relates to installation, commissioning, Acceptance Testing and Remedial Work activities that do not form part of the Supplier\u0027s scope under this Contract. The Supplier\u0027s obligations are limited to the supply of Equipment and any expressly agreed ancillary services.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  58,
+        "sourceCommentIndexes":  [
+                                     58
+                                 ],
+        "sourceCommentIds":  [
+                                 1301
+                             ],
+        "sourcePages":  [
+                            96
+                        ],
+        "sectionClause":  "Clause 24.5 Not UsedDeductible",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nIn the event that there is a deductible payable under any Principal’s Insurance and the Supplier was responsible for the Loss or damage giving rise to the insurance claim, the Supplier shall be responsible for paying the deductible.\r\n\r\nReason:\r\nComment 58: Supplier requests deletion of this clause. The Supplier does not accept liability for insurance deductibles under the Principal\u0027s insurance arrangements. Insurance deductibles are a matter between the Principal and its insurers and should remain with the party procuring the relevant insurance.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  59,
+        "sourceCommentIndexes":  [
+                                     59
+                                 ],
+        "sourceCommentIds":  [
+                                 1319
+                             ],
+        "sourcePages":  [
+                            96
+                        ],
+        "sectionClause":  "Clause 25.1 Termination for convenience / paragraph (e)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nWhere the Principal terminates this Contract or any Supply Order for convenience, the Principal shall pay the Supplier for: (a) all work performed up to the date of termination; (b) all Equipment manufactured, procured or committed for manufacture or procurement; (c) all reasonable cancellation charges incurred by the Supplier; and (d) all reasonable demobilization costs arising from the termination.\r\n\r\nReason:\r\nComment 59: We request the proposed amendment as the Supplier may incur significant manufacturing and procurement commitments in reliance upon Supply Orders. The proposed wording ensures recovery of unavoidable costs resulting from a convenience termination.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  60,
+        "sourceCommentIndexes":  [
+                                     60
+                                 ],
+        "sourceCommentIds":  [
+                                 1332
+                             ],
+        "sourcePages":  [
+                            96
+                        ],
+        "sectionClause":  "Clause 25.3 Default by the Supplier / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nSupplier breaches\r\n\r\nWith:\r\nSupplier materially breaches\r\n\r\nReason:\r\nComment 60: Supplier requests the proposed amendment, as a default notice should only arise in respect of a material breach. As currently drafted, the provision may be triggered by any breach, including minor, technical or immaterial breaches that do not materially affect the performance of the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  61,
+        "sourceCommentIndexes":  [
+                                     61
+                                 ],
+        "sourceCommentIds":  [
+                                 1370
+                             ],
+        "sourcePages":  [
+                            100
+                        ],
+        "sectionClause":  "Clause 25.6 Termination compensation to Principal",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nor 25.4:\r\n\r\nReason:\r\nComment 61: We request the deletion of the reference to clause 25.4. As drafted, clause 25.4 captures a broad range of matters and, if incorporated into the recovery mechanism, could significantly expand the Supplier\u0027s exposure beyond a clearly defined and proportionate allocation of risk. The Supplier is unable to accept such an open-ended recovery regime, particularly given the specialised nature of the Equipment and the commercial basis on which the Supplier has priced and agreed to provide the supply.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  62,
+        "sourceCommentIndexes":  [
+                                     62
+                                 ],
+        "sourceCommentIds":  [
+                                 1401
+                             ],
+        "sourcePages":  [
+                            104
+                        ],
+        "sectionClause":  "Clause 27.3 Negotiation / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nChief Executive Officer.\r\n\r\nWith:\r\n.\r\n\r\nReason:\r\nComment 62: Supplier requests the proposed amendment to ensure escalation occurs at an appropriately senior level for both parties and to provide flexibility where organisational roles or titles may change over time.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  63,
+        "sourceCommentIndexes":  [
+                                     63
+                                 ],
+        "sourceCommentIds":  [
+                                 1441
+                             ],
+        "sourcePages":  [
+                            108
+                        ],
+        "sectionClause":  "Clause 30.1 Supplier’s indemnity",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nThe Supplier must indemnify each Principal Indemnitee, all Principal’s Personnel and any End User from and against: any loss or damage to its property, whether within or outside the Site (with the exception of any loss or damage to the Equipment to which clause 23.3 applies); or any Claim or Loss suffered or incurred by it in connection with: illness, injury to, or death of any person; the loss or damage of any third party property; or violation of any applicable Laws,in each case, in connection with the performance of the Supplier Scope, this Contract, or any relevant Supply Order.\r\n\r\nWith:\r\nThe Supplier must indemnify the Principal, all Principal’s Personnel from and against: any loss or damage to its property caused due to the negligence of Supplier (with the exception of any loss or damage to the Equipment to which clause 23.3 applies); or any Claim or Loss suffered or incurred by it in connection with: illness, injury to, or death of any person caused by the negligence of the Supplier; ; or , Infringement of Intellectual Property Rightsin each case, in connection with the performance of the Supplier Scope, this Contract, or any relevant Supply Order. Supplier\u0027s liability under this clause shall be reduced proportionately to the extent that the Principal or its Personnel contributed to the loss, damage, cost, expense or liability.\r\n\r\nReason:\r\nComment 63: Request the proposed amendments to align the indemnity with market practice by limiting the Supplier\u0027s liability to losses arising from the Supplier\u0027s negligence, wrongful acts or omissions, and by introducing a proportionate reduction where the Principal or its Personnel have contributed to the relevant loss. The amendments ensure a fair and balanced allocation of risk and avoid the Supplier assuming responsibility for matters outside its control.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  64,
+        "sourceCommentIndexes":  [
+                                     64
+                                 ],
+        "sourceCommentIds":  [
+                                 1465
+                             ],
+        "sourcePages":  [
+                            108
+                        ],
+        "sectionClause":  "Clause 30.2 Limitation of Supplier’s liability / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nunder its indemnity obligations under clauses 10.6(a), 22.1(d), 22.1(g) and 30.1(except clause 30.1(b)(c)); for any breach of clauses 3, 10, 11, or 33; for any breach of applicable Legislation or Licences by the Supplier or any of its Personnel; to the extent that it is insured and the Supplier is entitled to be indemnified for the relevant Claim or Loss under an insurance policy in accordance with the Schedule of Insurances, or would have been so insured but for: the application of this clause 30.2; or any act or omission of the Supplier, including: any breach of this Contract, or any relevant Supply Order, including a failure to procure or maintain any insurance policy required to be procured or maintained by the Supplier; breach of the relevant insurance policy by the Supplier; or failure by the Supplier to diligently pursue a claim under such insurance policy; or\r\n\r\nWith:\r\n); illness, injury to, or death of any person caused by the negligence of the Supplier Infringement of Intellectual Property Rights\r\n\r\nReason:\r\nComment 64: We request the proposed amendments as they reflect the extent of liability that the Supplier is able to assume under the Agreement. The Supplier is prepared to provide uncapped liability only for personal injury or death arising from its negligence and infringement of intellectual property rights, wilful misconduct. The Supplier is unable to accept additional carve-outs relating to indemnity obligations, breaches of legislation or licensing requirements, or insurance recoveries, and therefore requests that the limitation of liability regime be amended accordingly.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  65,
+        "sourceCommentIndexes":  [
+                                     65
+                                 ],
+        "sourceCommentIds":  [
+                                 1501
+                             ],
+        "sourcePages":  [
+                            109
+                        ],
+        "sectionClause":  "Clause 30.2 Limitation of Supplier’s liability / paragraph (d)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nNotwithstanding anything else contained in this Contract to the contrary, the Supplier shall not be liable under, arising out of or in connection with the Contract (to the fullest extent permitted at law) whether by way of indemnity, guarantee, or by reason of any breach of contract, or of statutory duty or by reason of tort (including but not limited to negligence) or any other legal principle or doctrine for any loss of profits, loss of use, loss of revenue, loss of data or loss of anticipated savings or for any financial or economic loss (whether direct or indirect) or for any consequential or indirect loss or damage whatsoever.\r\n\r\nReason:\r\nComment 65: Supplier requests for the inclusion of a consequential loss exclusion. As currently drafted, the Agreement does not distinguish between direct losses and indirect or consequential business losses. The proposed amendment reflects a standard commercial risk allocation by excluding remote and consequential losses, such as lost profits, revenue and other economic losses, which are often disproportionate to the scope and value of the supply.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  66,
+        "sourceCommentIndexes":  [
+                                     66
+                                 ],
+        "sourceCommentIds":  [
+                                 1513
+                             ],
+        "sourcePages":  [
+                            110
+                        ],
+        "sectionClause":  "Clause 30.3 Application of Civil Liability Act",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\ncover the Supplier for potential Loss to the Principal assumed by reason of the exclusion of the Legislation; and do not exclude cover for any potential Loss the Supplier may have to the Principal under or by reason of this Contract, or any relevant Supply Order\r\n\r\nReason:\r\nComment 66: Supplier requests deletion of this requirement. The Supplier does not undertake to maintain insurance cover for liabilities assumed solely under the Contract, nor to ensure that its insurance policies respond to all contractual liabilities or exclusions.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  67,
+        "sourceCommentIndexes":  [
+                                     67
+                                 ],
+        "sourceCommentIds":  [
+                                 1524
+                             ],
+        "sourcePages":  [
+                            110
+                        ],
+        "sectionClause":  "Clause 32 - Local content",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nProposed wording:\r\nLocal content\r\n\r\nReason:\r\nComment 67: Please refer to the schedule 850DCP0036 - Part C (Returnable Schedules) along with the Supplier’s offer. As known to both the parties, none of the Equipment is manufactured in Australia, accordingly the local content and related points shall apply to the Supplier only to the extent of Engineering, Project management and Technical Support is being executed in Australia.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  68,
+        "sourceCommentIndexes":  [
+                                     68
+                                 ],
+        "sourceCommentIds":  [
+                                 1542
+                             ],
+        "sourcePages":  [
+                            115
+                        ],
+        "sectionClause":  "Clause 34.2 Financing Documents / paragraph (b)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nn a form acceptable to the Principal, acting\r\n\r\nReason:\r\nComment 68: Supplier requests the proposed amendment to ensure any novation occurs on substantially the same terms and conditions as the Contract and does not operate as a mechanism to introduce material amendments to the agreed commercial or risk allocation provisions without the Supplier\u0027s consent.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  69,
+        "sourceCommentIndexes":  [
+                                     69
+                                 ],
+        "sourceCommentIds":  [
+                                 1546
+                             ],
+        "sourcePages":  [
+                            115
+                        ],
+        "sectionClause":  "Clause 34.3 Direct deed",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nIf requested by the Principal, the Supplier agrees to enter into (and will procure that any Guarantor enters into) a direct deed with Financiers, the Principal on terms which are consistent with market practice for project financing of a resource based project and as reasonably required by Financiers (including in relation to notices to be provided by the Supplier, consent to security and enforcement, termination, step-in, variations and assignment).\r\n\r\nReason:\r\nComment 69: We request for clarification on the intent for inclusion of this provision?",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  70,
+        "sourceCommentIndexes":  [
+                                     70
+                                 ],
+        "sourceCommentIds":  [
+                                 1552
+                             ],
+        "sourcePages":  [
+                            115
+                        ],
+        "sectionClause":  "Clause 35.1 Assignment and novation / paragraph (a)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nInsert the following wording:\r\nSupplier reserves it right to assign, transfer, or novate this Contract to any third party in the event of sale, divestment, or transfer of all or portion of its business or assets. The Supplier shall notify the other party in writing at least 30 days in advance of such assignment, transfer, or novation.\r\n\r\nReason:\r\nComment 70: Supplier requests for and requires mutual assignment rights.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  71,
+        "sourceCommentIndexes":  [
+                                     71
+                                 ],
+        "sourceCommentIds":  [
+                                 1557
+                             ],
+        "sourcePages":  [
+                            116
+                        ],
+        "sectionClause":  "Clause 35.1 Assignment and novation / paragraph (c)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nin the form that the Principal reasonably requires and will effect a release in favour of the Principal in respect of all its liability under this Contract arising on or after the effective date of the novation, but (unless otherwise accepted by the person to whom the Contract is novated) will not release its liability for all breaches committed by it prior to that date. If the Supplier fails to enter into any one or more of the deeds of novation the Principal may require it to enter into in accordance with this Contract: the Supplier is deemed by this clause 35.1(d), and in consideration for the Principal’s obligations under this Contract, to have irrevocably appointed the Principal as its attorney to execute that or those deeds of novation on its behalf and to bind the Supplier accordingly; and Waiver the Principal is entitled to suspend payment to the Supplier of any amounts otherwise payable under this Contract, until the date on which the Supplier has entered into the required deeds of novation whether by the Principal acting as its attorney or otherwise.\r\n\r\nWith:\r\non the same term and conditions. Waiver .\r\n\r\nReason:\r\nComment 71: Supplier requests the proposed amendments to ensure that any novation is effected on substantially the same terms and conditions as the Contract and that the Supplier is not subject to unilateral execution rights, deemed appointments or payment suspension rights. Any novation should be subject to the Supplier\u0027s participation in the novation process and should not adversely alter the Supplier\u0027s agreed commercial or risk position.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  72,
+        "sourceCommentIndexes":  [
+                                     72
+                                 ],
+        "sourceCommentIds":  [
+                                 1598
+                             ],
+        "sourcePages":  [
+                            124
+                        ],
+        "sectionClause":  "Contract Particulars / Item 10 - Payment Method / Rise and fall adjustment",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nEquipment Price: Not applicable Services Price: Not applicable\r\n\r\nReason:\r\nComment 72: Please refer to Supplier’s comment on Price Adjustment / Rise and Fall / escalation.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  73,
+        "sourceCommentIndexes":  [
+                                     73
+                                 ],
+        "sourceCommentIds":  [
+                                 1602
+                             ],
+        "sourcePages":  [
+                            125
+                        ],
+        "sectionClause":  "Contract Particulars / Item 12 - Percentage adjustments for valuing a Variation",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nWhere the relevant Supply Order Sum is to be increased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs. Where the relevant Supply Order Sum is to be decreased, 10% is applicable only to materials, Equipment and Subcontractor costs, and 0% is applicable to Personnel (not including Subcontractors) costs.\r\n\r\nReason:\r\nComment 73: Supplier requests amendment. The current percentage-based valuation methodology is more suited to construction contracts. Variations relating to equipment supply should be valued using actual equipment, freight, subcontractor and associated costs applicable to the relevant variation.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  74,
+        "sourceCommentIndexes":  [
+                                     74
+                                 ],
+        "sourceCommentIds":  [
+                                 1623
+                             ],
+        "sourcePages":  [
+                            130
+                        ],
+        "sectionClause":  "Contract Particulars / Item 25 - Warranty Period",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\n24 months from the Date of Acceptance.\r\n\r\nWith:\r\n24 months from the Date of Delivery.\r\n\r\nReason:\r\nComment 74: Acceptance is beyond the Supplier’s control, we request for 24 months from the Date of Delivery.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  75,
+        "sourceCommentIndexes":  [
+                                     75
+                                 ],
+        "sourceCommentIds":  [
+                                 1647
+                             ],
+        "sourcePages":  [
+                            130
+                        ],
+        "sectionClause":  "Contract Particulars / Item 29 - Professional Indemnity Insurance",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nProfessional Indemnity Insurance(Section 2.1 of Schedule of Insurances)Professional Indemnity Insurance:☒ is required is not required\r\n\r\nWith:\r\nProfessional Indemnity Insurance(Section 2.1 of Schedule of Insurances)Not Applicable\r\n\r\nReason:\r\nComment 75: Supplier does not maintain Professional Indemnity Insurance for this scope. The Contract is principally for the supply of Equipment, with the relevant risks addressed through the Supplier\u0027s warranty obligations and other insurance coverage maintained under the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  76,
+        "sourceCommentIndexes":  [
+                                     76
+                                 ],
+        "sourceCommentIds":  [
+                                 1730
+                             ],
+        "sourcePages":  [
+                            139
+                        ],
+        "sectionClause":  "Schedule 2 - Supply Order Template / Annexure C - Pricing Annexure / Tariff and Duties",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nTariff and Duties\r\n\r\nReason:\r\nComment 76: Supplier reserves all rights in respect of providing further comments / deviations / departures with respect to tariff, duties and anything concerning its applicability to this contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  77,
+        "sourceCommentIndexes":  [
+                                     77,
+                                     78,
+                                     79
+                                 ],
+        "sourceCommentIds":  [
+                                 1760,
+                                 1761,
+                                 1762
+                             ],
+        "sourcePages":  [
+                            147
+                        ],
+        "sectionClause":  "Annexure I - Performance requirements and Acceptance Tests / Whole annexure",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "INTERNAL ACTION - REVIEW BEFORE EXTERNAL ISSUE:\r\nComment 77: Business to confirm applicability and the changes required here.\r\n\r\nComment 78: Business to replace this portion with - SDRL \u0026 Scope of Work Document and Data sheet, to be included here. Part of ABB’s offer submission.\r\n\r\nComment 79: Business to replace this with the Right Offer Document / Reference as discussed on 14.08.2026. - Please delete this comment after the action is complete.\r\n\r\nAffected part:\r\nAnnexure I - Performance requirements and Acceptance Tests",
+        "status":  "Open",
+        "internalAction":  true
+    },
+    {
+        "itemNumber":  78,
+        "sourceCommentIndexes":  [
+                                     80,
+                                     81
+                                 ],
+        "sourceCommentIds":  [
+                                 1903,
+                                 1904
+                             ],
+        "sourcePages":  [
+                            150
+                        ],
+        "sectionClause":  "Schedule 3 - Pricing Schedule / Whole schedule",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "INTERNAL ACTION - REVIEW BEFORE EXTERNAL ISSUE:\r\nComment 80: Internal - Action - Business to confirm here, what changes are required in this schedule.\r\n\r\nComment 81: Marcin to replace this with Offer Document - delete the comment later.\r\n\r\nAffected part:\r\nSchedule 3 – Pricing Schedule",
+        "status":  "Open",
+        "internalAction":  true
+    },
+    {
+        "itemNumber":  79,
+        "sourceCommentIndexes":  [
+                                     82
+                                 ],
+        "sourceCommentIds":  [
+                                 1926
+                             ],
+        "sourcePages":  [
+                            152
+                        ],
+        "sectionClause":  "Schedule 3 - Pricing Schedule / Item 6 - Applicable Milestones for each Supply Order / Table 3-1 - Framework Milestones for each Supply Order",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nProposed wording:\r\nFramework Milestones for each Supply Order\r\n\r\nReason:\r\nComment 82: Please refer to the Milestone framework proposed by the Supplier in its offer.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  80,
+        "sourceCommentIndexes":  [
+                                     83
+                                 ],
+        "sourceCommentIds":  [
+                                 1988
+                             ],
+        "sourcePages":  [
+                            153
+                        ],
+        "sectionClause":  "Schedule 3 - Pricing Schedule / Item 1 - Applicable Rise and Fall Formula",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nused\r\n\r\nReason:\r\nComment 83: Please refer to the Escalation Mechanism proposed by the Supplier in the offer. The Supplier’s intent and consideration is to have a Base price + Escalation Mechanism. Once agreed, the same shall be added here and elsewhere relevant in the Contract.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  81,
+        "sourceCommentIndexes":  [
+                                     84
+                                 ],
+        "sourceCommentIds":  [
+                                 1998
+                             ],
+        "sourcePages":  [
+                            161
+                        ],
+        "sectionClause":  "Schedule 7 - Form of Parent Company Guarantee / Whole schedule (proposed Not Used)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nSchedule 7 – Form of Parent Company Guarantee\r\n\r\nWith:\r\nSchedule 7 – Not Used\r\n\r\nReason:\r\nComment 84: Please refer to comments on Parent Company Guarantee clause.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  82,
+        "sourceCommentIndexes":  [
+                                     85,
+                                     86
+                                 ],
+        "sourceCommentIds":  [
+                                 2412,
+                                 2413
+                             ],
+        "sourcePages":  [
+                            169
+                        ],
+        "sectionClause":  "Schedule 8 - Form of Security / Whole schedule",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "INTERNAL ACTION - REVIEW BEFORE EXTERNAL ISSUE:\r\nComment 85: Internal action - Business to provide ABB standard BG template for prior approval and incorporation here.\r\n\r\nComment 86: Fong to replace and delete this comment.\r\n\r\nAffected part:\r\nSchedule 8 – Form of Security",
+        "status":  "Open",
+        "internalAction":  true
+    },
+    {
+        "itemNumber":  83,
+        "sourceCommentIndexes":  [
+                                     87
+                                 ],
+        "sourceCommentIds":  [
+                                 2553
+                             ],
+        "sourcePages":  [
+                            177
+                        ],
+        "sectionClause":  "Schedule of Insurances / General Third Party (Public \u0026 Products) Liability / Deductibles",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nDeductibles AU$250,000 for each and every occurrence for “worker to worker”claims on Site (costs inclusive); and AU$100,000 for each and every other occurrence (costs inclusive).\r\n\r\nReason:\r\nComment 87: Deductibles will be as per Supplier’s Standard Insurance it provides for all of its contracts.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  84,
+        "sourceCommentIndexes":  [
+                                     88
+                                 ],
+        "sourceCommentIds":  [
+                                 2563
+                             ],
+        "sourcePages":  [
+                            177
+                        ],
+        "sectionClause":  "Schedule of Insurances / General Third Party (Public \u0026 Products) Liability / Additional requirements",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\ninclude a principal\u0027s indemnity extension in favour of the Principal and its Related Bodies Corporate with respect to the Principal’s vicarious liability incurred as a result of the acts or omissions of the Supplier or the Supplier’s Personnel; be endorsed by the insurer to act as primary cover to (and therefore not as excess of or secondary cover to) any other insurance or indemnities provided by the Supplier under this Contract;\r\n\r\nReason:\r\nComment 88: These requirements shall be as per ABB’s standard Insurance policy it provides for all its Contracts.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  85,
+        "sourceCommentIndexes":  [
+                                     89
+                                 ],
+        "sourceCommentIds":  [
+                                 2581
+                             ],
+        "sourcePages":  [
+                            178
+                        ],
+        "sectionClause":  "Schedule of Insurances / Marine Transit Insurance / Deductibles",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nDelete the following wording in full:\r\nMaximum of $10,000 for each and every loss.\r\n\r\nReason:\r\nComment 89: Deductibles will be as per Supplier’s Standard Insurance it provides for all of its contracts.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  86,
+        "sourceCommentIndexes":  [
+                                     90
+                                 ],
+        "sourceCommentIds":  [
+                                 2585
+                             ],
+        "sourcePages":  [
+                            179
+                        ],
+        "sectionClause":  "Schedule 11 - Subcontractor Warranty / Whole schedule (proposed Not Used)",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nReplace:\r\nSchedule 11 – Subcontractor Warranty\r\n\r\nWith:\r\nSchedule 11 – Not Used\r\n\r\nReason:\r\nComment 90: Please refer to other comments on Subcontractor Warranties.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  87,
+        "sourceCommentIndexes":  [
+                                     91
+                                 ],
+        "sourceCommentIds":  [
+                                 2698
+                             ],
+        "sourcePages":  [
+                            181
+                        ],
+        "sectionClause":  "Schedule 12 - Review Procedures / Whole schedule",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nProposed wording:\r\nSchedule 12 – Review Procedures\r\n\r\nReason:\r\nComment 91: Supplier reserves its right to raise any additional comments on this as per further discussions on the submitted offer document.",
+        "status":  "Open",
+        "internalAction":  false
+    },
+    {
+        "itemNumber":  88,
+        "sourceCommentIndexes":  [
+                                     92
+                                 ],
+        "sourceCommentIds":  [
+                                 2712
+                             ],
+        "sourcePages":  [
+                            190
+                        ],
+        "sectionClause":  "Schedule 15 - Deed of Novation / Whole schedule",
+        "date":  "14 Aug 2026",
+        "commentBy":  "Tenderer",
+        "clarification":  "Proposed amendment:\r\nProposed wording:\r\nSchedule 15 – Deed of Novation\r\n\r\nReason:\r\nComment 92: Supplier reserves all rights in respect of Schedule 15. Detailed comments and proposed amendments will be provided in a subsequent review and should not be taken as accepted in its current form.",
+        "status":  "Open",
+        "internalAction":  false
+    }
+]

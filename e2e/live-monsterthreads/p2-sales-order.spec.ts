@@ -78,7 +78,9 @@ test('@p2-confirm confirms the existing SO and pauses for IMS and Xero inspectio
     page.once('dialog', dialog => dialog.accept());
     const confirmResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/sales-orders/${soId}`)
       && response.request().method() === 'PUT');
-    await page.getByTestId(`so-confirm-${soId}`).click();
+    const soRow = page.getByTestId(`so-open-${soId}`).locator('xpath=ancestor::tr');
+    await soRow.getByRole('combobox').selectOption('confirm');
+    await soRow.getByRole('button', { name: 'Go' }).click();
     const response = await confirmResponse;
     const confirmed = await response.json() as { success?: boolean; error?: string };
     expect(response.ok(), confirmed.error).toBe(true);
@@ -110,6 +112,39 @@ test('@p2-confirm confirms the existing SO and pauses for IMS and Xero inspectio
   }
 });
 
+test('@p2-inspect reads back the exact Draft invoice from Xero', async ({ page }) => {
+  const config = loadLiveE2EConfig();
+  const events = await readManifest(config.runId);
+  const soId = salesOrderId(events);
+  expect(events.at(-1)?.state).toBe('awaiting_operator');
+  await loginToIms(page, config);
+
+  const response = await page.request.get(`/api/ims/xero/invoice-details?soId=${soId}`);
+  const invoice = await response.json() as {
+    success?: boolean;
+    invoiceNumber?: string;
+    total?: number;
+    taxTotal?: number;
+    status?: string;
+    error?: string;
+  };
+  expect(response.ok(), invoice.error).toBe(true);
+  expect(invoice.success, invoice.error).toBe(true);
+  expect(invoice.status).toBe('DRAFT');
+  expect(Number(invoice.total)).toBe(config.maxDocumentTotal);
+  expect(Number(invoice.taxTotal)).toBe(0);
+
+  await appendManifestState(config.runId, 'awaiting_operator', {
+    scenario: 'P2',
+    phase: 'xero_draft_verified',
+    salesOrderId: soId,
+    invoiceNumber: invoice.invoiceNumber ?? null,
+    xeroStatus: invoice.status,
+    xeroTotal: Number(invoice.total),
+    xeroTaxTotal: Number(invoice.taxTotal),
+  });
+});
+
 test('@p2-compensate cancels only the acknowledged unfulfilled SO and verifies baseline stock', async ({ page }) => {
   const config = loadLiveE2EConfig();
   const events = await readManifest(config.runId);
@@ -121,7 +156,9 @@ test('@p2-compensate cancels only the acknowledged unfulfilled SO and verifies b
     page.once('dialog', dialog => dialog.accept());
     const cancelResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/sales-orders/${soId}`)
       && response.request().method() === 'PUT');
-    await page.getByTestId(`so-cancel-${soId}`).click();
+    const soRow = page.getByTestId(`so-open-${soId}`).locator('xpath=ancestor::tr');
+    await soRow.getByRole('combobox').selectOption('cancel');
+    await soRow.getByRole('button', { name: 'Go' }).click();
     const response = await cancelResponse;
     const cancelled = await response.json() as { success?: boolean; xeroWarning?: string; error?: string };
     expect(response.ok(), cancelled.error).toBe(true);

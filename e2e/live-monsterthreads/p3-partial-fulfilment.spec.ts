@@ -128,24 +128,23 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
 
     await openSalesOrders(page);
     await expect(page.getByTestId(`so-open-${soId}`)).toBeVisible();
+    const soRow = page.getByTestId(`so-open-${soId}`).locator('xpath=ancestor::tr');
 
     if (soStatus === 'draft') {
-      const confirmButton = page.getByTestId(`so-confirm-${soId}`);
-      await expect(confirmButton).toBeVisible();
       page.once('dialog', dialog => dialog.accept());
       const confirmResponse = page.waitForResponse(response => response.url().endsWith(`/api/ims/sales-orders/${soId}`)
         && response.request().method() === 'PUT');
-      await confirmButton.click();
+      await soRow.getByRole('combobox').selectOption('confirm');
+      await soRow.getByRole('button', { name: 'Go' }).click();
       const confirmResult = await confirmResponse;
       const confirmed = await confirmResult.json() as { success?: boolean; error?: string };
       expect(confirmResult.ok(), confirmed.error).toBe(true);
       expect(confirmed.success, confirmed.error).toBe(true);
-      await expect(page.getByTestId(`so-fulfil-${soId}`)).toBeVisible();
+      await expect(soRow.getByRole('combobox')).toHaveValue('fulfill');
     }
 
-    const fulfilButton = page.getByTestId(`so-fulfil-${soId}`);
-    await expect(fulfilButton).toBeVisible();
-    await fulfilButton.click();
+    await soRow.getByRole('combobox').selectOption('fulfill');
+    await soRow.getByRole('button', { name: 'Go' }).click();
 
     await expect(page.getByTestId('so-fulfil-modal')).toBeVisible({ timeout: 30_000 });
     await page.getByTestId('so-fulfil-mode-backorder').check();
@@ -180,6 +179,39 @@ test('@p3-fulfil ships one unit and backorders the remainder', async ({ page }) 
     }).catch(() => {});
     throw error;
   }
+});
+
+test('@p3-inspect reads back the authorised shipped amount from Xero', async ({ page }) => {
+  const config = loadLiveE2EConfig();
+  const events = await readManifest(config.runId);
+  const soId = p3SalesOrderId(events);
+  expect(events.at(-1)?.state).toBe('awaiting_operator');
+  await loginToIms(page, config);
+
+  const response = await page.request.get(`/api/ims/xero/invoice-details?soId=${soId}`);
+  const invoice = await response.json() as {
+    success?: boolean;
+    invoiceNumber?: string;
+    total?: number;
+    taxTotal?: number;
+    status?: string;
+    error?: string;
+  };
+  expect(response.ok(), invoice.error).toBe(true);
+  expect(invoice.success, invoice.error).toBe(true);
+  expect(invoice.status).toBe('AUTHORISED');
+  expect(Number(invoice.total)).toBe(0.5);
+  expect(Number(invoice.taxTotal)).toBe(0);
+
+  await appendManifestState(config.runId, 'awaiting_operator', {
+    scenario: 'P3',
+    phase: 'xero_authorised_verified',
+    salesOrderId: soId,
+    invoiceNumber: invoice.invoiceNumber ?? null,
+    xeroStatus: invoice.status,
+    xeroTotal: Number(invoice.total),
+    xeroTaxTotal: Number(invoice.taxTotal),
+  });
 });
 
 test('@p3-compensate resolves the partial fulfilment with return credit and closes fixture open work', async ({ page }) => {
@@ -241,37 +273,45 @@ test('@p3-compensate resolves the partial fulfilment with return credit and clos
     );
 
     if (!existingComplete) {
-      const createCnResponse = await page.request.post('/api/ims/credit-notes', {
-        data: {
-          customer_id: Number(sourceDetail?.data?.customer_id),
-          so_id: soId,
-          original_so_number: String(sourceDetail?.data?.so_number ?? ''),
-          location_id: Number(sourceDetail?.data?.location_id),
-          cn_date: new Date().toISOString().slice(0, 10),
-          reference: `LIVE E2E ${config.runId} P3 compensation`,
-          tax_treatment: 'ex_tax',
-          notes: `P3 compensation for ${sourceDetail?.data?.so_number ?? soId}`,
-          items: [
-            {
-              variant_id: String(sourceItem?.variant_id ?? ''),
-              code: String(sourceItem?.sku ?? ''),
-              name: String(sourceItem?.product_name ?? sourceItem?.name ?? 'P3 shipped line'),
-              qty: 1,
-              unit_price: Number(sourceItem?.unit_price ?? 0.5),
-              price_basis: 'custom',
-              restock: true,
-              source_so_item_id: Number(sourceItem?.id),
-              tax_rate: 0,
-            },
-          ],
-        },
-      });
-      const createdCn = await createCnResponse.json() as { success?: boolean; data?: any; error?: string };
-      expect(createCnResponse.ok(), createdCn.error).toBe(true);
-      expect(createdCn.success, createdCn.error).toBe(true);
-      const cnId = Number(createdCn?.data?.id);
+      const existingDraft = (Array.isArray(cnList.data) ? cnList.data : []).find(cn =>
+        Number(cn.so_id) === soId && String(cn.status) === 'draft',
+      );
+      let cnId = Number(existingDraft?.id);
+      if (!Number.isInteger(cnId) || cnId <= 0) {
+        const createCnResponse = await page.request.post('/api/ims/credit-notes', {
+          data: {
+            customer_id: Number(sourceDetail?.data?.customer_id),
+            so_id: soId,
+            original_so_number: String(sourceDetail?.data?.so_number ?? ''),
+            location_id: Number(sourceDetail?.data?.location_id),
+            cn_date: new Date().toISOString().slice(0, 10),
+            reference: `LIVE E2E ${config.runId} P3 compensation`,
+            tax_treatment: 'ex_tax',
+            notes: `P3 compensation for ${sourceDetail?.data?.so_number ?? soId}`,
+            items: [
+              {
+                variant_id: String(sourceItem?.variant_id ?? ''),
+                code: String(sourceItem?.sku ?? ''),
+                name: String(sourceItem?.product_name ?? sourceItem?.name ?? 'P3 shipped line'),
+                qty: 1,
+                unit_price: Number(sourceItem?.unit_price ?? 0.5),
+                price_basis: 'custom',
+                restock: true,
+                source_so_item_id: Number(sourceItem?.id),
+                tax_rate: 0,
+              },
+            ],
+          },
+        });
+        const createdCn = await createCnResponse.json() as { success?: boolean; data?: any; error?: string };
+        expect(createCnResponse.ok(), createdCn.error).toBe(true);
+        expect(createdCn.success, createdCn.error).toBe(true);
+        cnId = Number(createdCn?.data?.id);
+      }
       expect(cnId).toBeGreaterThan(0);
-      const completeCnResponse = await page.request.post(`/api/ims/credit-notes/${cnId}/complete`, { data: {} });
+      const completeCnResponse = await page.request.post(`/api/ims/credit-notes/${cnId}/complete`, {
+        data: { operationKey: `live-e2e-${config.runId}-p3-complete-cn-${cnId}` },
+      });
       const completedCn = await completeCnResponse.json() as { success?: boolean; error?: string };
       expect(completeCnResponse.ok(), completedCn.error).toBe(true);
       expect(completedCn.success, completedCn.error).toBe(true);

@@ -2685,6 +2685,8 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
         <ImsTable
           cols={['Name','Code','City','State','Active','']}
           rows={locations}
+          background="var(--sv-bg-1)"
+          headerBackground="var(--sv-bg-2)"
           render={(l) => [
             <strong style={{ color: 'var(--sv-text-strong)' }}>{l.name}</strong>,
             l.code || '—', l.city || '—', l.state || '—',
@@ -8908,7 +8910,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <Field label="Notes"><input data-testid="po-notes" value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
             </Row2>
             <Row3>
-              <Field label="Supplier Invoice #"><input value={form.supplier_invoice_number} onChange={sf('supplier_invoice_number')} style={inputStyle} placeholder="e.g. INV-00123" /></Field>
+              <Field label="Supplier Invoice #"><input data-testid="po-supplier-invoice-number" value={form.supplier_invoice_number} onChange={sf('supplier_invoice_number')} style={inputStyle} placeholder="e.g. INV-00123" /></Field>
               <Field label="Supplier Invoice Date"><input type="date" value={form.supplier_invoice_date ?? ''} onChange={sf('supplier_invoice_date')} style={inputStyle} /></Field>
               <Field label="Payment Terms">
                 <select value={form.payment_terms} onChange={sf('payment_terms')} style={inputStyle}>
@@ -8918,7 +8920,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </Row3>
             <Row2>
               <Field label="Supplier costs are…">
-                <select value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
+                <select data-testid="po-tax-treatment" value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
                   <option value="ex_tax">Ex-tax (tax is added on top)</option>
                   <option value="inc_tax">Inc-tax (tax already included)</option>
                   <option value="no_tax">No tax / Zero-rated</option>
@@ -13673,17 +13675,19 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
 // Shared small components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ImsTable({ cols, rows, render }: {
+function ImsTable({ cols, rows, render, background = 'var(--sv-bg-2)', headerBackground = 'rgba(148,163,184,0.04)' }: {
   cols: React.ReactNode[];
   rows: any[];
   render: (row: any) => React.ReactNode[];
+  background?: string;
+  headerBackground?: string;
 }) {
   if (rows.length === 0) return <EmptyState text="No records." />;
   return (
-    <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+    <div style={{ background, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
+          <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: headerBackground }}>
             {cols.map((c, idx) => <th key={idx} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
           </tr>
         </thead>
@@ -13882,10 +13886,10 @@ function BrandsView() {
       </form>
 
       {loading ? <Spinner /> : brands.length === 0 ? <EmptyState text="No brands yet. Add one above." /> : (
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 720 }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', maxWidth: 720 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
                 {['Brand Name', 'Website URL', 'Added', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
                 ))}
@@ -14249,10 +14253,10 @@ function GiftCardsView() {
         <EmptyState text="No gift cards found." />
       ) : (
         <>
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'rgba(148,163,184,0.04)' }}>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
                 {['Code', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
                   <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
@@ -22919,10 +22923,10 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       </div>
 
       {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stocktakes yet. Create one to get started." /> : (
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
+              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
                 {([
                   ['reference', 'Reference'],
                   ['location_name', 'Location'],
