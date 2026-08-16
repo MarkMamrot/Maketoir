@@ -1191,7 +1191,6 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
           <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
             <style>{`@media (max-width: 900px) { .ims-sales-chart-panel, .ims-sales-summary-panel { grid-column: 1 / -1 !important; } }`}</style>
-            <DashboardSalesComparison />
             <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 2 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Reporting period</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 6 }}>
@@ -1462,6 +1461,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                 </div>
               )}
             </div>
+            <DashboardSalesComparison />
           </div>
         </>
       )}
