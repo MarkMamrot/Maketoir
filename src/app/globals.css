@@ -219,7 +219,7 @@ input[type=number] {
 }
 
 @media (min-width: 900px) {
-  .ims-sticky-table {
+  .ims-sticky-table:not(.ims-sticky-table--self-scroll) {
     overflow: visible !important;
   }
 

@@ -194,7 +194,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
+        <div className="ims-sticky-table" style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>

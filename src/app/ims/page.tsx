@@ -16138,7 +16138,7 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
     {error && <div style={{ color: 'var(--sv-red)', marginBottom: 12 }}>{error}</div>}
-    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
+    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div className="ims-sticky-table" style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
       <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance','Status','Prepared by','Confirmed by','Posted by','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
       <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : 'Awaiting'}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name ?? '—'}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.store_till_variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.store_till_variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{row.deposited_total == null ? '—' : fmtCurrency(row.deposited_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.bank_variance_total ?? 0) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{row.bank_variance_total == null ? '—' : fmtCurrency(row.bank_variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.confirmation_status === 'planned' ? 'Planned' : row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.confirmed_by_name ?? '—'}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
     </table>{!rows.length && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No deposits match these filters.</div>}</div>}
@@ -16239,7 +16239,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: 'auto', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+      <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ flex: 1, overflow: 'auto', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1, boxShadow: '0 1px 0 var(--sv-etch)' }}>
             <tr>
@@ -16389,7 +16389,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* ── Table — scrolls independently ── */}
-      <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+      <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ flex: 1, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
             <tr>

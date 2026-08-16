@@ -171,7 +171,7 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
     </div>
 
     {error && <div style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
-    <div style={{ maxHeight: 'calc(100vh - 285px)', minHeight: 280, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
+    <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ maxHeight: 'calc(100vh - 285px)', minHeight: 280, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
       <table style={{ width: '100%', minWidth: 980, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead><tr>
           {dimensions.map((dimension, index) => <th key={dimension} style={{ ...heading, textAlign: 'left', minWidth: dimension === 'location' ? 150 : 125, ...(index === 0 ? { left: 0, zIndex: 4, boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{headingLabel(salesSummaryDimensionLabel(dimension), 'Group')}</th>)}
