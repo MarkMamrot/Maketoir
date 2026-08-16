@@ -175,10 +175,9 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right' };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'center' };
   const frozenDivider = '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)';
-  const tableWidth = 980 + displayLocations.length * 200;
+  const tableWidth = 936 + displayLocations.length * 200;
   const renderColGroup = () => (
     <colgroup>
-      <col style={{ width: 44 }} />
       <col style={{ width: 220 }} />
       <col style={{ width: 120 }} />
       <col style={{ width: 120 }} />
@@ -283,8 +282,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               {renderColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                <th style={{ ...hCell, width: 44, minWidth: 44, maxWidth: 44 }}>{headingLabel('Row', 'No.')}</th>
-                {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
+                {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
                 {sortTh('sku', 'Product', 'SKU')}
                 {sortTh('brand', 'Product', 'Brand')}
                 {sortTh('supplier', 'Primary', 'Supplier')}
@@ -324,20 +322,18 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               {renderColGroup()}
               <tbody>
                 {loading && (
-                  <tr><td colSpan={7 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
+                  <tr><td colSpan={6 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
                 )}
                 {!loading && displayRows.length === 0 && (
-                  <tr><td colSpan={7 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
+                  <tr><td colSpan={6 + displayLocations.length * 2} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
                 )}
                 {!loading && displayRows.map((row, i) => {
                   const salesQty = Number(row.sales_qty ?? 0);
                   const locationSalesMap = new Map<number, any>((row.location_sales ?? []).map((sale: any) => [sale.location_id, sale]));
                   const rowBg = i % 2 === 0 ? 'var(--sv-bg-1)' : 'color-mix(in srgb, var(--sv-bg-1) 88%, var(--sv-etch))';
-                  const rowNum = (page - 1) * pageSize + i + 1;
                   return (
                     <tr key={row.variant_id} style={{ background: rowBg }}>
-                      <td style={{ ...numCell, width: 44, minWidth: 44, maxWidth: 44, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                      <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: frozenDivider }}>
+                      <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: frozenDivider }}>
                         <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                         {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                       </td>
@@ -370,8 +366,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               {!loading && (
                 <tfoot>
                   <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
-                    <td style={{ ...cellStyle, width: 44, minWidth: 44, maxWidth: 44, background: 'var(--sv-bg-2)' }} />
-                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
                       Totals (all selected variants)
                     </td>
                     <td colSpan={3} style={{ ...cellStyle, background: 'var(--sv-bg-2)' }} />

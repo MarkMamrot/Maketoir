@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
+import { ReportScrollTable } from './ReportScrollTable';
 
 interface PosPriceChangesViewProps {
   onBack: () => void;
@@ -33,6 +34,9 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
   const hCell: React.CSSProperties     = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' as any, letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
   const numCell: React.CSSProperties   = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const numHCell: React.CSSProperties  = { ...hCell, textAlign: 'right' };
+  const columnWidths = [110, 90, 150, 140, 100, 240, 130, 130, 130];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
   const downloadCsv = () => {
     const headers = ['Date', 'Time', 'Location', 'Cashier', 'Sale #', 'Item', 'SKU', 'Original Price', 'Changed To'];
@@ -57,7 +61,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)', flexShrink: 0 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -76,9 +80,12 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No price changes found in this date range.</div>
       )}
       {!loading && rows.length > 0 && (
-        <div className="ims-sticky-table" style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--sv-bg-1)' }}>
-            <thead>
+        <ReportScrollTable
+          ariaLabel="POS price changes table. Use arrow keys to scroll."
+          bodyClassName="pos-price-changes-table-scroll"
+          tableWidth={tableWidth}
+          renderColGroup={renderColGroup}
+          headerRows={
               <tr>
                 <th style={hCell}>Date</th>
                 <th style={hCell}>Time</th>
@@ -90,7 +97,8 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
                 <th style={numHCell}>Original Price</th>
                 <th style={numHCell}>Changed To</th>
               </tr>
-            </thead>
+          }
+        >
             <tbody>
               {rows.map((r: any, i: number) => {
                 const dt = new Date(r.completed_at);
@@ -111,8 +119,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
                 );
               })}
             </tbody>
-          </table>
-        </div>
+        </ReportScrollTable>
       )}
     </div>
   );

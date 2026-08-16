@@ -1,4 +1,5 @@
 import React from 'react';
+import { ReportScrollTable } from './ReportScrollTable';
 
 type PosRegisterSession = {
   id: number;
@@ -142,6 +143,9 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
     borderBottom: '1px solid var(--sv-border)',
     verticalAlign: 'middle',
   };
+  const columnWidths = [150, 140, 100, 170, 130, 100, 170, 130, 150, 120, 120, 120, 100];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
   return (
     <div>
@@ -185,9 +189,12 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
       )}
 
       {sessions.length > 0 && (
-        <div className="ims-sticky-table" style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
+        <ReportScrollTable
+          ariaLabel="Daily POS registers table. Use arrow keys to scroll."
+          bodyClassName="pos-registers-table-scroll"
+          tableWidth={tableWidth}
+          renderColGroup={renderColGroup}
+          headerRows={
               <tr style={{ background: 'var(--sv-bg-subtle)' }}>
                 <th style={thStyle}>Location</th>
                 <th style={thStyle}>Register</th>
@@ -203,7 +210,8 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                 <th style={{ ...thStyle, textAlign: 'right' }}>Variance</th>
                 <th style={thStyle}>Xero</th>
               </tr>
-            </thead>
+          }
+        >
             <tbody>
               {sessions.map(s => {
                 const isOpen = s.status === 'open';
@@ -291,8 +299,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                 );
               })}
             </tbody>
-          </table>
-        </div>
+        </ReportScrollTable>
       )}
     </div>
   );

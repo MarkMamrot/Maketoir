@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Download, RefreshCw } from 'lucide-react';
 import { SALES_SUMMARY_DIMENSIONS, salesSummaryDimensionLabel, type SalesSummaryDimension } from '@/lib/ims/salesSummary';
 import { SBDatePicker, type SBDateRange } from './reportFilterHelpers';
+import { ReportScrollTable } from './ReportScrollTable';
 
 interface SalesSummaryViewProps {
   onBack: () => void;
@@ -135,8 +136,12 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
   const control: React.CSSProperties = { height: 34, padding: '0 10px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 12 };
   const cell: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', whiteSpace: 'nowrap', fontSize: 13 };
   const numericCell: React.CSSProperties = { ...cell, textAlign: 'right' };
-  const heading: React.CSSProperties = { ...cell, height: 52, position: 'sticky', top: 0, zIndex: 2, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 11, textAlign: 'center', textTransform: 'uppercase', verticalAlign: 'middle' };
+  const heading: React.CSSProperties = { ...cell, height: 52, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', fontSize: 11, textAlign: 'center', textTransform: 'uppercase', verticalAlign: 'middle' };
   const headingLabel = (primary: string, secondary?: string) => <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, lineHeight: 1.05 }}><span>{primary}</span>{secondary && <span style={{ fontSize: 9, fontWeight: 500, textTransform: 'none' }}>{secondary}</span>}</span>;
+  const dimensionWidths = dimensions.map(dimension => dimension === 'location' ? 150 : 125);
+  const metricWidths = [110, 150, 160, 130, 115, 145, 150];
+  const tableWidth = [...dimensionWidths, ...metricWidths].reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{[...dimensionWidths, ...metricWidths].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -171,10 +176,14 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
     </div>
 
     {error && <div style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 13 }}>{error}</div>}
-    <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ maxHeight: 'calc(100vh - 285px)', minHeight: 280, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
-      <table style={{ width: '100%', minWidth: 980, borderCollapse: 'separate', borderSpacing: 0 }}>
-        <thead><tr>
-          {dimensions.map((dimension, index) => <th key={dimension} style={{ ...heading, textAlign: 'left', minWidth: dimension === 'location' ? 150 : 125, ...(index === 0 ? { left: 0, zIndex: 4, boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{headingLabel(salesSummaryDimensionLabel(dimension), 'Group')}</th>)}
+    <ReportScrollTable
+      ariaLabel="Sales summary table. Use arrow keys to scroll."
+      bodyClassName="sales-summary-table-scroll"
+      tableWidth={tableWidth}
+      renderColGroup={renderColGroup}
+      borderRadius={7}
+      headerRows={<tr>
+          {dimensions.map((dimension, index) => <th key={dimension} style={{ ...heading, textAlign: 'left', minWidth: dimension === 'location' ? 150 : 125, ...(index === 0 ? { position: 'sticky', left: 0, zIndex: 4, boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{headingLabel(salesSummaryDimensionLabel(dimension), 'Group')}</th>)}
           <th style={heading}>{headingLabel('Sales Qty', dateRange.label)}</th>
           <th style={heading}>{headingLabel('Sales Amount', 'Inc. GST')}</th>
           <th style={heading}>{headingLabel('COGS', 'Ex. GST · Attached')}</th>
@@ -182,7 +191,8 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
           <th style={heading}>{headingLabel('GP %', 'Covered Sales')}</th>
           <th style={heading}>{headingLabel('Current SOH', allLocations ? 'All Locations' : 'Selected Locations')}</th>
           <th style={heading}>{headingLabel('COGS Coverage', 'Sales Amount')}</th>
-        </tr></thead>
+        </tr>}
+      >
         <tbody>
           {loading ? <tr><td colSpan={dimensions.length + 7} style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</td></tr> : rows.length === 0 ? <tr><td colSpan={dimensions.length + 7} style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No sales match this selection.</td></tr> : rows.map((row, index) => <tr key={`${page}-${index}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
             {dimensions.map((dimension, dimensionIndex) => <td key={dimension} style={{ ...cell, ...(dimensionIndex === 0 ? { position: 'sticky', left: 0, zIndex: 1, background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)', boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{row[DIMENSION_FIELDS[dimension]] ?? 'Unknown'}</td>)}
@@ -195,12 +205,11 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
             <td style={{ ...numericCell, color: Number(row.cogsCoveragePercent) < 100 ? 'var(--sv-amber)' : 'var(--sv-text-main)' }}>{percent(row.cogsCoveragePercent)}</td>
           </tr>)}
         </tbody>
-        {!loading && totals && <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 3 }}><tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
+        {!loading && totals && <tfoot><tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
           <td colSpan={dimensions.length} style={cell}>TOTALS (ALL SELECTED)</td>
           <td style={numericCell}>{quantity(totals.sales_qty)}</td><td style={numericCell}>{money(totals.sales_amount)}</td><td style={numericCell}>{money(totals.attached_cogs)}</td><td style={numericCell}>{Number(totals.covered_amount) > 0 ? money(totals.grossProfit) : '—'}</td><td style={numericCell}>{percent(totals.grossProfitPercent)}</td><td style={numericCell}>{quantity(totals.current_soh)}</td><td style={numericCell}>{percent(totals.cogsCoveragePercent)}</td>
         </tr></tfoot>}
-      </table>
-    </div>
+    </ReportScrollTable>
 
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap', fontSize: 12, color: 'var(--sv-text-dim)' }}>
       <span>Page {page} of {totalPages} · {total.toLocaleString()} groups</span>

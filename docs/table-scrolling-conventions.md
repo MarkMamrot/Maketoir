@@ -11,7 +11,7 @@ Use this pattern for desktop IMS data tables that can exceed the available conte
 - Left and Right move the table body by 240px.
 - Up and Down move the normal page by 240px.
 - Ignore arrow shortcuts while focus is in an input, select, textarea, or content-editable control.
-- For intentionally self-scrolling reports, Up and Down move that report container instead of `window`.
+- Report tables use the same page-level vertical scrolling as standard IMS lists.
 
 ## Standard implementation
 
@@ -32,7 +32,7 @@ onScroll={event => {
 ```
 
 6. Freeze requested columns in both header and body with `position: sticky`. The first frozen column uses `left: 0`; each later frozen column uses the sum of all preceding frozen widths. Give frozen cells an opaque row/header background, a higher z-index, and a right-edge divider shadow.
-7. Attach `useTableArrowScroll(bodyScrollRef)` from `src/app/ims/hooks/useTableArrowScroll.ts` for page-level lists. Use `useTableArrowScroll(bodyScrollRef, 'element')` only for a deliberately self-scrolling report.
+7. Attach `useTableArrowScroll(bodyScrollRef)` from `src/app/ims/hooks/useTableArrowScroll.ts` so Up and Down move the IMS page. Report tables follow this same behavior.
 8. Add `tabIndex={0}`, `role="region"`, and an `aria-label` describing arrow-key scrolling to the body wrapper.
 9. Use `ims-sticky-table ims-sticky-table--self-scroll` on the body wrapper so desktop global CSS does not override its horizontal overflow.
 

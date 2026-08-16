@@ -26,6 +26,9 @@ import { BackordersView } from './views/backorders/BackordersView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
+import { ReportScrollTable } from './views/reports/ReportScrollTable';
+import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
+import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
@@ -16304,6 +16307,9 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = `cash-banking-${from}-${to}.csv`; link.click(); URL.revokeObjectURL(link.href);
   };
   const control: React.CSSProperties = { padding: '6px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 12 };
+  const columnWidths = [80, 110, 150, 170, 120, 110, 110, 140, 120, 110, 100, 130, 130, 130, 160, 180];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
       <button onClick={onBack} style={control}>Back</button><h1 style={{ margin: 0, flex: 1, fontSize: 22, color: 'var(--sv-text-strong)' }}>Cash Banking Report</h1>
@@ -16312,10 +16318,17 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
       <button onClick={exportCsv} disabled={!rows.length} style={control}>Export CSV</button>
     </div>
     {error && <div style={{ color: 'var(--sv-red)', marginBottom: 12 }}>{error}</div>}
-    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <div className="ims-sticky-table" style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7 }}><table style={{ width: '100%', minWidth: 1420, borderCollapse: 'collapse', fontSize: 12 }}>
-      <thead><tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance','Status','Prepared by','Confirmed by','Posted by','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr></thead>
+    {loading ? <div style={{ padding: 30, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</div> : <ReportScrollTable
+      ariaLabel="Cash banking table. Use arrow keys to scroll."
+      bodyClassName="cash-banking-table-scroll"
+      tableWidth={tableWidth}
+      renderColGroup={renderColGroup}
+      borderRadius={7}
+      headerRows={<tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance','Status','Prepared by','Confirmed by','Posted by','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr>}
+    >
       <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : 'Awaiting'}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name ?? '—'}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.store_till_variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.store_till_variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{row.deposited_total == null ? '—' : fmtCurrency(row.deposited_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.bank_variance_total ?? 0) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{row.bank_variance_total == null ? '—' : fmtCurrency(row.bank_variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.confirmation_status === 'planned' ? 'Planned' : row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.confirmed_by_name ?? '—'}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
-    </table>{!rows.length && <div style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No deposits match these filters.</div>}</div>}
+    {!rows.length && <tbody><tr><td colSpan={16} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No deposits match these filters.</td></tr></tbody>}
+    </ReportScrollTable>}
   </div>;
 }
 
@@ -16377,11 +16390,14 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
 
   const cellStyle: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13 };
   const numCell: React.CSSProperties = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
+  const columnWidths = [140, 300, 170, 130, 110, 150];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
   
   const grandTotal = rows.reduce((s, r) => s + (r.total_value || 0), 0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', padding: 0, marginBottom: 8, fontSize: 13 }}>← Back to Reports</button>
@@ -16413,9 +16429,13 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ flex: 1, overflow: 'auto', background: 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ position: 'sticky', top: 0, background: 'var(--sv-bg-1)', zIndex: 1, boxShadow: '0 1px 0 var(--sv-etch)' }}>
+      <ReportScrollTable
+        ariaLabel="Inventory valuation table. Use arrow keys to scroll."
+        bodyClassName="inventory-valuation-table-scroll"
+        tableWidth={tableWidth}
+        renderColGroup={renderColGroup}
+        borderRadius={8}
+        headerRows={
             <tr>
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SKU</th>
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Product Name</th>
@@ -16424,7 +16444,8 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
               <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SOH</th>
               <th style={{ ...numCell, fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>Total Value</th>
             </tr>
-          </thead>
+        }
+      >
           <tbody>
             {loading ? <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</td></tr> : null}
             {!loading && rows.map((r, i) => (
@@ -16438,8 +16459,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+      </ReportScrollTable>
     </div>
   );
 }
@@ -16510,13 +16530,16 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
   const numCell: React.CSSProperties   = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const hCell: React.CSSProperties     = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' as any, letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
   const numHCell: React.CSSProperties  = { ...hCell, textAlign: 'right' };
+  const columnWidths = [140, 300, 170, 110, 140, 130, 150, 110];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
   const totalProfit = rows.reduce((s, r) => s + (r.profit || 0), 0);
   const totalRev    = rows.reduce((s, r) => s + (r.rev    || 0), 0);
   const blendedMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
 
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -16562,10 +16585,12 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* ── Table — scrolls independently ── */}
-      <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ flex: 1, overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+      <ReportScrollTable
+        ariaLabel="Product profitability table. Use arrow keys to scroll."
+        bodyClassName="product-margin-table-scroll"
+        tableWidth={tableWidth}
+        renderColGroup={renderColGroup}
+        headerRows={
             <tr>
               <th style={{ ...hCell, textAlign: 'left' }}>SKU</th>
               <th style={{ ...hCell, textAlign: 'left', minWidth: 200 }}>Product Name</th>
@@ -16576,7 +16601,8 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
               <th style={{ ...numHCell, color: 'var(--sv-mint)' }}>Gross Profit</th>
               <th style={numHCell}>Margin %</th>
             </tr>
-          </thead>
+        }
+      >
           <tbody>
             {loading && (
               <tr><td colSpan={8} style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading…</td></tr>
@@ -16597,8 +16623,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+      </ReportScrollTable>
 
       {/* ── Pagination ── */}
       {totalPages > 1 && (
@@ -20762,8 +20787,8 @@ export default function ImsPage() {
               SalesSearchView={SalesSearchView}
               InventoryValuationView={InventoryValuationView}
               ProductMarginView={ProductMarginView}
-              PosPriceChangesView={PosPriceChangesView}
-              PosRegistersReportView={PosRegistersReportView}
+              PosPriceChangesView={(props: { onBack: () => void }) => <PosPriceChangesViewComponent {...props} btnStyle={btnStyle} />}
+              PosRegistersReportView={(props: { onBack: () => void }) => <PosRegistersReportViewComponent {...props} XeroStatusBadge={XeroStatusBadge} />}
               CashBankingReportView={CashBankingReportView}
               XeroView={XeroView}
               ShopifyView={ShopifyView}

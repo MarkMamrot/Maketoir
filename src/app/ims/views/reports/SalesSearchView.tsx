@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
+import { ReportScrollTable } from './ReportScrollTable';
 
 interface SalesSearchViewProps {
   onBack: () => void;
@@ -132,7 +133,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
   };
 
   const cellStyle: React.CSSProperties = { padding: '9px 12px', borderBottom: '1px solid var(--sv-etch)', fontSize: 13, whiteSpace: 'nowrap' };
-  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top', position: 'sticky', top: 0, zIndex: 2 };
+  const hCell: React.CSSProperties    = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, background: 'var(--sv-bg-2)', verticalAlign: 'top' };
   const numCell: React.CSSProperties  = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const numHCell: React.CSSProperties = { ...hCell, textAlign: 'right' };
 
@@ -146,6 +147,9 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
       {label}{arrow(col)}
     </th>
   );
+  const columnWidths = [44, 220, 120, 120, 160, 110, 130, 90, 90, 100, 90];
+  const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
   return (
     <div>
@@ -194,12 +198,15 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div className="ims-sticky-table" style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
+        <ReportScrollTable
+          ariaLabel="Sales search table. Use arrow keys to scroll."
+          bodyClassName="sales-search-table-scroll"
+          tableWidth={tableWidth}
+          renderColGroup={renderColGroup}
+          headerRows={
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
                 <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
-                {sortTh('product', 'Product', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220 })}
+                {sortTh('product', 'Product', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: '1px 0 0 var(--sv-etch)' })}
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
                 <th style={hCell}>Supplier</th>
@@ -210,7 +217,8 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
                 <th style={numHCell}>Wholesale</th>
                 <th style={numHCell}>History</th>
               </tr>
-            </thead>
+          }
+        >
             <tbody>
               {loading && (
                 <tr><td colSpan={11} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>Loading&hellip;</td></tr>
@@ -224,7 +232,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
                 return (
                   <tr key={row.variant_id} style={{ background: rowBg }}>
                     <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220 }}>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg || 'var(--sv-bg-1)', minWidth: 220, boxShadow: '1px 0 0 var(--sv-etch)' }}>
                       <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                       {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                     </td>
@@ -243,8 +251,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
                 );
               })}
             </tbody>
-          </table>
-        </div>
+        </ReportScrollTable>
 
         {totalPages > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', paddingTop: 2 }}>
