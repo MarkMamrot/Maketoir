@@ -6103,11 +6103,11 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'clip' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
-              {showCols.sku && <col style={{ width: 90, minWidth: 90 }} />}{/* SKU */}
+              {showCols.sku && <col style={{ width: 150, minWidth: 150 }} />}{/* SKU */}
               <col style={{ minWidth: 384 }} />{/* name */}
               {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
@@ -20321,7 +20321,7 @@ export default function ImsPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#eef1f4', padding: '14px 14px 18px', boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
-      <div style={{ background: '#0b1220', borderRadius: '18px 18px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'hidden' }}>
+      <div style={{ background: '#0b1220', borderRadius: '18px 18px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'clip' }}>
         {/* Xero Queued Banner */}
         {xeroQueuedCount > 0 && (
           <div style={{ background: 'rgba(251,191,36,.15)', borderBottom: '1px solid rgba(251,191,36,.3)', padding: '7px 20px', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#fbbf24', flexShrink: 0 }}>
@@ -20545,7 +20545,7 @@ export default function ImsPage() {
 
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
           <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
-          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
+          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
             <MainSections
               view={view}
               isAdvisor={isAdvisor}
