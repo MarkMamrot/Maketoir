@@ -2010,6 +2010,8 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
             ]}
             rows={visible}
+            background="var(--sv-bg-1)"
+            headerBackground="var(--sv-bg-2)"
             render={(c) => [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
@@ -2046,6 +2048,8 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
                 : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', ''])
             ]}
             rows={visible}
+            background="var(--sv-bg-1)"
+            headerBackground="var(--sv-bg-2)"
             render={(c) => isSupplierView ? [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
