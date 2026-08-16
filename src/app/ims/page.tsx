@@ -17037,6 +17037,17 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
 
+  const saveCogsSettings = async () => {
+    if (!cogsSettings) return;
+    setSavingCogs(true);
+    setCogsMessage(null);
+    try {
+      const res = await fetch('/api/xero/cogs/settings', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId: getBusinessId(), ...cogsSettings }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unable to save COGS settings');
       setCogsMessage({ ok: true, text: 'COGS schedule saved.' });
     } catch (e: any) {
       setCogsMessage({ ok: false, text: e.message });
