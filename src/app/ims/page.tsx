@@ -5265,6 +5265,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [activeCurrencies, setActiveCurrencies] = useState<string[]>([]);
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const productsHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const productsBodyScrollRef = useRef<HTMLDivElement | null>(null);
 
   // Initialize columns with saved preferences or defaults
   const [showCols, setShowCols] = useState<{ [key: string]: boolean }>(() => {
@@ -5920,12 +5921,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     </colgroup>
   );
 
-  const handleProductsTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    if ((event.target as HTMLElement).closest('input, select, textarea')) return;
-    event.preventDefault();
-    event.currentTarget.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'smooth' });
-  };
+  useEffect(() => {
+    const handleHorizontalArrow = (event: KeyboardEvent) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+      const scroller = productsBodyScrollRef.current;
+      if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
+      event.preventDefault();
+      scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
+    };
+    window.addEventListener('keydown', handleHorizontalArrow);
+    return () => window.removeEventListener('keydown', handleHorizontalArrow);
+  }, []);
 
   return (
     <div>
@@ -6186,12 +6193,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </table>
           </div>
           <div
+            ref={productsBodyScrollRef}
             className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll"
             tabIndex={0}
             role="region"
             aria-label="Products table. Use Left and Right arrow keys to scroll columns."
             onScroll={event => { if (productsHeaderScrollRef.current) productsHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}
-            onKeyDown={handleProductsTableKeyDown}
             onPointerDown={event => {
               if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
             }}
