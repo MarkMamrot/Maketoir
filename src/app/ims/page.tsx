@@ -28,6 +28,7 @@ import { SalesSearchView as SalesSearchViewComponent } from './views/reports/Sal
 import { SalesSummaryView } from './views/reports/SalesSummaryView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
+import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
@@ -2012,6 +2013,9 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
+            columnWidths={[44, 220, 130, 150, 130, 240, 150, 130, 130, 190]}
+            frozenColumnIndex={1}
+            scrollClassName="contacts-table-scroll"
             render={(c) => [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
@@ -2050,6 +2054,11 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
+            columnWidths={isSupplierView
+              ? [44, 220, 180, 130, 120, 240, 150, 190]
+              : [44, 220, 180, 130, 240, 160, 190]}
+            frozenColumnIndex={1}
+            scrollClassName="contacts-table-scroll"
             render={(c) => isSupplierView ? [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
@@ -2693,6 +2702,9 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
           rows={locations}
           background="var(--sv-bg-1)"
           headerBackground="var(--sv-bg-2)"
+          columnWidths={[240, 140, 200, 120, 100, 230]}
+          frozenColumnIndex={0}
+          scrollClassName="locations-table-scroll"
           render={(l) => [
             <strong style={{ color: 'var(--sv-text-strong)' }}>{l.name}</strong>,
             l.code || '—', l.city || '—', l.state || '—',
@@ -5266,6 +5278,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [stockHistoryModal, setStockHistoryModal] = useState<{ productId: string; productName: string } | null>(null);
   const productsHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const productsBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(productsBodyScrollRef);
 
   // Initialize columns with saved preferences or defaults
   const [showCols, setShowCols] = useState<{ [key: string]: boolean }>(() => {
@@ -5920,26 +5933,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       {showCols.created && <col style={{ width: 100, minWidth: 100 }} />}
     </colgroup>
   );
-
-  useEffect(() => {
-    const handleArrowScroll = (event: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
-
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
-        window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
-        return;
-      }
-
-      const scroller = productsBodyScrollRef.current;
-      if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
-      event.preventDefault();
-      scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
-    };
-    window.addEventListener('keydown', handleArrowScroll);
-    return () => window.removeEventListener('keydown', handleArrowScroll);
-  }, []);
 
   return (
     <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
@@ -8210,6 +8203,7 @@ function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
 function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean } = {}) {
   const poHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const poBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(poBodyScrollRef);
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -8801,24 +8795,6 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       <col style={{ width: 228 }} />
     </colgroup>
   );
-
-  useEffect(() => {
-    const handleArrowScroll = (event: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
-        window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
-        return;
-      }
-      const scroller = poBodyScrollRef.current;
-      if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
-      event.preventDefault();
-      scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
-    };
-    window.addEventListener('keydown', handleArrowScroll);
-    return () => window.removeEventListener('keydown', handleArrowScroll);
-  }, []);
 
   return (
     <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
@@ -10472,6 +10448,9 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const cnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const cnBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(cnBodyScrollRef);
   const [cns, setCns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -10851,6 +10830,12 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         : { label: 'Manual', background: 'rgba(156,163,175,.12)', color: 'var(--sv-text-dim)' };
     return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: meta.background, color: meta.color, marginLeft: 6 }}>{meta.label}</span>;
   };
+  const cnTableWidth = 1180;
+  const renderCnColGroup = () => (
+    <colgroup>
+      {[150, 220, 120, 140, 110, 110, 110, 220].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+    </colgroup>
+  );
 
   return (
     <div style={{ width: '100%' }}>
@@ -10944,37 +10929,34 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
       {/* Table */}
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No credit notes match your filters." /> : (
-        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 150 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 200 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 210 }} />
-            </colgroup>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={cnHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+          <table style={{ width: cnTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderCnColGroup()}
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {['CN #', 'Date', 'Customer', 'Location', 'Status', 'Total', 'Xero', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .8 }}>{h}</th>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
+                {['CN #', 'Customer', 'Date', 'Location', 'Status', 'Total', 'Xero', 'Actions'].map((h, index) => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .8, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>
                 ))}
               </tr>
             </thead>
+          </table>
+          </div>
+          <div ref={cnBodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll cn-table-scroll" tabIndex={0} role="region" aria-label="Customer credit notes table. Use arrow keys to scroll." onScroll={event => { if (cnHeaderScrollRef.current) cnHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}>
+          <table style={{ width: cnTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderCnColGroup()}
             <tbody>
               {filtered.map((cn, ri) => {
                 const actions = getCnActionOptions(cn);
                 const selectedAction = cnActionSelections[cn.id] ?? actions[0]?.value ?? 'view';
                 return (
                   <tr key={cn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent', cursor: 'pointer' }} onClick={() => openView(cn)}>
-                    <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--sv-mint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5 }}>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, color: 'var(--sv-mint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 12.5, position: 'sticky', left: 0, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       {cn.cn_number}{sourceBadge(cn.source)}
                       {cn.original_so_number && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', fontWeight: 400 }}>↩ {cn.original_so_number}</div>}
                     </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 150, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{cn.cn_date?.slice(0, 10)}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.customer_name ?? <span style={{ color: 'var(--sv-text-dim)' }}>—</span>}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.location_name}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
                     <td style={{ padding: '10px 12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtCurrency(cn.total_amount)}</td>
@@ -11004,6 +10986,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -11328,6 +11311,9 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
 function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const scnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const scnBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(scnBodyScrollRef);
   const [scns, setScns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -11666,6 +11652,12 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
     if (action === 'reverse') return void handleReverse(scn);
   };
   const money = (n: any) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const scnTableWidth = 1190;
+  const renderScnColGroup = () => (
+    <colgroup>
+      {[150, 220, 120, 150, 110, 110, 110, 220].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+    </colgroup>
+  );
 
   return (
     <div style={{ width: '100%' }}>
@@ -11687,31 +11679,30 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       </div>
 
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No supplier credit notes yet." /> : (
-        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 150 }} />
-              <col style={{ width: 220 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 220 }} />
-            </colgroup>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={scnHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+          <table style={{ width: scnTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderScnColGroup()}
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
-                {['Number','Supplier','Date','Total','Status','Xero','Actions'].map(h => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5 }}>{h}</th>)}
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
+                {['Number','Supplier','Date','Location','Total','Status','Xero','Actions'].map((h, index) => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>)}
               </tr>
             </thead>
+          </table>
+          </div>
+          <div ref={scnBodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll scn-table-scroll" tabIndex={0} role="region" aria-label="Supplier credit notes table. Use arrow keys to scroll." onScroll={event => { if (scnHeaderScrollRef.current) scnHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}>
+          <table style={{ width: scnTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderScnColGroup()}
             <tbody>
               {filtered.map((scn, ri) => {
                 const actions = getScnActionOptions(scn);
                 const selectedAction = scnActionSelections[scn.id] ?? actions[0]?.value ?? 'view';
                 return (
                   <tr key={scn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600 }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.supplier_name ?? '—'}</td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, position: 'sticky', left: 0, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 150, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{scn.supplier_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.location_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
                     <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
@@ -11733,6 +11724,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -12422,6 +12414,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const soBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(soBodyScrollRef);
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -13819,32 +13812,69 @@ function SOActions({ so, onEdit, onDelete, onStatus, onReturn, onReplacement, on
 // Shared small components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ImsTable({ cols, rows, render, background = 'var(--sv-bg-2)', headerBackground = 'rgba(148,163,184,0.04)' }: {
+function ImsTable({ cols, rows, render, background = 'var(--sv-bg-2)', headerBackground = 'rgba(148,163,184,0.04)', columnWidths, frozenColumnIndex, scrollClassName }: {
   cols: React.ReactNode[];
   rows: any[];
   render: (row: any) => React.ReactNode[];
   background?: string;
   headerBackground?: string;
+  columnWidths?: number[];
+  frozenColumnIndex?: number;
+  scrollClassName?: string;
 }) {
+  const headerScrollRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(bodyScrollRef);
   if (rows.length === 0) return <EmptyState text="No records." />;
+  const widths = columnWidths?.length === cols.length ? columnWidths : cols.map(() => 160);
+  const tableWidth = widths.reduce((sum, width) => sum + width, 0);
+  const renderColGroup = () => (
+    <colgroup>{widths.map((width, index) => <col key={index} style={{ width, minWidth: width }} />)}</colgroup>
+  );
+  const frozenStyle = (index: number, rowBackground: string): React.CSSProperties => index === frozenColumnIndex ? {
+    position: 'sticky',
+    left: 0,
+    zIndex: 3,
+    background: rowBackground,
+    boxShadow: '1px 0 0 var(--sv-etch)',
+  } : {};
   return (
-    <div className="ims-sticky-table" style={{ background, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <div style={{ width: '100%', minWidth: 0, background, border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+      <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: headerBackground, borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+        <table style={{ width: tableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+          {renderColGroup()}
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: headerBackground }}>
-            {cols.map((c, idx) => <th key={idx} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{c}</th>)}
+          <tr style={{ background: headerBackground }}>
+            {cols.map((c, idx) => <th key={idx} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap', ...frozenStyle(idx, headerBackground) }}>{c}</th>)}
           </tr>
         </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-              {render(row).map((cell, j) => (
-                <td key={j} style={{ padding: '9px 12px', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle' }}>{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        </table>
+      </div>
+      <div
+        ref={bodyScrollRef}
+        className={`ims-sticky-table ims-sticky-table--self-scroll${scrollClassName ? ` ${scrollClassName}` : ''}`}
+        tabIndex={0}
+        role="region"
+        aria-label="Scrollable table. Use arrow keys to scroll."
+        onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}
+        style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
+      >
+        <table style={{ width: tableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+          {renderColGroup()}
+          <tbody>
+            {rows.map((row, i) => {
+              const rowBackground = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : background;
+              return (
+                <tr key={i} style={{ background: rowBackground }}>
+                  {render(row).map((cell, j) => (
+                    <td key={j} style={{ padding: '9px 12px', borderTop: '1px solid var(--sv-etch)', fontSize: 13, color: 'var(--sv-text-main)', verticalAlign: 'middle', overflow: 'hidden', textOverflow: 'ellipsis', ...frozenStyle(j, rowBackground) }}>{cell}</td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -17007,24 +17037,6 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
 
-  React.useEffect(() => {
-    fetch(`/api/xero/cogs/settings?databaseId=${encodeURIComponent(getBusinessId())}`)
-      .then(async r => r.ok ? r.json() : Promise.reject(new Error((await r.json()).error || 'Unable to load COGS settings')))
-      .then(j => setCogsSettings(j.settings))
-      .catch(e => setCogsMessage({ ok: false, text: e.message }));
-  }, []);
-
-  const saveCogsSettings = async () => {
-    if (!cogsSettings) return;
-    setSavingCogs(true);
-    setCogsMessage(null);
-    try {
-      const res = await fetch('/api/xero/cogs/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), ...cogsSettings }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Unable to save COGS settings');
       setCogsMessage({ ok: true, text: 'COGS schedule saved.' });
     } catch (e: any) {
       setCogsMessage({ ok: false, text: e.message });
@@ -21056,6 +21068,9 @@ function ReceiveBranchTransferModal({ bt, onClose, onDone }: { bt: any; onClose:
 // ─────────────────────────────────────────────────────────────────────────────
 
 function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+  const btHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const btBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(btBodyScrollRef);
   const [transfers, setTransfers]   = useState<any[]>([]);
   const [locations, setLocations]   = useState<any[]>([]);
   const [variants, setVariants]     = useState<any[]>([]);
@@ -21403,9 +21418,15 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const safePage   = Math.min(page, totalPages);
   const pageSlice  = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const btTableWidth = 1100;
+  const renderBtColGroup = () => (
+    <colgroup>
+      {[150, 190, 190, 120, 120, 120, 210].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+    </colgroup>
+  );
 
   return (
-    <div>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
@@ -21442,8 +21463,10 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60 }}><Spinner /></div>
       ) : (
-        <div className="ims-sticky-table" style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', background: 'var(--sv-bg-1)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ width: '100%', minWidth: 0, border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)' }}>
+          <div ref={btHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+          <table style={{ width: btTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderBtColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
                 {[
@@ -21454,21 +21477,26 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                   ['status', 'Status'],
                   ['total_value', 'Value'],
                   ['', ''],
-                ].map(([col, label]) => (
-                  <th key={label} onClick={() => col && handleSort(col)} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 700, cursor: col ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                ].map(([col, label], index) => (
+                  <th key={label} onClick={() => col && handleSort(col)} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 12, color: 'var(--sv-text-dim)', fontWeight: 700, cursor: col ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap', position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {label}{col && <SortIcon col={col} />}
                   </th>
                 ))}
               </tr>
             </thead>
+          </table>
+          </div>
+          <div ref={btBodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bt-table-scroll" tabIndex={0} role="region" aria-label="Branch transfers table. Use arrow keys to scroll." onScroll={event => { if (btHeaderScrollRef.current) btHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}>
+          <table style={{ width: btTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderBtColGroup()}
             <tbody>
               {pageSlice.map((bt: any, i: number) => (
                 <tr key={bt.id} style={{ borderTop: '1px solid var(--sv-etch)', cursor: 'pointer', background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' : undefined }}
                     onClick={() => openView(bt)}>
-                  <td style={{ padding: '10px 12px' }}>
+                  <td style={{ padding: '10px 12px', position: 'sticky', left: 0, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                     <span style={{ fontWeight: 600, color: 'var(--sv-action)', fontSize: 13 }}>{bt.transfer_number}</span>
                   </td>
-                  <td style={{ padding: '10px 12px', fontSize: 13 }}>{bt.from_location_name}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 13, position: 'sticky', left: 150, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, var(--sv-etch) 35%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{bt.from_location_name}</td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>→ {bt.to_location_name}</td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{bt.transfer_date?.slice(0, 10)}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
@@ -21483,6 +21511,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -22656,6 +22685,9 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
 }
 
 function StocktakesView({ businessId, isAdvisor = false }: { businessId: string; isAdvisor?: boolean }) {
+  const stocktakeHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const stocktakeBodyScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(stocktakeBodyScrollRef);
   const [list, setList]         = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [locations, setLocations] = useState<any[]>([]);
@@ -23040,9 +23072,15 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
     if (action === 'delete') return handleDelete(stocktake.id, stocktake.reference);
     if (action === 'revert') return handleRevert(stocktake);
   };
+  const stocktakeTableWidth = 1210;
+  const renderStocktakeColGroup = () => (
+    <colgroup>
+      {[180, 180, 130, 100, 110, 120, 120, 270].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+    </colgroup>
+  );
 
   return (
-    <div>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Stocktakes</h1>
         {!isAdvisor && <button onClick={openCreate} style={btnStyle('action')}>+ New Stocktake</button>}
@@ -23067,10 +23105,12 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       </div>
 
       {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stocktakes yet. Create one to get started." /> : (
-        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={stocktakeHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+          <table style={{ width: stocktakeTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderStocktakeColGroup()}
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
                 {([
                   ['reference', 'Reference'],
                   ['location_name', 'Location'],
@@ -23079,25 +23119,30 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   ['variance_count', 'Variances'],
                   ['created_at', 'Created'],
                   ['completed_at', 'Completed'],
-                ] as [string, string][]).map(([col, label]) => (
+                ] as [string, string][]).map(([col, label], index) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 180 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8 }}>Actions</th>
               </tr>
             </thead>
+          </table>
+          </div>
+          <div ref={stocktakeBodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll stocktake-table-scroll" tabIndex={0} role="region" aria-label="Stocktakes table. Use arrow keys to scroll." onScroll={event => { if (stocktakeHeaderScrollRef.current) stocktakeHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}>
+          <table style={{ width: stocktakeTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderStocktakeColGroup()}
             <tbody>
               {visible.map((st: any, rowIndex: number) => {
                 const actions = getStocktakeRowActions(st);
                 const selectedAction = stocktakeActionSelections[st.id] ?? actions[0]?.value ?? 'view';
                 return (
                 <tr key={st.id} style={{ borderTop: '1px solid var(--sv-etch)', background: rowIndex % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                  <td style={{ padding: '10px 12px' }}>
+                  <td style={{ padding: '10px 12px', position: 'sticky', left: 0, zIndex: 3, background: rowIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                     <button onClick={() => openDetail(st)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-action)', fontSize: 13, padding: 0, fontWeight: 600 }}>{st.reference}</button>
                   </td>
-                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.location_name}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, position: 'sticky', left: 180, zIndex: 3, background: rowIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{st.location_name}</td>
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={st.status} /></td>
                   <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{st.item_count ?? 0}</td>
                   <td style={{ padding: '10px 12px', color: Number(st.variance_count) > 0 ? 'var(--sv-warn,#fbbf24)' : 'var(--sv-text-dim)', fontSize: 13, fontWeight: Number(st.variance_count) > 0 ? 600 : 400 }}>{st.variance_count ?? 0}</td>
@@ -23121,6 +23166,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

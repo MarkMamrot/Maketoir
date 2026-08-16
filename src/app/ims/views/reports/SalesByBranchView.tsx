@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SBDatePicker, SBDateRange } from './reportFilterHelpers';
+import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 
 function SortArrowIcon({ col, sortCol, sortAsc }: { col: string; sortCol: string; sortAsc: boolean }) {
   return (
@@ -15,6 +16,8 @@ interface SalesByBranchViewProps {
 }
 
 export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) {
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(tableScrollRef, 'element');
   const [rows, setRows]             = useState<any[]>([]);
   const [total, setTotal]           = useState(0);
   const [totalQty, setTotalQty]     = useState(0);
@@ -257,12 +260,12 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, height: '100%' }}>
-        <div className="ims-sticky-table ims-sticky-table--self-scroll" style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', flex: 1, minHeight: 0, height: 'calc(100% - 56px)' }}>
+        <div ref={tableScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll sales-detail-table-scroll" tabIndex={0} role="region" aria-label="Sales detail table. Use arrow keys to scroll." style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'auto', flex: 1, minHeight: 0, height: 'calc(100% - 56px)', outline: 'none' }}>
           <table style={{ width: '100%', minWidth: 980 + displayLocations.length * 180, borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ position: 'sticky', top: 0, zIndex: 3, background: 'var(--sv-bg-1)', boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ ...hCell, left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44 }}>{headingLabel('Row', 'No.')}</th>
-                {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
+                <th style={{ ...hCell, width: 44, minWidth: 44, maxWidth: 44 }}>{headingLabel('Row', 'No.')}</th>
+                {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
                 {sortTh('sku', 'Product', 'SKU')}
                 {sortTh('brand', 'Product', 'Brand')}
                 {sortTh('supplier', 'Primary', 'Supplier')}
@@ -296,8 +299,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                   const rowNum = (page - 1) * pageSize + i + 1;
                   return (
                     <tr key={row.variant_id} style={{ background: rowBg }}>
-                      <td style={{ ...numCell, position: 'sticky', left: 0, zIndex: 1, width: 44, minWidth: 44, maxWidth: 44, background: rowBg, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                      <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: frozenDivider }}>
+                      <td style={{ ...numCell, width: 44, minWidth: 44, maxWidth: 44, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
+                      <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: frozenDivider }}>
                         <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                         {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                       </td>
@@ -330,8 +333,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
               {!loading && (
                 <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 3 }}>
                   <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
-                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, width: 44, minWidth: 44, maxWidth: 44, background: 'var(--sv-bg-2)' }} />
-                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
+                    <td style={{ ...cellStyle, width: 44, minWidth: 44, maxWidth: 44, background: 'var(--sv-bg-2)' }} />
+                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
                       Totals (all selected variants)
                     </td>
                     <td colSpan={3} style={{ ...cellStyle, background: 'var(--sv-bg-2)' }} />
