@@ -15659,7 +15659,7 @@ function PosPriceChangesView({ onBack }: { onBack: () => void }) {
         <div style={{ padding: 32, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No price changes found in this date range.</div>
       )}
       {!loading && rows.length > 0 && (
-        <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
+        <div className="ims-sticky-table" style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', background: 'var(--sv-bg-1)' }}>
             <thead>
               <tr>
@@ -15881,7 +15881,7 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
       )}
 
       {sessions.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="ims-sticky-table" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-subtle)' }}>
