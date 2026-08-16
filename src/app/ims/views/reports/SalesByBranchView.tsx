@@ -18,7 +18,7 @@ interface SalesByBranchViewProps {
 export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) {
   const tableHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
-  useTableArrowScroll(tableScrollRef, 'element');
+  useTableArrowScroll(tableScrollRef);
   const [rows, setRows]             = useState<any[]>([]);
   const [total, setTotal]           = useState(0);
   const [totalQty, setTotalQty]     = useState(0);
@@ -206,7 +206,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, height: 'calc(100vh - 52px - 56px)' }}>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={onBack} style={{ background: 'none', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -276,9 +276,9 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
         <div style={{ color: 'var(--sv-red)', fontSize: 13, marginBottom: 12, padding: '8px 12px', background: 'color-mix(in srgb, var(--sv-red) 10%, transparent)', borderRadius: 6 }}>{error}</div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0, height: '100%' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, border: '1px solid var(--sv-etch)', borderRadius: 10, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
-          <div ref={tableHeaderScrollRef} style={{ flexShrink: 0, overflow: 'hidden', background: 'var(--sv-bg-2)', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+      <div style={{ width: '100%', minWidth: 0 }}>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={tableHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
             <table style={{ width: tableWidth, minWidth: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
               {renderColGroup()}
             <thead>
@@ -315,7 +315,10 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
             onScroll={event => {
               if (tableHeaderScrollRef.current) tableHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
             }}
-            style={{ overflow: 'auto', flex: 1, minHeight: 0, outline: 'none' }}
+            onPointerDown={event => {
+              if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
+            }}
+            style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
           >
             <table style={{ width: tableWidth, minWidth: '100%', tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
               {renderColGroup()}
@@ -365,7 +368,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                 })}
               </tbody>
               {!loading && (
-                <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 3 }}>
+                <tfoot>
                   <tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
                     <td style={{ ...cellStyle, width: 44, minWidth: 44, maxWidth: 44, background: 'var(--sv-bg-2)' }} />
                     <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
