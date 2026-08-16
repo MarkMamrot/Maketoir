@@ -6133,7 +6133,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           onPointerDown={event => {
             if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
           }}
-          style={{ width: '100%', minWidth: 0, maxHeight: 'max(320px, calc(100vh - 220px))', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', outline: 'none' }}
+          style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
         >
           <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
             <colgroup>
