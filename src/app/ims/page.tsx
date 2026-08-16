@@ -7271,8 +7271,8 @@ function StockView() {
               Total Value: <strong style={{ color: 'var(--sv-mint)' }}>{fmtCurrency(totalValue)}</strong>
             </span>
           </div>
-          <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
+          <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+            <div className="ims-sticky-table" style={{ overflowX: 'auto' }}>
             <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
@@ -8796,7 +8796,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         )}
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 110 }} />
@@ -10842,7 +10842,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
       {/* Table */}
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No credit notes match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 150 }} />
@@ -11585,7 +11585,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       </div>
 
       {loading ? <Spinner /> : filtered.length === 0 ? <EmptyState text="No supplier credit notes yet." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 150 }} />
@@ -13000,7 +13000,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         )}
       </div>
       {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sos.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 110 }} />
@@ -13684,7 +13684,7 @@ function ImsTable({ cols, rows, render, background = 'var(--sv-bg-2)', headerBac
 }) {
   if (rows.length === 0) return <EmptyState text="No records." />;
   return (
-    <div style={{ background, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
+    <div className="ims-sticky-table" style={{ background, border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: headerBackground }}>
@@ -21298,7 +21298,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60 }}><Spinner /></div>
       ) : (
-        <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', background: 'var(--sv-bg-1)' }}>
+        <div className="ims-sticky-table" style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden', background: 'var(--sv-bg-1)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
@@ -22923,7 +22923,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
       </div>
 
       {loading ? <Spinner /> : sorted.length === 0 ? <EmptyState text="No stocktakes yet. Create one to get started." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>

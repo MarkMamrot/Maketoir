@@ -218,6 +218,20 @@ input[type=number] {
   }
 }
 
+@media (min-width: 900px) {
+  .ims-sticky-table {
+    overflow: visible !important;
+  }
+
+  .ims-sticky-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--sv-bg-2);
+    box-shadow: 0 1px 0 var(--sv-etch);
+  }
+}
+
 @layer utilities {
   .bg-gray-50 { background-color: var(--sv-bg-0) !important; }
   .bg-white { background-color: var(--sv-bg-1) !important; }

@@ -271,7 +271,7 @@ export function BackordersView({
       )}
 
       {!error && !loading && visible.length > 0 && (
-        <div style={{ borderTop: '1px solid var(--sv-etch)', overflowX: 'auto' }}>
+        <div className="ims-sticky-table" style={{ borderTop: '1px solid var(--sv-etch)', overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 920, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' }}>
