@@ -5881,14 +5881,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Product</button>}
       </div>
       {/* ── Filter bar ── */}
-      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        <input placeholder="Search products or SKUs…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
+      <div style={{ width: '100%', minWidth: 0, boxSizing: 'border-box', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <input placeholder="Search products or SKUs…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(220px, 100%)', maxWidth: '100%', flex: '1 1 220px' }} />
         <input
           list="brand-filter-list"
           placeholder="Filter by brand…"
           value={filterBrand}
           onChange={e => { setFilterBrand(e.target.value); setPage(1); }}
-          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+          style={{ ...inputStyle, minWidth: 'min(150px, 100%)', maxWidth: '100%', flex: '1 1 150px' }}
         />
         <datalist id="brand-filter-list">
           {brandOptions.map(b => <option key={b} value={b} />)}
@@ -5898,12 +5898,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           placeholder="Filter by supplier…"
           value={filterSupplier}
           onChange={e => { setFilterSupplier(e.target.value); setPage(1); }}
-          style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}
+          style={{ ...inputStyle, minWidth: 'min(150px, 100%)', maxWidth: '100%', flex: '1 1 150px' }}
         />
         <datalist id="products-supplier-filter-list">
           {supplierOptions.map(s => <option key={s} value={s} />)}
         </datalist>
-        <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 150, flex: '1 1 150px' }}>
+        <select value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(150px, 100%)', maxWidth: '100%', flex: '1 1 150px' }}>
           <option value="">All Product Types</option>
           {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -5931,7 +5931,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {filtersOpen && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setFiltersOpen(false)} />
-              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, width: 280, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
 
                 {/* Status */}
@@ -6024,7 +6024,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           >
             Show Fields ▾
           </button>
-          <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, minWidth: 200, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+          <div id="products-fields-dropdown" style={{ display: 'none', position: 'absolute', top: '100%', right: 0, zIndex: 100, width: 220, maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginTop: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-dim)', cursor: 'not-allowed', opacity: 0.6 }}>
               <input type="checkbox" checked={true} disabled readOnly style={{ marginRight: 8, cursor: 'not-allowed' }} />
               Product Name (fixed)
@@ -6109,12 +6109,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'clip' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <div className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll" style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+          <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               {showCols.sku && <col style={{ width: 150, minWidth: 150 }} />}{/* SKU */}
-              <col style={{ minWidth: 384 }} />{/* name */}
+              <col style={{ width: 384, minWidth: 384 }} />{/* name */}
               {showCols.barcode && <col style={{ width: 120, minWidth: 120 }} />}{/* barcode */}
               {showCols.product_type && <col style={{ width: 140, minWidth: 140 }} />}{/* product type */}
               {showCols.brand && <col style={{ width: 130, minWidth: 130 }} />}{/* brand */}
@@ -6132,7 +6132,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </colgroup>
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)', position: 'sticky', top: 0, zIndex: 10, boxShadow: '0 1px 0 0 var(--sv-etch)' }}>
-                <th style={{ padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+                <th style={{ width: 32, minWidth: 32, padding: '10px 8px', borderBottom: '1px solid var(--sv-etch)', position: 'sticky', top: 0, left: 0, background: 'var(--sv-bg-2)', zIndex: 13 }}>
                   <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                 </th>
                 {([
@@ -6154,7 +6154,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   ...(showCols.created ? [['created_at','Created']] : [])
                 ] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', lineHeight: 1.3, position: 'sticky', top: 0, background: 'var(--sv-bg-2)', zIndex: 10 }}>
+                    style={{ padding: '10px 12px', borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', lineHeight: 1.3, position: 'sticky', top: 0, left: col === 'sku' ? 32 : col === 'name' ? (showCols.sku ? 182 : 32) : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'sku' || col === 'name' ? 12 : 10 }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
@@ -6173,13 +6173,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 return (
                 <React.Fragment key={p.product_id}>
                   <tr style={{ background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, transparent)' : i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 8px' }}>
+                    <td style={{ width: 32, minWidth: 32, padding: '10px 8px', position: 'sticky', left: 0, zIndex: 3, background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
-                    {showCols.sku && <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {showCols.sku && <td style={{ width: 150, minWidth: 150, padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 32, zIndex: 3, background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || '—'}</code>
                     </td>}
-                    <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+                    <td style={{ width: 384, minWidth: 384, padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', overflow: 'hidden', position: 'sticky', left: showCols.sku ? 182 : 32, zIndex: 3, background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
                         {showCols.thumbnails && (
                           primaryImages[p.product_id]
