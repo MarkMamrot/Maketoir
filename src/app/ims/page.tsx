@@ -5935,7 +5935,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   }, []);
 
   return (
-    <div>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Products</h1>
         <button onClick={downloadProductsCsv} disabled={exporting || products.length === 0} style={btnStyle('ghost')}>
@@ -20598,7 +20598,7 @@ export default function ImsPage() {
 
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
           <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
-          <main style={{ flex: 1, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
+          <main style={{ flex: 1, minWidth: 0, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
             <MainSections
               view={view}
               isAdvisor={isAdvisor}
