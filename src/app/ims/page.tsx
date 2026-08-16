@@ -8208,6 +8208,8 @@ function ImportPOsModal({ locations, showFxCosts, onClose, onDone }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn, onOpenActivityDocument, isAdvisor = false }: { pendingOpenId?: number | null; onPendingHandled?: () => void; onSupplierReturn?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; isAdvisor?: boolean } = {}) {
+  const poHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const poBodyScrollRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -8786,9 +8788,40 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
+  const poTableWidth = 1070;
+  const renderPoColGroup = () => (
+    <colgroup>
+      <col style={{ width: 110 }} />
+      <col style={{ width: 165 }} />
+      <col style={{ width: 145 }} />
+      <col style={{ width: 120 }} />
+      <col style={{ width: 96 }} />
+      <col style={{ width: 96 }} />
+      <col style={{ width: 110 }} />
+      <col style={{ width: 228 }} />
+    </colgroup>
+  );
+
+  useEffect(() => {
+    const handleArrowScroll = (event: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
+        return;
+      }
+      const scroller = poBodyScrollRef.current;
+      if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
+      event.preventDefault();
+      scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
+    };
+    window.addEventListener('keydown', handleArrowScroll);
+    return () => window.removeEventListener('keydown', handleArrowScroll);
+  }, []);
 
   return (
-    <div>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Purchase Orders</h1>
         {!isAdvisor && <button onClick={() => window.open('/receive', '_blank')} style={btnStyle('ghost')}>📱 Smart Device Receive</button>}
@@ -8856,39 +8889,47 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         )}
       </div>
       {loading ? <Spinner /> : sortedFilteredPOs.length === 0 ? <EmptyState text="No purchase orders match your filters." /> : (
-        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 110 }} />
-              <col style={{ width: 165 }} />
-              <col style={{ width: 145 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 96 }} />
-              <col style={{ width: 96 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 228 }} />
-            </colgroup>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={poHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+            <table style={{ width: poTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+              {renderPoColGroup()}
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
                 {([['po_number','PO #'],['supplier_name','Supplier'],['supplier_invoice_number','Supplier Inv #'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'po_number' || col === 'supplier_name' ? 'sticky' : undefined, left: col === 'po_number' ? 0 : col === 'supplier_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'po_number' || col === 'supplier_name' ? 3 : 1, boxShadow: col === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
+            </table>
+          </div>
+          <div
+            ref={poBodyScrollRef}
+            className="ims-sticky-table ims-sticky-table--self-scroll po-table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Purchase orders table. Use arrow keys to scroll."
+            onScroll={event => { if (poHeaderScrollRef.current) poHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}
+            onPointerDown={event => {
+              if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
+            }}
+            style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
+          >
+          <table style={{ width: poTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderPoColGroup()}
             <tbody>
               {visiblePOs.map((po: any, i: number) => {
                 const poActions = getPoActionOptions(po);
                 const selectedAction = poActionSelections[po.id] ?? poActions[0]?.value ?? 'open';
                 return (
                   <tr key={po.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button>
                     </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_name || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 110, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{po.supplier_name || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
@@ -8917,6 +8958,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {!loading && totalPagesPO > 1 && (
@@ -12378,6 +12420,8 @@ function ImportSOsModal({ locations, onClose, onDone }: {
 
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
+  const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
+  const soBodyScrollRef = useRef<HTMLDivElement | null>(null);
   const [sos, setSos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -12965,6 +13009,36 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const SortIcon = ({ col }: { col: string }) => sortCol !== col ? null : (
     <span style={{ marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   );
+  const soTableWidth = 1050;
+  const renderSoColGroup = () => (
+    <colgroup>
+      <col style={{ width: 110 }} />
+      <col style={{ width: 190 }} />
+      <col style={{ width: 150 }} />
+      <col style={{ width: 120 }} />
+      <col style={{ width: 120 }} />
+      <col style={{ width: 110 }} />
+      <col style={{ width: 250 }} />
+    </colgroup>
+  );
+
+  useEffect(() => {
+    const handleArrowScroll = (event: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea')) return;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        window.scrollBy({ top: event.key === 'ArrowUp' ? -240 : 240, behavior: 'auto' });
+        return;
+      }
+      const scroller = soBodyScrollRef.current;
+      if (!scroller || scroller.scrollWidth <= scroller.clientWidth) return;
+      event.preventDefault();
+      scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
+    };
+    window.addEventListener('keydown', handleArrowScroll);
+    return () => window.removeEventListener('keydown', handleArrowScroll);
+  }, []);
   const posSale = posViewModal.sale;
   const posItems = posViewModal.items || [];
   const posPayments = posViewModal.payments || [];
@@ -12974,7 +13048,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const posPaidTotal = posPayments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
 
   return (
-    <div>
+    <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
@@ -13060,42 +13134,51 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         )}
       </div>
       {loading ? <Spinner /> : loadError ? <EmptyState text={`Could not load sales orders: ${loadError}`} /> : sos.length === 0 ? <EmptyState text="No sales orders match your filters." /> : (
-        <div className="ims-sticky-table" style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: 110 }} />
-              <col style={{ width: 190 }} />
-              <col style={{ width: 120 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 90 }} />
-              <col style={{ width: 250 }} />
-            </colgroup>
+        <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
+          <div ref={soHeaderScrollRef} style={{ position: 'sticky', top: 0, zIndex: 20, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0', boxShadow: '0 1px 0 var(--sv-etch)' }}>
+            <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+              {renderSoColGroup()}
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)' }}>
+              <tr style={{ background: 'var(--sv-bg-2)' }}>
                 {([['so_number','SO #'],['customer_name','Customer'],['location_name','Location'],['order_date','Date'],['total_amount','Total'],['status','Status']] as [string,string][]).map(([col, label]) => (
                   <th key={col} onClick={() => toggleSort(col)}
-                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, color: sortCol === col ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', position: col === 'so_number' || col === 'customer_name' ? 'sticky' : undefined, left: col === 'so_number' ? 0 : col === 'customer_name' ? 110 : undefined, background: 'var(--sv-bg-2)', zIndex: col === 'so_number' || col === 'customer_name' ? 3 : 1, boxShadow: col === 'customer_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                     {label}<SortIcon col={col} />
                   </th>
                 ))}
                 <th style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
+            </table>
+          </div>
+          <div
+            ref={soBodyScrollRef}
+            className="ims-sticky-table ims-sticky-table--self-scroll so-table-scroll"
+            tabIndex={0}
+            role="region"
+            aria-label="Sales orders table. Use arrow keys to scroll."
+            onScroll={event => { if (soHeaderScrollRef.current) soHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}
+            onPointerDown={event => {
+              if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
+            }}
+            style={{ width: '100%', minWidth: 0, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', outline: 'none' }}
+          >
+          <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            {renderSoColGroup()}
             <tbody>
               {visibleSOs.map((so: any, i: number) => {
                 const soActions = getSoActionOptions(so);
                 const selectedAction = soActionSelections[so.id] ?? soActions[0]?.value ?? 'open';
                 return (
                   <tr key={so.id} style={{ borderTop: '1px solid var(--sv-etch)', background: i % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <td style={{ padding: '10px 12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                       {so.is_pos_ledger ? (
                         <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       ) : (
                         <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       )}
                     </td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.customer_name || '—'}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 110, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{so.customer_name || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{so.location_name}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{so.order_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(so.total_amount)}</td>
@@ -13132,6 +13215,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
       {!loading && totalPagesSO > 1 && (
