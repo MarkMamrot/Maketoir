@@ -58,6 +58,11 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
 - Prefer the shared presets/custom range behavior over ad-hoc date inputs in new reports or when updating existing ones.
 - When a report needs a date filter in the API, map the shared range to the route parameters consistently (`window` for preset windows, or `from`/`to` for custom ranges).
 
+## IMS table scrolling conventions
+- Read and follow [docs/table-scrolling-conventions.md](../docs/table-scrolling-conventions.md) when adding or changing an IMS data table.
+- Standard list views must keep normal page-level vertical scrolling, use a split sticky header and horizontally scrolling body, freeze only explicit identity columns, and attach the shared `useTableArrowScroll` hook.
+- Validate real overflow, header synchronization, frozen-column geometry, and all four arrow keys in the actual authenticated IMS view; synthetic HTML fixtures are not sufficient.
+
 ## Codebase scale — be deliberate
 - [src/app/ims/page.tsx](../src/app/ims/page.tsx) (~20k lines) and
   [src/app/pos/page.tsx](../src/app/pos/page.tsx) (~6.8k lines) are large single-file monoliths.
