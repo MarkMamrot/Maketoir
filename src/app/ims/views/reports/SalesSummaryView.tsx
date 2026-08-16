@@ -142,6 +142,8 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
   const metricWidths = [110, 150, 160, 130, 115, 145, 150];
   const tableWidth = [...dimensionWidths, ...metricWidths].reduce((sum, width) => sum + width, 0);
   const renderColGroup = () => <colgroup>{[...dimensionWidths, ...metricWidths].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
+  const dimensionOffset = (index: number) => dimensionWidths.slice(0, index).reduce((sum, width) => sum + width, 0);
+  const frozenDivider = '1px 0 0 var(--sv-etch)';
 
   return <div>
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -183,7 +185,7 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
       renderColGroup={renderColGroup}
       borderRadius={7}
       headerRows={<tr>
-          {dimensions.map((dimension, index) => <th key={dimension} style={{ ...heading, textAlign: 'left', minWidth: dimension === 'location' ? 150 : 125, ...(index === 0 ? { position: 'sticky', left: 0, zIndex: 4, boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{headingLabel(salesSummaryDimensionLabel(dimension), 'Group')}</th>)}
+          {dimensions.map((dimension, index) => <th key={dimension} style={{ ...heading, textAlign: 'left', minWidth: dimension === 'location' ? 150 : 125, position: 'sticky', left: dimensionOffset(index), zIndex: 4, boxShadow: index === dimensions.length - 1 ? frozenDivider : undefined }}>{headingLabel(salesSummaryDimensionLabel(dimension), 'Group')}</th>)}
           <th style={heading}>{headingLabel('Sales Qty', dateRange.label)}</th>
           <th style={heading}>{headingLabel('Sales Amount', 'Inc. GST')}</th>
           <th style={heading}>{headingLabel('COGS', 'Ex. GST · Attached')}</th>
@@ -195,7 +197,7 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
       >
         <tbody>
           {loading ? <tr><td colSpan={dimensions.length + 7} style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>Loading...</td></tr> : rows.length === 0 ? <tr><td colSpan={dimensions.length + 7} style={{ padding: 40, textAlign: 'center', color: 'var(--sv-text-dim)' }}>No sales match this selection.</td></tr> : rows.map((row, index) => <tr key={`${page}-${index}`} style={{ background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)' }}>
-            {dimensions.map((dimension, dimensionIndex) => <td key={dimension} style={{ ...cell, ...(dimensionIndex === 0 ? { position: 'sticky', left: 0, zIndex: 1, background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)', boxShadow: '-4px 0 5px -4px color-mix(in srgb, var(--sv-text-dim) 35%, transparent)' } : {}) }}>{row[DIMENSION_FIELDS[dimension]] ?? 'Unknown'}</td>)}
+            {dimensions.map((dimension, dimensionIndex) => <td key={dimension} style={{ ...cell, position: 'sticky', left: dimensionOffset(dimensionIndex), zIndex: 1, background: index % 2 ? 'var(--sv-bg-1)' : 'var(--sv-bg-0)', boxShadow: dimensionIndex === dimensions.length - 1 ? frozenDivider : undefined }}>{row[DIMENSION_FIELDS[dimension]] ?? 'Unknown'}</td>)}
             <td style={numericCell}>{quantity(row.sales_qty)}</td>
             <td style={numericCell}>{money(row.sales_amount)}</td>
             <td style={numericCell}>{money(row.attached_cogs)}</td>
@@ -206,7 +208,7 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
           </tr>)}
         </tbody>
         {!loading && totals && <tfoot><tr style={{ background: 'var(--sv-bg-2)', fontWeight: 700, boxShadow: '0 -1px 0 var(--sv-etch)' }}>
-          <td colSpan={dimensions.length} style={cell}>TOTALS (ALL SELECTED)</td>
+          <td colSpan={dimensions.length} style={{ ...cell, position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)', boxShadow: frozenDivider }}>TOTALS (ALL SELECTED)</td>
           <td style={numericCell}>{quantity(totals.sales_qty)}</td><td style={numericCell}>{money(totals.sales_amount)}</td><td style={numericCell}>{money(totals.attached_cogs)}</td><td style={numericCell}>{Number(totals.covered_amount) > 0 ? money(totals.grossProfit) : '—'}</td><td style={numericCell}>{percent(totals.grossProfitPercent)}</td><td style={numericCell}>{quantity(totals.current_soh)}</td><td style={numericCell}>{percent(totals.cogsCoveragePercent)}</td>
         </tr></tfoot>}
     </ReportScrollTable>

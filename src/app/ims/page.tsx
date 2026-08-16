@@ -16324,6 +16324,7 @@ function CashBankingReportView({ onBack }: { onBack: () => void }) {
       tableWidth={tableWidth}
       renderColGroup={renderColGroup}
       borderRadius={7}
+      frozenColumnWidths={[80, 110, 150]}
       headerRows={<tr style={{ background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)' }}>{['ID','Lodgement','Branch','Destination','Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance','Status','Prepared by','Confirmed by','Posted by','Xero transfer','Correction'].map(label => <th key={label} style={{ padding: 8, textAlign: ['Store reported','Till variance','Prepared','Preparation variance','Bank accepted','Bank variance'].includes(label) ? 'right' : 'left' }}>{label}</th>)}</tr>}
     >
       <tbody>{rows.map(row => <tr key={row.id} style={{ borderTop: '1px solid var(--sv-etch)' }}><td style={{ padding: 8 }}>#{row.id}</td><td style={{ padding: 8 }}>{row.lodgement_date ? String(row.lodgement_date).slice(0, 10) : 'Awaiting'}</td><td style={{ padding: 8 }}>{row.location_name}</td><td style={{ padding: 8 }}>{row.destination_account_name ?? '—'}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.expected_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.store_till_variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.store_till_variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{fmtCurrency(row.counted_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.variance_total) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{fmtCurrency(row.variance_total)}</td><td style={{ padding: 8, textAlign: 'right' }}>{row.deposited_total == null ? '—' : fmtCurrency(row.deposited_total)}</td><td style={{ padding: 8, textAlign: 'right', color: Number(row.bank_variance_total ?? 0) === 0 ? 'var(--sv-text-dim)' : 'var(--sv-amber)' }}>{row.bank_variance_total == null ? '—' : fmtCurrency(row.bank_variance_total)}</td><td style={{ padding: 8, textTransform: 'capitalize' }}>{row.confirmation_status === 'planned' ? 'Planned' : row.status}</td><td style={{ padding: 8 }}>{row.prepared_by_name}</td><td style={{ padding: 8 }}>{row.confirmed_by_name ?? '—'}</td><td style={{ padding: 8 }}>{row.posted_by_name ?? '—'}</td><td title={row.error_detail ?? ''} style={{ padding: 8 }}>{row.xero_bank_transfer_id ?? '—'}</td><td title={row.external_correction_note ?? ''} style={{ padding: 8 }}>{row.external_correction_note ? `${String(row.external_correction_date).slice(0, 10)}${row.external_correction_ref ? ` · ${row.external_correction_ref}` : ''}` : canRecordCorrection && row.status === 'posted' ? <button onClick={() => recordCorrection(row)} style={{ ...control, padding: '4px 7px' }}>Add note</button> : '—'}</td></tr>)}</tbody>
@@ -16435,6 +16436,7 @@ function InventoryValuationView({ onBack }: { onBack: () => void }) {
         tableWidth={tableWidth}
         renderColGroup={renderColGroup}
         borderRadius={8}
+        frozenColumnWidths={[140, 300]}
         headerRows={
             <tr>
               <th style={{ ...cellStyle, textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>SKU</th>
@@ -16590,6 +16592,7 @@ function ProductMarginView({ onBack }: { onBack: () => void }) {
         bodyClassName="product-margin-table-scroll"
         tableWidth={tableWidth}
         renderColGroup={renderColGroup}
+        frozenColumnWidths={[140, 300]}
         headerRows={
             <tr>
               <th style={{ ...hCell, textAlign: 'left' }}>SKU</th>

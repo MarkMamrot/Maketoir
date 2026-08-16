@@ -196,8 +196,8 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
           renderColGroup={renderColGroup}
           headerRows={
               <tr style={{ background: 'var(--sv-bg-subtle)' }}>
-                <th style={thStyle}>Location</th>
-                <th style={thStyle}>Register</th>
+                <th style={{ ...thStyle, position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}>Location</th>
+                <th style={{ ...thStyle, position: 'sticky', left: 150, zIndex: 4, background: 'var(--sv-bg-2)', boxShadow: '1px 0 0 var(--sv-etch)' }}>Register</th>
                 <th style={thStyle}>Status</th>
                 <th style={thStyle}>Opened</th>
                 <th style={thStyle}>Opened By</th>
@@ -215,15 +215,15 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
             <tbody>
               {sessions.map(s => {
                 const isOpen = s.status === 'open';
-                const rowBg = isOpen ? 'rgba(16,185,129,0.04)' : undefined;
+                const rowBg = isOpen ? 'color-mix(in srgb, var(--sv-mint) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
                 const hasRecons = s.reconciliations.length > 0;
                 const reconRows = hasRecons ? s.reconciliations.length + 1 : 1;
 
                 return (
                   <React.Fragment key={s.id}>
                     <tr style={{ background: rowBg }}>
-                      <td style={{ ...tdStyle, fontWeight: 600 }} rowSpan={reconRows}>{s.location_name}</td>
-                      <td style={{ ...tdStyle, fontWeight: 600 }} rowSpan={reconRows}>{s.register_name}</td>
+                      <td style={{ ...tdStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg, fontWeight: 600 }} rowSpan={reconRows}>{s.location_name}</td>
+                      <td style={{ ...tdStyle, position: 'sticky', left: 150, zIndex: 1, background: rowBg, fontWeight: 600, boxShadow: '1px 0 0 var(--sv-etch)' }} rowSpan={reconRows}>{s.register_name}</td>
                       <td style={tdStyle} rowSpan={reconRows}>
                         <span style={{
                           display: 'inline-flex', alignItems: 'center', gap: 5,

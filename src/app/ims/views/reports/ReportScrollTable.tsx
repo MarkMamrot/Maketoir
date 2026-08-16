@@ -11,6 +11,7 @@ interface ReportScrollTableProps {
   headerRows: ReactNode;
   children: ReactNode;
   borderRadius?: number;
+  frozenColumnWidths?: number[];
 }
 
 export function ReportScrollTable({
@@ -21,6 +22,7 @@ export function ReportScrollTable({
   headerRows,
   children,
   borderRadius = 10,
+  frozenColumnWidths = [],
 }: ReportScrollTableProps) {
   const headerScrollRef = useRef<HTMLDivElement | null>(null);
   const bodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -34,11 +36,25 @@ export function ReportScrollTable({
     borderSpacing: 0,
     fontSize: 13,
   };
+  const frozenRules = frozenColumnWidths.map((_, index) => {
+    const left = frozenColumnWidths.slice(0, index).reduce((sum, width) => sum + width, 0);
+    const divider = index === frozenColumnWidths.length - 1 ? 'box-shadow: 1px 0 0 var(--sv-etch);' : '';
+    return `
+      .${bodyClassName}__header th:nth-child(${index + 1}) {
+        position: sticky; left: ${left}px; z-index: 4; background: var(--sv-bg-2); ${divider}
+      }
+      .${bodyClassName} td:nth-child(${index + 1}) {
+        position: sticky; left: ${left}px; z-index: 1; background: var(--sv-bg-1); ${divider}
+      }
+    `;
+  }).join('\n');
 
   return (
     <div style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius }}>
+      {frozenRules && <style>{frozenRules}</style>}
       <div
         ref={headerScrollRef}
+        className={`${bodyClassName}__header`}
         style={{
           position: 'sticky',
           top: 0,

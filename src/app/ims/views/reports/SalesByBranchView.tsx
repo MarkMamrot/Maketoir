@@ -283,7 +283,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
                 {sortTh('product', 'Product', 'Name', { position: 'sticky', left: 0, zIndex: 4, minWidth: 220, boxShadow: frozenDivider })}
-                {sortTh('sku', 'Product', 'SKU')}
+                {sortTh('sku', 'Product', 'SKU', { position: 'sticky', left: 220, zIndex: 4, boxShadow: frozenDivider })}
                 {sortTh('brand', 'Product', 'Brand')}
                 {sortTh('supplier', 'Primary', 'Supplier')}
                 <th onClick={() => toggleSort('sales_qty')} style={{ ...numHCell, cursor: 'pointer', userSelect: 'none', color: 'var(--sv-action)' }}>
@@ -337,7 +337,7 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                         <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                         {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                       </td>
-                      <td style={{ ...cellStyle, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12 }}>{row.sku || '—'}</td>
+                      <td style={{ ...cellStyle, position: 'sticky', left: 220, zIndex: 1, background: rowBg, color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 12, boxShadow: frozenDivider }}>{row.sku || '—'}</td>
                       <td style={cellStyle}>{row.brand || '—'}</td>
                       <td style={cellStyle}>{row.supplier_name || '—'}</td>
                       <td style={{ ...numCell, color: salesQty > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: salesQty > 0 ? 600 : 400 }}>
@@ -369,7 +369,8 @@ export function SalesByBranchView({ onBack, apiFetch }: SalesByBranchViewProps) 
                     <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 4, minWidth: 220, background: 'var(--sv-bg-2)', color: 'var(--sv-text-strong)', boxShadow: frozenDivider }}>
                       Totals (all selected variants)
                     </td>
-                    <td colSpan={3} style={{ ...cellStyle, background: 'var(--sv-bg-2)' }} />
+                    <td style={{ ...cellStyle, position: 'sticky', left: 220, zIndex: 4, background: 'var(--sv-bg-2)', boxShadow: frozenDivider }} />
+                    <td colSpan={2} style={{ ...cellStyle, background: 'var(--sv-bg-2)' }} />
                     <td style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{totalQty.toLocaleString('en-AU', { maximumFractionDigits: 2 })}</td>
                     <td style={{ ...numCell, background: 'var(--sv-bg-2)' }}>{formatAmount(totalAmount)}</td>
                     {displayLocations.flatMap(location => {

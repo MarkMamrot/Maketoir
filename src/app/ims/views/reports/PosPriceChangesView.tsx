@@ -34,7 +34,7 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
   const hCell: React.CSSProperties     = { ...cellStyle, fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase' as any, letterSpacing: 0.6, background: 'var(--sv-bg-2)' };
   const numCell: React.CSSProperties   = { ...cellStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums' as any };
   const numHCell: React.CSSProperties  = { ...hCell, textAlign: 'right' };
-  const columnWidths = [110, 90, 150, 140, 100, 240, 130, 130, 130];
+  const columnWidths = [100, 240, 110, 90, 150, 140, 130, 130, 130];
   const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
   const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
@@ -87,12 +87,12 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
           renderColGroup={renderColGroup}
           headerRows={
               <tr>
+                <th style={{ ...hCell, position: 'sticky', left: 0, zIndex: 4 }}>Sale #</th>
+                <th style={{ ...hCell, position: 'sticky', left: 100, zIndex: 4, boxShadow: '1px 0 0 var(--sv-etch)' }}>Item</th>
                 <th style={hCell}>Date</th>
                 <th style={hCell}>Time</th>
                 <th style={hCell}>Location</th>
                 <th style={hCell}>Cashier</th>
-                <th style={hCell}>Sale #</th>
-                <th style={hCell}>Item</th>
                 <th style={hCell}>SKU</th>
                 <th style={numHCell}>Original Price</th>
                 <th style={numHCell}>Changed To</th>
@@ -102,16 +102,17 @@ export function PosPriceChangesView({ onBack, btnStyle }: PosPriceChangesViewPro
             <tbody>
               {rows.map((r: any, i: number) => {
                 const dt = new Date(r.completed_at);
+                const rowBg = i % 2 === 0 ? 'var(--sv-bg-1)' : 'color-mix(in srgb, var(--sv-bg-1) 70%, var(--sv-etch))';
                 return (
-                  <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,.03)' }}>
+                  <tr key={i} style={{ background: rowBg }}>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>
+                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-action)' }}>#{r.sale_id}</span>
+                    </td>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 100, zIndex: 1, background: rowBg, boxShadow: '1px 0 0 var(--sv-etch)' }}>{r.item_name}</td>
                     <td style={cellStyle}>{dt.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td style={cellStyle}>{dt.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                     <td style={cellStyle}>{r.location_name || '—'}</td>
                     <td style={cellStyle}>{r.cashier_name || '—'}</td>
-                    <td style={cellStyle}>
-                      <span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-action)' }}>#{r.sale_id}</span>
-                    </td>
-                    <td style={cellStyle}>{r.item_name}</td>
                     <td style={{ ...cellStyle, fontFamily: 'monospace', fontSize: 12, color: 'var(--sv-text-dim)' }}>{r.item_code || '—'}</td>
                     <td style={{ ...numCell, color: 'var(--sv-text-dim)', textDecoration: 'line-through' }}>{fmtMoney(r.original_price)}</td>
                     <td style={{ ...numCell, color: '#fb923c', fontWeight: 700 }}>{fmtMoney(r.unit_price)}</td>

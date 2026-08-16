@@ -205,7 +205,7 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
           renderColGroup={renderColGroup}
           headerRows={
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                <th style={{ ...hCell, width: 44, textAlign: 'right' }}>#</th>
+                <th style={{ ...hCell, width: 44, textAlign: 'right', position: 'sticky', left: 0, zIndex: 4 }}>#</th>
                 {sortTh('product', 'Product', { position: 'sticky', left: 44, zIndex: 4, minWidth: 220, boxShadow: '1px 0 0 var(--sv-etch)' })}
                 {sortTh('sku', 'SKU')}
                 {sortTh('brand', 'Brand')}
@@ -227,12 +227,12 @@ export function SalesSearchView({ onBack, apiFetch, fmtCurrency }: SalesSearchVi
                 <tr><td colSpan={11} style={{ ...cellStyle, textAlign: 'center', padding: '40px 0', color: 'var(--sv-text-dim)' }}>No results found.</td></tr>
               )}
               {!loading && displayRows.map((row, i) => {
-                const rowBg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)';
+                const rowBg = i % 2 === 0 ? 'var(--sv-bg-1)' : 'color-mix(in srgb, var(--sv-bg-1) 65%, var(--sv-etch))';
                 const rowNum = (page - 1) * pageSize + i + 1;
                 return (
                   <tr key={row.variant_id} style={{ background: rowBg }}>
-                    <td style={{ ...numCell, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
-                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg || 'var(--sv-bg-1)', minWidth: 220, boxShadow: '1px 0 0 var(--sv-etch)' }}>
+                    <td style={{ ...numCell, position: 'sticky', left: 0, zIndex: 1, background: rowBg, color: 'var(--sv-text-dim)', fontSize: 11 }}>{rowNum}</td>
+                    <td style={{ ...cellStyle, position: 'sticky', left: 44, zIndex: 1, background: rowBg, minWidth: 220, boxShadow: '1px 0 0 var(--sv-etch)' }}>
                       <div style={{ fontWeight: 500, color: 'var(--sv-text-strong)' }}>{row.product_name}</div>
                       {row.option_label && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 1 }}>{row.option_label}</div>}
                     </td>
