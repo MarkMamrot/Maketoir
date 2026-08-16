@@ -5869,6 +5869,21 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     border: '1px solid var(--sv-etch)', borderRadius: 4, color: 'var(--sv-text-main)',
     fontSize: 12, boxSizing: 'border-box',
   };
+  const productsTableWidth = 32 + (showCols.sku ? 150 : 0) + 384 +
+    (showCols.barcode ? 120 : 0) + (showCols.product_type ? 140 : 0) +
+    (showCols.brand ? 130 : 0) + (showCols.supplier ? 140 : 0) +
+    (showCols.cb_cost ? 100 : 0) + (showCols.sell_price ? 120 : 0) +
+    (showCols.avg_cost ? 110 : 0) + (showCols.ws_price ? 120 : 0) +
+    (showCols.soh ? 120 : 0) + (showCols.variants ? 80 : 0) +
+    (showCols.online ? 90 : 0) + (showCols.shopify_synced ? 90 : 0) +
+    (showCols.active ? 70 : 0) + (showCols.created ? 100 : 0);
+
+  const handleProductsTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if ((event.target as HTMLElement).closest('input, select, textarea, button, a')) return;
+    event.preventDefault();
+    event.currentTarget.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'smooth' });
+  };
 
   return (
     <div>
@@ -6109,8 +6124,18 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       )}
 
       {loading ? <Spinner /> : sortedFiltered.length === 0 ? <EmptyState text="No products match your filters." /> : (
-        <div className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll" style={{ width: '100%', minWidth: 0, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-          <table style={{ width: 'max-content', minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+        <div
+          className="ims-sticky-table ims-sticky-table--self-scroll products-table-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Products table. Use Left and Right arrow keys to scroll columns."
+          onKeyDown={handleProductsTableKeyDown}
+          onPointerDown={event => {
+            if (!(event.target as HTMLElement).closest('input, select, textarea, button, a')) event.currentTarget.focus({ preventScroll: true });
+          }}
+          style={{ width: '100%', minWidth: 0, maxHeight: 'max(320px, calc(100vh - 220px))', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x pan-y', outline: 'none' }}
+        >
+          <table style={{ width: productsTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
             <colgroup>
               <col style={{ width: 32, minWidth: 32 }} />{/* checkbox */}
               {showCols.sku && <col style={{ width: 150, minWidth: 150 }} />}{/* SKU */}
