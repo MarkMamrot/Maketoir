@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { query } from '@/services/MySQLService';
+import { getAdminSession } from '@/lib/sessionUtils';
 
 /**
  * GET /api/auth/me
@@ -10,19 +11,8 @@ import { query } from '@/services/MySQLService';
  * The frontend should call this on app init and redirect to /login on error.
  */
 export async function GET() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) {
-    return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
-  }
-
-  let sessionUser: { userId?: number; email?: string; businessId?: string };
-  try {
-    sessionUser = JSON.parse(raw);
-  } catch {
-    return NextResponse.json({ error: 'Invalid session.' }, { status: 401 });
-  }
-
-  if (!sessionUser.userId) {
+  const sessionUser = getAdminSession();
+  if (!sessionUser) {
     return NextResponse.json({ error: 'Invalid session.' }, { status: 401 });
   }
 

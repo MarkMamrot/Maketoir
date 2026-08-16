@@ -37,6 +37,8 @@ jobs:
 
       - name: Run unit tests (vitest)
         run: npm test
+        env:
+          AUTH_SESSION_SECRET: ci-only-admin-session-secret-at-least-32-bytes
 
       - name: Verify fresh IMS schema provisioning
         run: npm test -- --run src/lib/ims/__tests__/provisionBusiness.integration.test.ts
@@ -53,6 +55,7 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          AUTH_SESSION_SECRET: ci-only-admin-session-secret-at-least-32-bytes
 
   shopify-loyalty-extension:
     runs-on: ubuntu-latest

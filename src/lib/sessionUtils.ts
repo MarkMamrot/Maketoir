@@ -4,6 +4,7 @@
  */
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { verifyAdminSession } from '@/lib/auth/adminSessionToken';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export interface PosSession {
 export function getAdminSession(): AdminSession | null {
   const raw = cookies().get('marketoir_session')?.value;
   if (!raw) return null;
-  try { return JSON.parse(raw) as AdminSession; } catch { return null; }
+  return verifyAdminSession<AdminSession>(raw);
 }
 
 export function getPosSession(): PosSession | null {

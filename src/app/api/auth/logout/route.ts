@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { clearAdminSessionCookie, clearMfaTrustCookie } from '@/lib/auth/adminAuthCookies';
 
 export async function POST() {
-  cookies().delete('marketoir_session');
+  clearAdminSessionCookie();
+  clearMfaTrustCookie();
   return NextResponse.json({ success: true, message: 'Logged out successfully.' });
 }

@@ -11,6 +11,7 @@
  */
 import { cookies } from 'next/headers';
 import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { verifyAdminSession } from '@/lib/auth/adminSessionToken';
 
 export interface MarketoirSession {
   businessId: string;
@@ -28,6 +29,9 @@ export function readSession(cookieNames: string[] = ['marketoir_session']): Mark
   for (const cookieName of cookieNames) {
     const c = cookies().get(cookieName);
     if (!c?.value) continue;
+    if (cookieName === 'marketoir_session') {
+      return verifyAdminSession<MarketoirSession>(c.value);
+    }
     try { return JSON.parse(c.value) as MarketoirSession; } catch { return null; }
   }
   return null;

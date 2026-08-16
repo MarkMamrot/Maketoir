@@ -1,5 +1,6 @@
 import { query, execute } from '@/services/MySQLService';
 import bcrypt from 'bcryptjs';
+import type { UserTier } from '@/lib/tierUtils';
 
 export interface UserRow {
   id:            number;
@@ -11,7 +12,11 @@ export interface UserRow {
   password_hash: string;
   business_id:   string | null;
   role:          'admin' | 'user';
-  tier:          'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
+  tier:          UserTier;
+  mfa_totp_secret: string | null;
+  mfa_enabled:   number;
+  mfa_enabled_at: string | null;
+  mfa_last_totp_step: number | null;
   deleted_at:    string | null;
   registered_at: string | null;
   created_at:    string;
@@ -43,7 +48,7 @@ export const UsersRepository = {
     phone?: string;
     businessId?: string;
     role?: 'admin' | 'user';
-    tier?: 'SuperAdmin' | 'Admin' | 'StandardUser' | 'PosUser';
+    tier?: UserTier;
   }): Promise<number> {
     const hash = await bcrypt.hash(data.password, 12);
     const result = await execute(
