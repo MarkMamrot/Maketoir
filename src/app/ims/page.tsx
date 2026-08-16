@@ -5922,7 +5922,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const handleProductsTableKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    if ((event.target as HTMLElement).closest('input, select, textarea, button, a')) return;
+    if ((event.target as HTMLElement).closest('input, select, textarea')) return;
     event.preventDefault();
     event.currentTarget.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'smooth' });
   };
