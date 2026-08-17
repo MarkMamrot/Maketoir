@@ -6,55 +6,6 @@ import Nav from '../_nav';
 
 interface DemoForm { name: string; email: string; company: string; message: string; }
 
-function CheckIcon({ color = 'text-blue-600' }: { color?: string }) {
-  return (
-    <svg className={`w-4 h-4 flex-shrink-0 ${color}`} viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-function XIcon() {
-  return (
-    <svg className="w-4 h-4 flex-shrink-0 text-slate-300" viewBox="0 0 20 20" fill="currentColor">
-      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-    </svg>
-  );
-}
-
-type CellVal = true | false | string;
-
-const tableFeatures: { label: string; basic: CellVal; growth: CellVal; enterprise: CellVal }[] = [
-  { label: 'Locations',                    basic: '1-3',                   growth: '2-10',            enterprise: '10+' },
-  { label: 'Users',                        basic: 'Up to 5',               growth: 'Up to 50',        enterprise: 'Unlimited' },
-  { label: 'Core Inventory Management',    basic: true,                    growth: true,              enterprise: true },
-  { label: 'Backordering',                 basic: false,                   growth: true,              enterprise: true },
-  { label: 'Multi-currency',               basic: false,                   growth: true,              enterprise: true },
-  { label: 'POS System',                   basic: true,                    growth: true,              enterprise: true },
-  { label: 'Purchase & Sales Orders',      basic: true,                    growth: true,              enterprise: true },
-  { label: 'Branch Transfers',             basic: true,                    growth: true,              enterprise: true },
-  { label: 'Stocktake',                    basic: true,                    growth: true,              enterprise: true },
-  { label: 'Loyalty System',               basic: true,                    growth: true,              enterprise: true },
-  { label: 'CRM Tools',                    basic: false,                   growth: true,              enterprise: true },
-  { label: 'AI Workflow Automation',       basic: true,                    growth: true,              enterprise: true },
-  { label: 'Order Planner',                basic: false,                   growth: true,              enterprise: true },
-  { label: 'Stock Turnover Analysis',      basic: false,                   growth: true,              enterprise: true },
-  { label: 'Space Analysis',               basic: false,                   growth: true,              enterprise: true },
-  { label: 'Advanced Analytics & Forecasting', basic: false,               growth: true,              enterprise: true },
-  { label: 'Xero Integration',             basic: true,                    growth: true,              enterprise: true },
-  { label: 'Shopify Integration',          basic: true,                    growth: true,              enterprise: true },
-  { label: 'Support',                      basic: 'Local phone & email',   growth: 'Priority phone',  enterprise: 'Priority 24/7' },
-  { label: 'Data Migration',               basic: 'Free',                  growth: 'Free',             enterprise: 'Free + training' },
-  { label: 'Dedicated Account Manager',    basic: false,                   growth: false,             enterprise: true },
-  { label: 'Custom Integrations',          basic: false,                   growth: false,             enterprise: true },
-];
-
-function Cell({ val }: { val: CellVal }) {
-  if (val === true) return <CheckIcon />;
-  if (val === false) return <XIcon />;
-  return <span className="text-sm text-slate-700 font-medium">{val}</span>;
-}
-
 const faqs = [
   {
     q: 'What is included in the "3 months for $1" offer?',
@@ -125,41 +76,6 @@ export default function PricingPage() {
       <section className="py-16 px-6">
         <div className="max-w-5xl mx-auto">
           <PricingPlanCards onContactSales={() => setDemoOpen(true)} />
-        </div>
-      </section>
-
-      {/* Feature comparison table */}
-      <section className="py-12 px-6 bg-slate-50 border-t border-slate-200">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-2xl font-black text-slate-900 text-center mb-8">Full feature comparison</h2>
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left px-6 py-4 text-slate-500 font-semibold text-xs uppercase tracking-wide w-[40%]">Feature</th>
-                  <th className="text-center px-4 py-4 text-slate-700 font-bold">Basic</th>
-                  <th className="text-center px-4 py-4 text-blue-600 font-bold bg-blue-50">Growth</th>
-                  <th className="text-center px-4 py-4 text-slate-700 font-bold">Enterprise</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableFeatures.map((row, i) => (
-                  <tr key={row.label} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/50' : ''}`}>
-                    <td className="px-6 py-3.5 text-slate-700 font-medium">{row.label}</td>
-                    <td className="px-4 py-3.5 text-center">
-                      <div className="flex justify-center"><Cell val={row.basic} /></div>
-                    </td>
-                    <td className="px-4 py-3.5 text-center bg-blue-50/40">
-                      <div className="flex justify-center"><Cell val={row.growth} /></div>
-                    </td>
-                    <td className="px-4 py-3.5 text-center">
-                      <div className="flex justify-center"><Cell val={row.enterprise} /></div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </div>
       </section>
 

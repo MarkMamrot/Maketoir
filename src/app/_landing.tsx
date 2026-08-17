@@ -429,43 +429,6 @@ export default function Landing() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          AI TOOLS — white
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section className="bg-white py-20">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
-              <Image
-                src="/landing/ai-products.jpg"
-                alt="AI auto product builder"
-                width={600}
-                height={400}
-                className="w-full object-cover"
-              />
-            </div>
-            <div>
-              <Eyebrow>AI-Powered Tools</Eyebrow>
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight mb-4">
-                Let AI handle the heavy lifting
-              </h2>
-              <p className="text-slate-600 mb-6 leading-relaxed">
-                Solvantis AI is trained on retail. It doesn't just automate tasks — it makes decisions that would have taken your team hours.
-              </p>
-              <ul className="space-y-3">
-                {[
-                  'Auto Product Builder — publish to Shopify, Magento, and more in seconds',
-                  'Customer service automation with context-aware responses',
-                  'Intelligent reorder suggestions based on sales velocity',
-                  'AI-generated product descriptions and SEO content',
-                  'Demand forecasting to prevent stockouts and overstock',
-                ].map((t) => <Bullet key={t} text={t} />)}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════════
           WORKFLOW VIDEOS — softened light grey
       ══════════════════════════════════════════════════════════════════════ */}
       <section id="workflow-videos" className="bg-slate-100 py-20 lg:py-24">
