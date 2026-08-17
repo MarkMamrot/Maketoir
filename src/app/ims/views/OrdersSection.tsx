@@ -109,6 +109,7 @@ export function OrdersSection({
       )}
       {view === 'stock-availability' && (
         <StockAvailabilityWorkbenchView
+          isAdvisor={isAdvisor}
           onOpenSalesOrder={(id: number) => { setPendingOpenSO(id); setView('sales-orders'); }}
         />
       )}
