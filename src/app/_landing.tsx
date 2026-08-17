@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
 import PricingPlanCards from '@/components/PricingPlanCards';
+import SolvantisCapabilityMap from '@/components/SolvantisCapabilityMap';
 import Nav from './_nav';
 
 // ─── Tiny reusable components ──────────────────────────────────────────────────
@@ -256,86 +257,18 @@ export default function Landing() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          FEATURE CARDS — white
+          INTERACTIVE CAPABILITY MAP — white
       ══════════════════════════════════════════════════════════════════════ */}
-      <section id="features" className="bg-white py-20">
+      <section id="features" className="bg-white py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-14">
+          <div className="text-center mb-12 lg:mb-14">
             <Eyebrow>Everything You Need</Eyebrow>
             <h2 className="text-4xl font-black text-slate-900 tracking-tight">One Platform. Infinite Retail Potential.</h2>
             <p className="text-slate-500 mt-3 text-base max-w-xl mx-auto">
               All the tools a modern retailer needs — fully integrated, beautifully simple.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7" />
-                  </svg>
-                ),
-                title: 'Advanced Inventory',
-                desc: 'Multi-variant products, purchase orders, sales orders, branch transfers, stocktakes, and multi-currency — all in one place.',
-              },
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
-                ),
-                title: 'Point of Sale',
-                desc: 'Fast POS with card machine integration, lay-buys, order parking, advanced search, multiple users, and full offline mode.',
-              },
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                  </svg>
-                ),
-                title: 'AI-Powered Tools',
-                desc: 'Auto product builder, customer service automation, intelligent reordering, and AI-powered demand forecasting.',
-              },
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                  </svg>
-                ),
-                title: 'Analytics & Forecasting',
-                desc: 'Real-time dashboards, custom built reports, stock turnover analysis, demand forecasting, and margin optimisation across all locations.',
-              },
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-                  </svg>
-                ),
-                title: 'Multi-Branch Support',
-                desc: 'Manage unlimited locations from one dashboard. Centralised reporting, stock visibility, and inter-branch transfers.',
-              },
-              {
-                icon: (
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
-                  </svg>
-                ),
-                title: 'Integrations',
-                desc: 'Connect with Xero, Shopify, Magento, Google Analytics, Meta Ads, and more. Your whole ecosystem speaking one language.',
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-blue-200 transition-all group"
-              >
-                <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mb-4 group-hover:bg-blue-100 transition">
-                  {f.icon}
-                </div>
-                <h3 className="font-bold text-slate-900 mb-2">{f.title}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">{f.desc}</p>
-              </div>
-            ))}
-          </div>
+          <SolvantisCapabilityMap />
         </div>
       </section>
 
