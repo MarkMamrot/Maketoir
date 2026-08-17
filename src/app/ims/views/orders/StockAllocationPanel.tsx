@@ -188,7 +188,9 @@ export function StockAllocationPanel({
           </div>
           {lineAllocations.map(allocation => <div key={allocation.id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', paddingTop: 7, fontSize: 12 }}>
             <span>{allocation.po_number}</span><span>{qty(allocation.qty_allocated)} allocated</span>
-            <span>{qty(allocation.qty_received_assigned)} received</span><span>ETA {date(allocation.source_expected_date)}</span>
+            <span>{qty(Math.max(0, allocation.qty_received_assigned - allocation.qty_fulfilled))} ready</span>
+            {allocation.qty_fulfilled > 0 && <span>{qty(allocation.qty_fulfilled)} shipped</span>}
+            <span>ETA {date(allocation.source_expected_date)}</span>
             <span style={{ color: allocation.promise_status === 'at_risk' ? 'var(--sv-amber)' : allocation.promise_status === 'confirmed' ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontWeight: 700 }}>{allocation.promise_status.replace('_', ' ')}</span>
             {allocation.promised_date && <span>Promise {date(allocation.promised_date)}</span>}
             {!readOnly && <div style={{ marginLeft: 'auto', display: 'flex', gap: 5 }}>
@@ -217,7 +219,7 @@ export function StockAllocationPanel({
         const protectedQuantity = linked.reduce((sum, allocation) => sum + Math.max(0, Number(allocation.qty_allocated) - Number(allocation.qty_received_assigned)), 0);
         return <div key={item.id} style={{ padding: '10px 0', borderTop: '1px solid var(--sv-etch)' }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12 }}><strong>{item.sku || item.product_name}</strong><span>Incoming {qty(incoming)}</span><span style={{ color: protectedQuantity > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }}>Protected {qty(protectedQuantity)}</span><span style={{ color: 'var(--sv-text-dim)' }}>Free {qty(Math.max(0, incoming - protectedQuantity))}</span></div>
-          {linked.map(allocation => <div key={allocation.id} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 7, fontSize: 12 }}><span>{allocation.so_number}</span><span>{qty(allocation.qty_allocated)} allocated</span><span>{qty(allocation.qty_received_assigned)} ready</span><span style={{ color: allocation.promise_status === 'at_risk' ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>{allocation.promise_status.replace('_', ' ')}</span>{!readOnly && <button type="button" onClick={() => release(allocation)} disabled={!!busy} style={{ ...smallButton, marginLeft: 'auto' }}><Link2Off size={13} /> Release</button>}</div>)}
+          {linked.map(allocation => <div key={allocation.id} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', paddingTop: 7, fontSize: 12 }}><span>{allocation.so_number}</span><span>{qty(allocation.qty_allocated)} allocated</span><span>{qty(Math.max(0, allocation.qty_received_assigned - allocation.qty_fulfilled))} ready</span>{allocation.qty_fulfilled > 0 && <span>{qty(allocation.qty_fulfilled)} shipped</span>}<span style={{ color: allocation.promise_status === 'at_risk' ? 'var(--sv-amber)' : 'var(--sv-text-dim)' }}>{allocation.promise_status.replace('_', ' ')}</span>{!readOnly && <button type="button" onClick={() => release(allocation)} disabled={!!busy} style={{ ...smallButton, marginLeft: 'auto' }}><Link2Off size={13} /> Release</button>}</div>)}
         </div>;
       })}
     </section>

@@ -1,7 +1,7 @@
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { calculateBackorderSplit, nextBackorderNumber } from './domain';
 import { StockShortfallError } from '../orderResolution/stockShortfall';
-import { transferStockAllocationsToBackorderLine } from '../stockAllocation/service';
+import { reconcileStockAllocationsForFulfilment, transferStockAllocationsToBackorderLine } from '../stockAllocation/service';
 
 type FulfilQuantity = { itemId: number; quantity: number };
 
@@ -11,6 +11,13 @@ export type CustomerBackorderSplitResult = {
   backorderSoNumber: string;
   operationKey: string;
   fulfilledVariantIds: string[];
+  allocationFulfilments: Array<{
+    soItemId: number;
+    consumedQuantity: number;
+    releasedQuantity: number;
+    fulfilledAllocationIds: number[];
+    releasedAllocationIds: number[];
+  }>;
 };
 
 function calculateTotals(items: any[], taxTreatment: string, freight: number, discount: number) {
@@ -83,6 +90,7 @@ export async function splitCustomerBackorder(input: {
         backorderSoNumber: String(existingRows[0].so_number),
         operationKey,
         fulfilledVariantIds: [],
+        allocationFulfilments: [],
       };
     }
 
@@ -118,6 +126,21 @@ export async function splitCustomerBackorder(input: {
     }
     if (!splitLines.some(({ split }) => split.actualQty > 0)) {
       throw new Error('Use cancellation when no items are being fulfilled.');
+    }
+
+    const allocationFulfilments: CustomerBackorderSplitResult['allocationFulfilments'] = [];
+    for (const { item, split } of splitLines) {
+      if (split.actualQty <= 0) continue;
+      const allocationResult = await reconcileStockAllocationsForFulfilment(conn, {
+        businessId: input.businessId,
+        soItemId: Number(item.id),
+        fulfilledQuantity: split.actualQty,
+        lineFullyFulfilled: false,
+        operationKey,
+      });
+      if (allocationResult.consumedQuantity > 0) {
+        allocationFulfilments.push({ soItemId: Number(item.id), ...allocationResult });
+      }
     }
 
     for (const { item, split } of splitLines) {
@@ -255,6 +278,7 @@ export async function splitCustomerBackorder(input: {
       backorderSoNumber,
       operationKey,
       fulfilledVariantIds: actualItems.map(item => String(item.variant_id)).filter(Boolean),
+      allocationFulfilments,
     };
   } catch (error) {
     await conn.rollback();

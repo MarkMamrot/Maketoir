@@ -34,6 +34,23 @@ export function SalesOrderFulfilmentModal({
     return { totalOrdered, totalOutstanding };
   }, [items]);
 
+  const allocationByItem = useMemo(() => {
+    const result = new Map<number, { protected: number; ready: number; incoming: number }>();
+    const allocations = Array.isArray(order?.stock_allocations) ? order.stock_allocations : [];
+    for (const allocation of allocations) {
+      if (allocation.state !== 'active') continue;
+      const itemId = Number(allocation.so_item_id);
+      const remaining = Math.max(0, Number(allocation.qty_allocated ?? 0) - Number(allocation.qty_fulfilled ?? 0));
+      const ready = Math.min(remaining, Math.max(0, Number(allocation.qty_received_assigned ?? 0) - Number(allocation.qty_fulfilled ?? 0)));
+      const current = result.get(itemId) ?? { protected: 0, ready: 0, incoming: 0 };
+      current.protected += remaining;
+      current.ready += ready;
+      current.incoming += Math.max(0, remaining - ready);
+      result.set(itemId, current);
+    }
+    return result;
+  }, [order?.stock_allocations]);
+
   async function submit(allowNegativeStock = false, retryOperationKey?: string) {
     setSaving(true);
     setError('');
@@ -119,6 +136,8 @@ export function SalesOrderFulfilmentModal({
           <div style={{ display: 'grid', gap: 8 }}>
             {items.map(item => {
               const outstanding = Math.max(0, Number(item.qty_ordered || 0) - Number(item.qty_fulfilled || 0));
+              const allocation = allocationByItem.get(Number(item.id));
+              const enteredQuantity = Number(quantities[item.id] ?? 0);
               return (
                 <div key={item.id} style={{ display: 'grid', gap: 4 }}>
                   <div style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>{item.sku || item.product_name || `Line ${item.id}`}</div>
@@ -127,6 +146,12 @@ export function SalesOrderFulfilmentModal({
                     <input data-testid={`so-fulfil-qty-${item.id}`} type="number" min={0} step={1} value={quantities[item.id] ?? ''} onChange={e => setQuantities(prev => ({ ...prev, [item.id]: e.target.value }))} style={{ width: 90, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--sv-etch,#4b5563)', background: 'var(--sv-bg-1,#0f172a)', color: 'inherit' }} />
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim,#aab4c2)' }}>of {outstanding}</span>
                   </div>
+                  {allocation && allocation.protected > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim,#aab4c2)' }}>
+                      Protected {allocation.protected.toLocaleString('en-AU', { maximumFractionDigits: 4 })}: {allocation.ready.toLocaleString('en-AU', { maximumFractionDigits: 4 })} ready, {allocation.incoming.toLocaleString('en-AU', { maximumFractionDigits: 4 })} incoming
+                      {enteredQuantity >= outstanding && allocation.incoming > 0 && <span style={{ color: 'var(--sv-amber,#f59e0b)' }}> · Final shipment releases {allocation.incoming.toLocaleString('en-AU', { maximumFractionDigits: 4 })} incoming</span>}
+                    </div>
+                  )}
                 </div>
               );
             })}

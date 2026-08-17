@@ -23,6 +23,7 @@ import {
   createStockAllocation,
   listStockAllocationCandidates,
   mutateStockAllocation,
+  reconcileStockAllocationsForFulfilment,
   StockAllocationConflict,
   transferStockAllocationsToBackorderLine,
   transferStockAllocationsToSupplierBackorderLine,
@@ -150,6 +151,40 @@ describe('stock allocation service', () => {
     ]);
     expect(receiptExecute).toHaveBeenNthCalledWith(2, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [2, 1, 'biz-1']);
     expect(receiptExecute).toHaveBeenNthCalledWith(3, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [3, 2, 'biz-1']);
+  });
+
+  it('consumes received protection first and releases the remainder when the line is fully shipped', async () => {
+    const fulfilExecute = vi.fn(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocations')) return [[
+        { id: 9, qty_allocated: 1, qty_received_assigned: 1, qty_fulfilled: 1, state: 'fulfilled' },
+        { id: 1, qty_allocated: 3, qty_received_assigned: 3, qty_fulfilled: 1, state: 'active' },
+        { id: 2, qty_allocated: 4, qty_received_assigned: 1, qty_fulfilled: 0, state: 'active' },
+        { id: 3, qty_allocated: 2, qty_received_assigned: 0, qty_fulfilled: 0, state: 'active' },
+      ]];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(reconcileStockAllocationsForFulfilment({ execute: fulfilExecute }, {
+      businessId: 'biz-1', soItemId: 101, fulfilledQuantity: 5,
+      lineFullyFulfilled: true, operationKey: 'shipment-101-final',
+    })).resolves.toEqual({
+      consumedQuantity: 3,
+      releasedQuantity: 5,
+      fulfilledAllocationIds: [1],
+      releasedAllocationIds: [2, 3],
+    });
+    expect(fulfilExecute).toHaveBeenCalledWith(
+      expect.stringContaining("state = 'fulfilled'"),
+      [3, 1, 'biz-1'],
+    );
+    expect(fulfilExecute).toHaveBeenCalledWith(
+      expect.stringContaining("state = 'released'"),
+      [1, expect.stringContaining('shipment-101-final'), 2, 'biz-1'],
+    );
+    expect(fulfilExecute).toHaveBeenCalledWith(
+      expect.stringContaining("state = 'released'"),
+      [0, expect.stringContaining('shipment-101-final'), 3, 'biz-1'],
+    );
   });
 
   it('reassigns an active allocation to eligible free incoming supply', async () => {

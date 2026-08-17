@@ -12,6 +12,7 @@ const connection = {
 let storedRequestHash = '';
 let firstItemIsStock = 1;
 let quantityOnHand = 20;
+let allocationRows: Record<string, unknown>[] = [];
 
 vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
@@ -25,6 +26,7 @@ describe('fulfilSalesOrderPartial', () => {
     storedRequestHash = '';
     firstItemIsStock = 1;
     quantityOnHand = 20;
+    allocationRows = [];
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {
         storedRequestHash = String(params?.[2] ?? '');
@@ -47,6 +49,7 @@ describe('fulfilSalesOrderPartial', () => {
       if (sql.includes('FROM ims_stock s')) {
         return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, avg_cost: 4.5 }]];
       }
+      if (sql.includes('FROM ims_stock_allocations')) return [allocationRows];
       return [{ affectedRows: 1 }];
     });
   });
@@ -64,6 +67,7 @@ describe('fulfilSalesOrderPartial', () => {
       status: 'partially_fulfilled',
       operationKey: 'shipment-42-1',
       fulfilledVariantIds: ['variant-1'],
+      allocationFulfilments: [],
     });
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('qty_committed = qty_committed - ?'),
@@ -89,6 +93,52 @@ describe('fulfilSalesOrderPartial', () => {
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET status = ?'),
       ['partially_fulfilled', 'partially_fulfilled', 42, 'biz-1'],
+    );
+  });
+
+  it('consumes received protection before general stock in the same fulfilment transaction', async () => {
+    allocationRows = [{
+      id: 71, qty_allocated: 5, qty_received_assigned: 3, qty_fulfilled: 0, state: 'active',
+    }];
+
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-allocated',
+      shipmentQuantities: [{ itemId: 10, quantity: 4 }],
+    });
+
+    expect(result.allocationFulfilments).toEqual([{
+      soItemId: 10,
+      consumedQuantity: 3,
+      releasedQuantity: 0,
+      fulfilledAllocationIds: [],
+      releasedAllocationIds: [],
+    }]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_fulfilled = ?'),
+      [3, 71, 'biz-1'],
+    );
+  });
+
+  it('automatically releases unreceived protection when the sales order line is fully shipped', async () => {
+    allocationRows = [{
+      id: 72, qty_allocated: 5, qty_received_assigned: 2, qty_fulfilled: 0, state: 'active',
+    }];
+
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shipment-42-final-allocation',
+      shipmentQuantities: [{ itemId: 10, quantity: 10 }],
+    });
+
+    expect(result.allocationFulfilments).toEqual([{
+      soItemId: 10,
+      consumedQuantity: 2,
+      releasedQuantity: 3,
+      fulfilledAllocationIds: [],
+      releasedAllocationIds: [72],
+    }]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("state = 'released'"),
+      [2, expect.stringContaining('shipment-42-final-allocation'), 72, 'biz-1'],
     );
   });
 

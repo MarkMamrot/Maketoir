@@ -247,14 +247,96 @@ export async function assignReceiptToStockAllocations(
       soId: Number(row.so_id),
       soItemId: Number(row.so_item_id),
       quantity: assigned,
-            readyQuantity: ready
-              ? Math.max(0, scaledQuantity(Number(row.qty_allocated)) - scaledQuantity(Number(row.qty_fulfilled ?? 0))) / QUANTITY_SCALE
-              : 0,
+      readyQuantity: ready
+        ? Math.max(0, scaledQuantity(Number(row.qty_allocated)) - scaledQuantity(Number(row.qty_fulfilled ?? 0))) / QUANTITY_SCALE
+        : 0,
       ready,
     });
     remainingScaled -= assignedScaled;
   }
   return assignments;
+}
+
+export async function reconcileStockAllocationsForFulfilment(
+  conn: { execute: (sql: string, params?: unknown[]) => Promise<any> },
+  input: {
+    businessId: string;
+    soItemId: number;
+    fulfilledQuantity: number;
+    lineFullyFulfilled: boolean;
+    operationKey: string;
+  },
+): Promise<{ consumedQuantity: number; releasedQuantity: number; fulfilledAllocationIds: number[]; releasedAllocationIds: number[] }> {
+  const [rows] = await conn.execute(
+    `SELECT id, qty_allocated, qty_received_assigned, qty_fulfilled, state
+       FROM ims_stock_allocations
+      WHERE business_id = ? AND so_item_id = ?
+      ORDER BY priority, created_at, id
+      FOR UPDATE`,
+    [input.businessId, input.soItemId],
+  );
+  const allocations = rows as any[];
+  const alreadyConsumedScaled = allocations.reduce(
+    (sum, row) => sum + scaledQuantity(Number(row.qty_fulfilled ?? 0)),
+    0,
+  );
+  let remainingToConsumeScaled = Math.max(0, scaledQuantity(input.fulfilledQuantity) - alreadyConsumedScaled);
+  let consumedScaled = 0;
+  let releasedScaled = 0;
+  const fulfilledAllocationIds: number[] = [];
+  const releasedAllocationIds: number[] = [];
+
+  for (const allocation of allocations) {
+    if (allocation.state !== 'active') continue;
+    const allocatedScaled = scaledQuantity(Number(allocation.qty_allocated));
+    const fulfilledScaled = scaledQuantity(Number(allocation.qty_fulfilled ?? 0));
+    const receivedAvailableScaled = Math.max(
+      0,
+      scaledQuantity(Number(allocation.qty_received_assigned ?? 0)) - fulfilledScaled,
+    );
+    const consumeScaled = Math.min(remainingToConsumeScaled, receivedAvailableScaled);
+    const nextFulfilledScaled = fulfilledScaled + consumeScaled;
+    remainingToConsumeScaled -= consumeScaled;
+    consumedScaled += consumeScaled;
+
+    if (nextFulfilledScaled >= allocatedScaled) {
+      await conn.execute(
+        `UPDATE ims_stock_allocations
+            SET qty_fulfilled = ?, state = 'fulfilled', revision = revision + 1
+          WHERE id = ? AND business_id = ?`,
+        [nextFulfilledScaled / QUANTITY_SCALE, allocation.id, input.businessId],
+      );
+      fulfilledAllocationIds.push(Number(allocation.id));
+    } else if (input.lineFullyFulfilled) {
+      releasedScaled += allocatedScaled - nextFulfilledScaled;
+      await conn.execute(
+        `UPDATE ims_stock_allocations
+            SET qty_fulfilled = ?, state = 'released', released_reason = ?, released_at = NOW(), revision = revision + 1
+          WHERE id = ? AND business_id = ?`,
+        [
+          nextFulfilledScaled / QUANTITY_SCALE,
+          `Automatically released when the sales order line was fully shipped (${input.operationKey}).`,
+          allocation.id,
+          input.businessId,
+        ],
+      );
+      releasedAllocationIds.push(Number(allocation.id));
+    } else if (consumeScaled > 0) {
+      await conn.execute(
+        `UPDATE ims_stock_allocations
+            SET qty_fulfilled = ?, revision = revision + 1
+          WHERE id = ? AND business_id = ?`,
+        [nextFulfilledScaled / QUANTITY_SCALE, allocation.id, input.businessId],
+      );
+    }
+  }
+
+  return {
+    consumedQuantity: consumedScaled / QUANTITY_SCALE,
+    releasedQuantity: releasedScaled / QUANTITY_SCALE,
+    fulfilledAllocationIds,
+    releasedAllocationIds,
+  };
 }
 
 export async function listStockAllocations(input: { businessId: string; soId?: number; poId?: number }) {
@@ -590,7 +672,11 @@ export async function transferStockAllocationsToBackorderLine(
         [input.backorderSoId, input.backorderSoItemId, allocation.id, input.businessId],
       );
     } else {
-      const receivedMoved = Math.min(Number(allocation.qty_received_assigned ?? 0), moveQuantity);
+      const receivedAvailable = Math.max(
+        0,
+        Number(allocation.qty_received_assigned ?? 0) - Number(allocation.qty_fulfilled ?? 0),
+      );
+      const receivedMoved = Math.min(receivedAvailable, moveQuantity);
       await conn.execute(
         `UPDATE ims_stock_allocations
             SET qty_allocated = qty_allocated - ?,

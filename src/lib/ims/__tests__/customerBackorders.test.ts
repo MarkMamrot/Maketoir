@@ -17,12 +17,14 @@ import { splitCustomerBackorder } from '../backorders/customerBackorders';
 
 describe('splitCustomerBackorder', () => {
   let quantityOnHand = 10;
+  let allocationRows: Record<string, any>[] = [];
 
   beforeEach(() => {
     vi.clearAllMocks();
     quantityOnHand = 10;
+    allocationRows = [];
     let insertedItemId = 200;
-    execute.mockImplementation(async (sql: string) => {
+    execute.mockImplementation(async (sql: string, params: any[] = []) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) {
         return [[{
           id: 42,
@@ -52,7 +54,14 @@ describe('splitCustomerBackorder', () => {
       if (sql.includes('SELECT so_number FROM ims_sales_orders')) return [[]];
       if (sql.includes('INSERT INTO ims_sales_orders')) return [{ insertId: 99 }];
       if (sql.includes('INSERT INTO ims_sales_order_items')) return [{ insertId: ++insertedItemId }];
-      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[]];
+      if (sql.includes('FROM ims_stock_allocations')) {
+        return [allocationRows.filter(row => Number(row.so_item_id) === Number(params[1]))];
+      }
+      if (sql.includes('UPDATE ims_stock_allocations') && sql.includes('SET qty_fulfilled = ?')) {
+        const row = allocationRows.find(entry => Number(entry.id) === Number(params[1]));
+        if (row) row.qty_fulfilled = Number(params[0]);
+        return [{ affectedRows: row ? 1 : 0 }];
+      }
       if (sql.includes('COALESCE(pv.avg_cost')) return [[{ qty_on_hand: quantityOnHand, avg_cost: 4.5 }]];
       return [{ affectedRows: 1 }];
     });
@@ -114,6 +123,7 @@ describe('splitCustomerBackorder', () => {
       backorderSoNumber: 'SO-2026-0042-B',
       operationKey: 'split-42-1',
       fulfilledVariantIds: [],
+      allocationFulfilments: [],
     });
     expect(execute.mock.calls.some(([sql]) => /UPDATE ims_stock|INSERT INTO ims_sales_orders|INSERT INTO ims_sales_order_items/.test(String(sql)))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
@@ -130,6 +140,30 @@ describe('splitCustomerBackorder', () => {
       shortfalls: [{ itemId: 10, quantityOnHand: 1, requestedQuantity: 2, resultingQuantityOnHand: -1 }],
     });
     expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('keeps consumed receipt ownership on the parent and transfers only the unconsumed balance', async () => {
+    allocationRows = [{
+      id: 71, so_item_id: 10, qty_allocated: 5, qty_received_assigned: 3,
+      qty_fulfilled: 0, state: 'active', priority: 0,
+    }];
+
+    const result = await splitCustomerBackorder({
+      businessId: 'biz-1', soId: 42, operationKey: 'split-42-allocated',
+      fulfilQuantities: [{ itemId: 10, quantity: 2 }, { itemId: 11, quantity: 0 }],
+    });
+
+    expect(result.allocationFulfilments).toEqual([{
+      soItemId: 10,
+      consumedQuantity: 2,
+      releasedQuantity: 0,
+      fulfilledAllocationIds: [],
+      releasedAllocationIds: [],
+    }]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_received_assigned = GREATEST(0, qty_received_assigned - ?)'),
+      [3, 1, 71, 'biz-1'],
+    );
   });
 
   it('allows a confirmed backorder split to make stock negative', async () => {

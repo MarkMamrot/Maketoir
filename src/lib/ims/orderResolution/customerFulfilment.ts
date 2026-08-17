@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { StockShortfallError } from './stockShortfall';
+import { reconcileStockAllocationsForFulfilment } from '../stockAllocation/service';
 
 const QUANTITY_SCALE = 10_000;
 
@@ -11,6 +12,13 @@ export type CustomerFulfilmentResult = {
   status: 'partially_fulfilled' | 'fulfilled';
   operationKey: string;
   fulfilledVariantIds: string[];
+  allocationFulfilments: Array<{
+    soItemId: number;
+    consumedQuantity: number;
+    releasedQuantity: number;
+    fulfilledAllocationIds: number[];
+    releasedAllocationIds: number[];
+  }>;
 };
 
 function scaledQuantity(value: number): number {
@@ -104,6 +112,7 @@ export async function fulfilSalesOrderPartial(input: {
     }
 
     const fulfilledVariantIds: string[] = [];
+    const allocationFulfilments: CustomerFulfilmentResult['allocationFulfilments'] = [];
     for (const [itemId, shipmentScaled] of requested) {
       if (shipmentScaled === 0) continue;
       const item = itemsById.get(itemId);
@@ -123,6 +132,17 @@ export async function fulfilSalesOrderPartial(input: {
         );
         item.qty_fulfilled = newFulfilled;
         continue;
+      }
+
+      const allocationResult = await reconcileStockAllocationsForFulfilment(conn, {
+        businessId: input.businessId,
+        soItemId: itemId,
+        fulfilledQuantity: newFulfilled,
+        lineFullyFulfilled: scaledQuantity(newFulfilled) >= orderedScaled,
+        operationKey,
+      });
+      if (allocationResult.consumedQuantity > 0 || allocationResult.releasedQuantity > 0) {
+        allocationFulfilments.push({ soItemId: itemId, ...allocationResult });
       }
 
       const [[stock]] = await conn.execute<any[]>(
@@ -199,6 +219,7 @@ export async function fulfilSalesOrderPartial(input: {
       status,
       operationKey,
       fulfilledVariantIds: [...new Set(fulfilledVariantIds)],
+      allocationFulfilments,
     };
     await conn.execute(
       `UPDATE ims_so_fulfilment_operations
