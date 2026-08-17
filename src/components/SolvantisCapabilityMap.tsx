@@ -43,9 +43,9 @@ const capabilities: Capability[] = [
     summary: 'A fast, dependable checkout built for the realities of Australian retail, from busy counters to temporary internet outages.',
     outcome: 'Keep customers moving while sales, stock, loyalty and accounting stay connected behind the scenes.',
     icon: ShoppingCart,
-    x: 21.7,
-    y: 23.7,
-    size: 17,
+    x: 22.2,
+    y: 24.1,
+    size: 15,
     groups: [
       {
         title: 'Fast checkout',
@@ -75,9 +75,9 @@ const capabilities: Capability[] = [
     summary: 'Control products, purchasing, stock movement and fulfilment from one accurate operational record.',
     outcome: 'See what you own, where it is, what is committed and what needs attention before it becomes a problem.',
     icon: Boxes,
-    x: 50,
-    y: 13.2,
-    size: 16,
+    x: 49.7,
+    y: 13.3,
+    size: 15,
     groups: [
       {
         title: 'Product and stock control',
@@ -108,9 +108,9 @@ const capabilities: Capability[] = [
     summary: 'Give wholesale buyers a simpler ordering experience while keeping their pricing, terms and orders inside the same stock system.',
     outcome: 'Grow B2B sales without creating a disconnected catalogue or a second order-management process.',
     icon: Store,
-    x: 76.5,
-    y: 23.8,
-    size: 17,
+    x: 77.2,
+    y: 24.1,
+    size: 15,
     groups: [
       {
         title: 'Buyer experience',
@@ -140,9 +140,9 @@ const capabilities: Capability[] = [
     summary: 'Bring store, online and wholesale activity together so each channel works from shared product, stock and customer information.',
     outcome: 'Operate multiple routes to market without losing a reliable view of sales, stock movements or returns.',
     icon: Network,
-    x: 85.4,
-    y: 52.1,
-    size: 16,
+    x: 86.5,
+    y: 50.4,
+    size: 15,
     groups: [
       {
         title: 'Connected commerce',
@@ -172,9 +172,9 @@ const capabilities: Capability[] = [
     summary: 'Manage branches, warehouses and registers as one business while preserving the detail each local team needs.',
     outcome: 'Move stock intelligently, compare performance fairly and give every location a consistent way of working.',
     icon: Building2,
-    x: 76.8,
-    y: 76.2,
-    size: 17,
+    x: 77.3,
+    y: 75.1,
+    size: 15,
     groups: [
       {
         title: 'Location control',
@@ -204,9 +204,9 @@ const capabilities: Capability[] = [
     summary: 'Use practical AI inside real retail workflows, with people remaining in control of the final decision and output.',
     outcome: 'Start from a useful draft, structured plan or prepared document instead of a blank page and hours of manual handling.',
     icon: Sparkles,
-    x: 50.2,
-    y: 86,
-    size: 16,
+    x: 49.8,
+    y: 84,
+    size: 15,
     groups: [
       {
         title: 'Everyday automation',
@@ -236,9 +236,9 @@ const capabilities: Capability[] = [
     summary: 'Keep commerce, inventory and accounting aligned through integrations designed around the documents and events retailers actually use.',
     outcome: 'Reduce duplicate entry and make reconciliation easier without giving up control of approvals and mappings.',
     icon: Calculator,
-    x: 23,
-    y: 76.1,
-    size: 17,
+    x: 23.1,
+    y: 75.1,
+    size: 15,
     groups: [
       {
         title: 'Xero accounting',
@@ -269,9 +269,9 @@ const capabilities: Capability[] = [
     summary: 'Connect customer records, loyalty, store credit and returns to the transactions that created them.',
     outcome: 'Give staff a dependable customer view and reward repeat business consistently in-store and online.',
     icon: UsersRound,
-    x: 13.1,
-    y: 52,
-    size: 16,
+    x: 13.5,
+    y: 50.4,
+    size: 15,
     groups: [
       {
         title: 'Customer relationships',
