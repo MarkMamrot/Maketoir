@@ -5,6 +5,7 @@ import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assignReceiptToStockAllocations } from '@/lib/ims/stockAllocation/service';
+import { createNotification } from '@/lib/ims/createNotification';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
 import { createHash, randomUUID } from 'crypto';
 import {
@@ -31,6 +32,62 @@ interface StockUpdate {
   variant_id: string;
   min_qty?: number;
   reorder_qty?: number;
+}
+
+interface AllocationReceipt {
+  allocationId: number;
+  soId: number;
+  soItemId: number;
+  quantity: number;
+  ready: boolean;
+  readyQuantity: number;
+}
+
+async function notifyReadySalesOrders(
+  businessId: string,
+  poId: number,
+  allocationReceipts: AllocationReceipt[],
+): Promise<void> {
+  const readyBySalesOrder = new Map<number, { readyQuantity: number; allocationCount: number }>();
+  for (const receipt of allocationReceipts) {
+    if (!receipt.ready || receipt.readyQuantity <= 0) continue;
+    const current = readyBySalesOrder.get(receipt.soId) ?? { readyQuantity: 0, allocationCount: 0 };
+    current.readyQuantity += receipt.readyQuantity;
+    current.allocationCount += 1;
+    readyBySalesOrder.set(receipt.soId, current);
+  }
+
+  await Promise.all([...readyBySalesOrder].map(async ([soId, readiness]) => {
+    const quantity = Number(readiness.readyQuantity.toFixed(4));
+    try {
+      await createNotification(
+        businessId,
+        'stock_allocation',
+        'Protected stock is ready',
+        `${quantity} ${quantity === 1 ? 'unit is' : 'units are'} now ready to fulfil on a sales order.`,
+        {
+          action: 'open_sales_order',
+          so_id: soId,
+          po_id: poId,
+          ready_quantity: quantity,
+          allocation_count: readiness.allocationCount,
+        },
+        'success',
+      );
+    } catch (error) {
+      try {
+        await reportRuntimeIssue({
+          businessId,
+          source: 'ims_stock_allocations',
+          operation: 'notify_ready_sales_order',
+          title: 'Protected stock became ready but staff notification failed',
+          error,
+          context: { poId, soId, readyQuantity: quantity, allocationCount: readiness.allocationCount },
+          reference: { type: 'sales_order', id: soId },
+        });
+      } catch {}
+    }
+  }));
 }
 
 async function reportReceiveXeroFailure(businessId: string, poId: number, error: unknown, replayed: boolean): Promise<void> {
@@ -232,7 +289,7 @@ export async function POST(req: Request) {
         },
       );
 
-      const allocationReceipts: Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean }> = [];
+      const allocationReceipts: AllocationReceipt[] = [];
 
       // ─── 1. Update qty_received (accumulate) + stock ──────────────────────
       for (const item of received_items) {
@@ -583,6 +640,7 @@ export async function POST(req: Request) {
       if (receivedVariantIds.length > 0) {
         refreshVariantCache(receivedVariantIds).catch(() => {});
       }
+      await notifyReadySalesOrders(businessId, po_id, allocationReceipts);
 
       // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
       if (newStatus === 'complete') {

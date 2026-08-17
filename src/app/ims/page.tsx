@@ -20639,8 +20639,12 @@ export default function ImsPage() {
                       const sourceLabel: Record<string, string> = {
                         pos_stock: 'POS Stock', shopify_webhook: 'Webhook',
                         shopify_import: 'Shopify Import', shopify_inventory: 'Inventory Sync',
+                        stock_allocation: 'Stock Allocation',
                       };
                       const srcLabel = sourceLabel[n.source] ?? n.source;
+                      const isSuccess = n.type === 'success';
+                      const notificationColor = isSuccess ? '#16a34a' : 'var(--sv-red, #ef4444)';
+                      const notificationTint = isSuccess ? 'rgba(22,163,74,.08)' : 'var(--sv-red-tint, rgba(239,68,68,.04))';
                       const timeAgo = (() => {
                         const secs = Math.floor((Date.now() - new Date(n.created_at).getTime()) / 1000);
                         if (secs < 60) return 'just now';
@@ -20650,7 +20654,7 @@ export default function ImsPage() {
                       })();
                       return (
                         <div key={n.id}
-                          style={{ borderBottom: '1px solid var(--sv-etch)', background: n.is_read ? 'transparent' : 'var(--sv-red-tint, rgba(239,68,68,.04))' }}
+                          style={{ borderBottom: '1px solid var(--sv-etch)', background: n.is_read ? 'transparent' : notificationTint }}
                         >
                           <div
                             onClick={() => {
@@ -20661,9 +20665,10 @@ export default function ImsPage() {
                             onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-2)')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                           >
-                            {/* Error icon */}
-                            <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--sv-red-tint, rgba(239,68,68,.12))', border: '1.5px solid var(--sv-red, #ef4444)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--sv-red, #ef4444)" strokeWidth="3" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            <div style={{ width: 22, height: 22, borderRadius: '50%', background: notificationTint, border: `1.5px solid ${notificationColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                              {isSuccess
+                                ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={notificationColor} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                                : <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={notificationColor} strokeWidth="3" strokeLinecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -20685,6 +20690,19 @@ export default function ImsPage() {
                           {isExpanded && (
                             <div style={{ padding: '0 14px 12px 46px' }}>
                               <div style={{ fontSize: 12, color: 'var(--sv-text-main)', marginBottom: 8, lineHeight: 1.5 }}>{n.message}</div>
+                              {n.detail?.action === 'open_sales_order' && Number(n.detail?.so_id) > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setNotifOpen(false);
+                                    setNotifExpanded(null);
+                                    setPendingOpenSO(Number(n.detail.so_id));
+                                    setViewSafe('sales-orders');
+                                  }}
+                                  style={{ border: 'none', borderRadius: 6, background: 'var(--sv-action)', color: '#fff', padding: '7px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', marginBottom: 10 }}
+                                >
+                                  Open sales order
+                                </button>
+                              )}
                               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600 }}>Detail</div>
                               <pre style={{ fontSize: 10, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--sv-text-main)', margin: 0, maxHeight: 200, overflowY: 'auto' }}>
                                 {n.detail ? JSON.stringify(n.detail, null, 2) : '(no detail)'}

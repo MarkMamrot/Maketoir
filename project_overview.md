@@ -35,6 +35,7 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 - [x] Customer SO incremental partial fulfilment (delta stock/commitment movements, idempotent retries, final-only Xero approval)
 - [x] Resolve Outstanding Orders (customer/supplier cancel or held child, evidence-backed no-stock credits, Xero refund/unapplied/deferred allocation)
 - [x] Deploy partial-fulfilment and resolution schema to all active tenants
+- [x] Incoming PO stock allocation to SO demand, including receipt readiness notifications and direct SO actions
 
 ### 🔲 In Progress / Next
 - [ ] **Cin7 product_type sync** — map `cin7Product.Type` → `product_type` in IMS cache (see project_memory.md TODO)

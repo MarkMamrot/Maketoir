@@ -9,6 +9,7 @@ const {
   mockGetConnection,
   mockReportRuntimeIssue,
   mockAssignReceiptToStockAllocations,
+  mockCreateNotification,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockGetConnection: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
   mockAssignReceiptToStockAllocations: vi.fn(),
+  mockCreateNotification: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -40,6 +42,10 @@ vi.mock('@/lib/runtimeIssues', () => ({
 
 vi.mock('@/lib/ims/stockAllocation/service', () => ({
   assignReceiptToStockAllocations: mockAssignReceiptToStockAllocations,
+}));
+
+vi.mock('@/lib/ims/createNotification', () => ({
+  createNotification: mockCreateNotification,
 }));
 
 import { POST } from '../route';
@@ -254,6 +260,7 @@ describe('POST /api/ims/receive/batch', () => {
     mockTriggerPOXeroSync.mockResolvedValue(undefined);
     mockRefreshVariantCache.mockResolvedValue(undefined);
     mockAssignReceiptToStockAllocations.mockResolvedValue([]);
+    mockCreateNotification.mockResolvedValue(undefined);
   });
 
   it('recalculates avg cost, clamps over-receive, and leaves a fully received PO in progress', async () => {
@@ -334,6 +341,33 @@ describe('POST /api/ims/receive/batch', () => {
     };
     const connection = buildFakeConnection(state);
     mockGetConnection.mockResolvedValue(connection);
+    mockAssignReceiptToStockAllocations.mockResolvedValue([
+      {
+        allocationId: 70,
+        soId: 700,
+        soItemId: 701,
+        quantity: 2,
+        ready: true,
+        readyQuantity: 2,
+      },
+      {
+        allocationId: 71,
+        soId: 700,
+        soItemId: 702,
+        quantity: 1,
+        ready: true,
+        readyQuantity: 1,
+      },
+      {
+        allocationId: 72,
+        soId: 800,
+        soItemId: 801,
+        quantity: 1,
+        ready: false,
+        readyQuantity: 0,
+      },
+    ]);
+    mockCreateNotification.mockRejectedValueOnce(new Error('Notification table unavailable'));
     const payload = {
       po_id: 12,
       location_id: 4,
@@ -351,6 +385,27 @@ describe('POST /api/ims/receive/batch', () => {
     expect(await second.json()).toMatchObject({ success: true, replayed: true, newStatus: 'complete' });
     expect(state.stockByVariant.get('v-2|4')?.qty_on_hand).toBe(2);
     expect(state.movements).toHaveLength(1);
+    expect(mockCreateNotification).toHaveBeenCalledTimes(1);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      'biz-1',
+      'stock_allocation',
+      'Protected stock is ready',
+      '3 units are now ready to fulfil on a sales order.',
+      {
+        action: 'open_sales_order',
+        so_id: 700,
+        po_id: 12,
+        ready_quantity: 3,
+        allocation_count: 2,
+      },
+      'success',
+    );
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1',
+      operation: 'notify_ready_sales_order',
+      context: { poId: 12, soId: 700, readyQuantity: 3, allocationCount: 2 },
+      reference: { type: 'sales_order', id: 700 },
+    }));
     expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1',
       operation: 'receive_xero_approval',

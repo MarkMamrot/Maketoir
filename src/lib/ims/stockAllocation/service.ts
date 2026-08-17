@@ -214,18 +214,18 @@ export async function createStockAllocation(input: CreateStockAllocationInput): 
 export async function assignReceiptToStockAllocations(
   conn: { execute: (sql: string, params?: unknown[]) => Promise<any> },
   input: { businessId: string; poItemId: number; receivedQuantity: number },
-): Promise<Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean }>> {
+): Promise<Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean; readyQuantity: number }>> {
   let remainingScaled = scaledQuantity(input.receivedQuantity);
   if (remainingScaled <= 0) return [];
   const [rows] = await conn.execute(
-    `SELECT id, so_id, so_item_id, qty_allocated, qty_received_assigned
+    `SELECT id, so_id, so_item_id, qty_allocated, qty_received_assigned, qty_fulfilled
        FROM ims_stock_allocations
       WHERE business_id = ? AND po_item_id = ? AND state = 'active'
       ORDER BY priority, created_at, id
       FOR UPDATE`,
     [input.businessId, input.poItemId],
   );
-  const assignments: Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean }> = [];
+  const assignments: Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean; readyQuantity: number }> = [];
   for (const row of rows as any[]) {
     if (remainingScaled <= 0) break;
     const allocationRemaining = Math.max(
@@ -247,6 +247,9 @@ export async function assignReceiptToStockAllocations(
       soId: Number(row.so_id),
       soItemId: Number(row.so_item_id),
       quantity: assigned,
+            readyQuantity: ready
+              ? Math.max(0, scaledQuantity(Number(row.qty_allocated)) - scaledQuantity(Number(row.qty_fulfilled ?? 0))) / QUANTITY_SCALE
+              : 0,
       ready,
     });
     remainingScaled -= assignedScaled;

@@ -136,8 +136,8 @@ describe('stock allocation service', () => {
   it('assigns receipt quantities to allocations in locked priority order', async () => {
     const receiptExecute = vi.fn(async (sql: string) => {
       if (sql.includes('FROM ims_stock_allocations')) return [[
-        { id: 1, so_id: 10, so_item_id: 101, qty_allocated: 3, qty_received_assigned: 1 },
-        { id: 2, so_id: 20, so_item_id: 201, qty_allocated: 4, qty_received_assigned: 0 },
+        { id: 1, so_id: 10, so_item_id: 101, qty_allocated: 3, qty_received_assigned: 1, qty_fulfilled: 1 },
+        { id: 2, so_id: 20, so_item_id: 201, qty_allocated: 4, qty_received_assigned: 0, qty_fulfilled: 0 },
       ]];
       return [{ affectedRows: 1 }];
     });
@@ -145,8 +145,8 @@ describe('stock allocation service', () => {
     await expect(assignReceiptToStockAllocations({ execute: receiptExecute }, {
       businessId: 'biz-1', poItemId: 21, receivedQuantity: 5,
     })).resolves.toEqual([
-      { allocationId: 1, soId: 10, soItemId: 101, quantity: 2, ready: true },
-      { allocationId: 2, soId: 20, soItemId: 201, quantity: 3, ready: false },
+      { allocationId: 1, soId: 10, soItemId: 101, quantity: 2, ready: true, readyQuantity: 2 },
+      { allocationId: 2, soId: 20, soItemId: 201, quantity: 3, ready: false, readyQuantity: 0 },
     ]);
     expect(receiptExecute).toHaveBeenNthCalledWith(2, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [2, 1, 'biz-1']);
     expect(receiptExecute).toHaveBeenNthCalledWith(3, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [3, 2, 'biz-1']);
