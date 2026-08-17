@@ -1,8 +1,8 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { FileUp, Megaphone, MessagesSquare, Play, Sparkles } from 'lucide-react';
+import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
 import Nav from './_nav';
 
 // ─── Tiny reusable components ──────────────────────────────────────────────────
@@ -47,82 +47,58 @@ interface DemoForm { name: string; email: string; company: string; message: stri
 export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
-  const [selectedWorkflow, setSelectedWorkflow] = useState('AI Creative Studio');
-  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
-  const [showVideoOverlay, setShowVideoOverlay] = useState(true);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
 
   const workflowFeatures = [
     {
       icon: FileUp,
       title: 'Invoice to Purchase Order',
-      description: 'Drop in a supplier invoice as a PDF, JPEG, or PNG. AI reads it and pre-fills the purchase order, ready for your team to check and save.',
-      steps: 'Upload invoice → Review extracted details → Save PO',
-      accent: 'text-amber-300 bg-amber-300/10 border-amber-300/20',
+      label: 'Purchasing workflow',
+      outcome: 'Turn supplier paperwork into a ready-to-review purchase order.',
+      description: 'Upload a PDF, JPEG, or PNG invoice. Solvantis reads the supplier, products, quantities, and costs, then prepares the purchase order for a quick human check.',
+      steps: ['Upload invoice', 'Check extracted details', 'Save the purchase order'],
+      accent: 'text-amber-700 bg-amber-50 border-amber-200',
       videoSrc: '/landing/Upload%20Invoice.mp4',
-      kind: 'video',
     },
     {
       icon: Sparkles,
       title: 'AI Creative Studio',
-      description: 'Create polished product imagery and short branded videos in a few clicks. Select your product image, choose a backdrop, add description modifiers, and Solvantis generates visuals tailored to your brand.',
-      steps: 'Choose product → Apply brand references → Generate creative',
-      accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+      label: 'Creative workflow',
+      outcome: 'Create campaign-ready product imagery without a lengthy studio process.',
+      description: 'Start with a product image, choose a setting and creative direction, then use brand references to generate polished visuals built around your catalogue.',
+      steps: ['Choose a product', 'Set the creative direction', 'Generate branded assets'],
+      accent: 'text-rose-700 bg-rose-50 border-rose-200',
       videoSrc: '/landing/Creative%20Stuido%20.mp4',
-      kind: 'video',
     },
     {
       icon: Sparkles,
       title: 'Automated Product Content Studio',
-      description: 'Stop writing product descriptions from scratch. Solvantis researches the item, builds the listing, and prepares it for review and publishing.',
-      steps: 'Select products → Research automatically → Format listing',
-      accent: 'text-pink-300 bg-pink-300/10 border-pink-300/20',
+      label: 'Catalogue workflow',
+      outcome: 'Move from basic product data to a polished listing in minutes.',
+      description: 'Solvantis researches the item, develops useful customer-facing copy, and structures the result for review, helping your team publish consistent listings faster.',
+      steps: ['Select products', 'Research and draft', 'Review the finished listing'],
+      accent: 'text-blue-700 bg-blue-50 border-blue-200',
       videoSrc: '/landing/Automated%20Content%20Studio.mp4',
-      kind: 'video',
-    },
-    {
-      icon: Megaphone,
-      title: 'Marketing Assistant',
-      description: 'Bring catalogue, sales, advertising, and website performance into one guided conversation that turns business data into a practical marketing direction.',
-      steps: 'Connect context → Answer key questions → Build your strategy',
-      accent: 'text-blue-300 bg-blue-300/10 border-blue-300/20',
-      kind: 'static',
-    },
-    {
-      icon: MessagesSquare,
-      title: 'Customer Service Inbox',
-      description: 'Bring customer emails into one queue, classify enquiries, and prepare informed replies using live product, stock, location, contact, and order data.',
-      steps: 'Sync inbox → Review AI draft → Edit, save, or send',
-      accent: 'text-emerald-300 bg-emerald-300/10 border-emerald-300/20',
-      kind: 'static',
     },
   ];
 
-  const selectedFeature = workflowFeatures.find((feature) => feature.title === selectedWorkflow) ?? workflowFeatures[1];
+  const selectedFeature = workflowFeatures.find((feature) => feature.title === activeWorkflow) ?? null;
 
-  const handleVideoToggle = async () => {
-    const video = videoRef.current;
-    if (!video) return;
+  useEffect(() => {
+    if (!selectedFeature) return;
 
-    if (video.paused) {
-      setShowVideoOverlay(false);
-      setIsVideoPlaying(true);
-      video.currentTime = 0;
-      video.muted = false;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveWorkflow(null);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
 
-      try {
-        await video.play();
-      } catch (error) {
-        setIsVideoPlaying(false);
-        setShowVideoOverlay(true);
-        console.error('Landing page video playback failed:', error);
-      }
-    } else {
-      video.pause();
-      setIsVideoPlaying(false);
-      setShowVideoOverlay(true);
-    }
-  };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedFeature]);
 
   function handleDemoSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -491,133 +467,88 @@ export default function Landing() {
       {/* ══════════════════════════════════════════════════════════════════════
           WORKFLOW VIDEOS — softened light grey
       ══════════════════════════════════════════════════════════════════════ */}
-      <section id="workflow-videos" className="bg-slate-100 py-20">
+      <section id="workflow-videos" className="bg-slate-100 py-20 lg:py-24">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="max-w-3xl mb-12">
-            <Eyebrow>See Solvantis at Work</Eyebrow>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
-              Less admin. More work finished.
-            </h2>
-            <p className="text-slate-600 mt-4 text-base leading-relaxed">
-              Short, practical walkthroughs of the everyday jobs Solvantis makes faster, from building product listings to answering customers.
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end mb-12 lg:mb-14">
+            <div className="max-w-3xl">
+              <Eyebrow>See Solvantis at Work</Eyebrow>
+              <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
+                Less admin. More work finished.
+              </h2>
+            </div>
+            <p className="text-slate-600 text-base leading-relaxed lg:border-l lg:border-slate-300 lg:pl-7">
+              A few selected ways Solvantis improves everyday workflows. These short, practical walkthroughs show how teams move from repetitive admin to finished work, faster.
             </p>
           </div>
 
-          <div className="space-y-6">
-            <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-slate-200 shadow-[0_30px_80px_rgba(15,23,42,0.12)] relative">
-              <div className="bg-slate-950 relative">
-                {selectedFeature.videoSrc ? (
-                  <>
-                    <video
-                      ref={videoRef}
-                      key={selectedFeature.title}
-                      controls={false}
-                      preload="metadata"
-                      playsInline
-                      poster="/landing/ai-products.jpg"
-                      onPlay={() => {
-                        setIsVideoPlaying(true);
-                        setShowVideoOverlay(false);
-                      }}
-                      onPause={() => {
-                        setIsVideoPlaying(false);
-                      }}
-                      onEnded={() => {
-                        setIsVideoPlaying(false);
-                        setShowVideoOverlay(true);
-                      }}
-                      className="block w-full h-[560px] object-cover bg-black"
-                      aria-label={`${selectedFeature.title} walkthrough`}
-                    >
-                      <source src={selectedFeature.videoSrc} type="video/mp4" />
-                      Your browser does not support embedded video.
-                    </video>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {workflowFeatures.map((item) => {
+              const Icon = item.icon;
 
-                    {!isVideoPlaying && showVideoOverlay && (
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/35 to-slate-900/50">
-                        <div className="absolute inset-0 flex items-end p-5 md:p-7">
-                          <div className="w-full rounded-[22px] border border-white/10 bg-slate-950/65 p-5 md:p-7 backdrop-blur-md shadow-2xl">
-                            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                              <div className="max-w-xl">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-cyan-200">
-                                  Preview Demo
-                                </span>
-                                <h3 className="mt-4 text-3xl font-black uppercase tracking-tight text-white md:text-5xl">
-                                  {selectedFeature.title}
-                                </h3>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={handleVideoToggle}
-                                className="group inline-flex items-center justify-center gap-3 rounded-full border border-cyan-300/80 bg-cyan-400/95 px-5 py-3 text-left text-sm font-black uppercase tracking-[0.22em] text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.35)] transition hover:scale-[1.02]"
-                                aria-label={`Play ${selectedFeature.title}`}
-                              >
-                                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-950/10">
-                                  <Play className="h-5 w-5 fill-current ml-0.5" aria-hidden="true" />
-                                </span>
-                                <span>View video</span>
-                              </button>
-                            </div>
-
-                            <div className="mt-5 border-t border-white/10 pt-5">
-                              <p className="text-base font-medium leading-relaxed text-slate-200 md:text-lg">
-                                {selectedFeature.description}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="flex min-h-[560px] items-center justify-center bg-slate-950/80 px-6 text-center text-slate-300">
-                    <div>
-                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-white/10 bg-white/5">
-                        <Play className="h-6 w-6 text-cyan-300" aria-hidden="true" />
-                      </div>
-                      <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Preview</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 lg:gap-5">
-              {workflowFeatures.map((item) => {
-                const Icon = item.icon;
-                const isSelected = item.title === selectedFeature.title;
-
-                return (
+              return (
+                <article
+                  key={item.title}
+                  className="group overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.13)]"
+                >
                   <button
-                    key={item.title}
                     type="button"
-                    onClick={() => {
-                      setSelectedWorkflow(item.title);
-                      setIsVideoPlaying(false);
-                      setShowVideoOverlay(true);
-                    }}
-                    className={`group text-left border rounded-2xl overflow-hidden bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all duration-200 ${
-                      isSelected ? 'border-blue-500/60 ring-2 ring-blue-500/20 -translate-y-1' : 'border-slate-200 hover:-translate-y-1 hover:border-slate-300'
-                    }`}
+                    onClick={() => setActiveWorkflow(item.title)}
+                    className="relative block aspect-video w-full overflow-hidden bg-slate-950 text-left focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-blue-400"
+                    aria-label={`Play ${item.title} walkthrough`}
                   >
-                    <div className="aspect-[16/10] bg-slate-100 border-b border-slate-200 flex flex-col items-center justify-center gap-3 px-4 text-center">
-                      <div className={`w-11 h-11 rounded-full border flex items-center justify-center ${item.accent}`}>
-                        <Icon className="w-5 h-5" aria-hidden="true" />
-                      </div>
-                      <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
-                        {isSelected ? 'Selected' : 'View demo'}
+                    <video
+                      src={item.videoSrc}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-[1.025] group-hover:opacity-65"
+                      aria-hidden="true"
+                    />
+                    <span className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-slate-950/5 to-transparent" />
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex h-20 w-20 items-center justify-center rounded-full border border-white/70 bg-white/95 text-blue-700 shadow-[0_12px_35px_rgba(15,23,42,0.35)] transition duration-300 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white">
+                        <Play className="ml-1 h-8 w-8 fill-current" aria-hidden="true" />
                       </span>
-                    </div>
-                    <div className="p-5">
-                      <h3 className="text-slate-900 font-bold text-base mb-2">{item.title}</h3>
-                      <p className="text-slate-600 text-sm leading-relaxed min-h-[4.75rem]">{item.description}</p>
-                      <p className="text-blue-700 text-xs leading-relaxed border-t border-slate-200 pt-4 mt-4">{item.steps}</p>
-                    </div>
+                    </span>
+                    <span className="absolute bottom-4 left-4 text-xs font-bold uppercase tracking-widest text-white">
+                      Watch walkthrough
+                    </span>
                   </button>
-                );
-              })}
-            </div>
+
+                  <div className="p-6 lg:p-7">
+                    <div className="mb-5 flex items-center gap-3">
+                      <span className={`flex h-10 w-10 flex-none items-center justify-center rounded-lg border ${item.accent}`}>
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </span>
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">{item.label}</p>
+                    </div>
+                    <h3 className="text-xl font-black leading-tight text-slate-900">{item.title}</h3>
+                    <p className="mt-3 text-base font-semibold leading-relaxed text-slate-800">{item.outcome}</p>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">{item.description}</p>
+
+                    <ol className="mt-6 border-t border-slate-200 pt-5">
+                      {item.steps.map((step, index) => (
+                        <li key={step} className="flex items-center gap-3 py-1.5 text-sm text-slate-700">
+                          <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600">
+                            {index + 1}
+                          </span>
+                          {step}
+                        </li>
+                      ))}
+                    </ol>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveWorkflow(item.title)}
+                      className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-blue-700 transition hover:text-blue-900"
+                    >
+                      See how it works
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -1014,6 +945,63 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+
+      {selectedFeature && (
+        <div
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-sm md:p-6"
+          onClick={() => setActiveWorkflow(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="workflow-video-title"
+        >
+          <div
+            className="relative grid max-h-[94vh] w-full max-w-7xl overflow-y-auto rounded-lg border border-white/10 bg-slate-950 shadow-2xl lg:grid-cols-[minmax(0,1fr)_360px] lg:overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveWorkflow(null)}
+              className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-slate-950/80 text-white backdrop-blur transition hover:bg-white hover:text-slate-950"
+              aria-label="Close walkthrough"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+
+            <div className="flex min-h-0 items-center bg-black">
+              <video
+                key={selectedFeature.title}
+                src={selectedFeature.videoSrc}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[82vh] w-full bg-black object-contain"
+                aria-label={`${selectedFeature.title} walkthrough`}
+              >
+                Your browser does not support embedded video.
+              </video>
+            </div>
+
+            <div className="flex flex-col justify-center border-t border-white/10 p-6 text-white lg:border-l lg:border-t-0 lg:p-8">
+              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">{selectedFeature.label}</p>
+              <h3 id="workflow-video-title" className="mt-3 pr-10 text-2xl font-black leading-tight">
+                {selectedFeature.title}
+              </h3>
+              <p className="mt-4 text-base font-semibold leading-relaxed text-white">{selectedFeature.outcome}</p>
+              <p className="mt-4 text-sm leading-relaxed text-slate-300">{selectedFeature.description}</p>
+              <ol className="mt-6 space-y-3 border-t border-white/10 pt-6">
+                {selectedFeature.steps.map((step, index) => (
+                  <li key={step} className="flex items-center gap-3 text-sm text-slate-200">
+                    <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-white/10 text-xs font-bold text-cyan-300">
+                      {index + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           DEMO MODAL
