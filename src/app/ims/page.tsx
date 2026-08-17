@@ -23,6 +23,7 @@ import {
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
 import { BackordersView } from './views/backorders/BackordersView';
+import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
 import { SalesSearchView as SalesSearchViewComponent } from './views/reports/SalesSearchView';
 import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/SalesSummaryView';
@@ -63,7 +64,7 @@ import {
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
@@ -87,6 +88,7 @@ const NAV = [
   { id: '__orders',        label: 'Orders',           section: 'orders', children: [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'stock-availability', label: 'Stock Availability' },
     { id: 'backorders',       label: 'Backorders' },
     { id: 'credit-notes',     label: 'Credit Notes / Returns' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
@@ -20378,7 +20380,7 @@ export default function ImsPage() {
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','locations',
-    'purchase-orders','sales-orders','backorders','credit-notes','supplier-credit-notes',
+    'purchase-orders','sales-orders','stock-availability','backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
@@ -20818,6 +20820,7 @@ export default function ImsPage() {
               LocationsView={LocationsView}
               PurchaseOrdersView={PurchaseOrdersView}
               SalesOrdersView={SalesOrdersView}
+              StockAvailabilityWorkbenchView={StockAvailabilityWorkbenchView}
               BackordersView={BackordersView}
               CreditNotesView={CreditNotesView}
               SupplierCreditNotesView={SupplierCreditNotesView}
