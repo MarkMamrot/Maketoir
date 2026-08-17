@@ -52,6 +52,7 @@ describe('splitCustomerBackorder', () => {
       if (sql.includes('SELECT so_number FROM ims_sales_orders')) return [[]];
       if (sql.includes('INSERT INTO ims_sales_orders')) return [{ insertId: 99 }];
       if (sql.includes('INSERT INTO ims_sales_order_items')) return [{ insertId: ++insertedItemId }];
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[]];
       if (sql.includes('COALESCE(pv.avg_cost')) return [[{ qty_on_hand: quantityOnHand, avg_cost: 4.5 }]];
       return [{ affectedRows: 1 }];
     });

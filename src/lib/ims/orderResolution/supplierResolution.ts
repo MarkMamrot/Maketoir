@@ -8,6 +8,7 @@ import {
   classifyAccountingResolution,
   type OrderResolutionOutcome,
 } from './domain';
+import { transferStockAllocationsToSupplierBackorderLine } from '../stockAllocation/service';
 import { nextBackorderNumber } from '../backorders/domain';
 
 export type SupplierSettlement =
@@ -311,6 +312,12 @@ export async function resolveSupplierOutstanding(input: {
             sourceSnapshot,
           ],
         );
+        await transferStockAllocationsToSupplierBackorderLine(conn, {
+          businessId: input.businessId,
+          sourcePoItemId: Number(item.id),
+          backorderPoId: childPoId,
+          backorderPoItemId: Number(created.insertId),
+        });
       }
     } else {
       for (const item of outstanding) {

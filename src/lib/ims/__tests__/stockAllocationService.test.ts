@@ -18,9 +18,13 @@ vi.mock('@/services/IMSMySQLService', () => ({
 
 import {
   assignReceiptToStockAllocations,
+  buildStockAllocationMutationRequestHash,
   buildStockAllocationRequestHash,
   createStockAllocation,
+  mutateStockAllocation,
   StockAllocationConflict,
+  transferStockAllocationsToBackorderLine,
+  transferStockAllocationsToSupplierBackorderLine,
 } from '../stockAllocation/service';
 
 const input = {
@@ -145,5 +149,91 @@ describe('stock allocation service', () => {
     ]);
     expect(receiptExecute).toHaveBeenNthCalledWith(2, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [2, 1, 'biz-1']);
     expect(receiptExecute).toHaveBeenNthCalledWith(3, expect.stringContaining('qty_received_assigned = qty_received_assigned + ?'), [3, 2, 'biz-1']);
+  });
+
+  it('reassigns an active allocation to eligible free incoming supply', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocation_operations')) return [[]];
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[{
+        id: 41, business_id: 'biz-1', po_id: 2, po_item_id: 21, variant_id: 'v-1', location_id: 4,
+        qty_allocated: 4, qty_received_assigned: 0, qty_fulfilled: 0, source_expected_date: '2026-09-08',
+        state: 'active', revision: 3,
+      }]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{
+        id: 22, po_id: 3, variant_id: 'v-1', qty_ordered: 8, qty_received: 0,
+        location_id: 4, status: 'confirmed', expected_date: '2026-09-20',
+      }]];
+      if (sql.includes('AND id <> ?')) return [[]];
+      if (sql.includes('INSERT INTO ims_stock_allocation_operations')) return [{ insertId: 51 }];
+      return [{ affectedRows: 1 }];
+    });
+
+    await expect(mutateStockAllocation({
+      businessId: 'biz-1', operationKey: 'reassign-41', allocationId: 41, revision: 3,
+      action: 'reassign', poItemId: 22, reason: 'Supplier delivery moved', actorId: 7, actorName: 'Alex',
+    })).resolves.toEqual({ allocationId: 41, revision: 4, state: 'active', replayed: false });
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining('UPDATE ims_stock_allocations SET'), expect.arrayContaining([
+      3, 22, 4, '2026-09-20', 'reassign', 'Supplier delivery moved', 4, 41, 'biz-1', 3,
+    ]));
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a stale allocation revision before mutation writes', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocation_operations')) return [[]];
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[{ id: 41, state: 'active', revision: 4 }]];
+      return [[]];
+    });
+    await expect(mutateStockAllocation({
+      businessId: 'biz-1', operationKey: 'release-41', allocationId: 41, revision: 3,
+      action: 'release', reason: 'Customer cancelled',
+    })).rejects.toThrow('Refresh and try again');
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock_allocations SET'))).toBe(false);
+  });
+
+  it('rejects changed mutation payload reuse', async () => {
+    const original = {
+      businessId: 'biz-1', operationKey: 'resize-41', allocationId: 41, revision: 3,
+      action: 'resize' as const, quantity: 3,
+    };
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocation_operations')) return [[{
+        request_hash: buildStockAllocationMutationRequestHash(original), state: 'complete',
+        response_json: { allocationId: 41, revision: 4, state: 'active' },
+      }]];
+      return [[]];
+    });
+    await expect(mutateStockAllocation({ ...original, quantity: 2 })).rejects.toThrow('different request');
+  });
+
+  it('splits an allocation when only part transfers to a held child line', async () => {
+    const transferExecute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[{
+        id: 41, po_id: 2, po_item_id: 21, variant_id: 'v-1', location_id: 4,
+        qty_allocated: 5, qty_received_assigned: 2, qty_fulfilled: 0,
+        source_expected_date: '2026-09-08', promised_date: '2026-09-10', promise_status: 'confirmed',
+        priority: 1, override_reason: null, risk_reason: null, created_by: 7, created_by_name: 'Alex',
+      }]];
+      return [{ affectedRows: 1, insertId: 61 }];
+    });
+
+    await expect(transferStockAllocationsToBackorderLine({ execute: transferExecute }, {
+      businessId: 'biz-1', sourceSoItemId: 11, backorderSoId: 99, backorderSoItemId: 201, quantity: 3,
+    })).resolves.toBe(3);
+    expect(transferExecute).toHaveBeenNthCalledWith(2, expect.stringContaining('qty_allocated = qty_allocated - ?'), [3, 2, 41, 'biz-1']);
+    expect(transferExecute).toHaveBeenNthCalledWith(3, expect.stringContaining('INSERT INTO ims_stock_allocations'), expect.arrayContaining([
+      'biz-1', 99, 201, 2, 21, 'v-1', 4, 3, 2, '2026-09-08', '2026-09-10', 'confirmed',
+    ]));
+  });
+
+  it('moves supplier shortfall allocations to the held child PO at risk', async () => {
+    const transferExecute = vi.fn().mockResolvedValue([{ affectedRows: 2 }]);
+    await expect(transferStockAllocationsToSupplierBackorderLine({ execute: transferExecute }, {
+      businessId: 'biz-1', sourcePoItemId: 21, backorderPoId: 88, backorderPoItemId: 221,
+    })).resolves.toBe(2);
+    expect(transferExecute).toHaveBeenCalledWith(
+      expect.stringContaining("promise_status = 'at_risk'"),
+      [88, 221, 'biz-1', 21],
+    );
   });
 });

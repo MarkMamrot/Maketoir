@@ -1,6 +1,7 @@
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { calculateBackorderSplit, nextBackorderNumber } from './domain';
 import { StockShortfallError } from '../orderResolution/stockShortfall';
+import { transferStockAllocationsToBackorderLine } from '../stockAllocation/service';
 
 type FulfilQuantity = { itemId: number; quantity: number };
 
@@ -178,6 +179,13 @@ export async function splitCustomerBackorder(input: {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [input.businessId, operationKey, input.soId, backorderItem.id, backorderSoId, itemResult.insertId, backorderItem.qty_ordered],
       );
+      await transferStockAllocationsToBackorderLine(conn, {
+        businessId: input.businessId,
+        sourceSoItemId: Number(backorderItem.id),
+        backorderSoId,
+        backorderSoItemId: Number(itemResult.insertId),
+        quantity: Number(backorderItem.qty_ordered),
+      });
     }
 
     const actualItems = [];

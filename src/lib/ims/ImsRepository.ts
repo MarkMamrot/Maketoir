@@ -3,6 +3,7 @@ import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { assertNoActiveStockAllocations, markPurchaseOrderAllocationPromisesAtRisk } from './stockAllocation/service';
 import { getCustomerBackorderReadinessConflict } from './backorders/domain';
 import {
   assertAllowedPOStatusTransition,
@@ -1477,7 +1478,7 @@ export const ImsPORepo = {
       await conn.beginTransaction();
 
       const [[currentPo]] = await conn.execute<any[]>(
-        `SELECT status, location_id, business_id, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+        `SELECT status, location_id, business_id, expected_date, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!currentPo) throw new Error('Purchase order not found');
       assertExpectedOrderRevision(currentPo.updated_at, amendmentContext?.expectedUpdatedAt);
@@ -1496,6 +1497,10 @@ export const ImsPORepo = {
         if (existingItems.some(item => Number(item.qty_received ?? 0) > 0)) {
           throw new OrderAmendmentConflict('Received quantities cannot be changed by a normal edit. Amend only the outstanding remainder.');
         }
+        await assertNoActiveStockAllocations(conn, {
+          businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
+          operation: locationChanged ? 'changing the location or lines on' : 'changing the lines on',
+        });
       }
       const amendment = await beginOrderAmendment(conn, amendmentContext, {
         businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
@@ -1510,6 +1515,13 @@ export const ImsPORepo = {
       if (sets.length) {
         vals.push(id);
         await conn.execute(`UPDATE ims_purchase_orders SET ${sets.join(', ')} WHERE id = ?`, vals);
+      }
+      if (data.expected_date !== undefined && String(data.expected_date ?? '') !== String(currentPo.expected_date ?? '')) {
+        await markPurchaseOrderAllocationPromisesAtRisk(conn, {
+          businessId: String(currentPo.business_id ?? ''), poId: id,
+          expectedDate: data.expected_date ? String(data.expected_date) : null,
+          reason: 'Purchase order expected date changed; customer promise requires review.',
+        });
       }
 
       if (items) {
@@ -1739,6 +1751,12 @@ export const ImsPORepo = {
       const from = po.status as POStatus;
       const to   = newStatus;
       assertAllowedPOStatusTransition(from, to);
+      if (from !== to && (to === 'cancelled' || (from === 'confirmed' && to === 'draft'))) {
+        await assertNoActiveStockAllocations(conn, {
+          businessId: String(po.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
+          operation: to === 'cancelled' ? 'cancelling' : 'reverting',
+        });
+      }
       if (to === 'complete' && !String(po.supplier_invoice_number ?? '').trim()) {
         throw new OrderLifecycleConflict('A supplier invoice number is required before completing this purchase order.');
       }
@@ -2825,6 +2843,10 @@ export const ImsSORepo = {
              FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
           [id],
         );
+        await assertNoActiveStockAllocations(conn, {
+          businessId: String(preEdit.business_id ?? ''), orderKind: 'sales_order', orderId: id,
+          operation: locationChanged ? 'changing the location or lines on' : 'changing the lines on',
+        });
       }
       let replacementItems = items;
       if (['partially_fulfilled', 'fulfilled'].includes(String(preEdit?.status))) {
@@ -3046,6 +3068,12 @@ export const ImsSORepo = {
       const from = so.status as SOStatus;
       const to   = newStatus;
       assertAllowedSOStatusTransition(from, to);
+      if (from !== to && to === 'cancelled') {
+        await assertNoActiveStockAllocations(conn, {
+          businessId: String(so.business_id ?? ''), orderKind: 'sales_order', orderId: id,
+          operation: 'cancelling',
+        });
+      }
       if (from === 'partially_fulfilled' && to === 'fulfilled') {
         const hasOutstandingQuantity = items.some(item =>
           Number(item.qty_fulfilled ?? 0) < Number(item.qty_ordered),
