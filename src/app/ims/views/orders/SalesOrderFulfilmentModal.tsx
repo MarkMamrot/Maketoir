@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
+import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest, summarizeFulfilmentAllocations, type SalesOrderFulfilmentMode } from './salesOrderFulfilmentRequest';
 
 export function SalesOrderFulfilmentModal({
   order,
@@ -35,20 +35,8 @@ export function SalesOrderFulfilmentModal({
   }, [items]);
 
   const allocationByItem = useMemo(() => {
-    const result = new Map<number, { protected: number; ready: number; incoming: number }>();
     const allocations = Array.isArray(order?.stock_allocations) ? order.stock_allocations : [];
-    for (const allocation of allocations) {
-      if (allocation.state !== 'active') continue;
-      const itemId = Number(allocation.so_item_id);
-      const remaining = Math.max(0, Number(allocation.qty_allocated ?? 0) - Number(allocation.qty_fulfilled ?? 0));
-      const ready = Math.min(remaining, Math.max(0, Number(allocation.qty_received_assigned ?? 0) - Number(allocation.qty_fulfilled ?? 0)));
-      const current = result.get(itemId) ?? { protected: 0, ready: 0, incoming: 0 };
-      current.protected += remaining;
-      current.ready += ready;
-      current.incoming += Math.max(0, remaining - ready);
-      result.set(itemId, current);
-    }
-    return result;
+    return summarizeFulfilmentAllocations(allocations);
   }, [order?.stock_allocations]);
 
   async function submit(allowNegativeStock = false, retryOperationKey?: string) {

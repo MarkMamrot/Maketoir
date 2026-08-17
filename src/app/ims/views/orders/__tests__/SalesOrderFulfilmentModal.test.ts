@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest } from '../salesOrderFulfilmentRequest';
+import { buildSalesOrderFulfilmentOperationKey, buildSalesOrderFulfilmentRequest, summarizeFulfilmentAllocations } from '../salesOrderFulfilmentRequest';
 
 describe('buildSalesOrderFulfilmentRequest', () => {
+  it('summarizes active protection as ready and incoming after prior shipments', () => {
+    const result = summarizeFulfilmentAllocations([
+      { so_item_id: 7, qty_allocated: 5, qty_received_assigned: 3, qty_fulfilled: 1, state: 'active' },
+      { so_item_id: 7, qty_allocated: 2, qty_received_assigned: 0, qty_fulfilled: 0, state: 'active' },
+      { so_item_id: 7, qty_allocated: 4, qty_received_assigned: 4, qty_fulfilled: 4, state: 'fulfilled' },
+    ]);
+
+    expect(result.get(7)).toEqual({ protected: 6, ready: 2, incoming: 4 });
+  });
+
   it('uses the partial fulfilment route for partial shipments', () => {
     const payload = buildSalesOrderFulfilmentRequest('partial', 42, [{ itemId: 7, quantity: 3 }]);
 

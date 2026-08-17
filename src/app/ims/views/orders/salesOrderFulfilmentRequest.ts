@@ -6,6 +6,22 @@ export type SalesOrderFulfilmentRequest = { endpoint: string; body: Record<strin
 
 const QUANTITY_SCALE = 10_000;
 
+export function summarizeFulfilmentAllocations(allocations: any[]): Map<number, { protected: number; ready: number; incoming: number }> {
+  const result = new Map<number, { protected: number; ready: number; incoming: number }>();
+  for (const allocation of allocations) {
+    if (allocation.state !== 'active') continue;
+    const itemId = Number(allocation.so_item_id);
+    const remaining = Math.max(0, Number(allocation.qty_allocated ?? 0) - Number(allocation.qty_fulfilled ?? 0));
+    const ready = Math.min(remaining, Math.max(0, Number(allocation.qty_received_assigned ?? 0) - Number(allocation.qty_fulfilled ?? 0)));
+    const current = result.get(itemId) ?? { protected: 0, ready: 0, incoming: 0 };
+    current.protected += remaining;
+    current.ready += ready;
+    current.incoming += Math.max(0, remaining - ready);
+    result.set(itemId, current);
+  }
+  return result;
+}
+
 export async function buildSalesOrderFulfilmentOperationKey(
   mode: SalesOrderFulfilmentMode,
   soId: number,
