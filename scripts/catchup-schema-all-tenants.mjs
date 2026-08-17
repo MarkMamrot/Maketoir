@@ -141,14 +141,62 @@ const TABLE_DDLS = [
     INDEX idx_po_receive_order (business_id, po_id, created_at),
     CONSTRAINT fk_po_receive_order FOREIGN KEY (po_id) REFERENCES ims_purchase_orders(id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(64) NOT NULL, contact_id INT NOT NULL,
+    status ENUM('draft','submitted','cancelled') NOT NULL DEFAULT 'draft', reference VARCHAR(100) NULL,
+    notes TEXT NULL, subtotal DECIMAL(10,2) NOT NULL DEFAULT 0, total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+    submitted_at DATETIME NULL, so_id INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_biz_contact (business_id, contact_id), INDEX idx_status (status)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, variant_id VARCHAR(64) NOT NULL,
+    product_id VARCHAR(64) NOT NULL, product_name VARCHAR(255) NOT NULL, variant_label VARCHAR(255) NULL,
+    sku VARCHAR(100) NULL, qty INT NOT NULL DEFAULT 1, unit_price DECIMAL(10,2) NOT NULL,
+    line_total DECIMAL(10,2) NOT NULL, is_indent TINYINT(1) NOT NULL DEFAULT 0,
+    indent_qty DECIMAL(12,4) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_order (order_id), CONSTRAINT fk_wdoi_order FOREIGN KEY (order_id)
+      REFERENCES wholesale_draft_orders(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_stock_allocations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL,
+    so_id INT NOT NULL, so_item_id INT NOT NULL, po_id INT NOT NULL, po_item_id INT NOT NULL,
+    variant_id VARCHAR(36) NOT NULL, location_id INT NOT NULL, qty_allocated DECIMAL(12,4) NOT NULL,
+    qty_received_assigned DECIMAL(12,4) NOT NULL DEFAULT 0, qty_fulfilled DECIMAL(12,4) NOT NULL DEFAULT 0,
+    source_expected_date DATE NULL, promised_date DATE NULL,
+    promise_status ENUM('unpromised','confirmed','at_risk') NOT NULL DEFAULT 'unpromised',
+    state ENUM('active','fulfilled','released','cancelled') NOT NULL DEFAULT 'active', priority INT NOT NULL DEFAULT 0,
+    override_reason VARCHAR(500) NULL, risk_reason VARCHAR(500) NULL, created_by INT NULL, created_by_name VARCHAR(255) NULL,
+    released_by INT NULL, released_by_name VARCHAR(255) NULL, released_reason VARCHAR(500) NULL,
+    revision INT NOT NULL DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, released_at DATETIME NULL,
+    INDEX idx_stock_allocation_so (business_id, so_id, so_item_id, state),
+    INDEX idx_stock_allocation_po (business_id, po_id, po_item_id, state),
+    INDEX idx_stock_allocation_supply (business_id, variant_id, location_id, state, priority),
+    INDEX idx_stock_allocation_promise (business_id, promise_status, promised_date)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_stock_allocation_operations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NOT NULL,
+    action ENUM('allocate','resize','release','reassign','revise_promise','merge_retarget') NOT NULL,
+    allocation_id BIGINT NULL, state ENUM('processing','complete') NOT NULL DEFAULT 'processing',
+    request_json JSON NULL, response_json JSON NULL, actor_id INT NULL, actor_name VARCHAR(255) NULL,
+    safe_error VARCHAR(500) NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, completed_at DATETIME NULL,
+    UNIQUE KEY uq_stock_allocation_operation (business_id, operation_key),
+    INDEX idx_stock_allocation_history (business_id, allocation_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_backorder_merges (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
     operation_key VARCHAR(191) NOT NULL,
+    request_hash CHAR(64) NULL,
     backorder_type ENUM('customer','supplier') NOT NULL,
     target_order_id INT NOT NULL,
     source_order_ids JSON NOT NULL,
+    response_json JSON NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
     UNIQUE KEY uq_backorder_merge_operation (business_id, operation_key),
     INDEX idx_backorder_merge_target (business_id, backorder_type, target_order_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
@@ -683,6 +731,7 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['wholesale_draft_order_items', 'indent_qty', 'DECIMAL(12,4) NOT NULL DEFAULT 0 AFTER is_indent'],
   ['ims_purchase_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_purchase_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
   ['ims_purchase_order_payments', 'xero_post_intent', "ENUM('solvantis_only','post_to_xero') NOT NULL DEFAULT 'solvantis_only' AFTER payment_method_id"],
@@ -848,6 +897,9 @@ const COLUMNS = [
   ['loyalty_transactions', 'eligible_spend_cents', 'INT UNSIGNED NULL'],
   ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
+  ['ims_backorder_merges', 'request_hash', 'CHAR(64) NULL AFTER operation_key'],
+  ['ims_backorder_merges', 'response_json', 'JSON NULL AFTER source_order_ids'],
+  ['ims_backorder_merges', 'completed_at', 'DATETIME NULL AFTER created_at'],
   ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
   ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
 ];
@@ -1034,6 +1086,23 @@ async function verifyBackorderMergeSchema(schema) {
   console.log(`  verified ${schema}.ims_backorder_merges`);
 }
 
+async function verifyStockAvailabilitySchema(schema) {
+  const requiredColumns = {
+    ims_stock_allocations: ['business_id', 'so_item_id', 'po_item_id', 'qty_allocated', 'qty_received_assigned', 'promise_status', 'state', 'revision'],
+    ims_stock_allocation_operations: ['business_id', 'operation_key', 'request_hash', 'action', 'state'],
+    wholesale_draft_order_items: ['is_indent', 'indent_qty'],
+  };
+  for (const [table, columns] of Object.entries(requiredColumns)) {
+    const [rows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, table],
+    );
+    const found = new Set(rows.map(row => row.COLUMN_NAME));
+    for (const column of columns) if (!found.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+  }
+  console.log(`  verified ${schema} stock availability schema`);
+}
+
 async function verifyOutstandingResolutionSchema(schema) {
   const required = {
     ims_so_shortfall_resolutions: ['PRIMARY', 'uq_so_shortfall_operation', 'idx_so_shortfall_source', 'idx_so_shortfall_child'],
@@ -1174,6 +1243,7 @@ try {
   for (const schema of schemas) {
     await migrateSchema(schema);
     await verifyBackorderMergeSchema(schema);
+    await verifyStockAvailabilitySchema(schema);
     await verifyOutstandingResolutionSchema(schema);
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);

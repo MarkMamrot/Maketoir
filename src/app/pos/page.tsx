@@ -1362,6 +1362,7 @@ function MainPos({
   const [loyaltyError, setLoyaltyError] = useState(false);
   const [selectedReward, setSelectedReward] = useState<{ id: number; displayName: string; pointsCost: number; valueAud: number } | null>(null);
   const [saleSubmitError, setSaleSubmitError] = useState<string | null>(null);
+  const [stockAvailabilityWarning, setStockAvailabilityWarning] = useState<string | null>(null);
   const [gcIssueOpen, setGcIssueOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
@@ -1913,7 +1914,18 @@ function MainPos({
             body: JSON.stringify(payload),
           });
           const data = await res.json();
-          if (res.ok) serverId = data.id;
+          if (res.ok) {
+            serverId = data.id;
+            if (Array.isArray(data.stockWarnings) && data.stockWarnings.length > 0) {
+              const names = data.stockWarnings
+                .map((warning: { itemName?: unknown }) => typeof warning.itemName === 'string' ? warning.itemName : '')
+                .filter(Boolean)
+                .slice(0, 3);
+              setStockAvailabilityWarning(
+                `${names.length > 0 ? names.join(', ') : `${data.stockWarnings.length} item${data.stockWarnings.length === 1 ? '' : 's'}`} sold below available stock. Check the item${data.stockWarnings.length === 1 ? '' : 's'} and perform a stocktake or adjustment if required.`,
+              );
+            }
+          }
           else if (selectedReward || linkedReturnSaleId != null) {
             setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
             return;
@@ -2584,6 +2596,16 @@ function MainPos({
           linkedContact={linkedContact}
           submitError={saleSubmitError}
         />
+      )}
+
+      {stockAvailabilityWarning && (
+        <div role="alert" style={{ position: 'fixed', right: 20, bottom: 20, zIndex: 1200, width: 'min(420px, calc(100vw - 40px))', padding: '14px 16px', border: '1px solid #d97706', borderRadius: 8, background: '#fffbeb', color: '#78350f', boxShadow: '0 12px 30px rgba(0,0,0,.2)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>Stock check required</div>
+            <div style={{ fontSize: '.88rem', lineHeight: 1.45 }}>{stockAvailabilityWarning}</div>
+          </div>
+          <button type="button" onClick={() => setStockAvailabilityWarning(null)} style={{ border: 0, background: 'transparent', color: '#78350f', cursor: 'pointer', fontWeight: 700, padding: 2 }} aria-label="Dismiss stock warning">Dismiss</button>
+        </div>
       )}
 
       {gcIssueOpen && (

@@ -8,12 +8,14 @@ const {
   mockRefreshVariantCache,
   mockGetConnection,
   mockReportRuntimeIssue,
+  mockAssignReceiptToStockAllocations,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
   mockRefreshVariantCache: vi.fn(),
   mockGetConnection: vi.fn(),
   mockReportRuntimeIssue: vi.fn(),
+  mockAssignReceiptToStockAllocations: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -34,6 +36,10 @@ vi.mock('@/services/IMSMySQLService', () => ({
 
 vi.mock('@/lib/runtimeIssues', () => ({
   reportRuntimeIssue: mockReportRuntimeIssue,
+}));
+
+vi.mock('@/lib/ims/stockAllocation/service', () => ({
+  assignReceiptToStockAllocations: mockAssignReceiptToStockAllocations,
 }));
 
 import { POST } from '../route';
@@ -247,6 +253,7 @@ describe('POST /api/ims/receive/batch', () => {
     mockGetImsSession.mockResolvedValue({ businessId: 'biz-1' });
     mockTriggerPOXeroSync.mockResolvedValue(undefined);
     mockRefreshVariantCache.mockResolvedValue(undefined);
+    mockAssignReceiptToStockAllocations.mockResolvedValue([]);
   });
 
   it('recalculates avg cost, clamps over-receive, and leaves a fully received PO in progress', async () => {

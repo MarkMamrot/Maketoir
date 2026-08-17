@@ -4,15 +4,14 @@
  */
 import { NextResponse } from 'next/server';
 import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 export async function GET() {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const orders = await imsQuery<any>(
       `SELECT o.*, COUNT(i.id) AS item_count
        FROM wholesale_draft_orders o
@@ -26,6 +25,7 @@ export async function GET() {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }
 
 interface DraftItem {
@@ -37,14 +37,14 @@ interface DraftItem {
   qty: number;
   unit_price: number;
   is_indent?: boolean;
+  indent_qty?: number;
 }
 
 export async function POST(req: Request) {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const body = await req.json();
     const notes: string = body.notes ?? '';
     const items: DraftItem[] = Array.isArray(body.items) ? body.items : [];
@@ -64,11 +64,11 @@ export async function POST(req: Request) {
       const lineTotal = item.qty * item.unit_price;
       await imsExecute(
         `INSERT INTO wholesale_draft_order_items
-           (order_id, variant_id, product_id, product_name, variant_label, sku, qty, unit_price, line_total, is_indent)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (order_id, variant_id, product_id, product_name, variant_label, sku, qty, unit_price, line_total, is_indent, indent_qty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [orderId, item.variant_id, item.product_id, item.product_name,
          item.variant_label ?? null, item.sku ?? null,
-         item.qty, item.unit_price, lineTotal, item.is_indent ? 1 : 0],
+         item.qty, item.unit_price, lineTotal, item.is_indent ? 1 : 0, Math.max(0, Number(item.indent_qty ?? 0))],
       );
     }
 
@@ -76,4 +76,5 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }

@@ -1,4 +1,5 @@
 import { getIMSPool } from '@/services/IMSMySQLService';
+import { createHash } from 'crypto';
 import { commercialLineKey, getBackorderMergeConflict, type BackorderMergeDocument } from './domain';
 
 export type BackorderMergeType = 'customer' | 'supplier';
@@ -92,6 +93,11 @@ function calculateTotals(items: any[], config: MergeConfig, taxTreatment: string
   };
 }
 
+export function buildBackorderMergeRequestHash(type: BackorderMergeType, orderIds: number[]): string {
+  const canonicalIds = Array.from(new Set(orderIds)).sort((left, right) => left - right);
+  return createHash('sha256').update(JSON.stringify({ type, orderIds: canonicalIds })).digest('hex');
+}
+
 async function mergeBackorders(input: {
   businessId: string;
   type: BackorderMergeType;
@@ -104,6 +110,7 @@ async function mergeBackorders(input: {
   if (orderIds.length < 2 || orderIds.some(id => !Number.isInteger(id) || id <= 0)) {
     throw new Error('Select at least two valid backorders to merge.');
   }
+  const requestHash = buildBackorderMergeRequestHash(input.type, orderIds);
 
   const config = CONFIGS[input.type];
   const conn = await getIMSPool().getConnection();
@@ -111,13 +118,23 @@ async function mergeBackorders(input: {
     await conn.beginTransaction();
 
     const [existingRows] = await conn.execute<any[]>(
-      `SELECT target_order_id, source_order_ids
+      `SELECT target_order_id, source_order_ids, request_hash
          FROM ims_backorder_merges
         WHERE business_id = ? AND operation_key = ? AND backorder_type = ?
         LIMIT 1 FOR UPDATE`,
       [input.businessId, operationKey, input.type],
     );
     if (existingRows[0]) {
+      const existingSourceIds = Array.isArray(existingRows[0].source_order_ids)
+        ? existingRows[0].source_order_ids.map(Number)
+        : JSON.parse(String(existingRows[0].source_order_ids ?? '[]'));
+      const replayHash = String(existingRows[0].request_hash ?? '') || buildBackorderMergeRequestHash(
+        input.type,
+        [Number(existingRows[0].target_order_id), ...existingSourceIds],
+      );
+      if (replayHash !== requestHash) {
+        throw new Error('This merge operation key was already used for a different request.');
+      }
       const targetOrderId = Number(existingRows[0].target_order_id);
       const [targetRows] = await conn.execute<any[]>(
         `SELECT ${config.orderNumberColumn} AS order_number FROM ${config.orderTable}
@@ -129,9 +146,7 @@ async function mergeBackorders(input: {
         type: input.type,
         targetOrderId,
         targetOrderNumber: String(targetRows[0]?.order_number ?? ''),
-        sourceOrderIds: Array.isArray(existingRows[0].source_order_ids)
-          ? existingRows[0].source_order_ids.map(Number)
-          : JSON.parse(String(existingRows[0].source_order_ids ?? '[]')),
+        sourceOrderIds: existingSourceIds,
         operationKey,
         variantIds: [],
       };
@@ -231,6 +246,24 @@ async function mergeBackorders(input: {
           WHERE business_id = ? AND ${config.provenanceOrderColumn} = ? AND ${config.provenanceItemColumn} = ?`,
         [targetOrder.id, targetItem.id, input.businessId, sourceItem[config.itemOrderColumn], sourceItem.id],
       );
+      if (input.type === 'customer') {
+        await conn.execute(
+          `UPDATE ims_stock_allocations
+              SET so_id = ?, so_item_id = ?, revision = revision + 1
+            WHERE business_id = ? AND so_id = ? AND so_item_id = ?`,
+          [targetOrder.id, targetItem.id, input.businessId, sourceItem.so_id, sourceItem.id],
+        );
+      } else {
+        await conn.execute(
+          `UPDATE ims_stock_allocations
+              SET po_id = ?, po_item_id = ?,
+                  promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk' ELSE promise_status END,
+                  risk_reason = CASE WHEN state = 'active' THEN 'Incoming supply moved by supplier backorder merge.' ELSE risk_reason END,
+                  revision = revision + 1
+            WHERE business_id = ? AND po_id = ? AND po_item_id = ?`,
+          [targetOrder.id, targetItem.id, input.businessId, sourceItem.po_id, sourceItem.id],
+        );
+      }
     }
 
     const freight = orders.reduce((sum, order) => sum + Number(order.freight ?? 0), 0);
@@ -250,11 +283,19 @@ async function mergeBackorders(input: {
         WHERE business_id = ? AND id IN (${sourcePlaceholders})`,
       [input.businessId, ...sourceOrderIds],
     );
+    const response = {
+      type: input.type,
+      targetOrderId: Number(targetOrder.id),
+      targetOrderNumber: String(targetOrder[config.orderNumberColumn]),
+      sourceOrderIds,
+      operationKey,
+    };
     await conn.execute(
       `INSERT INTO ims_backorder_merges
-        (business_id, operation_key, backorder_type, target_order_id, source_order_ids)
-       VALUES (?, ?, ?, ?, ?)`,
-      [input.businessId, operationKey, input.type, targetOrder.id, JSON.stringify(sourceOrderIds)],
+        (business_id, operation_key, request_hash, backorder_type, target_order_id, source_order_ids, response_json, completed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [input.businessId, operationKey, requestHash, input.type, targetOrder.id,
+        JSON.stringify(sourceOrderIds), JSON.stringify(response)],
     );
 
     await conn.commit();

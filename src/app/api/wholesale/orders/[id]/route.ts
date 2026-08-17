@@ -5,7 +5,7 @@
  */
 import { NextResponse } from 'next/server';
 import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 type Ctx = { params: { id: string } };
@@ -21,12 +21,11 @@ async function findOrder(id: number, businessId: string, contactId: number) {
 export async function GET(_req: Request, { params }: Ctx) {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const order = await findOrder(id, session.businessId, session.contactId);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -38,17 +37,17 @@ export async function GET(_req: Request, { params }: Ctx) {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }
 
 export async function PUT(req: Request, { params }: Ctx) {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const order = await findOrder(id, session.businessId, session.contactId);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status !== 'draft') return NextResponse.json({ error: 'Only draft orders can be edited.' }, { status: 400 });
@@ -69,11 +68,11 @@ export async function PUT(req: Request, { params }: Ctx) {
       const lineTotal = item.qty * item.unit_price;
       await imsExecute(
         `INSERT INTO wholesale_draft_order_items
-           (order_id, variant_id, product_id, product_name, variant_label, sku, qty, unit_price, line_total, is_indent)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (order_id, variant_id, product_id, product_name, variant_label, sku, qty, unit_price, line_total, is_indent, indent_qty)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [id, item.variant_id, item.product_id, item.product_name,
          item.variant_label ?? null, item.sku ?? null,
-         item.qty, item.unit_price, lineTotal, item.is_indent ? 1 : 0],
+         item.qty, item.unit_price, lineTotal, item.is_indent ? 1 : 0, Math.max(0, Number(item.indent_qty ?? 0))],
       );
     }
 
@@ -81,17 +80,17 @@ export async function PUT(req: Request, { params }: Ctx) {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const order = await findOrder(id, session.businessId, session.contactId);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status === 'submitted') return NextResponse.json({ error: 'Submitted orders cannot be deleted.' }, { status: 400 });
@@ -101,4 +100,5 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }

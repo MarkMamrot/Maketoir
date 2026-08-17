@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       registerSessionId = openSession?.id ?? null;
     }
 
-    const { saleId, stockError, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
+    const { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
       register_id:       registerId,
@@ -180,7 +180,27 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, id: saleId, credit_note_id: creditNoteId, loyalty, loyalty_points: loyaltyPoints, loyalty_redemption: loyaltyRedemption, ...(stockError ? { stockWarning: stockError } : {}) });
+    if (stockWarnings.length > 0) {
+      createNotification(
+        businessId,
+        'pos_stock_availability',
+        'POS sale needs a stock check',
+        `Sale #${saleId} reduced ${stockWarnings.length} item${stockWarnings.length === 1 ? '' : 's'} below available customer demand or below zero. Check the items and perform a stocktake or adjustment if required.`,
+        { sale_id: saleId, location_id: locationId, warnings: stockWarnings },
+        'warning',
+      ).catch(err => console.error('[notifications] POS availability warning failed:', err));
+    }
+
+    return NextResponse.json({
+      success: true,
+      id: saleId,
+      credit_note_id: creditNoteId,
+      loyalty,
+      loyalty_points: loyaltyPoints,
+      loyalty_redemption: loyaltyRedemption,
+      stockWarnings,
+      ...(stockError ? { stockWarning: stockError } : {}),
+    });
   } catch (err: any) {
     console.error('POS sale create error:', err);
     const status = err instanceof LoyaltyReturnBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;

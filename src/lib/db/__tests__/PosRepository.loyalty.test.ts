@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer } = vi.hoisted(() => ({
+const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
   mockReserveReward: vi.fn(),
@@ -9,6 +9,7 @@ const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosS
   mockReconcilePosSaleEarn: vi.fn(),
   mockUnwindGiftCards: vi.fn(),
   mockSyncConfiguredCustomer: vi.fn(),
+  mockGetPosStockQtyChange: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
     reconcilePosSaleEarn: mockReconcilePosSaleEarn,
   },
 }));
-vi.mock('@/lib/ims/posReturnCreditNote', () => ({ getPosStockQtyChange: vi.fn() }));
+vi.mock('@/lib/ims/posReturnCreditNote', () => ({ getPosStockQtyChange: mockGetPosStockQtyChange }));
 vi.mock('@/lib/pos/giftCardSaleVoid', () => ({ unwindGiftCardTransactionsForSale: mockUnwindGiftCards }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(null) }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
@@ -116,6 +117,7 @@ describe('PosSalesRepo loyalty earning', () => {
     mockReconcilePosSaleEarn.mockResolvedValue({ transactionId: 13, accountId: 9, balanceAfter: 90, duplicate: false });
     mockUnwindGiftCards.mockResolvedValue([]);
     mockSyncConfiguredCustomer.mockResolvedValue({ status: 'synced' });
+    mockGetPosStockQtyChange.mockImplementation((quantity: number, saleType: string) => saleType === 'return' ? quantity : -quantity);
   });
 
   it('awards enrolled customer points before committing the sale', async () => {
@@ -137,6 +139,33 @@ describe('PosSalesRepo loyalty earning', () => {
     expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
     expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({ businessId: 'business-1', contactId: 42 });
     expect(result).toMatchObject({ saleId: 101, loyaltyPoints: 100, loyalty: { transactionId: 8 } });
+  });
+
+  it('allows an oversell while warning and marking received allocations at risk', async () => {
+    const data = saleData();
+    data.customer_id = null;
+    data.items[0].variant_id = 'variant-1';
+    data.items[0].qty = 3;
+    const { stockConnection } = setupConnections([]);
+    stockConnection.execute
+      .mockResolvedValueOnce([[{ qty_on_hand: 2, qty_committed: 1, avg_cost: 20, is_stock_item: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }]);
+
+    const result = await PosSalesRepo.complete(data);
+
+    expect(result.stockError).toBeUndefined();
+    expect(result.stockWarnings).toEqual([{
+      variantId: 'variant-1',
+      itemName: 'Product',
+      previousOnHand: 2,
+      resultingOnHand: -1,
+      quantityCommitted: 1,
+      reason: 'negative_stock',
+    }]);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(1, expect.stringContaining('FOR UPDATE'), [3, 'variant-1']);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(2, expect.stringContaining("promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk'"), ['business-1', 'variant-1', 3]);
   });
 
   it('skips earning when the business program is disabled', async () => {

@@ -12,6 +12,7 @@ import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/reposit
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
+import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -32,7 +33,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       }).catch(() => {});
     }
     const resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'customer', Number(params.id));
-    return NextResponse.json({ success: true, data: { ...data, resolution_financials, activity_history, amendment_history: activity_history } });
+    let stock_allocations: Awaited<ReturnType<typeof listStockAllocations>> = [];
+    try {
+      stock_allocations = await listStockAllocations({ businessId, soId: Number(params.id) });
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_sales_orders', operation: 'load_stock_allocations',
+        title: 'Sales order stock allocations could not be loaded', error,
+        reference: { type: 'sales_order', id: params.id },
+      }).catch(() => {});
+    }
+    return NextResponse.json({ success: true, data: { ...data, resolution_financials, stock_allocations, activity_history, amendment_history: activity_history } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

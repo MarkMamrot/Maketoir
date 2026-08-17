@@ -13,6 +13,7 @@ import { recordXeroReconciliationIssue } from '@/lib/xero/reconciliation/reposit
 import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
+import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
 
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
@@ -46,9 +47,19 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }).catch(() => {});
       }
     }
+    let stock_allocations: Awaited<ReturnType<typeof listStockAllocations>> = [];
+    try {
+      stock_allocations = await listStockAllocations({ businessId, poId: Number(params.id) });
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims_purchase_orders', operation: 'load_stock_allocations',
+        title: 'Purchase order stock allocations could not be loaded', error,
+        reference: { type: 'purchase_order', id: params.id },
+      }).catch(() => {});
+    }
     return NextResponse.json({
       success: true,
-      data: { ...data, resolution_financials, activity_history, amendment_history: activity_history },
+      data: { ...data, resolution_financials, stock_allocations, activity_history, amendment_history: activity_history },
       ...(resolutionFinancialsWarning ? { warning: resolutionFinancialsWarning } : {}),
     });
   } catch (e: any) {

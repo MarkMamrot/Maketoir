@@ -4,6 +4,7 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { assignReceiptToStockAllocations } from '@/lib/ims/stockAllocation/service';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
 import { createHash, randomUUID } from 'crypto';
 import {
@@ -231,6 +232,8 @@ export async function POST(req: Request) {
         },
       );
 
+      const allocationReceipts: Array<{ allocationId: number; soId: number; soItemId: number; quantity: number; ready: boolean }> = [];
+
       // ─── 1. Update qty_received (accumulate) + stock ──────────────────────
       for (const item of received_items) {
         const { variant_id, qty_received, barcode_new } = item;
@@ -252,6 +255,11 @@ export async function POST(req: Request) {
           [appliedQty, po_id, variant_id]
         );
         poItem.qty_received = alreadyReceived + appliedQty;
+        allocationReceipts.push(...await assignReceiptToStockAllocations(conn, {
+          businessId,
+          poItemId: Number(poItem.id),
+          receivedQuantity: appliedQty,
+        }));
 
         // Read location qty for movement tracking; org-level state for avg calculation
         const [[currentStock]] = await conn.execute<any[]>(
@@ -554,6 +562,7 @@ export async function POST(req: Request) {
         product_updates: productUpdatesCount,
         stock_updates: stockUpdatesCount,
         variant_updates: variantUpdatesCount,
+        allocationReceipts,
         backorderPoId,
         backorderPoNumber,
         message: newStatus === 'complete'

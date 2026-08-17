@@ -13,7 +13,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: vi.fn(() => ({ getConnection: vi.fn(async () => connection) })),
 }));
 
-import { mergeCustomerBackorders, mergeSupplierBackorders } from '../backorders/mergeBackorders';
+import { buildBackorderMergeRequestHash, mergeCustomerBackorders, mergeSupplierBackorders } from '../backorders/mergeBackorders';
 
 const sharedHeader = {
   business_id: 'biz-1',
@@ -78,7 +78,11 @@ describe('mergeBackorders', () => {
       expect.stringContaining("SET status = 'cancelled'"),
       ['biz-1', 12],
     );
-    expect(execute.mock.calls.some(([sql]) => String(sql).includes('ims_stock'))).toBe(false);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET so_id = ?, so_item_id = ?'),
+      [11, 101, 'biz-1', 12, 102],
+    );
+    expect(execute.mock.calls.some(([sql]) => /(?:UPDATE|INSERT INTO)\s+ims_stock\s/i.test(String(sql)))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
   });
@@ -99,7 +103,38 @@ describe('mergeBackorders', () => {
       expect.stringContaining('UPDATE ims_po_backorder_lines'),
       [21, 299, 'biz-1', 22, 202],
     );
-    expect(execute.mock.calls.some(([sql]) => String(sql).includes('ims_stock'))).toBe(false);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET po_id = ?, po_item_id = ?'),
+      [21, 299, 'biz-1', 22, 202],
+    );
+    expect(execute.mock.calls.some(([sql]) => /(?:UPDATE|INSERT INTO)\s+ims_stock\s/i.test(String(sql)))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('hashes merge identity independently of selected order order', () => {
+    expect(buildBackorderMergeRequestHash('customer', [12, 11, 12]))
+      .toBe(buildBackorderMergeRequestHash('customer', [11, 12]));
+    expect(buildBackorderMergeRequestHash('supplier', [11, 12]))
+      .not.toBe(buildBackorderMergeRequestHash('customer', [11, 12]));
+  });
+
+  it('rejects changed payload reuse before loading or mutating orders', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_backorder_merges')) return [[{
+        target_order_id: 11,
+        source_order_ids: [12],
+        request_hash: buildBackorderMergeRequestHash('customer', [11, 12]),
+      }]];
+      return [[]];
+    });
+
+    await expect(mergeCustomerBackorders({
+      businessId: 'biz-1',
+      orderIds: [11, 13],
+      operationKey: 'merge-so-1',
+    })).rejects.toThrow('different request');
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('SELECT * FROM ims_sales_orders'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).trimStart().startsWith('UPDATE'))).toBe(false);
+    expect(connection.rollback).toHaveBeenCalledOnce();
   });
 });

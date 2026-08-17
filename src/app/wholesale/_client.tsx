@@ -50,6 +50,7 @@ interface CartItem {
   available: number;
   allow_indent: boolean;
   is_indent: boolean;
+  indent_qty: number;
 }
 
 interface DraftOrder {
@@ -116,7 +117,7 @@ function ProductCard({
   product, onAdd, cartQtyMap,
 }: {
   product: WholesaleProduct;
-  onAdd: (item: Omit<CartItem, 'is_indent'>) => void;
+  onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
   cartQtyMap: Record<string, number>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -232,7 +233,7 @@ function CartPanel({ items, notes, onNotesChange, onQtyChange, onRemove, onSaveD
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', lineHeight: 1.3 }}>{item.product_name}</div>
                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{item.variant_label}{item.sku ? ` · ${item.sku}` : ''}</div>
-                {item.is_indent && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 700, color: '#f59e0b', background: '#fef3c7', padding: '1px 6px', borderRadius: 99 }}>INDENT ORDER</span>}
+                {item.indent_qty > 0 && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 700, color: '#f59e0b', background: '#fef3c7', padding: '1px 6px', borderRadius: 99 }}>{item.indent_qty} ON INDENT</span>}
                 <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{fmtCurrency(item.unit_price)} × {item.qty} = <strong style={{ color: '#0f172a' }}>{fmtCurrency(item.qty * item.unit_price)}</strong></div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
@@ -402,17 +403,22 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
 
   const cartQtyMap = cartItems.reduce<Record<string, number>>((acc, i) => { acc[i.variant_id] = (acc[i.variant_id] ?? 0) + i.qty; return acc; }, {});
 
-  const handleAddToCart = (item: Omit<CartItem, 'is_indent'>) => {
-    const isIndent = item.available <= 0 && item.allow_indent;
+  const handleAddToCart = (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => {
     setCartItems(prev => {
       const ex = prev.find(i => i.variant_id === item.variant_id);
-      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const n = i.qty + 1; return { ...i, qty: i.allow_indent ? n : Math.min(n, i.available) }; });
-      return [...prev, { ...item, qty: 1, is_indent: isIndent }];
+      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + 1 : Math.min(i.qty + 1, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
+      const indentQty = Math.max(0, 1 - item.available);
+      return [...prev, { ...item, qty: 1, indent_qty: indentQty, is_indent: indentQty > 0 }];
     });
     showToast(`Added: ${item.product_name} — ${item.variant_label}`);
   };
 
-  const handleQtyChange = (vid: string, qty: number) => setCartItems(p => p.map(i => i.variant_id === vid ? { ...i, qty } : i));
+  const handleQtyChange = (vid: string, qty: number) => setCartItems(p => p.map(i => {
+    if (i.variant_id !== vid) return i;
+    const nextQty = i.allow_indent ? qty : Math.min(qty, i.available);
+    const indentQty = Math.max(0, nextQty - i.available);
+    return { ...i, qty: nextQty, indent_qty: indentQty, is_indent: indentQty > 0 };
+  }));
   const handleRemove    = (vid: string) => setCartItems(p => p.filter(i => i.variant_id !== vid));
   const clearCart = () => { setCartItems([]); setCartNotes(''); setEditingOrderId(null); sessionStorage.removeItem(CART_KEY); };
 
@@ -482,6 +488,7 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
           available:     item.variant_id in liveStockMap ? liveStockMap[item.variant_id] : 9999,
           allow_indent:  !!item.is_indent,
           is_indent:     !!item.is_indent,
+          indent_qty:    Number(item.indent_qty ?? (item.is_indent ? item.qty : 0)),
         })));
         setCartNotes(d.order.notes ?? ''); setEditingOrderId(id); setView('shop'); setCartOpen(true);
       }

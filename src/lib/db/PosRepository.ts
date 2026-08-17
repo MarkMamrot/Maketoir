@@ -262,7 +262,21 @@ export const PosSalesRepo = {
       amount:         number;
       reference?:     string | null;
     }>;
-  }): Promise<{ saleId: number; stockError: string | undefined; loyalty: LoyaltyMutationResult | null; loyaltyPoints: number; loyaltyRedemption: LoyaltyRedemptionResult | null }> {
+  }): Promise<{
+    saleId: number;
+    stockError: string | undefined;
+    stockWarnings: Array<{
+      variantId: string;
+      itemName: string;
+      previousOnHand: number;
+      resultingOnHand: number;
+      quantityCommitted: number;
+      reason: 'negative_stock' | 'committed_stock_at_risk';
+    }>;
+    loyalty: LoyaltyMutationResult | null;
+    loyaltyPoints: number;
+    loyaltyRedemption: LoyaltyRedemptionResult | null;
+  }> {
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     let loyaltyWriteAttempted = false;
@@ -548,6 +562,14 @@ export const PosSalesRepo = {
       //    Returns stockError string if deduction failed — API returns success
       //    anyway so the client clears the queue, but logs the issue.
       let stockError: string | undefined;
+      const stockWarnings: Array<{
+        variantId: string;
+        itemName: string;
+        previousOnHand: number;
+        resultingOnHand: number;
+        quantityCommitted: number;
+        reason: 'negative_stock' | 'committed_stock_at_risk';
+      }> = [];
       if (data.status === 'completed' || data.status === 'layby_complete') {
         const pool = getIMSPool();
         const stockConn = await pool.getConnection();
@@ -558,18 +580,41 @@ export const PosSalesRepo = {
             const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
             if (qtyChange === null) continue;
             const [stockRows]: any = await stockConn.execute(
-              `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
+                    `SELECT s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
                       COALESCE(p.is_stock_item, 1) AS is_stock_item
                FROM ims_product_variants pv
                JOIN ims_products p ON p.product_id = pv.product_id
                LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
-               WHERE pv.variant_id = ? LIMIT 1`,
+               WHERE pv.variant_id = ? LIMIT 1
+               FOR UPDATE`,
               [data.location_id, item.variant_id],
             );
             if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
             const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
+            const quantityCommitted = Number(stockRows[0]?.qty_committed ?? 0);
             const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
             const newSoh = currentSoh + qtyChange;
+            if (qtyChange < 0 && (newSoh < 0 || newSoh < quantityCommitted)) {
+              stockWarnings.push({
+                variantId: item.variant_id,
+                itemName: item.name,
+                previousOnHand: currentSoh,
+                resultingOnHand: newSoh,
+                quantityCommitted,
+                reason: newSoh < 0 ? 'negative_stock' : 'committed_stock_at_risk',
+              });
+              if (newSoh < quantityCommitted) {
+                await stockConn.execute(
+                  `UPDATE ims_stock_allocations
+                      SET promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk' ELSE promise_status END,
+                          risk_reason = 'POS sale reduced stock below confirmed customer demand.',
+                          revision = revision + 1
+                    WHERE business_id = ? AND variant_id = ? AND location_id = ? AND state = 'active'
+                      AND qty_received_assigned > qty_fulfilled`,
+                  [data.business_id, item.variant_id, data.location_id],
+                );
+              }
+            }
 
             if (stockRows[0]) {
               await stockConn.execute(
@@ -578,8 +623,8 @@ export const PosSalesRepo = {
               );
             } else {
               await stockConn.execute(
-                `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
-                [item.variant_id, data.location_id, newSoh],
+                `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, ?)`,
+                [data.business_id, item.variant_id, data.location_id, newSoh],
               );
             }
 
@@ -608,7 +653,7 @@ export const PosSalesRepo = {
         });
       }
 
-      return { saleId, stockError, loyalty, loyaltyPoints, loyaltyRedemption };
+      return { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption };
     } catch (err) {
       await conn.rollback();
       if (loyaltyWriteAttempted && !(err instanceof LoyaltyValidationError)) {

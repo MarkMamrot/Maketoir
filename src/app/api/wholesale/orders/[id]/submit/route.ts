@@ -9,7 +9,7 @@
  */
 import { NextResponse } from 'next/server';
 import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { createNotification } from '@/lib/ims/createNotification';
@@ -25,12 +25,11 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 export async function POST(_req: Request, { params }: Ctx) {
   const { session, response } = requireWholesaleSession();
   if (response) return response;
-  await enterImsForBusiness(session.businessId);
-
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     // ── 1. Fetch draft order + items ─────────────────────────────────────────
     const orderRows = await imsQuery<any>(
       `SELECT * FROM wholesale_draft_orders WHERE id = ? AND business_id = ? AND contact_id = ?`,
@@ -52,36 +51,46 @@ export async function POST(_req: Request, { params }: Ctx) {
       return NextResponse.json({ error: 'Cannot submit an empty order.' }, { status: 400 });
     }
 
-    // ── Server-side stock validation for non-indent items ────────────────────
-    const nonIndentItems = items.filter((i: any) => !i.is_indent);
-    if (nonIndentItems.length > 0) {
-      const stockPlaceholders = nonIndentItems.map(() => '?').join(',');
-      const stockRows = await imsQuery<{ variant_id: string; available: number }>(
-        `SELECT variant_id,
-                GREATEST(0, SUM(qty_on_hand) - SUM(COALESCE(qty_committed,0))) AS available
-         FROM ims_stock
-         WHERE variant_id IN (${stockPlaceholders})
-         GROUP BY variant_id`,
-        nonIndentItems.map((i: any) => i.variant_id),
-      );
-      const liveStock: Record<string, number> = {};
-      for (const r of stockRows) liveStock[r.variant_id] = Number(r.available);
+    // Recompute indent quantities from live availability; client flags are advisory only.
+    const variantIds = items.map((item: any) => item.variant_id);
+    const stockPlaceholders = variantIds.map(() => '?').join(',');
+    const stockRows = await imsQuery<{ variant_id: string; available: number; allow_indent_wholesale: number }>(
+      `SELECT pv.variant_id, p.allow_indent_wholesale,
+              GREATEST(0, COALESCE(SUM(s.qty_on_hand),0) - COALESCE(SUM(s.qty_committed),0)) AS available
+         FROM ims_product_variants pv
+         JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = ?
+         LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.business_id = ?
+        WHERE pv.variant_id IN (${stockPlaceholders})
+        GROUP BY pv.variant_id, p.allow_indent_wholesale`,
+      [session.businessId, session.businessId, ...variantIds],
+    );
+    const liveStock = new Map(stockRows.map(row => [row.variant_id, row]));
+    for (const item of items) {
+      const stock = liveStock.get(item.variant_id);
+      item.indent_qty = Math.max(0, Number(item.qty) - Number(stock?.available ?? 0));
+      item.is_indent = item.indent_qty > 0;
+    }
 
-      const overstock = nonIndentItems
-        .filter((i: any) => i.qty > (liveStock[i.variant_id] ?? 0))
+    const overstock = items
+        .filter((item: any) => item.indent_qty > 0 && !Number(liveStock.get(item.variant_id)?.allow_indent_wholesale ?? 0))
         .map((i: any) => ({
           product_name:  i.product_name,
           variant_label: i.variant_label ?? null,
           qty_requested: i.qty,
-          qty_available: liveStock[i.variant_id] ?? 0,
+          qty_available: Number(liveStock.get(i.variant_id)?.available ?? 0),
         }));
 
-      if (overstock.length > 0) {
-        return NextResponse.json(
-          { error: 'Some items exceed available stock. Please update your order and try again.', overstock },
-          { status: 409 },
-        );
-      }
+    if (overstock.length > 0) {
+      return NextResponse.json(
+        { error: 'Some items exceed available stock and are not enabled for indent ordering.', overstock },
+        { status: 409 },
+      );
+    }
+    for (const item of items) {
+      await imsExecute(
+        `UPDATE wholesale_draft_order_items SET is_indent = ?, indent_qty = ? WHERE id = ? AND order_id = ?`,
+        [item.is_indent ? 1 : 0, item.indent_qty, item.id, id],
+      );
     }
 
     // ── 2. Get IMS settings ──────────────────────────────────────────────────
@@ -116,7 +125,7 @@ export async function POST(_req: Request, { params }: Ctx) {
       discount_pct: 0,
       tax_rate:    taxRate,
       line_total:  Number(item.line_total),
-      notes:       item.is_indent ? 'Indent order' : undefined,
+      notes:       item.indent_qty > 0 ? `${item.indent_qty} on indent` : undefined,
     }));
 
     const soNotes = [
@@ -241,4 +250,5 @@ export async function POST(_req: Request, { params }: Ctx) {
     console.error('[wholesale/submit]', e);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }
