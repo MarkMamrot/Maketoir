@@ -4,6 +4,13 @@ import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assertNoActiveStockAllocations, markPurchaseOrderAllocationPromisesAtRisk } from './stockAllocation/service';
+import {
+  loadStockAllocationExceptionGroups,
+  isExpectedDateDelay,
+  normalizeExpectedDate,
+  notifyStockAllocationExceptions,
+  type StockAllocationExceptionGroup,
+} from './stockAllocation/exceptionNotifications';
 import { getCustomerBackorderReadinessConflict } from './backorders/domain';
 import {
   assertAllowedPOStatusTransition,
@@ -1474,11 +1481,14 @@ export const ImsPORepo = {
 
     const pool = getIMSPool();
     const conn = await pool.getConnection();
+    let delayedAllocationGroups: StockAllocationExceptionGroup[] = [];
+    let delayedBusinessId = '';
+    let delayedPoNumber: string | null = null;
     try {
       await conn.beginTransaction();
 
       const [[currentPo]] = await conn.execute<any[]>(
-        `SELECT status, location_id, business_id, expected_date, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+        `SELECT status, location_id, business_id, po_number, expected_date, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!currentPo) throw new Error('Purchase order not found');
       assertExpectedOrderRevision(currentPo.updated_at, amendmentContext?.expectedUpdatedAt);
@@ -1516,12 +1526,20 @@ export const ImsPORepo = {
         vals.push(id);
         await conn.execute(`UPDATE ims_purchase_orders SET ${sets.join(', ')} WHERE id = ?`, vals);
       }
-      if (data.expected_date !== undefined && String(data.expected_date ?? '') !== String(currentPo.expected_date ?? '')) {
+      if (data.expected_date !== undefined && normalizeExpectedDate(data.expected_date) !== normalizeExpectedDate(currentPo.expected_date)) {
         await markPurchaseOrderAllocationPromisesAtRisk(conn, {
           businessId: String(currentPo.business_id ?? ''), poId: id,
           expectedDate: data.expected_date ? String(data.expected_date) : null,
           reason: 'Purchase order expected date changed; customer promise requires review.',
         });
+        if (isExpectedDateDelay(currentPo.expected_date, data.expected_date)) {
+          delayedBusinessId = String(currentPo.business_id ?? '');
+          delayedPoNumber = String(currentPo.po_number ?? '');
+          delayedAllocationGroups = await loadStockAllocationExceptionGroups(conn, {
+            businessId: delayedBusinessId,
+            poId: id,
+          });
+        }
       }
 
       if (items) {
@@ -1703,6 +1721,15 @@ export const ImsPORepo = {
       throw err;
     } finally {
       conn.release();
+    }
+    if (delayedAllocationGroups.length > 0) {
+      await notifyStockAllocationExceptions({
+        businessId: delayedBusinessId,
+        poId: id,
+        poNumber: delayedPoNumber,
+        reason: 'delayed',
+        groups: delayedAllocationGroups,
+      });
     }
   },
 

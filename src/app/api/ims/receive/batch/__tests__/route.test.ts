@@ -247,6 +247,10 @@ function buildFakeConnection(state: {
       return [{ affectedRows: 1 }];
     }
 
+    if (s.includes('from ims_stock_allocations a') && s.includes('affected_quantity')) {
+      return [[]];
+    }
+
     throw new Error(`Unhandled SQL in test double: ${sql}`);
   });
 

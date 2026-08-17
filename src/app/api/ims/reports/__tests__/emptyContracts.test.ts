@@ -35,6 +35,7 @@ import { GET as getProductMargin } from '../product-margin/route';
 import { GET as getSalesByBranch } from '../sales-by-branch/route';
 import { GET as getSalesSearch } from '../sales-search/route';
 import { GET as getSalesSummary } from '../sales-summary/route';
+import { GET as getStockAvailability } from '../stock-availability/route';
 import { GET as getPosDaily } from '@/app/api/pos/reports/daily/route';
 import { GET as getPosGraph } from '@/app/api/pos/reports/graph/route';
 
@@ -127,6 +128,25 @@ describe('empty tenant report contracts', () => {
     const response = await getCashBanking(request('/api/ims/reports/cash-banking?from=2026-08-01&to=2026-08-09'));
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true, canRecordCorrection: true, deposits: [] });
+  });
+
+  it('returns an empty Stock Availability management report', async () => {
+    const response = await getStockAvailability();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      success: true,
+      rows: [],
+      summary: {
+        unsourcedUnits: 0,
+        unsourcedValue: 0,
+        readyUnits: 0,
+        readyValue: 0,
+        protectedIncomingUnits: 0,
+        protectedIncomingCost: 0,
+        overduePromises: 0,
+        atRiskPromises: 0,
+      },
+    });
   });
 
   it('returns zeroed POS Daily totals', async () => {

@@ -6,6 +6,11 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { assignReceiptToStockAllocations } from '@/lib/ims/stockAllocation/service';
 import { createNotification } from '@/lib/ims/createNotification';
+import {
+  loadStockAllocationExceptionGroups,
+  notifyStockAllocationExceptions,
+  type StockAllocationExceptionGroup,
+} from '@/lib/ims/stockAllocation/exceptionNotifications';
 import { getXeroInvoiceStatus } from '@/services/XeroSyncService';
 import { createHash, randomUUID } from 'crypto';
 import {
@@ -185,7 +190,7 @@ export async function POST(req: Request) {
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
       const [[poRow]] = await conn.execute<any[]>(
-        `SELECT status, is_historical, exchange_rate, tax_treatment, freight, discount, xero_bill_id, supplier_invoice_number
+        `SELECT status, is_historical, po_number, exchange_rate, tax_treatment, freight, discount, xero_bill_id, supplier_invoice_number
          FROM ims_purchase_orders
          WHERE id = ? FOR UPDATE`,
         [po_id]
@@ -223,6 +228,7 @@ export async function POST(req: Request) {
       let productUpdatesCount = 0;
       let stockUpdatesCount = 0;
       let variantUpdatesCount = 0;
+      let shortReceiptGroups: StockAllocationExceptionGroup[] = [];
 
       const settingRows = await conn.execute<any[]>(
         `SELECT \`key\`, value FROM ims_settings
@@ -455,6 +461,10 @@ export async function POST(req: Request) {
       const allReceived = shortfallItems.length === 0;
       const newStatus = mark_po_received ? 'complete' : 'partially_received';
 
+      if (mark_po_received && shortfallItems.length > 0) {
+        shortReceiptGroups = await loadStockAllocationExceptionGroups(conn, { businessId, poId: po_id });
+      }
+
       if (newStatus === 'complete') {
         await conn.execute(
           `UPDATE ims_purchase_orders SET status = 'complete', received_date = CURDATE() WHERE id = ?`,
@@ -641,6 +651,15 @@ export async function POST(req: Request) {
         refreshVariantCache(receivedVariantIds).catch(() => {});
       }
       await notifyReadySalesOrders(businessId, po_id, allocationReceipts);
+      if (shortReceiptGroups.length > 0) {
+        await notifyStockAllocationExceptions({
+          businessId,
+          poId: po_id,
+          poNumber: String(poRow.po_number ?? ''),
+          reason: 'received_short',
+          groups: shortReceiptGroups,
+        });
+      }
 
       // Trigger Xero approve-bill when PO is fully received (awaited to ensure bill is approved before response)
       if (newStatus === 'complete') {

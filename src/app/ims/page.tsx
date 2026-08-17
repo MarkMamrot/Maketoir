@@ -30,6 +30,7 @@ import { SalesSummaryView as SalesSummaryViewComponent } from './views/reports/S
 import { ReportScrollTable } from './views/reports/ReportScrollTable';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
+import { StockAvailabilityManagementView } from './views/reports/StockAvailabilityManagementView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -67,7 +68,7 @@ type ImsView =
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
   | 'xero' | 'shopify';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
@@ -16255,6 +16256,12 @@ const REPORT_CATALOG = [
     description: 'Cross-branch cash lodgements, discrepancies, posting status, preparers, and Xero transfer references.',
     icon: '🏦',
   },
+  {
+    id: 'report-stock-availability' as ImsView,
+    title: 'Stock Availability',
+    description: 'Unsourced demand, ready orders, protected incoming cost, and customer promise exposure.',
+    icon: '📦',
+  },
 ];
 
 function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
@@ -20840,6 +20847,7 @@ export default function ImsPage() {
               PosPriceChangesView={(props: { onBack: () => void }) => <PosPriceChangesViewComponent {...props} btnStyle={btnStyle} />}
               PosRegistersReportView={(props: { onBack: () => void }) => <PosRegistersReportViewComponent {...props} XeroStatusBadge={XeroStatusBadge} />}
               CashBankingReportView={CashBankingReportView}
+              StockAvailabilityManagementView={StockAvailabilityManagementView}
               XeroView={XeroView}
               ShopifyView={ShopifyView}
               OrderPlannerView={OrderPlannerView}
