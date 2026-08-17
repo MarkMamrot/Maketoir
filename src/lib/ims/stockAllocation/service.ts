@@ -280,6 +280,66 @@ export async function listStockAllocations(input: { businessId: string; soId?: n
   }));
 }
 
+export async function listStockAllocationCandidates(input: { businessId: string; soId: number }) {
+  const [demandRows] = await getIMSPool().execute<any[]>(
+    `SELECT soi.id AS so_item_id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled,
+            v.sku, p.name AS product_name,
+            so.location_id, so.status
+       FROM ims_sales_order_items soi
+       JOIN ims_sales_orders so ON so.id = soi.so_id AND so.business_id = ?
+       LEFT JOIN ims_product_variants v ON v.variant_id = soi.variant_id
+       LEFT JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+      WHERE soi.so_id = ? AND soi.business_id = ?
+      ORDER BY soi.id`,
+    [input.businessId, input.businessId, input.soId, input.businessId],
+  );
+  if (demandRows.length === 0) return [];
+  const variantIds = [...new Set(demandRows.map(row => String(row.variant_id ?? '')).filter(Boolean))];
+  if (variantIds.length === 0) return demandRows.map(row => ({ ...row, outstanding: 0, allocatedIncoming: 0, unsourced: 0, candidates: [] }));
+  const placeholders = variantIds.map(() => '?').join(',');
+  const [allocationRows] = await getIMSPool().execute<any[]>(
+    `SELECT so_item_id, po_item_id, qty_allocated, qty_fulfilled, qty_received_assigned
+       FROM ims_stock_allocations
+      WHERE business_id = ? AND state = 'active' AND (so_id = ? OR variant_id IN (${placeholders}))`,
+    [input.businessId, input.soId, ...variantIds],
+  );
+  const [supplyRows] = await getIMSPool().execute<any[]>(
+    `SELECT poi.id AS po_item_id, poi.po_id, poi.variant_id, poi.qty_ordered, poi.qty_received,
+            po.po_number, po.expected_date, po.location_id, po.order_date
+       FROM ims_purchase_order_items poi
+       JOIN ims_purchase_orders po ON po.id = poi.po_id AND po.business_id = ?
+      WHERE poi.business_id = ? AND poi.variant_id IN (${placeholders})
+        AND po.status IN ('confirmed','partially_received')
+      ORDER BY po.expected_date IS NULL, po.expected_date, po.order_date, po.id, poi.id`,
+    [input.businessId, input.businessId, ...variantIds],
+  );
+  const demandAllocated = new Map<number, number>();
+  const supplyAllocated = new Map<number, number>();
+  for (const row of allocationRows) {
+    const demandRemaining = Math.max(0, Number(row.qty_allocated) - Number(row.qty_fulfilled));
+    demandAllocated.set(Number(row.so_item_id), (demandAllocated.get(Number(row.so_item_id)) ?? 0) + demandRemaining);
+    const supplyRemaining = Math.max(0, Number(row.qty_allocated) - Number(row.qty_received_assigned));
+    supplyAllocated.set(Number(row.po_item_id), (supplyAllocated.get(Number(row.po_item_id)) ?? 0) + supplyRemaining);
+  }
+  return demandRows.map(row => {
+    const outstanding = Math.max(0, Number(row.qty_ordered) - Number(row.qty_fulfilled ?? 0));
+    const allocatedIncoming = demandAllocated.get(Number(row.so_item_id)) ?? 0;
+    const unsourced = Math.max(0, outstanding - allocatedIncoming);
+    const candidates = supplyRows
+      .filter(supply => String(supply.variant_id) === String(row.variant_id) && Number(supply.location_id) === Number(row.location_id))
+      .map(supply => ({
+        poItemId: Number(supply.po_item_id), poId: Number(supply.po_id), poNumber: String(supply.po_number),
+        expectedDate: supply.expected_date ?? null,
+        freeQuantity: Math.max(0, Number(supply.qty_ordered) - Number(supply.qty_received ?? 0) - (supplyAllocated.get(Number(supply.po_item_id)) ?? 0)),
+      }))
+      .filter(supply => supply.freeQuantity > 0);
+    return {
+      soItemId: Number(row.so_item_id), variantId: row.variant_id, sku: row.sku ?? null,
+      productName: row.product_name ?? 'Product', outstanding, allocatedIncoming, unsourced, candidates,
+    };
+  });
+}
+
 export async function mutateStockAllocation(input: MutateStockAllocationInput): Promise<{
   allocationId: number;
   revision: number;
@@ -289,6 +349,7 @@ export async function mutateStockAllocation(input: MutateStockAllocationInput): 
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 191) throw new Error('A valid allocation operation key is required.');
   if (!input.businessId) throw new Error('Business context is required.');
+  if (!['resize', 'release', 'reassign', 'revise_promise'].includes(input.action)) throw new Error('A valid allocation action is required.');
   if (!Number.isInteger(input.allocationId) || input.allocationId <= 0) throw new Error('A valid allocation is required.');
   if (!Number.isInteger(input.revision) || input.revision <= 0) throw new Error('A valid allocation revision is required.');
   const request = canonicalMutationRequest(input);
@@ -345,6 +406,9 @@ export async function mutateStockAllocation(input: MutateStockAllocationInput): 
     }
 
     if (input.action === 'reassign') {
+      if (scaledQuantity(Number(allocation.qty_received_assigned ?? 0)) > 0) {
+        throw new StockAllocationConflict('Received allocation quantities cannot be reassigned to another purchase order.');
+      }
       const [[poItem]] = await conn.execute<any[]>(
         `SELECT poi.id, poi.po_id, poi.variant_id, poi.qty_ordered, poi.qty_received,
                 po.location_id, po.status, po.expected_date
@@ -372,6 +436,39 @@ export async function mutateStockAllocation(input: MutateStockAllocationInput): 
       nextPoItemId = Number(poItem.id);
       nextPoId = Number(poItem.po_id);
       nextExpectedDate = poItem.expected_date ?? null;
+    }
+
+    if (input.action === 'resize' && scaledQuantity(nextQuantity) > scaledQuantity(Number(allocation.qty_allocated))) {
+      const [[soItem]] = await conn.execute<any[]>(
+        `SELECT qty_ordered, qty_fulfilled FROM ims_sales_order_items
+          WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [allocation.so_item_id, input.businessId],
+      );
+      const [soRows] = await conn.execute<any[]>(
+        `SELECT qty_allocated, qty_fulfilled FROM ims_stock_allocations
+          WHERE business_id = ? AND so_item_id = ? AND state = 'active' AND id <> ? FOR UPDATE`,
+        [input.businessId, allocation.so_item_id, input.allocationId],
+      );
+      const otherDemand = soRows.reduce((sum, row) => sum + Number(row.qty_allocated) - Number(row.qty_fulfilled), 0);
+      const demandFreeScaled = scaledQuantity(Number(soItem?.qty_ordered ?? 0) - Number(soItem?.qty_fulfilled ?? 0)) - scaledQuantity(otherDemand);
+      if (scaledQuantity(nextQuantity) - scaledQuantity(Number(allocation.qty_fulfilled ?? 0)) > demandFreeScaled) {
+        throw new StockAllocationConflict('Resized allocation exceeds the sales order line quantity still awaiting supply.');
+      }
+      const [[poItem]] = await conn.execute<any[]>(
+        `SELECT qty_ordered, qty_received FROM ims_purchase_order_items
+          WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [allocation.po_item_id, input.businessId],
+      );
+      const [poRows] = await conn.execute<any[]>(
+        `SELECT qty_allocated, qty_received_assigned FROM ims_stock_allocations
+          WHERE business_id = ? AND po_item_id = ? AND state = 'active' AND id <> ? FOR UPDATE`,
+        [input.businessId, allocation.po_item_id, input.allocationId],
+      );
+      const otherSupply = poRows.reduce((sum, row) => sum + Number(row.qty_allocated) - Number(row.qty_received_assigned), 0);
+      const supplyFreeScaled = scaledQuantity(Number(poItem?.qty_ordered ?? 0) - Number(poItem?.qty_received ?? 0)) - scaledQuantity(otherSupply);
+      if (scaledQuantity(nextQuantity) - scaledQuantity(Number(allocation.qty_received_assigned ?? 0)) > supplyFreeScaled) {
+        throw new StockAllocationConflict('Resized allocation exceeds the purchase order quantity still free and incoming.');
+      }
     }
 
     const [operationResult] = await conn.execute<any>(

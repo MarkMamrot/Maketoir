@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import {
   createStockAllocation,
+  listStockAllocationCandidates,
   listStockAllocations,
   mutateStockAllocation,
   StockAllocationConflict,
@@ -14,6 +15,23 @@ export async function GET(req: Request) {
   const search = new URL(req.url).searchParams;
   const soId = Number(search.get('soId') ?? 0);
   const poId = Number(search.get('poId') ?? 0);
+  const candidatesForSo = Number(search.get('candidatesForSo') ?? 0);
+  if (candidatesForSo) {
+    if (!Number.isInteger(candidatesForSo) || candidatesForSo <= 0) {
+      return NextResponse.json({ success: false, error: 'A valid sales order is required.' }, { status: 400 });
+    }
+    try {
+      const data = await listStockAllocationCandidates({ businessId: session.businessId, soId: candidatesForSo });
+      return NextResponse.json({ success: true, data });
+    } catch (error: any) {
+      await reportRuntimeIssue({
+        businessId: session.businessId, source: 'ims_stock_allocations', operation: 'list_candidates',
+        title: 'Incoming stock candidates could not be loaded', error,
+        reference: { type: 'sales_order', id: String(candidatesForSo) },
+      }).catch(() => {});
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+  }
   if ((!Number.isInteger(soId) || soId < 0) || (!Number.isInteger(poId) || poId < 0) || (!soId && !poId)) {
     return NextResponse.json({ success: false, error: 'A valid soId or poId is required.' }, { status: 400 });
   }

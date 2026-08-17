@@ -21,6 +21,7 @@ import {
   buildStockAllocationMutationRequestHash,
   buildStockAllocationRequestHash,
   createStockAllocation,
+  listStockAllocationCandidates,
   mutateStockAllocation,
   StockAllocationConflict,
   transferStockAllocationsToBackorderLine,
@@ -191,6 +192,39 @@ describe('stock allocation service', () => {
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('UPDATE ims_stock_allocations SET'))).toBe(false);
   });
 
+  it('does not reassign an allocation after receipt provenance is assigned', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocation_operations')) return [[]];
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[{
+        id: 41, state: 'active', revision: 3, qty_allocated: 4, qty_received_assigned: 1, qty_fulfilled: 0,
+      }]];
+      return [[]];
+    });
+    await expect(mutateStockAllocation({
+      businessId: 'biz-1', operationKey: 'reassign-received', allocationId: 41, revision: 3,
+      action: 'reassign', poItemId: 22, reason: 'Move supply',
+    })).rejects.toThrow('Received allocation quantities cannot be reassigned');
+  });
+
+  it('rejects a resize that exceeds free incoming PO quantity', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_stock_allocation_operations')) return [[]];
+      if (sql.includes('SELECT * FROM ims_stock_allocations')) return [[{
+        id: 41, state: 'active', revision: 3, so_item_id: 11, po_item_id: 21,
+        qty_allocated: 4, qty_received_assigned: 0, qty_fulfilled: 0,
+      }]];
+      if (sql.includes('FROM ims_sales_order_items')) return [[{ qty_ordered: 10, qty_fulfilled: 0 }]];
+      if (sql.includes('AND so_item_id = ?')) return [[]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[{ qty_ordered: 5, qty_received: 0 }]];
+      if (sql.includes('AND po_item_id = ?')) return [[]];
+      return [[]];
+    });
+    await expect(mutateStockAllocation({
+      businessId: 'biz-1', operationKey: 'resize-too-large', allocationId: 41, revision: 3,
+      action: 'resize', quantity: 6,
+    })).rejects.toThrow('purchase order quantity');
+  });
+
   it('rejects changed mutation payload reuse', async () => {
     const original = {
       businessId: 'biz-1', operationKey: 'resize-41', allocationId: 41, revision: 3,
@@ -235,5 +269,31 @@ describe('stock allocation service', () => {
       expect.stringContaining("promise_status = 'at_risk'"),
       [88, 221, 'biz-1', 21],
     );
+  });
+
+  it('lists FIFO PO candidates using free incoming quantity after other allocations', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_sales_order_items')) return [[{
+        so_item_id: 11, variant_id: 'v-1', qty_ordered: 10, qty_fulfilled: 2,
+        sku: 'SKU-1', product_name: 'Product', location_id: 4, status: 'confirmed',
+      }]];
+      if (sql.includes('FROM ims_stock_allocations')) return [[
+        { so_item_id: 11, po_item_id: 21, qty_allocated: 3, qty_fulfilled: 0, qty_received_assigned: 0 },
+        { so_item_id: 99, po_item_id: 21, qty_allocated: 4, qty_fulfilled: 0, qty_received_assigned: 0 },
+      ]];
+      if (sql.includes('FROM ims_purchase_order_items')) return [[
+        { po_item_id: 21, po_id: 2, variant_id: 'v-1', qty_ordered: 12, qty_received: 2, po_number: 'PO-2', expected_date: '2026-09-08', location_id: 4 },
+        { po_item_id: 22, po_id: 3, variant_id: 'v-1', qty_ordered: 8, qty_received: 0, po_number: 'PO-3', expected_date: '2026-09-20', location_id: 4 },
+      ]];
+      return [[]];
+    });
+
+    await expect(listStockAllocationCandidates({ businessId: 'biz-1', soId: 1 })).resolves.toEqual([expect.objectContaining({
+      soItemId: 11, outstanding: 8, allocatedIncoming: 3, unsourced: 5,
+      candidates: [
+        expect.objectContaining({ poItemId: 21, freeQuantity: 3 }),
+        expect.objectContaining({ poItemId: 22, freeQuantity: 8 }),
+      ],
+    })]);
   });
 });

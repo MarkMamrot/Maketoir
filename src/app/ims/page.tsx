@@ -31,6 +31,7 @@ import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/rep
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
+import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
@@ -9410,6 +9411,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </tfoot>
           </table>
 
+          <StockAllocationPanel
+            mode="purchase_order"
+            orderId={Number(viewModal.po.id)}
+            items={viewModal.po.items || []}
+            allocations={viewModal.po.stock_allocations || []}
+            readOnly={isAdvisor}
+            onChanged={() => refreshPoView(Number(viewModal.po.id))}
+          />
+
           {/* ── Landed Costs (view/edit) — not on invoice; allocated to avg. cost on receive ── */}
           {(() => {
             const lcs: any[] = viewModal.po.landed_costs || [];
@@ -13535,6 +13545,18 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </tr>
             </tfoot>
           </table>
+
+          <StockAllocationPanel
+            mode="sales_order"
+            orderId={Number(viewModal.so.id)}
+            items={viewModal.so.items || []}
+            allocations={viewModal.so.stock_allocations || []}
+            readOnly={isAdvisor}
+            onChanged={async () => {
+              const detail = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
+              setViewModal({ open: true, so: detail.data });
+            }}
+          />
 
           {/* ── Payments ── */}
           {(() => {
