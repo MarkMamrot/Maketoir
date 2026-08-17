@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import PricingPlanCards from '@/components/PricingPlanCards';
 import Nav from '../_nav';
 
 interface DemoForm { name: string; email: string; company: string; message: string; }
@@ -23,27 +24,29 @@ function XIcon() {
 
 type CellVal = true | false | string;
 
-const tableFeatures: { label: string; starter: CellVal; growth: CellVal; enterprise: CellVal }[] = [
-  { label: 'Locations',                   starter: '1',           growth: '2–10',       enterprise: '10+' },
-  { label: 'Users',                        starter: 'Up to 3',    growth: 'Up to 20',   enterprise: 'Unlimited' },
-  { label: 'Advanced IMS',                starter: true,          growth: true,          enterprise: true },
-  { label: 'POS System',                   starter: true,          growth: true,          enterprise: true },
-  { label: 'Purchase & Sales Orders',     starter: true,          growth: true,          enterprise: true },
-  { label: 'Multi-currency',              starter: true,          growth: true,          enterprise: true },
-  { label: 'Branch Transfers',            starter: true,          growth: true,          enterprise: true },
-  { label: 'Stocktake',                   starter: true,          growth: true,          enterprise: true },
-  { label: 'Loyalty System',              starter: true,          growth: true,          enterprise: true },
-  { label: 'CRM',                         starter: true,          growth: true,          enterprise: true },
-  { label: 'Xero Integration',            starter: true,          growth: true,          enterprise: true },
-  { label: 'Shopify Integration',         starter: true,          growth: true,          enterprise: true },
-  { label: 'Magento Integration',         starter: false,         growth: true,          enterprise: true },
-  { label: 'AI Tools',                    starter: false,         growth: true,          enterprise: true },
-  { label: 'AI Auto Product Builder',     starter: false,         growth: true,          enterprise: true },
-  { label: 'Analytics & Forecasting',     starter: 'Basic',       growth: 'Advanced',    enterprise: 'Advanced' },
-  { label: 'Support',                     starter: 'Email',       growth: 'Phone',       enterprise: 'Priority 24/7' },
-  { label: 'Data Migration',              starter: 'Self-serve',  growth: 'Free',        enterprise: 'Free' },
-  { label: 'Dedicated Account Manager',  starter: false,         growth: false,         enterprise: true },
-  { label: 'Custom Integrations',        starter: false,         growth: false,         enterprise: true },
+const tableFeatures: { label: string; basic: CellVal; growth: CellVal; enterprise: CellVal }[] = [
+  { label: 'Locations',                    basic: '1-3',                   growth: '2-10',            enterprise: '10+' },
+  { label: 'Users',                        basic: 'Up to 5',               growth: 'Up to 50',        enterprise: 'Unlimited' },
+  { label: 'Core Inventory Management',    basic: true,                    growth: true,              enterprise: true },
+  { label: 'Backordering',                 basic: false,                   growth: true,              enterprise: true },
+  { label: 'Multi-currency',               basic: false,                   growth: true,              enterprise: true },
+  { label: 'POS System',                   basic: true,                    growth: true,              enterprise: true },
+  { label: 'Purchase & Sales Orders',      basic: true,                    growth: true,              enterprise: true },
+  { label: 'Branch Transfers',             basic: true,                    growth: true,              enterprise: true },
+  { label: 'Stocktake',                    basic: true,                    growth: true,              enterprise: true },
+  { label: 'Loyalty System',               basic: true,                    growth: true,              enterprise: true },
+  { label: 'CRM Tools',                    basic: false,                   growth: true,              enterprise: true },
+  { label: 'AI Workflow Automation',       basic: true,                    growth: true,              enterprise: true },
+  { label: 'Order Planner',                basic: false,                   growth: true,              enterprise: true },
+  { label: 'Stock Turnover Analysis',      basic: false,                   growth: true,              enterprise: true },
+  { label: 'Space Analysis',               basic: false,                   growth: true,              enterprise: true },
+  { label: 'Advanced Analytics & Forecasting', basic: false,               growth: true,              enterprise: true },
+  { label: 'Xero Integration',             basic: true,                    growth: true,              enterprise: true },
+  { label: 'Shopify Integration',          basic: true,                    growth: true,              enterprise: true },
+  { label: 'Support',                      basic: 'Local phone & email',   growth: 'Priority phone',  enterprise: 'Priority 24/7' },
+  { label: 'Data Migration',               basic: 'Free',                  growth: 'Free',             enterprise: 'Free + training' },
+  { label: 'Dedicated Account Manager',    basic: false,                   growth: false,             enterprise: true },
+  { label: 'Custom Integrations',          basic: false,                   growth: false,             enterprise: true },
 ];
 
 function Cell({ val }: { val: CellVal }) {
@@ -63,7 +66,7 @@ const faqs = [
   },
   {
     q: 'Does the Growth plan price increase per location I add?',
-    a: 'Yes — the Growth plan is $50 per location per month. So 3 locations = $150/month, 5 locations = $250/month. All locations get the full feature set including AI tools.',
+    a: 'Yes. Growth has a $200 monthly base, then adds $50 per month for each additional location. Every Growth location receives the same advanced inventory, automation, CRM, analytics, Shopify, and Xero features.',
   },
   {
     q: 'What does "free data migration" include?',
@@ -120,93 +123,8 @@ export default function PricingPage() {
 
       {/* Tier cards */}
       <section className="py-16 px-6">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-
-          {/* Starter */}
-          <div className="rounded-2xl border border-slate-200 p-7 hover:border-blue-300 transition-colors">
-            <h2 className="text-lg font-black text-slate-900 mb-1">Starter</h2>
-            <p className="text-slate-500 text-sm mb-5">Single location, getting started</p>
-            <div className="flex items-end gap-1 mb-1">
-              <span className="text-4xl font-black text-slate-900">$65</span>
-              <span className="text-slate-400 text-sm mb-1.5">/month</span>
-            </div>
-            <p className="text-slate-400 text-xs mb-6">Billed monthly, cancel anytime</p>
-            <Link href="/register" className="block w-full text-center border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-2.5 rounded-xl transition text-sm mb-6">
-              Get Started
-            </Link>
-            <ul className="space-y-2.5">
-              {['1 location', 'Up to 3 users', 'Full IMS & POS', 'Purchase & Sales Orders', 'Multi-currency', 'Loyalty system', 'Xero & Shopify integration', 'Email support'].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                  <CheckIcon /> {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Growth */}
-          <div className="rounded-2xl border-2 border-blue-600 p-7 shadow-xl shadow-blue-100 relative">
-            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-              MOST POPULAR
-            </div>
-            <h2 className="text-lg font-black text-slate-900 mb-1">Growth</h2>
-            <p className="text-slate-500 text-sm mb-5">Multi-location retailers</p>
-            <div className="flex items-end gap-1 mb-1">
-              <span className="text-4xl font-black text-slate-900">$50</span>
-              <span className="text-slate-400 text-sm mb-1.5">/location/mo</span>
-            </div>
-            <p className="text-slate-400 text-xs mb-6">2–10 locations · up to 20 users</p>
-            <Link href="/register" className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-sm mb-6">
-              Get Started
-            </Link>
-            <ul className="space-y-2.5">
-              {[
-                'Everything in Starter',
-                '2–10 locations',
-                'Up to 20 users',
-                'AI tools included',
-                'Magento integration',
-                'Advanced analytics & forecasting',
-                'Phone support',
-                'Free data migration',
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                  <CheckIcon color="text-blue-600" /> {f}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Enterprise */}
-          <div className="rounded-2xl border border-slate-200 p-7 bg-slate-900 text-white">
-            <h2 className="text-lg font-black text-white mb-1">Enterprise</h2>
-            <p className="text-slate-400 text-sm mb-5">Large chains & retail groups</p>
-            <div className="flex items-end gap-1 mb-1">
-              <span className="text-4xl font-black text-white">Custom</span>
-            </div>
-            <p className="text-slate-500 text-xs mb-6">10+ locations · unlimited users</p>
-            <button
-              onClick={() => setDemoOpen(true)}
-              className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-sm mb-6"
-            >
-              Contact Sales
-            </button>
-            <ul className="space-y-2.5">
-              {[
-                'Everything in Growth',
-                '10+ locations',
-                'Unlimited users',
-                'Priority 24/7 support',
-                'Free migration & training',
-                'Custom integrations',
-                'Dedicated account manager',
-                'SLA guarantees',
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-2 text-sm text-slate-300">
-                  <CheckIcon color="text-cyan-400" /> {f}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="max-w-5xl mx-auto">
+          <PricingPlanCards onContactSales={() => setDemoOpen(true)} />
         </div>
       </section>
 
@@ -219,7 +137,7 @@ export default function PricingPage() {
               <thead>
                 <tr className="border-b border-slate-200">
                   <th className="text-left px-6 py-4 text-slate-500 font-semibold text-xs uppercase tracking-wide w-[40%]">Feature</th>
-                  <th className="text-center px-4 py-4 text-slate-700 font-bold">Starter</th>
+                  <th className="text-center px-4 py-4 text-slate-700 font-bold">Basic</th>
                   <th className="text-center px-4 py-4 text-blue-600 font-bold bg-blue-50">Growth</th>
                   <th className="text-center px-4 py-4 text-slate-700 font-bold">Enterprise</th>
                 </tr>
@@ -229,7 +147,7 @@ export default function PricingPage() {
                   <tr key={row.label} className={`border-b border-slate-100 ${i % 2 === 1 ? 'bg-slate-50/50' : ''}`}>
                     <td className="px-6 py-3.5 text-slate-700 font-medium">{row.label}</td>
                     <td className="px-4 py-3.5 text-center">
-                      <div className="flex justify-center"><Cell val={row.starter} /></div>
+                      <div className="flex justify-center"><Cell val={row.basic} /></div>
                     </td>
                     <td className="px-4 py-3.5 text-center bg-blue-50/40">
                       <div className="flex justify-center"><Cell val={row.growth} /></div>

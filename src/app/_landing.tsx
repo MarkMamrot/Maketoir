@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
+import PricingPlanCards from '@/components/PricingPlanCards';
 import Nav from './_nav';
 
 // ─── Tiny reusable components ──────────────────────────────────────────────────
@@ -471,9 +472,9 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end mb-12 lg:mb-14">
             <div className="max-w-3xl">
-              <Eyebrow>See Solvantis at Work</Eyebrow>
+              <Eyebrow>Advanced AI Automation Features</Eyebrow>
               <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
-                Less admin. More work finished.
+                See Solvantis at Work
               </h2>
             </div>
             <p className="text-slate-600 text-base leading-relaxed lg:border-l lg:border-slate-300 lg:pl-7">
@@ -708,88 +709,7 @@ export default function Landing() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-            {/* Starter */}
-            <div className="rounded-2xl border border-slate-200 p-7 hover:border-blue-300 transition-colors">
-              <h3 className="text-lg font-black text-slate-900 mb-1">Starter</h3>
-              <p className="text-slate-500 text-sm mb-5">For single-location retailers just getting started</p>
-              <div className="flex items-end gap-1 mb-6">
-                <span className="text-4xl font-black text-slate-900">$65</span>
-                <span className="text-slate-400 text-sm mb-1.5">/month</span>
-              </div>
-              <ul className="space-y-2.5 mb-7">
-                {['1 location', 'Up to 3 users', 'Full IMS & POS', 'Sales & purchase orders', 'Email support'].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                    <Check /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/register" className="block w-full text-center border-2 border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-2.5 rounded-xl transition text-sm">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Growth — most popular */}
-            <div className="rounded-2xl border-2 border-blue-600 p-7 shadow-xl shadow-blue-100 relative">
-              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">
-                MOST POPULAR
-              </div>
-              <h3 className="text-lg font-black text-slate-900 mb-1">Growth</h3>
-              <p className="text-slate-500 text-sm mb-5">For growing multi-location retailers</p>
-              <div className="flex items-end gap-1 mb-6">
-                <span className="text-4xl font-black text-slate-900">$50</span>
-                <span className="text-slate-400 text-sm mb-1.5">/location/mo</span>
-              </div>
-              <ul className="space-y-2.5 mb-7">
-                {[
-                  '2–10 locations',
-                  'Up to 20 users',
-                  'Full IMS & POS',
-                  'AI tools included',
-                  'Phone support',
-                  'Free data migration',
-                  'Analytics & forecasting',
-                ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                    <Check /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/register" className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Enterprise */}
-            <div className="rounded-2xl border border-slate-200 p-7 hover:border-blue-300 transition-colors">
-              <h3 className="text-lg font-black text-slate-900 mb-1">Enterprise</h3>
-              <p className="text-slate-500 text-sm mb-5">For large chains and retail groups</p>
-              <div className="flex items-end gap-1 mb-6">
-                <span className="text-4xl font-black text-slate-900">Custom</span>
-              </div>
-              <ul className="space-y-2.5 mb-7">
-                {[
-                  '10+ locations',
-                  'Unlimited users',
-                  'All Growth features',
-                  'Priority 24/7 support',
-                  'Free migration & training',
-                  'Custom integrations',
-                  'Dedicated account manager',
-                ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
-                    <Check /> {f}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => setDemoOpen(true)}
-                className="block w-full text-center border-2 border-slate-300 hover:border-blue-600 text-slate-700 hover:text-blue-600 font-semibold py-2.5 rounded-xl transition text-sm"
-              >
-                Contact Sales
-              </button>
-            </div>
-          </div>
+          <PricingPlanCards onContactSales={() => setDemoOpen(true)} />
 
           <p className="text-center mt-8 text-slate-400 text-sm">
             <Link href="/pricing" className="text-blue-600 hover:underline font-medium">
