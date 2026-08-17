@@ -68,7 +68,7 @@ export default function Landing() {
       description: 'Start with a product image, choose a setting and creative direction, then use brand references to generate polished visuals built around your catalogue.',
       steps: ['Choose a product', 'Set the creative direction', 'Generate branded assets'],
       accent: 'text-rose-700 bg-rose-50 border-rose-200',
-      videoSrc: '/landing/Creative%20Stuido%20.mp4',
+      videoSrc: '/landing/Creative%20Stuido.mp4',
     },
     {
       icon: Sparkles,
