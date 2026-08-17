@@ -48,6 +48,33 @@ function toIso(value: unknown): string {
   return value instanceof Date ? value.toISOString() : String(value ?? '');
 }
 
+function allocationFulfilmentDetails(response: Record<string, unknown> | null): {
+  consumed: number;
+  released: number;
+  details: string[];
+} {
+  const allocations = parseArray(response?.allocationFulfilments)
+    .filter(item => item && typeof item === 'object') as Record<string, unknown>[];
+  let consumed = 0;
+  let released = 0;
+  const details = allocations.map(item => {
+    const lineConsumed = Math.max(0, Number(item.consumedQuantity ?? 0) || 0);
+    const lineReleased = Math.max(0, Number(item.releasedQuantity ?? 0) || 0);
+    consumed += lineConsumed;
+    released += lineReleased;
+    const actions = [
+      lineConsumed > 0 ? `consumed ${lineConsumed} received protected unit${lineConsumed === 1 ? '' : 's'}` : '',
+      lineReleased > 0 ? `released ${lineReleased} future protected unit${lineReleased === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+    const allocationIds = [
+      ...parseArray(item.fulfilledAllocationIds),
+      ...parseArray(item.releasedAllocationIds),
+    ].map(Number).filter(id => Number.isInteger(id) && id > 0);
+    return `Line #${String(item.soItemId ?? '—')}: ${actions.join('; ')}${allocationIds.length > 0 ? ` (allocations ${allocationIds.map(id => `#${id}`).join(', ')})` : ''}`;
+  }).filter(detail => !detail.endsWith(': '));
+  return { consumed, released, details };
+}
+
 const HIDDEN_HEADER_FIELDS = new Set(['id', 'business_id', 'created_at', 'updated_at']);
 
 function changedHeaderFields(before: Record<string, unknown> | null, after: Record<string, unknown> | null): string[] {
@@ -172,9 +199,13 @@ export async function getOrderActivityHistory(
       details = items.map(item => `Variant ${String(item.variant_id ?? '—')}: received ${Number(item.qty_received ?? 0)}`);
     } else if (activityType === 'fulfilment') {
       const shipments = parseArray(request?.shipmentQuantities).filter(item => item && typeof item === 'object') as Record<string, unknown>[];
+      const allocationActivity = allocationFulfilmentDetails(response);
       title = response?.status === 'fulfilled' ? 'Fulfilment completed' : 'Shipment recorded';
       summary = `${shipments.length} line${shipments.length === 1 ? '' : 's'} submitted`;
       details = shipments.map(item => `Line #${String(item.itemId ?? '—')}: shipped ${Number(item.quantity ?? 0)}`);
+      if (allocationActivity.consumed > 0) summary += `; ${allocationActivity.consumed} received protected unit${allocationActivity.consumed === 1 ? '' : 's'} consumed`;
+      if (allocationActivity.released > 0) summary += `; ${allocationActivity.released} future protected unit${allocationActivity.released === 1 ? '' : 's'} released`;
+      details.push(...allocationActivity.details);
     } else {
       const outcomeLabels: Record<string, string> = {
         leave_partial: 'Remainder left open',

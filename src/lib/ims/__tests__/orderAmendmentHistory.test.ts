@@ -111,6 +111,39 @@ describe('getOrderAmendmentHistory', () => {
     }]);
   });
 
+  it('shows protected stock consumption and automatic release on fulfilment activity', async () => {
+    mockImsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      id: 25,
+      activity_type: 'fulfilment',
+      state: 'complete',
+      request_json: JSON.stringify({ shipmentQuantities: [{ itemId: 10, quantity: 5 }] }),
+      response_json: JSON.stringify({
+        status: 'partially_fulfilled',
+        allocationFulfilments: [{
+          soItemId: 10,
+          consumedQuantity: 3,
+          releasedQuantity: 2,
+          fulfilledAllocationIds: [71],
+          releasedAllocationIds: [72],
+        }],
+      }),
+      created_at: new Date('2026-08-11T13:00:00.000Z'),
+      completed_at: new Date('2026-08-11T13:00:01.000Z'),
+    }]).mockResolvedValueOnce([]);
+
+    const entries = await getOrderActivityHistory('biz-1', 'sales_order', 42);
+
+    expect(entries).toMatchObject([{
+      entryKey: 'fulfilment:25',
+      title: 'Shipment recorded',
+      summary: '1 line submitted; 3 received protected units consumed; 2 future protected units released',
+      details: [
+        'Line #10: shipped 5',
+        'Line #10: consumed 3 received protected units; released 2 future protected units (allocations #71, #72)',
+      ],
+    }]);
+  });
+
   it('normalizes undo, linked credits, and replacement document links', async () => {
     mockImsQuery
       .mockResolvedValueOnce([{
