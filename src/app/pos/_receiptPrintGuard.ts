@@ -1,4 +1,4 @@
-export function createReceiptPrintGate() {
+export function createReceiptPrintGate(cooldownMs = 1000) {
   let pending = false;
 
   return {
@@ -14,7 +14,9 @@ export function createReceiptPrintGate() {
       }
     },
     complete() {
-      pending = false;
+      setTimeout(() => {
+        pending = false;
+      }, cooldownMs);
     },
     isPending() {
       return pending;

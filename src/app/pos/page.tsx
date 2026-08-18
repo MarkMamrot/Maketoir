@@ -4834,7 +4834,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
     printBtnRef.current?.focus();
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') { onClose(); return; }
-      if (e.key === 'Enter' && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+      if (e.key === 'Enter' && !e.repeat && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
         handlePrint();
       }
