@@ -1,9 +1,10 @@
 'use client';
 
-import { Check, X } from 'lucide-react';
+import { Check, Pencil, X } from 'lucide-react';
 import React, { useMemo, useRef, useState } from 'react';
 
 import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
+import { ContactCrmTaskEditor, type ContactCrmTaskEditPayload } from './ContactCrmTaskEditor';
 
 export type ContactCrmWorkspaceTask = {
   id: number;
@@ -80,6 +81,7 @@ export function ContactCrmTaskQueue({
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [workingTaskId, setWorkingTaskId] = useState<number | null>(null);
+  const [editingTask, setEditingTask] = useState<ContactCrmWorkspaceTask | null>(null);
   const [error, setError] = useState('');
 
   const filtered = useMemo(() => tasks.filter(task => {
@@ -112,9 +114,30 @@ export function ContactCrmTaskQueue({
     }
   };
 
-  const widths = [110, 280, 160, 100, 150, 120];
+  const saveTask = async (payload: ContactCrmTaskEditPayload) => {
+    if (!editingTask) return;
+    setWorkingTaskId(editingTask.id);
+    setError('');
+    try {
+      const response = await fetch(`/api/ims/contacts/${editingTask.contact_id}/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const responsePayload = await response.json().catch(() => ({}));
+      if (!response.ok || responsePayload.success === false) throw new Error(responsePayload.error || 'Task could not be updated.');
+      setEditingTask(null);
+      await onTaskChanged();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Task could not be updated.');
+    } finally {
+      setWorkingTaskId(null);
+    }
+  };
+
+  const widths = [110, 280, 160, 100, 150, 150];
   const tableWidth = widths.reduce((sum, width) => sum + width, 0);
-  const colGroup = () => <colgroup>{widths.map(width => <col key={width} style={{ width, minWidth: width }} />)}</colgroup>;
+  const colGroup = () => <colgroup>{widths.map((width, index) => <col key={index} style={{ width, minWidth: width }} />)}</colgroup>;
   const frozen = (background: string): React.CSSProperties => ({
     position: 'sticky', left: 0, zIndex: 3, background, boxShadow: '1px 0 0 var(--sv-etch)',
   });
@@ -184,6 +207,7 @@ export function ContactCrmTaskQueue({
                   <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', textTransform: 'capitalize' }}>{task.priority}</td>
                   <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>{task.assigned_user_name || <span style={{ color: 'var(--sv-text-dim)' }}>Unassigned</span>}</td>
                   <td style={{ padding: '10px 12px', borderTop: '1px solid var(--sv-etch)' }}>{!isAdvisor && <div style={{ display: 'flex', gap: 5 }}>
+                    <button disabled={workingTaskId === task.id} onClick={() => setEditingTask(task)} title="Edit task" style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-action)', padding: 6, cursor: 'pointer', display: 'flex' }}><Pencil size={14} /></button>
                     <button disabled={workingTaskId === task.id} onClick={() => updateStatus(task, 'completed')} title="Complete task" style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-mint)', padding: 6, cursor: 'pointer', display: 'flex' }}><Check size={14} /></button>
                     <button disabled={workingTaskId === task.id} onClick={() => updateStatus(task, 'cancelled')} title="Cancel task" style={{ border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-1)', color: 'var(--sv-text-dim)', padding: 6, cursor: 'pointer', display: 'flex' }}><X size={14} /></button>
                   </div>}</td>
@@ -193,6 +217,7 @@ export function ContactCrmTaskQueue({
           </div>
         </div>
       )}
+      {editingTask && <ContactCrmTaskEditor task={editingTask} assignees={assignees} saving={workingTaskId === editingTask.id} onClose={() => setEditingTask(null)} onSave={saveTask} />}
     </section>
   );
 }

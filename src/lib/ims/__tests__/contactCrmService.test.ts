@@ -115,6 +115,24 @@ describe('contact CRM service', () => {
     expect(params.slice(-3)).toEqual([6, 'business-1', 42]);
   });
 
+  it('updates task details and assignee while retaining its open status', async () => {
+    mockImsQuery.mockResolvedValue([{
+      id: 6, title: 'Old title', description: null, due_date: null, priority: 'normal', status: 'open',
+      assigned_user_id: null, assigned_user_name: null,
+    }]);
+
+    await updateContactCrmTask(
+      'business-1', 42, 6,
+      { title: 'Updated title', description: 'Call after lunch', dueDate: '2026-08-25', priority: 'high', assignedUserId: 4, assignedUserName: 'Sam' },
+      { id: 9, name: 'Alex' },
+    );
+
+    expect(mockImsExecute.mock.calls[0][1]).toEqual([
+      'Updated title', 'Call after lunch', '2026-08-25', 'high', 'open', 4, 'Sam',
+      null, null, null, 6, 'business-1', 42,
+    ]);
+  });
+
   it('preserves completion actor and timestamp on a repeated completion retry', async () => {
     mockImsQuery.mockResolvedValue([{
       id: 6, title: 'Follow up', description: null, due_date: null, priority: 'normal', status: 'completed',

@@ -1,10 +1,11 @@
 'use client';
 
-import { ArrowLeft, Check, ClipboardList, Mail, Phone, Plus, Tag, X } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardList, Mail, Pencil, Phone, Plus, Tag, X } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import type { ContactCrmActivityCategory, ContactCrmTimelineEntry } from '@/lib/ims/contactCrmTimeline';
 import { SBDatePicker, type SBDateRange } from '../reports/reportFilterHelpers';
+import { ContactCrmTaskEditor, type ContactCrmTaskEditPayload } from './ContactCrmTaskEditor';
 
 type ProfileData = {
   contact: Record<string, any>;
@@ -105,6 +106,7 @@ export function ContactCrmProfile({
   const [interactionBody, setInteractionBody] = useState('');
   const [tagName, setTagName] = useState('');
   const [taskDraft, setTaskDraft] = useState({ title: '', description: '', dueDate: '', priority: 'normal', assignedUserId: '' });
+  const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
 
   const loadProfile = useCallback(async () => {
     const [profilePayload, tasksPayload, tagsPayload, assigneePayload] = await Promise.all([
@@ -179,6 +181,21 @@ export function ContactCrmProfile({
       await apiJson(`/api/ims/contacts/${contactId}/tasks/${taskId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       });
+      await refreshAfterWrite();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Task could not be updated.');
+    } finally { setBusy(false); }
+  };
+
+  const saveTask = async (payload: ContactCrmTaskEditPayload) => {
+    if (!editingTask) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiJson(`/api/ims/contacts/${contactId}/tasks/${editingTask.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      setEditingTask(null);
       await refreshAfterWrite();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Task could not be updated.');
@@ -350,6 +367,7 @@ export function ContactCrmProfile({
                       {task.assigned_user_name ? ` · ${task.assigned_user_name}` : ' · Unassigned'} · {task.priority}
                     </div>
                   </div>
+                  {!isAdvisor && <button disabled={busy} onClick={() => setEditingTask(task)} title="Edit task" style={{ ...commandStyle, padding: 6 }}><Pencil size={14} /></button>}
                   {!isAdvisor && task.status === 'open' && <>
                     <button disabled={busy} onClick={() => setTaskStatus(task.id, 'completed')} title="Complete task" style={{ ...commandStyle, padding: 6 }}><Check size={14} /></button>
                     <button disabled={busy} onClick={() => setTaskStatus(task.id, 'cancelled')} title="Cancel task" style={{ ...commandStyle, padding: 6 }}><X size={14} /></button>
@@ -393,6 +411,8 @@ export function ContactCrmProfile({
           ))}
         </section>
       )}
+
+      {editingTask && <ContactCrmTaskEditor task={editingTask} assignees={assignees} saving={busy} onClose={() => setEditingTask(null)} onSave={saveTask} />}
     </div>
   );
 }
