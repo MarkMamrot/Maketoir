@@ -44,7 +44,7 @@ const capabilities: Capability[] = [
     outcome: 'Keep customers moving while sales, stock, loyalty and accounting stay connected behind the scenes.',
     icon: ShoppingCart,
     x: 22.2,
-    y: 24.1,
+    y: 23.2,
     size: 15,
     groups: [
       {
@@ -109,7 +109,7 @@ const capabilities: Capability[] = [
     outcome: 'Grow B2B sales without creating a disconnected catalogue or a second order-management process.',
     icon: Store,
     x: 77.2,
-    y: 24.1,
+    y: 23.2,
     size: 15,
     groups: [
       {
@@ -173,7 +173,7 @@ const capabilities: Capability[] = [
     outcome: 'Move stock intelligently, compare performance fairly and give every location a consistent way of working.',
     icon: Building2,
     x: 77.3,
-    y: 75.1,
+    y: 74.3,
     size: 15,
     groups: [
       {
@@ -205,7 +205,7 @@ const capabilities: Capability[] = [
     outcome: 'Start from a useful draft, structured plan or prepared document instead of a blank page and hours of manual handling.',
     icon: Sparkles,
     x: 49.8,
-    y: 84,
+    y: 82.7,
     size: 15,
     groups: [
       {
@@ -237,7 +237,7 @@ const capabilities: Capability[] = [
     outcome: 'Reduce duplicate entry and make reconciliation easier without giving up control of approvals and mappings.',
     icon: Calculator,
     x: 23.1,
-    y: 75.1,
+    y: 74.3,
     size: 15,
     groups: [
       {
@@ -350,8 +350,8 @@ export default function SolvantisCapabilityMap() {
               style={{ left: `${capability.x}%`, top: `${capability.y}%`, width: `${capability.size}%`, aspectRatio: '1' }}
               aria-label={`Explore ${capability.title} features`}
             >
-              <span className="absolute -inset-1 rounded-full border-2 border-transparent bg-cyan-400/0 shadow-[0_0_0_0_rgba(34,211,238,0)] transition duration-300 group-hover:-inset-2 group-hover:border-cyan-400/80 group-hover:bg-cyan-300/10 group-hover:shadow-[0_0_32px_8px_rgba(34,211,238,0.28)] group-focus-visible:-inset-2 group-focus-visible:border-blue-600 group-focus-visible:bg-blue-400/10 group-focus-visible:shadow-[0_0_0_5px_rgba(37,99,235,0.22)]" />
-              <span className="absolute inset-1 rounded-full bg-white/0 transition duration-300 group-hover:bg-white/10 group-hover:scale-105 group-focus-visible:scale-105" />
+              <span className="absolute inset-1 rounded-full bg-cyan-300/0 shadow-[0_0_0_0_rgba(34,211,238,0)] transition duration-300 group-hover:bg-cyan-300/10 group-hover:shadow-[0_0_34px_12px_rgba(34,211,238,0.34)] group-focus-visible:bg-blue-400/15 group-focus-visible:shadow-[0_0_38px_14px_rgba(37,99,235,0.48)]" />
+              <span className="absolute inset-2 rounded-full bg-white/0 transition duration-300 group-hover:bg-white/10 group-hover:scale-105 group-focus-visible:scale-105" />
               <span className="sr-only">Open {capability.title} feature summary</span>
             </button>
           ))}
