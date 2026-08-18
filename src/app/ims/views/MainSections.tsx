@@ -2,10 +2,11 @@ import React from 'react';
 import { ProductsSection } from './ProductsSection';
 import { OrdersSection } from './OrdersSection';
 import { ReportsSection } from './ReportsSection';
+import { ContactCrmProfile } from './contacts/ContactCrmProfile';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'locations'
+  | 'contacts' | 'contact-profile' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -24,6 +25,7 @@ interface MainSectionsProps {
   pendingOpenSCN: number | null;
   pendingOpenPosSale: number | null;
   pendingOpenPosDay: string | null;
+  pendingOpenContact: number | null;
   cnPrefill: any;
   scnPrefill: any;
   setView: (v: ImsView) => void;
@@ -35,6 +37,7 @@ interface MainSectionsProps {
   setPendingOpenSCN: (id: number | null) => void;
   setPendingOpenPosSale: (id: number | null) => void;
   setPendingOpenPosDay: (date: string | null) => void;
+  setPendingOpenContact: (id: number | null) => void;
   setCnPrefill: (v: any) => void;
   setScnPrefill: (v: any) => void;
   onOpenPurchaseOrder?: (id: number) => void;
@@ -95,6 +98,7 @@ export function MainSections(props: MainSectionsProps) {
     pendingOpenSCN,
     pendingOpenPosSale,
     pendingOpenPosDay,
+    pendingOpenContact,
     cnPrefill,
     scnPrefill,
     setView,
@@ -106,6 +110,7 @@ export function MainSections(props: MainSectionsProps) {
     setPendingOpenSCN,
     setPendingOpenPosSale,
     setPendingOpenPosDay,
+    setPendingOpenContact,
     setCnPrefill,
     setScnPrefill,
     onOpenPurchaseOrder,
@@ -158,7 +163,30 @@ export function MainSections(props: MainSectionsProps) {
           onOpenPosSale={onOpenPosSale}
         />
       )}
-      {view === 'contacts' && <ContactsView />}
+      {view === 'contacts' && (
+        <ContactsView
+          isAdvisor={isAdvisor}
+          onOpenProfile={(id: number) => {
+            setPendingOpenContact(id);
+            window.history.pushState(window.history.state, '', `#contact-profile/${id}`);
+            setView('contact-profile');
+          }}
+        />
+      )}
+      {view === 'contact-profile' && pendingOpenContact && (
+        <ContactCrmProfile
+          contactId={pendingOpenContact}
+          isAdvisor={isAdvisor}
+          onBack={() => {
+            setPendingOpenContact(null);
+            window.history.pushState(window.history.state, '', '#contacts');
+            setView('contacts');
+          }}
+          onOpenSalesOrder={(id: number) => { setPendingOpenSO(id); setView('sales-orders'); }}
+          onOpenCreditNote={(id: number) => { setPendingOpenCN(id); setView('credit-notes'); }}
+          onOpenPosSale={(id: number) => { setPendingOpenPosSale(id); setView('sales-orders'); }}
+        />
+      )}
       {view === 'locations' && <LocationsView isAdvisor={isAdvisor} />}
       {view === 'stocktakes' && <StocktakesView isAdvisor={isAdvisor} businessId={businessId} />}
 

@@ -21,6 +21,42 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_crm_interactions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
+    interaction_type VARCHAR(32) NOT NULL DEFAULT 'note', body MEDIUMTEXT NOT NULL, occurred_at DATETIME NULL,
+    actor_id INT NULL, actor_name VARCHAR(255) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_crm_interaction_timeline (business_id, contact_id, occurred_at, id),
+    CONSTRAINT fk_crm_interaction_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_tasks (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
+    title VARCHAR(255) NOT NULL, description TEXT NULL, due_date DATE NULL,
+    priority VARCHAR(16) NOT NULL DEFAULT 'normal', status VARCHAR(16) NOT NULL DEFAULT 'open',
+    assigned_user_id INT NULL, assigned_user_name VARCHAR(255) NULL,
+    created_by INT NULL, created_by_name VARCHAR(255) NULL,
+    completed_by INT NULL, completed_by_name VARCHAR(255) NULL, completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_crm_task_contact (business_id, contact_id, status, due_date, id),
+    INDEX idx_crm_task_assignee (business_id, assigned_user_id, status, due_date),
+    CONSTRAINT fk_crm_task_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_tags (
+    id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, name VARCHAR(100) NOT NULL,
+    normalized_name VARCHAR(100) NOT NULL, color VARCHAR(32) NULL,
+    created_by INT NULL, created_by_name VARCHAR(255) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_crm_tag_name (business_id, normalized_name), INDEX idx_crm_tag_lookup (business_id, name)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_contact_tags (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL, tag_id INT NOT NULL,
+    created_by INT NULL, created_by_name VARCHAR(255) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_crm_contact_tag (business_id, contact_id, tag_id),
+    INDEX idx_crm_contact_tag_lookup (business_id, tag_id, contact_id),
+    CONSTRAINT fk_crm_contact_tag_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE,
+    CONSTRAINT fk_crm_contact_tag_tag FOREIGN KEY (tag_id) REFERENCES ims_crm_tags(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', po_id INT NOT NULL,
     payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
@@ -1065,6 +1101,10 @@ async function migrateSchema(schema) {
     await ensureColumnCollationMatches(schema, 'ims_customer_credit_settlements', 'business_id', 'ims_sales_orders', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'business_id', 'ims_products', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_website_content_attempts', 'product_id', 'ims_products', 'product_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_interactions', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_tasks', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_tags', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_contact_tags', 'business_id', 'ims_contacts', 'business_id');
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }

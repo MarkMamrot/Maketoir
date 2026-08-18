@@ -64,7 +64,7 @@ import {
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'locations'
+  | 'contacts' | 'contact-profile' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -546,7 +546,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
           { icon: 'purchase-orders',  label: 'Purchase Orders',  navigate: 'purchase-orders',  activeFor: ['purchase-orders'] },
           { icon: 'sales-orders',     label: 'Sales Orders',     navigate: 'sales-orders',     activeFor: ['sales-orders'] },
           { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
-          { icon: 'contacts',         label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts'] },
+          { icon: 'contacts',         label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'contact-profile'] },
           { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
         ];
         return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
@@ -1663,7 +1663,7 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
   both:            'Supplier & B2B Customer',
 };
 
-function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
+function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolean; onOpenProfile: (id: number) => void }) {
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2025,7 +2025,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             scrollClassName="contacts-table-scroll"
             render={(c) => [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
@@ -2068,7 +2068,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             scrollClassName="contacts-table-scroll"
             render={(c) => isSupplierView ? [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
               c.price_tier === 'wholesale'
@@ -2079,7 +2079,7 @@ function ContactsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               actions(c),
             ] : [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
               c.email || '—',
@@ -20333,6 +20333,7 @@ export default function ImsPage() {
   const [pendingOpenSCN, setPendingOpenSCN] = useState<number | null>(null);
   const [pendingOpenPosSale, setPendingOpenPosSale] = useState<number | null>(null);
   const [pendingOpenPosDay, setPendingOpenPosDay] = useState<string | null>(null);
+  const [pendingOpenContact, setPendingOpenContact] = useState<number | null>(null);
   const [cnPrefill, setCnPrefill] = useState<any>(null);
   const [scnPrefill, setScnPrefill] = useState<any>(null);
 
@@ -20429,6 +20430,13 @@ export default function ImsPage() {
       if (isXeroHash(`#${h}`)) return 'xero' as ImsView;
       // Deep-link: #products/<id> → navigate to products view (ProductsView handles opening the modal)
       if (h.startsWith('products/')) return 'products' as ImsView;
+      if (h.startsWith('contact-profile/')) {
+        const contactId = Number(h.split('/')[1]);
+        if (Number.isInteger(contactId) && contactId > 0) {
+          setPendingOpenContact(contactId);
+          return 'contact-profile' as ImsView;
+        }
+      }
       if (h === 'report-sales-by-branch') return 'report-sales-detail' as ImsView;
       return VALID_VIEWS.has(h) ? h as ImsView : 'dashboard';
     };
@@ -20826,6 +20834,7 @@ export default function ImsPage() {
               pendingOpenSCN={pendingOpenSCN}
               pendingOpenPosSale={pendingOpenPosSale}
               pendingOpenPosDay={pendingOpenPosDay}
+              pendingOpenContact={pendingOpenContact}
               cnPrefill={cnPrefill}
               scnPrefill={scnPrefill}
               setView={setViewSafe}
@@ -20837,6 +20846,7 @@ export default function ImsPage() {
               setPendingOpenSCN={setPendingOpenSCN}
               setPendingOpenPosSale={setPendingOpenPosSale}
               setPendingOpenPosDay={setPendingOpenPosDay}
+              setPendingOpenContact={setPendingOpenContact}
               setCnPrefill={setCnPrefill}
               setScnPrefill={setScnPrefill}
               DashboardView={DashboardView}

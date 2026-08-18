@@ -1,5 +1,9 @@
 export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_contacts',
+  'ims_crm_interactions',
+  'ims_crm_tasks',
+  'ims_crm_tags',
+  'ims_crm_contact_tags',
   'ims_locations',
   'pos_chat_messages',
   'pos_chat_attachments',
@@ -155,6 +159,10 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_crm_interactions: ['idx_crm_interaction_timeline'],
+  ims_crm_tasks: ['idx_crm_task_contact', 'idx_crm_task_assignee'],
+  ims_crm_tags: ['uq_crm_tag_name', 'idx_crm_tag_lookup'],
+  ims_crm_contact_tags: ['uq_crm_contact_tag', 'idx_crm_contact_tag_lookup'],
   ims_inventory_document_operations: ['uq_inventory_document_operation', 'idx_inventory_document_history'],
   ims_purchase_orders: ['uq_po_replacement_source'],
   ims_sales_orders: ['uq_so_replacement_source'],

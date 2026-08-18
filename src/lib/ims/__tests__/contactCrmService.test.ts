@@ -1,0 +1,108 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mockContactGet, mockImsQuery, mockImsExecute } = vi.hoisted(() => ({
+  mockContactGet: vi.fn(),
+  mockImsQuery: vi.fn(),
+  mockImsExecute: vi.fn(),
+}));
+
+vi.mock('@/lib/ims/ImsRepository', () => ({
+  ImsContactsRepo: { get: mockContactGet },
+}));
+
+vi.mock('@/services/IMSMySQLService', () => ({
+  imsQuery: mockImsQuery,
+  imsExecute: mockImsExecute,
+}));
+
+import {
+  ContactCrmNotFoundError,
+  ContactCrmValidationError,
+  addContactCrmTag,
+  createContactCrmInteraction,
+  createContactCrmTask,
+  updateContactCrmTask,
+} from '../contactCrmService';
+
+describe('contact CRM service', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Customer' });
+    mockImsQuery.mockResolvedValue([]);
+    mockImsExecute.mockResolvedValue({ insertId: 7, affectedRows: 1 });
+  });
+
+  it('fences the contact by business before writing', async () => {
+    mockContactGet.mockResolvedValue(null);
+
+    await expect(createContactCrmInteraction(
+      'business-1', 42, { body: 'Called customer' }, { id: 9, name: 'Alex' },
+    )).rejects.toBeInstanceOf(ContactCrmNotFoundError);
+
+    expect(mockContactGet).toHaveBeenCalledWith(42, 'business-1');
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('validates interaction types before inserting server-owned actor data', async () => {
+    await expect(createContactCrmInteraction(
+      'business-1', 42, { interactionType: 'email', body: 'Sent it' }, { id: 9, name: 'Alex' },
+    )).rejects.toBeInstanceOf(ContactCrmValidationError);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+
+    await createContactCrmInteraction(
+      'business-1', 42, { interactionType: 'call', body: ' Discussed order ' }, { id: 9, name: 'Alex' },
+    );
+    expect(mockImsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_crm_interactions'),
+      ['business-1', 42, 'call', 'Discussed order', null, 9, 'Alex'],
+    );
+  });
+
+  it('rejects malformed task inputs without writing', async () => {
+    await expect(createContactCrmTask(
+      'business-1', 42,
+      { title: 'Follow up', dueDate: '18/08/2026', priority: 'urgent' },
+      { id: 9, name: 'Alex' },
+    )).rejects.toBeInstanceOf(ContactCrmValidationError);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('records completion using the current actor rather than client actor fields', async () => {
+    mockImsQuery.mockResolvedValue([{
+      id: 6,
+      title: 'Follow up',
+      description: null,
+      due_date: '2026-08-20',
+      priority: 'normal',
+      status: 'open',
+      assigned_user_id: 2,
+      assigned_user_name: 'Sam',
+    }]);
+
+    await updateContactCrmTask(
+      'business-1', 42, 6,
+      { title: 'Follow up', status: 'completed' },
+      { id: 9, name: 'Alex' },
+    );
+
+    const params = mockImsExecute.mock.calls[0][1];
+    expect(params.slice(7, 9)).toEqual([9, 'Alex']);
+    expect(params[9]).toBeInstanceOf(Date);
+    expect(params.slice(-3)).toEqual([6, 'business-1', 42]);
+  });
+
+  it('normalizes tags and uses tenant-leading idempotent assignment writes', async () => {
+    mockImsExecute
+      .mockResolvedValueOnce({ insertId: 12, affectedRows: 1 })
+      .mockResolvedValueOnce({ insertId: 0, affectedRows: 1 });
+
+    await addContactCrmTag('business-1', 42, '  VIP   Customer ', { id: 9, name: 'Alex' });
+
+    expect(mockImsExecute.mock.calls[0][0]).toContain('ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)');
+    expect(mockImsExecute.mock.calls[0][1]).toEqual(['business-1', 'VIP Customer', 'vip customer', 9, 'Alex']);
+    expect(mockImsExecute.mock.calls[1]).toEqual([
+      expect.stringContaining('INSERT IGNORE INTO ims_crm_contact_tags'),
+      ['business-1', 42, 12, 9, 'Alex'],
+    ]);
+  });
+});
