@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 
@@ -30,6 +31,7 @@ export async function GET(req: Request) {
   );
 
   let reconciliations: {
+    id: number;
     register_session_id: number | null; payment_method: string;
     expected_amount: string | null; counted_amount: string | null;
     xero_invoice_id: string | null; xero_synced_at: string | null;
@@ -38,7 +40,7 @@ export async function GET(req: Request) {
   if (sessions.length > 0) {
     const ids = sessions.map(s => s.id);
     reconciliations = await imsQuery(
-      `SELECT register_session_id, payment_method, expected_amount, counted_amount,
+      `SELECT id, register_session_id, payment_method, expected_amount, counted_amount,
               xero_invoice_id, xero_synced_at
        FROM pos_eod_reconciliations
        WHERE register_session_id IN (${ids.map(() => '?').join(',')})
@@ -46,6 +48,25 @@ export async function GET(req: Request) {
       ids,
     );
   }
+
+  const reconciliationIds = reconciliations.map(reconciliation => reconciliation.id);
+  const cashActions = reconciliationIds.length > 0
+    ? await query<{
+        eod_reconciliation_id: number;
+        till_variance: number | string;
+        variance_status: string;
+        xero_variance_id: string | null;
+      }>(
+        `SELECT eod_reconciliation_id, till_variance, variance_status, xero_variance_id
+           FROM xero_pos_cash_eod_actions
+          WHERE business_id = ?
+            AND eod_reconciliation_id IN (${reconciliationIds.map(() => '?').join(',')})`,
+        [biz, ...reconciliationIds],
+      )
+    : [];
+  const cashActionByReconciliation = new Map(
+    cashActions.map(action => [Number(action.eod_reconciliation_id), action]),
+  );
 
   const reconBySession = new Map<number, typeof reconciliations>();
   for (const r of reconciliations) {
@@ -60,6 +81,7 @@ export async function GET(req: Request) {
       const cnt = parseFloat(r.counted_amount ?? '0') || 0;
       const openingFloat = parseFloat(s.opening_float ?? '0') || 0;
       const isCash = r.payment_method.trim().toLowerCase() === 'cash';
+      const cashAction = cashActionByReconciliation.get(r.id);
       return {
         payment_method: r.payment_method,
         expected_amount: r.expected_amount != null ? exp : null,
@@ -67,6 +89,9 @@ export async function GET(req: Request) {
         variance:        r.counted_amount  != null ? cnt - (isCash ? openingFloat : 0) - exp : null,
         xero_invoice_id: r.xero_invoice_id,
         xero_synced_at:  r.xero_synced_at,
+        till_variance: cashAction ? Number(cashAction.till_variance) : null,
+        variance_status: cashAction?.variance_status ?? null,
+        xero_variance_id: cashAction?.xero_variance_id ?? null,
       };
     });
     const totalExpected = recons.reduce((sum, r) => sum + (r.expected_amount ?? 0), 0);

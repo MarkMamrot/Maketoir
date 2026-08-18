@@ -266,6 +266,7 @@ export async function GET(req: Request) {
     let onlineBatchRows: any[] = [];
     let onlineBatchPayoutLinks: any[] = [];
     let eventLogs: any[] = [];
+    let eodCashActions: any[] = [];
     let cogsRuns: any[] = [];
     let shopifyPayouts: any[] = [];
 
@@ -431,6 +432,23 @@ export async function GET(req: Request) {
           LIMIT ${limit}`,
         [databaseId, databaseId, databaseId],
       );
+
+      const eodInvoiceIds = Array.from(new Set(
+        eventLogs
+          .filter((event: any) => event.sync_type === 'eod_reconciliation')
+          .map((event: any) => String(event.xero_id ?? '').trim())
+          .filter(Boolean),
+      ));
+      if (eodInvoiceIds.length > 0) {
+        eodCashActions = await query<any>(
+          `SELECT eod_reconciliation_id, xero_invoice_id, till_variance,
+                  variance_status, xero_variance_id
+             FROM xero_pos_cash_eod_actions
+            WHERE business_id = ?
+              AND xero_invoice_id IN (${eodInvoiceIds.map(() => '?').join(',')})`,
+          [databaseId, ...eodInvoiceIds],
+        );
+      }
     } catch (logErr: any) {
       // xero_sync_log table may not yet exist — return PO/SO list with null sync status
       // rather than failing the whole request.
@@ -498,6 +516,9 @@ export async function GET(req: Request) {
     // batchLogByKey is keyed by 'online batch YYYY-MM-DD'; look up by the same format
     const batchLogByKey = new Map(batchLogs.map((r: any) => [r.batch_key, r]));
     const onlineBatchByDate = new Map(onlineBatchRows.map((row: any) => [batchDateStr(row.batch_date), row]));
+    const eodCashActionByInvoice = new Map(
+      eodCashActions.map((action: any) => [String(action.xero_invoice_id), action]),
+    );
     const payoutLinksByInvoice = new Map<string, any[]>();
     for (const row of onlineBatchPayoutLinks) {
       const invoiceId = String(row.xero_invoice_id ?? '').trim();
@@ -708,36 +729,44 @@ export async function GET(req: Request) {
       const m = /\$\s*([\d,]+(?:\.\d+)?)/.exec(detail);
       return m ? Number(m[1].replace(/,/g, '')) : null;
     };
-    const eventEntries = eventLogs.map((e: any) => ({
-      sync_type: e.sync_type,
-      reference_id: e.reference_id ?? parseLifecycleReferenceId(e.sync_type, e.detail),
-      reference:
-        e.sync_type === 'eod_reconciliation'
-          ? (e.detail ? String(e.detail).split(' — ')[0] : 'EOD Reconciliation')
-          : e.sync_type === 'stocktake_journal'
-            ? 'Stocktake Journal'
-            : e.sync_type === 'gift_card_issue'
-              ? 'Gift Card Issue'
-              : e.sync_type === 'gift_card_liability'
-                ? 'Gift Card Liability Reclass'
-                : e.sync_type === 'gift_card_redeem'
-                  ? 'Gift Card Redemption'
-                  : e.sync_type === 'store_credit_issue'
-                    ? 'Store Credit Issue'
-                    : 'Store Credit Redemption',
-      contact_name: e.detail ?? null,
-      amount: parseAmt(e.detail),
-      item_date: e.synced_at,
-      is_historical: 0,
-      xero_sync_status: null,
-      log_id: e.id,
-      xero_id: e.xero_id ?? null,
-      last_sync_status: e.status ?? null,
-      last_xero_state: resolveXeroState(e.sync_type, e.status, e.detail, e.xero_state),
-      last_sync_detail: e.detail ?? null,
-      last_sync_at: e.synced_at ?? null,
-      payments: [],
-    }));
+    const eventEntries = eventLogs.map((e: any) => {
+      const cashAction = e.sync_type === 'eod_reconciliation' && e.xero_id
+        ? eodCashActionByInvoice.get(String(e.xero_id))
+        : null;
+      return {
+        sync_type: e.sync_type,
+        reference_id: e.reference_id ?? cashAction?.eod_reconciliation_id ?? parseLifecycleReferenceId(e.sync_type, e.detail),
+        reference:
+          e.sync_type === 'eod_reconciliation'
+            ? (e.detail ? String(e.detail).split(' — ')[0] : 'EOD Reconciliation')
+            : e.sync_type === 'stocktake_journal'
+              ? 'Stocktake Journal'
+              : e.sync_type === 'gift_card_issue'
+                ? 'Gift Card Issue'
+                : e.sync_type === 'gift_card_liability'
+                  ? 'Gift Card Liability Reclass'
+                  : e.sync_type === 'gift_card_redeem'
+                    ? 'Gift Card Redemption'
+                    : e.sync_type === 'store_credit_issue'
+                      ? 'Store Credit Issue'
+                      : 'Store Credit Redemption',
+        contact_name: e.detail ?? null,
+        amount: parseAmt(e.detail),
+        item_date: e.synced_at,
+        is_historical: 0,
+        xero_sync_status: null,
+        log_id: e.id,
+        xero_id: e.xero_id ?? null,
+        till_variance: cashAction ? Number(cashAction.till_variance) : null,
+        variance_status: cashAction?.variance_status ?? null,
+        xero_variance_id: cashAction?.xero_variance_id ?? null,
+        last_sync_status: e.status ?? null,
+        last_xero_state: resolveXeroState(e.sync_type, e.status, e.detail, e.xero_state),
+        last_sync_detail: e.detail ?? null,
+        last_sync_at: e.synced_at ?? null,
+        payments: [],
+      };
+    });
 
     const cogsEntries = cogsRuns.map((run: any) => {
       const startDate = batchDateStr(run.period_start);
