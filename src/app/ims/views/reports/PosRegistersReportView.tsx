@@ -108,10 +108,10 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
               href={xeroBankTransactionLink(reconciliation.xero_variance_id)}
               target="_blank"
               rel="noopener noreferrer"
-              title="Open till variance in Xero"
+              title={`Open till ${reconciliation.till_variance! < 0 ? 'shortage' : 'overage'} ${fmt$(Math.abs(reconciliation.till_variance!))} in Xero`}
               style={{ color: reconciliation.till_variance! < 0 ? 'var(--sv-red)' : 'var(--sv-mint)', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}
             >
-              ↗ Till {reconciliation.till_variance! < 0 ? 'shortage' : 'overage'} {fmt$(Math.abs(reconciliation.till_variance!))}
+              ↗ Till {reconciliation.till_variance! < 0 ? 'Short' : 'Over'}
             </a>
           ) : (
             <span style={{ color: reconciliation.variance_status === 'error' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>
