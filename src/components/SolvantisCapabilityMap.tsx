@@ -321,7 +321,7 @@ export default function SolvantisCapabilityMap() {
       ([entry]) => {
         if (!entry.isIntersecting) return;
         setShowIntro(true);
-        introTimeout = setTimeout(() => setShowIntro(false), 2400);
+        introTimeout = setTimeout(() => setShowIntro(false), 3200);
         observer.disconnect();
       },
       { threshold: 0.3 },
@@ -357,6 +357,19 @@ export default function SolvantisCapabilityMap() {
   return (
     <>
       <div className="mx-auto max-w-[920px]">
+        <div className="mb-3 flex items-center gap-3 border-l-4 border-cyan-400 bg-slate-950 px-4 py-3 text-white shadow-md sm:px-5">
+          <span className="flex h-9 w-9 flex-none items-center justify-center rounded-md bg-cyan-300/15 text-cyan-300">
+            <MousePointerClick className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-black">Interactive feature map</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-300 sm:text-sm">
+              <span className="hidden sm:inline">Click any capability circle to open its full feature list.</span>
+              <span className="sm:hidden">Tap a capability button below to open its full feature list.</span>
+            </p>
+          </div>
+        </div>
+
         <div ref={mapRef} className="relative aspect-[991/1024] w-full overflow-hidden rounded-lg border border-slate-200 bg-[#f4f6fa] shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
           <Image
             src="/landing/solvantismap.jpg"
@@ -393,9 +406,9 @@ export default function SolvantisCapabilityMap() {
           ))}
         </div>
 
-        <p className="mt-5 flex items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700">
+        <p className="mt-5 hidden items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700 sm:flex">
           <MousePointerClick className="h-4 w-4 flex-none text-blue-600" aria-hidden="true" />
-          <span>Select a capability to explore</span>
+          <span>Choose a circle to explore what your team can do</span>
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
@@ -418,24 +431,24 @@ export default function SolvantisCapabilityMap() {
 
       <style jsx>{`
         .solvantis-center-pulse {
-          background: radial-gradient(circle, rgba(103, 232, 249, 0.2) 0%, rgba(34, 211, 238, 0.08) 42%, transparent 72%);
+          background: radial-gradient(circle, rgba(8, 145, 178, 0.54) 0%, rgba(6, 182, 212, 0.38) 38%, rgba(34, 211, 238, 0.16) 58%, transparent 76%);
           animation: solvantis-center-breathe 3.8s ease-in-out infinite;
         }
 
         .capability-intro-glow {
-          animation: capability-intro 800ms ease-out both;
+          animation: capability-intro 1100ms ease-in-out both;
         }
 
         @keyframes solvantis-center-breathe {
           0%, 100% {
-            opacity: 0.35;
-            transform: scale(0.94);
-            box-shadow: 0 0 20px 6px rgba(34, 211, 238, 0.08);
+            opacity: 0.48;
+            transform: scale(0.96);
+            box-shadow: 0 0 24px 8px rgba(8, 145, 178, 0.16);
           }
           50% {
-            opacity: 0.72;
-            transform: scale(1.08);
-            box-shadow: 0 0 38px 14px rgba(34, 211, 238, 0.2);
+            opacity: 0.94;
+            transform: scale(1.1);
+            box-shadow: 0 0 44px 17px rgba(6, 182, 212, 0.32);
           }
         }
 
@@ -445,8 +458,8 @@ export default function SolvantisCapabilityMap() {
             box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
           }
           45% {
-            background-color: rgba(103, 232, 249, 0.14);
-            box-shadow: 0 0 34px 12px rgba(34, 211, 238, 0.36);
+            background-color: rgba(34, 211, 238, 0.28);
+            box-shadow: 0 0 42px 17px rgba(6, 182, 212, 0.58);
           }
         }
 
