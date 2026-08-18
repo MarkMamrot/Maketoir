@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   Check,
+  MousePointerClick,
   Network,
   ScanLine,
   ShoppingCart,
@@ -298,6 +299,8 @@ const capabilities: Capability[] = [
 
 export default function SolvantisCapabilityMap() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showIntro, setShowIntro] = useState(false);
+  const mapRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selected = capabilities.find((capability) => capability.id === selectedId) ?? null;
@@ -308,6 +311,29 @@ export default function SolvantisCapabilityMap() {
   };
 
   const closeCapability = () => setSelectedId(null);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let introTimeout: ReturnType<typeof setTimeout> | undefined;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setShowIntro(true);
+        introTimeout = setTimeout(() => setShowIntro(false), 2400);
+        observer.disconnect();
+      },
+      { threshold: 0.3 },
+    );
+
+    observer.observe(map);
+
+    return () => {
+      observer.disconnect();
+      if (introTimeout) clearTimeout(introTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -331,7 +357,7 @@ export default function SolvantisCapabilityMap() {
   return (
     <>
       <div className="mx-auto max-w-[920px]">
-        <div className="relative aspect-[991/1024] w-full overflow-hidden rounded-lg border border-slate-200 bg-[#f4f6fa] shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+        <div ref={mapRef} className="relative aspect-[991/1024] w-full overflow-hidden rounded-lg border border-slate-200 bg-[#f4f6fa] shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
           <Image
             src="/landing/solvantismap.jpg"
             alt="Solvantis platform map showing eight connected retail capabilities"
@@ -341,7 +367,14 @@ export default function SolvantisCapabilityMap() {
             priority={false}
           />
 
-          {capabilities.map((capability) => (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 hidden aspect-square w-[17%] -translate-x-1/2 -translate-y-1/2 sm:block"
+          >
+            <span className="solvantis-center-pulse absolute inset-0 rounded-full" />
+          </span>
+
+          {capabilities.map((capability, index) => (
             <button
               key={capability.id}
               type="button"
@@ -350,18 +383,22 @@ export default function SolvantisCapabilityMap() {
               style={{ left: `${capability.x}%`, top: `${capability.y}%`, width: `${capability.size}%`, aspectRatio: '1' }}
               aria-label={`Explore ${capability.title} features`}
             >
-              <span className="absolute inset-1 rounded-full bg-cyan-300/0 shadow-[0_0_0_0_rgba(34,211,238,0)] transition duration-300 group-hover:bg-cyan-300/10 group-hover:shadow-[0_0_34px_12px_rgba(34,211,238,0.34)] group-focus-visible:bg-blue-400/15 group-focus-visible:shadow-[0_0_38px_14px_rgba(37,99,235,0.48)]" />
+              <span
+                className={`absolute inset-1 rounded-full bg-cyan-300/0 shadow-[0_0_0_0_rgba(34,211,238,0)] transition duration-300 group-hover:bg-cyan-300/10 group-hover:shadow-[0_0_34px_12px_rgba(34,211,238,0.34)] group-focus-visible:bg-blue-400/15 group-focus-visible:shadow-[0_0_38px_14px_rgba(37,99,235,0.48)] ${showIntro ? 'capability-intro-glow' : ''}`}
+                style={showIntro ? { animationDelay: `${index * 160}ms` } : undefined}
+              />
               <span className="absolute inset-2 rounded-full bg-white/0 transition duration-300 group-hover:bg-white/10 group-hover:scale-105 group-focus-visible:scale-105" />
               <span className="sr-only">Open {capability.title} feature summary</span>
             </button>
           ))}
         </div>
 
-        <p className="mt-5 hidden text-center text-sm font-medium text-slate-500 sm:block">
-          Select any capability to explore how Solvantis connects the work around it.
+        <p className="mt-5 flex items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700">
+          <MousePointerClick className="h-4 w-4 flex-none text-blue-600" aria-hidden="true" />
+          <span>Select a capability to explore</span>
         </p>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 sm:hidden">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
           {capabilities.map((capability) => {
             const Icon = capability.icon;
             return (
@@ -369,7 +406,7 @@ export default function SolvantisCapabilityMap() {
                 key={capability.id}
                 type="button"
                 onClick={(event) => openCapability(capability.id, event.currentTarget)}
-                className="flex min-h-14 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-bold text-slate-800 shadow-sm transition active:border-blue-500 active:bg-blue-50"
+                className="flex min-h-14 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left text-xs font-bold text-slate-800 shadow-sm transition hover:border-blue-300 hover:bg-blue-50 active:border-blue-500 active:bg-blue-50"
               >
                 <Icon className="h-4 w-4 flex-none text-blue-600" aria-hidden="true" />
                 <span>{capability.shortTitle}</span>
@@ -378,6 +415,48 @@ export default function SolvantisCapabilityMap() {
           })}
         </div>
       </div>
+
+      <style jsx>{`
+        .solvantis-center-pulse {
+          background: radial-gradient(circle, rgba(103, 232, 249, 0.2) 0%, rgba(34, 211, 238, 0.08) 42%, transparent 72%);
+          animation: solvantis-center-breathe 3.8s ease-in-out infinite;
+        }
+
+        .capability-intro-glow {
+          animation: capability-intro 800ms ease-out both;
+        }
+
+        @keyframes solvantis-center-breathe {
+          0%, 100% {
+            opacity: 0.35;
+            transform: scale(0.94);
+            box-shadow: 0 0 20px 6px rgba(34, 211, 238, 0.08);
+          }
+          50% {
+            opacity: 0.72;
+            transform: scale(1.08);
+            box-shadow: 0 0 38px 14px rgba(34, 211, 238, 0.2);
+          }
+        }
+
+        @keyframes capability-intro {
+          0%, 100% {
+            background-color: transparent;
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+          }
+          45% {
+            background-color: rgba(103, 232, 249, 0.14);
+            box-shadow: 0 0 34px 12px rgba(34, 211, 238, 0.36);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .solvantis-center-pulse,
+          .capability-intro-glow {
+            animation: none;
+          }
+        }
+      `}</style>
 
       {selected && (
         <div
