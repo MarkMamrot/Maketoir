@@ -124,59 +124,65 @@ export async function getContactCrmTimeline(
   await requireContact(businessId, contactId);
   const limit = Math.max(1, Math.min(Math.floor(options.limit ?? 100), 200));
   const sourceLimit = 200;
+  const from = DATE_RE.test(options.from ?? '') ? options.from as string : null;
+  const to = DATE_RE.test(options.to ?? '') ? options.to as string : null;
+  const dateSql = (expression: string) => `${from ? ` AND DATE(${expression}) >= ?` : ''}${to ? ` AND DATE(${expression}) <= ?` : ''}`;
+  const dateParams = () => [from, to].filter((value): value is string => Boolean(value));
   const [posSales, salesOrders, creditNotes, storeCreditTransactions, loyaltyTransactions, interactions, tasks] = await Promise.all([
     imsQuery<any>(
       `SELECT ps.id, ps.sale_type, ps.status, ps.total, ps.cashier_name, ps.created_at, ps.completed_at, l.name AS location_name
          FROM pos_sales ps
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
-        WHERE ps.customer_id = ? ORDER BY COALESCE(ps.completed_at, ps.created_at) DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId],
+        WHERE ps.customer_id = ?${dateSql('COALESCE(ps.completed_at, ps.created_at)')}
+        ORDER BY COALESCE(ps.completed_at, ps.created_at) DESC LIMIT ${sourceLimit}`,
+      [businessId, contactId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT id, so_number, so_type, status, total_amount, order_date, fulfilled_date, created_at
-         FROM ims_sales_orders WHERE business_id = ? AND customer_id = ?
+        FROM ims_sales_orders WHERE business_id = ? AND customer_id = ?${dateSql('COALESCE(fulfilled_date, created_at)')}
         ORDER BY COALESCE(fulfilled_date, created_at) DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId],
+      [businessId, contactId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT id, cn_number, source, status, total_amount, cn_date, completed_at, created_at, created_by
-         FROM ims_credit_notes WHERE business_id = ? AND customer_id = ?
+        FROM ims_credit_notes WHERE business_id = ? AND customer_id = ?${dateSql('COALESCE(completed_at, created_at)')}
         ORDER BY COALESCE(completed_at, created_at) DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId],
+      [businessId, contactId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT id, type, amount, balance_after, created_at
-         FROM store_credit_transactions WHERE contact_id = ? ORDER BY created_at DESC LIMIT ${sourceLimit}`,
-      [contactId],
+        FROM store_credit_transactions WHERE contact_id = ?${dateSql('created_at')}
+        ORDER BY created_at DESC LIMIT ${sourceLimit}`,
+      [contactId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT lt.id, lt.type, lt.points_delta, lt.balance_after, lt.channel, lt.actor_id, lt.created_at
          FROM loyalty_transactions lt
          JOIN loyalty_accounts la ON la.id = lt.account_id AND la.business_id = ? AND la.contact_id = ?
-        WHERE lt.business_id = ? ORDER BY lt.created_at DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId, businessId],
+        WHERE lt.business_id = ?${dateSql('lt.created_at')} ORDER BY lt.created_at DESC LIMIT ${sourceLimit}`,
+      [businessId, contactId, businessId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT id, interaction_type, body, occurred_at, actor_name, created_at
-         FROM ims_crm_interactions WHERE business_id = ? AND contact_id = ?
+        FROM ims_crm_interactions WHERE business_id = ? AND contact_id = ?${dateSql('COALESCE(occurred_at, created_at)')}
         ORDER BY COALESCE(occurred_at, created_at) DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId],
+      [businessId, contactId, ...dateParams()],
     ),
     imsQuery<any>(
       `SELECT id, title, due_date, status, assigned_user_name, created_by_name,
               completed_by_name, created_at, completed_at
-         FROM ims_crm_tasks WHERE business_id = ? AND contact_id = ?
+        FROM ims_crm_tasks WHERE business_id = ? AND contact_id = ?${dateSql('COALESCE(completed_at, created_at)')}
         ORDER BY COALESCE(completed_at, created_at) DESC LIMIT ${sourceLimit}`,
-      [businessId, contactId],
+      [businessId, contactId, ...dateParams()],
     ),
   ]);
   const entries = buildContactCrmTimeline(
     { posSales, salesOrders, creditNotes, storeCreditTransactions, loyaltyTransactions, interactions, tasks },
     { ...options, limit },
   );
-  const sourceCount = posSales.length + salesOrders.length + creditNotes.length + storeCreditTransactions.length
-    + loyaltyTransactions.length + interactions.length + tasks.length;
-  return { entries, truncated: entries.length === limit || sourceCount >= sourceLimit };
+  const anySourceAtLimit = [posSales, salesOrders, creditNotes, storeCreditTransactions,
+    loyaltyTransactions, interactions, tasks].some(rows => rows.length === sourceLimit);
+  return { entries, truncated: entries.length === limit || anySourceAtLimit };
 }
 
 export async function listContactCrmInteractions(businessId: string, contactId: number) {
@@ -255,7 +261,8 @@ export async function updateContactCrmTask(
 ) {
   await requireContact(businessId, contactId);
   const existing = await imsQuery<any>(
-    `SELECT id, title, description, due_date, priority, status, assigned_user_id, assigned_user_name
+        `SELECT id, title, description, due_date, priority, status, assigned_user_id, assigned_user_name,
+          completed_by, completed_by_name, completed_at
        FROM ims_crm_tasks WHERE id = ? AND business_id = ? AND contact_id = ? LIMIT 1`,
     [taskId, businessId, contactId],
   );
@@ -273,7 +280,8 @@ export async function updateContactCrmTask(
   }
   const assignedUserId = input.assignedUserId === undefined ? existing[0].assigned_user_id : input.assignedUserId;
   const assignedUserName = input.assignedUserName === undefined ? existing[0].assigned_user_name : input.assignedUserName;
-  const completed = status === 'completed';
+  const newlyCompleted = status === 'completed' && existing[0].status !== 'completed';
+  const remainsCompleted = status === 'completed';
   await imsExecute(
     `UPDATE ims_crm_tasks
         SET title = ?, description = ?, due_date = ?, priority = ?, status = ?,
@@ -281,7 +289,9 @@ export async function updateContactCrmTask(
             completed_by = ?, completed_by_name = ?, completed_at = ?
       WHERE id = ? AND business_id = ? AND contact_id = ?`,
     [title, description, dueDate, priority, status, assignedUserId ?? null, assignedUserName ?? null,
-      completed ? actor.id : null, completed ? actor.name : null, completed ? new Date() : null,
+      remainsCompleted ? (newlyCompleted ? actor.id : existing[0].completed_by) : null,
+      remainsCompleted ? (newlyCompleted ? actor.name : existing[0].completed_by_name) : null,
+      remainsCompleted ? (newlyCompleted ? new Date() : existing[0].completed_at) : null,
       taskId, businessId, contactId],
   );
 }

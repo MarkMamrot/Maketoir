@@ -91,6 +91,20 @@ describe('contact CRM service', () => {
     expect(params.slice(-3)).toEqual([6, 'business-1', 42]);
   });
 
+  it('preserves completion actor and timestamp on a repeated completion retry', async () => {
+    mockImsQuery.mockResolvedValue([{
+      id: 6, title: 'Follow up', description: null, due_date: null, priority: 'normal', status: 'completed',
+      assigned_user_id: null, assigned_user_name: null,
+      completed_by: 3, completed_by_name: 'Sam', completed_at: '2026-08-18 10:00:00',
+    }]);
+
+    await updateContactCrmTask(
+      'business-1', 42, 6, { title: 'Follow up', status: 'completed' }, { id: 9, name: 'Alex' },
+    );
+
+    expect(mockImsExecute.mock.calls[0][1].slice(7, 10)).toEqual([3, 'Sam', '2026-08-18 10:00:00']);
+  });
+
   it('normalizes tags and uses tenant-leading idempotent assignment writes', async () => {
     mockImsExecute
       .mockResolvedValueOnce({ insertId: 12, affectedRows: 1 })
