@@ -124,6 +124,48 @@ describe('empty tenant report contracts', () => {
     expect(await response.json()).toEqual({ success: true, sessions: [], date: '2026-08-09' });
   });
 
+  it('links a posted cash till variance to the POS Registers reconciliation', async () => {
+    mocks.imsQuery
+      .mockResolvedValueOnce([{
+        id: 171,
+        register_name: 'Default Register',
+        location_name: 'Newtown Shop',
+        location_id: 1,
+        status: 'closed',
+        opened_at: '2026-08-18 10:30:00',
+        opened_by: 'Newtown',
+        opening_float: '400.00',
+        closed_at: '2026-08-18 17:54:00',
+        closed_by: 'Newtown',
+      }])
+      .mockResolvedValueOnce([{
+        id: 647,
+        register_session_id: 171,
+        payment_method: 'Cash',
+        expected_amount: '357.05',
+        counted_amount: '400.05',
+        xero_invoice_id: 'invoice-1',
+        xero_synced_at: '2026-08-18 17:54:00',
+      }]);
+    mocks.mainQuery.mockResolvedValueOnce([{
+      eod_reconciliation_id: 647,
+      till_variance: '-357.00',
+      variance_status: 'completed',
+      xero_variance_id: 'variance-1',
+    }]);
+
+    const response = await getPosRegisters(request('/api/ims/reports/pos-registers?date=2026-08-18'));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.sessions[0].reconciliations[0]).toEqual(expect.objectContaining({
+      variance: -357,
+      till_variance: -357,
+      variance_status: 'completed',
+      xero_variance_id: 'variance-1',
+    }));
+  });
+
   it('returns an empty Cash Banking report', async () => {
     const response = await getCashBanking(request('/api/ims/reports/cash-banking?from=2026-08-01&to=2026-08-09'));
     expect(response.status).toBe(200);
