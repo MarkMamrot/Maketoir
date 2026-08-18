@@ -35,6 +35,7 @@ import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentMo
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
+import { ContactCrmTaskQueue, type ContactCrmWorkspaceTask } from './views/contacts/ContactCrmTaskQueue';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
@@ -1667,6 +1668,16 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [crmSection, setCrmSection] = useState<'contacts' | 'tasks'>('contacts');
+  const [crmWorkspaceLoading, setCrmWorkspaceLoading] = useState(true);
+  const [crmWorkspaceError, setCrmWorkspaceError] = useState('');
+  const [crmWorkspace, setCrmWorkspace] = useState<{
+    tasks: ContactCrmWorkspaceTask[];
+    taskTruncated: boolean;
+    contactMeta: Record<number, { openTaskCount: number; overdueTaskCount: number; lastInteractionAt: string | null; tags: Array<{ id: number; name: string; color?: string | null }> }>;
+    tags: Array<{ id: number; name: string; color?: string | null }>;
+    assignees: Array<{ id: number; name: string }>;
+  }>({ tasks: [], taskTruncated: false, contactMeta: {}, tags: [], assignees: [] });
   const [filter, setFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('supplier');
   const [priceTierFilter, setPriceTierFilter] = useState('all');
@@ -1674,6 +1685,9 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const [storeCreditFilter, setStoreCreditFilter] = useState('all');
   const [promoEmailFilter, setPromoEmailFilter] = useState('all');
   const [promoSmsFilter, setPromoSmsFilter] = useState('all');
+  const [crmTagFilter, setCrmTagFilter] = useState('all');
+  const [crmFollowUpFilter, setCrmFollowUpFilter] = useState('all');
+  const [crmLastTouchFilter, setCrmLastTouchFilter] = useState('all');
   const [contactsFiltersOpen, setContactsFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
@@ -1736,6 +1750,37 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadCrmWorkspace = useCallback(async () => {
+    setCrmWorkspaceLoading(true);
+    setCrmWorkspaceError('');
+    try {
+      const [workspaceResponse, assigneeResponse] = await Promise.all([
+        fetch('/api/ims/contacts/crm-workspace'),
+        fetch('/api/ims/contacts/assignees'),
+      ]);
+      const [workspacePayload, assigneePayload] = await Promise.all([
+        workspaceResponse.json().catch(() => ({})),
+        assigneeResponse.json().catch(() => ({})),
+      ]);
+      if (!workspaceResponse.ok || workspacePayload.success === false) {
+        throw new Error(workspacePayload.error || 'CRM workspace could not be loaded.');
+      }
+      setCrmWorkspace({
+        tasks: Array.isArray(workspacePayload.data?.tasks) ? workspacePayload.data.tasks : [],
+        taskTruncated: Boolean(workspacePayload.data?.taskTruncated),
+        contactMeta: workspacePayload.data?.contactMeta ?? {},
+        tags: Array.isArray(workspacePayload.data?.tags) ? workspacePayload.data.tags : [],
+        assignees: assigneeResponse.ok && assigneePayload.success && Array.isArray(assigneePayload.data) ? assigneePayload.data : [],
+      });
+    } catch (cause) {
+      setCrmWorkspaceError(cause instanceof Error ? cause.message : 'CRM workspace could not be loaded.');
+    } finally {
+      setCrmWorkspaceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void loadCrmWorkspace(); }, [loadCrmWorkspace]);
 
   const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
   const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
@@ -1869,7 +1914,26 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     if (typeFilter === 'supplier_only') return c.type === 'supplier' || c.type === 'both';
     return c.type === typeFilter;
   };
-  const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all' || promoEmailFilter !== 'all' || promoSmsFilter !== 'all';
+  const matchesCrmLastTouch = (contactId: number) => {
+    if (crmLastTouchFilter === 'all') return true;
+    const raw = crmWorkspace.contactMeta[contactId]?.lastInteractionAt;
+    if (crmLastTouchFilter === 'never') return !raw;
+    if (!raw) return false;
+    const parsed = new Date(String(raw).replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) return false;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - Number(crmLastTouchFilter));
+    return parsed >= cutoff;
+  };
+  const crmLastTouchLabel = (contactId: number) => {
+    const raw = crmWorkspace.contactMeta[contactId]?.lastInteractionAt;
+    if (!raw) return '—';
+    const parsed = new Date(String(raw).replace(' ', 'T'));
+    return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+  const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all'
+    || promoEmailFilter !== 'all' || promoSmsFilter !== 'all' || crmTagFilter !== 'all'
+    || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all';
   const filtered = contacts.filter(c =>
     typeMatchFn(c) &&
     (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase())) &&
@@ -1877,7 +1941,13 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     (activeFilter === 'all' || String(c.is_active) === activeFilter) &&
     (storeCreditFilter === 'all' || (storeCreditFilter === 'positive' ? Number(c.store_credit ?? 0) > 0 : Number(c.store_credit ?? 0) <= 0)) &&
     (promoEmailFilter === 'all' || String(Number(c.promo_email ?? 0)) === promoEmailFilter) &&
-    (promoSmsFilter === 'all' || String(Number(c.promo_sms ?? 0)) === promoSmsFilter)
+    (promoSmsFilter === 'all' || String(Number(c.promo_sms ?? 0)) === promoSmsFilter) &&
+    (crmTagFilter === 'all' || (crmWorkspace.contactMeta[c.id]?.tags ?? []).some(tag => String(tag.id) === crmTagFilter)) &&
+    (crmFollowUpFilter === 'all'
+      || (crmFollowUpFilter === 'open' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0)
+      || (crmFollowUpFilter === 'overdue' && Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0)
+      || (crmFollowUpFilter === 'none' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) === 0)) &&
+    matchesCrmLastTouch(c.id)
   );
   const CONTACTS_PAGE_SIZE = 100;
   const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
@@ -1890,15 +1960,22 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const isCustomer = form.type === 'b2b_customer' || form.type === 'retail_customer' || form.type === 'both';
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+    <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Contacts</h1>
-        <button onClick={downloadContactsCsv} disabled={exportingContacts || contacts.length === 0} style={btnStyle('ghost')}>
+        {crmSection === 'contacts' && <button onClick={downloadContactsCsv} disabled={exportingContacts || contacts.length === 0} style={btnStyle('ghost')}>
           {exportingContacts ? 'Exporting…' : '⬇ Export CSV'}
-        </button>
-        {!isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
-        {!isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
+        </button>}
+        {crmSection === 'contacts' && !isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
+        {crmSection === 'contacts' && !isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
+      <nav aria-label="CRM workspace sections" style={{ display: 'inline-flex', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
+        {(['contacts', 'tasks'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
+      </nav>
+      {crmWorkspaceError && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 12 }}>{crmWorkspaceError}</div>}
+      {crmSection === 'tasks' ? (
+        crmWorkspaceLoading ? <Spinner /> : <ContactCrmTaskQueue tasks={crmWorkspace.tasks} truncated={crmWorkspace.taskTruncated} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onTaskChanged={loadCrmWorkspace} />
+      ) : <>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
         <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}>
@@ -1916,6 +1993,9 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
             setStoreCreditFilter('all');
             setPromoEmailFilter('all');
             setPromoSmsFilter('all');
+            setCrmTagFilter('all');
+            setCrmFollowUpFilter('all');
+            setCrmLastTouchFilter('all');
             setPage(1);
           }} style={btnStyle('secondary', 'sm')}>Clear filters</button>
         )}
@@ -1928,6 +2008,31 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setContactsFiltersOpen(false)} />
               <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>CRM Tag</label>
+                  <select value={crmTagFilter} onChange={e => { setCrmTagFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All tags</option>
+                    {crmWorkspace.tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Follow-ups</label>
+                  <select value={crmFollowUpFilter} onChange={e => { setCrmFollowUpFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">All contacts</option>
+                    <option value="open">Has open tasks</option>
+                    <option value="overdue">Has overdue tasks</option>
+                    <option value="none">No open tasks</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Last CRM Touch</label>
+                  <select value={crmLastTouchFilter} onChange={e => { setCrmLastTouchFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
+                    <option value="all">Any time</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="never">Never contacted</option>
+                  </select>
+                </div>
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Price Tier</label>
                   <select value={priceTierFilter} onChange={e => { setPriceTierFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
@@ -2015,12 +2120,12 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
+              'Name', 'Code', 'Group', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
             ]}
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
-            columnWidths={[44, 220, 130, 150, 130, 240, 150, 130, 130, 190]}
+            columnWidths={[44, 220, 130, 150, 130, 190, 120, 140, 240, 150, 130, 130, 190]}
             frozenColumnIndex={1}
             scrollClassName="contacts-table-scroll"
             render={(c) => [
@@ -2029,6 +2134,13 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
+              (crmWorkspace.contactMeta[c.id]?.tags ?? []).length
+                ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{crmWorkspace.contactMeta[c.id].tags.map(tag => <span key={tag.id} style={{ padding: '2px 5px', borderRadius: 4, background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', color: 'var(--sv-action)', fontSize: 10, fontWeight: 700 }}>{tag.name}</span>)}</div>
+                : '—',
+              Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0
+                ? <span style={{ color: Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0 ? 'var(--sv-red)' : 'var(--sv-text-main)', fontWeight: 700 }}>{crmWorkspace.contactMeta[c.id].openTaskCount} open{Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0 ? ` · ${crmWorkspace.contactMeta[c.id].overdueTaskCount} overdue` : ''}</span>
+                : '—',
+              crmLastTouchLabel(c.id),
               c.email || '—',
               c.mobile || c.phone || '—',
               typeFilter === 'b2b_customer'
@@ -2055,15 +2167,15 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
               ...(isSupplierView
-                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', '']
-                : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', ''])
+                ? ['Name', 'Company', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Price Tier', 'Email', 'Phone', '']
+                : ['Name', 'Company', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Email', 'Mobile / Phone', ''])
             ]}
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
             columnWidths={isSupplierView
-              ? [44, 220, 180, 130, 120, 240, 150, 190]
-              : [44, 220, 180, 130, 240, 160, 190]}
+              ? [44, 220, 180, 130, 190, 120, 140, 120, 240, 150, 190]
+              : [44, 220, 180, 130, 190, 120, 140, 240, 160, 190]}
             frozenColumnIndex={1}
             scrollClassName="contacts-table-scroll"
             render={(c) => isSupplierView ? [
@@ -2071,6 +2183,9 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
+              (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',
+              Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0 ? `${crmWorkspace.contactMeta[c.id].openTaskCount} open` : '—',
+              crmLastTouchLabel(c.id),
               c.price_tier === 'wholesale'
                 ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
                 : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
@@ -2082,6 +2197,9 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
               c.company || '—',
               typeBadge(c),
+              (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',
+              Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0 ? `${crmWorkspace.contactMeta[c.id].openTaskCount} open` : '—',
+              crmLastTouchLabel(c.id),
               c.email || '—',
               c.mobile || c.phone || '—',
               actions(c),
@@ -2099,6 +2217,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
           <button onClick={() => setPage(totalPages)} disabled={safePage === totalPages} style={btnStyle('secondary', 'sm')}>»</button>
         </div>
       )}
+      </>}
 
       {!isAdvisor && importOpen && (
         <ImportContactsModal

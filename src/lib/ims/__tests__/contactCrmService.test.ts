@@ -21,6 +21,7 @@ import {
   addContactCrmTag,
   createContactCrmInteraction,
   createContactCrmTask,
+  getContactCrmWorkspace,
   updateContactCrmTask,
 } from '../contactCrmService';
 
@@ -65,6 +66,29 @@ describe('contact CRM service', () => {
       { id: 9, name: 'Alex' },
     )).rejects.toBeInstanceOf(ContactCrmValidationError);
     expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('builds tenant-scoped workspace task and contact metadata without per-contact queries', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ id: 7, contact_id: 42, title: 'Call customer' }])
+      .mockResolvedValueOnce([{ contact_id: 42, open_task_count: 2, overdue_task_count: 1 }])
+      .mockResolvedValueOnce([{ contact_id: 42, last_interaction_at: '2026-08-18 09:00:00' }])
+      .mockResolvedValueOnce([{ contact_id: 42, id: 3, name: 'VIP', color: null }])
+      .mockResolvedValueOnce([{ id: 3, name: 'VIP', color: null, usage_count: 1 }]);
+
+    const workspace = await getContactCrmWorkspace('business-1');
+
+    expect(workspace.tasks).toHaveLength(1);
+    expect(workspace.taskTruncated).toBe(false);
+    expect(workspace.contactMeta[42]).toEqual({
+      openTaskCount: 2,
+      overdueTaskCount: 1,
+      lastInteractionAt: '2026-08-18 09:00:00',
+      tags: [{ id: 3, name: 'VIP', color: null }],
+    });
+    expect(workspace.tags).toHaveLength(1);
+    expect(mockImsQuery).toHaveBeenCalledTimes(5);
+    expect(mockImsQuery.mock.calls.every(([, params]) => params[0] === 'business-1')).toBe(true);
   });
 
   it('records completion using the current actor rather than client actor fields', async () => {

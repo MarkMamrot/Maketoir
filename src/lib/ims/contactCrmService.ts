@@ -27,6 +27,13 @@ export interface ContactCrmTaskInput {
   assignedUserName?: string | null;
 }
 
+export interface ContactCrmWorkspaceMeta {
+  openTaskCount: number;
+  overdueTaskCount: number;
+  lastInteractionAt: string | Date | null;
+  tags: Array<{ id: number; name: string; color: string | null }>;
+}
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function cleanRequired(value: unknown, field: string, max: number): string {
@@ -225,6 +232,67 @@ export async function listContactCrmTasks(businessId: string, contactId: number)
       ORDER BY status = 'open' DESC, due_date IS NULL, due_date, id DESC LIMIT 200`,
     [businessId, contactId],
   );
+}
+
+export async function getContactCrmWorkspace(businessId: string) {
+  const [tasks, taskSummaries, interactionSummaries, contactTags, tags] = await Promise.all([
+    imsQuery<any>(
+      `SELECT t.id, t.contact_id, c.name AS contact_name, c.company AS contact_company,
+              t.title, t.description, t.due_date, t.priority, t.status,
+              t.assigned_user_id, t.assigned_user_name, t.created_at
+         FROM ims_crm_tasks t
+         JOIN ims_contacts c ON c.id = t.contact_id AND c.business_id = t.business_id
+        WHERE t.business_id = ? AND t.status = 'open'
+        ORDER BY t.due_date IS NULL, t.due_date, FIELD(t.priority, 'high', 'normal', 'low'), t.id DESC
+        LIMIT 501`,
+      [businessId],
+    ),
+    imsQuery<any>(
+      `SELECT contact_id, COUNT(*) AS open_task_count,
+              SUM(due_date IS NOT NULL AND due_date < CURRENT_DATE) AS overdue_task_count
+         FROM ims_crm_tasks
+        WHERE business_id = ? AND status = 'open' GROUP BY contact_id`,
+      [businessId],
+    ),
+    imsQuery<any>(
+      `SELECT contact_id, MAX(COALESCE(occurred_at, created_at)) AS last_interaction_at
+         FROM ims_crm_interactions WHERE business_id = ? GROUP BY contact_id`,
+      [businessId],
+    ),
+    imsQuery<any>(
+      `SELECT ct.contact_id, t.id, t.name, t.color
+         FROM ims_crm_contact_tags ct
+         JOIN ims_crm_tags t ON t.id = ct.tag_id AND t.business_id = ct.business_id
+        WHERE ct.business_id = ? ORDER BY t.name`,
+      [businessId],
+    ),
+    listContactCrmTagSuggestions(businessId),
+  ]);
+
+  const contactMeta: Record<number, ContactCrmWorkspaceMeta> = {};
+  const ensureMeta = (contactId: number) => contactMeta[contactId] ??= {
+    openTaskCount: 0,
+    overdueTaskCount: 0,
+    lastInteractionAt: null,
+    tags: [],
+  };
+  for (const row of taskSummaries) {
+    const meta = ensureMeta(Number(row.contact_id));
+    meta.openTaskCount = Number(row.open_task_count ?? 0);
+    meta.overdueTaskCount = Number(row.overdue_task_count ?? 0);
+  }
+  for (const row of interactionSummaries) {
+    ensureMeta(Number(row.contact_id)).lastInteractionAt = row.last_interaction_at ?? null;
+  }
+  for (const row of contactTags) {
+    ensureMeta(Number(row.contact_id)).tags.push({
+      id: Number(row.id),
+      name: String(row.name),
+      color: row.color == null ? null : String(row.color),
+    });
+  }
+
+  return { tasks: tasks.slice(0, 500), taskTruncated: tasks.length > 500, contactMeta, tags };
 }
 
 export async function createContactCrmTask(
