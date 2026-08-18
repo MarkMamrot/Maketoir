@@ -19,6 +19,9 @@ type PosRegisterSession = {
     variance: number | null;
     xero_invoice_id: string | null;
     xero_synced_at: string | null;
+    till_variance: number | null;
+    variance_status: string | null;
+    xero_variance_id: string | null;
   }[];
   total_expected: number;
   total_counted: number;
@@ -84,11 +87,47 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
   }
 
+  function xeroBankTransactionLink(id: string) {
+    return `https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID=${id}`;
+  }
+
+  function renderXeroDocuments(reconciliation: PosRegisterSession['reconciliations'][number]) {
+    const hasVariance = reconciliation.till_variance != null && reconciliation.till_variance !== 0;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+        {reconciliation.xero_invoice_id ? (
+          <a href={xeroLink(reconciliation.xero_invoice_id)} target="_blank" rel="noopener noreferrer" title="Open EOD invoice in Xero" style={{ textDecoration: 'none' }}>
+            <XeroStatusBadge status="success" />
+          </a>
+        ) : (
+          <XeroStatusBadge status={null} />
+        )}
+        {hasVariance && (
+          reconciliation.xero_variance_id ? (
+            <a
+              href={xeroBankTransactionLink(reconciliation.xero_variance_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open till variance in Xero"
+              style={{ color: reconciliation.till_variance! < 0 ? 'var(--sv-red)' : 'var(--sv-mint)', fontSize: 11, textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              ↗ Till {reconciliation.till_variance! < 0 ? 'shortage' : 'overage'} {fmt$(Math.abs(reconciliation.till_variance!))}
+            </a>
+          ) : (
+            <span style={{ color: reconciliation.variance_status === 'error' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>
+              Till {reconciliation.till_variance! < 0 ? 'shortage' : 'overage'} {fmt$(Math.abs(reconciliation.till_variance!))} · {reconciliation.variance_status ?? 'not posted'}
+            </span>
+          )
+        )}
+      </div>
+    );
+  }
+
   function exportCsv() {
     const rows: string[][] = [
       ['Location', 'Register', 'Status', 'Opened At', 'Opened By', 'Opening Float',
        'Closed At', 'Closed By', 'Payment Method', 'Expected', 'Counted', 'Variance',
-       'Xero Invoice', 'Xero Synced'],
+        'Xero Invoice', 'Xero Synced', 'Till Variance', 'Variance Status', 'Xero Variance'],
     ];
     for (const s of sessions) {
       const base = [
@@ -100,7 +139,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
         s.closed_by ?? '',
       ];
       if (s.reconciliations.length === 0) {
-        rows.push([...base, '', '', '', '', '', '']);
+        rows.push([...base, '', '', '', '', '', '', '', '', '']);
       } else {
         for (const r of s.reconciliations) {
           rows.push([
@@ -111,6 +150,9 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
             r.variance?.toFixed(2) ?? '',
             r.xero_invoice_id ?? '',
             r.xero_synced_at ? fmtDt(r.xero_synced_at) : '',
+            r.till_variance?.toFixed(2) ?? '',
+            r.variance_status ?? '',
+            r.xero_variance_id ?? '',
           ]);
         }
         rows.push([
@@ -119,7 +161,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
           s.total_expected.toFixed(2),
           s.total_counted.toFixed(2),
           s.total_variance.toFixed(2),
-          '', '',
+          '', '', '', '', '',
         ]);
       }
     }
@@ -249,15 +291,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                           <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(s.reconciliations[0].variance) }}>
                             {s.reconciliations[0].variance != null ? (s.reconciliations[0].variance >= 0 ? '+' : '') + fmt$(s.reconciliations[0].variance) : '—'}
                           </td>
-                          <td style={tdStyle}>
-                            {s.reconciliations[0].xero_invoice_id ? (
-                              <a href={xeroLink(s.reconciliations[0].xero_invoice_id)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                                <XeroStatusBadge status="success" />
-                              </a>
-                            ) : (
-                              <XeroStatusBadge status={null} />
-                            )}
-                          </td>
+                          <td style={tdStyle}>{renderXeroDocuments(s.reconciliations[0])}</td>
                         </>
                       ) : (
                         <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} colSpan={5}>No reconciliation data</td>
@@ -272,15 +306,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(r.variance) }}>
                           {r.variance != null ? (r.variance >= 0 ? '+' : '') + fmt$(r.variance) : '—'}
                         </td>
-                        <td style={tdStyle}>
-                          {r.xero_invoice_id ? (
-                            <a href={xeroLink(r.xero_invoice_id)} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}>
-                              <XeroStatusBadge status="success" />
-                            </a>
-                          ) : (
-                            <XeroStatusBadge status={null} />
-                          )}
-                        </td>
+                        <td style={tdStyle}>{renderXeroDocuments(r)}</td>
                       </tr>
                     ))}
 

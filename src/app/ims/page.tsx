@@ -18568,6 +18568,7 @@ type XeroSyncEntry = {
   contact_name: string | null; amount: number | null; item_date: string | null;
   is_historical: number; xero_sync_status: string | null;
   source?: string | null; pos_sale_id?: number | null;
+  till_variance?: number | null; variance_status?: string | null; xero_variance_id?: string | null;
   log_id: number | null; xero_id: string | null;
   last_sync_status: string | null; last_xero_state: string | null; last_sync_detail: string | null; last_sync_at: string | null;
   payments: { id: number; po_id: number; xero_id: string | null; status: string; xero_state?: string | null; detail: string | null; synced_at: string; payment_date: string | null; amount: number | null; currency_code: string | null; notes: string | null }[];
@@ -19198,6 +19199,8 @@ function XeroSyncTab({
       return `https://go.xero.com/ManualJournals/View.aspx?manualJournalID=${id}`;
     return `https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${id}`;
   };
+  const xeroBankTransactionLink = (id: string): string =>
+    `https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID=${id}`;
 
   const openEntry = (entry: any) => {
     if (entry.sync_type === 'po_bill' && entry.reference_id && onOpenPurchaseOrder) return onOpenPurchaseOrder(Number(entry.reference_id));
@@ -19414,6 +19417,23 @@ function XeroSyncTab({
                           >
                             ↗ {String(entry.xero_id).slice(0, 8)}…
                           </a>
+                        )}
+                        {entry.till_variance != null && entry.till_variance !== 0 && (
+                          entry.xero_variance_id ? (
+                            <a
+                              href={xeroBankTransactionLink(entry.xero_variance_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open till variance in Xero (${entry.xero_variance_id})`}
+                              style={{ display: 'block', marginTop: 3, fontSize: 11, color: entry.till_variance < 0 ? 'var(--sv-red)' : 'var(--sv-mint)', textDecoration: 'none' }}
+                            >
+                              ↗ Till {entry.till_variance < 0 ? 'shortage' : 'overage'} {fmtMoney(Math.abs(entry.till_variance))}
+                            </a>
+                          ) : (
+                            <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: entry.variance_status === 'error' ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
+                              Till {entry.till_variance < 0 ? 'shortage' : 'overage'} {fmtMoney(Math.abs(entry.till_variance))} · {entry.variance_status ?? 'not posted'}
+                            </span>
+                          )
                         )}
                       </td>
                       <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtMoney(entry.amount)}</td>
