@@ -63,6 +63,16 @@ async function findFallbackProductIdBySku(businessId: string, sku: string): Prom
   return rows[0]?.product_id ?? null;
 }
 
+async function markFallbackProductNonStock(businessId: string, variantId: string): Promise<void> {
+  await imsExecute(
+    `UPDATE ims_products p
+       JOIN ims_product_variants v ON v.product_id = p.product_id
+        SET p.is_stock_item = 0
+      WHERE p.business_id = ? AND v.variant_id = ? AND UPPER(COALESCE(v.sku, '')) = ?`,
+    [businessId, variantId, FALLBACK_SKU],
+  );
+}
+
 async function insertFallbackVariant(businessId: string, productId: string, variantId: string): Promise<void> {
   await imsExecute(
     `INSERT INTO ims_product_variants
@@ -133,11 +143,15 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
     const configuredVariant = await getSetting(businessId, SETTING_KEY);
     if (configuredVariant) {
       const existing = await findVariantById(businessId, configuredVariant);
-      if (existing) return existing;
+      if (existing) {
+        await markFallbackProductNonStock(businessId, existing);
+        return existing;
+      }
     }
 
     const existingBySku = await findVariantBySku(businessId, FALLBACK_SKU);
     if (existingBySku) {
+      await markFallbackProductNonStock(businessId, existingBySku);
       await setSetting(businessId, SETTING_KEY, existingBySku);
       return existingBySku;
     }
@@ -146,6 +160,7 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
     if (existingProductId) {
       const variantId = randomUUID();
       await insertFallbackVariant(businessId, existingProductId, variantId);
+      await markFallbackProductNonStock(businessId, variantId);
       await setSetting(businessId, SETTING_KEY, variantId);
       return variantId;
     }
@@ -155,8 +170,8 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
 
     await imsExecute(
       `INSERT INTO ims_products
-         (business_id, product_id, name, description, product_type, category, base_sku, is_online, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+         (business_id, product_id, name, description, product_type, category, base_sku, is_online, is_active, is_stock_item)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 0)`,
       [
         businessId,
         productId,

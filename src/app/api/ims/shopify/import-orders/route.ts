@@ -323,9 +323,9 @@ export async function POST(req: Request) {
           const lineTotal = it.qty_ordered * it.unit_price;
           await poolConn.execute(
             `INSERT INTO ims_sales_order_items
-               (so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-             VALUES (?, ?, ?, ?, 0, ?, 0, ?, ?, ?)`,
-            [soId, it.shopify_line_item_id || null, it.variant_id, it.qty_ordered, it.unit_price, it.tax_rate, lineTotal, it.notes],
+               (business_id, so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+             VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?)`,
+            [businessId, soId, it.shopify_line_item_id || null, it.variant_id, it.qty_ordered, it.unit_price, it.tax_rate, lineTotal, it.notes],
           );
         }
       } finally {

@@ -96,6 +96,22 @@ describe('fulfilSalesOrderPartial', () => {
     );
   });
 
+  it('finalizes a fully shipped Shopify order when requested', async () => {
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1',
+      soId: 42,
+      operationKey: 'shopify-fulfillment-42',
+      shipmentQuantities: [{ itemId: 10, quantity: 10 }, { itemId: 11, quantity: 2 }],
+      finalizeWhenComplete: true,
+    });
+
+    expect(result.status).toBe('fulfilled');
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET status = ?'),
+      ['fulfilled', 'fulfilled', 42, 'biz-1'],
+    );
+  });
+
   it('consumes received protection before general stock in the same fulfilment transaction', async () => {
     allocationRows = [{
       id: 71, qty_allocated: 5, qty_received_assigned: 3, qty_fulfilled: 0, state: 'active',

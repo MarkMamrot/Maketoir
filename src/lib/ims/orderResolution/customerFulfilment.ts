@@ -32,6 +32,7 @@ export async function fulfilSalesOrderPartial(input: {
   operationKey: string;
   shipmentQuantities: ShipmentQuantity[];
   allowNegativeStock?: boolean;
+  finalizeWhenComplete?: boolean;
 }): Promise<CustomerFulfilmentResult> {
   const operationKey = input.operationKey.trim();
   if (!operationKey || operationKey.length > 191) throw new Error('A valid operation key is required.');
@@ -101,10 +102,10 @@ export async function fulfilSalesOrderPartial(input: {
          FROM ims_sales_order_items soi
          LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
          LEFT JOIN ims_products p ON p.product_id = pv.product_id
-        WHERE soi.so_id = ? AND soi.business_id = ?
+        WHERE soi.so_id = ?
         ORDER BY id
         FOR UPDATE`,
-      [input.soId, input.businessId],
+      [input.soId],
     );
     const itemsById = new Map(items.map(item => [Number(item.id), item]));
     for (const itemId of requested.keys()) {
@@ -206,7 +207,12 @@ export async function fulfilSalesOrderPartial(input: {
       fulfilledVariantIds.push(String(item.variant_id));
     }
 
-    const status = 'partially_fulfilled' as const;
+    const allItemsFulfilled = items.every(item => (
+      scaledQuantity(Number(item.qty_fulfilled ?? 0)) >= scaledQuantity(Number(item.qty_ordered ?? 0))
+    ));
+    const status = input.finalizeWhenComplete && allItemsFulfilled
+      ? 'fulfilled' as const
+      : 'partially_fulfilled' as const;
     await conn.execute(
       `UPDATE ims_sales_orders
           SET status = ?, fulfilled_date = CASE WHEN ? = 'fulfilled' THEN CURDATE() ELSE NULL END

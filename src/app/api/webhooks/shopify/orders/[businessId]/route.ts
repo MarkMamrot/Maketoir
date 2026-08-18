@@ -29,6 +29,8 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 import { calculateShopifyEligibleSpend, calculateShopifyRefundEligibleSpend } from '@/lib/loyalty/calculations';
 import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
+import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfilment';
+import { buildShopifyShipmentQuantities } from '@/lib/ims/shopifyFulfilment';
 
 export const runtime = 'nodejs';
 
@@ -44,7 +46,7 @@ function reportWebhookFailure(
     businessId,
     source: 'shopify_webhook',
     operation: topic || 'unknown_topic',
-    title: `Shopify webhook failed — ${topic || 'unknown topic'}`,
+    title: `Shopify webhook failed — ${topic || 'unknown topic'}${context.shopify_order_name ? ` — ${context.shopify_order_name}` : ''}`,
     error,
     context,
     reference: context.shopify_order_id != null
@@ -254,9 +256,9 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         for (const it of items) {
           await conn.execute(
             `INSERT INTO ims_sales_order_items
-               (so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
-             VALUES (?, ?, ?, ?, 0, ?, 0, 0.1, ?, ?)`,
-            [soId, it.shopify_line_item_id || null, it.variant_id, it.qty_ordered, it.unit_price, it.line_total, it.notes],
+               (business_id, so_id, shopify_line_item_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+             VALUES (?, ?, ?, ?, ?, 0, ?, 0, 0.1, ?, ?)`,
+            [businessId, soId, it.shopify_line_item_id || null, it.variant_id, it.qty_ordered, it.unit_price, it.line_total, it.notes],
           );
         }
       } finally { conn.release(); }
@@ -322,28 +324,115 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
   // ── fulfillments/create ───────────────────────────────────────────────────────
   if (topic === 'fulfillments/create' || topic === 'orders/fulfilled') {
     const orderId = String(payload.order_id ?? payload.id ?? '');
-    const existing = await imsQuery<{ id: number; status: string }>(
-      `SELECT id, status FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
+    const existing = await imsQuery<{
+      id: number; status: string; shopify_order_name: string | null; location_id: number; location_name: string | null;
+    }>(
+      `SELECT so.id, so.status, so.shopify_order_name, so.location_id, l.name AS location_name
+         FROM ims_sales_orders so
+         LEFT JOIN ims_locations l ON l.id = so.location_id
+        WHERE so.shopify_order_id = ? AND so.business_id = ? LIMIT 1`,
       [orderId, businessId],
     );
-    if (existing.length && existing[0].status === 'confirmed') {
-      try { await ImsSORepo.changeStatus(existing[0].id, 'fulfilled'); } catch (e: any) {
+    if (existing.length && ['confirmed', 'partially_fulfilled'].includes(existing[0].status)) {
+      const order = existing[0];
+      const orderItems = await imsQuery<{
+        id: number; shopify_line_item_id: string | number | null; variant_id: string;
+        qty_ordered: number | string; qty_fulfilled: number | string | null;
+        sku: string | null; product_name: string | null;
+      }>(
+        `SELECT soi.id, soi.shopify_line_item_id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled,
+                pv.sku, p.name AS product_name
+           FROM ims_sales_order_items soi
+           LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
+           LEFT JOIN ims_products p ON p.product_id = pv.product_id
+          WHERE soi.so_id = ?
+          ORDER BY soi.id`,
+        [order.id],
+      );
+      let shipmentQuantities: Array<{ itemId: number; quantity: number }> = [];
+      try {
+        shipmentQuantities = buildShopifyShipmentQuantities({
+          topic,
+          payloadLines: Array.isArray(payload.line_items)
+            ? payload.line_items.map((line: any) => ({ id: line.id ?? line.line_item_id, quantity: line.quantity }))
+            : [],
+          orderItems,
+        });
+        await fulfilSalesOrderPartial({
+          businessId,
+          soId: order.id,
+          operationKey: `shopify:${topic}:${String(payload.id ?? orderId)}`,
+          shipmentQuantities,
+          finalizeWhenComplete: true,
+        });
+      } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.error('[shopify-webhook] fulfillments/create error:', msg);
+        const requestedItemIds = new Set(shipmentQuantities.map(line => line.itemId));
+        const errorItemIds = new Set<number>(
+          Array.isArray(e?.shortfalls)
+            ? e.shortfalls.map((shortfall: any) => Number(shortfall?.itemId)).filter(Number.isInteger)
+            : [],
+        );
+        const messageItemId = Number(msg.match(/item (\d+)/i)?.[1] ?? 0);
+        if (messageItemId > 0) errorItemIds.add(messageItemId);
+        const relevantItemIds = errorItemIds.size > 0 ? errorItemIds : requestedItemIds;
+        const affectedItems = orderItems.filter(item => relevantItemIds.size === 0 || relevantItemIds.has(Number(item.id)));
+        const variantIds = [...new Set(affectedItems.map(item => item.variant_id).filter(Boolean))];
+        const stockRows = variantIds.length > 0
+          ? await imsQuery<{
+              variant_id: string; location_id: number; location_name: string;
+              qty_on_hand: number | string; qty_committed: number | string;
+            }>(
+              `SELECT s.variant_id, s.location_id, l.name AS location_name, s.qty_on_hand, s.qty_committed
+                 FROM ims_stock s
+                 JOIN ims_locations l ON l.id = s.location_id
+                WHERE s.variant_id IN (${variantIds.map(() => '?').join(',')})
+                ORDER BY l.name`,
+              variantIds,
+            )
+          : [];
+        const itemDetails = affectedItems.map(item => ({
+          item_id: Number(item.id),
+          sku: item.sku,
+          product_name: item.product_name,
+          requested_quantity: shipmentQuantities.find(line => line.itemId === Number(item.id))?.quantity ?? null,
+          stock: stockRows
+            .filter(stock => stock.variant_id === item.variant_id)
+            .map(stock => ({
+              location: stock.location_name,
+              is_fulfilment_location: Number(stock.location_id) === Number(order.location_id),
+              qty_on_hand: Number(stock.qty_on_hand),
+              qty_committed: Number(stock.qty_committed),
+              available: Number(stock.qty_on_hand) - Number(stock.qty_committed),
+            })),
+        }));
+        const firstItem = itemDetails[0];
+        const notificationMessage = [
+          `${order.shopify_order_name || `Shopify order ${orderId}`}: ${msg}`,
+          firstItem ? `${firstItem.sku || 'No SKU'} — ${firstItem.product_name || 'Unknown product'}` : '',
+          `Fulfilment location: ${order.location_name || `location ${order.location_id}`}. Complete any required branch transfer, then retry fulfilment.`,
+        ].filter(Boolean).join('\n');
         await reportWebhookFailure(businessId, topic, e, {
           shopify_order_id: orderId,
-          so_id: existing[0].id,
+          shopify_order_name: order.shopify_order_name,
+          so_id: order.id,
+          fulfilment_location: order.location_name,
+          items: itemDetails,
         });
         createNotification(
           businessId,
           'shopify_webhook',
-          'Shopify Webhook Failed — fulfillments/create',
-          msg,
+          `Shopify Fulfilment Needs Attention — ${order.shopify_order_name || orderId}`,
+          notificationMessage,
           {
             topic,
             shopify_order_id: orderId,
-            so_id:            existing[0].id,
-            error:            msg,
+            shopify_order_name: order.shopify_order_name,
+            so_id: order.id,
+            fulfilment_location: order.location_name,
+            items: itemDetails,
+            error: msg,
           },
         ).catch(console.error);
       }
