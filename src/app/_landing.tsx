@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
@@ -50,6 +50,7 @@ export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const workflowFeatures = [
     {
@@ -85,6 +86,15 @@ export default function Landing() {
   ];
 
   const selectedFeature = workflowFeatures.find((feature) => feature.title === activeWorkflow) ?? null;
+
+  useEffect(() => {
+    const delayRemaining = Math.max(0, 3000 - performance.now());
+    const playbackTimer = window.setTimeout(() => {
+      void heroVideoRef.current?.play().catch(() => undefined);
+    }, delayRemaining);
+
+    return () => window.clearTimeout(playbackTimer);
+  }, []);
 
   useEffect(() => {
     if (!selectedFeature) return;
@@ -168,16 +178,19 @@ export default function Landing() {
               <p className="text-slate-500 text-xs mt-4">3 months for $1 · No credit card required · Cancel anytime</p>
             </div>
 
-            {/* Right — hero image */}
+            {/* Right — hero video */}
             <div className="relative">
               <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10 bg-slate-950/40">
-                <Image
-                  src="/landing/Soldiagram3.png"
-                  alt="Solvantis retail operating system diagram"
-                  width={640}
-                  height={430}
-                  className="w-full h-auto object-contain"
-                  priority
+                <video
+                  ref={heroVideoRef}
+                  src="/landing/top%20banner.mp4"
+                  poster="/landing/top-banner-poster.jpg"
+                  muted
+                  loop
+                  playsInline
+                  preload="auto"
+                  aria-label="Solvantis retail operating system overview"
+                  className="aspect-square w-full rounded-2xl object-cover"
                 />
               </div>
             </div>
