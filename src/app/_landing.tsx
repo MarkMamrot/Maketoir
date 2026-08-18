@@ -270,22 +270,6 @@ export default function Landing() {
       </section>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          INTERACTIVE CAPABILITY MAP — white
-      ══════════════════════════════════════════════════════════════════════ */}
-      <section id="features" className="bg-white py-20 lg:py-24">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="text-center mb-12 lg:mb-14">
-            <Eyebrow>Everything You Need</Eyebrow>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tight">One Platform. Infinite Retail Potential.</h2>
-            <p className="text-slate-500 mt-3 text-base max-w-xl mx-auto">
-              All the tools a modern retailer needs — fully integrated, beautifully simple.
-            </p>
-          </div>
-          <SolvantisCapabilityMap />
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════════════════
           IMS DEEP DIVE — light grey
       ══════════════════════════════════════════════════════════════════════ */}
       <section className="bg-slate-50 py-20">
@@ -498,6 +482,22 @@ export default function Landing() {
               />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          INTERACTIVE CAPABILITY MAP — white
+      ══════════════════════════════════════════════════════════════════════ */}
+      <section id="features" className="bg-white py-20 lg:py-24">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="text-center mb-12 lg:mb-14">
+            <Eyebrow>Everything You Need</Eyebrow>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tight">One Platform. Infinite Retail Potential.</h2>
+            <p className="text-slate-500 mt-3 text-base max-w-xl mx-auto">
+              All the tools a modern retailer needs — fully integrated, beautifully simple.
+            </p>
+          </div>
+          <SolvantisCapabilityMap />
         </div>
       </section>
 
