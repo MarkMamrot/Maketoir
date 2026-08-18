@@ -4,7 +4,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { isReservedShopifyFallbackSku } from '@/lib/shopifyFallbackVariant';
 
 export async function GET() {
-  const session = await getImsSession();
+  const session = await getImsSession(['marketoir_session', 'pos_session']);
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {

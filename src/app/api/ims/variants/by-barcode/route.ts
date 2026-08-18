@@ -3,7 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 
 export async function GET(req: Request) {
-  if (!await getImsSession()) {
+  if (!await getImsSession(['marketoir_session', 'pos_session'])) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
