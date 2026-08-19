@@ -168,9 +168,9 @@ export function SalesSummaryView({ onBack, apiFetch }: SalesSummaryViewProps) {
           {SALES_SUMMARY_DIMENSIONS.filter(dimension => dimension !== dimensions[0]).map(dimension => <option key={dimension} value={dimension}>{salesSummaryDimensionLabel(dimension)}</option>)}
         </select>
       </label>
-      <details style={{ position: 'relative' }}>
+      <details style={{ position: 'relative', zIndex: 30 }}>
         <summary style={{ ...control, display: 'flex', alignItems: 'center', cursor: 'pointer', listStyle: 'none' }}>{allLocations ? 'All Locations' : `${selectedLocationIds.length} Locations`}</summary>
-        <div style={{ position: 'absolute', top: 38, left: 0, zIndex: 20, minWidth: 210, maxHeight: 300, overflowY: 'auto', padding: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', boxShadow: '0 8px 22px rgba(0,0,0,.18)' }}>
+        <div style={{ position: 'absolute', top: 38, left: 0, zIndex: 31, minWidth: 210, maxHeight: 300, overflowY: 'auto', padding: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', boxShadow: '0 8px 22px rgba(0,0,0,.18)' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}><input type="checkbox" checked={allLocations} onChange={() => setSelectedLocationIds([])} />ALL</label>
           {locations.map(location => <label key={location.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 6px', fontSize: 12, cursor: 'pointer' }}><input type="checkbox" checked={allLocations || selectedLocationIds.includes(location.id)} onChange={() => toggleLocation(location.id)} />{location.name}</label>)}
         </div>

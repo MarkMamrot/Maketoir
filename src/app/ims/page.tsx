@@ -1255,7 +1255,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               const yTicks = [0,1,2,3,4].map(i => Math.round((i/4) * yMax));
 
               const VW=visibleSalesBarCount <= 2 ? 420 : visibleSalesBarCount <= 6 ? 600 : visibleSalesBarCount <= 12 ? 840 : 1100;
-              const VH=360, PL=72, PR=16, PT=20, PB=56;
+              const VH=360, PL=72, PR=16, PT=46, PB=56;
               const plotW=VW-PL-PR, plotH=VH-PT-PB;
               const nLoc=locations.length, nCh=activeChannels.length;
               const groupW=plotW/nLoc;
@@ -1313,14 +1313,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                             const tax = Number(row?.tax ?? 0);
                             const cogs = Number(row?.cogs ?? 0);
                             const grossProfit = Number(row?.gross_profit ?? 0);
-                            const grossProfitOnScale = Math.max(0, Math.min(v, grossProfit));
                             const x=xBarLocal(li,localCi,locChans.length), y=yVal(v), h=hVal(v);
-                            const gpY = yVal(grossProfitOnScale);
-                            const shadeStartY = Math.ceil(gpY + 1);
-                            const shadeEndY = Math.floor(y + h - 1);
-                            const shadeLines = shadeStartY <= shadeEndY
-                              ? Array.from({ length: Math.floor((shadeEndY - shadeStartY) / 2) + 1 }, (_, idx) => shadeStartY + idx * 2)
-                              : [];
                             return (
                               <g key={ch}>
                                 <rect
@@ -1348,44 +1341,43 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                                   }}
                                   onMouseLeave={() => setChannelHover(null)}
                                 />
-                                {grossProfitOnScale > 0 && h >= 6 && barW >= 18 && (
+                                {v > 0 && (
                                   <>
-                                    <line
-                                      x1={x + 2}
-                                      y1={gpY}
-                                      x2={x + barW - 2}
-                                      y2={gpY}
-                                      stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
-                                      strokeWidth="1"
-                                      pointerEvents="none"
-                                    />
-                                    {shadeLines.map((lineY) => (
-                                      <line
-                                        key={`${ch}-${loc}-${lineY}`}
-                                        x1={x + 2}
-                                        y1={lineY}
-                                        x2={x + barW - 2}
-                                        y2={lineY}
-                                        stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
-                                        strokeWidth="1"
-                                        pointerEvents="none"
-                                      />
-                                    ))}
                                     <text
                                       x={x + barW / 2}
-                                      y={Math.max(y + 9, gpY - 3)}
+                                      y={y - 25}
+                                      textAnchor="middle"
+                                      fontSize="10"
+                                      fill="currentColor"
+                                      fillOpacity="0.78"
+                                      fontWeight="650"
+                                      pointerEvents="none"
+                                    >
+                                      {fmtCurrency(v)}
+                                    </text>
+                                    <line
+                                      x1={x + 2}
+                                      y1={y - 19}
+                                      x2={x + barW - 2}
+                                      y2={y - 19}
+                                      stroke={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
+                                      strokeWidth="1"
+                                      strokeOpacity="0.55"
+                                      pointerEvents="none"
+                                    />
+                                    <text
+                                      x={x + barW / 2}
+                                      y={y - 8}
                                       textAnchor="middle"
                                       fontSize="9"
                                       fill={CH_GP_LINE[ch] ?? 'rgba(15,23,42,.8)'}
                                       fillOpacity="1"
+                                      fontWeight="600"
                                       pointerEvents="none"
                                     >
-                                      {fmtCurrency(grossProfit)}
+                                      GP {fmtCurrency(grossProfit)}
                                     </text>
                                   </>
-                                )}
-                                {h>24 && barW>14 && (
-                                  <text x={x+barW/2} y={y-6} textAnchor="middle" fontSize="10" fill="currentColor" fillOpacity="0.72" fontWeight="600">{fmtCurrency(v)}</text>
                                 )}
                               </g>
                             );
