@@ -137,9 +137,17 @@ export function ContactCrmProfile({
     setLoading(true);
     setError('');
     Promise.all([loadProfile(), loadActivity()])
-      .catch(cause => setError(cause instanceof Error ? cause.message : 'Customer profile could not be loaded.'))
+      .catch(cause => {
+        const message = cause instanceof Error ? cause.message : 'Customer profile could not be loaded.';
+        if (message === 'This contact is not eligible for CRM.') {
+          window.alert(message);
+          onBack();
+          return;
+        }
+        setError(message);
+      })
       .finally(() => setLoading(false));
-  }, [loadActivity, loadProfile]);
+  }, [loadActivity, loadProfile, onBack]);
 
   const refreshAfterWrite = async () => {
     await Promise.all([loadProfile(), loadActivity()]);
@@ -241,7 +249,7 @@ export function ContactCrmProfile({
   if (loading) return <div style={{ padding: 32, color: 'var(--sv-text-dim)' }}>Loading customer profile…</div>;
   if (!profile) return (
     <div style={{ padding: 24 }}>
-      <button onClick={onBack} style={commandStyle}><ArrowLeft size={15} /> Back to Contacts</button>
+      <button onClick={onBack} style={commandStyle}><ArrowLeft size={15} /> Back to CRM</button>
       <p style={{ color: 'var(--sv-red)', marginTop: 20 }}>{error || 'Customer not found.'}</p>
     </div>
   );
@@ -255,7 +263,7 @@ export function ContactCrmProfile({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
       <header style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: 14, paddingBottom: 18, borderBottom: '1px solid var(--sv-etch)' }}>
-        <button onClick={onBack} title="Back to Contacts" style={{ ...commandStyle, padding: 8 }}><ArrowLeft size={17} /></button>
+        <button onClick={onBack} title="Back to CRM" style={{ ...commandStyle, padding: 8 }}><ArrowLeft size={17} /></button>
         <div style={{ flex: '1 1 320px', minWidth: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             <h1 style={{ margin: 0, fontSize: 23, color: 'var(--sv-text-strong)' }}>{contact.name}</h1>

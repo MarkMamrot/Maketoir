@@ -28,7 +28,7 @@ import {
 describe('contact CRM service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Customer' });
+    mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Customer', type: 'b2b_customer' });
     mockImsQuery.mockResolvedValue([]);
     mockImsExecute.mockResolvedValue({ insertId: 7, affectedRows: 1 });
   });
@@ -42,6 +42,27 @@ describe('contact CRM service', () => {
 
     expect(mockContactGet).toHaveBeenCalledWith(42, 'business-1');
     expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('rejects supplier-only contacts before reading or writing CRM data', async () => {
+    mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Supplier', type: 'supplier' });
+
+    await expect(createContactCrmInteraction(
+      'business-1', 42, { body: 'Called supplier' }, { id: 9, name: 'Alex' },
+    )).rejects.toThrow('This contact is not eligible for CRM.');
+
+    expect(mockImsQuery).not.toHaveBeenCalled();
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('allows leads to use CRM interactions', async () => {
+    mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Lead', type: 'lead' });
+
+    await createContactCrmInteraction(
+      'business-1', 42, { body: 'Qualified lead' }, { id: 9, name: 'Alex' },
+    );
+
+    expect(mockImsExecute).toHaveBeenCalledOnce();
   });
 
   it('validates interaction types before inserting server-owned actor data', async () => {
@@ -89,6 +110,7 @@ describe('contact CRM service', () => {
     expect(workspace.tags).toHaveLength(1);
     expect(mockImsQuery).toHaveBeenCalledTimes(5);
     expect(mockImsQuery.mock.calls.every(([, params]) => params[0] === 'business-1')).toBe(true);
+    expect(mockImsQuery.mock.calls.slice(0, 4).every(([sql]) => sql.includes("c.type IN ('lead','retail_customer','b2b_customer','both')"))).toBe(true);
   });
 
   it('records completion using the current actor rather than client actor fields', async () => {

@@ -72,7 +72,7 @@ import {
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'contact-profile' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -105,7 +105,10 @@ const NAV = [
     { id: 'online-sales',     label: 'Online Sales' },
     { id: 'order-planner',    label: 'Order Planner' },
   ]},
-  { id: 'contacts',        label: 'Contacts',         section: null },
+  { id: '__contacts',      label: 'Contacts',         section: 'contacts', children: [
+    { id: 'contacts',      label: 'Contacts' },
+    { id: 'crm',           label: 'CRM' },
+  ]},
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
@@ -508,6 +511,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
     'pos-sales':        'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
     'online-sales':     'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9',
     'order-planner':    'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6M9 16h4',
+    __contacts:         'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     contacts:           'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z',
     locations:          'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     stocktakes:         'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12l2 2 4-4',
@@ -554,7 +558,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
           { icon: 'purchase-orders',  label: 'Purchase Orders',  navigate: 'purchase-orders',  activeFor: ['purchase-orders'] },
           { icon: 'sales-orders',     label: 'Sales Orders',     navigate: 'sales-orders',     activeFor: ['sales-orders'] },
           { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
-          { icon: 'contacts',         label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'contact-profile'] },
+          { icon: '__contacts',       label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'crm', 'contact-profile'] },
           { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
         ];
         return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
@@ -1684,7 +1688,8 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
   both:            'Supplier & B2B Customer',
 };
 
-function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolean; onOpenProfile: (id: number) => void }) {
+function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mode?: 'admin' | 'crm'; isAdvisor?: boolean; onOpenProfile: (id: number) => void }) {
+  const isCrmMode = mode === 'crm';
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1699,7 +1704,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     assignees: Array<{ id: number; name: string }>;
   }>({ tasks: [], taskTruncated: false, contactMeta: {}, tags: [], assignees: [] });
   const [filter, setFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('supplier');
+  const [typeFilter, setTypeFilter] = useState(isCrmMode ? 'crm_all' : 'supplier');
   const [priceTierFilter, setPriceTierFilter] = useState('all');
   const [activeFilter, setActiveFilter] = useState(DEFAULT_STATUS_FILTER);
   const [storeCreditFilter, setStoreCreditFilter] = useState('all');
@@ -1800,7 +1805,9 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     }
   }, []);
 
-  useEffect(() => { void loadCrmWorkspace(); }, [loadCrmWorkspace]);
+  useEffect(() => {
+    if (isCrmMode) void loadCrmWorkspace();
+  }, [isCrmMode, loadCrmWorkspace]);
 
   const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
   const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
@@ -1930,6 +1937,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const typeMatchFn = (c: any) => {
+    if (typeFilter === 'crm_all') return isCrmCustomerType(c.type);
     if (!typeFilter || typeFilter === 'supplier') return c.type === 'supplier' || c.type === 'b2b_customer' || c.type === 'both';
     if (typeFilter === 'supplier_only') return c.type === 'supplier' || c.type === 'both';
     return c.type === typeFilter;
@@ -1952,8 +1960,8 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
   };
   const filterActive = priceTierFilter !== 'all' || activeFilter !== DEFAULT_STATUS_FILTER || storeCreditFilter !== 'all'
-    || promoEmailFilter !== 'all' || promoSmsFilter !== 'all' || crmTagFilter !== 'all'
-    || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all';
+    || promoEmailFilter !== 'all' || promoSmsFilter !== 'all' || (isCrmMode && (crmTagFilter !== 'all'
+    || crmFollowUpFilter !== 'all' || crmLastTouchFilter !== 'all'));
   const filtered = contacts.filter(c =>
     typeMatchFn(c) &&
     (!filter || c.name.toLowerCase().includes(filter.toLowerCase()) || (c.company || '').toLowerCase().includes(filter.toLowerCase()) || (c.customer_code || '').toLowerCase().includes(filter.toLowerCase()) || (c.email || '').toLowerCase().includes(filter.toLowerCase())) &&
@@ -1962,12 +1970,12 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
     (storeCreditFilter === 'all' || (storeCreditFilter === 'positive' ? Number(c.store_credit ?? 0) > 0 : Number(c.store_credit ?? 0) <= 0)) &&
     (promoEmailFilter === 'all' || String(Number(c.promo_email ?? 0)) === promoEmailFilter) &&
     (promoSmsFilter === 'all' || String(Number(c.promo_sms ?? 0)) === promoSmsFilter) &&
-    (crmTagFilter === 'all' || (crmWorkspace.contactMeta[c.id]?.tags ?? []).some(tag => String(tag.id) === crmTagFilter)) &&
-    (crmFollowUpFilter === 'all'
+    (!isCrmMode || crmTagFilter === 'all' || (crmWorkspace.contactMeta[c.id]?.tags ?? []).some(tag => String(tag.id) === crmTagFilter)) &&
+    (!isCrmMode || crmFollowUpFilter === 'all'
       || (crmFollowUpFilter === 'open' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0)
       || (crmFollowUpFilter === 'overdue' && Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0)
       || (crmFollowUpFilter === 'none' && Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) === 0)) &&
-    matchesCrmLastTouch(c.id)
+    (!isCrmMode || matchesCrmLastTouch(c.id))
   );
   const CONTACTS_PAGE_SIZE = 100;
   const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
@@ -1982,33 +1990,34 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   return (
     <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Contacts</h1>
-        {crmSection === 'contacts' && <button onClick={downloadContactsCsv} disabled={exportingContacts || contacts.length === 0} style={btnStyle('ghost')}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>{isCrmMode ? 'CRM' : 'Contacts'}</h1>
+        {!isCrmMode && <button onClick={downloadContactsCsv} disabled={exportingContacts || contacts.length === 0} style={btnStyle('ghost')}>
           {exportingContacts ? 'Exporting…' : '⬇ Export CSV'}
         </button>}
-        {crmSection === 'contacts' && !isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
-        {crmSection === 'contacts' && !isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
+        {!isCrmMode && !isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
+        {!isCrmMode && !isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
-      <nav aria-label="CRM workspace sections" style={{ display: 'flex', width: 'fit-content', maxWidth: '100%', overflowX: 'auto', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
-        {(['contacts', 'tasks', 'segments', 'pipeline', 'data quality', 'analytics'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none', whiteSpace: 'nowrap' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
-      </nav>
-      {crmWorkspaceError && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 12 }}>{crmWorkspaceError}</div>}
-      {crmSection === 'tasks' ? (
+      {isCrmMode && <nav aria-label="CRM workspace sections" style={{ display: 'flex', width: 'fit-content', maxWidth: '100%', overflowX: 'auto', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
+        {(['contacts', 'tasks', 'segments', 'pipeline', 'data quality', 'analytics'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none', whiteSpace: 'nowrap' }}>{section === 'contacts' ? 'Customers & Leads' : section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
+      </nav>}
+      {isCrmMode && crmWorkspaceError && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 12 }}>{crmWorkspaceError}</div>}
+      {isCrmMode && crmSection === 'tasks' ? (
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmTaskQueue tasks={crmWorkspace.tasks} truncated={crmWorkspace.taskTruncated} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onTaskChanged={loadCrmWorkspace} />
-      ) : crmSection === 'segments' ? (
+      ) : isCrmMode && crmSection === 'segments' ? (
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmSegments tags={crmWorkspace.tags} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} />
-      ) : crmSection === 'pipeline' ? (
+      ) : isCrmMode && crmSection === 'pipeline' ? (
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmPipeline contacts={contacts} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onContactsChanged={load} />
-      ) : crmSection === 'data quality' ? (
+      ) : isCrmMode && crmSection === 'data quality' ? (
         <ContactCrmDataQuality isAdvisor={isAdvisor} onEditContact={id => { const contact = contacts.find(item => Number(item.id) === id); if (contact) openEdit(contact); }} onMerged={() => { load(); void loadCrmWorkspace(); }} />
-      ) : crmSection === 'analytics' ? (
+      ) : isCrmMode && crmSection === 'analytics' ? (
         <ContactCrmAnalytics onOpenProfile={onOpenProfile} />
       ) : <>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
         <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }}>
-          <option value="supplier">Suppliers + B2B Customers</option>
-          <option value="supplier_only">Suppliers Only</option>
+          {isCrmMode && <option value="crm_all">All Customers &amp; Leads</option>}
+          {!isCrmMode && <option value="supplier">Suppliers + B2B Customers</option>}
+          {!isCrmMode && <option value="supplier_only">Suppliers Only</option>}
           <option value="b2b_customer">B2B Customers</option>
           <option value="retail_customer">Retail Customers</option>
           <option value="lead">Leads</option>
@@ -2036,14 +2045,14 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setContactsFiltersOpen(false)} />
               <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px', marginTop: 4, minWidth: 280, boxShadow: '0 6px 20px rgba(0,0,0,0.14)' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 12 }}>Filters</p>
-                <div style={{ marginBottom: 12 }}>
+                {isCrmMode && <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>CRM Tag</label>
                   <select value={crmTagFilter} onChange={e => { setCrmTagFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
                     <option value="all">All tags</option>
                     {crmWorkspace.tags.map(tag => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
                   </select>
-                </div>
-                <div style={{ marginBottom: 12 }}>
+                </div>}
+                {isCrmMode && <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Follow-ups</label>
                   <select value={crmFollowUpFilter} onChange={e => { setCrmFollowUpFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
                     <option value="all">All contacts</option>
@@ -2051,8 +2060,8 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
                     <option value="overdue">Has overdue tasks</option>
                     <option value="none">No open tasks</option>
                   </select>
-                </div>
-                <div style={{ marginBottom: 12 }}>
+                </div>}
+                {isCrmMode && <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Last CRM Touch</label>
                   <select value={crmLastTouchFilter} onChange={e => { setCrmLastTouchFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
                     <option value="all">Any time</option>
@@ -2060,7 +2069,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
                     <option value="90">Last 90 days</option>
                     <option value="never">Never contacted</option>
                   </select>
-                </div>
+                </div>}
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--sv-text-dim)', display: 'block', marginBottom: 4 }}>Price Tier</label>
                   <select value={priceTierFilter} onChange={e => { setPriceTierFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, width: '100%' }}>
@@ -2111,7 +2120,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
           {syncMsg}
         </div>
       )}
-      {!isAdvisor && selectedContacts.size > 0 && (
+      {!isCrmMode && !isAdvisor && selectedContacts.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)', flex: 1 }}>{selectedContacts.size} contact{selectedContacts.size !== 1 ? 's' : ''} selected</span>
           <button disabled={bulkWorking} onClick={() => handleBulkSetActive(1)} style={btnStyle('secondary', 'sm')}>Activate</button>
@@ -2121,7 +2130,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         </div>
       )}
       {loading ? <Spinner /> : (() => {
-        const isCustomerView = typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
+        const isCustomerView = isCrmMode || typeFilter === 'b2b_customer' || typeFilter === 'retail_customer';
         const isSupplierView = typeFilter === 'supplier' || typeFilter === 'both';
         const typeBadge = (c: any) => (
           <span style={{ display: 'inline-flex', fontSize: 11, fontWeight: 600, padding: '2px 6px', borderRadius: 4,
@@ -2135,44 +2144,44 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         );
         const nameCell = (c: any) => isAdvisor
           ? <strong style={{ color: 'var(--sv-text-main)' }}>{c.name}</strong>
-          : <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>;
+          : <button onClick={() => isCrmMode ? onOpenProfile(c.id) : openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>;
         const actions = (c: any) => (
           <div style={{ display: 'flex', gap: 4 }}>
-            {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
-            {isCrmCustomerType(c.type) && <button onClick={() => onOpenProfile(c.id)} style={btnStyle('ghost', 'xs')}>CRM</button>}
-            {!isAdvisor && <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>}
+            {!isCrmMode && !isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
+            {isCrmMode && <button onClick={() => onOpenProfile(c.id)} style={btnStyle('ghost', 'xs')}>Open</button>}
+            {!isCrmMode && !isAdvisor && <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>}
           </div>
         );
         if (isCustomerView) return (
           <ImsTable
             cols={[
-              !isAdvisor ? <input key="customer-select-all" type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedContacts(prev => {
+              !isCrmMode && !isAdvisor ? <input key="customer-select-all" type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedContacts(prev => {
                 const next = new Set(prev);
                 if (allVisibleSelected) visible.forEach(c => next.delete(c.id));
                 else visible.forEach(c => next.add(c.id));
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
-              'Name', 'Code', 'Group', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
+              'Name', 'Code', 'Group', 'Type', ...(isCrmMode ? ['Tags', 'Follow-ups', 'Last CRM Touch'] : []), 'Email', 'Mobile', typeFilter === 'b2b_customer' ? 'Price Tier' : 'Store Credit', 'On Account', '',
             ]}
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
-            columnWidths={[44, 220, 130, 150, 130, 190, 120, 140, 240, 150, 130, 130, 190]}
+            columnWidths={isCrmMode ? [44, 220, 130, 150, 130, 190, 120, 140, 240, 150, 130, 130, 190] : [44, 220, 130, 150, 130, 240, 150, 130, 130, 190]}
             frozenColumnIndex={1}
             scrollClassName="contacts-table-scroll"
             render={(c) => [
-              !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
+              !isCrmMode && !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
               nameCell(c),
               codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
-              (crmWorkspace.contactMeta[c.id]?.tags ?? []).length
+              ...(isCrmMode ? [(crmWorkspace.contactMeta[c.id]?.tags ?? []).length
                 ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{crmWorkspace.contactMeta[c.id].tags.map(tag => <span key={tag.id} style={{ padding: '2px 5px', borderRadius: 4, background: 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))', color: 'var(--sv-action)', fontSize: 10, fontWeight: 700 }}>{tag.name}</span>)}</div>
                 : '—',
               Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0
                 ? <span style={{ color: Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0 ? 'var(--sv-red)' : 'var(--sv-text-main)', fontWeight: 700 }}>{crmWorkspace.contactMeta[c.id].openTaskCount} open{Number(crmWorkspace.contactMeta[c.id]?.overdueTaskCount ?? 0) > 0 ? ` · ${crmWorkspace.contactMeta[c.id].overdueTaskCount} overdue` : ''}</span>
                 : '—',
-              crmLastTouchLabel(c.id),
+              crmLastTouchLabel(c.id)] : []),
               c.email || '—',
               c.mobile || c.phone || '—',
               typeFilter === 'b2b_customer'
@@ -2199,15 +2208,15 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
                 return next;
               })} style={{ cursor: 'pointer' }} /> : '',
               ...(isSupplierView
-                ? ['Name', 'Company', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Price Tier', 'Email', 'Phone', '']
-                : ['Name', 'Company', 'Type', 'Tags', 'Follow-ups', 'Last CRM Touch', 'Email', 'Mobile / Phone', ''])
+                ? ['Name', 'Company', 'Type', 'Price Tier', 'Email', 'Phone', '']
+                : ['Name', 'Company', 'Type', 'Email', 'Mobile / Phone', ''])
             ]}
             rows={visible}
             background="var(--sv-bg-1)"
             headerBackground="var(--sv-bg-2)"
             columnWidths={isSupplierView
-              ? [44, 220, 180, 130, 190, 120, 140, 120, 240, 150, 190]
-              : [44, 220, 180, 130, 190, 120, 140, 240, 160, 190]}
+              ? [44, 220, 180, 130, 120, 240, 150, 190]
+              : [44, 220, 180, 130, 240, 160, 190]}
             frozenColumnIndex={1}
             scrollClassName="contacts-table-scroll"
             render={(c) => isSupplierView ? [
@@ -2215,9 +2224,6 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               nameCell(c),
               c.company || '—',
               typeBadge(c),
-              (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',
-              Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0 ? `${crmWorkspace.contactMeta[c.id].openTaskCount} open` : '—',
-              crmLastTouchLabel(c.id),
               c.price_tier === 'wholesale'
                 ? <span style={{ background: 'rgba(139,92,246,.18)', color: '#a78bfa', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}>Wholesale</span>
                 : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>Retail</span>,
@@ -2229,9 +2235,6 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               nameCell(c),
               c.company || '—',
               typeBadge(c),
-              (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',
-              Number(crmWorkspace.contactMeta[c.id]?.openTaskCount ?? 0) > 0 ? `${crmWorkspace.contactMeta[c.id].openTaskCount} open` : '—',
-              crmLastTouchLabel(c.id),
               c.email || '—',
               c.mobile || c.phone || '—',
               actions(c),
@@ -2251,7 +2254,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
       )}
       </>}
 
-      {!isAdvisor && importOpen && (
+      {!isCrmMode && !isAdvisor && importOpen && (
         <ImportContactsModal
           contacts={contacts}
           onClose={() => setImportOpen(false)}
@@ -20609,7 +20612,7 @@ export default function ImsPage() {
 
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
-    'dashboard','products','stock','brands','bulk-edit','contacts','locations',
+    'dashboard','products','stock','brands','bulk-edit','contacts','crm','locations',
     'purchase-orders','sales-orders','stock-availability','backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',

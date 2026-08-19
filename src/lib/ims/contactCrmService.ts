@@ -1,5 +1,5 @@
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
-import { isRetailCrmType } from '@/lib/ims/contactCrmAccess';
+import { isCrmCustomerType, isRetailCrmType } from '@/lib/ims/contactCrmAccess';
 import {
   buildContactCrmTimeline,
   type ContactCrmActivityCategory,
@@ -67,6 +67,7 @@ async function requireContact(businessId: string, contactId: number) {
   if (!Number.isInteger(contactId) || contactId <= 0) throw new ContactCrmNotFoundError('Contact not found.');
   const contact = await ImsContactsRepo.get(contactId, businessId);
   if (!contact) throw new ContactCrmNotFoundError('Contact not found.');
+  if (!isCrmCustomerType(contact.type)) throw new ContactCrmValidationError('This contact is not eligible for CRM.');
   return contact;
 }
 
@@ -246,27 +247,36 @@ export async function getContactCrmWorkspace(businessId: string) {
          FROM ims_crm_tasks t
          JOIN ims_contacts c ON c.id = t.contact_id AND c.business_id = t.business_id
         WHERE t.business_id = ? AND t.status = 'open'
+          AND c.type IN ('lead','retail_customer','b2b_customer','both')
         ORDER BY t.due_date IS NULL, t.due_date, FIELD(t.priority, 'high', 'normal', 'low'), t.id DESC
         LIMIT 501`,
       [businessId],
     ),
     imsQuery<any>(
-      `SELECT contact_id, COUNT(*) AS open_task_count,
+      `SELECT crm_task.contact_id, COUNT(*) AS open_task_count,
               SUM(due_date IS NOT NULL AND due_date < CURRENT_DATE) AS overdue_task_count
-         FROM ims_crm_tasks
-        WHERE business_id = ? AND status = 'open' GROUP BY contact_id`,
+         FROM ims_crm_tasks crm_task
+         JOIN ims_contacts c ON c.id = crm_task.contact_id AND c.business_id = crm_task.business_id
+        WHERE crm_task.business_id = ? AND crm_task.status = 'open'
+          AND c.type IN ('lead','retail_customer','b2b_customer','both')
+        GROUP BY crm_task.contact_id`,
       [businessId],
     ),
     imsQuery<any>(
-      `SELECT contact_id, MAX(COALESCE(occurred_at, created_at)) AS last_interaction_at
-         FROM ims_crm_interactions WHERE business_id = ? GROUP BY contact_id`,
+      `SELECT interaction.contact_id, MAX(COALESCE(interaction.occurred_at, interaction.created_at)) AS last_interaction_at
+        FROM ims_crm_interactions interaction
+        JOIN ims_contacts c ON c.id = interaction.contact_id AND c.business_id = interaction.business_id
+        WHERE interaction.business_id = ? AND c.type IN ('lead','retail_customer','b2b_customer','both')
+        GROUP BY interaction.contact_id`,
       [businessId],
     ),
     imsQuery<any>(
       `SELECT ct.contact_id, t.id, t.name, t.color
          FROM ims_crm_contact_tags ct
          JOIN ims_crm_tags t ON t.id = ct.tag_id AND t.business_id = ct.business_id
-        WHERE ct.business_id = ? ORDER BY t.name`,
+         JOIN ims_contacts c ON c.id = ct.contact_id AND c.business_id = ct.business_id
+        WHERE ct.business_id = ? AND c.type IN ('lead','retail_customer','b2b_customer','both')
+        ORDER BY t.name`,
       [businessId],
     ),
     listContactCrmTagSuggestions(businessId),

@@ -10,6 +10,7 @@ import {
 import { getIMSPool, imsQuery } from '@/services/IMSMySQLService';
 
 const CUSTOMER_TYPES = ['retail_customer', 'b2b_customer', 'both'] as const;
+const CRM_CONTACT_TYPES = ['lead', ...CUSTOMER_TYPES] as const;
 
 export class ContactMergeValidationError extends Error {}
 export class ContactMergeNotFoundError extends Error {}
@@ -36,8 +37,17 @@ export interface ContactMergeActor {
   name: string;
 }
 
+export function isContactMergePairAllowed(leftType: unknown, rightType: unknown): boolean {
+  const left = String(leftType);
+  const right = String(rightType);
+  if (left === 'lead' || right === 'lead') return left === 'lead' && right === 'lead';
+  return CUSTOMER_TYPES.includes(left as typeof CUSTOMER_TYPES[number])
+    && CUSTOMER_TYPES.includes(right as typeof CUSTOMER_TYPES[number]);
+}
+
 function mergeBlockers(left: DuplicateContactRow, right: DuplicateContactRow): string[] {
   const blockers: string[] = [];
+  if (!isContactMergePairAllowed(left.type, right.type)) blockers.push('Leads can only be merged with other leads.');
   if (Number(left.store_credit ?? 0) !== 0 && Number(right.store_credit ?? 0) !== 0) blockers.push('Both contacts carry store credit.');
   if (Number(left.loyalty_account_count ?? 0) > 0 && Number(right.loyalty_account_count ?? 0) > 0) blockers.push('Both contacts have loyalty accounts.');
   for (const [label, field] of [
@@ -62,7 +72,7 @@ export async function listDuplicateContactCandidates(businessId: string): Promis
             COUNT(la.id) AS loyalty_account_count
        FROM ims_contacts c
        LEFT JOIN loyalty_accounts la ON la.business_id = c.business_id AND la.contact_id = c.id
-      WHERE c.business_id = ? AND c.is_active = 1 AND c.type IN ('retail_customer','b2b_customer','both')
+      WHERE c.business_id = ? AND c.is_active = 1 AND c.type IN ('lead','retail_customer','b2b_customer','both')
       GROUP BY c.id`,
     [businessId],
   );
@@ -130,8 +140,11 @@ export async function mergeCustomerContacts(input: {
     const source = input.sourceContactId === orderedIds[0] ? first : second;
     const target = input.targetContactId === orderedIds[0] ? first : second;
     if (!source || !target) throw new ContactMergeNotFoundError('One or both contacts were not found.');
-    if (!CUSTOMER_TYPES.includes(source.type as typeof CUSTOMER_TYPES[number]) || !CUSTOMER_TYPES.includes(target.type as typeof CUSTOMER_TYPES[number])) {
-      throw new ContactMergeValidationError('Only customer contacts can be merged.');
+    if (!CRM_CONTACT_TYPES.includes(source.type as typeof CRM_CONTACT_TYPES[number]) || !CRM_CONTACT_TYPES.includes(target.type as typeof CRM_CONTACT_TYPES[number])) {
+      throw new ContactMergeValidationError('Only leads and customer contacts can be merged.');
+    }
+    if (!isContactMergePairAllowed(source.type, target.type)) {
+      throw new ContactMergeValidationError('Leads can only be merged with other leads.');
     }
     if (!Number(source.is_active) || !Number(target.is_active)) throw new ContactMergeValidationError('Both contacts must be active.');
 

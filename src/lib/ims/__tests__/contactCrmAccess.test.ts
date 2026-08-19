@@ -7,8 +7,9 @@ describe('contact CRM access', () => {
     expect(isCrmCustomerType('retail_customer')).toBe(true);
     expect(isCrmCustomerType('b2b_customer')).toBe(true);
     expect(isCrmCustomerType('both')).toBe(true);
+    expect(isCrmCustomerType('lead')).toBe(true);
     expect(isCrmCustomerType('supplier')).toBe(false);
-    expect(isCrmCustomerType('lead')).toBe(false);
+    expect(isCrmCustomerType('customer')).toBe(false);
   });
 
   it('limits POS and loyalty CRM data to retail customers', () => {

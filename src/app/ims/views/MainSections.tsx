@@ -6,11 +6,11 @@ import { ContactCrmProfile } from './contacts/ContactCrmProfile';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'contact-profile' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
+  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
   | 'xero' | 'shopify';
 
 interface MainSectionsProps {
@@ -165,6 +165,18 @@ export function MainSections(props: MainSectionsProps) {
       )}
       {view === 'contacts' && (
         <ContactsView
+          mode="admin"
+          isAdvisor={isAdvisor}
+          onOpenProfile={(id: number) => {
+            setPendingOpenContact(id);
+            window.history.pushState(window.history.state, '', `#contact-profile/${id}`);
+            setView('contact-profile');
+          }}
+        />
+      )}
+      {view === 'crm' && (
+        <ContactsView
+          mode="crm"
           isAdvisor={isAdvisor}
           onOpenProfile={(id: number) => {
             setPendingOpenContact(id);
@@ -179,8 +191,8 @@ export function MainSections(props: MainSectionsProps) {
           isAdvisor={isAdvisor}
           onBack={() => {
             setPendingOpenContact(null);
-            window.history.pushState(window.history.state, '', '#contacts');
-            setView('contacts');
+            window.history.pushState(window.history.state, '', '#crm');
+            setView('crm');
           }}
           onOpenSalesOrder={(id: number) => { setPendingOpenSO(id); setView('sales-orders'); }}
           onOpenCreditNote={(id: number) => { setPendingOpenCN(id); setView('credit-notes'); }}
