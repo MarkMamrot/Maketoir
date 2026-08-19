@@ -476,7 +476,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __locations: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __contacts: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings } = useImsSettings();
   // Hide Locations group unless the business explicitly operates multiple locations.
@@ -586,9 +586,9 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
               style={{
                 width: '100%', background: 'none', border: 'none', cursor: 'pointer',
                 padding: '8px 14px 8px 12px', display: 'flex', alignItems: 'center', gap: 8,
-                color: isActive ? '#0f172a' : '#334155',
+                color: isMainActive ? '#0f172a' : '#334155',
                 backgroundColor: isActive && !hasChildren ? '#e8edf1' : (hasChildren && isGroupOpen ? '#e8edf1' : 'transparent'),
-                textAlign: 'left', fontSize: 14, fontWeight: isActive ? 700 : 600,
+                textAlign: 'left', fontSize: 14, fontWeight: isMainActive ? 700 : 600,
                 borderLeft: '3px solid transparent',
                 borderRadius: 6,
                 transition: 'all .15s',
