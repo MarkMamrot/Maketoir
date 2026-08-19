@@ -6,6 +6,8 @@ import { RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
+import { DashboardProductInsights } from './components/DashboardProductInsights';
+import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
@@ -651,6 +653,14 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   opening_stock:    { type: 'settings', section: 'sync',             label: 'Opening Stock Snapshot' },
   pos_ready:        { type: 'settings', section: 'pos',              label: 'Review POS Setup' },
 };
+function DashboardPanelHeading({ eyebrow, title, style, titleColor = 'var(--sv-text-strong)' }: { eyebrow: string; title: string; style?: React.CSSProperties; titleColor?: string }) {
+  return (
+    <div style={style}>
+      <div style={{ marginBottom: 2, color: 'var(--sv-action)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>{eyebrow}</div>
+      <div style={{ color: titleColor, fontSize: 16, fontWeight: 750 }}>{title}</div>
+    </div>
+  );
+}
 
 function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { rows: any[]; itemCount: number; periodLabel: string; loading: boolean }) {
   const totalSales = rows.reduce((sum, row) => sum + Number(row?.total ?? 0), 0);
@@ -664,7 +674,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
   if (loading) {
     return (
       <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <DashboardPanelHeading eyebrow="Sales snapshot" title={`Total Sales vs Gross Profit - ${periodLabel}`} />
         <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
       </div>
     );
@@ -673,7 +683,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
   if (!rows.length || totalSales <= 0) {
     return (
       <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <DashboardPanelHeading eyebrow="Sales snapshot" title={`Total Sales vs Gross Profit - ${periodLabel}`} />
         <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
       </div>
     );
@@ -682,7 +692,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ position: 'relative', height: 450, boxSizing: 'border-box', containerType: 'inline-size', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', top: 18, left: 20, right: 20, fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Total Sales vs Gross Profit - {periodLabel}</div>
+        <DashboardPanelHeading eyebrow="Sales snapshot" title={`Total Sales vs Gross Profit - ${periodLabel}`} style={{ position: 'absolute', top: 14, left: 20, right: 20 }} />
         <div style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(210px, 1.25fr) minmax(125px, .8fr) minmax(155px, 1fr)', alignItems: 'center', paddingTop: 30 }}>
           <div style={{ minWidth: 210, textAlign: 'center' }}>
             <svg viewBox="0 0 250 250" role="img" aria-label={`Total sales ${fmtCurrency(totalSales)}, gross profit ${fmtCurrency(totalGrossProfit)}, margin ${marginPercent.toFixed(1)} percent`} style={{ width: '100%', maxHeight: 270, display: 'block' }}>
@@ -827,6 +837,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   ];
   const dashboardSalesRows = (salesData?.channelData as any[]) ?? [];
   const brandChartData = (salesData?.brandData as Array<{ name: string; sales: number }>) ?? [];
+  const productInsights = (salesData?.productInsights as { top?: DashboardProductInsight[]; slow?: DashboardProductInsight[] } | undefined) ?? {};
   const brandMax = brandChartData.reduce((max, brand) => Math.max(max, brand.sales), 0);
   const periodLabel = salesWindow === 'today' ? 'Today' : salesWindow === 'yesterday' ? 'Yesterday' : salesWindow === '365' ? 'Last year' : `Last ${salesWindow} days`;
   const visibleSalesBarCount = dashboardSalesRows.filter(row => Number(row?.total ?? 0) > 0).length;
@@ -1131,9 +1142,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
           {/* POS Registers */}
           <div style={{ marginTop: 24, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--sv-etch)', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-bg-1) 42%, var(--sv-bg-2))', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: (data?.openRegisters ?? []).length > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }} />
-              POS Registers
+              <DashboardPanelHeading eyebrow="Store operations" title="POS Registers" titleColor="var(--sv-text-main)" />
+                          <style>{`@media (max-width: 900px) { .ims-sales-chart-panel, .ims-sales-summary-panel { grid-column: 1 / -1 !important; } .ims-dashboard-insights-grid { grid-template-columns: 1fr !important; } }`}</style>
               {(data?.openRegisters ?? []).length > 0 && (
                 <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-mint)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
               )}
@@ -1230,12 +1242,12 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               <div className="ims-sales-chart-panel" style={{ minWidth: 0, gridColumn: `span ${salesChartColumns}` }}>
             {salesLoading ? (
               <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                <DashboardPanelHeading eyebrow="Sales mix" title={`Sales and Gross Profit by Channel - ${periodLabel}`} />
                 <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>
               </div>
             ) : !(salesData?.channelData?.length) ? (
               <div style={{ height: 450, padding: '18px 20px', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                <DashboardPanelHeading eyebrow="Sales mix" title={`Sales and Gross Profit by Channel - ${periodLabel}`} />
                 <div style={{ height: 'calc(100% - 20px)', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No sales in this period.</div>
               </div>
             ) : (() => {
@@ -1281,7 +1293,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               return (
                 <div ref={channelChartRef} style={{ position: 'relative', height: 450, boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px 8px', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 8 }}>
-                    <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Sales and Gross Profit by Channel - {periodLabel}</div>
+                    <DashboardPanelHeading eyebrow="Sales mix" title={`Sales and Gross Profit by Channel - ${periodLabel}`} />
                     <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
                     {activeChannels.map(ch => (
                       <div key={ch} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--sv-text-dim)' }}>
@@ -1432,8 +1444,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             </div>
 
             {/* Top 10 Brands */}
-            <div style={{ width: 'min(100%, 50%)', minWidth: 300, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '14px 16px' }}>
-              <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 14 }}>Top 10 Brands - {periodLabel}</div>
+            <div className="ims-dashboard-insights-grid" style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(300px, .8fr) minmax(520px, 1.2fr)', gap: 18, alignItems: 'start' }}>
+            {/* Top 10 Brands */}
+            <div style={{ minWidth: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '13px 16px' }}>
+              <DashboardPanelHeading eyebrow="Brand performance" title={`Top 10 Brands - ${periodLabel}`} style={{ marginBottom: 14 }} />
               {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
               {!salesLoading && brandChartData.length === 0 && (
                 <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>No brand sales in this period.</p>
@@ -1466,6 +1480,13 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                   })}
                 </div>
               )}
+            </div>
+            <DashboardProductInsights
+              top={productInsights.top ?? []}
+              slow={productInsights.slow ?? []}
+              periodLabel={periodLabel}
+              loading={salesLoading}
+            />
             </div>
             <DashboardSalesComparison />
           </div>

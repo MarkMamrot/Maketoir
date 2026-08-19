@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { buildDashboardProductInsights, type DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
 
 type ChannelName = 'pos' | 'online' | 'wholesale';
 
@@ -315,6 +317,97 @@ export async function GET(req: Request) {
     console.error('[dashboard/sales] Item count aggregation failed.', error);
   }
 
+  let topProducts: DashboardProductInsight[] = [];
+  let slowProducts: DashboardProductInsight[] = [];
+  try {
+    const productSales = `
+      SELECT sales_lines.variant_id,
+             SUM(sales_lines.units_sold) AS units_sold,
+             SUM(sales_lines.revenue) AS revenue
+      FROM (
+        SELECT COALESCE(pvid.variant_id, psku.variant_id) AS variant_id,
+               COALESCE(psi.qty, 0) AS units_sold,
+               COALESCE(psi.line_total, 0) AS revenue
+        FROM pos_sales ps
+        JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
+        JOIN pos_sale_items psi ON psi.sale_id = ps.id
+        LEFT JOIN ims_product_variants pvid ON pvid.variant_id = psi.variant_id
+        LEFT JOIN ims_product_variants psku ON pvid.variant_id IS NULL AND psku.sku = psi.code
+        WHERE ps.status = 'completed'
+          AND ps.created_at >= ?
+          ${posUpperClause}
+
+        UNION ALL
+
+        SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
+               ABS(COALESCE(soi.qty_ordered, 0)) AS units_sold,
+               COALESCE(soi.line_total, 0) AS revenue
+        FROM ims_sales_orders so
+        JOIN ims_sales_order_items soi ON soi.so_id = so.id
+        LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
+        LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
+        WHERE so.order_date >= ?
+          ${soUpperClause}
+          AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
+            OR (so.so_type != 'online' AND so.status = 'fulfilled'))
+          ${soBizClause}
+      ) sales_lines
+      WHERE sales_lines.variant_id IS NOT NULL
+      GROUP BY sales_lines.variant_id`;
+    const productSelect = `
+      SELECT pv.variant_id,
+             p.name AS product_name,
+             TRIM(BOTH ' / ' FROM CONCAT_WS(' / ',
+               NULLIF(TRIM(COALESCE(pv.option1_value, '')), ''),
+               NULLIF(TRIM(COALESCE(pv.option2_value, '')), ''),
+               NULLIF(TRIM(COALESCE(pv.option3_value, '')), '')
+             )) AS option_label,
+             COALESCE(pv.sku, '') AS sku,
+             COALESCE(sales.units_sold, 0) AS units_sold,
+             COALESCE(sales.revenue, 0) AS revenue,
+             COALESCE(stock.stock_on_hand, 0) AS stock_on_hand
+      FROM ims_product_variants pv
+      JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = ?
+      LEFT JOIN (${productSales}) sales ON sales.variant_id = pv.variant_id
+      LEFT JOIN (
+        SELECT variant_id, SUM(qty_on_hand) AS stock_on_hand
+        FROM ims_stock
+        GROUP BY variant_id
+      ) stock ON stock.variant_id = pv.variant_id`;
+    const productParams = [biz, biz, ...posDateParams, ...soDateParams, ...(biz ? [biz] : [])];
+    const [topRows, slowRows] = await Promise.all([
+      imsQuery<DashboardProductInsight>(
+        `${productSelect}
+         WHERE COALESCE(sales.units_sold, 0) > 0
+         ORDER BY units_sold DESC, revenue DESC, product_name
+         LIMIT 3`,
+        productParams,
+      ),
+      imsQuery<DashboardProductInsight>(
+        `${productSelect}
+         WHERE COALESCE(stock.stock_on_hand, 0) > 0
+         ORDER BY (COALESCE(sales.units_sold, 0) / GREATEST(COALESCE(stock.stock_on_hand, 0), 1)) ASC,
+                  stock_on_hand DESC, units_sold ASC, product_name
+         LIMIT 8`,
+        productParams,
+      ),
+    ]);
+    const productInsights = buildDashboardProductInsights(topRows, slowRows);
+    topProducts = productInsights.top;
+    slowProducts = productInsights.slow;
+  } catch (error) {
+    console.error('[dashboard/sales] Product insight aggregation failed.', error);
+    await reportRuntimeIssue({
+      businessId: biz,
+      source: 'ims-dashboard-sales',
+      operation: 'load_product_insights',
+      severity: 'warning',
+      title: 'Dashboard product insights failed to load',
+      error,
+      context: { days, yesterday },
+    });
+  }
+
   // Recent POS sales (last 20, regardless of period filter)
   const recentPOS = await imsQuery<any>(
     `SELECT ps.id, ps.created_at, ps.total, ps.cashier_name, ps.customer_name,
@@ -331,6 +424,7 @@ export async function GET(req: Request) {
     success: true,
     channelData: normaliseDashboardSalesRows(channelRows),
     brandData: normaliseDashboardBrandRows(brandRows),
+    productInsights: { top: topProducts, slow: slowProducts },
     summary: { itemCount },
     recentPOS,
   });

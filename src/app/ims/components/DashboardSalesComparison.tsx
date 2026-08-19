@@ -136,11 +136,11 @@ export function DashboardSalesComparison() {
                   <span style={{ color: 'var(--sv-text-dim)', fontSize: 10, whiteSpace: 'nowrap' }}>compared with <strong style={{ color: 'var(--sv-text-main)', fontWeight: 650 }}>{formatCurrency(row.comparison.sales)}</strong></span>
                 </div>
                 <div className="dashboard-sales-comparison__bar" aria-label={`${percentLabel} compared with ${MODE_LABELS[mode]}`}>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', overflow: 'hidden' }}>
-                    {negative && <span style={{ height: '100%', width: `${magnitude}%`, minWidth: magnitude > 0 ? 4 : 0, background: color, borderRadius: '4px 0 0 4px' }} />}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' }}>
+                    {negative && <span style={{ height: 12, width: `${magnitude}%`, minWidth: magnitude > 0 ? 4 : 0, background: color, borderRadius: '3px 0 0 3px' }} />}
                   </div>
-                  <div style={{ display: 'flex', overflow: 'hidden' }}>
-                    {(positive || (row.changePercent == null && row.current.sales > 0)) && <span style={{ height: '100%', width: `${magnitude}%`, minWidth: magnitude > 0 ? 4 : 0, background: color, borderRadius: '0 4px 4px 0' }} />}
+                  <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                    {(positive || (row.changePercent == null && row.current.sales > 0)) && <span style={{ height: 12, width: `${magnitude}%`, minWidth: magnitude > 0 ? 4 : 0, background: color, borderRadius: '0 3px 3px 0' }} />}
                   </div>
                 </div>
                 <div className="dashboard-sales-comparison__change" style={{ background: `color-mix(in srgb, ${color} 9%, transparent)` }}>
