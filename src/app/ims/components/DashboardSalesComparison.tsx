@@ -119,7 +119,7 @@ export function DashboardSalesComparison() {
           {rows.map(row => {
             const positive = row.change > 0;
             const negative = row.change < 0;
-            const color = positive ? 'var(--sv-mint)' : negative ? 'var(--sv-red)' : 'var(--sv-text-dim)';
+            const color = positive ? 'var(--sv-action)' : negative ? 'var(--sv-amber)' : 'var(--sv-text-dim)';
             const magnitude = row.changePercent == null
               ? (row.current.sales > 0 ? 100 : 0)
               : Math.min(100, Math.abs(row.changePercent));
