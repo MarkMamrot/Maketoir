@@ -169,7 +169,11 @@ export function StockAvailabilityWorkbenchView({
 
   const locations = useMemo(() => [...new Set(rows.map(row => row.location_name).filter(Boolean))].sort(), [rows]);
   const suppliers = useMemo(() => [...new Set(rows.flatMap(row => String(row.supplier_names ?? '').split(', ')).filter(Boolean))].sort(), [rows]);
-  const counts = useMemo(() => Object.fromEntries(LENSES.map(item => [item.id, item.id === 'all' ? rows.length : rows.filter(row => row.issues.includes(item.id)).length])), [rows]);
+  const counts = useMemo(() => Object.fromEntries(LENSES.map(item => {
+    if (item.id === 'all') return [item.id, rows.length];
+    const issue: Issue = item.id;
+    return [item.id, rows.filter(row => row.issues.includes(issue)).length];
+  })), [rows]);
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return rows.filter(row => {
