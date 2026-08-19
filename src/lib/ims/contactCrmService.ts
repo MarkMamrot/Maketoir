@@ -1,4 +1,5 @@
 import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
+import { isRetailCrmType } from '@/lib/ims/contactCrmAccess';
 import {
   buildContactCrmTimeline,
   type ContactCrmActivityCategory,
@@ -71,8 +72,9 @@ async function requireContact(businessId: string, contactId: number) {
 
 export async function getContactCrmProfile(businessId: string, contactId: number) {
   const contact = await requireContact(businessId, contactId);
+  const includeRetailData = isRetailCrmType(contact.type);
   const [posSummary, orderSummary, creditSummary, loyalty, tags, taskSummary] = await Promise.all([
-    imsQuery<any>(
+    includeRetailData ? imsQuery<any>(
       `SELECT COUNT(*) AS transaction_count,
               COALESCE(SUM(CASE WHEN ps.sale_type = 'return' THEN -ABS(ps.total) ELSE ps.total END), 0) AS net_total,
               MAX(COALESCE(ps.completed_at, ps.created_at)) AS last_activity_at
@@ -80,7 +82,7 @@ export async function getContactCrmProfile(businessId: string, contactId: number
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
         WHERE ps.customer_id = ? AND ps.status NOT IN ('open','parked','voided')`,
       [businessId, contactId],
-    ),
+    ) : Promise.resolve([]),
     imsQuery<any>(
       `SELECT COUNT(*) AS order_count,
               COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 0 ELSE total_amount END), 0) AS order_total,
@@ -95,11 +97,11 @@ export async function getContactCrmProfile(businessId: string, contactId: number
          FROM ims_credit_notes WHERE business_id = ? AND customer_id = ?`,
       [businessId, contactId],
     ),
-    imsQuery<any>(
+    includeRetailData ? imsQuery<any>(
       `SELECT balance_points, lifetime_earned, lifetime_redeemed, status
          FROM loyalty_accounts WHERE business_id = ? AND contact_id = ? LIMIT 1`,
       [businessId, contactId],
-    ),
+    ) : Promise.resolve([]),
     listContactCrmTags(businessId, contactId, false),
     imsQuery<any>(
       `SELECT SUM(status = 'open') AS open_count,
@@ -112,10 +114,10 @@ export async function getContactCrmProfile(businessId: string, contactId: number
   return {
     contact,
     summaries: {
-      pos: posSummary[0] ?? { transaction_count: 0, net_total: 0, last_activity_at: null },
+      pos: includeRetailData ? posSummary[0] ?? { transaction_count: 0, net_total: 0, last_activity_at: null } : null,
       salesOrders: orderSummary[0] ?? { order_count: 0, order_total: 0, last_activity_at: null },
       creditNotes: creditSummary[0] ?? { credit_count: 0, credit_total: 0, last_activity_at: null },
-      loyalty: loyalty[0] ?? null,
+      loyalty: includeRetailData ? loyalty[0] ?? null : null,
       storeCredit: Number(contact.store_credit ?? 0),
       tasks: taskSummary[0] ?? { open_count: 0, overdue_count: 0 },
     },
@@ -128,7 +130,8 @@ export async function getContactCrmTimeline(
   contactId: number,
   options: { categories?: ContactCrmActivityCategory[]; from?: string; to?: string; limit?: number } = {},
 ): Promise<{ entries: ContactCrmTimelineEntry[]; truncated: boolean }> {
-  await requireContact(businessId, contactId);
+  const contact = await requireContact(businessId, contactId);
+  const includeRetailData = isRetailCrmType(contact.type);
   const limit = Math.max(1, Math.min(Math.floor(options.limit ?? 100), 200));
   const sourceLimit = 200;
   const from = DATE_RE.test(options.from ?? '') ? options.from as string : null;
@@ -136,14 +139,14 @@ export async function getContactCrmTimeline(
   const dateSql = (expression: string) => `${from ? ` AND DATE(${expression}) >= ?` : ''}${to ? ` AND DATE(${expression}) <= ?` : ''}`;
   const dateParams = () => [from, to].filter((value): value is string => Boolean(value));
   const [posSales, salesOrders, creditNotes, storeCreditTransactions, loyaltyTransactions, interactions, tasks] = await Promise.all([
-    imsQuery<any>(
+    includeRetailData ? imsQuery<any>(
       `SELECT ps.id, ps.sale_type, ps.status, ps.total, ps.cashier_name, ps.created_at, ps.completed_at, l.name AS location_name
          FROM pos_sales ps
          JOIN ims_locations l ON l.id = ps.location_id AND l.business_id = ?
         WHERE ps.customer_id = ?${dateSql('COALESCE(ps.completed_at, ps.created_at)')}
         ORDER BY COALESCE(ps.completed_at, ps.created_at) DESC LIMIT ${sourceLimit}`,
       [businessId, contactId, ...dateParams()],
-    ),
+    ) : Promise.resolve([]),
     imsQuery<any>(
       `SELECT id, so_number, so_type, status, total_amount, order_date, fulfilled_date, created_at
         FROM ims_sales_orders WHERE business_id = ? AND customer_id = ?${dateSql('COALESCE(fulfilled_date, created_at)')}
@@ -162,13 +165,13 @@ export async function getContactCrmTimeline(
         ORDER BY created_at DESC LIMIT ${sourceLimit}`,
       [contactId, ...dateParams()],
     ),
-    imsQuery<any>(
+    includeRetailData ? imsQuery<any>(
       `SELECT lt.id, lt.type, lt.points_delta, lt.balance_after, lt.channel, lt.actor_id, lt.created_at
          FROM loyalty_transactions lt
          JOIN loyalty_accounts la ON la.id = lt.account_id AND la.business_id = ? AND la.contact_id = ?
         WHERE lt.business_id = ?${dateSql('lt.created_at')} ORDER BY lt.created_at DESC LIMIT ${sourceLimit}`,
       [businessId, contactId, businessId, ...dateParams()],
-    ),
+    ) : Promise.resolve([]),
     imsQuery<any>(
       `SELECT id, interaction_type, body, occurred_at, actor_name, created_at
         FROM ims_crm_interactions WHERE business_id = ? AND contact_id = ?${dateSql('COALESCE(occurred_at, created_at)')}

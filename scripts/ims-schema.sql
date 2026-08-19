@@ -133,6 +133,64 @@ CREATE TABLE IF NOT EXISTS ims_crm_contact_tags (
     REFERENCES ims_crm_tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_crm_segments (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL,
+  name          VARCHAR(120) NOT NULL,
+  normalized_name VARCHAR(120) NOT NULL,
+  description   VARCHAR(500) NULL,
+  rules_json    JSON NOT NULL,
+  created_by    INT NULL,
+  created_by_name VARCHAR(255) NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_crm_segment_name (business_id, normalized_name),
+  INDEX idx_crm_segment_lookup (business_id, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_crm_pipeline_stages (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL,
+  name          VARCHAR(80) NOT NULL,
+  normalized_name VARCHAR(80) NOT NULL,
+  position      INT NOT NULL DEFAULT 0,
+  category      VARCHAR(16) NOT NULL DEFAULT 'open',
+  default_probability INT NOT NULL DEFAULT 0,
+  color         VARCHAR(32) NULL,
+  is_active     TINYINT(1) NOT NULL DEFAULT 1,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_crm_pipeline_stage_name (business_id, normalized_name),
+  INDEX idx_crm_pipeline_stage_order (business_id, is_active, position, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_crm_opportunities (
+  id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id   VARCHAR(100) NOT NULL,
+  contact_id    INT NOT NULL,
+  stage_id      INT NOT NULL,
+  title         VARCHAR(255) NOT NULL,
+  description   TEXT NULL,
+  expected_value DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  probability   INT NOT NULL DEFAULT 0,
+  owner_user_id INT NULL,
+  owner_name    VARCHAR(255) NULL,
+  next_action_date DATE NULL,
+  lost_reason   VARCHAR(500) NULL,
+  created_by    INT NULL,
+  created_by_name VARCHAR(255) NULL,
+  closed_at     DATETIME NULL,
+  created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_crm_opportunity_stage (business_id, stage_id, next_action_date, id),
+  INDEX idx_crm_opportunity_contact (business_id, contact_id, id),
+  INDEX idx_crm_opportunity_owner (business_id, owner_user_id, stage_id),
+  CONSTRAINT fk_crm_opportunity_contact FOREIGN KEY (contact_id)
+    REFERENCES ims_contacts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_crm_opportunity_stage FOREIGN KEY (stage_id)
+    REFERENCES ims_crm_pipeline_stages(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Locations (Branches / Warehouses) ───────────────────────
 CREATE TABLE IF NOT EXISTS ims_locations (
   id          INT AUTO_INCREMENT PRIMARY KEY,

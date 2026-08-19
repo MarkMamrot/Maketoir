@@ -8,6 +8,7 @@ import ProductImageGallery from './components/ProductImageGallery';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
+import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
@@ -36,6 +37,8 @@ import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal'
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
 import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { ContactCrmTaskQueue, type ContactCrmWorkspaceTask } from './views/contacts/ContactCrmTaskQueue';
+import { ContactCrmSegments } from './views/contacts/ContactCrmSegments';
+import { ContactCrmPipeline } from './views/contacts/ContactCrmPipeline';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
@@ -1668,7 +1671,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [crmSection, setCrmSection] = useState<'contacts' | 'tasks'>('contacts');
+  const [crmSection, setCrmSection] = useState<'contacts' | 'tasks' | 'segments' | 'pipeline'>('contacts');
   const [crmWorkspaceLoading, setCrmWorkspaceLoading] = useState(true);
   const [crmWorkspaceError, setCrmWorkspaceError] = useState('');
   const [crmWorkspace, setCrmWorkspace] = useState<{
@@ -1969,12 +1972,16 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         {crmSection === 'contacts' && !isAdvisor && <button onClick={() => setImportOpen(true)} style={btnStyle('ghost')}>⬆ Import Contacts</button>}
         {crmSection === 'contacts' && !isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
-      <nav aria-label="CRM workspace sections" style={{ display: 'inline-flex', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
-        {(['contacts', 'tasks'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
+      <nav aria-label="CRM workspace sections" style={{ display: 'flex', width: 'fit-content', maxWidth: '100%', overflowX: 'auto', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
+        {(['contacts', 'tasks', 'segments', 'pipeline'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
       </nav>
       {crmWorkspaceError && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 12 }}>{crmWorkspaceError}</div>}
       {crmSection === 'tasks' ? (
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmTaskQueue tasks={crmWorkspace.tasks} truncated={crmWorkspace.taskTruncated} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onTaskChanged={loadCrmWorkspace} />
+      ) : crmSection === 'segments' ? (
+        crmWorkspaceLoading ? <Spinner /> : <ContactCrmSegments tags={crmWorkspace.tags} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} />
+      ) : crmSection === 'pipeline' ? (
+        crmWorkspaceLoading ? <Spinner /> : <ContactCrmPipeline contacts={contacts} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onContactsChanged={load} />
       ) : <>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
@@ -2105,9 +2112,13 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         const codeCell = (value: string | number | null | undefined) => (
           <span style={{ display: 'inline-block', minWidth: 108, fontSize: 11, color: 'var(--sv-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{value || '—'}</span>
         );
+        const nameCell = (c: any) => isAdvisor
+          ? <strong style={{ color: 'var(--sv-text-main)' }}>{c.name}</strong>
+          : <button onClick={() => openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>;
         const actions = (c: any) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {!isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
+            {isCrmCustomerType(c.type) && <button onClick={() => onOpenProfile(c.id)} style={btnStyle('ghost', 'xs')}>CRM</button>}
             {!isAdvisor && <button onClick={() => handleToggleActive(c)} style={btnStyle(c.is_active ? 'danger' : 'mint', 'xs')}>{c.is_active ? 'Inactivate' : 'Reactivate'}</button>}
           </div>
         );
@@ -2130,7 +2141,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
             scrollClassName="contacts-table-scroll"
             render={(c) => [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              nameCell(c),
               codeCell(c.customer_code),
               c.customer_group || '—',
               typeBadge(c),
@@ -2180,7 +2191,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
             scrollClassName="contacts-table-scroll"
             render={(c) => isSupplierView ? [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              nameCell(c),
               c.company || '—',
               typeBadge(c),
               (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',
@@ -2194,7 +2205,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
               actions(c),
             ] : [
               !isAdvisor ? <input type="checkbox" checked={selectedContacts.has(c.id)} onChange={() => toggleSelectContact(c.id)} style={{ cursor: 'pointer' }} /> : null,
-              <button onClick={() => onOpenProfile(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>,
+              nameCell(c),
               c.company || '—',
               typeBadge(c),
               (crmWorkspace.contactMeta[c.id]?.tags ?? []).map(tag => tag.name).join(', ') || '—',

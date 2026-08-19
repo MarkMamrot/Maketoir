@@ -3,6 +3,7 @@
 import { ArrowLeft, Check, ClipboardList, Mail, Pencil, Phone, Plus, Tag, X } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
+import { isRetailCrmType } from '@/lib/ims/contactCrmAccess';
 import type { ContactCrmActivityCategory, ContactCrmTimelineEntry } from '@/lib/ims/contactCrmTimeline';
 import { SBDatePicker, type SBDateRange } from '../reports/reportFilterHelpers';
 import { ContactCrmTaskEditor, type ContactCrmTaskEditPayload } from './ContactCrmTaskEditor';
@@ -116,6 +117,9 @@ export function ContactCrmProfile({
       apiJson('/api/ims/contacts/assignees'),
     ]);
     setProfile(profilePayload.data);
+    if (!isRetailCrmType(profilePayload.data?.contact?.type)) {
+      setCategories(current => current.filter(category => category !== 'sale' && category !== 'loyalty'));
+    }
     setTasks(tasksPayload.data ?? []);
     setTagSuggestions(tagsPayload.data?.suggestions ?? []);
     setAssignees(assigneePayload.data ?? []);
@@ -243,6 +247,8 @@ export function ContactCrmProfile({
   );
 
   const contact = profile.contact;
+  const isRetailCustomer = isRetailCrmType(contact.type);
+  const visibleActivity = activity.filter(entry => isRetailCustomer || (entry.category !== 'sale' && entry.category !== 'loyalty'));
   const openTasks = tasks.filter(task => task.status === 'open');
   const closedTasks = tasks.filter(task => task.status !== 'open');
 
@@ -284,11 +290,11 @@ export function ContactCrmProfile({
 
       <section aria-label="Customer commercial summary" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
         {[
-          ['POS net', money(profile.summaries.pos?.net_total), `${Number(profile.summaries.pos?.transaction_count ?? 0)} transactions`],
+          ...(isRetailCustomer ? [['POS net', money(profile.summaries.pos?.net_total), `${Number(profile.summaries.pos?.transaction_count ?? 0)} transactions`]] : []),
           ['Sales orders', money(profile.summaries.salesOrders?.order_total), `${Number(profile.summaries.salesOrders?.order_count ?? 0)} orders`],
           ['Customer credits', money(profile.summaries.creditNotes?.credit_total), `${Number(profile.summaries.creditNotes?.credit_count ?? 0)} records`],
           ['Store credit', money(profile.summaries.storeCredit), 'Read-only balance'],
-          ['Loyalty', `${Number(profile.summaries.loyalty?.balance_points ?? 0).toLocaleString()} pts`, profile.summaries.loyalty ? 'Current balance' : 'No account'],
+          ...(isRetailCustomer ? [['Loyalty', `${Number(profile.summaries.loyalty?.balance_points ?? 0).toLocaleString()} pts`, profile.summaries.loyalty ? 'Current balance' : 'No account']] : []),
           ['Follow-ups', String(openTasks.length), `${Number(profile.summaries.tasks?.overdue_count ?? 0)} overdue`],
         ].map(([label, value, hint]) => (
           <div key={label} style={{ border: '1px solid var(--sv-etch)', borderRadius: 7, padding: '11px 12px', minHeight: 72, background: 'var(--sv-bg-1)' }}>
@@ -311,7 +317,7 @@ export function ContactCrmProfile({
         <section>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginBottom: 14 }}>
             <SBDatePicker value={range} onChange={setRange} />
-            {CATEGORIES.map(item => {
+            {CATEGORIES.filter(item => isRetailCustomer || (item.value !== 'sale' && item.value !== 'loyalty')).map(item => {
               const active = categories.includes(item.value);
               return <button key={item.value} onClick={() => setCategories(current => active ? current.filter(value => value !== item.value) : [...current, item.value])} style={{ ...commandStyle, minHeight: 34, background: active ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: active ? '#fff' : 'var(--sv-text-main)' }}>{item.label}</button>;
             })}
@@ -326,8 +332,8 @@ export function ContactCrmProfile({
             </form>
           )}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {activity.length === 0 && <div style={{ padding: '26px 4px', color: 'var(--sv-text-dim)', fontSize: 13 }}>No activity in this period.</div>}
-            {activity.map(entry => (
+            {visibleActivity.length === 0 && <div style={{ padding: '26px 4px', color: 'var(--sv-text-dim)', fontSize: 13 }}>No activity in this period.</div>}
+            {visibleActivity.map(entry => (
               <article key={entry.entryKey} style={{ display: 'grid', gridTemplateColumns: '112px minmax(0, 1fr) auto', gap: 12, padding: '13px 4px', borderBottom: '1px solid var(--sv-etch)', alignItems: 'start' }}>
                 <time style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{displayDate(entry.occurredAt, true)}</time>
                 <div style={{ minWidth: 0 }}>
@@ -402,7 +408,8 @@ export function ContactCrmProfile({
             ['Customer group', contact.customer_group], ['Price tier', contact.price_tier],
             ['Address', [contact.address, contact.address2, contact.suburb || contact.city, contact.state, contact.postcode].filter(Boolean).join(', ')],
             ['Date of birth', displayDate(contact.date_of_birth)], ['Email marketing', contact.promo_email ? 'Opted in' : 'Not opted in'],
-            ['SMS marketing', contact.promo_sms ? 'Opted in' : 'Not opted in'], ['Loyalty member', contact.loyalty_member ? 'Enrolled' : 'Not enrolled'],
+            ['SMS marketing', contact.promo_sms ? 'Opted in' : 'Not opted in'],
+            ...(isRetailCustomer ? [['Loyalty member', contact.loyalty_member ? 'Enrolled' : 'Not enrolled']] : []),
           ].map(([label, value]) => (
             <div key={label} style={{ paddingBottom: 10, borderBottom: '1px solid var(--sv-etch)' }}>
               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
