@@ -3781,7 +3781,9 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
   const filtered = useMemo(() => {
-    let list = inStockOnly ? sortedProducts.filter(p => (p.available ?? p.soh) > 0) : sortedProducts;
+    let list = inStockOnly && deferredMode !== 'search'
+      ? sortedProducts.filter(p => (p.available ?? p.soh) > 0)
+      : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
     // In browse mode, if specific variants are pinned, restrict to those only
     if (deferredMode === 'browse' && !deferredSearch.trim() && pinnedIds) {
@@ -7671,11 +7673,9 @@ export default function PosPage() {
           const cached = loadProductsCache();
           if (cached.length) setProducts(cached);
           checkRegisterGate(sess, cfg, () => setScreen('pos'));
-          // Refresh products + payment methods in background — via the shared
-          // handleSync (incremental `since=` unless a full resync is due), so
-          // reopening the app each morning doesn't force a full reload when
-          // nothing actually changed overnight.
-          handleSync(false, cfg).catch(() => {/* offline — keep cached */});
+          // Refresh products + payment methods in the background. Admin-as-POS
+          // replaces the unscoped browser cache; cashier restores stay incremental.
+          handleSync(sess.pos_user_id === 0, cfg).catch(() => {/* offline — keep cached */});
           fetch('/api/pos/settings/products').then(r => r.json()).then(viewData => {
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
             else setDefaultView(prev => prev ?? 'all');

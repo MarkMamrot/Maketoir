@@ -1146,22 +1146,24 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: (data?.openRegisters ?? []).length > 0 ? 'var(--sv-mint)' : 'var(--sv-text-dim)' }} />
               <DashboardPanelHeading eyebrow="Store operations" title="POS Registers" titleColor="var(--sv-text-main)" />
                           <style>{`@media (max-width: 900px) { .ims-sales-chart-panel, .ims-sales-summary-panel { grid-column: 1 / -1 !important; } .ims-dashboard-insights-grid { grid-template-columns: 1fr !important; } }`}</style>
-              {(data?.openRegisters ?? []).length > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-mint)', marginLeft: 4 }}>{data.openRegisters.length} open</span>
-              )}
-              {(data?.posRegisters ?? []).length > 0 && (
-                <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)', marginLeft: 2 }}>· {(data.posRegisters as any[]).filter((r: any) => r.status === 'closed').length} closed today</span>
-              )}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 5, textAlign: 'right' }}>
+                {(data?.openRegisters ?? []).length > 0 && (
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--sv-mint)' }}>{data.openRegisters.length} open</span>
+                )}
+                {(data?.posRegisters ?? []).length > 0 && (
+                  <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--sv-text-dim)' }}>· {(data.posRegisters as any[]).filter((r: any) => r.status === 'closed').length} closed today</span>
+                )}
+              </div>
             </div>
             {!(data?.posRegisters ?? []).length ? (
               <div style={{ padding: 20, color: 'var(--sv-text-dim)', fontSize: 13 }}>No register sessions today.</div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
-                  <thead>
+                  <thead style={{ background: 'color-mix(in srgb, var(--sv-bg-1) 68%, transparent)' }}>
                     <tr>
                       {['Register', 'Location', 'Status', 'Opened', 'Opened By', 'Float', 'Closed', 'Closed By', 'Close Totals'].map(h => (
-                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
