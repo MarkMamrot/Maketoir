@@ -12,6 +12,9 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { encrypt, decrypt } from '@/lib/encryption';
+import { ensurePausedXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { assertXeroPostingEnabled } from '@/lib/xero/postingPolicy';
+export { XeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -158,6 +161,10 @@ export async function saveXeroTokens(
   tenantId: string,
   tenantName: string,
 ): Promise<void> {
+  const existingConnection = await ConnectionsRepository.get(businessId);
+  if (!existingConnection?.xero_tenant_id) {
+    await ensurePausedXeroDocumentPolicy(businessId);
+  }
   const expiry = Date.now() + tokens.expires_in * 1000;
   await ConnectionsRepository.upsert(businessId, {
     xero_access_token: encrypt(tokens.access_token),
@@ -216,10 +223,12 @@ export async function xeroApiFetch(
   path: string,
   options: { method?: string; body?: unknown; idempotencyKey?: string } = {},
 ): Promise<any> {
+  const method = (options.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') await assertXeroPostingEnabled(businessId);
   const { accessToken, tenantId } = await getValidAccessToken(businessId);
   const url = path.startsWith('http') ? path : `${XERO_API_BASE}${path}`;
   const res = await fetch(url, {
-    method: options.method ?? 'GET',
+    method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'xero-tenant-id': tenantId,

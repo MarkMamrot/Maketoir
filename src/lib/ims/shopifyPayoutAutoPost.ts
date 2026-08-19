@@ -59,7 +59,14 @@ export async function autoPostShopifyPayout(
   deps: AutoPostDependencies = defaultDependencies,
 ): Promise<{ status: AutoPostStatus; error?: string }> {
   const policy = await deps.getPolicy(businessId);
-  if (!policy.shopifyPayoutAutoPostEnabled) return { status: 'skipped_disabled' };
+  if (
+    !policy.postingEnabled
+    || !policy.shopifyPayoutPostingEnabled
+    || !policy.shopifyPayoutAutoPostEnabled
+    || !policy.shopifyRefundCreditNoteEnabled
+  ) {
+    return { status: 'skipped_disabled' };
+  }
 
   const payouts = await deps.mainQuery<{ reconciliation_status: string }>(
     `SELECT reconciliation_status

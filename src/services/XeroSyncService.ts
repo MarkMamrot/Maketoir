@@ -2170,6 +2170,11 @@ export async function syncGiftCardIssueInvoice(input: {
 }): Promise<string | null> {
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
+  const policy = await getXeroDocumentPolicy(input.businessId);
+  if (!policy.postingEnabled || !policy.giftCardAccountingEnabled) {
+    await logSync(input.businessId, 'gift_card_issue', input.referenceId ?? null, null, 'skipped', `Gift card accounting disabled: ${input.dedupeKey}`);
+    return null;
+  }
 
   const existing = await query<{ id: number }>(
     `SELECT id
@@ -2258,6 +2263,14 @@ async function syncDeferredLiabilityJournal(input: {
 }): Promise<string | null> {
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
+  const policy = await getXeroDocumentPolicy(input.businessId);
+  const accountingEnabled = input.liabilityRole === 'gift_card_liability'
+    ? policy.giftCardAccountingEnabled
+    : policy.storeCreditAccountingEnabled;
+  if (!policy.postingEnabled || !accountingEnabled) {
+    await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'skipped', `${input.liabilityLabel} accounting disabled: ${input.dedupeKey}`);
+    return null;
+  }
 
   const existing = await query<{ id: number }>(
     `SELECT id
@@ -2380,6 +2393,11 @@ export async function syncGiftCardRedemptionReversal(input: {
   const dedupeKey = `gift card redeem reversal tx ${input.transactionId}`;
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
+  const policy = await getXeroDocumentPolicy(input.businessId);
+  if (!policy.postingEnabled || !policy.giftCardAccountingEnabled) {
+    await logSync(input.businessId, syncType, input.transactionId, null, 'skipped', `Gift card accounting disabled: ${dedupeKey}`);
+    return null;
+  }
 
   const existing = await query<{ id: number }>(
     `SELECT id

@@ -93,6 +93,8 @@ async function main() {
   }
 
   const documentPolicyColumns = [
+    ['posting_enabled', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER business_id'],
+    ['po_receipt_journal_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER po_payment_sync_enabled'],
     ['manual_customer_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER so_payment_sync_enabled"],
     ['supplier_cn_action', "VARCHAR(20) NOT NULL DEFAULT 'draft' AFTER manual_customer_cn_action"],
     ['shortfall_credit_draft_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER supplier_cn_action'],
@@ -100,7 +102,13 @@ async function main() {
     ['pos_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER pos_batch_sync_enabled'],
     ['online_batch_action', "VARCHAR(20) NOT NULL DEFAULT 'authorised' AFTER pos_batch_payment_sync_enabled"],
     ['online_batch_payment_sync_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER online_batch_action'],
-    ['shopify_payout_auto_post_enabled', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER online_batch_payment_sync_enabled'],
+    ['shopify_refund_cn_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER online_batch_payment_sync_enabled'],
+    ['shopify_payout_posting_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER shopify_refund_cn_enabled'],
+    ['shopify_payout_auto_post_enabled', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER shopify_payout_posting_enabled'],
+    ['pos_cash_banking_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER shopify_payout_auto_post_enabled'],
+    ['stocktake_journal_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER pos_cash_banking_enabled'],
+    ['gift_card_accounting_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER stocktake_journal_enabled'],
+    ['store_credit_accounting_enabled', 'TINYINT(1) NOT NULL DEFAULT 1 AFTER gift_card_accounting_enabled'],
   ];
   for (const [columnName, definition] of documentPolicyColumns) {
     const [columns] = await conn.query(
@@ -111,6 +119,9 @@ async function main() {
     );
     if (columns.length === 0) {
       await conn.query(`ALTER TABLE xero_document_policies ADD COLUMN ${columnName} ${definition}`);
+      if (columnName === 'posting_enabled') {
+        await conn.query('UPDATE xero_document_policies SET posting_enabled = 1');
+      }
     }
   }
 

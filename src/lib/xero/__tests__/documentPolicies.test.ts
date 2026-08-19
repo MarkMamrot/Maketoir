@@ -13,6 +13,7 @@ import {
 
 describe('Xero document policies', () => {
   it('preserves the existing PO and SO lifecycle defaults', () => {
+    expect(DEFAULT_XERO_DOCUMENT_POLICY.postingEnabled).toBe(true);
     expect(resolvePODocumentAction(DEFAULT_XERO_DOCUMENT_POLICY, 'confirmed')).toBe('draft');
     expect(resolvePODocumentAction(DEFAULT_XERO_DOCUMENT_POLICY, 'complete')).toBe('authorised');
     expect(resolveSODocumentAction(DEFAULT_XERO_DOCUMENT_POLICY, 'confirmed')).toBe('draft');
@@ -24,6 +25,15 @@ describe('Xero document policies', () => {
     expect(DEFAULT_XERO_DOCUMENT_POLICY.posBatchSyncEnabled).toBe(true);
     expect(DEFAULT_XERO_DOCUMENT_POLICY.onlineBatchAction).toBe('authorised');
     expect(DEFAULT_XERO_DOCUMENT_POLICY.shopifyPayoutAutoPostEnabled).toBe(false);
+    expect(DEFAULT_XERO_DOCUMENT_POLICY).toMatchObject({
+      poReceiptJournalEnabled: true,
+      shopifyRefundCreditNoteEnabled: true,
+      shopifyPayoutPostingEnabled: true,
+      posCashBankingEnabled: true,
+      stocktakeJournalEnabled: true,
+      giftCardAccountingEnabled: true,
+      storeCreditAccountingEnabled: true,
+    });
   });
 
   it('allows a later no-sync action because it leaves the Xero document unchanged', () => {
@@ -43,6 +53,10 @@ describe('Xero document policies', () => {
   });
 
   it('strictly parses actions and payment toggles', () => {
+    expect(() => parseXeroDocumentPolicy({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      postingEnabled: 'yes',
+    })).toThrow('postingEnabled must be a boolean');
     expect(() => parseXeroDocumentPolicy({
       ...DEFAULT_XERO_DOCUMENT_POLICY,
       poPaymentSyncEnabled: 'yes',
@@ -73,6 +87,14 @@ describe('Xero document policies', () => {
     expect(validateXeroDocumentPolicy(policy)).toBeNull();
     expect(getXeroDocumentPolicyWarnings(policy)).toContain('Online clearing payments will authorise the daily online invoice before applying payment.');
     expect(validateXeroDocumentPolicy({ ...policy, onlineBatchAction: 'none' })).toContain('require daily online invoice sync');
+  });
+
+  it('requires the complete Shopify accounting workflow before automatic payout posting', () => {
+    const automatic = { ...DEFAULT_XERO_DOCUMENT_POLICY, shopifyPayoutAutoPostEnabled: true };
+    expect(validateXeroDocumentPolicy(automatic)).toBeNull();
+    expect(validateXeroDocumentPolicy({ ...automatic, shopifyPayoutPostingEnabled: false })).toContain('requires Shopify payout posting');
+    expect(validateXeroDocumentPolicy({ ...automatic, onlineBatchAction: 'none', onlineBatchPaymentSyncEnabled: false })).toContain('requires daily online invoice');
+    expect(validateXeroDocumentPolicy({ ...automatic, shopifyRefundCreditNoteEnabled: false })).toContain('requires Shopify refund credit notes');
   });
 
   it('exposes valid transparent presets without storing a mode', () => {

@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { triggerCNXeroVoid, triggerPOXeroVoid, triggerSOXeroVoid, triggerSupplierCNXeroVoid } from '@/lib/ims/xeroHooks';
+import { assertXeroPostingEnabled, isXeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 
 
 export async function POST(req: Request) {
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
+    await assertXeroPostingEnabled(businessId);
     const { type, id } = await req.json() as { type: 'po' | 'so' | 'cn' | 'scn'; id: number };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
@@ -38,6 +40,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (isXeroPostingDisabledError(e)) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

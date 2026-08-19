@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), revert: vi.fn(), xero: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ session: vi.fn(), revert: vi.fn(), xero: vi.fn(), report: vi.fn(), assertWorkflow: vi.fn() }));
 vi.mock('@/app/api/ims/import/_helpers', () => ({ getImportSession: mocks.session }));
 vi.mock('@/lib/ims/stocktakes/stocktakeOperations', () => ({
   revertStocktake: mocks.revert,
@@ -8,6 +8,10 @@ vi.mock('@/lib/ims/stocktakes/stocktakeOperations', () => ({
 }));
 vi.mock('@/services/XeroSyncService', () => ({ syncStocktakeReversalJournal: mocks.xero }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
+vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
+  return { ...actual, assertXeroWorkflowEnabled: mocks.assertWorkflow };
+});
 
 import { POST } from '../route';
 import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
@@ -26,6 +30,7 @@ describe('POST /api/ims/stocktakes/[id]/revert', () => {
     mocks.revert.mockResolvedValue({ id: 31, status: 'reverted', reverted: 1, replayed: false, xeroReversalStatus: 'queued' });
     mocks.xero.mockResolvedValue({ journalId: 'reversal-1', lines: 1, totalValue: 11 });
     mocks.report.mockResolvedValue(undefined);
+    mocks.assertWorkflow.mockResolvedValue(undefined);
   });
 
   it('requires an operation key and reason', async () => {
@@ -53,6 +58,20 @@ describe('POST /api/ims/stocktakes/[id]/revert', () => {
     expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1', operation: 'xero_reversal_journal', context: { localReversalCommitted: true },
     }));
+  });
+
+  it('leaves the Xero correction queued without a warning when stocktake journals are disabled', async () => {
+    const { XeroWorkflowDisabledError } = await import('@/lib/xero/postingPolicy');
+    mocks.assertWorkflow.mockRejectedValueOnce(new XeroWorkflowDisabledError('stocktakeJournalEnabled'));
+
+    const response = await POST(request({ operationKey: 'key', reason: 'Mistake' }) as any, params);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      status: 'reverted', xeroReversalStatus: 'queued', xeroWarning: null,
+    });
+    expect(mocks.xero).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
   });
 
   it('maps guarded reversal conflicts to 409 without calling Xero', async () => {

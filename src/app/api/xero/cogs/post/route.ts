@@ -3,6 +3,7 @@ import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
+import { assertXeroPostingEnabled, isXeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 import { postCogsPeriod } from '@/services/XeroCogsService';
 
 const FREQUENCIES = new Set<CogsFrequency>(['daily', 'weekly', 'monthly', 'quarterly']);
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
 
     const denied = assertBusinessAccess(user, databaseId);
     if (denied) return denied;
+    await assertXeroPostingEnabled(databaseId);
     if (!FREQUENCIES.has(frequency)) {
       return NextResponse.json({ error: 'Frequency must be daily, weekly, monthly, or quarterly.' }, { status: 400 });
     }
@@ -38,6 +40,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(result);
   } catch (error: unknown) {
+    if (isXeroPostingDisabledError(error)) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+    }
     console.error('[xero/cogs/post]', error instanceof Error ? error.message : String(error));
     return NextResponse.json({ error: 'Unable to post COGS journal.' }, { status: 500 });
   }

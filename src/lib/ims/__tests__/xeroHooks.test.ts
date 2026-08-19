@@ -238,6 +238,26 @@ describe('PO and SO Xero document policies', () => {
     expect(mockSyncPOReceivedJournal).not.toHaveBeenCalled();
   });
 
+  it('approves a completed PO bill without posting its receipt journal when that workflow is disabled', async () => {
+    mockGetPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      poReceiptJournalEnabled: false,
+    });
+    mockPOGet.mockResolvedValue({
+      id: 12,
+      po_number: 'PO-00012',
+      xero_bill_id: 'xero-po-12',
+      payments: [{ id: 1 }],
+      total_amount: 120,
+      location_id: 4,
+    });
+
+    await triggerPOXeroSync('biz-1', 12, 'complete');
+
+    expect(mockApproveBill).toHaveBeenCalledWith('biz-1', 'xero-po-12', 12);
+    expect(mockSyncPOReceivedJournal).not.toHaveBeenCalled();
+  });
+
   it('uses a confirmed replacement invoice number only for the Xero sync payload', async () => {
     const po = {
       id: 12,

@@ -9,6 +9,7 @@ import {
   ingestShopifyPayout,
 } from '@/lib/ims/shopifyPayoutIngestion';
 import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
+import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { query } from '@/services/MySQLService';
 
 type LinkedPayout = {
@@ -247,15 +248,30 @@ export async function POST(req: NextRequest, { params }: { params: { batchDate: 
     });
   }
 
-  const exec = await executeShopifyPayoutActions(authn.businessId, payoutId);
-  return NextResponse.json({
-    success: exec.status === 'reconciled',
-    settlementStatus: exec.status === 'reconciled' ? 'success' : 'non_success',
-    payoutId,
-    payoutStatus: exec.status,
-    completedActionIds: exec.completedActionIds,
-    message: exec.status === 'reconciled'
-      ? `Payout ${payoutId} processed and reconciled.`
-      : exec.error || `Payout ${payoutId} processed with status ${exec.status}.`,
-  }, { status: exec.status === 'reconciled' ? 200 : 409 });
+  try {
+    await assertXeroWorkflowEnabled(authn.businessId, 'shopifyPayoutPostingEnabled');
+    const exec = await executeShopifyPayoutActions(authn.businessId, payoutId);
+    return NextResponse.json({
+      success: exec.status === 'reconciled',
+      settlementStatus: exec.status === 'reconciled' ? 'success' : 'non_success',
+      payoutId,
+      payoutStatus: exec.status,
+      completedActionIds: exec.completedActionIds,
+      message: exec.status === 'reconciled'
+        ? `Payout ${payoutId} processed and reconciled.`
+        : exec.error || `Payout ${payoutId} processed with status ${exec.status}.`,
+    }, { status: exec.status === 'reconciled' ? 200 : 409 });
+  } catch (error) {
+    if (isXeroPolicyDisabledError(error)) {
+      return NextResponse.json({
+        success: false,
+        settlementStatus: 'paused',
+        payoutId,
+        payoutStatus: effectiveStatus,
+        code: error.code,
+        message: error.message,
+      }, { status: error.status });
+    }
+    throw error;
+  }
 }

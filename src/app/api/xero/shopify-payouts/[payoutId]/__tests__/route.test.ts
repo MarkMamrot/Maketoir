@@ -9,6 +9,7 @@ const {
   mockPlan,
   mockExecute,
   mockSyncOnlineDailySalesDay,
+  mockAssertXeroWorkflowEnabled,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockPlan: vi.fn(),
   mockExecute: vi.fn(),
   mockSyncOnlineDailySalesDay: vi.fn(),
+  mockAssertXeroWorkflowEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -28,6 +30,10 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBu
 vi.mock('@/lib/ims/shopifyPayoutActionPlanner', () => ({ planShopifyPayoutActions: mockPlan }));
 vi.mock('@/lib/ims/shopifyPayoutActionExecutor', () => ({ executeShopifyPayoutActions: mockExecute }));
 vi.mock('@/lib/xero/onlineDailySalesSync', () => ({ syncOnlineDailySalesDay: mockSyncOnlineDailySalesDay }));
+vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
+  return { ...actual, assertXeroWorkflowEnabled: mockAssertXeroWorkflowEnabled };
+});
 
 import { GET, POST } from '../route';
 
@@ -52,6 +58,7 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     mockSyncOnlineDailySalesDay.mockResolvedValue({
       xeroId: 'invoice-1', totalSales: 337.04, totalTax: 30.64, giftCardAmount: 0, orderCount: 5,
     });
+    mockAssertXeroWorkflowEnabled.mockResolvedValue(undefined);
   });
 
   it('returns payout preview, actions, and canonical transactions', async () => {
@@ -82,6 +89,25 @@ describe('/api/xero/shopify-payouts/[payoutId]', () => {
     expect(response.status).toBe(200);
     expect(mockExecute).toHaveBeenCalledWith('biz-1', 'pay-1');
     expect(mockRunImsForBusiness).not.toHaveBeenCalled();
+  });
+
+  it('returns 423 without executing when Shopify payout posting is disabled', async () => {
+    const { XeroWorkflowDisabledError } = await import('@/lib/xero/postingPolicy');
+    mockAssertXeroWorkflowEnabled.mockRejectedValueOnce(new XeroWorkflowDisabledError('shopifyPayoutPostingEnabled'));
+
+    const response = await POST(request('POST', { action: 'execute' }), context);
+
+    expect(response.status).toBe(423);
+    expect(await response.json()).toMatchObject({ code: 'xero_workflow_disabled' });
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('still allows payout planning while payout posting is disabled', async () => {
+    const response = await POST(request('POST', { action: 'plan' }), context);
+
+    expect(response.status).toBe(200);
+    expect(mockAssertXeroWorkflowEnabled).not.toHaveBeenCalled();
+    expect(mockPlan).toHaveBeenCalledOnce();
   });
 
   it('repairs linked daily invoices and replans without posting payout actions', async () => {

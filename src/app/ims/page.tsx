@@ -17173,7 +17173,7 @@ function XeroView({
 
           {workspaceSection === 'setup' && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
-              <button style={tabBtnStyle(destination === 'setup-automation')} onClick={() => goToDestination('setup-automation')}>Automation</button>
+              <button style={tabBtnStyle(destination === 'setup-automation')} onClick={() => goToDestination('setup-automation')}>Sync Rules</button>
               <button style={tabBtnStyle(destination === 'setup-ledger')} onClick={() => goToDestination('setup-ledger')}>Accounts &amp; Tracking</button>
               <button style={tabBtnStyle(destination === 'setup-payments')} onClick={() => goToDestination('setup-payments')}>Payment Routing</button>
             </div>
@@ -17187,8 +17187,8 @@ function XeroView({
             </div>
           )}
 
-          {(destination === 'overview' || destination === 'setup-automation') && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
-          {(destination === 'setup-ledger' || destination === 'setup-payments') && <XeroMappingTab getBusinessId={getBusinessId} />}
+          {destination === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {(destination === 'setup-automation' || destination === 'setup-ledger' || destination === 'setup-payments') && <XeroMappingTab getBusinessId={getBusinessId} />}
           {destination === 'activity-cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
           {destination === 'activity-payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
           {destination === 'activity-history' && (
@@ -17821,7 +17821,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
     return (
       <div style={{ padding: 14, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 7 }}>
         <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
-          {isPO ? 'Purchase orders' : 'Sales orders'}
+          {isPO ? 'Purchasing' : 'Wholesale'}
         </div>
         <div style={{ marginBottom: 10, padding: '7px 9px', borderLeft: '3px solid var(--sv-text-dim)', color: 'var(--sv-text-dim)', fontSize: 11 }}>
           IMS Draft: local only, never sent to Xero.
@@ -17847,12 +17847,19 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
             ? `Xero requires an Authorised ${isPO ? 'bill' : 'invoice'}. Saving a mapped payment will create the document if needed and authorise a Draft before applying payment.`
             : 'Payments remain in IMS only, even when the payment method has a Xero account mapping.'}
         </p>
+        {isPO && (
+          <div style={{ marginTop: 12 }}>
+            {toggle('poReceiptJournalEnabled', 'Post PO receipt journals', 'Creates a Manual Journal when paid stock is received: Inventory Asset debit and Inventory in Transit credit. The supplier bill can still sync when this is off.')}
+          </div>
+        )}
       </div>
     );
   };
 
   const toggle = (
-    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled',
+    field: 'posBatchSyncEnabled' | 'posBatchPaymentSyncEnabled' | 'onlineBatchPaymentSyncEnabled' | 'shopifyPayoutAutoPostEnabled'
+      | 'poReceiptJournalEnabled' | 'shopifyRefundCreditNoteEnabled' | 'shopifyPayoutPostingEnabled'
+      | 'posCashBankingEnabled' | 'stocktakeJournalEnabled' | 'giftCardAccountingEnabled' | 'storeCreditAccountingEnabled',
     label: string,
     help: string,
     disabled = false,
@@ -17863,7 +17870,15 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
           type="checkbox"
           checked={policy[field]}
           disabled={disabled}
-          onChange={event => setPolicy(previous => ({ ...previous, [field]: event.target.checked }))}
+          onChange={event => setPolicy(previous => {
+            const checked = event.target.checked;
+            const next = { ...previous, [field]: checked };
+            if (!checked && field === 'posBatchSyncEnabled') next.posBatchPaymentSyncEnabled = false;
+            if (!checked && (field === 'shopifyPayoutPostingEnabled' || field === 'shopifyRefundCreditNoteEnabled')) {
+              next.shopifyPayoutAutoPostEnabled = false;
+            }
+            return next;
+          })}
         />
         {label}
       </label>
@@ -17875,14 +17890,36 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
 
   return (
     <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Document Status &amp; Payments</h3>
+      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Sync Rules</h3>
       <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
-        Choose which IMS accounting events reach Xero and whether they remain Draft or become Authorised. Existing documents are never moved backwards.
+        Choose which IMS workflows create Xero documents and when they post. Account and tracking mappings remain together below for bookkeeper review.
       </p>
       {loading ? <div style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading document policy...</div> : (
         <>
+          <div style={{ marginBottom: 14, padding: '14px 16px', borderRadius: 7, border: `1px solid ${policy.postingEnabled ? 'color-mix(in srgb, var(--sv-mint) 45%, var(--sv-etch))' : 'color-mix(in srgb, var(--sv-amber) 55%, var(--sv-etch))'}`, background: policy.postingEnabled ? 'color-mix(in srgb, var(--sv-mint) 7%, var(--sv-bg-1))' : 'color-mix(in srgb, var(--sv-amber) 8%, var(--sv-bg-1))' }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, cursor: 'pointer' }}>
+              <span>
+                <span style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 14, fontWeight: 750 }}>Allow posting to Xero</span>
+                <span style={{ display: 'block', marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 11, lineHeight: 1.45 }}>
+                  {policy.postingEnabled
+                    ? 'Xero writes are allowed according to the workflow rules below.'
+                    : 'Paused: IMS activity continues, but automatic and manual Xero writes are blocked. Reads, previews, history, and setup remain available.'}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={policy.postingEnabled}
+                onChange={event => {
+                  if (!event.target.checked && !window.confirm('Pause all Xero posting? IMS activity will continue and existing Xero records will not be changed.')) return;
+                  setPolicy(previous => ({ ...previous, postingEnabled: event.target.checked }));
+                }}
+                style={{ width: 20, height: 20, flexShrink: 0, accentColor: 'var(--sv-mint)' }}
+              />
+            </label>
+          </div>
           <div style={{ display: 'grid', gap: 12 }}>
-            {policyBlock('po')}{policyBlock('so')}
+            {policyBlock('po')}
+            {policyBlock('so')}
             <div style={blockStyle}>
               <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Credit notes</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
@@ -17890,22 +17927,36 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
                 {actionSelect('supplierCreditNoteAction', 'Completed supplier credit note')}
               </div>
               <p style={{ margin: '8px 0 0', fontSize: 11, lineHeight: 1.45, color: 'var(--sv-text-dim)' }}>
-                POS returns stay in POS/EOD accounting. Shopify refunds always require an Authorised Xero credit note for payout reconciliation.
+                Creates customer or supplier Credit Notes. POS returns remain in POS/EOD accounting.
               </p>
             </div>
             <div style={blockStyle}>
-              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>POS sales batches</div>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Retail POS</div>
               <div style={{ display: 'grid', gap: 10 }}>
-                {toggle('posBatchSyncEnabled', 'Sync POS EOD invoices to Xero', 'Creates one Authorised invoice per payment method at EOD.')}
-                {toggle('posBatchPaymentSyncEnabled', 'Apply POS clearing payments', 'Pays each EOD invoice into its mapped clearing account. Turning this off also keeps those cash rows out of Cash Banking.', !policy.posBatchSyncEnabled)}
+                {toggle('posBatchSyncEnabled', 'Post POS end-of-day invoices', 'Creates one Authorised sales Invoice per payment method when an EOD session closes.')}
+                {toggle('posBatchPaymentSyncEnabled', 'Apply POS clearing payments', 'Creates Payments against those EOD invoices using each payment method clearing account.', !policy.posBatchSyncEnabled)}
+                {toggle('posCashBankingEnabled', 'Post cash banking deposits', 'Creates Bank Transactions and Bank Transfers when a confirmed cash deposit is posted from Cash Banking.')}
               </div>
             </div>
             <div style={blockStyle}>
-              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online sales</div>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Online & Shopify</div>
               <div style={{ display: 'grid', gap: 10 }}>
                 {actionSelect('onlineBatchAction', 'Completed daily online batch')}
-                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'Available only for Authorised invoices. Shopify Payments remains outstanding until payout reconciliation.', policy.onlineBatchAction !== 'authorised')}
-                {toggle('shopifyPayoutAutoPostEnabled', 'Automatically post planned Shopify payouts', 'After a paid payout balances and its actions are planned, Authorises linked Draft invoices and posts payments, fees, refunds, and adjustments. Failures remain blocked or partial for review.')}
+                {toggle('onlineBatchPaymentSyncEnabled', 'Apply immediate gateway clearing payments', 'Creates Payments for non-Shopify gateways when the daily online invoice is Authorised.', policy.onlineBatchAction !== 'authorised')}
+                {toggle('shopifyPayoutPostingEnabled', 'Allow Shopify payout posting', 'Posts each balanced payout package: invoice payments, fees, refunds, and adjustments. Turning this off keeps plans available for review.')}
+                {toggle('shopifyRefundCreditNoteEnabled', 'Include Shopify refund credit notes', 'Applies payout refunds against their Authorised Xero Credit Notes. A payout containing refunds cannot post safely while this is off.')}
+                {toggle('shopifyPayoutAutoPostEnabled', 'Post balanced Shopify payouts automatically', 'Posts a planned package after a paid payout reconciles. Otherwise staff can review and post it manually.', !policy.shopifyPayoutPostingEnabled || !policy.shopifyRefundCreditNoteEnabled || policy.onlineBatchAction === 'none')}
+              </div>
+            </div>
+            <div style={blockStyle}>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Inventory Accounting</div>
+              {toggle('stocktakeJournalEnabled', 'Post stocktake journals', 'Creates Manual Journals for completed stocktake variances and linked reversing journals when a stocktake is reverted.')}
+            </div>
+            <div style={blockStyle}>
+              <div style={{ marginBottom: 10, fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Gift Cards & Store Credit</div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                {toggle('giftCardAccountingEnabled', 'Post gift card accounting', 'Creates gift card issue Invoices and liability reclassification Manual Journals for issue, redemption, and reversal events.')}
+                {toggle('storeCreditAccountingEnabled', 'Post store credit accounting', 'Creates liability reclassification Manual Journals when store credit is issued or redeemed. The IMS customer ledger remains active when this is off.')}
               </div>
             </div>
           </div>
@@ -17919,7 +17970,7 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
               disabled={saving || !!validationError}
               style={{ padding: '7px 14px', borderRadius: 6, border: 'none', background: 'var(--sv-mint)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: saving || validationError ? 'not-allowed' : 'pointer', opacity: saving || validationError ? 0.55 : 1 }}
             >
-              {saving ? 'Saving...' : 'Save document policy'}
+              {saving ? 'Saving...' : 'Save sync rules'}
             </button>
           </div>
         </>

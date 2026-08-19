@@ -3,9 +3,11 @@ export const XERO_DOCUMENT_ACTIONS = ['none', 'draft', 'authorised'] as const;
 export type XeroDocumentAction = (typeof XERO_DOCUMENT_ACTIONS)[number];
 
 export type XeroDocumentPolicy = {
+  postingEnabled: boolean;
   poApprovedAction: XeroDocumentAction;
   poCompletedAction: XeroDocumentAction;
   poPaymentSyncEnabled: boolean;
+  poReceiptJournalEnabled: boolean;
   soApprovedAction: XeroDocumentAction;
   soCompletedAction: XeroDocumentAction;
   soPaymentSyncEnabled: boolean;
@@ -16,13 +18,21 @@ export type XeroDocumentPolicy = {
   posBatchPaymentSyncEnabled: boolean;
   onlineBatchAction: XeroDocumentAction;
   onlineBatchPaymentSyncEnabled: boolean;
+  shopifyRefundCreditNoteEnabled: boolean;
+  shopifyPayoutPostingEnabled: boolean;
   shopifyPayoutAutoPostEnabled: boolean;
+  posCashBankingEnabled: boolean;
+  stocktakeJournalEnabled: boolean;
+  giftCardAccountingEnabled: boolean;
+  storeCreditAccountingEnabled: boolean;
 };
 
 export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
+  postingEnabled: true,
   poApprovedAction: 'draft',
   poCompletedAction: 'authorised',
   poPaymentSyncEnabled: true,
+  poReceiptJournalEnabled: true,
   soApprovedAction: 'draft',
   soCompletedAction: 'authorised',
   soPaymentSyncEnabled: true,
@@ -33,7 +43,13 @@ export const DEFAULT_XERO_DOCUMENT_POLICY: XeroDocumentPolicy = Object.freeze({
   posBatchPaymentSyncEnabled: true,
   onlineBatchAction: 'authorised',
   onlineBatchPaymentSyncEnabled: true,
+  shopifyRefundCreditNoteEnabled: true,
+  shopifyPayoutPostingEnabled: true,
   shopifyPayoutAutoPostEnabled: false,
+  posCashBankingEnabled: true,
+  stocktakeJournalEnabled: true,
+  giftCardAccountingEnabled: true,
+  storeCreditAccountingEnabled: true,
 });
 
 export const XERO_DOCUMENT_POLICY_PRESETS = {
@@ -119,6 +135,15 @@ export function validateXeroDocumentPolicy(policy: XeroDocumentPolicy): string |
   if (policy.onlineBatchAction === 'none' && policy.onlineBatchPaymentSyncEnabled) {
     return 'Online clearing payments require daily online invoice sync to be enabled.';
   }
+  if (policy.shopifyPayoutAutoPostEnabled && !policy.shopifyPayoutPostingEnabled) {
+    return 'Automatic Shopify payout posting requires Shopify payout posting to be enabled.';
+  }
+  if (policy.shopifyPayoutAutoPostEnabled && policy.onlineBatchAction === 'none') {
+    return 'Automatic Shopify payout posting requires daily online invoice sync to be enabled.';
+  }
+  if (policy.shopifyPayoutAutoPostEnabled && !policy.shopifyRefundCreditNoteEnabled) {
+    return 'Automatic Shopify payout posting requires Shopify refund credit notes to be enabled.';
+  }
   return null;
 }
 
@@ -158,12 +183,20 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
   }
 
   const booleanFields = [
+    'postingEnabled',
     'poPaymentSyncEnabled',
+    'poReceiptJournalEnabled',
     'soPaymentSyncEnabled',
     'posBatchSyncEnabled',
     'posBatchPaymentSyncEnabled',
     'onlineBatchPaymentSyncEnabled',
+    'shopifyRefundCreditNoteEnabled',
+    'shopifyPayoutPostingEnabled',
     'shopifyPayoutAutoPostEnabled',
+    'posCashBankingEnabled',
+    'stocktakeJournalEnabled',
+    'giftCardAccountingEnabled',
+    'storeCreditAccountingEnabled',
     'shortfallCreditDraftFirst',
   ] as const;
   for (const field of booleanFields) {
@@ -173,9 +206,11 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
   }
 
   const policy: XeroDocumentPolicy = {
+    postingEnabled: input.postingEnabled as boolean,
     poApprovedAction: input.poApprovedAction as XeroDocumentAction,
     poCompletedAction: input.poCompletedAction as XeroDocumentAction,
     poPaymentSyncEnabled: input.poPaymentSyncEnabled as boolean,
+    poReceiptJournalEnabled: input.poReceiptJournalEnabled as boolean,
     soApprovedAction: input.soApprovedAction as XeroDocumentAction,
     soCompletedAction: input.soCompletedAction as XeroDocumentAction,
     soPaymentSyncEnabled: input.soPaymentSyncEnabled as boolean,
@@ -186,7 +221,13 @@ export function parseXeroDocumentPolicy(value: unknown): XeroDocumentPolicy {
     posBatchPaymentSyncEnabled: input.posBatchPaymentSyncEnabled as boolean,
     onlineBatchAction: input.onlineBatchAction as XeroDocumentAction,
     onlineBatchPaymentSyncEnabled: input.onlineBatchPaymentSyncEnabled as boolean,
+    shopifyRefundCreditNoteEnabled: input.shopifyRefundCreditNoteEnabled as boolean,
+    shopifyPayoutPostingEnabled: input.shopifyPayoutPostingEnabled as boolean,
     shopifyPayoutAutoPostEnabled: input.shopifyPayoutAutoPostEnabled as boolean,
+    posCashBankingEnabled: input.posCashBankingEnabled as boolean,
+    stocktakeJournalEnabled: input.stocktakeJournalEnabled as boolean,
+    giftCardAccountingEnabled: input.giftCardAccountingEnabled as boolean,
+    storeCreditAccountingEnabled: input.storeCreditAccountingEnabled as boolean,
   };
   const validationError = validateXeroDocumentPolicy(policy);
   if (validationError) throw new Error(validationError);

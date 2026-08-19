@@ -35,6 +35,10 @@ describe('saveXeroDocumentPolicy', () => {
     expect(mocks.begin).toHaveBeenCalledOnce();
     expect(String(mocks.execute.mock.calls[0][0])).toContain('FOR UPDATE');
     expect(String(mocks.execute.mock.calls[2][0])).toContain('xero_document_policy_events');
+    expect(mocks.execute.mock.calls[1][1][1]).toBe(1);
+    expect(mocks.execute.mock.calls[1][1]).toHaveLength(23);
+    expect(String(mocks.execute.mock.calls[1][0])).toContain('shopify_payout_posting_enabled');
+    expect(String(mocks.execute.mock.calls[1][0])).toContain('stocktake_journal_enabled');
     expect(mocks.execute.mock.calls[2][1].slice(0, 4)).toEqual(['biz-1', '7', 'Alex', 'higher_automation']);
     expect(JSON.parse(mocks.execute.mock.calls[2][1][4])).toEqual(DEFAULT_XERO_DOCUMENT_POLICY);
     expect(JSON.parse(mocks.execute.mock.calls[2][1][5])).toEqual(policy);

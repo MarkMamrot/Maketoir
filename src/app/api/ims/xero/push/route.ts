@@ -8,6 +8,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplierCNXeroSync, triggerPOPaymentXeroSync, triggerSOPaymentXeroSync } from '@/lib/ims/xeroHooks';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
+import { assertXeroPostingEnabled, isXeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 import {
   syncGiftCardIssueInvoice,
   syncGiftCardRedemptionReclass,
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
+    await assertXeroPostingEnabled(businessId);
     const { type, id, parentId, invoiceNumberSuffix } = await req.json() as {
       type: 'po' | 'so' | 'po_payment' | 'so_payment' | 'cn' | 'scn' | 'gift_card_issue' | 'gift_card_redeem' | 'store_credit_issue' | 'store_credit_redeem';
       id: number;
@@ -297,6 +299,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (isXeroPostingDisabledError(e)) {
+      return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

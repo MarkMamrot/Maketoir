@@ -4,13 +4,14 @@ import os from 'os';
 import path from 'path';
 import { createHash } from 'crypto';
 
-const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch, mockGetValidAccessToken } = vi.hoisted(() => ({
+const { mockQuery, mockExecute, mockImsQuery, mockImsExecute, mockXeroApiFetch, mockGetValidAccessToken, mockGetXeroDocumentPolicy } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockExecute: vi.fn(),
   mockImsQuery: vi.fn(),
   mockImsExecute: vi.fn(),
   mockXeroApiFetch: vi.fn(),
   mockGetValidAccessToken: vi.fn(),
+  mockGetXeroDocumentPolicy: vi.fn(),
 }));
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery, execute: mockExecute }));
@@ -19,12 +20,16 @@ vi.mock('@/services/XeroService', () => ({
   getValidAccessToken: mockGetValidAccessToken,
   xeroApiFetch: mockXeroApiFetch,
 }));
+vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mockGetXeroDocumentPolicy }));
+
+import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 import {
   approveBill,
   getXeroCreditNoteEditState,
   syncPOAsDraftBill,
   syncPOAttachmentsToXero,
+  syncGiftCardIssueInvoice,
   syncGiftCardRedemptionReclass,
   syncGiftCardRedemptionReversal,
   syncStoreCreditIssueReclass,
@@ -36,6 +41,7 @@ function setupBaseMocks() {
   mockExecute.mockResolvedValue({ affectedRows: 1 });
   mockImsQuery.mockResolvedValue([]);
   mockImsExecute.mockResolvedValue({ affectedRows: 1 });
+  mockGetXeroDocumentPolicy.mockResolvedValue(DEFAULT_XERO_DOCUMENT_POLICY);
 }
 
 it('preserves four-decimal unit precision when approving a bill', async () => {
@@ -124,6 +130,62 @@ describe('Deferred liability lifecycle sync helpers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupBaseMocks();
+  });
+
+  it('skips gift card issue invoices when gift card accounting is disabled', async () => {
+    mockGetXeroDocumentPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      giftCardAccountingEnabled: false,
+    });
+
+    await expect(syncGiftCardIssueInvoice({
+      businessId: 'biz-1',
+      amount: 50,
+      issueDate: '2026-07-25',
+      reference: 'GC-1',
+      dedupeKey: 'gift card issue 1',
+    })).resolves.toBeNull();
+
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO xero_sync_log'), expect.arrayContaining([
+      'biz-1', 'gift_card_issue', null, null, 'skipped',
+    ]));
+  });
+
+  it('skips store credit journals when store credit accounting is disabled', async () => {
+    mockGetXeroDocumentPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      storeCreditAccountingEnabled: false,
+    });
+
+    await expect(syncStoreCreditIssueReclass({
+      businessId: 'biz-1',
+      amount: 75,
+      date: '2026-07-25',
+      channel: 'pos',
+      dedupeKey: 'store credit issue tx 11',
+    })).resolves.toBeNull();
+
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
+  });
+
+  it('skips gift card reversal journals when master posting is paused', async () => {
+    mockGetXeroDocumentPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      postingEnabled: false,
+    });
+
+    await expect(syncGiftCardRedemptionReversal({
+      businessId: 'biz-1',
+      transactionId: 99,
+      amount: 20,
+      date: '2026-07-31',
+    })).resolves.toBeNull();
+
+    expect(mockQuery).not.toHaveBeenCalled();
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
 
   it('posts gift card redemption as DR liability / CR sales revenue journal', async () => {

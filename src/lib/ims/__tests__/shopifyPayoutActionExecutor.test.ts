@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 import {
   executeShopifyPayoutActions,
   type ShopifyPayoutExecutorDependencies,
@@ -11,6 +12,7 @@ function dependencies(): ShopifyPayoutExecutorDependencies & {
   xeroFetch: ReturnType<typeof vi.fn>;
 } {
   return {
+    getPolicy: vi.fn().mockResolvedValue(DEFAULT_XERO_DOCUMENT_POLICY),
     mainQuery: vi.fn(),
     mainExecute: vi.fn().mockResolvedValue({ affectedRows: 1 }),
     xeroFetch: vi.fn(),
@@ -141,6 +143,28 @@ describe('executeShopifyPayoutActions', () => {
     expect(result).toMatchObject({ status: 'blocked' });
     expect(result.error).toContain('below planned refund 120.00');
     expect(deps.xeroFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('blocks a payout with refund actions before mutation when refund credit notes are disabled', async () => {
+    deps.mainQuery.mockResolvedValue([{
+      ...invoiceAction,
+      id: 3,
+      action_key: 'refund-1',
+      action_type: 'credit_note_refund',
+      target_xero_document_id: 'cn-1',
+    }]);
+    deps.getPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      shopifyRefundCreditNoteEnabled: false,
+    });
+
+    await expect(executeShopifyPayoutActions('biz-1', 'pay-1', deps)).rejects.toMatchObject({
+      code: 'xero_workflow_disabled',
+      status: 423,
+      workflow: 'shopifyRefundCreditNoteEnabled',
+    });
+    expect(deps.xeroFetch).not.toHaveBeenCalled();
+    expect(deps.mainExecute).not.toHaveBeenCalled();
   });
 
   it('posts fee reversals as clearing receives', async () => {

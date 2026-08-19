@@ -5,6 +5,7 @@ import { executeShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionExecut
 import { planShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionPlanner';
 import { assertBusinessAccess, requireAdminSession } from '@/lib/sessionUtils';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
+import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { query } from '@/services/MySQLService';
 
 function authenticate(req: NextRequest) {
@@ -65,8 +66,16 @@ export async function POST(req: NextRequest, { params }: { params: { payoutId: s
     return NextResponse.json(result, { status: result.status === 'blocked' ? 409 : 200 });
   }
   if (action === 'execute') {
-    const result = await executeShopifyPayoutActions(auth.businessId, params.payoutId);
-    return NextResponse.json(result, { status: result.status === 'reconciled' ? 200 : 409 });
+    try {
+      await assertXeroWorkflowEnabled(auth.businessId, 'shopifyPayoutPostingEnabled');
+      const result = await executeShopifyPayoutActions(auth.businessId, params.payoutId);
+      return NextResponse.json(result, { status: result.status === 'reconciled' ? 200 : 409 });
+    } catch (error) {
+      if (isXeroPolicyDisabledError(error)) {
+        return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
+      }
+      throw error;
+    }
   }
   if (action === 'repair') {
     const payoutRows = await query<any>(

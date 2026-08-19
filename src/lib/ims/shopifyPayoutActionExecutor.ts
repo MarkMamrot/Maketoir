@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 
+import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { XeroWorkflowDisabledError } from '@/lib/xero/postingPolicy';
 import { execute, query } from '@/services/MySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
 
@@ -12,6 +14,7 @@ type XeroFetchFn = (businessId: string, path: string, options?: {
 }) => Promise<any>;
 
 export interface ShopifyPayoutExecutorDependencies {
+  getPolicy: typeof getXeroDocumentPolicy;
   mainQuery: QueryFn;
   mainExecute: ExecuteFn;
   xeroFetch: XeroFetchFn;
@@ -40,6 +43,7 @@ export interface ShopifyPayoutExecutionResult {
 }
 
 const defaultDependencies: ShopifyPayoutExecutorDependencies = {
+  getPolicy: getXeroDocumentPolicy,
   mainQuery: (sql, params) => query(sql, params as any[]),
   mainExecute: (sql, params) => execute(sql, params as any[]),
   xeroFetch: xeroApiFetch,
@@ -209,6 +213,12 @@ export async function executeShopifyPayoutActions(
   }
 
   const pendingActions = actions.filter(action => action.status !== 'completed');
+  if (pendingActions.some(action => action.action_type === 'credit_note_refund')) {
+    const policy = await deps.getPolicy(businessId);
+    if (!policy.shopifyRefundCreditNoteEnabled) {
+      throw new XeroWorkflowDisabledError('shopifyRefundCreditNoteEnabled');
+    }
+  }
   try {
     await preflightActions(businessId, pendingActions, deps);
   } catch (error: any) {

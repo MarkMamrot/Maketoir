@@ -6,6 +6,7 @@ import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
 import { revertStocktake, StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { syncStocktakeReversalJournal } from '@/services/XeroSyncService';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -33,19 +34,22 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     let xeroWarning: string | null = null;
     if (result.xeroReversalStatus === 'queued') {
       try {
+        await assertXeroWorkflowEnabled(session.businessId, 'stocktakeJournalEnabled');
         await syncStocktakeReversalJournal(session.businessId, id);
         result.xeroReversalStatus = 'synced' as typeof result.xeroReversalStatus;
       } catch (error: any) {
-        xeroWarning = error?.message ?? 'The reversing Xero journal could not be posted.';
-        await reportRuntimeIssue({
-          businessId: session.businessId,
-          source: 'ims_stocktakes',
-          operation: 'xero_reversal_journal',
-          title: 'Stocktake reversed locally but Xero correction failed',
-          error,
-          reference: { type: 'stocktake', id },
-          context: { localReversalCommitted: true },
-        }).catch(() => {});
+        if (!isXeroPolicyDisabledError(error)) {
+          xeroWarning = error?.message ?? 'The reversing Xero journal could not be posted.';
+          await reportRuntimeIssue({
+            businessId: session.businessId,
+            source: 'ims_stocktakes',
+            operation: 'xero_reversal_journal',
+            title: 'Stocktake reversed locally but Xero correction failed',
+            error,
+            reference: { type: 'stocktake', id },
+            context: { localReversalCommitted: true },
+          }).catch(() => {});
+        }
       }
     }
     return NextResponse.json({ ...result, xeroWarning });

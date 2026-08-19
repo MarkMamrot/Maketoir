@@ -14,6 +14,7 @@ const {
   mockSyncStoreCreditRedemptionReclass,
   mockImsQuery,
   mockQuery,
+  mockAssertXeroPostingEnabled,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockSyncStoreCreditRedemptionReclass: vi.fn(),
   mockImsQuery: vi.fn(),
   mockQuery: vi.fn(),
+  mockAssertXeroPostingEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -58,6 +60,11 @@ vi.mock('@/services/XeroSyncService', () => ({
   syncStoreCreditRedemptionReclass: mockSyncStoreCreditRedemptionReclass,
 }));
 
+vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
+  return { ...actual, assertXeroPostingEnabled: mockAssertXeroPostingEnabled };
+});
+
 import { POST } from '../route';
 
 function makeRequest(body: unknown): Request {
@@ -84,6 +91,7 @@ describe('POST /api/ims/xero/push', () => {
     mockSyncStoreCreditRedemptionReclass.mockResolvedValue('xero-scr-1');
     mockImsQuery.mockResolvedValue([]);
     mockQuery.mockResolvedValue([]);
+    mockAssertXeroPostingEnabled.mockResolvedValue(undefined);
   });
 
   it('returns 401 when IMS session is missing', async () => {
@@ -93,6 +101,17 @@ describe('POST /api/ims/xero/push', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Not authenticated' });
+  });
+
+  it('returns 423 before reading the request payload or loading IMS records when posting is paused', async () => {
+    const { XeroPostingDisabledError } = await import('@/lib/xero/postingPolicy');
+    mockAssertXeroPostingEnabled.mockRejectedValueOnce(new XeroPostingDisabledError());
+
+    const response = await POST(makeRequest({ type: 'po', id: 1 }));
+    expect(response.status).toBe(423);
+    expect(await response.json()).toMatchObject({ code: 'xero_posting_disabled' });
+    expect(mockImsQuery).not.toHaveBeenCalled();
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
   });
 
   it('blocks Advisor from retrying Xero side effects', async () => {

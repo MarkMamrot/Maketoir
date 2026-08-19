@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockAssertBusinessAccess, mockPostCogsPeriod, mockRunImsForBusiness, mockGetBusinessTimeZone, mockAssertXeroPostingEnabled } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockPostCogsPeriod: vi.fn(),
   mockRunImsForBusiness: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
+  mockAssertXeroPostingEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -15,6 +16,10 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
+vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
+  return { ...actual, assertXeroPostingEnabled: mockAssertXeroPostingEnabled };
+});
 
 import { POST } from '../route';
 
@@ -34,6 +39,7 @@ describe('POST /api/xero/cogs/post', () => {
     mockPostCogsPeriod.mockResolvedValue({ outcome: 'posted', runId: 1, xeroId: 'xero-1' });
     mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockRunImsForBusiness.mockImplementation(async (_businessId, callback) => callback());
+    mockAssertXeroPostingEnabled.mockResolvedValue(undefined);
   });
 
   it('posts only a completed calendar period', async () => {
@@ -70,5 +76,16 @@ describe('POST /api/xero/cogs/post', () => {
     mockPostCogsPeriod.mockResolvedValueOnce({ outcome: 'unknown', runId: 2, error: 'timed out' });
     const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }));
     expect(response.status).toBe(202);
+  });
+
+  it('returns 423 without calculating or posting when Xero posting is paused', async () => {
+    const { XeroPostingDisabledError } = await import('@/lib/xero/postingPolicy');
+    mockAssertXeroPostingEnabled.mockRejectedValueOnce(new XeroPostingDisabledError());
+
+    const response = await POST(makeRequest({ databaseId: 'biz-1', frequency: 'monthly' }));
+    expect(response.status).toBe(423);
+    expect(await response.json()).toMatchObject({ code: 'xero_posting_disabled' });
+    expect(mockRunImsForBusiness).not.toHaveBeenCalled();
+    expect(mockPostCogsPeriod).not.toHaveBeenCalled();
   });
 });

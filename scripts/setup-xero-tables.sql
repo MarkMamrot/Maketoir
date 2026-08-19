@@ -17,9 +17,11 @@ CREATE TABLE IF NOT EXISTS xero_account_mappings (
 -- Per-business PO/SO Xero lifecycle and payment-sync policy.
 CREATE TABLE IF NOT EXISTS xero_document_policies (
   business_id                VARCHAR(255) NOT NULL PRIMARY KEY,
+  posting_enabled            TINYINT(1)   NOT NULL DEFAULT 0,
   po_approved_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
   po_completed_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
   po_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
+  po_receipt_journal_enabled TINYINT(1)   NOT NULL DEFAULT 1,
   so_approved_action         VARCHAR(20)  NOT NULL DEFAULT 'draft',
   so_completed_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
   so_payment_sync_enabled    TINYINT(1)   NOT NULL DEFAULT 1,
@@ -30,7 +32,13 @@ CREATE TABLE IF NOT EXISTS xero_document_policies (
   pos_batch_payment_sync_enabled TINYINT(1) NOT NULL DEFAULT 1,
   online_batch_action        VARCHAR(20)  NOT NULL DEFAULT 'authorised',
   online_batch_payment_sync_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  shopify_refund_cn_enabled  TINYINT(1)   NOT NULL DEFAULT 1,
+  shopify_payout_posting_enabled TINYINT(1) NOT NULL DEFAULT 1,
   shopify_payout_auto_post_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  pos_cash_banking_enabled   TINYINT(1)   NOT NULL DEFAULT 1,
+  stocktake_journal_enabled  TINYINT(1)   NOT NULL DEFAULT 1,
+  gift_card_accounting_enabled TINYINT(1) NOT NULL DEFAULT 1,
+  store_credit_accounting_enabled TINYINT(1) NOT NULL DEFAULT 1,
   created_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at                 DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

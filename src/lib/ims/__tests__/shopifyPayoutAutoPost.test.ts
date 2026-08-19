@@ -39,11 +39,23 @@ describe('autoPostShopifyPayout', () => {
     expect(deps.executeActions).toHaveBeenCalledWith('biz-1', 'payout-1');
   });
 
-  it('does nothing when auto-post is disabled', async () => {
-    deps.getPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+  it.each([
+    ['master posting', { postingEnabled: false }],
+    ['payout posting', { shopifyPayoutPostingEnabled: false }],
+    ['automatic payout posting', { shopifyPayoutAutoPostEnabled: false }],
+    ['Shopify refund credit notes', { shopifyRefundCreditNoteEnabled: false }],
+  ])('does nothing when %s is disabled', async (_label, override) => {
+    deps.getPolicy.mockResolvedValue({
+      ...DEFAULT_XERO_DOCUMENT_POLICY,
+      shopifyPayoutAutoPostEnabled: true,
+      ...override,
+    });
 
     expect(await autoPostShopifyPayout('biz-1', 'payout-1', deps)).toEqual({ status: 'skipped_disabled' });
     expect(deps.mainQuery).not.toHaveBeenCalled();
+    expect(deps.xeroFetch).not.toHaveBeenCalled();
+    expect(deps.executeActions).not.toHaveBeenCalled();
+    expect(deps.reportIssue).not.toHaveBeenCalled();
   });
 
   it('does not execute a blocked or otherwise unplanned payout', async () => {
