@@ -19,7 +19,7 @@ export function DashboardProductInsights({ top, slow, periodLabel, loading }: Da
   const maxSlowStock = Math.max(1, ...slow.map(product => Number(product.stock_on_hand ?? 0)));
 
   return (
-    <section style={{ minWidth: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
+    <section style={{ minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ padding: '13px 16px', borderBottom: '1px solid var(--sv-etch)', background: 'color-mix(in srgb, var(--sv-bg-1) 42%, var(--sv-bg-2))' }}>
         <div style={{ marginBottom: 2, color: 'var(--sv-action)', fontSize: 9, fontWeight: 800, textTransform: 'uppercase' }}>Product momentum</div>
         <div style={{ color: 'var(--sv-text-strong)', fontSize: 16, fontWeight: 750 }}>Fast movers and stock at risk - {periodLabel}</div>
@@ -30,8 +30,8 @@ export function DashboardProductInsights({ top, slow, periodLabel, loading }: Da
       ) : top.length === 0 && slow.length === 0 ? (
         <div style={{ minHeight: 218, display: 'grid', placeItems: 'center', color: 'var(--sv-text-dim)', fontSize: 12 }}>No product movement data for this period.</div>
       ) : (
-        <div className="dashboard-product-insights__grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 218 }}>
-          <div style={{ minWidth: 0, padding: '14px 16px', borderRight: '1px solid var(--sv-etch)' }}>
+        <div className="dashboard-product-insights__grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: 218 }}>
+          <div style={{ minWidth: 0, padding: '14px 16px', borderRight: '1px solid var(--sv-etch)', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, color: 'var(--sv-mint)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
               <TrendingUp size={14} /> Top sellers
             </div>
@@ -40,7 +40,7 @@ export function DashboardProductInsights({ top, slow, periodLabel, loading }: Da
             ) : top.map((product, index) => {
               const width = Math.max(5, (Number(product.units_sold) / maxTopUnits) * 100);
               return (
-                <div key={product.variant_id} style={{ marginBottom: index === top.length - 1 ? 0 : 13 }}>
+                <div key={product.variant_id} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', marginBottom: index === top.length - 1 ? 0 : 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '22px minmax(0, 1fr) auto', alignItems: 'center', gap: 8 }}>
                     <span style={{ width: 22, height: 22, display: 'grid', placeItems: 'center', borderRadius: '50%', background: 'color-mix(in srgb, var(--sv-mint) 14%, transparent)', color: 'var(--sv-mint)', fontSize: 10, fontWeight: 850 }}>{index + 1}</span>
                     <div style={{ minWidth: 0 }}>
@@ -60,7 +60,7 @@ export function DashboardProductInsights({ top, slow, periodLabel, loading }: Da
             })}
           </div>
 
-          <div style={{ minWidth: 0, padding: '14px 16px' }}>
+          <div style={{ minWidth: 0, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12, color: 'var(--sv-amber)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
               <PackageSearch size={14} /> High stock / slow sales
             </div>
@@ -69,7 +69,7 @@ export function DashboardProductInsights({ top, slow, periodLabel, loading }: Da
             ) : slow.map((product, index) => {
               const width = Math.max(5, (Number(product.stock_on_hand) / maxSlowStock) * 100);
               return (
-                <div key={product.variant_id} style={{ marginBottom: index === slow.length - 1 ? 0 : 13 }}>
+                <div key={product.variant_id} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', marginBottom: index === slow.length - 1 ? 0 : 8 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'center', gap: 8 }}>
                     <div style={{ minWidth: 0 }}>
                       <div title={productLabel(product)} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--sv-text-main)', fontSize: 12, fontWeight: 700 }}>{productLabel(product)}</div>

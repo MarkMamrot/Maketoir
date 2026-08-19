@@ -60,7 +60,7 @@ export function DashboardSalesComparison() {
         .dashboard-sales-comparison__modes { display:flex; align-items:center; gap:3px; padding:3px; border:1px solid var(--sv-etch); border-radius:7px; background:var(--sv-bg-2); }
         .dashboard-sales-comparison__mode { min-height:28px; padding:4px 10px; border:0; border-radius:5px; cursor:pointer; font-size:11px; font-weight:700; transition:background-color .15s, color .15s, box-shadow .15s; }
         .dashboard-sales-comparison__columns, .dashboard-sales-comparison__row { display:grid; grid-template-columns:82px minmax(190px,.8fr) minmax(280px,620px) 104px; align-items:center; justify-content:space-between; gap:14px; }
-        .dashboard-sales-comparison__columns { padding:7px 16px; color:var(--sv-text-dim); font-size:9px; font-weight:800; letter-spacing:0; text-transform:uppercase; background:color-mix(in srgb, var(--sv-bg-1) 68%, transparent); }
+        .dashboard-sales-comparison__columns { padding:7px 16px; color:var(--sv-text-dim); font-size:9px; font-weight:800; letter-spacing:0; text-transform:uppercase; background:color-mix(in srgb, var(--sv-bg-1) 68%, var(--sv-bg-2)); }
         .dashboard-sales-comparison__columns span:last-child { text-align:right; }
         .dashboard-sales-comparison__row { min-height:56px; padding:8px 16px; border-top:1px solid var(--sv-etch); transition:background-color .15s; }
         .dashboard-sales-comparison__row:hover { background:color-mix(in srgb, var(--sv-action) 3%, transparent); }

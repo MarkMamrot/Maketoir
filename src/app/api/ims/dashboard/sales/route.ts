@@ -367,7 +367,10 @@ export async function GET(req: Request) {
              COALESCE(sales.revenue, 0) AS revenue,
              COALESCE(stock.stock_on_hand, 0) AS stock_on_hand
       FROM ims_product_variants pv
-      JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = ?
+      JOIN ims_products p ON p.product_id = pv.product_id
+        AND p.business_id = ?
+        AND p.is_active = 1
+        AND COALESCE(p.is_stock_item, 1) = 1
       LEFT JOIN (${productSales}) sales ON sales.variant_id = pv.variant_id
       LEFT JOIN (
         SELECT variant_id, SUM(qty_on_hand) AS stock_on_hand
@@ -378,17 +381,16 @@ export async function GET(req: Request) {
     const [topRows, slowRows] = await Promise.all([
       imsQuery<DashboardProductInsight>(
         `${productSelect}
-         WHERE COALESCE(sales.units_sold, 0) > 0
+         WHERE pv.is_active = 1
+           AND COALESCE(sales.units_sold, 0) > 0
          ORDER BY units_sold DESC, revenue DESC, product_name
-         LIMIT 3`,
+         LIMIT 5`,
         productParams,
       ),
       imsQuery<DashboardProductInsight>(
         `${productSelect}
-         WHERE COALESCE(stock.stock_on_hand, 0) > 0
-         ORDER BY (COALESCE(sales.units_sold, 0) / GREATEST(COALESCE(stock.stock_on_hand, 0), 1)) ASC,
-                  stock_on_hand DESC, units_sold ASC, product_name
-         LIMIT 8`,
+         WHERE pv.is_active = 1
+         ORDER BY units_sold ASC, stock_on_hand DESC, product_name`,
         productParams,
       ),
     ]);

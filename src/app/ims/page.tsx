@@ -1160,14 +1160,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
-                  <thead style={{ background: 'color-mix(in srgb, var(--sv-bg-1) 68%, transparent)' }}>
+                  <thead style={{ background: 'color-mix(in srgb, var(--sv-bg-1) 68%, var(--sv-bg-2))' }}>
                     <tr>
                       {['Register', 'Location', 'Status', 'Opened', 'Opened By', 'Float', 'Closed', 'Closed By', 'Close Totals'].map(h => (
                         <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0, whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody style={{ background: 'var(--sv-bg-2)' }}>
                     {(data.posRegisters as any[]).map((r: any, i: number) => {
                       const fmtDt = (v: string | null) => {
                         if (!v) return '—';
@@ -1446,9 +1446,9 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             </div>
 
             {/* Top 10 Brands */}
-            <div className="ims-dashboard-insights-grid" style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(300px, .8fr) minmax(520px, 1.2fr)', gap: 18, alignItems: 'start' }}>
+            <div className="ims-dashboard-insights-grid" style={{ width: '100%', display: 'grid', gridTemplateColumns: 'minmax(300px, .8fr) minmax(520px, 1.2fr)', gap: 18, alignItems: 'stretch' }}>
             {/* Top 10 Brands */}
-            <div style={{ minWidth: 0, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '13px 16px' }}>
+            <div style={{ minWidth: 0, height: '100%', boxSizing: 'border-box', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '13px 16px' }}>
               <DashboardPanelHeading eyebrow="Brand performance" title={`Top 10 Brands - ${periodLabel}`} style={{ marginBottom: 14 }} />
               {salesLoading && <p style={{ fontSize: 13, color: 'var(--sv-text-dim)', margin: 0, padding: '10px 0', textAlign: 'center' }}>Loading…</p>}
               {!salesLoading && brandChartData.length === 0 && (
