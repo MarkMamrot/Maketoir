@@ -5,6 +5,7 @@ import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { validateContactChannels } from '@/lib/ims/contactDataQuality';
 
 let migrationDone = false;
 async function ensureMigration() {
@@ -73,6 +74,11 @@ export async function POST(req: Request) {
   try {
     await ensureMigration();
     const body = await req.json();
+    const channels = validateContactChannels(body);
+    if (channels.errors.length) {
+      return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
+    }
+    Object.assign(body, channels.normalized);
     const id = await ImsContactsRepo.create(body, businessId);
     const created = await ImsContactsRepo.get(id, businessId);
     const shopifySync = created ? await syncRetailCustomerToShopify(created, businessId) : null;

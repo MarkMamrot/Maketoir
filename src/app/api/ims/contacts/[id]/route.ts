@@ -3,6 +3,7 @@ import { ImsContactsRepo } from '@/lib/ims/ImsRepository';
 import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { validateContactChannels } from '@/lib/ims/contactDataQuality';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -32,6 +33,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         { status: 400 },
       );
     }
+    const channels = validateContactChannels(body);
+    if (channels.errors.length) {
+      return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
+    }
+    Object.assign(body, channels.normalized);
     await ImsContactsRepo.update(Number(params.id), body);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;

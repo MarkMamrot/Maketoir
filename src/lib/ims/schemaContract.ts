@@ -7,6 +7,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_crm_segments',
   'ims_crm_pipeline_stages',
   'ims_crm_opportunities',
+  'ims_crm_contact_merges',
   'ims_locations',
   'pos_chat_messages',
   'pos_chat_attachments',

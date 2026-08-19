@@ -39,10 +39,12 @@ import { useTableArrowScroll } from './hooks/useTableArrowScroll';
 import { ContactCrmTaskQueue, type ContactCrmWorkspaceTask } from './views/contacts/ContactCrmTaskQueue';
 import { ContactCrmSegments } from './views/contacts/ContactCrmSegments';
 import { ContactCrmPipeline } from './views/contacts/ContactCrmPipeline';
+import { ContactCrmDataQuality } from './views/contacts/ContactCrmDataQuality';
+import { ContactCrmAnalytics } from './views/contacts/ContactCrmAnalytics';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
-import { installSessionExpiredGuard } from '@/lib/auth/sessionGuard';
+import { installSessionExpiredGuard, redirectToLogin } from '@/lib/auth/sessionGuard';
 import {
   EMPTY_MULTI,
   MultiFilter,
@@ -1671,7 +1673,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [crmSection, setCrmSection] = useState<'contacts' | 'tasks' | 'segments' | 'pipeline'>('contacts');
+  const [crmSection, setCrmSection] = useState<'contacts' | 'tasks' | 'segments' | 'pipeline' | 'data quality' | 'analytics'>('contacts');
   const [crmWorkspaceLoading, setCrmWorkspaceLoading] = useState(true);
   const [crmWorkspaceError, setCrmWorkspaceError] = useState('');
   const [crmWorkspace, setCrmWorkspace] = useState<{
@@ -1973,7 +1975,7 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         {crmSection === 'contacts' && !isAdvisor && <button onClick={openNew} style={btnStyle('action')}>+ New Contact</button>}
       </div>
       <nav aria-label="CRM workspace sections" style={{ display: 'flex', width: 'fit-content', maxWidth: '100%', overflowX: 'auto', padding: 3, border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-2)', marginBottom: 14 }}>
-        {(['contacts', 'tasks', 'segments', 'pipeline'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
+        {(['contacts', 'tasks', 'segments', 'pipeline', 'data quality', 'analytics'] as const).map(section => <button key={section} onClick={() => setCrmSection(section)} style={{ border: 0, borderRadius: 5, padding: '7px 13px', background: crmSection === section ? 'var(--sv-bg-1)' : 'transparent', color: crmSection === section ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'capitalize', cursor: 'pointer', boxShadow: crmSection === section ? '0 1px 3px rgba(0,0,0,.12)' : 'none', whiteSpace: 'nowrap' }}>{section}{section === 'tasks' && crmWorkspace.tasks.length ? ` (${crmWorkspace.tasks.length})` : ''}</button>)}
       </nav>
       {crmWorkspaceError && <div role="alert" style={{ marginBottom: 12, color: 'var(--sv-red)', fontSize: 12 }}>{crmWorkspaceError}</div>}
       {crmSection === 'tasks' ? (
@@ -1982,6 +1984,10 @@ function ContactsView({ isAdvisor = false, onOpenProfile }: { isAdvisor?: boolea
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmSegments tags={crmWorkspace.tags} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} />
       ) : crmSection === 'pipeline' ? (
         crmWorkspaceLoading ? <Spinner /> : <ContactCrmPipeline contacts={contacts} assignees={crmWorkspace.assignees} isAdvisor={isAdvisor} onOpenProfile={onOpenProfile} onContactsChanged={load} />
+      ) : crmSection === 'data quality' ? (
+        <ContactCrmDataQuality isAdvisor={isAdvisor} onEditContact={id => { const contact = contacts.find(item => Number(item.id) === id); if (contact) openEdit(contact); }} onMerged={() => { load(); void loadCrmWorkspace(); }} />
+      ) : crmSection === 'analytics' ? (
+        <ContactCrmAnalytics onOpenProfile={onOpenProfile} />
       ) : <>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '10px 14px', marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Search contacts…" value={filter} onChange={e => { setFilter(e.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 220, flex: '1 1 220px' }} />
@@ -20665,8 +20671,8 @@ export default function ImsPage() {
           }).catch(() => {});
         }
       }
-      else router.push('/login');
-    }).catch(() => router.push('/login')).finally(() => setAuthChecked(true));
+      else redirectToLogin();
+    }).catch(() => redirectToLogin()).finally(() => setAuthChecked(true));
   }, [router]);
 
   useEffect(() => {

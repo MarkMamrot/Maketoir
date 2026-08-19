@@ -1,7 +1,12 @@
+const LOGIN_REDIRECT_PENDING = '__solvantisLoginRedirectPending';
+
 export function redirectToLogin() {
   if (typeof window === 'undefined') return;
   const current = window.location.pathname;
   if (current === '/login' || current === '/wholesale/login') return;
+  const redirectState = window as Window & { [LOGIN_REDIRECT_PENDING]?: boolean };
+  if (redirectState[LOGIN_REDIRECT_PENDING]) return;
+  redirectState[LOGIN_REDIRECT_PENDING] = true;
   window.location.assign('/login');
 }
 

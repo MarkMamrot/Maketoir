@@ -69,4 +69,24 @@ describe('sessionGuard', () => {
       restore();
     }
   });
+
+  it('redirects only once when concurrent requests return unauthorized', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({ status: 401 });
+    (globalThis as any).fetch = mockFetch;
+    (globalThis as any).window.fetch = mockFetch;
+
+    const restore = installSessionExpiredGuard();
+    try {
+      const results = await Promise.allSettled([
+        (globalThis as any).fetch('/api/user/me'),
+        (globalThis as any).fetch('/api/ims/settings'),
+        (globalThis as any).fetch('/api/ims/notifications'),
+      ]);
+      expect(results.every(result => result.status === 'rejected')).toBe(true);
+      expect((globalThis as any).window.location.assign).toHaveBeenCalledTimes(1);
+      expect((globalThis as any).window.location.assign).toHaveBeenCalledWith('/login');
+    } finally {
+      restore();
+    }
+  });
 });

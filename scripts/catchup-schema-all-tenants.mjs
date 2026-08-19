@@ -87,6 +87,14 @@ const TABLE_DDLS = [
     CONSTRAINT fk_crm_opportunity_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE CASCADE,
     CONSTRAINT fk_crm_opportunity_stage FOREIGN KEY (stage_id) REFERENCES ims_crm_pipeline_stages(id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_crm_contact_merges (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL,
+    source_contact_id INT NOT NULL, target_contact_id INT NOT NULL,
+    source_snapshot_json JSON NOT NULL, target_snapshot_json JSON NOT NULL,
+    merged_by INT NULL, merged_by_name VARCHAR(255) NULL, merged_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_crm_contact_merge_source (business_id, source_contact_id, merged_at),
+    INDEX idx_crm_contact_merge_target (business_id, target_contact_id, merged_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_purchase_order_payments (
     id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', po_id INT NOT NULL,
     payment_date DATE NOT NULL, amount DECIMAL(12,4) NOT NULL, currency_code VARCHAR(10) NOT NULL DEFAULT 'AUD',
@@ -1138,6 +1146,7 @@ async function migrateSchema(schema) {
     await ensureColumnCollationMatches(schema, 'ims_crm_segments', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_pipeline_stages', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_opportunities', 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_crm_contact_merges', 'business_id', 'ims_contacts', 'business_id');
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }
@@ -1312,8 +1321,13 @@ try {
     );
     for (const r of rows) if (r.ims_db_name) schemas.add(r.ims_db_name);
   }
-  console.log(`Schemas: ${[...schemas].join(', ')}`);
-  for (const schema of schemas) {
+  const requestedSchema = process.argv.find(argument => argument.startsWith('--schema='))?.slice('--schema='.length);
+  if (requestedSchema && !schemas.has(requestedSchema)) {
+    throw new Error(`Requested schema is not registered: ${requestedSchema}`);
+  }
+  const selectedSchemas = requestedSchema ? [requestedSchema] : [...schemas];
+  console.log(`Schemas: ${selectedSchemas.join(', ')}`);
+  for (const schema of selectedSchemas) {
     await migrateSchema(schema);
     await verifyBackorderMergeSchema(schema);
     await verifyStockAvailabilitySchema(schema);

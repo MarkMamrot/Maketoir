@@ -191,6 +191,20 @@ CREATE TABLE IF NOT EXISTS ims_crm_opportunities (
     REFERENCES ims_crm_pipeline_stages(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_crm_contact_merges (
+  id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id         VARCHAR(100) NOT NULL,
+  source_contact_id   INT NOT NULL,
+  target_contact_id   INT NOT NULL,
+  source_snapshot_json JSON NOT NULL,
+  target_snapshot_json JSON NOT NULL,
+  merged_by           INT NULL,
+  merged_by_name      VARCHAR(255) NULL,
+  merged_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_crm_contact_merge_source (business_id, source_contact_id, merged_at),
+  INDEX idx_crm_contact_merge_target (business_id, target_contact_id, merged_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Locations (Branches / Warehouses) ───────────────────────
 CREATE TABLE IF NOT EXISTS ims_locations (
   id          INT AUTO_INCREMENT PRIMARY KEY,
