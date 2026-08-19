@@ -192,10 +192,10 @@ export function StockAvailabilityWorkbenchView({
     <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div style={{ flex: '1 1 320px' }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: 'var(--sv-text-strong)' }}>Stock Availability</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: 'var(--sv-text-strong)' }}>Stock Allocation</h1>
           <div style={{ marginTop: 4, color: 'var(--sv-text-dim)', fontSize: 13 }}>Open customer demand, protected incoming stock, and supply exceptions.</div>
         </div>
-        <button onClick={load} disabled={loading} title="Refresh stock availability" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+        <button onClick={load} disabled={loading} title="Refresh stock allocation" style={{ ...control, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <RefreshCw size={15} /> Refresh
         </button>
       </div>
@@ -241,7 +241,7 @@ export function StockAvailabilityWorkbenchView({
             }}>{label}</th>)}</tr></thead>
           </table>
         </div>
-        <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll stock-availability-table-scroll" role="region" tabIndex={0} aria-label="Stock availability table. Use arrow keys to scroll." onScroll={event => {
+        <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll stock-availability-table-scroll" role="region" tabIndex={0} aria-label="Stock allocation table. Use arrow keys to scroll." onScroll={event => {
           if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
         }} style={{ overflowX: 'auto', overflowY: 'hidden' }}>
           <table style={{ width: TABLE_WIDTH, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>

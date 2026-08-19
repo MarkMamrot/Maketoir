@@ -73,7 +73,7 @@ import {
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
@@ -94,16 +94,19 @@ const NAV = [
     { id: 'gift-cards',    label: 'Gift Cards' },
     { id: 'bulk-edit',     label: 'Bulk Edit' },
   ]},
-  { id: '__orders',        label: 'Orders',           section: 'orders', children: [
-    { id: 'purchase-orders',  label: 'Purchase Orders' },
+  { id: '__sales',         label: 'Sales',            section: 'sales', children: [
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'stock-availability', label: 'Stock Availability' },
-    { id: 'backorders',       label: 'Backorders' },
-    { id: 'credit-notes',     label: 'Credit Notes / Returns' },
-    { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
+    { id: 'customer-backorders', label: 'Customer Backorders' },
+    { id: 'stock-availability', label: 'Stock Allocation' },
+    { id: 'credit-notes',     label: 'Customer Credit Notes' },
     { id: 'pos-sales',            label: 'POS Sales' },
     { id: 'online-sales',     label: 'Online Sales' },
+  ]},
+  { id: '__purchasing',    label: 'Purchasing',       section: 'purchasing', children: [
+    { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'order-planner',    label: 'Order Planner' },
+    { id: 'supplier-backorders', label: 'Supplier Backorders' },
+    { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
   ]},
   { id: '__contacts',      label: 'Contacts',         section: 'contacts', children: [
     { id: 'contacts',      label: 'Contacts' },
@@ -476,7 +479,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
-  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __orders: false, __contacts: false, __locations: false, __integrations: false });
+  const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings } = useImsSettings();
   // Hide Locations group unless the business explicitly operates multiple locations.
@@ -503,7 +506,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
     stock:              'M3 6h18M3 10h18M3 14h18M3 18h18',
     brands:             'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z',
     'gift-cards':       'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z',
-    __orders:           'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+    __sales:            'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 5h12',
+    __purchasing:       'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
     __locations:        'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z',
     'purchase-orders':  'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 12h6M9 16h4',
     'sales-orders':     'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 5h12',
@@ -555,8 +559,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
       {collapsed && (() => {
         const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[]; hidden?: boolean }[] = [
           { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
-          { icon: 'purchase-orders',  label: 'Purchase Orders',  navigate: 'purchase-orders',  activeFor: ['purchase-orders'] },
-          { icon: 'sales-orders',     label: 'Sales Orders',     navigate: 'sales-orders',     activeFor: ['sales-orders'] },
+          { icon: '__sales',           label: 'Sales',            navigate: 'sales-orders',     activeFor: ['sales-orders','customer-backorders','stock-availability','credit-notes','pos-sales','online-sales'] },
+          { icon: '__purchasing',      label: 'Purchasing',       navigate: 'purchase-orders',  activeFor: ['purchase-orders','order-planner','supplier-backorders','supplier-credit-notes'] },
           { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
           { icon: '__contacts',       label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'crm', 'contact-profile'] },
           { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
@@ -20613,7 +20617,7 @@ export default function ImsPage() {
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
     'dashboard','products','stock','brands','bulk-edit','contacts','crm','locations',
-    'purchase-orders','sales-orders','stock-availability','backorders','credit-notes','supplier-credit-notes',
+    'purchase-orders','sales-orders','stock-availability','backorders','customer-backorders','supplier-backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',

@@ -1,0 +1,7 @@
+{
+  "/api/ims/settings/route": "app/api/ims/settings/route.js",
+  "/api/ims/notifications/route": "app/api/ims/notifications/route.js",
+  "/api/user/me/route": "app/api/user/me/route.js",
+  "/login/page": "app/login/page.js",
+  "/ims/page": "app/ims/page.js"
+}

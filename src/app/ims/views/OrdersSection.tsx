@@ -3,7 +3,7 @@ import React from 'react';
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
   | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
+  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking'
@@ -113,9 +113,10 @@ export function OrdersSection({
           onOpenSalesOrder={(id: number) => { setPendingOpenSO(id); setView('sales-orders'); }}
         />
       )}
-      {view === 'backorders' && (
+      {['backorders', 'customer-backorders', 'supplier-backorders'].includes(view) && (
         <BackordersView
           isAdvisor={isAdvisor}
+          initialType={view === 'supplier-backorders' ? 'supplier' : 'customer'}
           onOpenOrder={(type: 'customer' | 'supplier', id: number) => {
             if (type === 'customer') { setPendingOpenSO(id); setView('sales-orders'); }
             else { setPendingOpenPO(id); setView('purchase-orders'); }

@@ -80,12 +80,14 @@ const mergeCompatibilityKey = (order: Backorder) => JSON.stringify([
 
 export function BackordersView({
   isAdvisor,
+  initialType = 'customer',
   onOpenOrder,
 }: {
   isAdvisor: boolean;
+  initialType?: BackorderType;
   onOpenOrder: (type: BackorderType, id: number) => void;
 }) {
-  const [activeType, setActiveType] = useState<BackorderType>('customer');
+  const [activeType, setActiveType] = useState<BackorderType>(initialType);
   const [queues, setQueues] = useState<Record<BackorderType, Backorder[]>>({ customer: [], supplier: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -115,6 +117,11 @@ export function BackordersView({
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    setActiveType(initialType);
+    setExpanded(null);
+    setSelectedIds(new Set());
+  }, [initialType]);
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
