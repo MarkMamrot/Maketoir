@@ -47,6 +47,21 @@ describe('IMS schema statement parsing', () => {
       'CREATE TABLE ims_products (id BIGINT PRIMARY KEY)',
     ]);
   });
+
+  it('does not split on semicolons inside quoted SQL values', () => {
+    const statements = parseSchemaStatements(`
+      CREATE TABLE gift_cards (
+        initial_balance DECIMAL(12,2) NULL COMMENT 'Face value when issued; NULL = unknown (imported)',
+        label VARCHAR(100) DEFAULT 'Customer''s card; active'
+      );
+      CREATE TABLE products (id BIGINT PRIMARY KEY);
+    `);
+
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toContain("COMMENT 'Face value when issued; NULL = unknown (imported)'");
+    expect(statements[0]).toContain("DEFAULT 'Customer''s card; active'");
+    expect(statements[1]).toBe('CREATE TABLE products (id BIGINT PRIMARY KEY)');
+  });
 });
 
 describe('new business IMS provisioning ownership', () => {

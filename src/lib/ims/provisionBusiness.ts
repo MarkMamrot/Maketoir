@@ -68,11 +68,37 @@ async function serverConnection(database?: string): Promise<mysql.Connection> {
 
 /** Split IMS schema DDL into individual statements after removing full-line comments. */
 export function parseSchemaStatements(sql: string): string[] {
-  return sql
+  const commentStrippedSql = sql
     .split('\n')
     .filter(line => !line.trimStart().startsWith('--'))
-    .join('\n')
-    .split(';')
+    .join('\n');
+  const statements: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | '`' | null = null;
+
+  for (let index = 0; index < commentStrippedSql.length; index += 1) {
+    const char = commentStrippedSql[index];
+    const next = commentStrippedSql[index + 1];
+    current += char;
+
+    if (quote) {
+      if (char === '\\') {
+        if (next !== undefined) current += commentStrippedSql[index += 1];
+      } else if (char === quote && next === quote) {
+        current += commentStrippedSql[index += 1];
+      } else if (char === quote) {
+        quote = null;
+      }
+    } else if (char === "'" || char === '"' || char === '`') {
+      quote = char;
+    } else if (char === ';') {
+      statements.push(current.slice(0, -1));
+      current = '';
+    }
+  }
+  if (current.trim()) statements.push(current);
+
+  return statements
     .map(s => s.trim())
     .filter(s => s.length > 0 && !s.toUpperCase().startsWith('SET NAMES'));
 }

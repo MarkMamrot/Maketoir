@@ -60,22 +60,22 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Company Name *</label>
-            <input type="text" value={form.company} onChange={set('company')} required
+            <input type="text" value={form.company} onChange={set('company')} required autoComplete="organization"
               className="w-full p-2 border border-gray-300 rounded mt-1" placeholder="Acme Pty Ltd" />
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Your Name</label>
-            <input type="text" value={form.name} onChange={set('name')}
+            <input type="text" value={form.name} onChange={set('name')} autoComplete="name"
               className="w-full p-2 border border-gray-300 rounded mt-1" placeholder="Jane Smith" />
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Email Address *</label>
-            <input type="email" value={form.email} onChange={set('email')} required
+            <input type="email" value={form.email} onChange={set('email')} required autoComplete="username"
               className="w-full p-2 border border-gray-300 rounded mt-1" />
           </div>
           <div>
             <label className="text-xs font-bold text-gray-600 uppercase">Phone</label>
-            <input type="tel" value={form.phone} onChange={set('phone')}
+            <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel"
               className="w-full p-2 border border-gray-300 rounded mt-1" />
           </div>
           <div>
