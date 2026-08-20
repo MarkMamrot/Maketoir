@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FileDown, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
+import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
@@ -642,8 +643,6 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
 // Dashboard View
 // ─────────────────────────────────────────────────────────────────────────────
 
-type OnboardingStep = { id: string; title: string; completed: boolean; autoCompleted: boolean };
-
 type ImsOnboardingAction =
   | { type: 'nav'; view: ImsView; label: string }
   | { type: 'settings'; section: string; label: string };
@@ -756,6 +755,8 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingDraft, setOnboardingDraft] = useState<Record<string, string>>({});
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const onboardingAutoOpenedRef = useRef(false);
   const [salesData, setSalesData] = useState<any>(null);
   const [salesLoading, setSalesLoading] = useState(true);
   const channelChartRef = useRef<HTMLDivElement | null>(null);
@@ -801,21 +802,31 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
     setOnboardingLoading(true);
     fetch('/api/onboarding')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.success) { setOnboarding(d); setOnboardingDraft(d.settings ?? {}); } })
+      .then(d => {
+        if (!d?.success) return;
+        setOnboarding(d);
+        setOnboardingDraft(d.settings ?? {});
+        if (!d.complete && !onboardingAutoOpenedRef.current) {
+          onboardingAutoOpenedRef.current = true;
+          setOnboardingOpen(true);
+        }
+        if (d.complete) setOnboardingOpen(false);
+      })
       .catch(() => {})
       .finally(() => setOnboardingLoading(false));
   }, []);
 
   useEffect(() => { loadOnboarding(); }, [loadOnboarding]);
 
-  const saveOnboardingSettings = async () => {
+  const saveOnboardingStep = async (stepId: string, settings: Record<string, string>) => {
     setOnboardingSaving(true);
     try {
-      await fetch('/api/onboarding', {
+      const response = await fetch('/api/onboarding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: onboardingDraft, completeStep: 'business_profile' }),
+        body: JSON.stringify({ settings, completeStep: stepId }),
       });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? 'Onboarding details could not be saved.');
       loadOnboarding();
     } finally { setOnboardingSaving(false); }
   };
@@ -833,6 +844,14 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   };
 
   const setOnboardingField = (key: string, value: string) => setOnboardingDraft(p => ({ ...p, [key]: value }));
+
+  const runOnboardingAction = (stepId: string) => {
+    const action = IMS_ONBOARDING_ACTIONS[stepId];
+    if (!action) return;
+    setOnboardingOpen(false);
+    if (action.type === 'nav') onNav(action.view);
+    else onOpenSettings?.(action.section);
+  };
 
   const fmtCompact = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `$${(n / 1_000).toFixed(1)}K` : fmtCurrency(n);
   const stats: { label: string; value?: number; display?: React.ReactNode; color: string; nav?: ImsView; onClick?: () => void }[] = [
@@ -934,8 +953,31 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
 
   return (
     <div data-testid="purchase-orders-view">
-      {/* ─ Onboarding panel (hidden once all steps complete) ───────────────────── */}
       {onboarding && !onboarding.complete && (
+        <>
+          <div style={{ marginBottom: 18, padding: '13px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)' }}>
+            <div>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Business setup</div>
+              <div style={{ marginTop: 2, color: 'var(--sv-text-dim)', fontSize: 11 }}>{(onboarding.steps ?? []).filter((step: OnboardingStep) => step.completed).length} of {onboarding.steps?.length ?? 0} steps complete</div>
+            </div>
+            <button type="button" onClick={() => setOnboardingOpen(true)} style={{ padding: '8px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 12, fontWeight: 750, cursor: 'pointer' }}>Continue setup</button>
+          </div>
+          <OnboardingWizard
+            open={onboardingOpen}
+            onboarding={onboarding}
+            draft={onboardingDraft}
+            saving={onboardingSaving}
+            onClose={() => setOnboardingOpen(false)}
+            onFieldChange={setOnboardingField}
+            onSaveStep={saveOnboardingStep}
+            onCompleteStep={completeOnboardingStep}
+            onAction={runOnboardingAction}
+          />
+        </>
+      )}
+
+      {/* Legacy inline onboarding retained temporarily outside the rendered path. */}
+      {false && onboarding && !onboarding.complete && (
         <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: 24, marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
             <div>
@@ -1089,7 +1131,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               </div>
 
               <div style={{ marginTop: 16 }}>
-                <button onClick={saveOnboardingSettings} disabled={onboardingSaving}
+                <button onClick={() => saveOnboardingStep('business_profile', onboardingDraft)} disabled={onboardingSaving}
                   style={{ padding: '8px 20px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 7, fontWeight: 600, fontSize: 13, cursor: onboardingSaving ? 'wait' : 'pointer', opacity: onboardingSaving ? .6 : 1 }}>
                   {onboardingSaving ? 'Saving…' : 'Save details'}
                 </button>
@@ -24938,7 +24980,30 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [savingTerminalId, setSavingTerminalId] = useState<number | null>(null);
   const [logoSaving, setLogoSaving]         = useState(false);
 
-  useEffect(() => { setProfileDraft(settings); }, [settings]);
+  useEffect(() => {
+    setProfileDraft({
+      ...settings,
+      business_address_line1: settings.business_address_line1 || settings.business_address || '',
+    });
+  }, [settings]);
+  const saveBusinessProfile = async () => {
+    const locality = [profileDraft.business_suburb, profileDraft.business_state, profileDraft.business_postcode]
+      .map(value => value?.trim())
+      .filter(Boolean)
+      .join(' ');
+    const businessAddress = [
+      profileDraft.business_address_line1,
+      profileDraft.business_address_line2,
+      locality,
+      profileDraft.business_country,
+    ].map(value => value?.trim()).filter(Boolean).join(', ');
+    setProfileSaving(true);
+    try {
+      await saveSettings({ ...profileDraft, business_address: businessAddress });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
   useEffect(() => {
     if (!isOpen) return;
     fetch('/api/ims/locations').then(r => r.json()).then(d => { if (d.success) setPickLocations(d.data ?? []); }).catch(() => {});
@@ -25256,13 +25321,41 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <input style={inputStyle} value={profileDraft['business_name'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_name: e.target.value }))} placeholder="Your company name" />
               </div>
               <div>
-                <label style={labelStyle}>Business Address</label>
-                <input style={inputStyle} value={profileDraft['business_address'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address: e.target.value }))} placeholder="e.g. 123 Main St, Sydney NSW 2000" />
+                <label style={labelStyle}>Phone Number</label>
+                <input type="tel" autoComplete="tel" style={inputStyle} value={profileDraft['business_phone'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_phone: e.target.value }))} placeholder="(02) 1234 5678" />
               </div>
             </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={labelStyle}>ABN</label>
-              <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div>
+                <label style={labelStyle}>ABN</label>
+                <input style={inputStyle} value={profileDraft['business_abn'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_abn: e.target.value }))} placeholder="e.g. 11 222 333 444" />
+              </div>
+              <div>
+                <label style={labelStyle}>Country</label>
+                <input autoComplete="country-name" style={inputStyle} value={profileDraft['business_country'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_country: e.target.value }))} placeholder="Australia" />
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Address Line 1</label>
+                <input autoComplete="address-line1" style={inputStyle} value={profileDraft['business_address_line1'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address_line1: e.target.value }))} placeholder="123 Main Street" />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={labelStyle}>Address Line 2</label>
+                <input autoComplete="address-line2" style={inputStyle} value={profileDraft['business_address_line2'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_address_line2: e.target.value }))} placeholder="Suite 4" />
+              </div>
+              <div>
+                <label style={labelStyle}>Suburb</label>
+                <input autoComplete="address-level2" style={inputStyle} value={profileDraft['business_suburb'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_suburb: e.target.value }))} placeholder="Sydney" />
+              </div>
+              <div>
+                <label style={labelStyle}>State</label>
+                <input autoComplete="address-level1" style={inputStyle} value={profileDraft['business_state'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_state: e.target.value }))} placeholder="NSW" />
+              </div>
+              <div>
+                <label style={labelStyle}>Postcode</label>
+                <input autoComplete="postal-code" inputMode="numeric" style={inputStyle} value={profileDraft['business_postcode'] || ''} onChange={e => setProfileDraft(p => ({ ...p, business_postcode: e.target.value }))} placeholder="2000" />
+              </div>
             </div>
             <div style={{ marginBottom: 24 }}>
               <label style={labelStyle}>Logo for PDF (PNG/JPG — max ~500 KB)</label>
@@ -25283,7 +25376,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
-              <button type="button" disabled={profileSaving} onClick={async () => { setProfileSaving(true); await saveSettings(profileDraft); setProfileSaving(false); }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
+              <button type="button" disabled={profileSaving} onClick={saveBusinessProfile} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
             </div>
           </div>
         )}

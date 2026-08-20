@@ -53,9 +53,9 @@ describe('GET /api/onboarding', () => {
     const body = await response.json();
     const steps = new Map(body.steps.map((step: { id: string; completed: boolean }) => [step.id, step.completed]));
 
-    expect(steps.get('operations_tax')).toBe(false);
-    expect(steps.get('online_shop')).toBe(false);
-    expect(steps.get('accounting')).toBe(false);
+    expect(steps.get('operations')).toBe(false);
+    expect(steps.get('tax')).toBe(false);
+    expect(steps.get('integrations')).toBe(false);
   });
 
   it('reports database failures instead of presenting them as zero data', async () => {
@@ -82,13 +82,63 @@ describe('GET /api/onboarding', () => {
     const response = await PUT(new Request('http://localhost/api/onboarding', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completeStep: 'operations_tax' }),
+      body: JSON.stringify({ completeStep: 'operations' }),
     }));
 
     expect(response.status).toBe(200);
     expect(mocks.imsExecute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_settings'),
-      ['business-1', 'onboarding_completed_steps', '["business_profile","operations_tax"]'],
+      ['business-1', 'onboarding_completed_steps', '["business_profile","operations"]'],
+    );
+  });
+
+  it('persists allowlisted onboarding settings before completing a step', async () => {
+    mocks.imsQuery.mockResolvedValue([]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: { use_foreign_currencies: 'no', unsupported_setting: 'ignored' },
+        completeStep: 'operations',
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'use_foreign_currencies', 'no'],
+    );
+    expect(mocks.imsExecute).not.toHaveBeenCalledWith(
+      expect.any(String),
+      ['business-1', 'unsupported_setting', 'ignored'],
+    );
+  });
+
+  it('stores structured identity fields and a compatible combined address', async () => {
+    mocks.imsQuery.mockResolvedValue([]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: {
+          business_address_line1: '123 Main Street',
+          business_address_line2: 'Suite 4',
+          business_suburb: 'Sydney',
+          business_state: 'NSW',
+          business_postcode: '2000',
+          business_country: 'Australia',
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'business_address', '123 Main Street, Suite 4, Sydney NSW 2000, Australia'],
     );
   });
 
@@ -105,7 +155,7 @@ describe('GET /api/onboarding', () => {
     expect(response.status).toBe(200);
     expect(mocks.imsExecute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_settings'),
-      ['business-1', 'onboarding_completed_steps', '["operations_tax"]'],
+      ['business-1', 'onboarding_completed_steps', '["operations","tax"]'],
     );
   });
 
@@ -124,7 +174,7 @@ describe('GET /api/onboarding', () => {
 
   it('reports complete when every step is manually completed', async () => {
     const completedSteps = [
-      'business_profile', 'operations_tax', 'online_shop', 'accounting', 'users', 'locations',
+      'business_profile', 'operations', 'tax', 'integrations', 'users', 'locations',
       'products', 'sales_orders', 'purchase_orders', 'opening_stock', 'pos_ready',
     ];
     mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(

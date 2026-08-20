@@ -8,9 +8,9 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 const PROGRESS_KEY = 'onboarding_completed_steps';
 const ONBOARDING_STEP_IDS = [
   'business_profile',
-  'operations_tax',
-  'online_shop',
-  'accounting',
+  'operations',
+  'tax',
+  'integrations',
   'users',
   'locations',
   'products',
@@ -20,6 +20,31 @@ const ONBOARDING_STEP_IDS = [
   'pos_ready',
 ] as const;
 const ONBOARDING_STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
+const ONBOARDING_SETTING_KEYS = new Set([
+  'business_name',
+  'business_address',
+  'business_address_line1',
+  'business_address_line2',
+  'business_suburb',
+  'business_state',
+  'business_postcode',
+  'business_country',
+  'business_phone',
+  'business_abn',
+  'use_multiple_locations',
+  'use_zones_bins',
+  'use_categories',
+  'use_foreign_currencies',
+  'connect_online_shop',
+  'online_shop_platform',
+  'connect_accounting_software',
+  'accounting_software',
+  'sales_tax_on_sales',
+  'sales_tax_rate',
+  'sales_tax_code',
+  'purchase_tax_rate',
+  'purchase_tax_code',
+]);
 
 const SETTING_DEFAULTS: Record<string, string> = {
   use_multiple_locations: 'yes',
@@ -81,32 +106,22 @@ export async function GET() {
     if (!settings.business_name && businessInfo?.brand_name) settings.business_name = businessInfo.brand_name;
     if (!settings.business_abn && businessInfo?.abn) settings.business_abn = businessInfo.abn;
 
-    const completed = new Set(parseCompleted(settings[PROGRESS_KEY]));
+    const completed = normalizeCompleted(settings[PROGRESS_KEY]);
     const [userCount, locationCount, productCount, salesOrderCount, purchaseOrderCount, stockCount] = counts;
 
-    const autoDone: Record<string, boolean> = {
-    business_profile: Boolean(settings.business_name?.trim() && settings.business_abn?.trim()),
-    users: userCount > 1,
-    locations: locationCount > 0,
-    products: productCount > 0,
-    sales_orders: salesOrderCount > 0,
-    purchase_orders: purchaseOrderCount > 0,
-    opening_stock: stockCount > 0,
-    };
-
     const steps = [
-    { id: 'business_profile', title: 'Confirm business profile', autoCompleted: autoDone.business_profile },
-    { id: 'operations_tax', title: 'Confirm operations and tax settings', autoCompleted: false },
-    { id: 'online_shop', title: 'Connect online shop', autoCompleted: false },
-    { id: 'accounting', title: 'Connect accounting software', autoCompleted: false },
-    { id: 'users', title: 'Add additional users', autoCompleted: autoDone.users },
-    { id: 'locations', title: 'Add locations', autoCompleted: autoDone.locations },
-    { id: 'products', title: 'Import products', autoCompleted: autoDone.products },
-    { id: 'sales_orders', title: 'Import sales orders', autoCompleted: autoDone.sales_orders },
-    { id: 'purchase_orders', title: 'Import purchase orders', autoCompleted: autoDone.purchase_orders },
-    { id: 'opening_stock', title: 'Make opening stock adjustments', autoCompleted: autoDone.opening_stock },
-    { id: 'pos_ready', title: 'Review POS setup', autoCompleted: completed.has('pos_ready') },
-    ].map(step => ({ ...step, completed: completed.has(step.id) || step.autoCompleted }));
+    { id: 'business_profile', title: 'Business identity' },
+    { id: 'operations', title: 'Operations' },
+    { id: 'tax', title: 'Tax settings' },
+    { id: 'integrations', title: 'Integrations' },
+    { id: 'users', title: 'Add additional users' },
+    { id: 'locations', title: 'Add locations' },
+    { id: 'products', title: 'Import products' },
+    { id: 'sales_orders', title: 'Import sales orders' },
+    { id: 'purchase_orders', title: 'Import purchase orders' },
+    { id: 'opening_stock', title: 'Set opening stock' },
+    { id: 'pos_ready', title: 'Review POS setup' },
+    ].map(step => ({ ...step, autoCompleted: false, completed: completed.has(step.id) }));
 
     return NextResponse.json({
       success: true,
@@ -141,9 +156,37 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: 'Invalid onboarding step' }, { status: 400 });
   }
 
+  const settings = body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
+    ? Object.entries(body.settings as Record<string, unknown>)
+      .filter(([key]) => ONBOARDING_SETTING_KEYS.has(key))
+      .map(([key, value]) => [key, value == null ? '' : String(value)] as const)
+    : [];
+  const settingsMap = Object.fromEntries(settings);
+  const structuredAddressKeys = [
+    'business_address_line1', 'business_address_line2', 'business_suburb',
+    'business_state', 'business_postcode', 'business_country',
+  ];
+  if (structuredAddressKeys.some(key => settingsMap[key] !== undefined)) {
+    settingsMap.business_address = formatBusinessAddress(settingsMap);
+  }
+  for (const [key, value] of Object.entries(settingsMap)) {
+    await imsExecute(
+      'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+      [businessId, key, value],
+    );
+  }
+
+  const businessInfo = settingsMap;
+  if (businessInfo.business_name !== undefined || businessInfo.business_abn !== undefined) {
+    await BusinessInfoRepository.upsert(businessId, {
+      ...(businessInfo.business_name !== undefined ? { brand_name: businessInfo.business_name } : {}),
+      ...(businessInfo.business_abn !== undefined ? { abn: businessInfo.business_abn } : {}),
+    });
+  }
+
   if (completeStep || reopenStep) {
     const rows = await imsQuery<{ value: string }>('SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1', [businessId, PROGRESS_KEY]);
-    const completed = new Set(parseCompleted(rows[0]?.value));
+    const completed = normalizeCompleted(rows[0]?.value);
     if (completeStep) completed.add(completeStep);
     if (reopenStep) completed.delete(reopenStep);
     await imsExecute(
@@ -153,4 +196,25 @@ export async function PUT(req: Request) {
   }
 
   return NextResponse.json({ success: true });
+}
+
+function normalizeCompleted(raw: string | undefined): Set<string> {
+  const completed = new Set(parseCompleted(raw));
+  if (completed.has('operations_tax')) {
+    completed.add('operations');
+    completed.add('tax');
+  }
+  if (completed.has('online_shop') && completed.has('accounting')) completed.add('integrations');
+  return new Set([...completed].filter(step => ONBOARDING_STEP_ID_SET.has(step)));
+}
+
+function formatBusinessAddress(settings: Record<string, string>): string {
+  const locality = [settings.business_suburb, settings.business_state, settings.business_postcode]
+    .map(value => value?.trim())
+    .filter(Boolean)
+    .join(' ');
+  return [settings.business_address_line1, settings.business_address_line2, locality, settings.business_country]
+    .map(value => value?.trim())
+    .filter(Boolean)
+    .join(', ');
 }
