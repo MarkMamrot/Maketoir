@@ -28,7 +28,26 @@ vi.mock('@/services/MySQLService', () => ({
 }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ invalidateImsDbCache: mocks.invalidate }));
 
-import { cleanupFailedBusinessProvision, deriveProvisionedImsDbName } from '../provisionBusiness';
+import {
+  cleanupFailedBusinessProvision,
+  deriveProvisionedImsDbName,
+  parseSchemaStatements,
+} from '../provisionBusiness';
+
+describe('IMS schema statement parsing', () => {
+  it('does not treat text after a semicolon in a comment as SQL', () => {
+    const statements = parseSchemaStatements(`
+      -- Up to 8 images per product; one marked is_primary (used by POS/website).
+      CREATE TABLE ims_product_images (id BIGINT PRIMARY KEY);
+      CREATE TABLE ims_products (id BIGINT PRIMARY KEY);
+    `);
+
+    expect(statements).toEqual([
+      'CREATE TABLE ims_product_images (id BIGINT PRIMARY KEY)',
+      'CREATE TABLE ims_products (id BIGINT PRIMARY KEY)',
+    ]);
+  });
+});
 
 describe('new business IMS provisioning ownership', () => {
   beforeEach(() => {

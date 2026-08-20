@@ -66,15 +66,20 @@ async function serverConnection(database?: string): Promise<mysql.Connection> {
   });
 }
 
-/** Split the IMS schema DDL into individual, comment-stripped statements. */
-function loadSchemaStatements(): string[] {
-  const schemaPath = path.join(process.cwd(), 'scripts', 'ims-schema.sql');
-  const sql = fs.readFileSync(schemaPath, 'utf8');
+/** Split IMS schema DDL into individual statements after removing full-line comments. */
+export function parseSchemaStatements(sql: string): string[] {
   return sql
+    .split('\n')
+    .filter(line => !line.trimStart().startsWith('--'))
+    .join('\n')
     .split(';')
     .map(s => s.trim())
-    .map(s => s.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n').trim())
     .filter(s => s.length > 0 && !s.toUpperCase().startsWith('SET NAMES'));
+}
+
+function loadSchemaStatements(): string[] {
+  const schemaPath = path.join(process.cwd(), 'scripts', 'ims-schema.sql');
+  return parseSchemaStatements(fs.readFileSync(schemaPath, 'utf8'));
 }
 
 /** Install the BEFORE INSERT business_id triggers on a freshly-created schema. */
