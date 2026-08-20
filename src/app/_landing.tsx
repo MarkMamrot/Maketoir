@@ -509,16 +509,17 @@ export default function Landing() {
           <Eyebrow>Integrations</Eyebrow>
           <h2 className="text-3xl font-black text-slate-900 mb-3">Works with the tools you already use</h2>
           <p className="text-slate-500 text-sm mb-10 max-w-md mx-auto">
-            Connect your accounting, ecommerce, and marketing platforms. No manual data entry, ever.
+            Connect your accounting, ecommerce, marketing, customer communications, and payment platforms. No manual data entry, ever.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             {[
               { name: 'Xero', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
               { name: 'Shopify', cls: 'text-green-700 bg-green-50 border-green-200' },
-              { name: 'Magento', cls: 'text-orange-600 bg-orange-50 border-orange-200' },
               { name: 'Google Analytics', cls: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
+              { name: 'Google Ads', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
               { name: 'Meta Ads', cls: 'text-blue-600 bg-blue-50 border-blue-200' },
-              { name: 'WooCommerce', cls: 'text-purple-700 bg-purple-50 border-purple-200' },
+              { name: 'Gmail', cls: 'text-red-700 bg-red-50 border-red-200' },
+              { name: 'Payment Terminal Integration', cls: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
               { name: '+ More Coming', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
             ].map((item) => (
               <span
@@ -691,7 +692,7 @@ export default function Landing() {
             Ready to transform your retail operations?
           </h2>
           <p className="text-blue-100 text-lg mb-10 leading-relaxed">
-            Join 500+ retailers already using Solvantis. Get a personalised demo from our retail experts.
+            Join some of Australia's top retailers already using Solvantis. Get a personalised demo from our retail experts.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <button
@@ -739,9 +740,11 @@ export default function Landing() {
                 links: [
                   { label: 'Xero', href: '/#integrations' },
                   { label: 'Shopify', href: '/#integrations' },
-                  { label: 'Magento', href: '/#integrations' },
                   { label: 'Google Analytics', href: '/#integrations' },
+                  { label: 'Google Ads', href: '/#integrations' },
                   { label: 'Meta Ads', href: '/#integrations' },
+                  { label: 'Gmail', href: '/#integrations' },
+                  { label: 'Payment Terminals', href: '/#integrations' },
                 ],
               },
               {
