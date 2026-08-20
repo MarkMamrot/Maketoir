@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, Wrench } from 'lucide-react';
+import { FileDown, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
@@ -43,7 +43,7 @@ import { ContactCrmSegments } from './views/contacts/ContactCrmSegments';
 import { ContactCrmPipeline } from './views/contacts/ContactCrmPipeline';
 import { ContactCrmDataQuality } from './views/contacts/ContactCrmDataQuality';
 import { ContactCrmAnalytics } from './views/contacts/ContactCrmAnalytics';
-import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getOrderStatusLabel, type OrderKind } from '@/lib/ims/orderLifecyclePolicy';
+import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getDefaultEmailedSalesDocument, getOrderStatusLabel, getSalesDocumentFilename, isSalesDocumentAvailable, type OrderKind, type SOStatus, type SalesDocumentType } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import { installSessionExpiredGuard, redirectToLogin } from '@/lib/auth/sessionGuard';
@@ -13606,36 +13606,58 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => { window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf`, '_blank'); }}
-                style={btnStyle('secondary', 'sm')}
-              >⬇ Download PDF</button>
-              <button
+              <label style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0, overflow: 'hidden' }}>
+                <FileDown size={15} style={{ marginLeft: 10, pointerEvents: 'none' }} />
+                <select
+                  aria-label="Download sales document"
+                  value=""
+                  onChange={event => {
+                    const document = event.target.value as SalesDocumentType;
+                    if (document) window.open(`/api/ims/sales-orders/${viewModal.so.id}/pdf?document=${document}`, '_blank');
+                    event.target.value = '';
+                  }}
+                  style={{ appearance: 'auto', border: 0, background: 'transparent', color: 'inherit', font: 'inherit', fontWeight: 'inherit', padding: '7px 10px 7px 0', cursor: 'pointer' }}
+                >
+                  <option value="">Documents</option>
+                  <option value="sales-order">Sales Order</option>
+                  {isSalesDocumentAvailable('pro-forma', viewModal.so.status as SOStatus) && <option value="pro-forma">Pro Forma Invoice</option>}
+                  {isSalesDocumentAvailable('tax-invoice', viewModal.so.status as SOStatus) && <option value="tax-invoice">Tax Invoice</option>}
+                </select>
+              </label>
+              {getDefaultEmailedSalesDocument(viewModal.so.status as SOStatus) && <button
                 onClick={() => {
                   const so = viewModal.so;
-                  const soNum = so.so_number.replace('SO-', 'INV-');
-                  const subj = (settings['so_email_subject'] || 'Tax Invoice {{order_number}}')
-                    .replace(/\{\{order_number\}\}/g, soNum)
+                  const documentType = getDefaultEmailedSalesDocument(so.status as SOStatus)!;
+                  const documentLabel = documentType === 'tax-invoice' ? 'Tax Invoice' : 'Pro Forma Invoice';
+                  const documentNumber = documentType === 'tax-invoice' && so.xero_invoice_number
+                    ? so.xero_invoice_number
+                    : so.so_number;
+                  const defaultSubject = '{{document_type}} {{order_number}}';
+                  const defaultBody = 'Dear {{contact_name}},\n\nPlease find attached {{document_type}} {{order_number}} totalling {{total}}.\n\nKind regards';
+                  const subj = (settings['so_email_subject'] || defaultSubject)
+                    .replace(/\{\{document_type\}\}/g, documentLabel)
+                    .replace(/\{\{order_number\}\}/g, documentNumber)
                     .replace(/\{\{contact_name\}\}/g, so.customer_name || '')
                     .replace(/\{\{total\}\}/g, fmtCurrency(so.total_amount))
                     .replace(/\{\{date\}\}/g, so.order_date?.slice(0, 10) || '');
-                  const body = (settings['so_email_body'] || 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards')
-                    .replace(/\{\{order_number\}\}/g, soNum)
+                  const body = (settings['so_email_body'] || defaultBody)
+                    .replace(/\{\{document_type\}\}/g, documentLabel)
+                    .replace(/\{\{order_number\}\}/g, documentNumber)
                     .replace(/\{\{contact_name\}\}/g, so.customer_name || '')
                     .replace(/\{\{total\}\}/g, fmtCurrency(so.total_amount))
                     .replace(/\{\{date\}\}/g, so.order_date?.slice(0, 10) || '');
                   // Trigger PDF download first
                   const a = document.createElement('a');
-                  a.href = `/api/ims/sales-orders/${so.id}/pdf`;
-                  a.download = `${soNum}.pdf`;
+                  a.href = `/api/ims/sales-orders/${so.id}/pdf?document=${documentType}`;
+                  a.download = `${getSalesDocumentFilename(documentType, so.so_number, so.xero_invoice_number)}.pdf`;
                   document.body.appendChild(a); a.click(); document.body.removeChild(a);
                   // Then open mailto
                   setTimeout(() => {
                     window.location.href = `mailto:${encodeURIComponent(so.customer_email || '')}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
                   }, 400);
                 }}
-                style={btnStyle('mint', 'sm')}
-              >✉ Email</button>
+                style={{ ...btnStyle('mint', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              ><Mail size={15} /> Email</button>}
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -24790,7 +24812,21 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [poSaving, setPoSaving] = useState(false);
   const [soSaving, setSoSaving] = useState(false);
   useEffect(() => { setPoDraft({ po_email_subject: 'Purchase Order {{order_number}}', po_email_body: 'Dear {{contact_name}},\n\nPlease find attached Purchase Order {{order_number}} totalling {{total}}.\n\nKind regards', po_terms: '', freight_treatment: 'expense', ...settings }); }, [settings]);
-  useEffect(() => { setSoDraft({ so_email_subject: 'Tax Invoice {{order_number}}', so_email_body: 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards', so_terms: '', ...settings }); }, [settings]);
+  useEffect(() => {
+    const legacySubject = 'Tax Invoice {{order_number}}';
+    const legacyBody = 'Dear {{contact_name}},\n\nPlease find attached Tax Invoice {{order_number}} totalling {{total}}.\n\nKind regards';
+    setSoDraft({
+      so_terms: '',
+      sales_document_show_logo: '1',
+      ...settings,
+      so_email_subject: !settings.so_email_subject || settings.so_email_subject === legacySubject
+        ? '{{document_type}} {{order_number}}'
+        : settings.so_email_subject,
+      so_email_body: !settings.so_email_body || settings.so_email_body === legacyBody
+        ? 'Dear {{contact_name}},\n\nPlease find attached {{document_type}} {{order_number}} totalling {{total}}.\n\nKind regards'
+        : settings.so_email_body,
+    });
+  }, [settings]);
   const [profileOpen, setProfileOpen]       = useState(false);
   const [taxOpen, setTaxOpen]               = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
@@ -25024,13 +25060,21 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Sales Order Settings</h2>
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Email Templates</h3>
-              <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a Tax Invoice to a customer. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
-              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={soDraft['so_email_subject'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="Tax Invoice {{order_number}}" /></div>
+              <p style={{ margin: '0 0 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Used when emailing a Pro Forma or Tax Invoice to a customer. Variables: <code style={{ color: 'var(--sv-mint)' }}>{'{{document_type}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{order_number}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{contact_name}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{total}}'}</code> <code style={{ color: 'var(--sv-mint)' }}>{'{{date}}'}</code></p>
+              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Subject</label><input style={inputStyle} value={soDraft['so_email_subject'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_subject: e.target.value }))} placeholder="{{document_type}} {{order_number}}" /></div>
               <div><label style={labelStyle}>Body</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_email_body'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_email_body: e.target.value }))} placeholder={'Dear {{contact_name}},\n\nPlease find attached Tax Invoice...'} /></div>
             </div>
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>PDF Settings</h3>
-              <div><label style={labelStyle}>Terms &amp; Conditions (printed at the bottom of the Tax Invoice PDF)</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 16, cursor: 'pointer', fontSize: 13 }}><input type="checkbox" checked={(soDraft['sales_document_show_logo'] || '1') === '1'} onChange={e => setSoDraft(p => ({ ...p, sales_document_show_logo: e.target.checked ? '1' : '0' }))} />Show the business logo on customer documents</label>
+              <div style={{ marginBottom: 14 }}><label style={labelStyle}>Invoice Note</label><textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' as const }} maxLength={1000} value={soDraft['sales_document_note'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_note: e.target.value }))} placeholder="Thank you for your business." /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(120px, 1fr) minmax(0, 1.5fr)', gap: 12, marginBottom: 14 }}>
+                <div><label style={labelStyle}>Bank Account Name</label><input style={inputStyle} maxLength={120} value={soDraft['sales_document_bank_account_name'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_bank_account_name: e.target.value }))} /></div>
+                <div><label style={labelStyle}>BSB</label><input style={inputStyle} inputMode="numeric" value={soDraft['sales_document_bank_bsb'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_bank_bsb: e.target.value }))} placeholder="123-456" /></div>
+                <div><label style={labelStyle}>Account Number</label><input style={inputStyle} inputMode="numeric" value={soDraft['sales_document_bank_account_number'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_bank_account_number: e.target.value }))} /></div>
+              </div>
+              <div style={{ marginBottom: 14 }}><label style={labelStyle}>Payment Reference / Instructions</label><textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' as const }} maxLength={500} value={soDraft['sales_document_payment_instructions'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_payment_instructions: e.target.value }))} placeholder="Use the Sales Order reference with your payment." /></div>
+              <div><label style={labelStyle}>Terms &amp; Conditions</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
             </div>
             <button onClick={async () => { setSoSaving(true); await saveSettings(soDraft); setSoSaving(false); }} disabled={soSaving} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
             <PaymentMethodsManageSection type="so" />

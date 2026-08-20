@@ -851,6 +851,7 @@ const COLUMNS = [
   // ── ims_sales_orders ─────────────────────────────────────────────────────
   ['ims_sales_orders', 'customer_po_number',  'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_invoice_id',     'VARCHAR(100) NULL'],
+  ['ims_sales_orders', 'xero_invoice_number', 'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_synced_at',      'DATETIME NULL'],
   ['ims_sales_orders', 'xero_sync_status',    "ENUM('synced','queued','error') NULL"],
   ['ims_sales_orders', 'shopify_order_name',  'VARCHAR(50) NULL'],

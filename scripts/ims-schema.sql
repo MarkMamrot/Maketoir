@@ -754,6 +754,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   currency_code    VARCHAR(10) NOT NULL DEFAULT 'AUD',
   exchange_rate    DECIMAL(12,6) NOT NULL DEFAULT 1.000000,
   xero_invoice_id  VARCHAR(100) NULL,
+  xero_invoice_number VARCHAR(100) NULL,
   xero_synced_at   DATETIME NULL,
   xero_sync_status ENUM('synced','queued','error') NULL,
   shopify_order_name VARCHAR(50) NULL,

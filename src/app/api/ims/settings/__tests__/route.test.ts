@@ -43,7 +43,34 @@ describe('/api/ims/settings loyalty settings', () => {
       loyalty_program_name: 'Rewards Program',
       loyalty_points_label: 'Points',
       loyalty_started_at: '',
+      sales_document_show_logo: '1',
     });
+  });
+
+  it('validates sales document settings before writing', async () => {
+    const response = await PUT(putRequest({ sales_document_bank_bsb: '1234' }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error).toContain('exactly 6 digits');
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('normalizes and persists sales document settings', async () => {
+    const response = await PUT(putRequest({
+      sales_document_show_logo: '1',
+      sales_document_bank_account_name: '  Example Trading  ',
+      sales_document_bank_bsb: '123-456',
+      sales_document_bank_account_number: '1234 5678',
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mockImsExecute).toHaveBeenCalledTimes(4);
+    expect(mockImsExecute.mock.calls[1][1]).toEqual([
+      'business-1',
+      'sales_document_bank_account_name',
+      'Example Trading',
+    ]);
   });
 
   it.each([

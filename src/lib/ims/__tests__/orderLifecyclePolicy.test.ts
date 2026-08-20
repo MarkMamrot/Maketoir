@@ -5,11 +5,62 @@ import {
   buildOrderEditOperationKey,
   buildPurchaseOrderReceiveOperationKey,
   buildOrderStatusOperationKey,
+  getDefaultEmailedSalesDocument,
   getOrderStatusLabel,
   getPhysicalCompletionLabel,
+  getSalesDocumentFilename,
+  getSalesDocumentTitle,
   isAllowedPOStatusTransition,
   isAllowedSOStatusTransition,
+  isSalesDocumentAvailable,
+  parseSalesDocumentType,
+  type SOStatus,
 } from '../orderLifecyclePolicy';
+
+const statuses: SOStatus[] = [
+  'draft',
+  'confirmed',
+  'partially_fulfilled',
+  'backordered',
+  'fulfilled',
+  'cancelled',
+];
+
+describe('sales document lifecycle policy', () => {
+  it('keeps the sales order available for every status', () => {
+    expect(statuses.every(status => isSalesDocumentAvailable('sales-order', status))).toBe(true);
+  });
+
+  it('offers a pro forma only before fulfilment on active orders', () => {
+    expect(statuses.filter(status => isSalesDocumentAvailable('pro-forma', status))).toEqual([
+      'draft',
+      'confirmed',
+      'partially_fulfilled',
+      'backordered',
+    ]);
+  });
+
+  it('offers a tax invoice only after full fulfilment', () => {
+    expect(statuses.filter(status => isSalesDocumentAvailable('tax-invoice', status))).toEqual(['fulfilled']);
+  });
+
+  it('selects lifecycle-safe email attachments', () => {
+    expect(getDefaultEmailedSalesDocument('confirmed')).toBe('pro-forma');
+    expect(getDefaultEmailedSalesDocument('partially_fulfilled')).toBe('pro-forma');
+    expect(getDefaultEmailedSalesDocument('fulfilled')).toBe('tax-invoice');
+    expect(getDefaultEmailedSalesDocument('cancelled')).toBeNull();
+  });
+
+  it('parses, labels, and names supported document types', () => {
+    expect(parseSalesDocumentType('pro-forma')).toBe('pro-forma');
+    expect(parseSalesDocumentType('invoice')).toBeNull();
+    expect(getSalesDocumentTitle('tax-invoice')).toBe('TAX INVOICE');
+    expect(getSalesDocumentFilename('sales-order', 'SO-001')).toBe('SO-001');
+    expect(getSalesDocumentFilename('pro-forma', 'SO-001')).toBe('PROFORMA-SO-001');
+    expect(getSalesDocumentFilename('tax-invoice', 'SO-001', 'INV/001')).toBe('INV-001');
+    expect(getSalesDocumentFilename('tax-invoice', 'SO-001')).toBe('TAX-INVOICE-SO-001');
+  });
+});
 
 describe('order lifecycle policy', () => {
   it('allows only explicit purchase-order transitions', () => {

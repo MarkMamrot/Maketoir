@@ -10,6 +10,7 @@ import {
   isValidGeminiModelId,
   WEBSITE_AI_SETTING_KEYS,
 } from '@/lib/website/contentPreferences';
+import { SALES_DOCUMENT_SETTING_KEYS, validateSalesDocumentSetting } from '@/lib/ims/salesDocumentSettings';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -40,6 +41,7 @@ export async function GET() {
     settings[WEBSITE_AI_SETTING_KEYS.contentModel] ||= DEFAULT_WEBSITE_CONTENT_MODEL;
     settings[WEBSITE_AI_SETTING_KEYS.urlJudgeModel] ||= DEFAULT_URL_JUDGE_MODEL;
     settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] ||= 'auto';
+    settings[SALES_DOCUMENT_SETTING_KEYS.showLogo] ??= '1';
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
@@ -62,6 +64,15 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : body);
+
+    for (const [key, rawValue] of Object.entries(pairs)) {
+      const result = validateSalesDocumentSetting(key, rawValue);
+      if (!result) continue;
+      if ('error' in result) {
+        return NextResponse.json({ success: false, error: result.error }, { status: 400 });
+      }
+      pairs[key] = result.value;
+    }
 
     if (pairs.business_timezone !== undefined && !isValidBusinessTimeZone(String(pairs.business_timezone))) {
       return NextResponse.json({ success: false, error: 'Invalid business timezone.' }, { status: 400 });

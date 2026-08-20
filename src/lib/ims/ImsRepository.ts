@@ -333,6 +333,7 @@ export interface ImsSO {
   payment_terms?: string; tax_treatment?: 'ex_tax' | 'inc_tax' | 'no_tax'; tax_code?: string;
   currency_code?: string; exchange_rate?: number;
   replacement_of_so_id?: number | null;
+  xero_invoice_id?: string | null; xero_invoice_number?: string | null;
   amount_paid?: number; amount_paid_local?: number; balance?: number; balance_local?: number;
   created_at?: string; updated_at?: string;
   customer_name?: string; customer_email?: string; location_name?: string;

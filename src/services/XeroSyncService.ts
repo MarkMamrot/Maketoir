@@ -468,21 +468,30 @@ export async function syncStocktakeReversalJournal(
 
 /** Write Xero sync status back to the SO row. Silent — never throws.
  * xeroId === undefined → don't touch xero_invoice_id
- * xeroId === null     → explicitly clear xero_invoice_id to NULL (e.g. after void)
+ * xeroId === null     → explicitly clear both invoice identity fields (e.g. after void)
  * xeroId === string   → set xero_invoice_id to that value
+ * xeroInvoiceNumber omitted → preserve the cached display number
  */
 export async function markSoXeroStatus(
   soId: number,
   status: 'synced' | 'queued' | 'error',
   xeroId?: string | null,
+  xeroInvoiceNumber?: string | null,
 ): Promise<void> {
   try {
+    const clearsIdentity = xeroId === null;
+    const updatesInvoiceNumber = clearsIdentity || xeroInvoiceNumber !== undefined;
+    const params: unknown[] = [status];
+    if (xeroId !== undefined) params.push(xeroId);
+    if (updatesInvoiceNumber) params.push(clearsIdentity ? null : xeroInvoiceNumber);
+    params.push(soId);
     await imsExecute(
       `UPDATE ims_sales_orders
          SET xero_sync_status = ?, xero_synced_at = NOW()
              ${xeroId !== undefined ? ', xero_invoice_id = ?' : ''}
+             ${updatesInvoiceNumber ? ', xero_invoice_number = ?' : ''}
          WHERE id = ?`,
-      xeroId !== undefined ? [status, xeroId, soId] : [status, soId],
+      params,
     );
   } catch { /* non-critical */ }
 }
@@ -1276,7 +1285,7 @@ export async function syncSOAsInvoice(businessId: string, so: SOForSync): Promis
     const inv = result.Invoices?.[0];
     const xeroId = inv?.InvoiceID ?? null;
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice created: ${so.so_number}`, inv?.Status ?? 'DRAFT');
-    await markSoXeroStatus(so.id, 'synced', xeroId);
+    await markSoXeroStatus(so.id, 'synced', xeroId, inv?.InvoiceNumber ?? undefined);
     await recordExpectedXeroDocument({
       businessId, targetType: 'sales_order', referenceId: so.id, xeroId,
       total: so.total_amount, status: inv?.Status ?? 'DRAFT', currencyCode: so.currency_code, xeroDocument: inv,
@@ -1359,7 +1368,7 @@ export async function updateXeroDraftInvoice(businessId: string, so: SOForSync, 
     const result = await xeroApiFetch(businessId, `/Invoices/${xeroId}`, { method: 'POST', body: { Invoices: [invoice] } });
     const updatedInvoice = result?.Invoices?.[0];
     await logSync(businessId, 'so_invoice', so.id, xeroId, 'success', `Invoice updated: ${so.so_number}`, currentStatus ?? undefined);
-    await markSoXeroStatus(so.id, 'synced', xeroId);
+    await markSoXeroStatus(so.id, 'synced', xeroId, updatedInvoice?.InvoiceNumber ?? undefined);
     await recordExpectedXeroDocument({
       businessId, targetType: 'sales_order', referenceId: so.id, xeroId,
       total: so.total_amount, status: currentStatus, currencyCode: so.currency_code, xeroDocument: updatedInvoice,
@@ -1514,6 +1523,7 @@ export async function approveInvoice(businessId: string, xeroInvoiceId: string, 
       body: { Invoices: [{ InvoiceID: xeroInvoiceId, Status: 'AUTHORISED' }] },
     });
     const invoice = result?.Invoices?.[0];
+    await markSoXeroStatus(soId, 'synced', xeroInvoiceId, invoice?.InvoiceNumber ?? undefined);
     await logSync(businessId, 'so_invoice', soId, xeroInvoiceId, 'success', 'Invoice approved', 'AUTHORISED');
     await recordExpectedXeroDocument({
       businessId, targetType: 'sales_order', referenceId: soId, xeroId: xeroInvoiceId,

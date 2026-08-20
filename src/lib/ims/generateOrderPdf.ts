@@ -4,15 +4,26 @@
  * pdf-lib is a pure-JS library — no file I/O, no AFM fonts, webpack-safe.
  */
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { getSalesDocumentTitle, type SalesDocumentType } from './orderLifecyclePolicy';
 
 interface OrderPdfOptions {
   type: 'po' | 'so';
   order: any;
   businessName: string;
+  salesDocumentType?: SalesDocumentType;
+  xeroInvoiceNumber?: string;
   logoBase64?: string;
   businessAddress?: string;
   businessAbn?: string;
   termsAndConditions?: string;
+  showSalesDocumentLogo?: boolean;
+  invoiceNote?: string;
+  bankingDetails?: {
+    accountName?: string;
+    bsb?: string;
+    accountNumber?: string;
+    paymentInstructions?: string;
+  };
 }
 
 const PAGE_W    = 595.28;
@@ -68,8 +79,43 @@ function py(yFromTop: number): number {
   return PAGE_H - yFromTop;
 }
 
+function wrapText(text: string, font: any, size: number, maxWidth: number): string[] {
+  const lines: string[] = [];
+  for (const paragraph of text.split(/\r?\n/)) {
+    if (!paragraph.trim()) {
+      lines.push(' ');
+      continue;
+    }
+    let line = '';
+    for (const word of paragraph.trim().split(/\s+/)) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth || !line) {
+        line = candidate;
+      } else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
 export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
-  const { type, order, businessName, logoBase64, businessAddress, businessAbn, termsAndConditions } = opts;
+  const {
+    type,
+    order,
+    businessName,
+    salesDocumentType = 'tax-invoice',
+    xeroInvoiceNumber,
+    logoBase64,
+    businessAddress,
+    businessAbn,
+    termsAndConditions,
+    showSalesDocumentLogo = true,
+    invoiceNote,
+    bankingDetails,
+  } = opts;
   const isPO = type === 'po';
 
   const pdfDoc = await PDFDocument.create();
@@ -81,7 +127,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
 
   // ── LOGO ──────────────────────────────────────────────────────────────
   let hasLogo = false;
-  if (logoBase64) {
+  if (logoBase64 && (isPO || showSalesDocumentLogo)) {
     try {
       const b64      = logoBase64.replace(/^data:image\/[a-z]+;base64,/i, '');
       const imgBytes = Buffer.from(b64, 'base64');
@@ -98,7 +144,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
   }
 
   // ── TITLE (right-aligned) ────────────────────────────────────────────
-  const docTitle  = isPO ? 'PURCHASE ORDER' : 'TAX INVOICE';
+  const docTitle  = isPO ? 'PURCHASE ORDER' : getSalesDocumentTitle(salesDocumentType);
   const titleSize = 22;
   const titleW    = fontBold.widthOfTextAtSize(docTitle, titleSize);
   page.drawText(docTitle, {
@@ -106,12 +152,20 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
     size: titleSize, font: fontBold, color: COL_DARK,
   });
 
-  const orderNum = isPO ? order.po_number : order.so_number;
   const numSize  = 11;
-  const numW     = fontReg.widthOfTextAtSize(orderNum, numSize);
-  page.drawText(orderNum, {
-    x: PAGE_W - MARGIN_R - numW, y: py(82 + numSize),
-    size: numSize, font: fontReg, color: COL_GREY,
+  const identityLines = isPO
+    ? [`Purchase Order No. ${order.po_number}`]
+    : salesDocumentType === 'tax-invoice' && xeroInvoiceNumber
+      ? [`Invoice No. ${xeroInvoiceNumber}`, `Sales Order Ref. ${order.so_number}`]
+      : salesDocumentType === 'tax-invoice'
+        ? [`Document Ref. ${order.so_number}`]
+        : [`Sales Order No. ${order.so_number}`];
+  identityLines.forEach((identity, index) => {
+    const numW = fontReg.widthOfTextAtSize(identity, numSize);
+    page.drawText(identity, {
+      x: PAGE_W - MARGIN_R - numW, y: py(82 + numSize + index * 14),
+      size: numSize, font: fontReg, color: COL_GREY,
+    });
   });
 
   // ── BUSINESS NAME / ADDRESS ──────────────────────────────────────────
@@ -156,7 +210,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
          : (order.customer_email ? [order.customer_email] : []))]],
     ['Location',   [order.location_name || '—']],
     ['Status',     [(order.status || '').toUpperCase()]],
-    ['Order Date', [fmtDate(order.order_date)]],
+    [isPO || salesDocumentType === 'sales-order' ? 'Order Date' : 'Invoice Date', [fmtDate(order.order_date)]],
     ['Expected Date', [fmtDate(order.expected_date)]],
     [isPO ? 'Received Date' : 'Fulfilled Date',
       [isPO ? fmtDate(order.received_date) : fmtDate(order.fulfilled_date)]],
@@ -323,6 +377,49 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
   const tvw = fontBold.widthOfTextAtSize(totalStr, 11);
   page.drawText('TOTAL',   { x: tLblX + 75 - tlw, y: py(totY + 16), size: 11, font: fontBold, color: COL_DARK });
   page.drawText(totalStr,  { x: tValX + 75 - tvw, y: py(totY + 16), size: 11, font: fontBold, color: COL_MINT });
+
+  if (!isPO && salesDocumentType === 'tax-invoice' && order.tax_treatment !== 'no_tax') {
+    totY += 30;
+    page.drawText('Total price includes GST.', {
+      x: tLblX - 8, y: py(totY + 9), size: 9, font: fontReg, color: COL_GREY,
+    });
+  }
+
+  const isInvoiceStyleDocument = !isPO && salesDocumentType !== 'sales-order';
+  const paymentSections: Array<{ title: string; lines: string[] }> = [];
+  if (isInvoiceStyleDocument && invoiceNote?.trim()) {
+    paymentSections.push({ title: 'INVOICE NOTE', lines: wrapText(invoiceNote.trim(), fontReg, 9, CONTENT_W) });
+  }
+  if (isInvoiceStyleDocument && bankingDetails) {
+    const bankLines = [
+      bankingDetails.accountName ? `Account name: ${bankingDetails.accountName}` : '',
+      bankingDetails.bsb ? `BSB: ${bankingDetails.bsb}` : '',
+      bankingDetails.accountNumber ? `Account number: ${bankingDetails.accountNumber}` : '',
+      bankingDetails.paymentInstructions?.trim() || '',
+    ].filter(Boolean).flatMap(line => wrapText(line, fontReg, 9, CONTENT_W));
+    if (bankLines.length) paymentSections.push({ title: 'PAYMENT DETAILS', lines: bankLines });
+  }
+
+  for (const section of paymentSections) {
+    totY += 26;
+    const sectionHeight = 18 + section.lines.length * 13;
+    if (totY + sectionHeight > PAGE_H - 55) {
+      page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+      totY = 50;
+    }
+    page.drawLine({
+      start: { x: MARGIN_L, y: py(totY) },
+      end: { x: PAGE_W - MARGIN_R, y: py(totY) },
+      thickness: 0.5,
+      color: COL_LINE,
+    });
+    page.drawText(section.title, { x: MARGIN_L, y: py(totY + 16), size: 9, font: fontBold, color: COL_GREY });
+    totY += 22;
+    for (const line of section.lines) {
+      page.drawText(line, { x: MARGIN_L, y: py(totY + 9), size: 9, font: fontReg, color: COL_GREY });
+      totY += 13;
+    }
+  }
 
   // ── LANDED COSTS (below invoice total — not part of what you owe the supplier) ──
   const landedCostRows: any[] = order.landed_costs && order.landed_costs.length > 0

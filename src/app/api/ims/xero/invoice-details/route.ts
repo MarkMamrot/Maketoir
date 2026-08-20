@@ -6,7 +6,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
 
 
@@ -37,9 +37,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Invoice not found in Xero' }, { status: 404 });
     }
 
+    const invoiceNumber = String(invoice.InvoiceNumber ?? '').trim() || null;
+    if (invoiceNumber) {
+      await imsExecute(
+        `UPDATE ims_sales_orders
+            SET xero_invoice_number = ?
+          WHERE id = ? AND business_id = ? AND xero_invoice_id = ?`,
+        [invoiceNumber, Number(soId), businessId, xeroId],
+      );
+    }
+
     return NextResponse.json({
       success: true,
-      invoiceNumber: invoice.InvoiceNumber ?? null,
+      invoiceNumber,
       total: invoice.Total ?? null,
       subTotal: invoice.SubTotal ?? null,
       taxTotal: invoice.TotalTax ?? null,
