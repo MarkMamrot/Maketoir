@@ -1312,6 +1312,23 @@ async function verifyOrderPaymentSchema(schema) {
   }
 }
 
+async function verifySalesDocumentSchema(schema) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_TYPE, IS_NULLABLE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ?
+        AND TABLE_NAME = 'ims_sales_orders'
+        AND COLUMN_NAME = 'xero_invoice_number'`,
+    [schema],
+  );
+  const column = rows[0];
+  if (!column) throw new Error(`${schema}.ims_sales_orders is missing xero_invoice_number`);
+  if (String(column.COLUMN_TYPE).toLowerCase() !== 'varchar(100)' || column.IS_NULLABLE !== 'YES') {
+    throw new Error(`${schema}.ims_sales_orders.xero_invoice_number must be nullable VARCHAR(100)`);
+  }
+  console.log(`  verified ${schema}.ims_sales_orders.xero_invoice_number`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -1336,6 +1353,7 @@ try {
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);
     await verifyOrderPaymentSchema(schema);
+    await verifySalesDocumentSchema(schema);
   }
   console.log('Done.');
 } finally {
