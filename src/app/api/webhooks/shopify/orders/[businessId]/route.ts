@@ -6,7 +6,7 @@
  * Shopify Admin → Settings → Notifications → Webhooks, so events are always
  * routed to the correct tenant — no ambiguous "first match" lookup.
  *
- * Handles: orders/create, orders/paid, orders/cancelled, fulfillments/create,
+ * Handles: orders/create, orders/paid, orders/cancelled, fulfillments/create, fulfillments/update,
  * refunds/create, shopify_payments/payouts/create, shopify_payments/payouts/update
  *
  * The webhook signing secret is stored per-business in ims_settings as
@@ -26,11 +26,12 @@ import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVarian
 import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
 import { autoPostShopifyPayout } from '@/lib/ims/shopifyPayoutAutoPost';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
+import { getOrCreateOnlineCustomerId, resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 import { calculateShopifyEligibleSpend, calculateShopifyRefundEligibleSpend } from '@/lib/loyalty/calculations';
 import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
 import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfilment';
-import { buildShopifyShipmentQuantities } from '@/lib/ims/shopifyFulfilment';
+import { buildShopifyShipmentQuantities, parseShopifyShipment } from '@/lib/ims/shopifyFulfilment';
+import { persistShopifyShipment } from '@/lib/ims/shopifyShipmentPersistence';
 
 export const runtime = 'nodejs';
 
@@ -172,7 +173,13 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
 
     const orderIdStr = String(payload.id ?? '');
 
-    const customerId = await resolveShopifyOrderCustomerId(businessId, payload);
+    const onlineCustomerId = await getOrCreateOnlineCustomerId(businessId);
+    const customerId = await resolveShopifyOrderCustomerId(
+      businessId,
+      payload,
+      onlineCustomerId,
+      { createIfMissing: true },
+    );
     const existing = await imsQuery<{ id: number; customer_id: number | null }>(
       `SELECT id, customer_id FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
       [orderIdStr, businessId],
@@ -321,8 +328,8 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     }
   }
 
-  // ── fulfillments/create ───────────────────────────────────────────────────────
-  if (topic === 'fulfillments/create' || topic === 'orders/fulfilled') {
+  // ── fulfilments ───────────────────────────────────────────────────────────────
+  if (topic === 'fulfillments/create' || topic === 'fulfillments/update' || topic === 'orders/fulfilled') {
     const orderId = String(payload.order_id ?? payload.id ?? '');
     const existing = await imsQuery<{
       id: number; status: string; shopify_order_name: string | null; location_id: number; location_name: string | null;
@@ -333,7 +340,14 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         WHERE so.shopify_order_id = ? AND so.business_id = ? LIMIT 1`,
       [orderId, businessId],
     );
-    if (existing.length && ['confirmed', 'partially_fulfilled'].includes(existing[0].status)) {
+    const shipment = topic.startsWith('fulfillments/') ? parseShopifyShipment(payload) : null;
+    if (existing.length && shipment && (
+      topic === 'fulfillments/update'
+      || !['confirmed', 'partially_fulfilled'].includes(existing[0].status)
+    )) {
+      await persistShopifyShipment({ businessId, soId: existing[0].id, shipment });
+    }
+    if (topic !== 'fulfillments/update' && existing.length && ['confirmed', 'partially_fulfilled'].includes(existing[0].status)) {
       const order = existing[0];
       const orderItems = await imsQuery<{
         id: number; shopify_line_item_id: string | number | null; variant_id: string;
@@ -365,6 +379,7 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           shipmentQuantities,
           finalizeWhenComplete: true,
         });
+        if (shipment) await persistShopifyShipment({ businessId, soId: order.id, shipment });
       } catch (e: any) {
         const msg = e?.message ?? String(e);
         console.error('[shopify-webhook] fulfillments/create error:', msg);

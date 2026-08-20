@@ -13,6 +13,7 @@ import { OrderLifecycleConflict } from '@/lib/ims/orderLifecyclePolicy';
 import { OrderAmendmentConflict } from '@/lib/ims/orderAmendmentPlan';
 import { getOrderActivityHistory } from '@/lib/ims/orderAmendmentHistory';
 import { listStockAllocations } from '@/lib/ims/stockAllocation/service';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -22,6 +23,40 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   try {
     const data = await ImsSORepo.get(Number(params.id), businessId);
     if (!data) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+    const shipments = await imsQuery<any>(
+      `SELECT id, shopify_fulfilment_id, status, fulfilled_at, shopify_updated_at
+         FROM ims_so_shipments
+        WHERE business_id = ? AND so_id = ?
+        ORDER BY COALESCE(fulfilled_at, created_at), id`,
+      [businessId, Number(params.id)],
+    );
+    if (shipments.length > 0) {
+      const placeholders = shipments.map(() => '?').join(',');
+      const shipmentIds = shipments.map(shipment => Number(shipment.id));
+      const [shipmentItems, tracking] = await Promise.all([
+        imsQuery<any>(
+          `SELECT si.shipment_id, si.shopify_line_item_id, si.quantity,
+                  soi.product_name, soi.variant_name, soi.sku
+             FROM ims_so_shipment_items si
+             LEFT JOIN ims_sales_order_items soi
+               ON soi.so_id = ? AND soi.shopify_line_item_id = si.shopify_line_item_id
+            WHERE si.business_id = ? AND si.shipment_id IN (${placeholders})
+            ORDER BY si.id`,
+          [Number(params.id), businessId, ...shipmentIds],
+        ),
+        imsQuery<any>(
+          `SELECT shipment_id, company, tracking_number, tracking_url
+             FROM ims_so_shipment_tracking
+            WHERE business_id = ? AND shipment_id IN (${placeholders})
+            ORDER BY id`,
+          [businessId, ...shipmentIds],
+        ),
+      ]);
+      for (const shipment of shipments) {
+        shipment.items = shipmentItems.filter(item => Number(item.shipment_id) === Number(shipment.id));
+        shipment.tracking = tracking.filter(item => Number(item.shipment_id) === Number(shipment.id));
+      }
+    }
     let activity_history: Awaited<ReturnType<typeof getOrderActivityHistory>> = [];
     try {
       activity_history = await getOrderActivityHistory(businessId, 'sales_order', Number(params.id));
@@ -43,7 +78,16 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         reference: { type: 'sales_order', id: params.id },
       }).catch(() => {});
     }
-    return NextResponse.json({ success: true, data: { ...data, resolution_financials, stock_allocations, activity_history, amendment_history: activity_history } });
+    return NextResponse.json({ success: true, data: {
+      ...data,
+      saleType: data.so_type === 'online' ? 'online' : data.so_type,
+      sourceSystem: data.shopify_order_id ? 'shopify' : null,
+      shipments,
+      resolution_financials,
+      stock_allocations,
+      activity_history,
+      amendment_history: activity_history,
+    } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -20,7 +20,7 @@ import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
-import { resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
+import { getOrCreateOnlineCustomerId, resolveShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 
 function getShopifyGiftCardAmount(lineItems: any[]): number {
   if (!Array.isArray(lineItems)) return 0;
@@ -41,45 +41,6 @@ async function getSetting(businessId: string, key: string): Promise<string | nul
     [businessId, key],
   );
   return rows[0]?.value ?? null;
-}
-
-/**
- * Resolves the default "Online Customer" contact that all online orders are
- * attributed to. Reuses the configured/cached contact, falls back to an
- * existing contact named "Online Customer", and creates one if neither exists.
- * The resolved id is cached in the `online_sales_customer_id` setting.
- */
-async function getOrCreateOnlineCustomerId(businessId: string): Promise<number | null> {
-  // 1. Reuse the configured/cached contact if it still exists.
-  const configured = await getSetting(businessId, 'online_sales_customer_id');
-  if (configured) {
-    const rows = await imsQuery<{ id: number }>(
-      'SELECT id FROM ims_contacts WHERE id = ? AND business_id = ? LIMIT 1',
-      [Number(configured), businessId],
-    );
-    if (rows[0]) return rows[0].id;
-  }
-  // 2. Reuse an existing "Online Customer" contact, or create one.
-  const found = await imsQuery<{ id: number }>(
-    "SELECT id FROM ims_contacts WHERE business_id = ? AND name = 'Online Customer' ORDER BY id LIMIT 1",
-    [businessId],
-  );
-  let id: number;
-  if (found[0]) {
-    id = found[0].id;
-  } else {
-    const res = await imsExecute(
-      "INSERT INTO ims_contacts (business_id, type, name, is_active) VALUES (?, 'retail_customer', 'Online Customer', 1)",
-      [businessId],
-    );
-    id = res.insertId;
-  }
-  // 3. Cache for next time.
-  await imsExecute(
-    'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
-    [businessId, 'online_sales_customer_id', String(id)],
-  );
-  return id;
 }
 
 export async function POST(req: Request) {
@@ -223,7 +184,12 @@ export async function POST(req: Request) {
 
   for (const order of shopifyOrders) {
     const orderIdStr = String(order.id);
-    const orderCustomerId = await resolveShopifyOrderCustomerId(businessId, order, onlineCustomerId);
+    const orderCustomerId = await resolveShopifyOrderCustomerId(
+      businessId,
+      order,
+      onlineCustomerId,
+      { createIfMissing: true },
+    );
 
     // Already imported — but self-heal if it got stuck at draft (stock never committed).
     const existing = existingById.get(orderIdStr);

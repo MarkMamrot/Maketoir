@@ -10,6 +10,59 @@ export type ShopifyFulfilmentPayloadLine = {
   quantity?: number | string | null;
 };
 
+export type ShopifyShipment = {
+  shopifyFulfilmentId: string;
+  status: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  items: Array<{ shopifyLineItemId: string; quantity: number }>;
+  tracking: Array<{ company: string | null; number: string | null; url: string | null }>;
+};
+
+function optionalText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim();
+  return text ? text.slice(0, maxLength) : null;
+}
+
+export function parseShopifyShipment(payload: unknown): ShopifyShipment | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const value = payload as Record<string, unknown>;
+  const id = String(value.id ?? '').trim();
+  if (!/^\d+$/.test(id) || id === '0') return null;
+  const lines = Array.isArray(value.line_items) ? value.line_items : [];
+  const items = lines.flatMap((raw) => {
+    if (!raw || typeof raw !== 'object') return [];
+    const line = raw as Record<string, unknown>;
+    const lineId = String(line.id ?? line.line_item_id ?? '').trim();
+    const quantity = Number(line.quantity ?? 0);
+    return /^\d+$/.test(lineId) && Number.isFinite(quantity) && quantity > 0
+      ? [{ shopifyLineItemId: lineId, quantity }]
+      : [];
+  });
+  const numbers = Array.isArray(value.tracking_numbers) ? value.tracking_numbers : [value.tracking_number];
+  const urls = Array.isArray(value.tracking_urls) ? value.tracking_urls : [value.tracking_url];
+  const company = optionalText(value.tracking_company, 255);
+  const tracking = new Map<string, { company: string | null; number: string | null; url: string | null }>();
+  const count = Math.max(numbers.length, urls.length);
+  for (let index = 0; index < count; index += 1) {
+    const number = optionalText(numbers[index], 255);
+    const url = optionalText(urls[index], 2_000);
+    if (!number && !url) continue;
+    const entry = { company, number, url };
+    tracking.set(`${number ?? ''}\u0000${url ?? ''}`, entry);
+  }
+
+  return {
+    shopifyFulfilmentId: id,
+    status: optionalText(value.status, 100),
+    createdAt: optionalText(value.created_at, 50),
+    updatedAt: optionalText(value.updated_at, 50),
+    items,
+    tracking: [...tracking.values()],
+  };
+}
+
 export function buildShopifyShipmentQuantities(input: {
   topic: string;
   payloadLines: ShopifyFulfilmentPayloadLine[] | null | undefined;

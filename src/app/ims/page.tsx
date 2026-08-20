@@ -13671,8 +13671,39 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div><div style={labelStyle}>Due Date</div><div>{calcDueDate(viewModal.so.order_date, viewModal.so.payment_terms)}</div></div>
             <div><div style={labelStyle}>Price Tier</div><div>{viewModal.so.price_tier === 'wholesale' ? 'Wholesale' : 'Retail'}</div></div>
             <div><div style={labelStyle}>Amounts Entered</div><div>{viewModal.so.tax_treatment === 'inc_tax' ? 'Tax inclusive' : viewModal.so.tax_treatment === 'no_tax' ? 'No tax' : 'Tax exclusive'}</div></div>
+            {viewModal.so.saleType === 'online' && <div><div style={labelStyle}>Sale Type</div><div style={{ color: 'var(--sv-mint)', fontWeight: 700 }}>Online Sale</div></div>}
+            {viewModal.so.sourceSystem === 'shopify' && <div><div style={labelStyle}>Source</div><div>Shopify {viewModal.so.shopify_order_name || viewModal.so.shopify_order_id}</div></div>}
           </div>
           {viewModal.so.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.so.notes}</div>}
+          {Array.isArray(viewModal.so.shipments) && viewModal.so.shipments.length > 0 && (
+            <section style={{ marginBottom: 18, borderTop: '1px solid var(--sv-etch)', borderBottom: '1px solid var(--sv-etch)', padding: '12px 0' }}>
+              <div style={{ ...labelStyle, marginBottom: 10 }}>SHOPIFY SHIPMENTS</div>
+              {viewModal.so.shipments.map((shipment: any) => (
+                <div key={shipment.id} style={{ padding: '8px 0', borderTop: '1px solid color-mix(in srgb, var(--sv-etch) 65%, transparent)' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', fontSize: 13 }}>
+                    <strong>{shipment.status || 'Fulfilled'}</strong>
+                    <span style={{ color: 'var(--sv-text-dim)' }}>{shipment.fulfilled_at ? new Date(shipment.fulfilled_at).toLocaleString() : 'Date unavailable'}</span>
+                    <span style={{ color: 'var(--sv-text-dim)' }}>Shopify fulfilment #{shipment.shopify_fulfilment_id}</span>
+                  </div>
+                  {(shipment.tracking || []).map((tracking: any, index: number) => (
+                    <div key={`${tracking.tracking_number || tracking.tracking_url}-${index}`} style={{ marginTop: 6, fontSize: 13 }}>
+                      {tracking.company && <span style={{ marginRight: 8 }}>{tracking.company}</span>}
+                      {tracking.tracking_url ? (
+                        <a href={tracking.tracking_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-mint)' }}>
+                          {tracking.tracking_number || 'Open tracking'}
+                        </a>
+                      ) : <span>{tracking.tracking_number || 'Tracking pending'}</span>}
+                    </div>
+                  ))}
+                  {(shipment.items || []).length > 0 && (
+                    <div style={{ marginTop: 6, color: 'var(--sv-text-dim)', fontSize: 12 }}>
+                      {shipment.items.map((item: any) => `${item.product_name || item.sku || `Shopify line ${item.shopify_line_item_id}`} × ${fmtQty(item.quantity)}`).join(' · ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
             <thead>
               <tr style={{ background: 'var(--sv-bg-1)' }}>

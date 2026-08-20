@@ -834,6 +834,42 @@ CREATE TABLE IF NOT EXISTS ims_so_fulfilment_operations (
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_so_shipments (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) NOT NULL,
+  so_id                    INT NOT NULL,
+  shopify_fulfilment_id    VARCHAR(100) NOT NULL,
+  status                   VARCHAR(100) NULL,
+  fulfilled_at             DATETIME NULL,
+  shopify_updated_at       DATETIME NULL,
+  created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_so_shipment_shopify (business_id, shopify_fulfilment_id),
+  INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
+  FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_so_shipment_items (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) NOT NULL,
+  shipment_id              BIGINT NOT NULL,
+  shopify_line_item_id     VARCHAR(100) NOT NULL,
+  quantity                 DECIMAL(12,4) NOT NULL,
+  INDEX idx_so_shipment_item (business_id, shipment_id, id),
+  FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(100) NOT NULL,
+  shipment_id              BIGINT NOT NULL,
+  company                  VARCHAR(255) NULL,
+  tracking_number          VARCHAR(255) NULL,
+  tracking_url             VARCHAR(2000) NULL,
+  INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
+  FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id    VARCHAR(100) NOT NULL,

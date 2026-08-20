@@ -48,6 +48,16 @@ describe('GET /api/onboarding', () => {
     expect(mocks.reportIssue).not.toHaveBeenCalled();
   });
 
+  it('does not complete confirmation steps from fresh-tenant defaults', async () => {
+    const response = await GET();
+    const body = await response.json();
+    const steps = new Map(body.steps.map((step: { id: string; completed: boolean }) => [step.id, step.completed]));
+
+    expect(steps.get('operations_tax')).toBe(false);
+    expect(steps.get('online_shop')).toBe(false);
+    expect(steps.get('accounting')).toBe(false);
+  });
+
   it('reports database failures instead of presenting them as zero data', async () => {
     const databaseError = new Error('Table does not exist');
     mocks.imsQuery.mockRejectedValue(databaseError);

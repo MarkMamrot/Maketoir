@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildShopifyShipmentQuantities } from '../shopifyFulfilment';
+import { buildShopifyShipmentQuantities, parseShopifyShipment } from '../shopifyFulfilment';
 
 const orderItems = [
   { id: 10, shopify_line_item_id: '501', qty_ordered: 3, qty_fulfilled: 1 },
@@ -38,5 +38,36 @@ describe('buildShopifyShipmentQuantities', () => {
       payloadLines: [{ id: 999, quantity: 1 }],
       orderItems,
     })).toThrow('is not mapped to this sales order');
+  });
+});
+
+describe('parseShopifyShipment', () => {
+  it('retains multiple tracking entries and shipment line quantities', () => {
+    expect(parseShopifyShipment({
+      id: 700,
+      status: 'success',
+      created_at: '2026-07-01T01:00:00Z',
+      line_items: [{ id: 501, quantity: 2 }],
+      tracking_company: 'Australia Post',
+      tracking_numbers: ['ABC', 'DEF'],
+      tracking_urls: ['https://track.example/ABC', 'https://track.example/DEF'],
+    })).toMatchObject({
+      shopifyFulfilmentId: '700',
+      status: 'success',
+      items: [{ shopifyLineItemId: '501', quantity: 2 }],
+      tracking: [
+        { company: 'Australia Post', number: 'ABC', url: 'https://track.example/ABC' },
+        { company: 'Australia Post', number: 'DEF', url: 'https://track.example/DEF' },
+      ],
+    });
+  });
+
+  it('deduplicates repeated tracking entries and rejects a missing fulfilment id', () => {
+    expect(parseShopifyShipment({
+      id: 700,
+      tracking_numbers: ['ABC', 'ABC'],
+      tracking_urls: ['https://track.example/ABC', 'https://track.example/ABC'],
+    })?.tracking).toHaveLength(1);
+    expect(parseShopifyShipment({ line_items: [] })).toBeNull();
   });
 });

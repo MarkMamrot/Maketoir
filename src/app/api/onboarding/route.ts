@@ -86,11 +86,6 @@ export async function GET() {
 
     const autoDone: Record<string, boolean> = {
     business_profile: Boolean(settings.business_name?.trim() && settings.business_abn?.trim()),
-    operations_tax: Boolean(
-      settings.use_multiple_locations && settings.use_zones_bins && settings.use_categories &&
-      settings.use_foreign_currencies && settings.connect_online_shop && settings.connect_accounting_software &&
-      settings.sales_tax_on_sales && settings.sales_tax_rate && settings.purchase_tax_rate
-    ),
     users: userCount > 1,
     locations: locationCount > 0,
     products: productCount > 0,
@@ -101,9 +96,9 @@ export async function GET() {
 
     const steps = [
     { id: 'business_profile', title: 'Confirm business profile', autoCompleted: autoDone.business_profile },
-    { id: 'operations_tax', title: 'Confirm operations and tax settings', autoCompleted: autoDone.operations_tax },
-    { id: 'online_shop', title: 'Connect online shop', autoCompleted: settings.connect_online_shop === 'no' || Boolean(settings.shopify_order_sync_enabled === '1' || completed.has('online_shop')) },
-    { id: 'accounting', title: 'Connect accounting software', autoCompleted: settings.connect_accounting_software === 'no' || completed.has('accounting') },
+    { id: 'operations_tax', title: 'Confirm operations and tax settings', autoCompleted: false },
+    { id: 'online_shop', title: 'Connect online shop', autoCompleted: false },
+    { id: 'accounting', title: 'Connect accounting software', autoCompleted: false },
     { id: 'users', title: 'Add additional users', autoCompleted: autoDone.users },
     { id: 'locations', title: 'Add locations', autoCompleted: autoDone.locations },
     { id: 'products', title: 'Import products', autoCompleted: autoDone.products },

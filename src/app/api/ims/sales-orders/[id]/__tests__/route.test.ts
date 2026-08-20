@@ -14,6 +14,7 @@ const {
   mockReportRuntimeIssue,
   mockGetOrderActivityHistory,
   mockGetOrderResolutionFinancialSummaries,
+  mockImsQuery,
 } = vi.hoisted(() => ({
   mockSession: vi.fn(),
   mockGet: vi.fn(),
@@ -28,6 +29,7 @@ const {
   mockReportRuntimeIssue: vi.fn(),
   mockGetOrderActivityHistory: vi.fn(),
   mockGetOrderResolutionFinancialSummaries: vi.fn(),
+  mockImsQuery: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockSession }));
@@ -45,6 +47,7 @@ vi.mock('@/lib/xero/reconciliation/repository', () => ({ recordXeroReconciliatio
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/lib/ims/orderAmendmentHistory', () => ({ getOrderActivityHistory: mockGetOrderActivityHistory }));
 vi.mock('@/lib/ims/orderResolution/financialSummary', () => ({ getOrderResolutionFinancialSummaries: mockGetOrderResolutionFinancialSummaries }));
+vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 
 import { DELETE, GET, PUT } from '../route';
 
@@ -69,6 +72,7 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     mockRecordXeroReconciliationIssue.mockResolvedValue(9);
     mockGetOrderActivityHistory.mockResolvedValue([]);
     mockGetOrderResolutionFinancialSummaries.mockResolvedValue([]);
+    mockImsQuery.mockResolvedValue([]);
   });
 
   it('includes completed amendment history in SO detail', async () => {
