@@ -6019,6 +6019,45 @@ function EodAccountingSection({
 
 // ─── Receive Transfers Screen ─────────────────────────────────────────────────
 
+function PosTransferDetails({ bt, onBack }: { bt: any; onBack: () => void }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--sv-bg-0)', padding: '1.5rem', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+          <button onClick={onBack} style={smallBtn}>← Back</button>
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>{bt.transfer_number}</h1>
+          <span style={{ fontSize: '.75rem', fontWeight: 700, padding: '3px 9px', borderRadius: 99, background: bt.status === 'received' ? 'rgba(16,185,129,.15)' : 'rgba(245,158,11,.15)', color: bt.status === 'received' ? 'var(--sv-mint)' : '#f59e0b', textTransform: 'uppercase' }}>{bt.status}</span>
+        </div>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1rem', fontSize: '.88rem', lineHeight: 1.8 }}>
+          <div><strong>From:</strong> {bt.from_location_name} · <strong>To:</strong> {bt.to_location_name}</div>
+          <div><strong>Sent:</strong> {bt.transfer_date?.slice(0, 10)}{bt.received_date ? <> · <strong>Received:</strong> {bt.received_date.slice(0, 10)}</> : null}</div>
+          {bt.notes && <div><strong>Notes:</strong> {bt.notes}</div>}
+        </div>
+        <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
+            <thead><tr style={{ background: 'var(--sv-bg-2)' }}>
+              <th style={{ padding: '.7rem .8rem', textAlign: 'left' }}>Product</th>
+              <th style={{ padding: '.7rem .8rem', textAlign: 'left' }}>SKU</th>
+              <th style={{ padding: '.7rem .8rem', textAlign: 'right' }}>Sent</th>
+              <th style={{ padding: '.7rem .8rem', textAlign: 'right' }}>Received</th>
+            </tr></thead>
+            <tbody>
+              {(bt.items ?? []).map((item: any) => (
+                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                  <td style={{ padding: '.7rem .8rem' }}>{item.product_name}{item.variant_label ? ` · ${item.variant_label}` : ''}</td>
+                  <td style={{ padding: '.7rem .8rem', color: 'var(--sv-text-dim)' }}>{item.sku || '—'}</td>
+                  <td style={{ padding: '.7rem .8rem', textAlign: 'right' }}>{Number(item.qty_sent ?? 0)}</td>
+                  <td style={{ padding: '.7rem .8rem', textAlign: 'right', fontWeight: 700 }}>{Number(item.qty_received ?? 0)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const [transfers, setTransfers] = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -6027,12 +6066,8 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch both 'sent' (not started) and 'partial' (in progress) transfers
-      const [r1, r2] = await Promise.all([
-        fetch(`/api/ims/branch-transfers?status=sent`).then(r => r.json()),
-        fetch(`/api/ims/branch-transfers?status=partial`).then(r => r.json()),
-      ]);
-      const all: any[] = [...(r1.data ?? []), ...(r2.data ?? [])];
+      const response = await fetch('/api/ims/branch-transfers?status=sent,partial,received').then(r => r.json());
+      const all: any[] = response.data ?? [];
       setTransfers(all.filter((bt: any) => Number(bt.to_location_id) === session.location_id));
     } catch {}
     setLoading(false);
@@ -6046,11 +6081,13 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
   };
 
   if (activeBt) return (
-    <ReceiveBtInline
-      bt={activeBt}
-      onBack={() => setActiveBt(null)}
-      onDone={() => { setActiveBt(null); load(); }}
-    />
+    activeBt.status === 'received'
+      ? <PosTransferDetails bt={activeBt} onBack={() => setActiveBt(null)} />
+      : <ReceiveBtInline
+          bt={activeBt}
+          onBack={() => setActiveBt(null)}
+          onDone={() => { setActiveBt(null); load(); }}
+        />
   );
 
   return (
@@ -6058,7 +6095,7 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
           <button onClick={onBack} style={smallBtn}>← Back to POS</button>
-          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>📦 Receive Branch Transfers — {session.location_name}</h1>
+          <h1 style={{ margin: 0, color: 'var(--sv-text-strong)', flex: 1, fontSize: '1.3rem' }}>📦 Branch Transfers — {session.location_name}</h1>
           <button onClick={load} style={smallBtn}>↻ Refresh</button>
         </div>
 
@@ -6066,7 +6103,7 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
           <p style={{ color: 'var(--sv-text-dim)' }}>Loading…</p>
         ) : transfers.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-1)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
-            No transfers currently awaiting receipt at {session.location_name}.
+            No open or completed incoming transfers at {session.location_name}.
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
@@ -6078,14 +6115,20 @@ function ReceiveTransfersScreen({ session, onBack }: { session: PosSession; onBa
                     {bt.status === 'partial' && (
                       <span style={{ fontSize: '.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(245,158,11,.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,.3)' }}>IN PROGRESS</span>
                     )}
+                    {bt.status === 'sent' && (
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(59,130,246,.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,.3)' }}>OPEN</span>
+                    )}
+                    {bt.status === 'received' && (
+                      <span style={{ fontSize: '.72rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(16,185,129,.15)', color: 'var(--sv-mint)', border: '1px solid rgba(16,185,129,.3)' }}>COMPLETED</span>
+                    )}
                   </div>
                   <div style={{ fontSize: '.85rem', color: 'var(--sv-text-dim)' }}>From: <strong style={{ color: 'var(--sv-text-main)' }}>{bt.from_location_name}</strong> · Date: {bt.transfer_date?.slice(0,10)} · Value: ${Number(bt.total_value).toFixed(2)}</div>
                 </div>
                 <button
                   onClick={() => openReceive(bt)}
-                  style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: bt.status === 'partial' ? '#f59e0b' : 'var(--sv-mint,#0c9)', color: '#fff', fontWeight: 700, fontSize: '.9rem', whiteSpace: 'nowrap' }}
+                  style={{ padding: '.55rem 1.2rem', borderRadius: 8, border: 'none', cursor: 'pointer', background: bt.status === 'partial' ? '#f59e0b' : bt.status === 'received' ? 'var(--sv-bg-1)' : 'var(--sv-mint,#0c9)', color: bt.status === 'received' ? 'var(--sv-text-main)' : '#fff', fontWeight: 700, fontSize: '.9rem', whiteSpace: 'nowrap' }}
                 >
-                  {bt.status === 'partial' ? 'Continue Receiving' : 'Receive'}
+                  {bt.status === 'partial' ? 'Continue Receiving' : bt.status === 'received' ? 'View Details' : 'Receive'}
                 </button>
               </div>
             ))}
@@ -7200,13 +7243,30 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
   const [saving, setSaving]           = useState(false);
   const [result, setResult]           = useState<{ success: boolean; message: string } | null>(null);
   const [managerPinOpen, setManagerPinOpen] = useState(false);
+  const [transferHistory, setTransferHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyBt, setHistoryBt] = useState<any | null>(null);
   const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadTransferHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await fetch('/api/ims/branch-transfers?status=sent,partial,received').then(r => r.json());
+      setTransferHistory((response.data ?? []).filter((bt: any) => Number(bt.from_location_id) === session.location_id));
+    } catch {
+      setTransferHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [session.location_id]);
 
   useEffect(() => {
     fetch('/api/ims/locations').then(r => r.json()).then(d => {
       if (d.success) setLocations((d.data ?? []).filter((l: any) => l.id !== session.location_id));
     }).catch(() => {});
   }, [session.location_id]);
+
+  useEffect(() => { void loadTransferHistory(); }, [loadTransferHistory]);
 
   function doSearch(q: string) {
     setSearch(q);
@@ -7283,6 +7343,7 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
         setResult({ success: true, message: `Transfer sent successfully (${items.length} item${items.length !== 1 ? 's' : ''}). The destination can receive it now.` });
         setItems([]); setNotes(''); setToLocationId('');
         setManagerPinOpen(false);
+        void loadTransferHistory();
       } else {
         throw new Error(d.error ?? 'Failed to send transfer.');
       }
@@ -7297,6 +7358,13 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
   const card: React.CSSProperties = { background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 10, padding: 16, marginBottom: 12 };
   const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 14, boxSizing: 'border-box' as const };
   const totalItems = items.reduce((s, i) => s + i.qty, 0);
+
+  async function openHistory(bt: any) {
+    const response = await fetch(`/api/ims/branch-transfers/${bt.id}`).then(r => r.json());
+    if (response.success && response.data) setHistoryBt(response.data);
+  }
+
+  if (historyBt) return <PosTransferDetails bt={historyBt} onBack={() => setHistoryBt(null)} />;
 
   return (
     <div style={{ minHeight: '100vh', background: bg, display: 'flex', flexDirection: 'column', fontFamily: 'system-ui,sans-serif', color: 'var(--sv-text-main)' }}>
@@ -7411,6 +7479,33 @@ function PosBranchTransferScreen({ session, btAccess, onBack }: { session: PosSe
         </button>
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--sv-text-dim)', textAlign: 'center' }}>
           Commits the stock at {session.location_name} and makes the transfer available for the destination to receive.
+        </div>
+
+        <div style={{ ...card, marginTop: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div style={{ flex: 1, fontSize: 14, fontWeight: 700 }}>Transfers from {session.location_name}</div>
+            <button onClick={() => void loadTransferHistory()} style={smallBtn}>Refresh</button>
+          </div>
+          {historyLoading ? (
+            <div style={{ padding: '1rem 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading transfers…</div>
+          ) : transferHistory.length === 0 ? (
+            <div style={{ padding: '1rem 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>No open or completed outgoing transfers.</div>
+          ) : (
+            <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+              {transferHistory.map((bt: any) => (
+                <div key={bt.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderTop: '1px solid var(--sv-etch)' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700 }}>
+                      {bt.transfer_number}
+                      <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 99, background: bt.status === 'received' ? 'rgba(16,185,129,.15)' : 'rgba(245,158,11,.15)', color: bt.status === 'received' ? 'var(--sv-mint)' : '#f59e0b', textTransform: 'uppercase' }}>{bt.status === 'received' ? 'Completed' : bt.status}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2 }}>To {bt.to_location_name} · {bt.transfer_date?.slice(0, 10)}</div>
+                  </div>
+                  <button onClick={() => void openHistory(bt)} style={smallBtn}>View Details</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       {managerPinOpen && (

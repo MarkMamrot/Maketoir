@@ -205,13 +205,39 @@ function effectiveRRP(v: any, today: string): number {
   return Number(v.price_rrp ?? 0);
 }
 
-// Searchable variant picker for PO/SO line items
-function VariantSearch({ value, variants, onChange, style, testId }: {
+function useLocationSoh(locationId: string | number | null | undefined) {
+  const [sohByVariant, setSohByVariant] = React.useState<Record<string, number> | null>(null);
+
+  React.useEffect(() => {
+    if (!locationId) {
+      setSohByVariant(null);
+      return;
+    }
+    const controller = new AbortController();
+    setSohByVariant(null);
+    fetch(`/api/ims/stock?location_id=${encodeURIComponent(String(locationId))}`, { signal: controller.signal })
+      .then(response => response.json())
+      .then(result => {
+        if (!result.success || !Array.isArray(result.data)) return;
+        setSohByVariant(Object.fromEntries(result.data.map((row: any) => [String(row.variant_id), Number(row.qty_on_hand ?? 0)])));
+      })
+      .catch(error => {
+        if (error?.name !== 'AbortError') setSohByVariant(null);
+      });
+    return () => controller.abort();
+  }, [locationId]);
+
+  return sohByVariant;
+}
+
+// Searchable variant picker for document line items
+function VariantSearch({ value, variants, onChange, style, testId, sohByVariant }: {
   value: string;
   variants: any[];
   onChange: (variant_id: string) => void;
   style?: React.CSSProperties;
   testId?: string;
+  sohByVariant?: Record<string, number> | null;
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
@@ -294,11 +320,16 @@ function VariantSearch({ value, variants, onChange, style, testId }: {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--sv-bg-1)')}
               onMouseLeave={e => (e.currentTarget.style.background = v.variant_id === value ? 'var(--sv-action-dim, rgba(99,102,241,0.1))' : '')}
             >
-              <span style={{ fontWeight: 600 }}>{v.product_name}</span>
-              {v.sku && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{v.sku}</span>}
-              {[v.option1_value, v.option2_value].filter(Boolean).length > 0 && (
-                <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{[v.option1_value, v.option2_value].filter(Boolean).join(' / ')}</span>
-              )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontWeight: 600 }}>{v.product_name}</span>
+                {v.sku && <span style={{ color: 'var(--sv-text-dim)' }}>{v.sku}</span>}
+                {[v.option1_value, v.option2_value].filter(Boolean).length > 0 && (
+                  <span style={{ color: 'var(--sv-text-dim)' }}>{[v.option1_value, v.option2_value].filter(Boolean).join(' / ')}</span>
+                )}
+                {sohByVariant && (
+                  <span style={{ color: 'var(--sv-text-dim)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>SOH: {sohByVariant[String(v.variant_id)] ?? 0}</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -8756,6 +8787,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [productTypes, setProductTypes] = useState<string[]>([]);
   const [poBrands, setPoBrands] = useState<Array<{ id: number; name: string }>>([]);
   const [form, setForm] = useState<any>({ supplier_id: '', location_id: '', order_date: today(), expected_date: '', notes: '', supplier_invoice_number: '', supplier_invoice_date: '', payment_terms: '', freight: '', discount: '', tax_treatment: 'ex_tax', currency_code: 'AUD', exchange_rate: '1', _rateHint: '' });
+  const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [poBulkDiscountPct, setPoBulkDiscountPct] = useState('');
   const [landedCosts, setLandedCosts] = useState<{ label: string; reference: string; amount: string }[]>([]);
@@ -9604,6 +9636,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             value={item.variant_id}
                             variants={variants}
                             onChange={vid => selectPOVariant(i, vid)}
+                            sohByVariant={locationSoh}
                             testId={`po-line-${i}-variant`}
                           />
                         </td>
@@ -11010,6 +11043,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
   const [form, setForm] = useState<any>({ customer_id: '', so_id: '', original_so_number: '', location_id: '', cn_date: today(), reference: '', tax_treatment: 'ex_tax', tax_code: '', notes: '', price_basis: 'custom' });
+  const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
@@ -11610,6 +11644,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                           value={item.variant_id}
                           variants={variants}
                           onChange={vid => selectCNVariant(i, vid)}
+                          sohByVariant={locationSoh}
                         />
                       </td>
                       <td style={{ padding: '6px 8px' }}>
@@ -11875,6 +11910,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
   const [form, setForm] = useState<any>({ supplier_id: '', po_id: '', location_id: '', scn_date: today(), reference: '', supplier_credit_ref: '', currency_code: 'AUD', exchange_rate: 1, tax_treatment: 'ex_tax', notes: '' });
+  const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [scnActionSelections, setScnActionSelections] = useState<Record<string, string>>({});
@@ -12309,7 +12345,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                       <td style={{ padding: '4px 8px', minWidth: 240 }}>
                         {item.source_po_item_id != null
                           ? <div><div style={{ fontWeight: 600 }}>{item.name || item.code || item.variant_id}</div>{item.code && <div style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>{item.code}</div>}</div>
-                          : <VariantSearch value={item.variant_id} variants={variants} onChange={vid => selectVariant(i, vid)} />}
+                          : <VariantSearch value={item.variant_id} variants={variants} onChange={vid => selectVariant(i, vid)} sohByVariant={locationSoh} />}
                       </td>
                       <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{item.qty_received ?? '—'}</td>
                       <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{item.already_returned_qty ?? '—'}</td>
@@ -12986,6 +13022,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
   const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '', delivery_address: '', delivery_address2: '', delivery_suburb: '', delivery_city: '', delivery_state: '', delivery_postcode: '', delivery_country: '' });
+  const locationSoh = useLocationSoh(form.location_id);
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [soBulkDiscountPct, setSoBulkDiscountPct] = useState('');
   const [saving, setSaving] = useState(false);
@@ -13515,7 +13552,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     cancelled: 'Cancelled',
   };
   const getSoActionOptions = (so: any) => {
-    const actions: Array<{ label: string; value: string }> = [];
+    const actions: Array<{ label: string; value: string }> = [{ label: 'Open', value: 'open' }];
     if (!isAdvisor && so.status === 'draft') {
       actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
     }
@@ -13537,7 +13574,6 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     if (!isAdvisor && ['fulfilled', 'cancelled'].includes(so.status)) {
       actions.push({ label: 'Create Replacement Draft', value: 'replacement' });
     }
-    if (actions.length === 0) actions.push({ label: 'Open', value: 'open' });
     return actions;
   };
   const executeSoRowAction = (so: any, action: string) => {
@@ -13937,6 +13973,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                             value={item.variant_id}
                             variants={variants}
                             onChange={vid => selectSOVariant(i, vid)}
+                            sohByVariant={locationSoh}
                             style={shippedEditLocked ? { pointerEvents: 'none', opacity: 0.7 } : undefined}
                             testId={`so-line-${i}-variant`}
                           />
