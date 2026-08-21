@@ -15,6 +15,8 @@ import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { createNotification } from '@/lib/ims/createNotification';
 import { Resend } from 'resend';
 import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
+import { sendWholesaleOrderSubmittedReceipt } from '@/lib/wholesale/wholesaleOrderNotifications';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 type Ctx = { params: { id: string } };
 
@@ -59,6 +61,7 @@ export async function POST(_req: Request, { params }: Ctx) {
         line_total: Number(validatedItems[index].qty) * Number(validatedItems[index].unit_price),
       });
     }
+    const validatedTotal = items.reduce((sum: number, item: any) => sum + Number(item.line_total), 0);
 
     // Recompute indent quantities from live availability; client flags are advisory only.
     const variantIds = items.map((item: any) => item.variant_id);
@@ -184,9 +187,9 @@ export async function POST(_req: Request, { params }: Ctx) {
         delivery_country: account.shipping_country ?? undefined,
         payment_terms: account.payment_terms ?? undefined,
         notes:        soNotes,
-        subtotal:     Number(order.subtotal),
+        subtotal:     validatedTotal,
         tax_amount:   0,
-        total_amount: Number(order.total_amount),
+        total_amount: validatedTotal,
       },
       soItems,
       session.businessId,
@@ -288,6 +291,29 @@ export async function POST(_req: Request, { params }: Ctx) {
         `,
       }).catch(err => console.error('[wholesale/submit] email send failed:', err));
     }
+
+    await sendWholesaleOrderSubmittedReceipt({
+      businessId: session.businessId,
+      salesOrderId: soId,
+      salesOrderNumber: soNumber,
+      supplierName: settings.business_name || 'Your supplier',
+      supplierSlug: session.supplierSlug || '',
+      buyerEmail: session.email,
+      buyerName: session.name,
+      companyName: session.company,
+      total: validatedTotal,
+      items,
+    }).catch(async error => {
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'wholesale_portal',
+        operation: 'send_order_submitted_receipt',
+        title: 'Wholesale buyer order receipt could not be sent',
+        error,
+        context: { wholesaleDraftId: id },
+        reference: { type: 'sales_order', id: soId },
+      }).catch(() => {});
+    });
 
     return NextResponse.json({ success: true, so_id: soId, so_number: soNumber });
   } catch (e: any) {

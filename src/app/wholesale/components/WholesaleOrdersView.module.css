@@ -192,6 +192,20 @@
   gap: 6px;
 }
 
+.inlineConfirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.inlineConfirm > span {
+  color: #74520c;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .actions button,
 .iconAction {
   display: inline-flex;
@@ -218,6 +232,17 @@
   border: 1px solid #cfd8d1;
   background: #fff;
   color: #244333;
+}
+
+.inlineConfirm .cancelAction,
+.dangerAction {
+  padding: 0 10px;
+}
+
+.dangerAction {
+  border: 1px solid #9a4b40;
+  background: #9a4b40;
+  color: #fff;
 }
 
 .iconAction {
@@ -415,6 +440,7 @@
   .orderValue { grid-column: 2; grid-row: 1; text-align: right; }
   .progress { grid-column: 1 / -1; min-width: 0; }
   .actions { grid-column: 2; grid-row: 2; }
+  .inlineConfirm { align-items: flex-end; flex-direction: column; }
 
   .detailPanel { width: 100%; }
   .detailHeader { padding: 20px 18px 17px; }

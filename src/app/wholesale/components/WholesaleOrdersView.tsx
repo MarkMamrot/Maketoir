@@ -68,11 +68,15 @@ function orderMatchesFilter(order: PortalOrder, filter: OrderFilter) {
 }
 
 export function WholesaleOrdersView({
+  activeDraftId,
   cartItemCount,
+  onContinueDraft,
   onLoadDraft,
   onReorder,
 }: {
+  activeDraftId: number | null;
   cartItemCount: number;
+  onContinueDraft: () => void;
   onLoadDraft: (id: number) => void;
   onReorder: (items: WholesaleOrderLine[]) => void;
 }) {
@@ -81,6 +85,8 @@ export function WholesaleOrdersView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<number | null>(null);
+  const [pendingLoadDraft, setPendingLoadDraft] = useState<number | null>(null);
   const [selected, setSelected] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [confirmReplaceCart, setConfirmReplaceCart] = useState(false);
@@ -120,12 +126,12 @@ export function WholesaleOrdersView({
   };
 
   const deleteDraft = async (id: number) => {
-    if (!confirm('Delete this draft order?')) return;
     setDeleting(id);
     try {
       const response = await fetch(`/api/wholesale/orders/${id}`, { method: 'DELETE' });
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Draft could not be deleted.');
+      setPendingDelete(null);
       await load();
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'Draft could not be deleted.');
@@ -141,6 +147,19 @@ export function WholesaleOrdersView({
     completed: orders.filter(order => orderMatchesFilter(order, 'completed')).length,
   };
   const visibleOrders = orders.filter(order => orderMatchesFilter(order, filter));
+
+  const editDraft = (id: number) => {
+    if (activeDraftId === id) {
+      onContinueDraft();
+      return;
+    }
+    if (cartItemCount > 0 && pendingLoadDraft !== id) {
+      setPendingLoadDraft(id);
+      setPendingDelete(null);
+      return;
+    }
+    onLoadDraft(id);
+  };
 
   const reorderSelected = () => {
     if (!selected) return;
@@ -218,8 +237,24 @@ export function WholesaleOrdersView({
                 <div className={styles.actions}>
                   {order.kind === 'draft' ? (
                     <>
-                      <button className={styles.primaryAction} onClick={() => onLoadDraft(order.id)}><FilePenLine size={15} /> Edit</button>
-                      <button className={styles.iconAction} onClick={() => void deleteDraft(order.id)} disabled={deleting === order.id} aria-label={`Delete ${order.reference}`} title="Delete draft"><Trash2 size={16} /></button>
+                      {pendingLoadDraft === order.id ? (
+                        <div className={styles.inlineConfirm} role="alert">
+                          <span>Replace current cart?</span>
+                          <button className={styles.cancelAction} onClick={() => setPendingLoadDraft(null)}>Keep cart</button>
+                          <button className={styles.primaryAction} onClick={() => editDraft(order.id)}>Replace</button>
+                        </div>
+                      ) : pendingDelete === order.id ? (
+                        <div className={styles.inlineConfirm} role="alert">
+                          <span>Delete this draft?</span>
+                          <button className={styles.cancelAction} onClick={() => setPendingDelete(null)}>Cancel</button>
+                          <button className={styles.dangerAction} onClick={() => void deleteDraft(order.id)} disabled={deleting === order.id}><Trash2 size={14} /> Delete</button>
+                        </div>
+                      ) : (
+                        <>
+                          <button className={styles.primaryAction} onClick={() => editDraft(order.id)}><FilePenLine size={15} /> {activeDraftId === order.id ? 'Continue' : 'Edit'}</button>
+                          <button className={styles.iconAction} onClick={() => { setPendingDelete(order.id); setPendingLoadDraft(null); }} disabled={deleting === order.id} aria-label={`Delete ${order.reference}`} title="Delete draft"><Trash2 size={16} /></button>
+                        </>
+                      )}
                     </>
                   ) : (
                     <button className={styles.detailAction} onClick={() => void openDetail(order)} disabled={detailLoading}>

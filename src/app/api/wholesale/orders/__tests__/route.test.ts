@@ -46,6 +46,7 @@ describe('wholesale draft order ownership', () => {
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_company_id = ?');
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_location_id = ?');
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_member_id = ?');
+    expect(mocks.imsQuery.mock.calls[1][0]).not.toContain('o.notes');
     expect(mocks.imsQuery.mock.calls[1][1]).toEqual(['biz-1', 42, 50, 60, 70]);
   });
 

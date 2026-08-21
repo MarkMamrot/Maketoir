@@ -6,6 +6,7 @@ import { ListPlus } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
+import { getWholesaleCartStorageKey, LEGACY_WHOLESALE_CART_KEY } from '@/lib/wholesale/wholesaleCartStorage';
 import type { WholesaleQuickOrderItem } from '@/lib/wholesale/wholesaleQuickOrder';
 import { buildWholesaleReorderCart } from '@/lib/wholesale/wholesaleReorder';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
@@ -62,14 +63,25 @@ function variantLabel(v: WholesaleVariant): string {
   return [v.option1_value, v.option2_value, v.option3_value].filter(Boolean).join(' / ') || 'Default';
 }
 
-const CART_KEY = 'wholesale_cart';
-function loadCart(): CartItem[] {
+function loadCart(storageKey: string | null): CartItem[] {
   if (typeof window === 'undefined') return [];
-  try { return JSON.parse(sessionStorage.getItem(CART_KEY) ?? '[]'); } catch { return []; }
+  sessionStorage.removeItem(LEGACY_WHOLESALE_CART_KEY);
+  if (!storageKey) return [];
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(storageKey) ?? '[]');
+    return Array.isArray(stored) ? stored : [];
+  } catch {
+    sessionStorage.removeItem(storageKey);
+    return [];
+  }
 }
-function saveCart(items: CartItem[]) {
-  if (typeof window === 'undefined') return;
-  sessionStorage.setItem(CART_KEY, JSON.stringify(items));
+function saveCart(storageKey: string | null, items: CartItem[]) {
+  if (typeof window === 'undefined' || !storageKey) return;
+  if (items.length === 0) {
+    sessionStorage.removeItem(storageKey);
+    return;
+  }
+  sessionStorage.setItem(storageKey, JSON.stringify(items));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,6 +213,14 @@ export default function WholesalePortalClient({
   initialView?: WholesalePortalView;
 }) {
   const router = useRouter();
+  const cartStorageKey = getWholesaleCartStorageKey({
+    supplierSlug: supplier.slug,
+    businessId: session.businessId,
+    contactId: session.contactId,
+    companyId: session.companyId,
+    locationId: session.locationId,
+    memberId: session.memberId,
+  });
 
   // Settings
   const [browseMode, setBrowseMode]   = useState<'category' | 'product_type'>('category');
@@ -267,7 +287,7 @@ export default function WholesalePortalClient({
   }, [allProducts]);
 
   // Cart
-  const [cartItems, setCartItems]   = useState<CartItem[]>(loadCart);
+  const [cartItems, setCartItems]   = useState<CartItem[]>(() => loadCart(cartStorageKey));
   const [cartOpen, setCartOpen]     = useState(false);
   const [quickOrderOpen, setQuickOrderOpen] = useState(false);
   const [cartNotes, setCartNotes]   = useState('');
@@ -276,7 +296,7 @@ export default function WholesalePortalClient({
   const [toastMsg, setToastMsg]     = useState('');
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(''), 3000); };
-  useEffect(() => { saveCart(cartItems); }, [cartItems]);
+  useEffect(() => { saveCart(cartStorageKey, cartItems); }, [cartItems, cartStorageKey]);
 
   const cartQtyMap = cartItems.reduce<Record<string, number>>((acc, i) => { acc[i.variant_id] = (acc[i.variant_id] ?? 0) + i.qty; return acc; }, {});
 
@@ -297,7 +317,12 @@ export default function WholesalePortalClient({
     return { ...i, qty: nextQty, indent_qty: indentQty, is_indent: indentQty > 0 };
   }));
   const handleRemove    = (vid: string) => setCartItems(p => p.filter(i => i.variant_id !== vid));
-  const clearCart = () => { setCartItems([]); setCartNotes(''); setEditingOrderId(null); sessionStorage.removeItem(CART_KEY); };
+  const clearCart = () => {
+    setCartItems([]);
+    setCartNotes('');
+    setEditingOrderId(null);
+    if (cartStorageKey) sessionStorage.removeItem(cartStorageKey);
+  };
 
   const handleSaveDraft = async () => {
     if (cartItems.length === 0) return;
@@ -347,32 +372,38 @@ export default function WholesalePortalClient({
   };
 
   const handleLoadDraft = async (id: number) => {
+    if (productsLoading) {
+      showToast('Catalogue is still loading. Please try again.');
+      return;
+    }
+    if (productsError) {
+      showToast('Catalogue is unavailable, so this draft cannot be safely loaded.');
+      return;
+    }
     try {
-      const r = await fetch(`/api/wholesale/orders/${id}`); const d = await r.json();
-      if (d.success && d.order) {
-        // Build live stock map from the currently loaded catalogue
-        const liveStockMap: Record<string, number> = {};
-        for (const p of allProducts) {
-          for (const v of (p.variants ?? [])) {
-            liveStockMap[v.variant_id] = v.available ?? 0;
-          }
-        }
-        setCartItems((d.order.items ?? []).map((item: any) => ({
-          variant_id:    item.variant_id,
-          product_id:    item.product_id,
-          product_name:  item.product_name,
-          variant_label: item.variant_label ?? '',
-          sku:           item.sku ?? null,
-          qty:           item.qty,
-          unit_price:    Number(item.unit_price),
-          available:     item.variant_id in liveStockMap ? liveStockMap[item.variant_id] : 9999,
-          allow_indent:  !!item.is_indent,
-          is_indent:     !!item.is_indent,
-          indent_qty:    Number(item.indent_qty ?? (item.is_indent ? item.qty : 0)),
-        })));
-        setCartNotes(d.order.notes ?? ''); setEditingOrderId(id); handleViewChange('catalogue'); setCartOpen(true);
-      }
-    } catch { /* */ }
+      const response = await fetch(`/api/wholesale/orders/${id}`);
+      const body = await response.json();
+      if (!response.ok || !body.success || !body.order) throw new Error(body.error || 'Draft could not be loaded.');
+      const requestedItems = (body.order.items ?? []).map((item: any) => ({
+        variant_id: item.variant_id,
+        qty_ordered: Number(item.qty),
+      }));
+      const { items, adjustedLines, unavailableLines } = buildWholesaleReorderCart(requestedItems, allProducts);
+      if (items.length === 0) throw new Error('This draft no longer contains products available to your account.');
+
+      setCartItems(items);
+      setCartNotes(body.order.notes ?? '');
+      setEditingOrderId(id);
+      handleViewChange('catalogue');
+      setCartOpen(true);
+      const changes = [
+        adjustedLines > 0 ? `${adjustedLines} adjusted for current stock` : '',
+        unavailableLines > 0 ? `${unavailableLines} unavailable` : '',
+      ].filter(Boolean);
+      showToast(`Draft loaded at current pricing${changes.length ? `; ${changes.join(', ')}` : ''}.`);
+    } catch (error) {
+      showToast(`Error: ${error instanceof Error ? error.message : 'Draft could not be loaded.'}`);
+    }
   };
 
   const handleReorder = (orderLines: WholesaleOrderLine[]) => {
@@ -415,7 +446,12 @@ export default function WholesalePortalClient({
     showToast(`${items.length} quick-order line${items.length === 1 ? '' : 's'} added at current pricing.`);
   };
 
-  const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push(`/wholesale/${supplier.slug}`); router.refresh(); };
+  const handleLogout = async () => {
+    clearCart();
+    await fetch('/api/wholesale/auth/logout', { method: 'POST' });
+    router.push(`/wholesale/${supplier.slug}`);
+    router.refresh();
+  };
 
   // Filtered products
   const filteredProducts = React.useMemo(() => {
@@ -555,7 +591,13 @@ export default function WholesalePortalClient({
         ) : view === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
         ) : view === 'orders' ? (
-          <WholesaleOrdersView cartItemCount={cartItems.length} onLoadDraft={handleLoadDraft} onReorder={handleReorder} />
+          <WholesaleOrdersView
+            activeDraftId={editingOrderId}
+            cartItemCount={cartItems.length}
+            onContinueDraft={() => setCartOpen(true)}
+            onLoadDraft={handleLoadDraft}
+            onReorder={handleReorder}
+          />
         ) : (
           <div className={catalogueStyles.layout}>
             {/* Sidebar */}

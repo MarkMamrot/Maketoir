@@ -29,7 +29,7 @@ export async function GET() {
     );
     const salesOrders = await imsQuery<any>(
       `SELECT 'sales_order' AS kind, o.id, o.so_number AS reference, o.status,
-              o.notes, o.subtotal, o.tax_amount, o.total_amount, o.currency_code,
+              o.subtotal, o.tax_amount, o.total_amount, o.currency_code,
               o.order_date, o.expected_date, o.fulfilled_date, o.created_at, o.updated_at,
               COUNT(i.id) AS item_count, COALESCE(SUM(i.qty_ordered), 0) AS total_units,
               COALESCE(SUM(i.qty_fulfilled), 0) AS fulfilled_units
