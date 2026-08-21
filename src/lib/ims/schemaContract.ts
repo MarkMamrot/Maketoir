@@ -70,6 +70,9 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_payments',
   'pos_petty_cash_transactions',
   'pos_eod_reconciliations',
+  'ims_wholesale_companies',
+  'ims_wholesale_company_locations',
+  'ims_wholesale_company_members',
   'wholesale_draft_orders',
   'wholesale_draft_order_items',
   'ims_sales_history',
@@ -109,6 +112,9 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'shopify_inventory_item_id',
   ],
   ims_stock: ['zone', 'bin'],
+  ims_wholesale_companies: ['business_id', 'primary_contact_id', 'company_name', 'status'],
+  ims_wholesale_company_locations: ['business_id', 'company_id', 'location_name', 'is_primary', 'status'],
+  ims_wholesale_company_members: ['business_id', 'company_id', 'location_id', 'contact_id', 'role', 'is_active'],
   ims_stock_allocations: ['qty_allocated', 'qty_received_assigned', 'qty_fulfilled', 'promise_status', 'state', 'revision'],
   ims_stock_allocation_operations: ['operation_key', 'request_hash', 'action', 'state'],
   wholesale_draft_order_items: ['is_indent', 'indent_qty'],
@@ -176,6 +182,13 @@ export const IMS_SCHEMA_REQUIRED_INDEXES = {
   ims_credit_notes: ['uq_business_cn'],
   ims_credit_note_items: ['idx_cn_source_so_item'],
   ims_supplier_credit_note_items: ['idx_scn_source_po_item'],
+  ims_wholesale_companies: ['uq_wholesale_company_contact', 'idx_wholesale_company_status'],
+  ims_wholesale_company_locations: ['uq_wholesale_company_location', 'idx_wholesale_location_primary'],
+  ims_wholesale_company_members: [
+    'uq_wholesale_company_member',
+    'idx_wholesale_member_contact',
+    'idx_wholesale_member_location',
+  ],
   store_credit_transactions: ['idx_sct_credit_note', 'uq_sct_idempotency'],
 } as const;
 
