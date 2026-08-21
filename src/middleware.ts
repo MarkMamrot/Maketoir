@@ -52,6 +52,19 @@ export async function middleware(req: NextRequest) {
 
   if (!WRITE_METHODS.has(req.method)) return NextResponse.next();
 
+  if (req.nextUrl.pathname.startsWith('/api/wholesale/')) {
+    const previewRaw = req.cookies.get('wholesale_preview_session')?.value;
+    if (previewRaw) {
+      const preview = await verifyAdminSessionEdge<{ businessId?: string; preview?: { actorUserId?: number } }>(previewRaw);
+      if (preview?.preview?.actorUserId && preview.businessId) {
+        return NextResponse.json(
+          { error: 'Staff preview is read-only. Exit preview to make wholesale changes.', code: 'wholesale_preview_read_only' },
+          { status: 403 },
+        );
+      }
+    }
+  }
+
   if (session.tier === 'Advisor' && (
     req.nextUrl.pathname.startsWith('/api/ims/') ||
     req.nextUrl.pathname.startsWith('/api/inventory/')

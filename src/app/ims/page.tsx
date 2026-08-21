@@ -480,7 +480,7 @@ function Row3({ children }: { children: React.ReactNode }) {
 // Sidebar
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView) => void }) {
+function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings } = useImsSettings();
@@ -488,6 +488,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
   // Default to showing (treat unset as 'yes') so existing users aren't locked out.
   const showLocations = sidebarSettings.use_multiple_locations !== 'no';
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
+  const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
 
   const toggleSection = (id: string) => setSectionOpen(prev => {
     const shouldOpen = !prev[id];
@@ -575,8 +576,8 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
           </button>
         ));
       })()}
-      {collapsed && showWholesale && (
-        <button onClick={() => window.open('/wholesale', '_blank', 'noopener,noreferrer')} title="Wholesale Portal" aria-label="Open Wholesale Portal" style={collapsedItemStyle(false)}>
+      {collapsed && showWholesalePreview && (
+        <button onClick={() => window.open('/wholesale/preview', '_blank', 'noopener,noreferrer')} title="Preview wholesale portal" aria-label="Preview wholesale portal" style={collapsedItemStyle(false)}>
           <NavIcon id="__sales" />
         </button>
       )}
@@ -635,10 +636,10 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                     {child.label}
                   </button>
                 ))}
-                {item.id === '__sales' && showWholesale && (
-                  <a href="/wholesale" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
+                {item.id === '__sales' && showWholesalePreview && (
+                  <a href="/wholesale/preview" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
                     style={{ padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center', color: '#475569', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
-                    <span style={{ flex: 1 }}>Wholesale Portal</span><span aria-hidden="true">↗</span>
+                    <span style={{ flex: 1 }}>Preview wholesale portal</span><span aria-hidden="true">↗</span>
                   </a>
                 )}
               </div>
@@ -21584,7 +21585,7 @@ export default function ImsPage() {
         </header>
 
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
-          <Sidebar active={view} onSelect={(v) => setViewSafe(v)} />
+          <Sidebar active={view} onSelect={(v) => setViewSafe(v)} userTier={user?.tier} />
           <main style={{ flex: 1, minWidth: 0, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
             <MainSections
               view={view}

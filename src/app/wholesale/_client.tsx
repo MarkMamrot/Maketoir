@@ -291,6 +291,7 @@ export default function WholesalePortalClient({
   };
 
   const handleLocationChange = async (locationId: number) => {
+    if (session.preview) return;
     if (locationId === session.locationId || locationSwitching) return;
     setLocationSwitching(true);
     try {
@@ -345,6 +346,7 @@ export default function WholesalePortalClient({
   const cartQtyMap = cartItems.reduce<Record<string, number>>((acc, i) => { acc[i.variant_id] = (acc[i.variant_id] ?? 0) + i.qty; return acc; }, {});
 
   const handleAddToCart = (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => {
+    if (session.preview) { showToast('Staff preview is read-only.'); return; }
     setCartItems(prev => {
       const ex = prev.find(i => i.variant_id === item.variant_id);
       if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + 1 : Math.min(i.qty + 1, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
@@ -572,6 +574,12 @@ export default function WholesalePortalClient({
   };
 
   const handleLogout = async () => {
+    if (session.preview) {
+      const response = await fetch('/api/ims/wholesale/preview/exit', { method: 'POST' });
+      const body = await response.json();
+      window.location.href = body.nextRoute || '/ims';
+      return;
+    }
     clearCart();
     await fetch('/api/wholesale/auth/logout', { method: 'POST' });
     router.push(`/wholesale/${supplier.slug}`);

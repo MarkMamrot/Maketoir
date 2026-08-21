@@ -10,6 +10,14 @@ import { NextResponse } from 'next/server';
 import { signAdminSession, verifyAdminSession } from '@/lib/auth/adminSessionToken';
 import type { WholesaleBrandAccess } from './wholesaleAccess';
 import { getActiveWholesaleBuyer } from './wholesaleIdentity';
+import { getAdminSession } from '@/lib/sessionUtils';
+
+export interface WholesalePreviewMetadata {
+  actorUserId: number;
+  actorName: string;
+  actorEmail: string;
+  startedAt: string;
+}
 
 export interface WholesaleSession {
   contactId:  number;
@@ -23,6 +31,7 @@ export interface WholesaleSession {
   locationId?: number;
   memberId?: number;
   memberRole?: 'owner' | 'admin' | 'buyer';
+  preview?: WholesalePreviewMetadata;
 }
 
 export type ActiveWholesaleSession = WholesaleSession & Required<Pick<
@@ -31,9 +40,22 @@ export type ActiveWholesaleSession = WholesaleSession & Required<Pick<
 >>;
 
 export const WHOLESALE_SESSION_COOKIE  = 'wholesale_session';
+export const WHOLESALE_PREVIEW_SESSION_COOKIE = 'wholesale_preview_session';
 export const WHOLESALE_SESSION_MAX_AGE = 60 * 60 * 24; // 24 hours
+export const WHOLESALE_PREVIEW_SESSION_MAX_AGE = 60 * 5;
 
 export function getWholesaleSession(): WholesaleSession | null {
+  const previewRaw = cookies().get(WHOLESALE_PREVIEW_SESSION_COOKIE)?.value;
+  if (previewRaw) {
+    const preview = verifyAdminSession<WholesaleSession>(previewRaw);
+    const admin = getAdminSession();
+    if (
+      preview?.preview && admin &&
+      (admin.tier === 'Admin' || admin.tier === 'SuperAdmin') &&
+      admin.businessId === preview.businessId && admin.userId === preview.preview.actorUserId
+    ) return preview;
+  }
+
   const raw = cookies().get(WHOLESALE_SESSION_COOKIE)?.value;
   if (!raw) return null;
   const signed = verifyAdminSession<WholesaleSession>(raw);
@@ -50,6 +72,10 @@ export function getWholesaleSession(): WholesaleSession | null {
 
 export function signWholesaleSession(session: WholesaleSession): string {
   return signAdminSession(session, { maxAgeSeconds: WHOLESALE_SESSION_MAX_AGE });
+}
+
+export function signWholesalePreviewSession(session: WholesaleSession): string {
+  return signAdminSession(session, { maxAgeSeconds: WHOLESALE_PREVIEW_SESSION_MAX_AGE });
 }
 
 /** For use in API routes — returns the session or a 401 NextResponse. */

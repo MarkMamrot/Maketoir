@@ -73,6 +73,7 @@ export function WholesalePortalShell({
   onLogout: () => void;
   children: ReactNode;
 }) {
+  const isPreview = Boolean(session.preview);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [online, setOnline] = useState(true);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
@@ -135,6 +136,11 @@ export function WholesalePortalShell({
 
   return (
     <div className={styles.shell}>
+      {session.preview && <div role="status" style={{ minHeight: 42, padding: '8px 18px', background: '#fff3cd', borderBottom: '1px solid #e5c66b', color: '#533f03', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
+        <strong>Staff preview · Read-only</strong>
+        <span>{session.company} / {session.name} / {buyingLocation}</span>
+        <button onClick={onLogout} style={{ border: '1px solid #9b7a1b', borderRadius: 4, background: '#fffaf0', color: '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}>Exit preview</button>
+      </div>}
       <header className={styles.topbar}>
         <div className={styles.brand}>
           <button className={styles.menuButton} onClick={() => setDrawerOpen(true)} aria-label="Open navigation" title="Open navigation">
@@ -150,7 +156,7 @@ export function WholesalePortalShell({
         <div className={styles.actions}>
           <div className={styles.accountSummary}>
             <strong>{session.company || session.name}</strong>
-            {locations && locations.length > 1 && onLocationChange ? (
+            {!isPreview && locations && locations.length > 1 && onLocationChange ? (
               <label className={styles.locationSelect}>
                 <MapPin size={13} aria-hidden="true" />
                 <select value={locationId} disabled={locationSwitching} onChange={event => onLocationChange(Number(event.target.value))} aria-label="Buying location">
@@ -159,14 +165,14 @@ export function WholesalePortalShell({
               </label>
             ) : <span>{buyingLocation}</span>}
           </div>
-          <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
+          {!isPreview && <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
             <ShoppingCart size={17} aria-hidden="true" />
             <span>{cartCount}</span>
             <span className={styles.cartValue}>${cartValue.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</span>
-          </button>
-          <button className={styles.iconButton} onClick={onLogout} aria-label="Sign out" title="Sign out">
+          </button>}
+          {!isPreview && <button className={styles.iconButton} onClick={onLogout} aria-label="Sign out" title="Sign out">
             <LogOut size={18} />
-          </button>
+          </button>}
         </div>
       </header>
 

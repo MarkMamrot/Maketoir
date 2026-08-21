@@ -15,7 +15,7 @@ export async function SupplierPortal({ slug, view }: { slug: string; view: Whole
     && (!session.supplierSlug || session.supplierSlug === profile.slug);
 
   if (session && belongsToSupplier) {
-    const buyer = await getActiveWholesaleBuyer(profile.businessId, session.contactId);
+    const buyer = await getActiveWholesaleBuyer(profile.businessId, session.contactId, session.locationId);
     if (buyer) {
       const activeSession: ActiveWholesaleSession = {
         ...session,
