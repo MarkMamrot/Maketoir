@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CalendarDays, FileDown, FilePenLine, PackageCheck, PackageOpen, RefreshCw, Trash2, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, FileDown, FilePenLine, MapPin, PackageCheck, PackageOpen, RefreshCw, Trash2, X } from 'lucide-react';
 import styles from './WholesaleOrdersView.module.css';
 
 type OrderFilter = 'all' | 'open' | 'draft' | 'completed';
@@ -74,12 +74,16 @@ export function WholesaleOrdersView({
   cartItemCount,
   onContinueDraft,
   onLoadDraft,
+  currentLocationId,
+  onSwitchLocation,
   onReorder,
 }: {
   activeDraftId: number | null;
   cartItemCount: number;
   onContinueDraft: () => void;
   onLoadDraft: (id: number) => void;
+  currentLocationId: number;
+  onSwitchLocation: (locationId: number) => void;
   onReorder: (items: WholesaleOrderLine[]) => void;
 }) {
   const [orders, setOrders] = useState<PortalOrder[]>([]);
@@ -253,7 +257,9 @@ export function WholesaleOrdersView({
                         </div>
                       ) : (
                         <>
-                          <button className={styles.primaryAction} onClick={() => editDraft(order.id)}><FilePenLine size={15} /> {activeDraftId === order.id ? 'Continue' : 'Edit'}</button>
+                          {order.wholesale_location_id && order.wholesale_location_id !== currentLocationId ? (
+                            <button className={styles.primaryAction} onClick={() => onSwitchLocation(order.wholesale_location_id!)}><MapPin size={15} /> Switch to edit</button>
+                          ) : <button className={styles.primaryAction} onClick={() => editDraft(order.id)}><FilePenLine size={15} /> {activeDraftId === order.id ? 'Continue' : 'Edit'}</button>}
                           <button className={styles.iconAction} onClick={() => { setPendingDelete(order.id); setPendingLoadDraft(null); }} disabled={deleting === order.id} aria-label={`Delete ${order.reference}`} title="Delete draft"><Trash2 size={16} /></button>
                         </>
                       )}

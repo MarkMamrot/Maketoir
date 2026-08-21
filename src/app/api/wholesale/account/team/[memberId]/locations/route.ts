@@ -15,7 +15,6 @@ export async function PUT(request: Request, { params }: { params: { memberId: st
   const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   if (session.memberRole !== 'owner' && session.memberRole !== 'admin') return NextResponse.json({ error: 'Only company owners and admins can assign locations.' }, { status: 403 });
-  if (memberId === session.memberId) return NextResponse.json({ error: 'Use another account owner to change your own locations.' }, { status: 409 });
   let locationIds: number[];
   let defaultLocationId: number;
   try {
@@ -23,6 +22,9 @@ export async function PUT(request: Request, { params }: { params: { memberId: st
     locationIds = normalizeWholesaleLocationIds(body.locationIds);
     defaultLocationId = Number(body.defaultLocationId);
     if (!locationIds.includes(defaultLocationId)) throw new WholesaleLocationValidationError('The default must be one of the assigned locations.');
+    if (memberId === session.memberId && !locationIds.includes(session.locationId)) {
+      throw new WholesaleLocationValidationError('Your currently selected location must remain assigned.');
+    }
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Select valid buying locations.' }, { status: 400 }); }
 
   return runImsForBusiness(session.businessId, async () => {

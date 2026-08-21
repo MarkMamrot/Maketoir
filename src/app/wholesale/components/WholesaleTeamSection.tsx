@@ -195,7 +195,7 @@ export function WholesaleTeamSection({ role }: { role: WholesaleTeamRole }) {
         <div className={styles.memberList}>
           {members.map(member => {
             const removable = !member.isCurrent && (role === 'owner' || (role === 'admin' && member.role === 'buyer'));
-            const assignable = !member.isCurrent && (role === 'owner' || member.role === 'buyer');
+            const assignable = role === 'owner' || (!member.isCurrent && member.role === 'buyer');
             return (
               <div className={styles.memberWrap} key={member.id}><div className={styles.member}>
                 <div className={styles.identity}><span>{member.name.slice(0, 1).toUpperCase()}</span><div><strong>{member.name}</strong><small>{member.email} · {member.locationName}</small></div></div>

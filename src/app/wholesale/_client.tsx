@@ -749,6 +749,8 @@ export default function WholesalePortalClient({
           <WholesaleOrdersView
             activeDraftId={editingOrderId}
             cartItemCount={cartItems.length}
+            currentLocationId={session.locationId!}
+            onSwitchLocation={handleLocationChange}
             onContinueDraft={() => setCartOpen(true)}
             onLoadDraft={handleLoadDraft}
             onReorder={handleReorder}

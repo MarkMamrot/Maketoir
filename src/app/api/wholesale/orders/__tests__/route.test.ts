@@ -39,9 +39,10 @@ describe('wholesale draft order ownership', () => {
 
     expect((await GET()).status).toBe(200);
     expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_company_id = ?');
-    expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_location_id = ?');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('JOIN ims_wholesale_member_locations ml');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('ml.location_id = o.wholesale_location_id');
     expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_member_id = ?');
-    expect(mocks.imsQuery.mock.calls[0][1]).toEqual(['biz-1', 42, 50, 60, 70]);
+    expect(mocks.imsQuery.mock.calls[0][1]).toEqual(['biz-1', 42, 50, 70]);
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('FROM ims_sales_orders o');
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_company_id = ?');
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('JOIN ims_wholesale_member_locations ml');

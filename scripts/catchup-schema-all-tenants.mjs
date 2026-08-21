@@ -1598,6 +1598,14 @@ async function verifyWholesaleSavedListsSchema(schema) {
   for (const table of requiredTables) {
     if (!tables.has(table)) throw new Error(`${schema} is missing ${table}`);
   }
+  const [missingGrantRows] = await conn.query(
+    `SELECT wm.id FROM \`${schema}\`.ims_wholesale_company_members wm
+      LEFT JOIN \`${schema}\`.ims_wholesale_member_locations ml
+        ON ml.business_id = wm.business_id AND ml.company_id = wm.company_id
+       AND ml.member_id = wm.id AND ml.location_id = wm.location_id
+     WHERE wm.is_active = 1 AND ml.id IS NULL LIMIT 1`,
+  );
+  if (missingGrantRows.length) throw new Error(`${schema} has an active wholesale member without its default location grant`);
   console.log(`  verified ${schema} wholesale locations, saved lists, favourites, and team audit schema`);
 }
 

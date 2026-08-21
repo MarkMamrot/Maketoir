@@ -51,6 +51,12 @@ async function mutate(request: Request, locationId: number, action: 'rename' | '
         if (grants.some((grant: any) => Number(grant.location_id) === locationId && counts.get(Number(grant.member_id)) === 1)) {
           throw new LocationConflictError('Every active member must retain at least one buying location.');
         }
+        const [defaults]: any = await connection.execute(
+          `SELECT id FROM ims_wholesale_company_members
+            WHERE business_id = ? AND company_id = ? AND location_id = ? AND is_active = 1 LIMIT 1 FOR UPDATE`,
+          [session.businessId, session.companyId, locationId],
+        );
+        if (defaults[0]) throw new LocationConflictError('Assign a different default to every member before archiving this location.');
         await connection.execute(`UPDATE ims_wholesale_company_locations SET status = 'archived' WHERE id = ? AND business_id = ? AND company_id = ?`, [locationId, session.businessId, session.companyId]);
       } else {
         await connection.execute(`UPDATE ims_wholesale_company_locations SET location_name = ? WHERE id = ? AND business_id = ? AND company_id = ?`, [name, locationId, session.businessId, session.companyId]);
