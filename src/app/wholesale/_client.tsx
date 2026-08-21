@@ -779,6 +779,7 @@ export default function WholesalePortalClient({
             onContinueDraft={() => setCartOpen(true)}
             onLoadDraft={handleLoadDraft}
             onReorder={handleReorder}
+            isPreview={Boolean(session.preview)}
           />
         ) : view === 'lists' ? (
           <WholesaleSavedListsView

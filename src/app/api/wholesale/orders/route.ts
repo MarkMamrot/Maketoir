@@ -21,7 +21,7 @@ export async function GET() {
     const draftPreviewParams = session.preview ? [session.preview.previewSessionId] : [];
     const drafts = await imsQuery<any>(
       `SELECT 'draft' AS kind, o.id, CONCAT('Draft #', o.id) AS reference, o.status,
-              o.notes, o.subtotal, o.total_amount, o.created_at, o.updated_at,
+              o.notes, o.subtotal, o.total_amount, o.created_at, o.updated_at, o.is_staff_preview_test,
               wl.id AS wholesale_location_id, wl.location_name,
               COUNT(i.id) AS item_count, COALESCE(SUM(i.qty), 0) AS total_units
        FROM wholesale_draft_orders o

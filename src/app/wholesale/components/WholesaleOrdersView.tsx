@@ -20,6 +20,7 @@ interface PortalOrder {
   updated_at: string;
   wholesale_location_id?: number;
   location_name?: string;
+  is_staff_preview_test?: number;
 }
 
 export interface WholesaleOrderLine {
@@ -77,6 +78,7 @@ export function WholesaleOrdersView({
   currentLocationId,
   onSwitchLocation,
   onReorder,
+  isPreview = false,
 }: {
   activeDraftId: number | null;
   cartItemCount: number;
@@ -85,6 +87,7 @@ export function WholesaleOrdersView({
   currentLocationId: number;
   onSwitchLocation: (locationId: number) => void;
   onReorder: (items: WholesaleOrderLine[]) => void;
+  isPreview?: boolean;
 }) {
   const [orders, setOrders] = useState<PortalOrder[]>([]);
   const [filter, setFilter] = useState<OrderFilter>('all');
@@ -241,7 +244,7 @@ export function WholesaleOrdersView({
                   </div>
                 )}
                 <div className={styles.actions}>
-                  {order.kind === 'draft' ? (
+                  {order.kind === 'draft' && (!isPreview || order.is_staff_preview_test) ? (
                     <>
                       {pendingLoadDraft === order.id ? (
                         <div className={styles.inlineConfirm} role="alert">
@@ -264,6 +267,8 @@ export function WholesaleOrdersView({
                         </>
                       )}
                     </>
+                  ) : order.kind === 'draft' ? (
+                    <span>Buyer draft · Read-only</span>
                   ) : (
                     <button className={styles.detailAction} onClick={() => void openDetail(order)} disabled={detailLoading}>
                       View <ArrowRight size={15} />
