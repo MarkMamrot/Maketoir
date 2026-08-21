@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
+import { WholesaleOrdersView } from './components/WholesaleOrdersView';
 import catalogueStyles from './WholesaleCatalogue.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,17 +55,6 @@ interface CartItem {
   allow_indent: boolean;
   is_indent: boolean;
   indent_qty: number;
-}
-
-interface DraftOrder {
-  id: number;
-  status: 'draft' | 'submitted' | 'cancelled';
-  notes: string | null;
-  subtotal: number;
-  total_amount: number;
-  created_at: string;
-  updated_at: string;
-  item_count: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -269,71 +259,6 @@ function CartPanel({ items, notes, onNotesChange, onQtyChange, onRemove, onSaveD
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Draft Orders View
-// ─────────────────────────────────────────────────────────────────────────────
-function DraftOrdersView({ onLoadDraft }: { onLoadDraft: (id: number) => void }) {
-  const [orders, setOrders] = useState<DraftOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<number | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try { const r = await fetch('/api/wholesale/orders'); const d = await r.json(); if (d.success) setOrders(d.orders ?? []); } catch { /* */ }
-    setLoading(false);
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this draft order?')) return;
-    setDeleting(id);
-    try { await fetch(`/api/wholesale/orders/${id}`, { method: 'DELETE' }); await load(); } catch { /* */ }
-    setDeleting(null);
-  };
-
-  const statusBadge = (s: string) => {
-    const map: Record<string, { bg: string; color: string }> = { draft: { bg: '#dbeafe', color: '#1d4ed8' }, submitted: { bg: '#d1fae5', color: '#065f46' }, cancelled: { bg: '#fee2e2', color: '#991b1b' } };
-    const st = map[s] ?? { bg: '#f1f5f9', color: '#475569' };
-    return <span style={{ ...st, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, textTransform: 'uppercase' as const }}>{s}</span>;
-  };
-
-  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Loading orders…</div>;
-  if (orders.length === 0) return (
-    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#94a3b8' }}>
-      <p style={{ fontSize: 14, marginBottom: 4 }}>No orders yet.</p>
-      <p style={{ fontSize: 12 }}>Start shopping to place your first order.</p>
-    </div>
-  );
-
-  return (
-    <div>
-      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', marginBottom: 16 }}>My Orders</h2>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {orders.map(o => (
-          <div key={o.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>Order #{o.id}</span>
-                {statusBadge(o.status)}
-              </div>
-              <div style={{ fontSize: 12, color: '#64748b' }}>{o.item_count} item{o.item_count !== 1 ? 's' : ''} · {fmtCurrency(Number(o.total_amount))}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                {new Date(o.updated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 7 }}>
-              {o.status === 'draft' && <>
-                <button onClick={() => onLoadDraft(o.id)} style={{ padding: '7px 14px', borderRadius: 7, background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Edit</button>
-                <button onClick={() => handleDelete(o.id)} disabled={deleting === o.id} style={{ padding: '7px 12px', borderRadius: 7, background: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>{deleting === o.id ? '…' : 'Delete'}</button>
-              </>}
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -616,7 +541,7 @@ export default function WholesalePortalClient({
         ) : view === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
         ) : view === 'orders' ? (
-          <DraftOrdersView onLoadDraft={handleLoadDraft} />
+          <WholesaleOrdersView onLoadDraft={handleLoadDraft} />
         ) : (
           <div className={catalogueStyles.layout}>
             {/* Sidebar */}
