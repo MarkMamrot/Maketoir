@@ -6,6 +6,7 @@ import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/wholesaleAccountProfile';
 import type { WholesalePortalView } from './WholesalePortalShell';
+import { WholesaleTeamSection } from './WholesaleTeamSection';
 import styles from './WholesalePortalViews.module.css';
 
 export function WholesaleHomeView({
@@ -192,6 +193,7 @@ export function WholesaleAccountView({
               <AddressBlock title="Billing address" address={profile.location.billingAddress} />
             </div>
           </section>
+          {canEdit && <WholesaleTeamSection role={profile.member.role} />}
         </div>
       )}
       {editing && profile && (
