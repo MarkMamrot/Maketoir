@@ -49,19 +49,65 @@ interface ParsedLine {
   quantity: number;
 }
 
+function parseDelimitedFields(value: string): string[] {
+  const delimiter = value.includes('\t') ? '\t' : value.includes(';') && !value.includes(',') ? ';' : ',';
+  const fields: string[] = [];
+  let field = '';
+  let quoted = false;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === '"') {
+      if (quoted && value[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === delimiter && !quoted) {
+      fields.push(field.trim());
+      field = '';
+    } else {
+      field += character;
+    }
+  }
+  fields.push(field.trim());
+  return fields;
+}
+
 function parseLine(value: string, line: number): ParsedLine | WholesaleQuickOrderIssue | null {
-  const trimmed = value.trim();
+  const trimmed = value.replace(/^\uFEFF/, '').trim();
   if (!trimmed) return null;
   const parts = trimmed.includes(',') || trimmed.includes('\t') || trimmed.includes(';')
-    ? trimmed.split(/[\t,;]+/).map(part => part.trim()).filter(Boolean)
+    ? parseDelimitedFields(trimmed)
     : trimmed.split(/\s+/);
   const identifier = parts[0] ?? '';
   if (line === 1 && /^(sku|barcode|item)$/i.test(identifier) && /^(qty|quantity)$/i.test(parts[1] ?? '')) return null;
+  if (parts.length === 2 && !parts[1]) return null;
   const quantity = Number(parts[1]);
   if (!identifier || parts.length !== 2 || !Number.isInteger(quantity) || quantity <= 0) {
     return { line, identifier: identifier || trimmed, reason: 'Use SKU or barcode followed by a whole quantity.' };
   }
   return { line, identifier, quantity };
+}
+
+function escapeCsv(value: string) {
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+}
+
+export function buildWholesaleQuickOrderTemplate(products: WholesaleQuickOrderProduct[]): string {
+  const identifiers = new Set<string>();
+  for (const product of products) {
+    for (const variant of product.variants ?? []) {
+      const identifier = String(variant.sku || variant.barcode || '').trim();
+      if (identifier) identifiers.add(identifier);
+    }
+  }
+  return [
+    'SKU,Quantity',
+    ...Array.from(identifiers)
+      .sort((left, right) => left.localeCompare(right))
+      .map(identifier => `${escapeCsv(identifier)},`),
+  ].join('\r\n');
 }
 
 function variantLabel(variant: WholesaleQuickOrderVariant) {

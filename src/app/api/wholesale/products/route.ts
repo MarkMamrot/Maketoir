@@ -112,19 +112,19 @@ export async function GET(req: Request) {
     }
 
     // ── Primary images ─────────────────────────────────────────────────────
-    let imageMap: Record<string, string> = {};
+    const imageMap: Record<string, string[]> = {};
     try {
       const imgRows = await imsQuery<{ product_id: string; url: string }>(
-        `SELECT p.product_id,
-           (SELECT url FROM ims_product_images
-            WHERE product_id = p.product_id
-            ORDER BY is_primary DESC, sort_order ASC LIMIT 1) AS url
-         FROM ims_products p
-         WHERE p.product_id IN (${placeholders})
-         HAVING url IS NOT NULL`,
+        `SELECT product_id, url
+           FROM ims_product_images
+          WHERE product_id IN (${placeholders})
+          ORDER BY product_id, is_primary DESC, sort_order ASC, id ASC`,
         productIds,
       );
-      for (const r of imgRows) imageMap[r.product_id] = r.url;
+      for (const row of imgRows) {
+        if (!imageMap[row.product_id]) imageMap[row.product_id] = [];
+        imageMap[row.product_id].push(row.url);
+      }
     } catch { /* images table may not exist */ }
 
     // ── Assemble ──────────────────────────────────────────────────────────────
@@ -143,7 +143,8 @@ export async function GET(req: Request) {
         if (pvs.length === 0) return null; // safety: skip if no eligible variants
         return {
           ...p,
-          image_url: imageMap[p.product_id] ?? null,
+          image_url: imageMap[p.product_id]?.[0] ?? null,
+          images: imageMap[p.product_id] ?? [],
           variants: pvs,
         };
       })

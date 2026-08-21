@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, ListPlus } from 'lucide-react';
+import { Heart, LayoutGrid, List, ListPlus } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
@@ -14,6 +14,7 @@ import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './co
 import { WholesaleOrdersView, type WholesaleOrderLine } from './components/WholesaleOrdersView';
 import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
 import { WholesaleQuickOrderPanel } from './components/WholesaleQuickOrderPanel';
+import { WholesaleProductDetail } from './components/WholesaleProductDetail';
 import {
   WholesaleSavedListsView,
   type WholesaleSavedList,
@@ -50,6 +51,7 @@ interface WholesaleProduct {
   allow_indent_wholesale: number;
   created_at: string;
   image_url: string | null;
+  images?: string[];
   variants: WholesaleVariant[];
 }
 
@@ -116,27 +118,22 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 // Product Card
 // ─────────────────────────────────────────────────────────────────────────────
 function ProductCard({
-  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite,
+  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense,
 }: {
   product: WholesaleProduct;
   onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
   cartQtyMap: Record<string, number>;
   favouriteVariantIds: Set<string>;
   onToggleFavourite: (variantId: string) => void;
+  onOpen: () => void;
+  dense: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div style={{
-      background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0',
-      overflow: 'hidden', display: 'flex', flexDirection: 'column',
-      boxShadow: '0 1px 3px rgba(0,0,0,.06)', transition: 'box-shadow .15s',
-    }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,.1)')}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,.06)')}
-    >
+    <article className={`${catalogueStyles.productCard} ${dense ? catalogueStyles.productCardDense : ''}`}>
       {/* Image */}
-      <div style={{ height: 180, background: '#f8fafc', overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+      <button className={catalogueStyles.productImage} onClick={onOpen} aria-label={`View ${product.name} details`}>
         {product.image_url ? (
           <img src={product.image_url} alt={product.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -155,12 +152,12 @@ function ProductCard({
             </Tooltip>
           </div>
         )}
-      </div>
+      </button>
 
       {/* Body */}
       <div style={{ padding: '14px 14px 6px', flex: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
         {product.brand && <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .6 }}>{product.brand}</span>}
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', lineHeight: 1.3 }}>{product.name}</span>
+        <button className={catalogueStyles.productNameButton} onClick={onOpen}>{product.name}</button>
         {product.category && <span style={{ fontSize: 11, color: '#94a3b8' }}>{[product.category, product.subcategory].filter(Boolean).join(' › ')}</span>}
       </div>
 
@@ -212,7 +209,7 @@ function ProductCard({
           </button>
         )}
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -295,6 +292,8 @@ export default function WholesalePortalClient({
   // Search & brand filter
   const [searchQuery, setSearchQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('__all');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'indent'>('all');
+  const [catalogueViewMode, setCatalogueViewMode] = useState<'grid' | 'list'>('grid');
 
   const allBrands = React.useMemo(() => {
     const set = new Set<string>();
@@ -306,6 +305,7 @@ export default function WholesalePortalClient({
   const [cartItems, setCartItems]   = useState<CartItem[]>(() => loadCart(cartStorageKey));
   const [cartOpen, setCartOpen]     = useState(false);
   const [quickOrderOpen, setQuickOrderOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<WholesaleProduct | null>(null);
   const [favouriteVariantIds, setFavouriteVariantIds] = useState<Set<string>>(new Set());
   const [cartNotes, setCartNotes]   = useState('');
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -564,29 +564,34 @@ export default function WholesalePortalClient({
   // Filtered products
   const filteredProducts = React.useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return allProducts.filter(p => {
+    return allProducts.flatMap(p => {
       // Sidebar filter
       if (activeFilter !== '__all') {
         if (browseMode === 'category') {
           const [cat, sub] = activeFilter.split('||');
-          if (sub ? p.category !== cat || p.subcategory !== sub : p.category !== cat) return false;
+          if (sub ? p.category !== cat || p.subcategory !== sub : p.category !== cat) return [];
         } else {
-          if (p.product_type !== activeFilter) return false;
+          if (p.product_type !== activeFilter) return [];
         }
       }
       // Brand filter
-      if (brandFilter !== '__all' && p.brand !== brandFilter) return false;
+      if (brandFilter !== '__all' && p.brand !== brandFilter) return [];
       // Search query — match product name, any variant SKU, any variant barcode
       if (q) {
         const nameMatch = p.name.toLowerCase().includes(q);
         const variantMatch = p.variants.some(
           v => (v.sku ?? '').toLowerCase().includes(q) || (v.barcode ?? '').toLowerCase().includes(q),
         );
-        if (!nameMatch && !variantMatch) return false;
+        if (!nameMatch && !variantMatch) return [];
       }
-      return true;
+      const variants = p.variants.filter(variant => {
+        if (availabilityFilter === 'available') return variant.available > 0;
+        if (availabilityFilter === 'indent') return variant.available <= 0 && !!p.allow_indent_wholesale;
+        return true;
+      });
+      return variants.length > 0 ? [{ ...p, variants }] : [];
     });
-  }, [allProducts, activeFilter, browseMode, brandFilter, searchQuery]);
+  }, [allProducts, activeFilter, browseMode, brandFilter, searchQuery, availabilityFilter]);
 
   // Sidebar
   const SidebarItem = ({ id, label, indent }: { id: string; label: string; indent?: boolean }) => (
@@ -662,6 +667,27 @@ export default function WholesalePortalClient({
           existingQuantities={cartQtyMap}
           onAdd={handleQuickOrderAdd}
           onClose={() => setQuickOrderOpen(false)}
+        />
+      )}
+
+      {selectedProduct && (
+        <WholesaleProductDetail
+          product={selectedProduct}
+          favouriteVariantIds={favouriteVariantIds}
+          cartQuantities={cartQtyMap}
+          onToggleFavourite={variantId => void handleToggleFavourite(variantId)}
+          onAdd={(variant, label) => handleAddToCart({
+            variant_id: variant.variant_id,
+            product_id: selectedProduct.product_id,
+            product_name: selectedProduct.name,
+            variant_label: label,
+            sku: variant.sku,
+            qty: 1,
+            unit_price: variant.price_wholesale,
+            available: variant.available,
+            allow_indent: !!selectedProduct.allow_indent_wholesale,
+          })}
+          onClose={() => setSelectedProduct(null)}
         />
       )}
 
@@ -753,9 +779,18 @@ export default function WholesalePortalClient({
                     {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 )}
-                {(searchQuery || brandFilter !== '__all' || activeFilter !== '__all') && (
-                  <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); setActiveFilter('__all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
+                <select className={catalogueStyles.filterSelect} aria-label="Availability" value={availabilityFilter} onChange={event => setAvailabilityFilter(event.target.value as typeof availabilityFilter)}>
+                  <option value="all">All availability</option>
+                  <option value="available">Available now</option>
+                  <option value="indent">Indent only</option>
+                </select>
+                {(searchQuery || brandFilter !== '__all' || activeFilter !== '__all' || availabilityFilter !== 'all') && (
+                  <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); setActiveFilter('__all'); setAvailabilityFilter('all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
                 )}
+                <div className={catalogueStyles.viewToggle} aria-label="Catalogue layout">
+                  <button className={catalogueViewMode === 'grid' ? catalogueStyles.viewActive : ''} onClick={() => setCatalogueViewMode('grid')} aria-label="Grid view" title="Grid view"><LayoutGrid size={15} /></button>
+                  <button className={catalogueViewMode === 'list' ? catalogueStyles.viewActive : ''} onClick={() => setCatalogueViewMode('list')} aria-label="List view" title="List view"><List size={15} /></button>
+                </div>
                 <button className={catalogueStyles.quickOrderButton} onClick={() => setQuickOrderOpen(true)} disabled={productsLoading || !!productsError}><ListPlus size={15} /> Quick order</button>
               </div>
               {productsError ? (
@@ -775,8 +810,8 @@ export default function WholesalePortalClient({
                     {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
                     {activeFilter !== '__all' && ` · ${activeFilter.split('||').join(' › ')}`}
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 16 }}>
-                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} />)}
+                  <div className={catalogueViewMode === 'grid' ? catalogueStyles.productGrid : catalogueStyles.productList}>
+                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} />)}
                   </div>
                 </>
               )}

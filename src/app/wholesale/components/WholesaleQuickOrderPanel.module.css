@@ -6,6 +6,12 @@
 .header h2 { margin: 5px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 25px; font-weight: 500; }
 .iconButton { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid #d5ddd7; border-radius: 4px; background: #fff; color: #627068; cursor: pointer; }
 .body { flex: 1; overflow-y: auto; padding: 22px; }
+.fileActions { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.fileActions > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #748179; font-size: 10px; }
+.uploadButton, .downloadButton { min-height: 36px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 11px; border: 1px solid #b9c7bd; border-radius: 5px; background: #fff; color: #225f45; cursor: pointer; font-size: 11px; font-weight: 800; }
+.uploadButton input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.downloadButton:disabled { cursor: not-allowed; opacity: .5; }
+.fileError { margin: -6px 0 14px; padding: 9px 10px; border-left: 3px solid #a33a32; background: #fbf3f1; color: #713b34; font-size: 11px; }
 .inputGroup { display: grid; gap: 9px; }
 .inputGroup > span { display: flex; align-items: center; gap: 7px; color: #526158; font-size: 12px; font-weight: 800; }
 .inputGroup textarea { width: 100%; min-height: 300px; box-sizing: border-box; padding: 14px; border: 1px solid #cbd5cd; border-radius: 5px; background: #fff; color: #243129; resize: vertical; font: 13px/1.7 Consolas, 'Courier New', monospace; }
@@ -36,5 +42,7 @@
   .panel { width: 100%; }
   .header, .body, .footer { padding-left: 16px; padding-right: 16px; }
   .summary { grid-template-columns: 1fr; }
+  .uploadButton, .downloadButton { flex: 1; }
+  .fileActions > span { width: 100%; }
   .footer button { flex: 1; }
 }

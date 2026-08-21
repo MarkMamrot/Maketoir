@@ -1,0 +1,38 @@
+.layer { position: fixed; inset: 0; z-index: 540; }
+.backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(12, 25, 18, .56); }
+.panel { position: absolute; inset: 4vh 3vw; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #cad4cc; background: #f8faf8; box-shadow: 0 20px 55px rgba(12, 25, 18, .25); color: #243129; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 19px 22px; border-bottom: 1px solid #d9dfda; background: #fff; }
+.header span { color: #267653; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.header h2 { margin: 5px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 500; }
+.iconButton { width: 34px; height: 34px; display: inline-grid; place-items: center; flex-shrink: 0; border: 1px solid #cbd5cd; border-radius: 4px; background: #fff; color: #526158; cursor: pointer; }
+.body { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(500px, 1.5fr); min-height: 0; flex: 1; overflow: hidden; }
+.gallery { min-width: 0; padding: 22px; overflow-y: auto; border-right: 1px solid #d9dfda; background: #eef2ef; }
+.imageStage { display: grid; place-items: center; aspect-ratio: 1 / 1; overflow: hidden; background: #fff; color: #849089; font-size: 12px; }
+.imageStage img { width: 100%; height: 100%; object-fit: contain; }
+.thumbnails { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 7px; margin-top: 10px; }
+.thumbnails button { aspect-ratio: 1; overflow: hidden; padding: 0; border: 1px solid #cad4cc; background: #fff; cursor: pointer; }
+.thumbnails .thumbnailActive { border: 2px solid #267653; }
+.thumbnails img { width: 100%; height: 100%; object-fit: cover; }
+.information { min-width: 0; padding: 24px; overflow-y: auto; }
+.path { margin: 0 0 12px; color: #267653; font-size: 11px; font-weight: 750; }
+.description { max-width: 780px; margin: 0 0 26px; color: #637168; font-size: 13px; line-height: 1.65; white-space: pre-line; }
+.matrix { min-width: 760px; border-top: 1px solid #cad4cc; }
+.matrixHead, .matrixRow { display: grid; grid-template-columns: minmax(180px, 1fr) 80px 80px 90px 190px; align-items: center; gap: 12px; border-bottom: 1px solid #d9dfda; }
+.matrixHead { padding: 9px 10px; background: #e9eeea; color: #69776e; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.matrixRow { min-height: 60px; padding: 8px 10px; background: #fff; font-size: 12px; }
+.matrixRow > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.matrixRow small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #77847d; }
+.available { color: #267653; font-weight: 750; }
+.indent { color: #98680d; font-weight: 750; }
+.unavailable { color: #a33a32; font-weight: 750; }
+.actions { display: flex; justify-content: flex-end; gap: 7px; }
+.addButton { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 110px; padding: 0 10px; border: 1px solid #267653; border-radius: 4px; background: #267653; color: #fff; cursor: pointer; font-size: 11px; font-weight: 800; }
+.addButton:disabled { cursor: not-allowed; opacity: .45; }
+@media (max-width: 900px) {
+  .panel { inset: 0; }
+  .body { display: block; overflow-y: auto; }
+  .gallery, .information { overflow: visible; }
+  .gallery { border-right: 0; border-bottom: 1px solid #d9dfda; }
+  .imageStage { max-height: 56vh; }
+  .information { overflow-x: auto; }
+}

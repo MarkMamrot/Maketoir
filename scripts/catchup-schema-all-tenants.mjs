@@ -273,6 +273,17 @@ const TABLE_DDLS = [
     CONSTRAINT fk_wholesale_favourite_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
     CONSTRAINT fk_wholesale_favourite_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_wholesale_team_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', company_id INT NOT NULL,
+    actor_member_id INT NULL, actor_name VARCHAR(255) NOT NULL, target_member_id INT NULL, target_contact_id INT NULL,
+    target_name VARCHAR(255) NOT NULL, target_email VARCHAR(320) NOT NULL, action VARCHAR(32) NOT NULL,
+    before_role VARCHAR(16) NULL, after_role VARCHAR(16) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_wholesale_team_events (business_id, company_id, created_at, id),
+    CONSTRAINT fk_wholesale_team_event_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wholesale_team_event_actor FOREIGN KEY (actor_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL,
+    CONSTRAINT fk_wholesale_team_event_member FOREIGN KEY (target_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL,
+    CONSTRAINT fk_wholesale_team_event_contact FOREIGN KEY (target_contact_id) REFERENCES ims_contacts(id) ON DELETE SET NULL
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
     id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, variant_id VARCHAR(64) NOT NULL,
     product_id VARCHAR(64) NOT NULL, product_name VARCHAR(255) NOT NULL, variant_label VARCHAR(255) NULL,
@@ -1222,6 +1233,7 @@ async function migrateSchema(schema) {
     'ims_wholesale_saved_lists',
     'ims_wholesale_saved_list_items',
     'ims_wholesale_favourites',
+    'ims_wholesale_team_events',
   ]) {
     await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_contacts', 'business_id');
   }
@@ -1550,6 +1562,7 @@ async function verifyWholesaleSavedListsSchema(schema) {
     'ims_wholesale_saved_lists',
     'ims_wholesale_saved_list_items',
     'ims_wholesale_favourites',
+    'ims_wholesale_team_events',
   ];
   const [rows] = await conn.query(
     `SELECT TABLE_NAME FROM information_schema.TABLES

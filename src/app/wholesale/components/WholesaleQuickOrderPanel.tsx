@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, ClipboardList, ListPlus, X } from 'lucide-react';
+import { useState, type ChangeEvent } from 'react';
+import { AlertCircle, ArrowLeft, Check, ClipboardList, Download, ListPlus, Upload, X } from 'lucide-react';
 import {
   buildWholesaleQuickOrder,
+  buildWholesaleQuickOrderTemplate,
   type WholesaleQuickOrderItem,
   type WholesaleQuickOrderProduct,
   type WholesaleQuickOrderResult,
@@ -27,8 +28,36 @@ export function WholesaleQuickOrderPanel({
 }) {
   const [input, setInput] = useState('');
   const [result, setResult] = useState<WholesaleQuickOrderResult | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [fileError, setFileError] = useState('');
 
   const review = () => setResult(buildWholesaleQuickOrder(input, products, existingQuantities));
+  const downloadTemplate = () => {
+    const blob = new Blob([buildWholesaleQuickOrderTemplate(products)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'wholesale-quick-order-template.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const uploadCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setFileError('');
+    if (file.size > 1024 * 1024) {
+      setFileError('CSV files must be 1 MB or smaller.');
+      return;
+    }
+    try {
+      setInput(await file.text());
+      setResult(null);
+      setFileName(file.name);
+    } catch {
+      setFileError('The CSV file could not be read.');
+    }
+  };
 
   return (
     <div className={styles.layer} role="dialog" aria-modal="true" aria-labelledby="quick-order-title">
@@ -41,17 +70,28 @@ export function WholesaleQuickOrderPanel({
 
         <div className={styles.body}>
           {!result ? (
-            <label className={styles.inputGroup}>
-              <span><ClipboardList size={16} /> SKU or barcode, quantity</span>
-              <textarea
-                value={input}
-                onChange={event => setInput(event.target.value)}
-                rows={12}
-                spellCheck={false}
-                autoFocus
-                placeholder={'RAIN-GRN-M, 12\n930000000001, 4'}
-              />
-            </label>
+            <>
+              <div className={styles.fileActions}>
+                <label className={styles.uploadButton}>
+                  <Upload size={15} /> Upload CSV
+                  <input type="file" accept=".csv,text/csv" onChange={uploadCsv} />
+                </label>
+                <button className={styles.downloadButton} onClick={downloadTemplate} disabled={products.length === 0}><Download size={15} /> Download template</button>
+                {fileName && <span title={fileName}>{fileName}</span>}
+              </div>
+              {fileError && <div className={styles.fileError} role="alert">{fileError}</div>}
+              <label className={styles.inputGroup}>
+                <span><ClipboardList size={16} /> SKU or barcode, quantity</span>
+                <textarea
+                  value={input}
+                  onChange={event => { setInput(event.target.value); setFileName(''); }}
+                  rows={12}
+                  spellCheck={false}
+                  autoFocus
+                  placeholder={'RAIN-GRN-M, 12\n930000000001, 4'}
+                />
+              </label>
+            </>
           ) : (
             <>
               <section className={styles.summary}>
