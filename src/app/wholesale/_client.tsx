@@ -554,7 +554,13 @@ export default function WholesalePortalClient({
             onCartOpen={() => setCartOpen(true)}
           />
         ) : view === 'account' ? (
-          <WholesaleAccountView session={session} profile={accountProfile} loading={accountLoading} error={accountError} />
+          <WholesaleAccountView
+            session={session}
+            profile={accountProfile}
+            loading={accountLoading}
+            error={accountError}
+            onProfileChange={setAccountProfile}
+          />
         ) : view === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
         ) : view === 'orders' ? (

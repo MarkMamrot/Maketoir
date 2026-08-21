@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowRight, Building2, CreditCard, LifeBuoy, Mail, MapPin, PackageSearch, ReceiptText, ShoppingCart, UserRound } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { ArrowRight, Building2, Check, CreditCard, LifeBuoy, Mail, MapPin, PackageSearch, Pencil, ReceiptText, Save, ShoppingCart, UserRound, X } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/wholesaleAccountProfile';
@@ -76,17 +77,82 @@ function AddressBlock({ title, address }: { title: string; address: WholesaleAdd
   );
 }
 
+const emptyAddress: WholesaleAddress = {
+  address: null, address2: null, suburb: null, city: null, state: null, postcode: null, country: 'Australia',
+};
+
+function AddressFields({ label, value, onChange }: {
+  label: string;
+  value: WholesaleAddress;
+  onChange: (address: WholesaleAddress) => void;
+}) {
+  const field = (key: keyof WholesaleAddress, text: string, maxLength: number) => (
+    <label className={styles.accountField}>
+      <span>{text}</span>
+      <input value={value[key] ?? ''} maxLength={maxLength} onChange={event => onChange({ ...value, [key]: event.target.value || null })} />
+    </label>
+  );
+  return (
+    <fieldset className={styles.addressFields}>
+      <legend>{label}</legend>
+      {field('address', 'Address line 1', 255)}
+      {field('address2', 'Address line 2', 255)}
+      <div className={styles.fieldPair}>{field('suburb', 'Suburb', 100)}{field('city', 'City', 100)}</div>
+      <div className={styles.fieldPair}>{field('state', 'State / region', 100)}{field('postcode', 'Postcode', 30)}</div>
+      {field('country', 'Country', 100)}
+    </fieldset>
+  );
+}
+
 export function WholesaleAccountView({
   session,
   profile,
   loading,
   error,
+  onProfileChange,
 }: {
   session: WholesaleSession;
   profile: WholesaleAccountProfile | null;
   loading: boolean;
   error: string;
+  onProfileChange: (profile: WholesaleAccountProfile) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [billingAddress, setBillingAddress] = useState<WholesaleAddress>(profile?.location.billingAddress ?? emptyAddress);
+  const [shippingAddress, setShippingAddress] = useState<WholesaleAddress>(profile?.location.shippingAddress ?? emptyAddress);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const canEdit = profile?.member.role === 'owner' || profile?.member.role === 'admin';
+
+  const beginEditing = () => {
+    if (!profile) return;
+    setBillingAddress(profile.location.billingAddress);
+    setShippingAddress(profile.location.shippingAddress);
+    setSaveError('');
+    setEditing(true);
+  };
+
+  const saveAddresses = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!profile) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const response = await fetch('/api/wholesale/account', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billingAddress, shippingAddress }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Account addresses could not be updated.');
+      onProfileChange({ ...profile, location: { ...profile.location, billingAddress, shippingAddress } });
+      setEditing(false);
+    } catch (saveFailure) {
+      setSaveError(saveFailure instanceof Error ? saveFailure.message : 'Account addresses could not be updated.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
@@ -117,12 +183,36 @@ export function WholesaleAccountView({
           </section>
 
           <section className={`${styles.accountSection} ${styles.locationSection}`}>
-            <div className={styles.accountSectionTitle}><MapPin size={18} /><div><h2>{profile.location.name}</h2><span>{profile.location.isPrimary ? 'Primary buying location' : 'Buying location'}</span></div></div>
+            <div className={styles.locationHeading}>
+              <div className={styles.accountSectionTitle}><MapPin size={18} /><div><h2>{profile.location.name}</h2><span>{profile.location.isPrimary ? 'Primary buying location' : 'Buying location'}</span></div></div>
+              {canEdit && <button className={styles.editAddressButton} onClick={beginEditing}><Pencil size={15} /> Edit addresses</button>}
+            </div>
             <div className={styles.addressGrid}>
               <AddressBlock title="Shipping address" address={profile.location.shippingAddress} />
               <AddressBlock title="Billing address" address={profile.location.billingAddress} />
             </div>
           </section>
+        </div>
+      )}
+      {editing && profile && (
+        <div className={styles.editorLayer} role="dialog" aria-modal="true" aria-labelledby="address-editor-title">
+          <button className={styles.editorBackdrop} onClick={() => setEditing(false)} aria-label="Close address editor" />
+          <form className={styles.addressEditor} onSubmit={saveAddresses}>
+            <header className={styles.editorHeader}>
+              <div><span>Buying location</span><h2 id="address-editor-title">Edit {profile.location.name}</h2></div>
+              <button type="button" className={styles.editorIconButton} onClick={() => setEditing(false)} aria-label="Close address editor" title="Close"><X size={18} /></button>
+            </header>
+            <div className={styles.editorBody}>
+              <AddressFields label="Billing address" value={billingAddress} onChange={setBillingAddress} />
+              <div className={styles.copyAddressRow}><button type="button" onClick={() => setShippingAddress({ ...billingAddress })}><Check size={15} /> Copy billing to shipping</button></div>
+              <AddressFields label="Shipping address" value={shippingAddress} onChange={setShippingAddress} />
+              {saveError && <div className={styles.accountError} role="alert">{saveError}</div>}
+            </div>
+            <footer className={styles.editorFooter}>
+              <button type="button" className={styles.cancelButton} onClick={() => setEditing(false)}>Cancel</button>
+              <button type="submit" className={styles.saveButton} disabled={saving}><Save size={16} /> {saving ? 'Saving...' : 'Save addresses'}</button>
+            </footer>
+          </form>
         </div>
       )}
     </div>
