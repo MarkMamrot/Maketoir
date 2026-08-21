@@ -1,4 +1,4 @@
-$root = "C:\Users\mark\OneDrive\Documents\GitHub\marketoir"
+$root = Split-Path -Parent $PSScriptRoot
 $files = Get-ChildItem -Path "$root\src","$root\scripts" -Recurse -Include "*.ts","*.tsx","*.mjs" | Select-Object -ExpandProperty FullName
 
 $patterns = @('wholesale_price', 'discounted_price', 'cost_foreign_json')

@@ -1,5 +1,8 @@
 ﻿node_modules
 .next
+.next-*/
+*.tsbuildinfo
+scripts/*.log
 
 # Playwright and gated live-E2E artifacts
 /playwright-report/
