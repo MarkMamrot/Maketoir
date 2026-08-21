@@ -67,7 +67,18 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         reference: { type: 'sales_order', id: params.id },
       }).catch(() => {});
     }
-    const resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'customer', Number(params.id));
+    let resolution_financials: Awaited<ReturnType<typeof getOrderResolutionFinancialSummaries>> = [];
+    let resolutionFinancialsWarning: string | null = null;
+    try {
+      resolution_financials = await getOrderResolutionFinancialSummaries(businessId, 'customer', Number(params.id));
+    } catch (error) {
+      resolutionFinancialsWarning = 'Shortfall financial details are temporarily unavailable. The sales order can still be viewed.';
+      await reportRuntimeIssue({
+        businessId, source: 'ims_sales_orders', operation: 'load_resolution_financials',
+        title: 'Sales order shortfall financial details could not be loaded', error,
+        reference: { type: 'sales_order', id: params.id },
+      }).catch(() => {});
+    }
     let stock_allocations: Awaited<ReturnType<typeof listStockAllocations>> = [];
     try {
       stock_allocations = await listStockAllocations({ businessId, soId: Number(params.id) });
@@ -78,16 +89,20 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
         reference: { type: 'sales_order', id: params.id },
       }).catch(() => {});
     }
-    return NextResponse.json({ success: true, data: {
-      ...data,
-      saleType: data.so_type === 'online' ? 'online' : data.so_type,
-      sourceSystem: data.shopify_order_id ? 'shopify' : null,
-      shipments,
-      resolution_financials,
-      stock_allocations,
-      activity_history,
-      amendment_history: activity_history,
-    } });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...data,
+        saleType: data.so_type === 'online' ? 'online' : data.so_type,
+        sourceSystem: data.shopify_order_id ? 'shopify' : null,
+        shipments,
+        resolution_financials,
+        stock_allocations,
+        activity_history,
+        amendment_history: activity_history,
+      },
+      ...(resolutionFinancialsWarning ? { warning: resolutionFinancialsWarning } : {}),
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

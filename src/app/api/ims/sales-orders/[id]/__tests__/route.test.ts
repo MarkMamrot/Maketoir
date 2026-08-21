@@ -91,6 +91,25 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     expect(mockGetOrderActivityHistory).toHaveBeenCalledWith('biz-1', 'sales_order', 42);
   });
 
+  it('returns core SO detail when optional shortfall financials fail', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'fulfilled', so_type: 'online', items: [{ id: 1 }] });
+    mockGetOrderResolutionFinancialSummaries.mockRejectedValue(new Error('Illegal mix of collations'));
+
+    const response = await GET(new Request('http://localhost'), params);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json).toMatchObject({
+      success: true,
+      data: { id: 42, status: 'fulfilled', saleType: 'online', resolution_financials: [] },
+      warning: 'Shortfall financial details are temporarily unavailable. The sales order can still be viewed.',
+    });
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', operation: 'load_resolution_financials',
+      reference: { type: 'sales_order', id: '42' },
+    }));
+  });
+
   it('requires the quantity-aware fulfilment route to complete a confirmed SO', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ variant_id: 'v-1' }] });
     const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {

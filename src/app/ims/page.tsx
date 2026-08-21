@@ -13266,9 +13266,13 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const openView = async (so: any) => {
-    const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-    setViewModal({ open: true, so: d.data });
-    setSoPayForm(null);
+    try {
+      const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
+      setViewModal({ open: true, so: d.data });
+      setSoPayForm(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to open sales order.');
+    }
   };
 
   const openSoFulfilmentModal = async (so: any) => {
@@ -13552,7 +13556,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     cancelled: 'Cancelled',
   };
   const getSoActionOptions = (so: any) => {
-    const actions: Array<{ label: string; value: string }> = [{ label: 'Open', value: 'open' }];
+    const actions: Array<{ label: string; value: string }> = [];
     if (!isAdvisor && so.status === 'draft') {
       actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
     }
@@ -13574,6 +13578,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     if (!isAdvisor && ['fulfilled', 'cancelled'].includes(so.status)) {
       actions.push({ label: 'Create Replacement Draft', value: 'replacement' });
     }
+    if (actions.length === 0) actions.push({ label: 'Open', value: 'open' });
     return actions;
   };
   const executeSoRowAction = (so: any, action: string) => {
