@@ -54,8 +54,10 @@ export function WholesaleProductDetail({
 }) {
   const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
   const [activeImage, setActiveImage] = useState(images[0] ?? '');
+  const [descriptionMode, setDescriptionMode] = useState<'source' | 'preview'>('preview');
 
   useEffect(() => setActiveImage(images[0] ?? ''), [product.product_id]);
+  useEffect(() => setDescriptionMode('preview'), [product.product_id]);
   useEffect(() => {
     const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
@@ -83,7 +85,31 @@ export function WholesaleProductDetail({
           </div>
           <div className={styles.information}>
             <p className={styles.path}>{[product.category, product.subcategory].filter(Boolean).join(' / ')}</p>
-            {product.description && <p className={styles.description}>{product.description}</p>}
+            {product.description && (
+              <section className={styles.descriptionSection}>
+                <div className={styles.descriptionHeader}>
+                  <h3>Description</h3>
+                  <div className={styles.descriptionModes} role="group" aria-label="Description display mode">
+                    {(['source', 'preview'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        type="button"
+                        aria-pressed={descriptionMode === mode}
+                        className={descriptionMode === mode ? styles.descriptionModeActive : ''}
+                        onClick={() => setDescriptionMode(mode)}
+                      >
+                        {mode === 'source' ? 'HTML' : 'Preview'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {descriptionMode === 'source' ? (
+                  <pre className={styles.descriptionSource}>{product.description}</pre>
+                ) : (
+                  <div className={styles.description} dangerouslySetInnerHTML={{ __html: product.description }} />
+                )}
+              </section>
+            )}
             <div className={styles.matrix}>
               <div className={styles.matrixHead}><span>Variant</span><span>Pack</span><span>Available</span><span>Price</span><span>Actions</span></div>
               {product.variants.map(variant => {

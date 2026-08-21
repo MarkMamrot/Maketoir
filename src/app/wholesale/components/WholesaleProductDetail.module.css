@@ -20,7 +20,23 @@
 .thumbnails[data-fit='contain'] img { object-fit: contain; }
 .information { min-width: 0; padding: 24px; overflow-y: auto; }
 .path { margin: 0 0 12px; color: #267653; font-size: 11px; font-weight: 750; }
-.description { max-width: 780px; margin: 0 0 26px; color: #637168; font-size: 13px; line-height: 1.65; white-space: pre-line; }
+.descriptionSection { max-width: 780px; margin: 0 0 26px; }
+.descriptionHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.descriptionHeader h3 { margin: 0; color: #526158; font-size: 12px; font-weight: 750; }
+.descriptionModes { display: inline-flex; gap: 2px; }
+.descriptionModes button { padding: 3px 9px; border: 1px solid #cad4cc; border-radius: 4px; background: transparent; color: #637168; cursor: pointer; font-size: 10px; font-weight: 700; }
+.descriptionModes .descriptionModeActive { border-color: #267653; background: #267653; color: #fff; }
+.description { color: #637168; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.description > :first-child { margin-top: 0; }
+.description > :last-child { margin-bottom: 0; }
+.description h1 { margin: 20px 0 10px; color: #243129; font-size: 24px; line-height: 1.25; }
+.description h2 { margin: 18px 0 8px; color: #243129; font-size: 20px; line-height: 1.3; }
+.description h3 { margin: 16px 0 8px; color: #243129; font-size: 17px; line-height: 1.35; }
+.description p, .description ul, .description ol { margin: 10px 0; }
+.description ul, .description ol { padding-left: 22px; }
+.description li { margin: 4px 0; }
+.description a { color: #267653; text-decoration: underline; }
+.descriptionSource { max-height: 220px; margin: 0; overflow: auto; padding: 12px 14px; border: 1px solid #cad4cc; background: #fff; color: #526158; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .matrix { min-width: 760px; border-top: 1px solid #cad4cc; }
 .matrixHead, .matrixRow { display: grid; grid-template-columns: minmax(180px, 1fr) 80px 80px 90px 190px; align-items: center; gap: 12px; border-bottom: 1px solid #d9dfda; }
 .matrixHead { padding: 9px 10px; background: #e9eeea; color: #69776e; font-size: 9px; font-weight: 800; text-transform: uppercase; }
