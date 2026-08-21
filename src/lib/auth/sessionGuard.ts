@@ -12,7 +12,7 @@ export function redirectToLogin() {
 
 export async function fetchWithSessionGuard(input: RequestInfo | URL, init?: RequestInit) {
   const res = await fetch(input, init);
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     redirectToLogin();
     throw new Error('Session expired');
   }
@@ -24,7 +24,7 @@ export function installSessionExpiredGuard() {
   const originalFetch = globalThis.fetch.bind(globalThis);
   const guardedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
     originalFetch(input, init).then(async (res) => {
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         redirectToLogin();
         throw new Error('Session expired');
       }

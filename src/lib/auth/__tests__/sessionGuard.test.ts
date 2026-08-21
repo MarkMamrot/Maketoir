@@ -70,6 +70,21 @@ describe('sessionGuard', () => {
     }
   });
 
+  it('returns a 403 response without treating an authenticated user as logged out', async () => {
+    const forbiddenResponse = { status: 403 };
+    const mockFetch = vi.fn().mockResolvedValue(forbiddenResponse);
+    (globalThis as any).fetch = mockFetch;
+    (globalThis as any).window.fetch = mockFetch;
+
+    const restore = installSessionExpiredGuard();
+    try {
+      await expect((globalThis as any).fetch('/api/xero/accounts')).resolves.toBe(forbiddenResponse);
+      expect((globalThis as any).window.location.assign).not.toHaveBeenCalled();
+    } finally {
+      restore();
+    }
+  });
+
   it('redirects only once when concurrent requests return unauthorized', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ status: 401 });
     (globalThis as any).fetch = mockFetch;
