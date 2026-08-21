@@ -12,11 +12,80 @@ import { calculateEarnedPoints, calculatePosEligibleSpend, calculatePosReturnEli
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { LOYALTY_SETTING_KEYS, type LoyaltyMutationResult, type LoyaltyRedemptionResult } from '@/lib/loyalty/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { planPosStockChange } from '@/lib/ims/posStockFloor';
 
 /** Current datetime formatted as MySQL DATETIME in the business's local timezone. */
 function localNow(): string {
   const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
   return new Date().toLocaleString('sv-SE', { timeZone: tz }).replace('T', ' ');
+}
+
+export type PosStockWarning = {
+  variantId: string;
+  itemName: string;
+  previousOnHand: number;
+  resultingOnHand: number;
+  uncappedResultingOnHand: number;
+  automaticAdjustmentQuantity: number;
+  quantityCommitted: number;
+  reason: 'negative_stock' | 'committed_stock_at_risk';
+};
+
+async function applyPosStockMovementWithFloor(connection: any, input: {
+  businessId: string;
+  variantId: string;
+  locationId: number;
+  saleId: number;
+  currentOnHand: number;
+  requestedChange: number;
+  averageCost: number;
+  hasStockRow: boolean;
+  movementNote?: string | null;
+}) {
+  const plan = planPosStockChange(input.currentOnHand, input.requestedChange);
+  if (plan.automaticAdjustmentQuantity > 0) {
+    if (input.hasStockRow) {
+      await connection.execute(
+        `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+        [plan.afterAdjustmentOnHand, input.variantId, input.locationId],
+      );
+    } else {
+      await connection.execute(
+        `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, ?)`,
+        [input.businessId, input.variantId, input.locationId, plan.afterAdjustmentOnHand],
+      );
+    }
+    await connection.execute(
+      `INSERT INTO ims_stock_movements
+         (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
+          qty_change, qty_after_soh, unit_cost, notes)
+       VALUES (?, ?, ?, 'adjustment', 'pos', 'pos_sale', ?, ?, ?, ?, ?)`,
+      [input.businessId, input.variantId, input.locationId, input.saleId, plan.automaticAdjustmentQuantity,
+        plan.afterAdjustmentOnHand, input.averageCost, 'Automatic correction: POS transaction exceeded recorded stock on hand'],
+    );
+  }
+
+  if (input.hasStockRow || plan.automaticAdjustmentQuantity > 0) {
+    await connection.execute(
+      `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
+      [plan.resultingOnHand, input.variantId, input.locationId],
+    );
+  } else {
+    await connection.execute(
+      `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, ?)`,
+      [input.businessId, input.variantId, input.locationId, plan.resultingOnHand],
+    );
+  }
+
+  await connection.execute(
+    `INSERT INTO ims_stock_movements
+       (business_id, variant_id, location_id, movement_type, channel, reference_type, reference_id,
+        qty_change, qty_after_soh, unit_cost, notes)
+     VALUES (?, ?, ?, 'pos_sale', 'pos', 'pos_sale', ?, ?, ?, ?, ?)`,
+    [input.businessId, input.variantId, input.locationId, input.saleId, plan.requestedChange,
+      plan.resultingOnHand, input.averageCost, input.movementNote ?? null],
+  );
+  return plan;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -265,14 +334,7 @@ export const PosSalesRepo = {
   }): Promise<{
     saleId: number;
     stockError: string | undefined;
-    stockWarnings: Array<{
-      variantId: string;
-      itemName: string;
-      previousOnHand: number;
-      resultingOnHand: number;
-      quantityCommitted: number;
-      reason: 'negative_stock' | 'committed_stock_at_risk';
-    }>;
+    stockWarnings: PosStockWarning[];
     loyalty: LoyaltyMutationResult | null;
     loyaltyPoints: number;
     loyaltyRedemption: LoyaltyRedemptionResult | null;
@@ -562,14 +624,7 @@ export const PosSalesRepo = {
       //    Returns stockError string if deduction failed — API returns success
       //    anyway so the client clears the queue, but logs the issue.
       let stockError: string | undefined;
-      const stockWarnings: Array<{
-        variantId: string;
-        itemName: string;
-        previousOnHand: number;
-        resultingOnHand: number;
-        quantityCommitted: number;
-        reason: 'negative_stock' | 'committed_stock_at_risk';
-      }> = [];
+      const stockWarnings: PosStockWarning[] = [];
       if (data.status === 'completed' || data.status === 'layby_complete') {
         const pool = getIMSPool();
         const stockConn = await pool.getConnection();
@@ -580,7 +635,7 @@ export const PosSalesRepo = {
             const qtyChange = getPosStockQtyChange(Number(item.qty), data.sale_type);
             if (qtyChange === null) continue;
             const [stockRows]: any = await stockConn.execute(
-                    `SELECT s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
+                  `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost,
                       COALESCE(p.is_stock_item, 1) AS is_stock_item
                FROM ims_product_variants pv
                JOIN ims_products p ON p.product_id = pv.product_id
@@ -593,17 +648,19 @@ export const PosSalesRepo = {
             const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
             const quantityCommitted = Number(stockRows[0]?.qty_committed ?? 0);
             const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
-            const newSoh = currentSoh + qtyChange;
-            if (qtyChange < 0 && (newSoh < 0 || newSoh < quantityCommitted)) {
+            const stockPlan = planPosStockChange(currentSoh, qtyChange);
+            if (qtyChange < 0 && (stockPlan.uncappedResultingOnHand < 0 || stockPlan.resultingOnHand < quantityCommitted)) {
               stockWarnings.push({
                 variantId: item.variant_id,
                 itemName: item.name,
                 previousOnHand: currentSoh,
-                resultingOnHand: newSoh,
+                resultingOnHand: stockPlan.resultingOnHand,
+                uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
+                automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
                 quantityCommitted,
-                reason: newSoh < 0 ? 'negative_stock' : 'committed_stock_at_risk',
+                reason: stockPlan.uncappedResultingOnHand < 0 ? 'negative_stock' : 'committed_stock_at_risk',
               });
-              if (newSoh < quantityCommitted) {
+              if (stockPlan.resultingOnHand < quantityCommitted) {
                 await stockConn.execute(
                   `UPDATE ims_stock_allocations
                       SET promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk' ELSE promise_status END,
@@ -616,25 +673,17 @@ export const PosSalesRepo = {
               }
             }
 
-            if (stockRows[0]) {
-              await stockConn.execute(
-                `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-                [newSoh, item.variant_id, data.location_id],
-              );
-            } else {
-              await stockConn.execute(
-                `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, ?)`,
-                [data.business_id, item.variant_id, data.location_id, newSoh],
-              );
-            }
-
-            await stockConn.execute(
-              `INSERT INTO ims_stock_movements
-                 (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-                  qty_change, qty_after_soh, unit_cost)
-               VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?)`,
-              [item.variant_id, data.location_id, 'pos_sale', 'pos_sale', saleId, qtyChange, newSoh, avgCostAtTime],
-            );
+            const hasStockRow = Boolean(stockRows[0]?.stock_variant_id);
+            await applyPosStockMovementWithFloor(stockConn, {
+              businessId: data.business_id,
+              variantId: item.variant_id,
+              locationId: data.location_id,
+              saleId,
+              currentOnHand: currentSoh,
+              requestedChange: qtyChange,
+              averageCost: avgCostAtTime,
+              hasStockRow,
+            });
           }
           await stockConn.commit();
         } catch (stockErr: any) {
@@ -752,6 +801,7 @@ export const PosSalesRepo = {
    */
   async voidWithReversal(id: number, actorId?: string | number | null): Promise<{
     stockError?: string;
+    stockWarnings: PosStockWarning[];
     giftCardReversals: GiftCardVoidReversal[];
     loyaltyReversals?: LoyaltyPosSaleReversalResult;
   }> {
@@ -762,11 +812,12 @@ export const PosSalesRepo = {
     // Nothing was ever deducted for sales that never completed.
     if (!['completed', 'layby_complete'].includes(sale.status)) {
       await this.updateStatus(id, 'voided');
-      return { giftCardReversals: [] };
+      return { giftCardReversals: [], stockWarnings: [] };
     }
 
     const pool = getIMSPool();
     const stockConn = await pool.getConnection();
+    const stockWarnings: PosStockWarning[] = [];
     try {
       await stockConn.beginTransaction();
       const [saleRows]: any = await stockConn.execute(
@@ -791,38 +842,41 @@ export const PosSalesRepo = {
         // +qty, so reversing subtracts it back out.
         const qtyChange = sale.sale_type === 'return' ? -item.qty : item.qty;
         const [stockRows]: any = await stockConn.execute(
-          `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
+            `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
                   COALESCE(p.is_stock_item, 1) AS is_stock_item
            FROM ims_product_variants pv
            JOIN ims_products p ON p.product_id = pv.product_id
            LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
-           WHERE pv.variant_id = ? LIMIT 1`,
+           WHERE pv.variant_id = ? LIMIT 1
+           FOR UPDATE`,
           [sale.location_id, item.variant_id],
         );
         if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
         const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
         const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
-        const newSoh = currentSoh + qtyChange;
-
-        if (stockRows[0]) {
-          await stockConn.execute(
-            `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-            [newSoh, item.variant_id, sale.location_id],
-          );
-        } else {
-          await stockConn.execute(
-            `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
-            [item.variant_id, sale.location_id, newSoh],
-          );
+        const stockPlan = await applyPosStockMovementWithFloor(stockConn, {
+          businessId: sale.business_id,
+          variantId: item.variant_id,
+          locationId: sale.location_id,
+          saleId: id,
+          currentOnHand: currentSoh,
+          requestedChange: qtyChange,
+          averageCost: avgCostAtTime,
+          hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
+          movementNote: 'Voided by manager PIN',
+        });
+        if (stockPlan.automaticAdjustmentQuantity > 0) {
+          stockWarnings.push({
+            variantId: item.variant_id,
+            itemName: item.name,
+            previousOnHand: currentSoh,
+            resultingOnHand: stockPlan.resultingOnHand,
+            uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
+            automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
+            quantityCommitted: 0,
+            reason: 'negative_stock',
+          });
         }
-
-        await stockConn.execute(
-          `INSERT INTO ims_stock_movements
-             (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-              qty_change, qty_after_soh, unit_cost, notes)
-           VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?, ?)`,
-          [item.variant_id, sale.location_id, 'pos_sale', 'pos_sale', id, qtyChange, newSoh, avgCostAtTime, 'Voided by manager PIN'],
-        );
       }
       await stockConn.execute(
         `UPDATE pos_sales SET status = 'voided' WHERE id = ?`,
@@ -835,7 +889,7 @@ export const PosSalesRepo = {
           contactId: sale.customer_id,
         });
       }
-      return { giftCardReversals, loyaltyReversals };
+      return { giftCardReversals, loyaltyReversals, stockWarnings };
     } catch (err) {
       await stockConn.rollback();
       if (!(err instanceof LoyaltyValidationError) && !(err instanceof LoyaltyVoidBlockedError)) {
@@ -888,7 +942,7 @@ export const PosSalesRepo = {
       is_gift_card?:   boolean;
     }>;
     payments: Array<{ payment_method: string; amount: number; reference?: string | null }>;
-  }): Promise<{ stockError?: string; loyalty?: LoyaltyMutationResult | null }> {
+  }): Promise<{ stockError?: string; stockWarnings: PosStockWarning[]; loyalty?: LoyaltyMutationResult | null }> {
     const existing = await this.get(id);
     if (!existing) throw new Error('Sale not found.');
     const { sale: oldSale, items: oldItems } = existing;
@@ -1025,6 +1079,7 @@ export const PosSalesRepo = {
     // Adjust stock by the delta between old and new per-variant net effect —
     // only when the sale had actually deducted/added stock in the first place.
     let stockError: string | undefined;
+    const stockWarnings: PosStockWarning[] = [];
     if (['completed', 'layby_complete'].includes(oldSale.status)) {
       const netEffect = (saleType: string, qty: number) => (saleType === 'return' ? qty : -qty);
 
@@ -1047,38 +1102,41 @@ export const PosSalesRepo = {
           const delta = (newMap.get(vid) ?? 0) - (oldMap.get(vid) ?? 0);
           if (!delta) continue;
           const [stockRows]: any = await stockConn.execute(
-            `SELECT s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
+                `SELECT s.variant_id AS stock_variant_id, s.qty_on_hand, COALESCE(pv.avg_cost, 0) AS avg_cost,
                     COALESCE(p.is_stock_item, 1) AS is_stock_item
              FROM ims_product_variants pv
              JOIN ims_products p ON p.product_id = pv.product_id
              LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.location_id = ?
-             WHERE pv.variant_id = ? LIMIT 1`,
+             WHERE pv.variant_id = ? LIMIT 1
+             FOR UPDATE`,
             [oldSale.location_id, vid],
           );
           if (Number(stockRows[0]?.is_stock_item ?? 1) === 0) continue;
           const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
           const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
-          const newSoh = currentSoh + delta;
-
-          if (stockRows[0]) {
-            await stockConn.execute(
-              `UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id = ? AND location_id = ?`,
-              [newSoh, vid, oldSale.location_id],
-            );
-          } else {
-            await stockConn.execute(
-              `INSERT INTO ims_stock (variant_id, location_id, qty_on_hand) VALUES (?, ?, ?)`,
-              [vid, oldSale.location_id, newSoh],
-            );
+          const stockPlan = await applyPosStockMovementWithFloor(stockConn, {
+            businessId: oldSale.business_id,
+            variantId: vid,
+            locationId: oldSale.location_id,
+            saleId: id,
+            currentOnHand: currentSoh,
+            requestedChange: delta,
+            averageCost: avgCostAtTime,
+            hasStockRow: Boolean(stockRows[0]?.stock_variant_id),
+            movementNote: 'Adjusted via manager transaction edit',
+          });
+          if (stockPlan.automaticAdjustmentQuantity > 0) {
+            stockWarnings.push({
+              variantId: vid,
+              itemName: data.items.find(item => item.variant_id === vid)?.name ?? vid,
+              previousOnHand: currentSoh,
+              resultingOnHand: stockPlan.resultingOnHand,
+              uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
+              automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
+              quantityCommitted: 0,
+              reason: 'negative_stock',
+            });
           }
-
-          await stockConn.execute(
-            `INSERT INTO ims_stock_movements
-               (variant_id, location_id, movement_type, channel, reference_type, reference_id,
-                qty_change, qty_after_soh, unit_cost, notes)
-             VALUES (?, ?, ?, 'pos', ?, ?, ?, ?, ?, ?)`,
-            [vid, oldSale.location_id, 'pos_sale', 'pos_sale', id, delta, newSoh, avgCostAtTime, 'Adjusted via manager transaction edit'],
-          );
         }
         await stockConn.commit();
       } catch (err: any) {
@@ -1095,7 +1153,7 @@ export const PosSalesRepo = {
         contactId: oldSale.customer_id,
       });
     }
-    return { stockError, loyalty };
+    return { stockError, stockWarnings, loyalty };
   },
 };
 

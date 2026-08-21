@@ -181,11 +181,15 @@ export async function POST(req: Request) {
     }
 
     if (stockWarnings.length > 0) {
+      const adjustedQuantity = stockWarnings.reduce((sum, warning) => sum + Number(warning.automaticAdjustmentQuantity ?? 0), 0);
+      const warningDetail = adjustedQuantity > 0
+        ? `required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction or reduced stock below committed customer demand`
+        : 'reduced stock below committed customer demand';
       createNotification(
         businessId,
         'pos_stock_availability',
         'POS sale needs a stock check',
-        `Sale #${saleId} reduced ${stockWarnings.length} item${stockWarnings.length === 1 ? '' : 's'} below available customer demand or below zero. Check the items and perform a stocktake or adjustment if required.`,
+        `Sale #${saleId} ${warningDetail}. Check the items and perform a stocktake or adjustment if required.`,
         { sale_id: saleId, location_id: locationId, warnings: stockWarnings },
         'warning',
       ).catch(err => console.error('[notifications] POS availability warning failed:', err));

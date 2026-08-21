@@ -7,6 +7,7 @@ import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
 import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
+import { createNotification } from '@/lib/ims/createNotification';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -60,7 +61,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         }
       }
 
-      const { stockError, giftCardReversals, loyaltyReversals } = await PosSalesRepo.voidWithReversal(
+      const { stockError, stockWarnings, giftCardReversals, loyaltyReversals } = await PosSalesRepo.voidWithReversal(
         id,
         imsSession?.pos_user_id ?? imsSession?.userId ?? null,
       );
@@ -77,7 +78,18 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (vids.length > 0) {
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale void:', err));
       }
-      return NextResponse.json({ success: true, loyalty_reversals: loyaltyReversals, ...(stockError ? { stockWarning: stockError } : {}) });
+      if (stockWarnings.length > 0) {
+        const adjustedQuantity = stockWarnings.reduce((sum, warning) => sum + warning.automaticAdjustmentQuantity, 0);
+        createNotification(
+          existing.sale.business_id,
+          'pos_stock_availability',
+          'Voided POS return needs a stock check',
+          `Voiding sale #${id} required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction. Check the items and perform a stocktake or adjustment if required.`,
+          { sale_id: id, location_id: existing.sale.location_id, warnings: stockWarnings },
+          'warning',
+        ).catch(err => console.error('[notifications] voided POS stock warning failed:', err));
+      }
+      return NextResponse.json({ success: true, loyalty_reversals: loyaltyReversals, stockWarnings, ...(stockError ? { stockWarning: stockError } : {}) });
     }
 
     await PosSalesRepo.updateStatus(id, status, { parked_label });

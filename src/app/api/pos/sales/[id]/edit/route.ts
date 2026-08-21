@@ -5,6 +5,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { LoyaltyEditBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
+import { createNotification } from '@/lib/ims/createNotification';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -56,7 +57,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ error: 'At least one payment is required.' }, { status: 400 });
     }
 
-    const { stockError } = await PosSalesRepo.updateFull(id, {
+    const { stockError, stockWarnings } = await PosSalesRepo.updateFull(id, {
       sale_type: sale_type ?? existing.sale.sale_type,
       customer_name, customer_phone, notes,
       subtotal, discount_total, tax_total, total, cash_rounding,
@@ -70,8 +71,19 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (vids.length > 0) {
       refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale edit:', err));
     }
+    if (stockWarnings.length > 0) {
+      const adjustedQuantity = stockWarnings.reduce((sum, warning) => sum + warning.automaticAdjustmentQuantity, 0);
+      createNotification(
+        existing.sale.business_id,
+        'pos_stock_availability',
+        'Edited POS sale needs a stock check',
+        `Edited sale #${id} required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction. Check the items and perform a stocktake or adjustment if required.`,
+        { sale_id: id, location_id: existing.sale.location_id, warnings: stockWarnings },
+        'warning',
+      ).catch(err => console.error('[notifications] edited POS stock warning failed:', err));
+    }
 
-    return NextResponse.json({ success: true, ...(stockError ? { stockWarning: stockError } : {}) });
+    return NextResponse.json({ success: true, stockWarnings, ...(stockError ? { stockWarning: stockError } : {}) });
   } catch (err: any) {
     console.error('POS sale edit error:', err);
     const status = err instanceof LoyaltyEditBlockedError ? err.status : err instanceof LoyaltyValidationError ? 400 : 500;

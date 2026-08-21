@@ -148,7 +148,10 @@ describe('PosSalesRepo loyalty earning', () => {
     data.items[0].qty = 3;
     const { stockConnection } = setupConnections([]);
     stockConnection.execute
-      .mockResolvedValueOnce([[{ qty_on_hand: 2, qty_committed: 1, avg_cost: 20, is_stock_item: 1 }]])
+      .mockResolvedValueOnce([[{ stock_variant_id: 'variant-1', qty_on_hand: 2, qty_committed: 1, avg_cost: 20, is_stock_item: 1 }]])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }]);
@@ -160,12 +163,20 @@ describe('PosSalesRepo loyalty earning', () => {
       variantId: 'variant-1',
       itemName: 'Product',
       previousOnHand: 2,
-      resultingOnHand: -1,
+      resultingOnHand: 0,
+      uncappedResultingOnHand: -1,
+      automaticAdjustmentQuantity: 1,
       quantityCommitted: 1,
       reason: 'negative_stock',
     }]);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(1, expect.stringContaining('FOR UPDATE'), [3, 'variant-1']);
     expect(stockConnection.execute).toHaveBeenNthCalledWith(2, expect.stringContaining("promise_status = CASE WHEN promise_status = 'confirmed' THEN 'at_risk'"), ['business-1', 'variant-1', 3]);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(3, expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'), [3, 'variant-1', 3]);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(4, expect.stringContaining("'adjustment', 'pos', 'pos_sale'"),
+      ['business-1', 'variant-1', 3, 101, 1, 3, 20, expect.stringContaining('POS transaction exceeded recorded stock')]);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(5, expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'), [0, 'variant-1', 3]);
+    expect(stockConnection.execute).toHaveBeenNthCalledWith(6, expect.stringContaining("'pos_sale', 'pos', 'pos_sale'"),
+      ['business-1', 'variant-1', 3, 101, -3, 0, 20, null]);
   });
 
   it('skips earning when the business program is disabled', async () => {
@@ -376,6 +387,75 @@ describe('PosSalesRepo loyalty earning', () => {
     });
     expect(mockReconcilePosSaleEarn.mock.invocationCallOrder[0]).toBeLessThan(saleConnection.commit.mock.invocationCallOrder[0]);
     expect(saleConnection.commit.mock.invocationCallOrder[0]).toBeLessThan(mockSyncConfiguredCustomer.mock.invocationCallOrder[0]);
+  });
+
+  it('floors stock at zero when a manager edit increases the sold quantity', async () => {
+    vi.spyOn(PosSalesRepo, 'get').mockResolvedValueOnce({
+      sale: {
+        id: 101,
+        business_id: 'business-1',
+        status: 'completed',
+        sale_type: 'sale',
+        location_id: 3,
+        customer_id: null,
+      },
+      items: [{ variant_id: 'variant-1', qty: 1 }],
+      payments: [],
+    } as any);
+    const saleConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{
+          business_id: 'business-1', customer_id: null, status: 'completed', sale_type: 'sale', loyalty_earn_rate: null,
+        }]])
+        .mockResolvedValueOnce([[]])
+        .mockResolvedValue([{ affectedRows: 1 }]),
+    };
+    const stockConnection = {
+      beginTransaction: vi.fn().mockResolvedValue(undefined),
+      commit: vi.fn().mockResolvedValue(undefined),
+      rollback: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn(),
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ stock_variant_id: 'variant-1', qty_on_hand: 0, avg_cost: 20, is_stock_item: 1 }]])
+        .mockResolvedValue({ affectedRows: 1 }),
+    };
+    mockGetIMSPool.mockReturnValue({
+      getConnection: vi.fn().mockResolvedValueOnce(saleConnection).mockResolvedValueOnce(stockConnection),
+    });
+
+    const result = await PosSalesRepo.updateFull(101, {
+      sale_type: 'sale',
+      subtotal: 300,
+      discount_total: 0,
+      tax_total: 300 / 11,
+      total: 300,
+      actor_id: 4,
+      items: [{
+        variant_id: 'variant-1', code: 'SKU-1', name: 'Product', qty: 3, unit_price: 100,
+        discount_type: 'none', discount_value: 0, discount_amount: 0, tax_rate: 10, line_total: 300,
+      }],
+      payments: [{ payment_method: 'Card', amount: 300 }],
+    });
+
+    expect(result.stockWarnings).toEqual([expect.objectContaining({
+      variantId: 'variant-1',
+      previousOnHand: 0,
+      uncappedResultingOnHand: -2,
+      automaticAdjustmentQuantity: 2,
+      resultingOnHand: 0,
+    })]);
+    expect(stockConnection.execute.mock.calls[2]).toEqual([
+      expect.stringContaining("'adjustment', 'pos', 'pos_sale'"),
+      ['business-1', 'variant-1', 3, 101, 2, 2, 20, expect.stringContaining('POS transaction exceeded recorded stock')],
+    ]);
+    expect(stockConnection.execute.mock.calls[4]).toEqual([
+      expect.stringContaining("'pos_sale', 'pos', 'pos_sale'"),
+      ['business-1', 'variant-1', 3, 101, -2, 0, 20, 'Adjusted via manager transaction edit'],
+    ]);
   });
 
   it('reverses loyalty inside the manager void transaction before commit', async () => {
