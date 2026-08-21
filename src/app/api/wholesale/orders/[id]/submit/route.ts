@@ -8,7 +8,7 @@
  *   4. Sends notification email to wholesale_notification_email setting (if configured)
  */
 import { NextResponse } from 'next/server';
-import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
@@ -23,7 +23,7 @@ const fmtCurrency = (n: number) =>
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export async function POST(_req: Request, { params }: Ctx) {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

@@ -7,7 +7,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 
 async function getSession() {
   const c = cookies();
@@ -26,8 +27,12 @@ async function getSession() {
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  await enterImsForBusiness(session.businessId);
-  try {
+  if (session._type === 'wholesale') {
+    const active = await requireActiveWholesaleSession();
+    if (active.response) return active.response;
+  }
+  return runImsForBusiness(session.businessId, async () => {
+   try {
     const rows = await imsQuery<{ key: string; value: string }>(
       `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` LIKE 'wholesale_%'`,
       [session.businessId],
@@ -38,4 +43,5 @@ export async function GET() {
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }

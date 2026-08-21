@@ -11,22 +11,24 @@
  *   product_type: filter by product_type
  */
 import { NextResponse } from 'next/server';
-import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
-import { enterImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function GET(req: Request) {
-  const { session, response } = requireWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
-
-  await enterImsForBusiness(session.businessId);
 
   const { searchParams } = new URL(req.url);
   const category     = searchParams.get('category')     ?? '';
   const subcategory  = searchParams.get('subcategory')  ?? '';
   const productType  = searchParams.get('product_type') ?? '';
 
-  try {
+  return runImsForBusiness(session.businessId, async () => {
+   try {
+    if (brandAccess.mode === 'none') {
+      return NextResponse.json({ success: true, products: [], facets: { categories: [], productTypes: [] } });
+    }
     // Build WHERE clauses
     const conditions: string[] = [
       'p.is_active = 1',
@@ -40,6 +42,11 @@ export async function GET(req: Request) {
        )`,
     ];
     const params: any[] = [session.businessId];
+
+    if (brandAccess.mode === 'selected') {
+      conditions.push(`LOWER(TRIM(p.brand)) IN (${brandAccess.brands.map(() => '?').join(',')})`);
+      params.push(...brandAccess.brands.map(brand => brand.toLocaleLowerCase('en-AU')));
+    }
 
     if (category)    { conditions.push('p.category = ?');    params.push(category); }
     if (subcategory) { conditions.push('p.subcategory = ?'); params.push(subcategory); }
@@ -143,30 +150,34 @@ export async function GET(req: Request) {
       .filter(Boolean);
 
     // ── Aggregated filter facets ──────────────────────────────────────────────
+    const facetBrandSql = brandAccess.mode === 'selected'
+      ? ` AND LOWER(TRIM(ims_products.brand)) IN (${brandAccess.brands.map(() => '?').join(',')})`
+      : '';
+    const facetParams = [session.businessId, ...(brandAccess.mode === 'selected' ? brandAccess.brands.map(brand => brand.toLocaleLowerCase('en-AU')) : [])];
     const categories = await imsQuery<{ category: string; subcategory: string | null }>(
       `SELECT DISTINCT category, subcategory
        FROM ims_products
-       WHERE is_active = 1 AND business_id = ? AND category IS NOT NULL AND category != ''
+      WHERE is_active = 1 AND business_id = ? AND category IS NOT NULL AND category != ''${facetBrandSql}
          AND EXISTS (
            SELECT 1 FROM ims_product_variants v2
            WHERE v2.product_id = ims_products.product_id
              AND v2.is_active = 1 AND v2.price_wholesale > 0
          )
        ORDER BY category, subcategory`,
-      [session.businessId],
+      facetParams,
     );
 
     const productTypes = await imsQuery<{ product_type: string }>(
       `SELECT DISTINCT product_type
        FROM ims_products
-       WHERE is_active = 1 AND business_id = ? AND product_type IS NOT NULL AND product_type != ''
+      WHERE is_active = 1 AND business_id = ? AND product_type IS NOT NULL AND product_type != ''${facetBrandSql}
          AND EXISTS (
            SELECT 1 FROM ims_product_variants v2
            WHERE v2.product_id = ims_products.product_id
              AND v2.is_active = 1 AND v2.price_wholesale > 0
          )
        ORDER BY product_type`,
-      [session.businessId],
+      facetParams,
     );
 
     return NextResponse.json({
@@ -181,4 +192,5 @@ export async function GET(req: Request) {
     console.error('[wholesale/products]', e);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+  });
 }

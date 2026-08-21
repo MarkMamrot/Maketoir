@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   tax_rate            DECIMAL(6,4) DEFAULT NULL,
   website_url         VARCHAR(500) DEFAULT NULL,
   price_tier          VARCHAR(20) DEFAULT 'retail',
+  wholesale_allowed_brands_json JSON DEFAULT NULL,
   -- Misc
   notes       TEXT,
   is_active   TINYINT(1) NOT NULL DEFAULT 1,

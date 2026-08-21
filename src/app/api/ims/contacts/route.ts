@@ -6,6 +6,7 @@ import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMeta
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
+import { normalizeWholesaleBrands } from '@/lib/wholesale/wholesaleAccess';
 
 let migrationDone = false;
 async function ensureMigration() {
@@ -33,6 +34,7 @@ async function ensureMigration() {
     ['loyalty_member',              'TINYINT(1) NOT NULL DEFAULT 0'],
     ['loyalty_member_enrolled_at',  'DATETIME DEFAULT NULL'],
     ['loyalty_member_opted_out_at', 'DATETIME DEFAULT NULL'],
+    ['wholesale_allowed_brands_json', 'JSON DEFAULT NULL'],
   ];
   const existingCols = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_contacts').catch(() => [] as { Field: string }[]);
   const colSet = new Set(existingCols.map((c: { Field: string }) => c.Field));
@@ -79,6 +81,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
     }
     Object.assign(body, channels.normalized);
+    if (Object.prototype.hasOwnProperty.call(body, 'wholesale_allowed_brands_json')) {
+      const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
+      body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);
+    }
     const id = await ImsContactsRepo.create(body, businessId);
     const created = await ImsContactsRepo.get(id, businessId);
     const shopifySync = created ? await syncRetailCustomerToShopify(created, businessId) : null;

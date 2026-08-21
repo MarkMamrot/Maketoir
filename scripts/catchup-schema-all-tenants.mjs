@@ -988,6 +988,7 @@ const COLUMNS = [
   ['ims_contacts', 'loyalty_member', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_contacts', 'loyalty_member_enrolled_at', 'DATETIME NULL'],
   ['ims_contacts', 'loyalty_member_opted_out_at', 'DATETIME NULL'],
+  ['ims_contacts', 'wholesale_allowed_brands_json', 'JSON NULL'],
   // ── pos_sales / store_credit_transactions ───────────────────────────────
   ['pos_sales', 'customer_id',       'INT NULL'],
   ['pos_sales', 'credit_note_id',    'INT NULL'],

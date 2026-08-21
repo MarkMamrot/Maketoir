@@ -4,7 +4,7 @@
  * DELETE /api/wholesale/orders/[id]   – delete a draft order
  */
 import { NextResponse } from 'next/server';
-import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
@@ -19,7 +19,7 @@ async function findOrder(id: number, businessId: string, contactId: number) {
 }
 
 export async function GET(_req: Request, { params }: Ctx) {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 export async function PUT(req: Request, { params }: Ctx) {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -84,7 +84,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });

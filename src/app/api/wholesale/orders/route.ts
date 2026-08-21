@@ -3,12 +3,12 @@
  * POST /api/wholesale/orders        – create a new draft order (with items)
  */
 import { NextResponse } from 'next/server';
-import { requireWholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 
 export async function GET() {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {
@@ -41,7 +41,7 @@ interface DraftItem {
 }
 
 export async function POST(req: Request) {
-  const { session, response } = requireWholesaleSession();
+  const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {

@@ -114,6 +114,7 @@ export interface ImsContact {
   lead_time_days?: number; order_frequency_days?: number;
   cin7_supplier_id?: number; cin7_contact_id?: number;
   is_active: number; price_tier?: string;
+  wholesale_allowed_brands_json?: string[] | string | null;
   charges_tax?: number; prices_include_tax?: number; tax_rate?: number;
   website_url?: string;
   created_at?: string; updated_at?: string;
@@ -483,8 +484,8 @@ export const ImsContactsRepo = {
          shopify_customer_id,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
           store_credit,on_account_limit,date_of_birth,gender,promo_email,promo_sms,
          loyalty_member,loyalty_member_enrolled_at,loyalty_member_opted_out_at,
-          cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,charges_tax,prices_include_tax,tax_rate,website_url)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?)`,
+           cin7_supplier_id,lead_time_days,order_frequency_days,price_tier,wholesale_allowed_brands_json,charges_tax,prices_include_tax,tax_rate,website_url)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,IF(? = 1, CURRENT_TIMESTAMP, NULL),NULL,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', data.type, data.name,
        data.first_name ?? null, data.last_name ?? null,
        data.company ?? null, data.customer_code ?? null, data.customer_group ?? null,
@@ -499,6 +500,7 @@ export const ImsContactsRepo = {
       loyaltyMember, loyaltyMember,
        data.cin7_supplier_id ?? null, data.lead_time_days ?? null,
        data.order_frequency_days ?? 45, data.price_tier ?? 'retail',
+      data.wholesale_allowed_brands_json ?? null,
        data.charges_tax ?? 1, data.prices_include_tax ?? 0, data.tax_rate ?? null,
        data.website_url ?? null]
     );
@@ -518,7 +520,7 @@ export const ImsContactsRepo = {
       'type','name','first_name','last_name','company','customer_code','customer_group','shopify_customer_id',
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
       'on_account_limit','date_of_birth','gender','promo_email','promo_sms',
-      'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','charges_tax','prices_include_tax','tax_rate','website_url',
+      'cin7_supplier_id','lead_time_days','order_frequency_days','price_tier','wholesale_allowed_brands_json','charges_tax','prices_include_tax','tax_rate','website_url',
     ];
     const sets: string[] = [];
     const vals: any[] = [];

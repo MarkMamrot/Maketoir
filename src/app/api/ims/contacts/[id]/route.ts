@@ -4,6 +4,7 @@ import { syncRetailCustomerToShopify } from '@/lib/ims/shopifyCustomerSync';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { validateContactChannels } from '@/lib/ims/contactDataQuality';
+import { normalizeWholesaleBrands } from '@/lib/wholesale/wholesaleAccess';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -38,6 +39,10 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
     }
     Object.assign(body, channels.normalized);
+    if (Object.prototype.hasOwnProperty.call(body, 'wholesale_allowed_brands_json')) {
+      const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
+      body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);
+    }
     await ImsContactsRepo.update(Number(params.id), body);
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToShopify(updated, businessId) : null;
