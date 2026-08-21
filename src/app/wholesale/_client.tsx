@@ -711,7 +711,7 @@ export default function WholesalePortalClient({
             cartItems={cartItems}
             favouriteDetails={favouriteDetails}
             onUseList={handleUseSavedList}
-            onAddFavourite={handleAddFavourite}
+            onAddFavouriteToCart={handleAddFavourite}
             onRemoveFavourite={variantId => void handleToggleFavourite(variantId)}
             onBrowse={() => handleViewChange('catalogue')}
             onNotice={showToast}

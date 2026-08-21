@@ -27,7 +27,7 @@ export function WholesaleSavedListsView({
   cartItems,
   favouriteDetails,
   onUseList,
-  onAddFavourite,
+  onAddFavouriteToCart,
   onRemoveFavourite,
   onBrowse,
   onNotice,
@@ -35,7 +35,7 @@ export function WholesaleSavedListsView({
   cartItems: Array<{ variant_id: string; qty: number }>;
   favouriteDetails: WholesaleFavouriteDetail[];
   onUseList: (list: WholesaleSavedList) => void;
-  onAddFavourite: (variantId: string) => void;
+  onAddFavouriteToCart: (variantId: string) => void;
   onRemoveFavourite: (variantId: string) => void;
   onBrowse: () => void;
   onNotice: (message: string) => void;
@@ -64,6 +64,17 @@ export function WholesaleSavedListsView({
   };
 
   useEffect(() => { void loadLists(); }, []);
+  useEffect(() => {
+    if (!pendingUse && !pendingDelete) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setPendingUse(null);
+        setPendingDelete(null);
+      }
+    };
+    window.addEventListener('keydown', dismiss);
+    return () => window.removeEventListener('keydown', dismiss);
+  }, [pendingUse, pendingDelete]);
 
   const saveCurrentCart = async () => {
     if (!name.trim() || cartItems.length === 0) return;
@@ -156,7 +167,7 @@ export function WholesaleSavedListsView({
                   <div><strong>{item.productName}</strong><span>{item.variantLabel}{item.sku ? ` · ${item.sku}` : ''}</span><small>${item.price.toFixed(2)} · {item.available} available</small></div>
                   <div className={styles.rowActions}>
                     <button className={styles.iconButton} onClick={() => onRemoveFavourite(item.variantId)} aria-label={`Remove ${item.productName} from favourites`} title="Remove favourite"><Heart size={16} fill="currentColor" /></button>
-                    <button className={styles.useButton} disabled={!item.orderable} onClick={() => onAddFavourite(item.variantId)}>Add</button>
+                    <button className={styles.useButton} disabled={!item.orderable} onClick={() => onAddFavouriteToCart(item.variantId)}>Add to cart</button>
                   </div>
                 </article>
               ))}

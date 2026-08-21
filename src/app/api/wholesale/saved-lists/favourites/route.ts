@@ -3,6 +3,7 @@ import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession'
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 
 export async function GET() {
   const { session, response } = await requireActiveWholesaleSession();
@@ -31,7 +32,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const { session, response } = await requireActiveWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
     try {
@@ -41,6 +42,7 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'Invalid favourite.' }, { status: 400 });
       }
       if (body.favourite) {
+        await validateWholesaleOrderItems(session.businessId, brandAccess, [{ variant_id: variantId, qty: 1 }]);
         await imsExecute(
           `INSERT IGNORE INTO ims_wholesale_favourites
              (business_id, company_id, member_id, variant_id) VALUES (?, ?, ?, ?)`,
@@ -55,6 +57,9 @@ export async function PUT(request: Request) {
       }
       return NextResponse.json({ success: true });
     } catch (error) {
+      if (error instanceof WholesaleItemValidationError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 409 });
+      }
       await reportRuntimeIssue({
         businessId: session.businessId,
         source: 'wholesale_portal',

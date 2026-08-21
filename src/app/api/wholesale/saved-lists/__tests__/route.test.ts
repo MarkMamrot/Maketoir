@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   imsQuery: vi.fn(),
   getConnection: vi.fn(),
   reportRuntimeIssue: vi.fn(),
+  validateWholesaleOrderItems: vi.fn(),
 }));
 vi.mock('@/lib/wholesale/wholesaleSession', () => ({ requireActiveWholesaleSession: mocks.requireActiveWholesaleSession }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.runImsForBusiness }));
@@ -17,6 +18,10 @@ vi.mock('@/services/IMSMySQLService', () => ({
   getIMSPool: () => ({ getConnection: mocks.getConnection }),
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/wholesale/wholesaleOrderItems', () => ({
+  validateWholesaleOrderItems: mocks.validateWholesaleOrderItems,
+  WholesaleItemValidationError: class WholesaleItemValidationError extends Error {},
+}));
 
 import { GET, POST } from '../route';
 
@@ -28,7 +33,8 @@ const session = {
 describe('wholesale saved orders', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.requireActiveWholesaleSession.mockResolvedValue({ session });
+    mocks.requireActiveWholesaleSession.mockResolvedValue({ session, brandAccess: { mode: 'all', brands: null } });
+    mocks.validateWholesaleOrderItems.mockResolvedValue([]);
     mocks.getConnection.mockResolvedValue(connection);
     connection.beginTransaction.mockResolvedValue(undefined);
     connection.commit.mockResolvedValue(undefined);
@@ -62,6 +68,11 @@ describe('wholesale saved orders', () => {
 
     expect((await POST(request)).status).toBe(200);
     expect(connection.beginTransaction).toHaveBeenCalledOnce();
+    expect(mocks.validateWholesaleOrderItems).toHaveBeenCalledWith(
+      'biz-1',
+      { mode: 'all', brands: null },
+      [{ variant_id: 'variant-1', qty: 6 }],
+    );
     expect(connection.execute.mock.calls[0][1]).toEqual(['biz-1', 50, 70, 'Winter range']);
     expect(connection.execute.mock.calls[1][1]).toEqual(['biz-1', 12, 'variant-1', 6]);
     expect(connection.commit).toHaveBeenCalledOnce();

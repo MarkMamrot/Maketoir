@@ -8,6 +8,7 @@ import {
   WholesaleSavedListValidationError,
 } from '@/lib/wholesale/wholesaleSavedLists';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 
 export async function GET() {
   const { session, response } = await requireActiveWholesaleSession();
@@ -63,7 +64,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { session, response } = await requireActiveWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
 
   return runImsForBusiness(session.businessId, async () => {
@@ -72,6 +73,11 @@ export async function POST(request: Request) {
       const name = normalizeWholesaleSavedListName(body.name);
       const items = normalizeWholesaleSavedListItems(body.items);
       if (items.length === 0) throw new WholesaleSavedListValidationError('Add at least one variant before saving a list.');
+      await validateWholesaleOrderItems(
+        session.businessId,
+        brandAccess,
+        items.map(item => ({ variant_id: item.variantId, qty: item.quantity })),
+      );
 
       const connection = await getIMSPool().getConnection();
       try {
@@ -99,6 +105,9 @@ export async function POST(request: Request) {
     } catch (error: any) {
       if (error instanceof WholesaleSavedListValidationError) {
         return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      }
+      if (error instanceof WholesaleItemValidationError) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 409 });
       }
       if (error?.code === 'ER_DUP_ENTRY') {
         return NextResponse.json({ success: false, error: 'A saved order with that name already exists.' }, { status: 409 });
