@@ -54,6 +54,7 @@ export function getWholesaleSession(): WholesaleSession | null {
       (admin.tier === 'Admin' || admin.tier === 'SuperAdmin') &&
       admin.businessId === preview.businessId && admin.userId === preview.preview.actorUserId
     ) return preview;
+    return null;
   }
 
   const raw = cookies().get(WHOLESALE_SESSION_COOKIE)?.value;
