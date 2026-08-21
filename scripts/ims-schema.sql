@@ -127,6 +127,20 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_company_members (
   CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_wholesale_member_locations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  company_id INT NOT NULL,
+  member_id INT NOT NULL,
+  location_id INT NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_wholesale_member_location (business_id, member_id, location_id),
+  INDEX idx_wholesale_location_members (business_id, company_id, location_id, member_id),
+  CONSTRAINT fk_wholesale_member_location_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wholesale_member_location_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wholesale_member_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS ims_wholesale_saved_lists (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(100) NOT NULL DEFAULT '',
@@ -179,6 +193,7 @@ CREATE TABLE IF NOT EXISTS ims_wholesale_team_events (
   action VARCHAR(32) NOT NULL,
   before_role VARCHAR(16) NULL,
   after_role VARCHAR(16) NULL,
+  details_json JSON NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_wholesale_team_events (business_id, company_id, created_at, id),
   CONSTRAINT fk_wholesale_team_event_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,

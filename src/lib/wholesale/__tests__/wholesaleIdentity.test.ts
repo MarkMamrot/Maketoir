@@ -87,4 +87,13 @@ describe('wholesale buyer identity', () => {
     expect(imsQuery.mock.calls[1][0]).toContain("wc.status = 'active'");
     expect(imsQuery.mock.calls[1][0]).toContain("wl.status = 'active'");
   });
+
+  it('requires a preferred location to be explicitly granted to the member', async () => {
+    imsQuery.mockResolvedValueOnce([{ value: 'yes' }]).mockResolvedValueOnce([]);
+
+    await expect(getActiveWholesaleBuyer('biz-1', 42, 99)).resolves.toBeNull();
+    expect(imsQuery.mock.calls[1][0]).toContain('JOIN ims_wholesale_member_locations wml');
+    expect(imsQuery.mock.calls[1][0]).toContain('AND wl.id = ?');
+    expect(imsQuery.mock.calls[1][1]).toEqual(['biz-1', 42, 99]);
+  });
 });

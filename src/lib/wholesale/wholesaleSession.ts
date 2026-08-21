@@ -70,7 +70,7 @@ export async function requireActiveWholesaleSession(): Promise<
   const auth = requireWholesaleSession();
   if (auth.response) return auth;
 
-  const buyer = await getActiveWholesaleBuyer(auth.session.businessId, auth.session.contactId);
+  const buyer = await getActiveWholesaleBuyer(auth.session.businessId, auth.session.contactId, auth.session.locationId);
   if (!buyer) {
     return { response: NextResponse.json({ error: 'This account no longer has wholesale portal access.', code: 'wholesale_account_ineligible' }, { status: 403 }) };
   }

@@ -327,3 +327,6 @@
     padding: 0 10px;
   }
 }
+.locationSelect { display: flex; align-items: center; gap: 3px; color: #64756c; }
+.locationSelect select { max-width: 180px; border: 0; background: transparent; color: inherit; padding: 0 16px 0 0; font: inherit; cursor: pointer; }
+.locationSelect select:disabled { cursor: wait; opacity: .6; }

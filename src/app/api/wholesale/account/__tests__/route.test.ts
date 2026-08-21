@@ -30,18 +30,22 @@ describe('wholesale account profile', () => {
     mocks.imsQuery.mockResolvedValueOnce([]);
 
     expect((await GET()).status).toBe(404);
-    expect(mocks.imsQuery.mock.calls[0][0]).toContain('wm.company_id = ? AND wm.location_id = ?');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('JOIN ims_wholesale_member_locations wml');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('wm.company_id = ? AND wl.id = ?');
     expect(mocks.imsQuery.mock.calls[0][1]).toEqual([70, 'biz-1', 42, 50, 60]);
   });
 
-  it('returns the assigned location without internal contact fields', async () => {
+  it('returns the selected location and granted locations without internal contact fields', async () => {
     mocks.imsQuery.mockResolvedValueOnce([{
       company_id: 50, company_name: 'Example Co', tax_id: '12345678901', payment_terms: '30 days', on_account_limit: '2500.00',
       location_id: 60, location_name: 'Sydney', is_primary: 1,
       billing_address: '1 Billing Rd', billing_country: 'Australia',
       shipping_address: '2 Shipping St', shipping_suburb: 'Newtown', shipping_state: 'NSW', shipping_postcode: '2042', shipping_country: 'Australia',
       member_id: 70, member_role: 'owner',
-    }]);
+    }]).mockResolvedValueOnce([
+      { id: 60, location_name: 'Sydney', is_primary: 1 },
+      { id: 61, location_name: 'Melbourne', is_primary: 0 },
+    ]);
 
     const response = await GET();
     const body = await response.json();
@@ -51,6 +55,7 @@ describe('wholesale account profile', () => {
       company: { id: 50, name: 'Example Co', onAccountLimit: 2500 },
       location: { id: 60, name: 'Sydney', isPrimary: true, shippingAddress: { address: '2 Shipping St' } },
       member: { id: 70, role: 'owner' },
+      locations: [{ id: 60, name: 'Sydney', isPrimary: true }, { id: 61, name: 'Melbourne', isPrimary: false }],
     });
     expect(JSON.stringify(body)).not.toContain('notes');
   });
@@ -69,7 +74,7 @@ describe('wholesale account profile', () => {
     expect(mocks.imsExecute).not.toHaveBeenCalled();
   });
 
-  it('updates only the assigned active location through the current member tuple', async () => {
+  it('updates only the selected granted active location through the current member tuple', async () => {
     mocks.imsExecute.mockResolvedValueOnce({ affectedRows: 1 });
     const request = new Request('http://localhost/api/wholesale/account', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -81,6 +86,7 @@ describe('wholesale account profile', () => {
 
     expect((await PUT(request)).status).toBe(200);
     expect(mocks.imsExecute.mock.calls[0][0]).toContain('JOIN ims_wholesale_company_members wm');
+    expect(mocks.imsExecute.mock.calls[0][0]).toContain('JOIN ims_wholesale_member_locations wml');
     expect(mocks.imsExecute.mock.calls[0][0]).toContain("wl.status = 'active'");
     expect(mocks.imsExecute.mock.calls[0][1]).toEqual([
       70, 42,

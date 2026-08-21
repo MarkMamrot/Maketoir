@@ -81,11 +81,13 @@ export async function findWholesaleBuyerByEmail(
            ON wm.business_id = c.business_id AND wm.contact_id = c.id AND wm.is_active = 1
          JOIN ims_wholesale_companies wc
            ON wc.business_id = c.business_id AND wc.id = wm.company_id AND wc.status = 'active'
+         JOIN ims_wholesale_member_locations wml
+           ON wml.business_id = wm.business_id AND wml.company_id = wm.company_id AND wml.member_id = wm.id
          JOIN ims_wholesale_company_locations wl
-           ON wl.business_id = c.business_id AND wl.id = wm.location_id
+           ON wl.business_id = c.business_id AND wl.id = wml.location_id
           AND wl.company_id = wc.id AND wl.status = 'active'
         WHERE c.business_id = ? AND LOWER(c.email) = ?
-        ORDER BY wl.is_primary DESC, wm.id
+        ORDER BY (wl.id = wm.location_id) DESC, wl.is_primary DESC, wm.id
         LIMIT 1`,
       [businessId, email],
     );
@@ -99,6 +101,7 @@ export async function findWholesaleBuyerByEmail(
 export async function getActiveWholesaleBuyer(
   businessId: string,
   contactId: number,
+  locationId?: number,
 ): Promise<WholesaleBuyerIdentity | null> {
   return runImsForBusiness(businessId, async () => {
     if (!await isBusinessWholesaleEnabled(businessId)) return null;
@@ -113,13 +116,16 @@ export async function getActiveWholesaleBuyer(
            ON wm.business_id = c.business_id AND wm.contact_id = c.id AND wm.is_active = 1
          JOIN ims_wholesale_companies wc
            ON wc.business_id = c.business_id AND wc.id = wm.company_id AND wc.status = 'active'
+         JOIN ims_wholesale_member_locations wml
+           ON wml.business_id = wm.business_id AND wml.company_id = wm.company_id AND wml.member_id = wm.id
          JOIN ims_wholesale_company_locations wl
-           ON wl.business_id = c.business_id AND wl.id = wm.location_id
+           ON wl.business_id = c.business_id AND wl.id = wml.location_id
           AND wl.company_id = wc.id AND wl.status = 'active'
         WHERE c.business_id = ? AND c.id = ?
-        ORDER BY wl.is_primary DESC, wm.id
+          ${locationId ? 'AND wl.id = ?' : ''}
+        ORDER BY (wl.id = wm.location_id) DESC, wl.is_primary DESC, wm.id
         LIMIT 1`,
-      [businessId, contactId],
+      locationId ? [businessId, contactId, locationId] : [businessId, contactId],
     );
     const contact = rows[0];
     return contact && isWholesaleContactEligible(contact.type, contact.price_tier, contact.is_active)

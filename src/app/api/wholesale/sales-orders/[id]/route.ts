@@ -20,12 +20,18 @@ export async function GET(_request: Request, { params }: Ctx) {
       const rows = await imsQuery<any>(
         `SELECT o.id, o.so_number, o.status, o.order_date, o.expected_date, o.fulfilled_date,
                 o.payment_terms, o.subtotal, o.tax_amount, o.total_amount, o.currency_code,
-                o.created_at, o.updated_at
+                o.created_at, o.updated_at, wl.id AS wholesale_location_id, wl.location_name
            FROM ims_sales_orders o
+           JOIN ims_wholesale_member_locations ml
+             ON ml.business_id = o.business_id AND ml.company_id = o.wholesale_company_id
+            AND ml.member_id = o.wholesale_member_id AND ml.location_id = o.wholesale_location_id
+           JOIN ims_wholesale_company_locations wl
+             ON wl.id = ml.location_id AND wl.business_id = ml.business_id
+            AND wl.company_id = ml.company_id AND wl.status = 'active'
           WHERE o.id = ? AND o.business_id = ? AND o.customer_id = ?
-            AND o.wholesale_company_id = ? AND o.wholesale_location_id = ? AND o.wholesale_member_id = ?
+            AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
           LIMIT 1`,
-        [id, session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
+        [id, session.businessId, session.contactId, session.companyId, session.memberId],
       );
       const order = rows[0];
       if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });

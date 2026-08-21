@@ -31,15 +31,22 @@ export async function GET() {
       `SELECT 'sales_order' AS kind, o.id, o.so_number AS reference, o.status,
               o.subtotal, o.tax_amount, o.total_amount, o.currency_code,
               o.order_date, o.expected_date, o.fulfilled_date, o.created_at, o.updated_at,
+              wl.id AS wholesale_location_id, wl.location_name,
               COUNT(i.id) AS item_count, COALESCE(SUM(i.qty_ordered), 0) AS total_units,
               COALESCE(SUM(i.qty_fulfilled), 0) AS fulfilled_units
          FROM ims_sales_orders o
+         JOIN ims_wholesale_member_locations ml
+           ON ml.business_id = o.business_id AND ml.company_id = o.wholesale_company_id
+          AND ml.member_id = o.wholesale_member_id AND ml.location_id = o.wholesale_location_id
+         JOIN ims_wholesale_company_locations wl
+           ON wl.id = ml.location_id AND wl.business_id = ml.business_id
+          AND wl.company_id = ml.company_id AND wl.status = 'active'
          LEFT JOIN ims_sales_order_items i ON i.so_id = o.id
         WHERE o.business_id = ? AND o.customer_id = ?
-          AND o.wholesale_company_id = ? AND o.wholesale_location_id = ? AND o.wholesale_member_id = ?
+          AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
         GROUP BY o.id
         ORDER BY o.updated_at DESC`,
-      [session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
+      [session.businessId, session.contactId, session.companyId, session.memberId],
     );
     const orders = [...drafts, ...salesOrders].sort(
       (left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime(),

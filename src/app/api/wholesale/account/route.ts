@@ -44,7 +44,7 @@ export async function GET() {
 
   return runImsForBusiness(session.businessId, async () => {
     try {
-      const rows = await imsQuery<any>(
+      const [rows, locationRows] = await Promise.all([imsQuery<any>(
         `SELECT wc.id AS company_id, wc.company_name, wc.tax_id, wc.payment_terms, wc.on_account_limit,
                 wl.id AS location_id, wl.location_name, wl.is_primary,
                 wl.billing_address, wl.billing_address2, wl.billing_suburb, wl.billing_city,
@@ -55,14 +55,25 @@ export async function GET() {
            FROM ims_wholesale_company_members wm
            JOIN ims_wholesale_companies wc
              ON wc.id = wm.company_id AND wc.business_id = wm.business_id AND wc.status = 'active'
+           JOIN ims_wholesale_member_locations wml
+             ON wml.member_id = wm.id AND wml.business_id = wm.business_id AND wml.company_id = wm.company_id
            JOIN ims_wholesale_company_locations wl
-             ON wl.id = wm.location_id AND wl.company_id = wm.company_id
+             ON wl.id = wml.location_id AND wl.company_id = wm.company_id
             AND wl.business_id = wm.business_id AND wl.status = 'active'
           WHERE wm.id = ? AND wm.business_id = ? AND wm.contact_id = ?
-            AND wm.company_id = ? AND wm.location_id = ? AND wm.is_active = 1
+            AND wm.company_id = ? AND wl.id = ? AND wm.is_active = 1
           LIMIT 1`,
         [session.memberId, session.businessId, session.contactId, session.companyId, session.locationId],
-      );
+      ), imsQuery<any>(
+        `SELECT wl.id, wl.location_name, wl.is_primary
+           FROM ims_wholesale_member_locations wml
+           JOIN ims_wholesale_company_locations wl
+             ON wl.id = wml.location_id AND wl.business_id = wml.business_id
+            AND wl.company_id = wml.company_id AND wl.status = 'active'
+          WHERE wml.business_id = ? AND wml.company_id = ? AND wml.member_id = ?
+          ORDER BY wl.is_primary DESC, wl.location_name, wl.id`,
+        [session.businessId, session.companyId, session.memberId],
+      )]);
       const row = rows[0];
       if (!row) return NextResponse.json({ error: 'Account not found.' }, { status: 404 });
 
@@ -92,6 +103,9 @@ export async function GET() {
           },
         },
         member: { id: Number(row.member_id), role: row.member_role },
+        locations: locationRows.map(location => ({
+          id: Number(location.id), name: location.location_name, isPrimary: Boolean(location.is_primary),
+        })),
       };
       return NextResponse.json({ success: true, profile });
     } catch (error) {
@@ -134,8 +148,11 @@ export async function PUT(request: Request) {
         `UPDATE ims_wholesale_company_locations wl
             JOIN ims_wholesale_company_members wm
               ON wm.id = ? AND wm.business_id = wl.business_id
-             AND wm.company_id = wl.company_id AND wm.location_id = wl.id
+             AND wm.company_id = wl.company_id
              AND wm.contact_id = ? AND wm.is_active = 1
+            JOIN ims_wholesale_member_locations wml
+              ON wml.member_id = wm.id AND wml.business_id = wm.business_id
+             AND wml.company_id = wm.company_id AND wml.location_id = wl.id
            SET wl.billing_address = ?, wl.billing_address2 = ?, wl.billing_suburb = ?,
                wl.billing_city = ?, wl.billing_state = ?, wl.billing_postcode = ?, wl.billing_country = ?,
                wl.shipping_address = ?, wl.shipping_address2 = ?, wl.shipping_suburb = ?,
@@ -154,8 +171,11 @@ export async function PUT(request: Request) {
              FROM ims_wholesale_company_locations wl
              JOIN ims_wholesale_company_members wm
                ON wm.id = ? AND wm.business_id = wl.business_id
-              AND wm.company_id = wl.company_id AND wm.location_id = wl.id
+              AND wm.company_id = wl.company_id
               AND wm.contact_id = ? AND wm.is_active = 1
+             JOIN ims_wholesale_member_locations wml
+               ON wml.member_id = wm.id AND wml.business_id = wm.business_id
+              AND wml.company_id = wm.company_id AND wml.location_id = wl.id
             WHERE wl.id = ? AND wl.business_id = ? AND wl.company_id = ? AND wl.status = 'active'
             LIMIT 1`,
           [session.memberId, session.contactId, session.locationId, session.businessId, session.companyId],

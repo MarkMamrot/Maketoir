@@ -59,9 +59,14 @@ export async function GET(request: Request, { params }: Ctx) {
             AND wl.business_id = o.business_id
            LEFT JOIN ims_contacts c ON c.id = o.customer_id AND c.business_id = o.business_id
           WHERE o.id = ? AND o.business_id = ? AND o.customer_id = ?
-            AND o.wholesale_company_id = ? AND o.wholesale_location_id = ? AND o.wholesale_member_id = ?
+            AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
+            AND EXISTS (
+              SELECT 1 FROM ims_wholesale_member_locations ml
+               WHERE ml.business_id = o.business_id AND ml.company_id = o.wholesale_company_id
+                 AND ml.member_id = o.wholesale_member_id AND ml.location_id = o.wholesale_location_id
+            )
           LIMIT 1`,
-        [id, session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
+        [id, session.businessId, session.contactId, session.companyId, session.memberId],
       );
       const order = orderRows[0];
       if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });

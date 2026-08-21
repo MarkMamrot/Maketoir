@@ -26,8 +26,11 @@ export async function GET() {
     try {
       const [members, events] = await Promise.all([
         imsQuery<any>(
-          `SELECT m.id, m.contact_id, m.role, m.location_id, m.created_at,
-                  c.name, c.email, l.location_name
+            `SELECT m.id, m.contact_id, m.role, m.location_id, m.created_at,
+              c.name, c.email, l.location_name,
+              (SELECT GROUP_CONCAT(ml.location_id ORDER BY ml.location_id)
+                 FROM ims_wholesale_member_locations ml
+                WHERE ml.business_id = m.business_id AND ml.company_id = m.company_id AND ml.member_id = m.id) AS location_ids
              FROM ims_wholesale_company_members m
              JOIN ims_contacts c ON c.id = m.contact_id AND c.business_id = m.business_id
              JOIN ims_wholesale_company_locations l
@@ -37,7 +40,7 @@ export async function GET() {
           [session.businessId, session.companyId],
         ),
         imsQuery<any>(
-          `SELECT id, actor_name, target_name, target_email, action, before_role, after_role, created_at
+          `SELECT id, actor_name, target_name, target_email, action, before_role, after_role, details_json, created_at
              FROM ims_wholesale_team_events
             WHERE business_id = ? AND company_id = ?
             ORDER BY created_at DESC, id DESC LIMIT 25`,
@@ -50,11 +53,13 @@ export async function GET() {
           id: Number(member.id), contactId: Number(member.contact_id), name: member.name || member.email,
           email: member.email, role: member.role, locationId: Number(member.location_id),
           locationName: member.location_name, isCurrent: Number(member.id) === session.memberId,
+          locationIds: String(member.location_ids || '').split(',').map(Number).filter(Number.isSafeInteger),
         })),
         events: events.map(event => ({
           id: Number(event.id), actorName: event.actor_name, targetName: event.target_name,
           targetEmail: event.target_email, action: event.action, beforeRole: event.before_role,
           afterRole: event.after_role, createdAt: event.created_at,
+          details: typeof event.details_json === 'string' ? JSON.parse(event.details_json) : event.details_json,
         })),
       });
     } catch (error) {
@@ -119,6 +124,11 @@ export async function POST(request: Request) {
           );
           memberId = Number(result.insertId);
         }
+        await connection.execute(
+          `INSERT IGNORE INTO ims_wholesale_member_locations (business_id, company_id, member_id, location_id)
+           VALUES (?, ?, ?, ?)`,
+          [session.businessId, session.companyId, memberId, session.locationId],
+        );
         const [eventResult]: any = await connection.execute(
           `INSERT INTO ims_wholesale_team_events
              (business_id, company_id, actor_member_id, actor_name, target_member_id, target_contact_id,

@@ -46,9 +46,13 @@ export function WholesalePortalShell({
   cartCount,
   cartValue,
   locationName,
+  locations,
+  locationId,
+  locationSwitching,
   onViewChange,
   onSearchChange,
   onCartOpen,
+  onLocationChange,
   onLogout,
   children,
 }: {
@@ -59,9 +63,13 @@ export function WholesalePortalShell({
   cartCount: number;
   cartValue: number;
   locationName?: string;
+  locations?: Array<{ id: number; name: string; isPrimary: boolean }>;
+  locationId?: number;
+  locationSwitching?: boolean;
   onViewChange: (view: WholesalePortalView) => void;
   onSearchChange: (value: string) => void;
   onCartOpen: () => void;
+  onLocationChange?: (locationId: number) => void;
   onLogout: () => void;
   children: ReactNode;
 }) {
@@ -142,7 +150,14 @@ export function WholesalePortalShell({
         <div className={styles.actions}>
           <div className={styles.accountSummary}>
             <strong>{session.company || session.name}</strong>
-            <span>{buyingLocation}</span>
+            {locations && locations.length > 1 && onLocationChange ? (
+              <label className={styles.locationSelect}>
+                <MapPin size={13} aria-hidden="true" />
+                <select value={locationId} disabled={locationSwitching} onChange={event => onLocationChange(Number(event.target.value))} aria-label="Buying location">
+                  {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+                </select>
+              </label>
+            ) : <span>{buyingLocation}</span>}
           </div>
           <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
             <ShoppingCart size={17} aria-hidden="true" />

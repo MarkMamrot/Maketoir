@@ -38,17 +38,18 @@ describe('wholesale sales order PDF', () => {
     expect(mocks.imsQuery).not.toHaveBeenCalled();
   });
 
-  it('requires the active contact and full account tuple', async () => {
+  it('requires the active contact, account, member, and a current location grant', async () => {
     mocks.imsQuery.mockResolvedValueOnce([]);
 
     const response = await GET(new Request('http://localhost/api/wholesale/sales-orders/81/pdf?document=sales-order'), params);
 
     expect(response.status).toBe(404);
     expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_company_id = ?');
-    expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_location_id = ?');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('EXISTS (');
+    expect(mocks.imsQuery.mock.calls[0][0]).toContain('ml.location_id = o.wholesale_location_id');
     expect(mocks.imsQuery.mock.calls[0][0]).toContain('o.wholesale_member_id = ?');
     expect(mocks.imsQuery.mock.calls[0][0]).not.toContain('o.notes');
-    expect(mocks.imsQuery.mock.calls[0][1]).toEqual([81, 'biz-1', 42, 50, 60, 70]);
+    expect(mocks.imsQuery.mock.calls[0][1]).toEqual([81, 'biz-1', 42, 50, 70]);
     expect(mocks.generateOrderPdf).not.toHaveBeenCalled();
   });
 

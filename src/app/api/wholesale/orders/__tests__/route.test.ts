@@ -34,7 +34,7 @@ describe('wholesale draft order ownership', () => {
     });
   });
 
-  it('lists drafts only for the current contact and account tuple', async () => {
+  it('lists selected-location drafts and own sales orders across granted locations', async () => {
     mocks.imsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
     expect((await GET()).status).toBe(200);
@@ -44,10 +44,12 @@ describe('wholesale draft order ownership', () => {
     expect(mocks.imsQuery.mock.calls[0][1]).toEqual(['biz-1', 42, 50, 60, 70]);
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('FROM ims_sales_orders o');
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_company_id = ?');
-    expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_location_id = ?');
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain('JOIN ims_wholesale_member_locations ml');
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain('ml.location_id = o.wholesale_location_id');
+    expect(mocks.imsQuery.mock.calls[1][0]).toContain("wl.status = 'active'");
     expect(mocks.imsQuery.mock.calls[1][0]).toContain('o.wholesale_member_id = ?');
     expect(mocks.imsQuery.mock.calls[1][0]).not.toContain('o.notes');
-    expect(mocks.imsQuery.mock.calls[1][1]).toEqual(['biz-1', 42, 50, 60, 70]);
+    expect(mocks.imsQuery.mock.calls[1][1]).toEqual(['biz-1', 42, 50, 70]);
   });
 
   it('snapshots the current account tuple when creating a draft', async () => {

@@ -35,12 +35,15 @@ describe('wholesale account team access', () => {
       .mockResolvedValueOnce([[{ id: 90, name: 'Buyer', email: 'buyer@example.com' }]])
       .mockResolvedValueOnce([[]])
       .mockResolvedValueOnce([{ insertId: 91 }])
+      .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ insertId: 92 }]);
     const request = new Request('http://localhost', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'buyer@example.com', role: 'admin' }) });
 
     expect((await POST(request)).status).toBe(200);
     expect(connection.execute.mock.calls[2][1]).toEqual(['biz-1', 50, 60, 90, 'admin']);
-    expect(connection.execute.mock.calls[3][0]).toContain("'access_granted'");
+    expect(connection.execute.mock.calls[3][0]).toContain('INSERT IGNORE INTO ims_wholesale_member_locations');
+    expect(connection.execute.mock.calls[3][1]).toEqual(['biz-1', 50, 91, 60]);
+    expect(connection.execute.mock.calls[4][0]).toContain("'access_granted'");
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(mocks.sendEmail).toHaveBeenCalledWith(expect.objectContaining({ eventId: 92, email: 'buyer@example.com', role: 'admin' }));
   });

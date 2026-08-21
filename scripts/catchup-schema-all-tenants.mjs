@@ -273,11 +273,21 @@ const TABLE_DDLS = [
     CONSTRAINT fk_wholesale_favourite_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
     CONSTRAINT fk_wholesale_favourite_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_wholesale_member_locations (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', company_id INT NOT NULL,
+    member_id INT NOT NULL, location_id INT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wholesale_member_location (business_id, member_id, location_id),
+    INDEX idx_wholesale_location_members (business_id, company_id, location_id, member_id),
+    CONSTRAINT fk_wholesale_member_location_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wholesale_member_location_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wholesale_member_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_wholesale_team_events (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', company_id INT NOT NULL,
     actor_member_id INT NULL, actor_name VARCHAR(255) NOT NULL, target_member_id INT NULL, target_contact_id INT NULL,
     target_name VARCHAR(255) NOT NULL, target_email VARCHAR(320) NOT NULL, action VARCHAR(32) NOT NULL,
-    before_role VARCHAR(16) NULL, after_role VARCHAR(16) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    before_role VARCHAR(16) NULL, after_role VARCHAR(16) NULL, details_json JSON NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_wholesale_team_events (business_id, company_id, created_at, id),
     CONSTRAINT fk_wholesale_team_event_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
     CONSTRAINT fk_wholesale_team_event_actor FOREIGN KEY (actor_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL,
@@ -925,6 +935,7 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_wholesale_team_events', 'details_json', 'JSON NULL AFTER after_role'],
   ['wholesale_draft_order_items', 'indent_qty', 'DECIMAL(12,4) NOT NULL DEFAULT 0 AFTER is_indent'],
   ['ims_purchase_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
   ['ims_purchase_order_payments', 'payment_method_id', 'INT NULL AFTER notes'],
@@ -1230,12 +1241,25 @@ async function migrateSchema(schema) {
     'ims_wholesale_companies',
     'ims_wholesale_company_locations',
     'ims_wholesale_company_members',
+    'ims_wholesale_member_locations',
     'ims_wholesale_saved_lists',
     'ims_wholesale_saved_list_items',
     'ims_wholesale_favourites',
     'ims_wholesale_team_events',
   ]) {
     await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_contacts', 'business_id');
+  }
+
+  try {
+    await conn.query(
+      `INSERT IGNORE INTO \`${schema}\`.ims_wholesale_member_locations
+         (business_id, company_id, member_id, location_id)
+       SELECT business_id, company_id, id, location_id
+         FROM \`${schema}\`.ims_wholesale_company_members
+        WHERE is_active = 1`,
+    );
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_wholesale_member_locations backfill: ${e.message}`);
   }
 
   // Load existing columns once per schema
@@ -1559,6 +1583,7 @@ async function verifyWholesaleOrderOwnershipSchema(schema) {
 
 async function verifyWholesaleSavedListsSchema(schema) {
   const requiredTables = [
+    'ims_wholesale_member_locations',
     'ims_wholesale_saved_lists',
     'ims_wholesale_saved_list_items',
     'ims_wholesale_favourites',
@@ -1573,7 +1598,7 @@ async function verifyWholesaleSavedListsSchema(schema) {
   for (const table of requiredTables) {
     if (!tables.has(table)) throw new Error(`${schema} is missing ${table}`);
   }
-  console.log(`  verified ${schema} wholesale saved lists, favourites, and team audit schema`);
+  console.log(`  verified ${schema} wholesale locations, saved lists, favourites, and team audit schema`);
 }
 
 try {

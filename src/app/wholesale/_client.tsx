@@ -271,6 +271,7 @@ export default function WholesalePortalClient({
   const [accountProfile, setAccountProfile] = useState<WholesaleAccountProfile | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
   const [accountError, setAccountError] = useState('');
+  const [locationSwitching, setLocationSwitching] = useState(false);
 
   useEffect(() => {
     fetch('/api/wholesale/account')
@@ -287,6 +288,22 @@ export default function WholesalePortalClient({
     setView(nextView);
     const suffix = nextView === 'home' ? '' : `/${nextView}`;
     router.push(`/wholesale/${supplier.slug}${suffix}`);
+  };
+
+  const handleLocationChange = async (locationId: number) => {
+    if (locationId === session.locationId || locationSwitching) return;
+    setLocationSwitching(true);
+    try {
+      const response = await fetch('/api/wholesale/account/location', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ locationId }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Buying location could not be switched.');
+      window.location.reload();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Buying location could not be switched.');
+      setLocationSwitching(false);
+    }
   };
 
   // Search & brand filter
@@ -699,9 +716,13 @@ export default function WholesalePortalClient({
         cartCount={cartCount}
         cartValue={cartValue}
         locationName={accountProfile?.location.name}
+        locations={accountProfile?.locations}
+        locationId={accountProfile?.location.id}
+        locationSwitching={locationSwitching}
         onViewChange={handleViewChange}
         onSearchChange={setSearchQuery}
         onCartOpen={() => setCartOpen(true)}
+        onLocationChange={handleLocationChange}
         onLogout={handleLogout}
       >
         {view === 'home' ? (

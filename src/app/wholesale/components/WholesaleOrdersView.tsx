@@ -18,6 +18,8 @@ interface PortalOrder {
   order_date?: string | null;
   expected_date?: string | null;
   updated_at: string;
+  wholesale_location_id?: number;
+  location_name?: string;
 }
 
 export interface WholesaleOrderLine {
@@ -218,7 +220,7 @@ export function WholesaleOrdersView({
                 <div className={styles.orderIdentity}>
                   <span className={`${styles.status} ${styles[`status_${order.status}`] ?? ''}`}>{statusLabel(order.status)}</span>
                   <strong>{order.reference}</strong>
-                  <small><CalendarDays size={13} /> {formatDate(order.order_date ?? order.updated_at)}</small>
+                  <small><CalendarDays size={13} /> {formatDate(order.order_date ?? order.updated_at)}{order.location_name ? ` · ${order.location_name}` : ''}</small>
                 </div>
                 <div className={styles.orderMeasure}>
                   <span>{Number(order.item_count)} lines</span>
@@ -276,7 +278,7 @@ export function WholesaleOrdersView({
               <div>
                 <span className={`${styles.status} ${styles[`status_${selected.status}`] ?? ''}`}>{statusLabel(selected.status)}</span>
                 <h2 id="wholesale-order-title">{selected.so_number}</h2>
-                <p>Placed {formatDate(selected.order_date)}</p>
+                <p>Placed {formatDate(selected.order_date)}{selected.location_name ? ` · ${selected.location_name}` : ''}</p>
               </div>
               <button className={styles.iconAction} onClick={() => { setSelected(null); setConfirmReplaceCart(false); }} aria-label="Close order details" title="Close"><X size={18} /></button>
             </header>

@@ -27,4 +27,9 @@ export interface WholesaleAccountProfile {
     id: number;
     role: 'owner' | 'admin' | 'buyer';
   };
+  locations: Array<{
+    id: number;
+    name: string;
+    isPrimary: boolean;
+  }>;
 }
