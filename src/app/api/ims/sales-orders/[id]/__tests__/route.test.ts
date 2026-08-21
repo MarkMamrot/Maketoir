@@ -110,6 +110,26 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     }));
   });
 
+  it('loads Shopify shipment item names from product tables', async () => {
+    mockGet.mockResolvedValue({ id: 42, status: 'fulfilled', so_type: 'online', items: [] });
+    mockImsQuery
+      .mockResolvedValueOnce([{ id: 100, shopify_fulfilment_id: 'f-1', status: 'success' }])
+      .mockResolvedValueOnce([{ shipment_id: 100, shopify_line_item_id: 'li-1', quantity: 2, sku: 'SKU-1', product_name: 'Tee', variant_label: 'Blue / M' }])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(new Request('http://localhost'), params);
+    const json = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(json.data.shipments[0].items[0]).toMatchObject({
+      sku: 'SKU-1', product_name: 'Tee', variant_label: 'Blue / M', quantity: 2,
+    });
+    const shipmentItemSql = String(mockImsQuery.mock.calls[1][0]);
+    expect(shipmentItemSql).toContain('LEFT JOIN ims_product_variants v');
+    expect(shipmentItemSql).toContain('LEFT JOIN ims_products p');
+    expect(shipmentItemSql).not.toContain('soi.product_name');
+  });
+
   it('requires the quantity-aware fulfilment route to complete a confirmed SO', async () => {
     mockGet.mockResolvedValue({ id: 42, status: 'confirmed', items: [{ variant_id: 'v-1' }] });
     const statusRequest = new Request('http://localhost/api/ims/sales-orders/42', {

@@ -36,10 +36,22 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
       const [shipmentItems, tracking] = await Promise.all([
         imsQuery<any>(
           `SELECT si.shipment_id, si.shopify_line_item_id, si.quantity,
-                  soi.product_name, soi.variant_name, soi.sku
+                  v.sku,
+                  COALESCE(p.name, soi.notes) AS product_name,
+                  CONCAT_WS(' / ',
+                    NULLIF(v.option1_value, ''),
+                    NULLIF(v.option2_value, ''),
+                    NULLIF(v.option3_value, '')
+                  ) AS variant_label
              FROM ims_so_shipment_items si
              LEFT JOIN ims_sales_order_items soi
-               ON soi.so_id = ? AND soi.shopify_line_item_id = si.shopify_line_item_id
+               ON soi.business_id = si.business_id
+              AND soi.so_id = ?
+              AND soi.shopify_line_item_id = si.shopify_line_item_id
+             LEFT JOIN ims_product_variants v
+               ON v.business_id = si.business_id AND v.variant_id = soi.variant_id
+             LEFT JOIN ims_products p
+               ON p.business_id = si.business_id AND p.product_id = v.product_id
             WHERE si.business_id = ? AND si.shipment_id IN (${placeholders})
             ORDER BY si.id`,
           [Number(params.id), businessId, ...shipmentIds],

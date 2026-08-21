@@ -935,6 +935,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) NOT NULL DEFAULT '',
   so_id         INT NOT NULL,
+  shopify_line_item_id BIGINT NULL,
   variant_id    VARCHAR(36) NOT NULL,
   qty_ordered   DECIMAL(12,4) NOT NULL,
   qty_fulfilled DECIMAL(12,4) NOT NULL DEFAULT 0,
@@ -947,7 +948,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_order_items (
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE,
   FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
   INDEX idx_business_id (business_id),
-  INDEX idx_soi_so (so_id)
+  INDEX idx_soi_so (so_id),
+  INDEX idx_soitem_shopify_li (shopify_line_item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_sales_order_payments (
