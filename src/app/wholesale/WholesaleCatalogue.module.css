@@ -29,6 +29,28 @@
   flex-wrap: wrap;
 }
 
+.quickOrderButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 35px;
+  margin-left: auto;
+  padding: 0 11px;
+  border: 1px solid #267653;
+  border-radius: 5px;
+  background: #fff;
+  color: #225f45;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quickOrderButton:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
 @media (max-width: 720px) {
   .layout {
     display: block;
@@ -48,5 +70,11 @@
   .filters > select {
     width: 100%;
     min-width: 0;
+  }
+
+  .quickOrderButton {
+    order: -1;
+    width: 100%;
+    margin-left: 0;
   }
 }

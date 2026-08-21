@@ -2,14 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { ListPlus } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
+import type { WholesaleQuickOrderItem } from '@/lib/wholesale/wholesaleQuickOrder';
 import { buildWholesaleReorderCart } from '@/lib/wholesale/wholesaleReorder';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
 import { WholesaleOrdersView, type WholesaleOrderLine } from './components/WholesaleOrdersView';
 import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
+import { WholesaleQuickOrderPanel } from './components/WholesaleQuickOrderPanel';
 import catalogueStyles from './WholesaleCatalogue.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -266,6 +269,7 @@ export default function WholesalePortalClient({
   // Cart
   const [cartItems, setCartItems]   = useState<CartItem[]>(loadCart);
   const [cartOpen, setCartOpen]     = useState(false);
+  const [quickOrderOpen, setQuickOrderOpen] = useState(false);
   const [cartNotes, setCartNotes]   = useState('');
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [saving, setSaving]         = useState(false);
@@ -391,6 +395,26 @@ export default function WholesalePortalClient({
     showToast(`Order added at current pricing${changes.length ? `; ${changes.join(', ')}` : ''}.`);
   };
 
+  const handleQuickOrderAdd = (items: WholesaleQuickOrderItem[]) => {
+    setCartItems(previous => {
+      const next = [...previous];
+      for (const item of items) {
+        const index = next.findIndex(existing => existing.variant_id === item.variant_id);
+        if (index < 0) {
+          next.push({ ...item });
+          continue;
+        }
+        const quantity = next[index].qty + item.qty;
+        const indentQty = Math.max(0, quantity - item.available);
+        next[index] = { ...next[index], ...item, qty: quantity, indent_qty: indentQty, is_indent: indentQty > 0 };
+      }
+      return next;
+    });
+    setQuickOrderOpen(false);
+    setCartOpen(true);
+    showToast(`${items.length} quick-order line${items.length === 1 ? '' : 's'} added at current pricing.`);
+  };
+
   const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push(`/wholesale/${supplier.slug}`); router.refresh(); };
 
   // Filtered products
@@ -488,6 +512,15 @@ export default function WholesalePortalClient({
         />
       )}
 
+      {quickOrderOpen && (
+        <WholesaleQuickOrderPanel
+          products={allProducts}
+          existingQuantities={cartQtyMap}
+          onAdd={handleQuickOrderAdd}
+          onClose={() => setQuickOrderOpen(false)}
+        />
+      )}
+
       <WholesalePortalShell
         supplier={supplier}
         session={session}
@@ -563,6 +596,7 @@ export default function WholesalePortalClient({
                 {(searchQuery || brandFilter !== '__all' || activeFilter !== '__all') && (
                   <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); setActiveFilter('__all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
                 )}
+                <button className={catalogueStyles.quickOrderButton} onClick={() => setQuickOrderOpen(true)} disabled={productsLoading || !!productsError}><ListPlus size={15} /> Quick order</button>
               </div>
               {productsError ? (
                 <div style={{ padding: 24, color: '#ef4444', background: '#fef2f2', borderRadius: 10, border: '1px solid #fecaca' }}>{productsError}</div>
