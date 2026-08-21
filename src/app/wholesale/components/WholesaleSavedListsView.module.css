@@ -1,0 +1,41 @@
+.page { max-width: 1180px; margin: 0 auto; color: #17201c; }
+.header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid #d9dfda; }
+.eyebrow { margin: 0 0 7px !important; color: #267653 !important; font: 700 11px/1 ui-monospace, Consolas, monospace !important; text-transform: uppercase; }
+.header h1 { margin: 0; font-size: 34px; font-weight: 550; }
+.header p { max-width: 620px; margin: 9px 0 0; color: #66736c; font-size: 14px; line-height: 1.5; }
+.browseButton, .saveControls button, .useButton { min-height: 38px; border: 1px solid #267653; border-radius: 5px; background: #267653; color: #fff; padding: 0 14px; font-size: 12px; font-weight: 750; cursor: pointer; }
+.browseButton { background: #fff; color: #225f45; white-space: nowrap; }
+.saveBand { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 24px 0 32px; padding: 17px 0; border-bottom: 1px solid #d9dfda; }
+.saveBand > div:first-child { display: flex; align-items: center; gap: 11px; color: #225f45; }
+.saveBand span { display: grid; gap: 3px; }
+.saveBand small { color: #77847d; }
+.saveControls { display: flex; gap: 8px; flex: 1; max-width: 470px; }
+.saveControls input { min-width: 0; flex: 1; height: 38px; border: 1px solid #cbd4cd; border-radius: 5px; padding: 0 11px; font-size: 13px; }
+.saveControls button:disabled, .useButton:disabled { cursor: not-allowed; opacity: .45; }
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.sectionHeading { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; color: #225f45; }
+.sectionHeading h2 { margin: 0; color: #17201c; font-size: 17px; font-weight: 650; }
+.sectionHeading span { margin-left: auto; color: #77847d; font-size: 12px; }
+.list { border-top: 1px solid #d9dfda; }
+.listRow, .favouriteRow { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 15px 0; border-bottom: 1px solid #d9dfda; }
+.listRow > div:first-child, .favouriteRow > div:first-child { display: grid; min-width: 0; gap: 4px; }
+.listRow strong, .favouriteRow strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.listRow span, .favouriteRow span, .favouriteRow small { color: #77847d; font-size: 11px; }
+.rowActions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.iconButton { width: 36px; height: 36px; display: inline-grid; place-items: center; border: 1px solid #cbd4cd; border-radius: 5px; background: #fff; color: #267653; cursor: pointer; }
+.useButton { min-height: 36px; display: inline-flex; align-items: center; gap: 6px; }
+.empty, .error { padding: 24px 0; color: #77847d; font-size: 13px; border-top: 1px solid #d9dfda; border-bottom: 1px solid #d9dfda; }
+.error { color: #a33a32; }
+.confirm { position: fixed; right: 22px; bottom: 22px; z-index: 1000; display: flex; align-items: center; gap: 9px; max-width: min(620px, calc(100vw - 44px)); padding: 14px; border: 1px solid #cbd4cd; background: #fff; box-shadow: 0 12px 35px rgba(20, 45, 33, .18); font-size: 13px; }
+.confirm span { margin-right: 8px; }
+.confirm button { min-height: 34px; padding: 0 11px; border: 1px solid #cbd4cd; border-radius: 4px; background: #fff; cursor: pointer; font-weight: 700; }
+.confirm .confirmPrimary { border-color: #267653; background: #267653; color: #fff; }
+.confirm .danger { border-color: #a33a32; background: #a33a32; color: #fff; }
+@media (max-width: 780px) {
+  .header, .saveBand { align-items: stretch; flex-direction: column; }
+  .browseButton { align-self: flex-start; }
+  .saveControls { width: 100%; max-width: none; }
+  .columns { grid-template-columns: 1fr; gap: 34px; }
+  .confirm { left: 12px; right: 12px; bottom: 12px; max-width: none; align-items: stretch; flex-wrap: wrap; }
+  .confirm span { width: 100%; margin: 0 0 3px; }
+}

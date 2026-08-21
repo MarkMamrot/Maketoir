@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   BookOpen,
+  Bookmark,
   Building2,
   CircleUserRound,
   HelpCircle,
@@ -21,11 +22,12 @@ import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import styles from './WholesalePortalShell.module.css';
 
-export type WholesalePortalView = 'home' | 'catalogue' | 'orders' | 'account' | 'help';
+export type WholesalePortalView = 'home' | 'catalogue' | 'lists' | 'orders' | 'account' | 'help';
 
 const navigation = [
   { id: 'home' as const, label: 'Home', icon: House },
   { id: 'catalogue' as const, label: 'Catalogue', icon: PackageSearch },
+  { id: 'lists' as const, label: 'Saved', icon: Bookmark },
   { id: 'orders' as const, label: 'Orders', icon: BookOpen },
   { id: 'account' as const, label: 'Account', icon: CircleUserRound },
   { id: 'help' as const, label: 'Help', icon: HelpCircle },

@@ -248,6 +248,31 @@ const TABLE_DDLS = [
     INDEX idx_wholesale_draft_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
     INDEX idx_status (status)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_wholesale_saved_lists (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', company_id INT NOT NULL,
+    created_by_member_id INT NOT NULL, name VARCHAR(80) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wholesale_saved_list_name (business_id, company_id, name),
+    INDEX idx_wholesale_saved_list_company (business_id, company_id, updated_at, id),
+    CONSTRAINT fk_wholesale_saved_list_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wholesale_saved_list_member FOREIGN KEY (created_by_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_wholesale_saved_list_items (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', list_id BIGINT NOT NULL,
+    variant_id VARCHAR(64) NOT NULL, quantity INT NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wholesale_saved_list_variant (business_id, list_id, variant_id),
+    INDEX idx_wholesale_saved_list_items (business_id, list_id, id),
+    CONSTRAINT fk_wholesale_saved_list_item_list FOREIGN KEY (list_id) REFERENCES ims_wholesale_saved_lists(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS ims_wholesale_favourites (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL DEFAULT '', company_id INT NOT NULL,
+    member_id INT NOT NULL, variant_id VARCHAR(64) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wholesale_favourite_variant (business_id, company_id, member_id, variant_id),
+    INDEX idx_wholesale_favourites_member (business_id, company_id, member_id, created_at),
+    CONSTRAINT fk_wholesale_favourite_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
+    CONSTRAINT fk_wholesale_favourite_member FOREIGN KEY (member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
     id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, variant_id VARCHAR(64) NOT NULL,
     product_id VARCHAR(64) NOT NULL, product_name VARCHAR(255) NOT NULL, variant_label VARCHAR(255) NULL,
@@ -1194,6 +1219,9 @@ async function migrateSchema(schema) {
     'ims_wholesale_companies',
     'ims_wholesale_company_locations',
     'ims_wholesale_company_members',
+    'ims_wholesale_saved_lists',
+    'ims_wholesale_saved_list_items',
+    'ims_wholesale_favourites',
   ]) {
     await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_contacts', 'business_id');
   }
@@ -1517,6 +1545,24 @@ async function verifyWholesaleOrderOwnershipSchema(schema) {
   console.log(`  verified ${schema} wholesale order ownership schema`);
 }
 
+async function verifyWholesaleSavedListsSchema(schema) {
+  const requiredTables = [
+    'ims_wholesale_saved_lists',
+    'ims_wholesale_saved_list_items',
+    'ims_wholesale_favourites',
+  ];
+  const [rows] = await conn.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [schema, requiredTables],
+  );
+  const tables = new Set(rows.map(row => row.TABLE_NAME));
+  for (const table of requiredTables) {
+    if (!tables.has(table)) throw new Error(`${schema} is missing ${table}`);
+  }
+  console.log(`  verified ${schema} wholesale saved lists schema`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -1544,6 +1590,7 @@ try {
     await verifySalesDocumentSchema(schema);
     await verifyWholesaleAccessSchema(schema);
     await verifyWholesaleOrderOwnershipSchema(schema);
+    await verifyWholesaleSavedListsSchema(schema);
   }
   console.log('Done.');
 } finally {

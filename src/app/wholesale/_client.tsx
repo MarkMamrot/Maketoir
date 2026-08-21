@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ListPlus } from 'lucide-react';
+import { Heart, ListPlus } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
@@ -14,6 +14,11 @@ import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './co
 import { WholesaleOrdersView, type WholesaleOrderLine } from './components/WholesaleOrdersView';
 import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
 import { WholesaleQuickOrderPanel } from './components/WholesaleQuickOrderPanel';
+import {
+  WholesaleSavedListsView,
+  type WholesaleSavedList,
+  type WholesaleFavouriteDetail,
+} from './components/WholesaleSavedListsView';
 import catalogueStyles from './WholesaleCatalogue.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,11 +116,13 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 // Product Card
 // ─────────────────────────────────────────────────────────────────────────────
 function ProductCard({
-  product, onAdd, cartQtyMap,
+  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite,
 }: {
   product: WholesaleProduct;
   onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
   cartQtyMap: Record<string, number>;
+  favouriteVariantIds: Set<string>;
+  onToggleFavourite: (variantId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -164,6 +171,7 @@ function ProductCard({
           const inCart  = cartQtyMap[v.variant_id] ?? 0;
           const isOos   = v.available <= 0 && !product.allow_indent_wholesale;
           const isIndent = v.available <= 0 && !!product.allow_indent_wholesale;
+          const favourite = favouriteVariantIds.has(v.variant_id);
           return (
             <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -177,6 +185,14 @@ function ProductCard({
                   {isOos ? 'Out of Stock' : isIndent ? `Indent (${v.available} on hand)` : `${v.available} available`}
                 </div>
               </div>
+              <button
+                onClick={() => onToggleFavourite(v.variant_id)}
+                aria-label={`${favourite ? 'Remove' : 'Add'} ${product.name} ${lbl} ${favourite ? 'from' : 'to'} favourites`}
+                title={favourite ? 'Remove favourite' : 'Add favourite'}
+                style={{ width: 30, height: 30, display: 'grid', placeItems: 'center', border: 'none', background: 'transparent', color: favourite ? '#b8324b' : '#8b9991', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <Heart size={16} fill={favourite ? 'currentColor' : 'none'} />
+              </button>
               {isOos ? (
                 <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, padding: '3px 7px', border: '1px solid #fecaca', borderRadius: 6 }}>Out of Stock</span>
               ) : (
@@ -290,6 +306,7 @@ export default function WholesalePortalClient({
   const [cartItems, setCartItems]   = useState<CartItem[]>(() => loadCart(cartStorageKey));
   const [cartOpen, setCartOpen]     = useState(false);
   const [quickOrderOpen, setQuickOrderOpen] = useState(false);
+  const [favouriteVariantIds, setFavouriteVariantIds] = useState<Set<string>>(new Set());
   const [cartNotes, setCartNotes]   = useState('');
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [saving, setSaving]         = useState(false);
@@ -297,6 +314,16 @@ export default function WholesalePortalClient({
 
   const showToast = (msg: string) => { setToastMsg(msg); setTimeout(() => setToastMsg(''), 3000); };
   useEffect(() => { saveCart(cartStorageKey, cartItems); }, [cartItems, cartStorageKey]);
+
+  useEffect(() => {
+    fetch('/api/wholesale/saved-lists/favourites')
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Favourites could not be loaded.');
+        setFavouriteVariantIds(new Set(body.variantIds ?? []));
+      })
+      .catch(() => showToast('Favourites could not be loaded.'));
+  }, []);
 
   const cartQtyMap = cartItems.reduce<Record<string, number>>((acc, i) => { acc[i.variant_id] = (acc[i.variant_id] ?? 0) + i.qty; return acc; }, {});
 
@@ -317,6 +344,29 @@ export default function WholesalePortalClient({
     return { ...i, qty: nextQty, indent_qty: indentQty, is_indent: indentQty > 0 };
   }));
   const handleRemove    = (vid: string) => setCartItems(p => p.filter(i => i.variant_id !== vid));
+  const handleToggleFavourite = async (variantId: string) => {
+    const favourite = !favouriteVariantIds.has(variantId);
+    setFavouriteVariantIds(current => {
+      const next = new Set(current);
+      if (favourite) next.add(variantId); else next.delete(variantId);
+      return next;
+    });
+    try {
+      const response = await fetch('/api/wholesale/saved-lists/favourites', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variantId, favourite }),
+      });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'Favourite could not be updated.');
+    } catch (error) {
+      setFavouriteVariantIds(current => {
+        const next = new Set(current);
+        if (favourite) next.delete(variantId); else next.add(variantId);
+        return next;
+      });
+      showToast(error instanceof Error ? error.message : 'Favourite could not be updated.');
+    }
+  };
   const clearCart = () => {
     setCartItems([]);
     setCartNotes('');
@@ -424,6 +474,64 @@ export default function WholesalePortalClient({
       unavailableLines > 0 ? `${unavailableLines} unavailable` : '',
     ].filter(Boolean);
     showToast(`Order added at current pricing${changes.length ? `; ${changes.join(', ')}` : ''}.`);
+  };
+
+  const handleUseSavedList = (list: WholesaleSavedList) => {
+    const { items, adjustedLines, unavailableLines } = buildWholesaleReorderCart(
+      list.items.map(item => ({ variant_id: item.variantId, qty_ordered: item.quantity })),
+      allProducts,
+    );
+    if (items.length === 0) {
+      showToast(productsLoading ? 'Catalogue is still loading. Please try again.' : 'These saved products are no longer available to order.');
+      return;
+    }
+    setCartItems(items);
+    setCartNotes('');
+    setEditingOrderId(null);
+    setCartOpen(true);
+    const changes = [
+      adjustedLines > 0 ? `${adjustedLines} adjusted for current stock` : '',
+      unavailableLines > 0 ? `${unavailableLines} unavailable` : '',
+    ].filter(Boolean);
+    showToast(`${list.name} loaded at current pricing${changes.length ? `; ${changes.join(', ')}` : ''}.`);
+  };
+
+  const favouriteDetails = React.useMemo<WholesaleFavouriteDetail[]>(() => {
+    const details: WholesaleFavouriteDetail[] = [];
+    for (const product of allProducts) {
+      for (const variant of product.variants) {
+        if (!favouriteVariantIds.has(variant.variant_id)) continue;
+        details.push({
+          variantId: variant.variant_id,
+          productName: product.name,
+          variantLabel: variantLabel(variant),
+          sku: variant.sku,
+          price: Number(variant.price_wholesale),
+          available: Number(variant.available),
+          orderable: variant.available > 0 || !!product.allow_indent_wholesale,
+        });
+      }
+    }
+    return details;
+  }, [allProducts, favouriteVariantIds]);
+
+  const handleAddFavourite = (variantId: string) => {
+    for (const product of allProducts) {
+      const variant = product.variants.find(item => item.variant_id === variantId);
+      if (!variant) continue;
+      handleAddToCart({
+        variant_id: variant.variant_id,
+        product_id: product.product_id,
+        product_name: product.name,
+        variant_label: variantLabel(variant),
+        sku: variant.sku,
+        qty: 1,
+        unit_price: variant.price_wholesale,
+        available: variant.available,
+        allow_indent: !!product.allow_indent_wholesale,
+      });
+      return;
+    }
   };
 
   const handleQuickOrderAdd = (items: WholesaleQuickOrderItem[]) => {
@@ -598,6 +706,16 @@ export default function WholesalePortalClient({
             onLoadDraft={handleLoadDraft}
             onReorder={handleReorder}
           />
+        ) : view === 'lists' ? (
+          <WholesaleSavedListsView
+            cartItems={cartItems}
+            favouriteDetails={favouriteDetails}
+            onUseList={handleUseSavedList}
+            onAddFavourite={handleAddFavourite}
+            onRemoveFavourite={variantId => void handleToggleFavourite(variantId)}
+            onBrowse={() => handleViewChange('catalogue')}
+            onNotice={showToast}
+          />
         ) : (
           <div className={catalogueStyles.layout}>
             {/* Sidebar */}
@@ -658,7 +776,7 @@ export default function WholesalePortalClient({
                     {activeFilter !== '__all' && ` · ${activeFilter.split('||').join(' › ')}`}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 16 }}>
-                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} />)}
+                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} />)}
                   </div>
                 </>
               )}

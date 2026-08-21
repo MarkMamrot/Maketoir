@@ -6,7 +6,7 @@ import { SupplierPortal } from '../_supplierPortal';
 
 export const dynamic = 'force-dynamic';
 
-const sections = new Set<WholesalePortalView>(['catalogue', 'orders', 'account', 'help']);
+const sections = new Set<WholesalePortalView>(['catalogue', 'lists', 'orders', 'account', 'help']);
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const profile = await WholesaleSupplierProfileRepository.getActiveBySlug(params.slug);
