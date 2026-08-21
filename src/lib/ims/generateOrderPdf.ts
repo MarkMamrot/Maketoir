@@ -201,13 +201,20 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
   // ── INFO GRID ────────────────────────────────────────────────────────
   const gridY = divY + 16;
   const colW  = CONTENT_W / 3;
+  const deliveryAddress = [
+    order.delivery_address,
+    order.delivery_address2,
+    [order.delivery_suburb, order.delivery_city].filter(Boolean).join(' '),
+    [order.delivery_state, order.delivery_postcode].filter(Boolean).join(' '),
+    order.delivery_country,
+  ].filter((line): line is string => !!String(line ?? '').trim());
 
   const cells: [string, string[]][] = [
     [isPO ? 'Supplier' : 'Customer',
       [isPO ? (order.supplier_name || '—') : (order.customer_name || '—'),
        ...(isPO
          ? (order.supplier_email ? [order.supplier_email] : [])
-         : (order.customer_email ? [order.customer_email] : []))]],
+         : [...(order.customer_email ? [order.customer_email] : []), ...deliveryAddress])]],
     ['Location',   [order.location_name || '—']],
     ['Status',     [(order.status || '').toUpperCase()]],
     [isPO || salesDocumentType === 'sales-order' ? 'Order Date' : 'Invoice Date', [fmtDate(order.order_date)]],
@@ -227,13 +234,19 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
         ]
     ),
   ];
+  const gridRowCount = Math.ceil(cells.length / 3);
+  const gridRowHeights = Array.from({ length: gridRowCount }, (_, row) => {
+    const rowCells = cells.slice(row * 3, row * 3 + 3);
+    const maxValueLines = Math.max(1, ...rowCells.map(([, values]) => values.length));
+    return Math.max(44, 28 + maxValueLines * 12);
+  });
 
   for (let idx = 0; idx < cells.length; idx++) {
     const [label, values] = cells[idx];
     const col = idx % 3;
     const row = Math.floor(idx / 3);
     const x   = MARGIN_L + col * colW;
-    const y   = gridY + row * 44;
+    const y   = gridY + gridRowHeights.slice(0, row).reduce((total, height) => total + height, 0);
 
     page.drawText(label.toUpperCase(), { x, y: py(y + 8), size: 8, font: fontBold, color: COL_GREY });
     for (let vi = 0; vi < values.length; vi++) {
@@ -241,7 +254,7 @@ export async function generateOrderPdf(opts: OrderPdfOptions): Promise<Buffer> {
     }
   }
 
-  let tY = gridY + Math.ceil(cells.length / 3) * 44 + 14;
+  let tY = gridY + gridRowHeights.reduce((total, height) => total + height, 0) + 14;
 
   // ── NOTES ────────────────────────────────────────────────────────────
   if (order.notes) {

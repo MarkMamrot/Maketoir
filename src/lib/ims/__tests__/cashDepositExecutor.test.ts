@@ -8,7 +8,7 @@ function dependencies(actions: any[], failVariance = false) {
       if (failVariance) throw new Error('variance failed');
       return { BankTransactions: [{ BankTransactionID: 'variance-1' }] };
     }
-    return { BankTransfers: [{ BankTransferID: 'transfer-1' }] };
+    return { BankTransfers: [{ BankTransferID: 'transfer-1', ToBankTransactionID: 'destination-transaction-1' }] };
   });
   const query = vi.fn(async (sql: string) => sql.includes('FROM xero_cash_deposits') ? [{
     id: 7, lodgement_date: '2026-07-27', bank_reference: 'LOD-9', source_account_code: 'CASH',
@@ -56,6 +56,10 @@ describe('executeCashDeposit', () => {
       idempotencyKey: 'transfer-key',
       body: { BankTransfers: [{ FromBankAccount: { Code: 'CASH' }, ToBankAccount: { Code: 'BANK' }, Amount: 98, Reference: 'LOD-9' }] },
     });
+    expect(deps.execute).toHaveBeenCalledWith(
+      expect.stringContaining('xero_bank_transaction_id = ?'),
+      ['transfer-1', 'destination-transaction-1', 'biz-1', 7],
+    );
   });
 
   it('posts preparation and bank acceptance variances with distinct references before transfer', async () => {

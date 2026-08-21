@@ -327,6 +327,8 @@ export interface ImsSO {
   id: number; so_number: string; customer_id?: number; customer_po_number?: string; location_id: number;
   status: SOStatus; order_date: string; expected_date?: string;
   fulfilled_date?: string; notes?: string; subtotal: number;
+  delivery_address?: string; delivery_address2?: string; delivery_suburb?: string;
+  delivery_city?: string; delivery_state?: string; delivery_postcode?: string; delivery_country?: string;
   tax_amount: number; freight?: number; discount?: number; total_amount: number; is_historical?: number;
   shopify_order_id?: string; cin7_order_id?: string;
   price_tier?: 'retail' | 'wholesale';
@@ -2741,11 +2743,14 @@ export const ImsSORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
-        (business_id,so_number,so_type,customer_id,customer_po_number,location_id,status,order_date,expected_date,notes,
+        (business_id,so_number,so_type,customer_id,customer_po_number,location_id,status,order_date,expected_date,
+         delivery_address,delivery_address2,delivery_suburb,delivery_city,delivery_state,delivery_postcode,delivery_country,notes,
          payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', so_number, 'b2b', data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
-       data.order_date, data.expected_date ?? null, data.notes ?? null,
+       data.order_date, data.expected_date ?? null, data.delivery_address ?? null, data.delivery_address2 ?? null,
+       data.delivery_suburb ?? null, data.delivery_city ?? null, data.delivery_state ?? null,
+       data.delivery_postcode ?? null, data.delivery_country ?? null, data.notes ?? null,
        data.payment_terms ?? null, priceTier, taxTreatment, data.tax_code ?? null, soFreight, soDiscount,
        totals.subtotal, totals.tax_amount, totals.total_amount, data.shopify_order_id ?? null]
     );
@@ -2798,11 +2803,14 @@ export const ImsSORepo = {
       const [headerResult] = await conn.execute<any>(
         `INSERT INTO ims_sales_orders
            (business_id, so_number, so_type, customer_id, customer_po_number, price_tier, location_id, status,
-            order_date, expected_date, payment_terms, notes, tax_treatment, tax_code, freight, discount,
+            order_date, expected_date, delivery_address, delivery_address2, delivery_suburb, delivery_city,
+            delivery_state, delivery_postcode, delivery_country, payment_terms, notes, tax_treatment, tax_code, freight, discount,
             subtotal, tax_amount, total_amount, currency_code, exchange_rate, replacement_of_so_id)
-         VALUES (?, ?, ?, ?, NULL, ?, ?, 'draft', CURRENT_DATE, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?, NULL, ?, ?, 'draft', CURRENT_DATE, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [businessId, soNumber, source.so_type ?? 'b2b', source.customer_id ?? null, source.price_tier ?? 'retail',
-         source.location_id, source.payment_terms ?? null, notes || null, source.tax_treatment ?? 'ex_tax',
+          source.location_id, source.delivery_address ?? null, source.delivery_address2 ?? null, source.delivery_suburb ?? null,
+          source.delivery_city ?? null, source.delivery_state ?? null, source.delivery_postcode ?? null,
+          source.delivery_country ?? null, source.payment_terms ?? null, notes || null, source.tax_treatment ?? 'ex_tax',
          source.tax_code ?? null, source.freight ?? 0, source.discount ?? 0, source.subtotal ?? 0,
          source.tax_amount ?? 0, source.total_amount ?? 0, source.currency_code ?? 'AUD', source.exchange_rate ?? 1, id],
       );
@@ -2829,12 +2837,12 @@ export const ImsSORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>,
+    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'delivery_address' | 'delivery_address2' | 'delivery_suburb' | 'delivery_city' | 'delivery_state' | 'delivery_postcode' | 'delivery_country' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>,
     items?: (Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'> & { id?: number })[],
     amendmentContext?: OrderAmendmentContext,
   ): Promise<void> {
     await this.ensureTaxTreatmentColumn();
-    const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','notes','payment_terms','price_tier','tax_treatment','tax_code','freight','discount'];
+    const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','delivery_address','delivery_address2','delivery_suburb','delivery_city','delivery_state','delivery_postcode','delivery_country','notes','payment_terms','price_tier','tax_treatment','tax_code','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -2854,6 +2862,7 @@ export const ImsSORepo = {
       // lines below would strand that commitment, so we rebalance it here.
       const [[preEdit]] = await conn.execute<any[]>(
         `SELECT status, location_id, business_id, customer_id, order_date, payment_terms,
+           delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state, delivery_postcode, delivery_country,
            price_tier, tax_treatment, tax_code, freight, discount, so_type, updated_at
            FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
       );
@@ -2878,7 +2887,7 @@ export const ImsSORepo = {
       }
       let replacementItems = items;
       if (['partially_fulfilled', 'fulfilled'].includes(String(preEdit?.status))) {
-        const lockedFields = ['customer_id', 'location_id', 'order_date', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'] as const;
+        const lockedFields = ['customer_id', 'location_id', 'order_date', 'delivery_address', 'delivery_address2', 'delivery_suburb', 'delivery_city', 'delivery_state', 'delivery_postcode', 'delivery_country', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'] as const;
         const changedLockedField = lockedFields.find(field => data[field] !== undefined
           && String(data[field] ?? '') !== String(preEdit[field] ?? ''));
         if (changedLockedField) {

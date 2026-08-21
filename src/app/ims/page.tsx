@@ -7612,6 +7612,274 @@ function StockView() {
 // Invoice Import Modal
 // ─────────────────────────────────────────────────────────────────────────────
 
+type SalesOrderUploadResult = {
+  sales_order: {
+    customer_name: string | null;
+    customer_po_number: string | null;
+    order_date: string | null;
+    notes: string | null;
+    delivery_address: {
+      address: string | null; address2: string | null; suburb: string | null; city: string | null;
+      state: string | null; postcode: string | null; country: string | null;
+    };
+  };
+  matched_customer: { id: number; name: string; confidence: string; method: string } | null;
+  line_results: Array<{
+    sales_order_line: { product_code: string | null; barcode: string | null; product_name: string; variant_description: string | null; qty: number };
+    match: { variant_id: string; sku?: string | null; product_name?: string | null; variant_label?: string | null; confidence: string; method: string } | null;
+  }>;
+};
+
+type SalesOrderUploadData = {
+  customer_id: number;
+  customer_po_number: string;
+  order_date: string;
+  notes: string;
+  delivery_address: string;
+  delivery_address2: string;
+  delivery_suburb: string;
+  delivery_city: string;
+  delivery_state: string;
+  delivery_postcode: string;
+  delivery_country: string;
+  line_items: Array<{ variant_id: string; qty_ordered: number }>;
+};
+
+function SalesOrderUploadModal({ onClose, onImport, customers, variants, pendingFile }: {
+  onClose: () => void;
+  onImport: (data: SalesOrderUploadData) => void;
+  customers: any[];
+  variants: any[];
+  pendingFile?: File | null;
+}) {
+  const [stage, setStage] = React.useState<'idle' | 'uploading' | 'review'>('idle');
+  const [dragging, setDragging] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [result, setResult] = React.useState<SalesOrderUploadResult | null>(null);
+  const [customerId, setCustomerId] = React.useState<number | ''>('');
+  const [customerConfirmed, setCustomerConfirmed] = React.useState(false);
+  const [customerPoNumber, setCustomerPoNumber] = React.useState('');
+  const [orderDate, setOrderDate] = React.useState('');
+  const [notes, setNotes] = React.useState('');
+  const [address, setAddress] = React.useState({ address: '', address2: '', suburb: '', city: '', state: '', postcode: '', country: '' });
+  const [overrides, setOverrides] = React.useState<Record<number, string>>({});
+  const [aiMatches, setAiMatches] = React.useState<Record<number, string>>({});
+  const [skipped, setSkipped] = React.useState<Set<number>>(new Set());
+  const [aiMatching, setAiMatching] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (pendingFile) processFile(pendingFile);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function processFile(file: File) {
+    setError(null);
+    setStage('uploading');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/ims/ai/parse-sales-order', { method: 'POST', body: formData });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        setError(json.error ?? 'Failed to read the sales order.');
+        setStage('idle');
+        return;
+      }
+      const parsed = json as SalesOrderUploadResult;
+      setResult(parsed);
+      setCustomerId(parsed.matched_customer?.id ?? '');
+      setCustomerConfirmed(false);
+      setCustomerPoNumber(parsed.sales_order.customer_po_number ?? '');
+      setOrderDate(parsed.sales_order.order_date ?? '');
+      setNotes(parsed.sales_order.notes ?? '');
+      setAddress({
+        address: parsed.sales_order.delivery_address.address ?? '',
+        address2: parsed.sales_order.delivery_address.address2 ?? '',
+        suburb: parsed.sales_order.delivery_address.suburb ?? '',
+        city: parsed.sales_order.delivery_address.city ?? '',
+        state: parsed.sales_order.delivery_address.state ?? '',
+        postcode: parsed.sales_order.delivery_address.postcode ?? '',
+        country: parsed.sales_order.delivery_address.country ?? '',
+      });
+      setOverrides({});
+      setAiMatches({});
+      setSkipped(new Set());
+      setStage('review');
+    } catch (caught: any) {
+      setError(caught?.message ?? 'Failed to read the sales order.');
+      setStage('idle');
+    }
+  }
+
+  function resolvedVariantId(index: number, lineResult: SalesOrderUploadResult['line_results'][number]): string | null {
+    if (index in overrides) return overrides[index] || null;
+    if (index in aiMatches) return aiMatches[index] || null;
+    return lineResult.match?.variant_id ?? null;
+  }
+
+  function toggleSkipped(index: number) {
+    setSkipped(current => {
+      const next = new Set(current);
+      if (next.has(index)) next.delete(index); else next.add(index);
+      return next;
+    });
+  }
+
+  async function runAiMatching() {
+    if (!result) return;
+    const unresolvedLines = result.line_results.flatMap((lineResult, index) => {
+      if (skipped.has(index) || index in overrides || resolvedVariantId(index, lineResult)) return [];
+      return [{ line_index: index, ...lineResult.sales_order_line }];
+    });
+    if (unresolvedLines.length === 0) return;
+    setAiMatching(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/ims/ai/match-sales-order-lines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sales_order_lines: unresolvedLines }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) throw new Error(json.error ?? 'AI matching failed.');
+      setAiMatches(current => {
+        const next = { ...current };
+        for (const match of json.matches ?? []) {
+          const index = Number(match.line_index);
+          if (Number.isInteger(index) && match.variant_id && !(index in overrides)) next[index] = String(match.variant_id);
+        }
+        return next;
+      });
+    } catch (caught: any) {
+      setError(caught?.message ?? 'AI matching failed.');
+    } finally {
+      setAiMatching(false);
+    }
+  }
+
+  function applyImport() {
+    if (!result || !customerId || !customerConfirmed) return;
+    const included = result.line_results.filter((_, index) => !skipped.has(index));
+    const unresolved = included.some((lineResult, index) => !resolvedVariantId(result.line_results.indexOf(lineResult), lineResult));
+    if (unresolved) {
+      setError('Match or skip every unresolved product before applying the order.');
+      return;
+    }
+    if (included.length === 0) {
+      setError('Keep at least one product line on the order.');
+      return;
+    }
+    onImport({
+      customer_id: Number(customerId),
+      customer_po_number: customerPoNumber.trim(),
+      order_date: orderDate || today(),
+      notes: notes.trim(),
+      delivery_address: address.address.trim(),
+      delivery_address2: address.address2.trim(),
+      delivery_suburb: address.suburb.trim(),
+      delivery_city: address.city.trim(),
+      delivery_state: address.state.trim(),
+      delivery_postcode: address.postcode.trim(),
+      delivery_country: address.country.trim(),
+      line_items: result.line_results.flatMap((lineResult, index) => {
+        if (skipped.has(index)) return [];
+        const variantId = resolvedVariantId(index, lineResult);
+        return variantId ? [{ variant_id: variantId, qty_ordered: Number(lineResult.sales_order_line.qty) }] : [];
+      }),
+    });
+    onClose();
+  }
+
+  if (stage === 'idle' || stage === 'uploading') return (
+    <Modal title="Upload Customer Sales Order" onClose={onClose}>
+      <div style={{ minHeight: 200, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {error && <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,.1)', color: 'var(--sv-red)', borderRadius: 6, fontSize: 13 }}>{error}</div>}
+        <div
+          onDragOver={event => { event.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={event => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files?.[0]; if (file) processFile(file); }}
+          onClick={() => stage !== 'uploading' && fileInputRef.current?.click()}
+          style={{ border: `2px dashed ${dragging ? 'var(--sv-accent)' : 'var(--sv-border)'}`, borderRadius: 8, padding: '40px 24px', textAlign: 'center', cursor: stage === 'uploading' ? 'default' : 'pointer', background: dragging ? 'rgba(99,102,241,.05)' : 'var(--sv-bg-subtle)' }}
+        >
+          {stage === 'uploading'
+            ? <><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Reading the customer order...</div><div style={{ fontSize: 13, color: 'var(--sv-text-muted)' }}>This usually takes 10-30 seconds</div></>
+            : <><div style={{ fontSize: 15, fontWeight: 600, color: 'var(--sv-text-strong)', marginBottom: 6 }}>Drop the customer order here or click to browse</div><div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>PDF, JPEG, or PNG. Maximum 20 MB.</div></>}
+        </div>
+        <input ref={fileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={event => { const file = event.target.files?.[0]; if (file) processFile(file); }} />
+      </div>
+    </Modal>
+  );
+
+  if (!result) return null;
+  const unresolvedCount = result.line_results.filter((lineResult, index) => !skipped.has(index) && !resolvedVariantId(index, lineResult)).length;
+  const canApply = !!customerId && customerConfirmed && unresolvedCount === 0 && result.line_results.some((_, index) => !skipped.has(index));
+  const fieldStyle: React.CSSProperties = { ...inputStyle, fontSize: 12 };
+
+  return (
+    <Modal title="Review Customer Sales Order" onClose={onClose} wider>
+      {error && <div style={{ padding: '10px 14px', marginBottom: 12, background: 'rgba(239,68,68,.1)', color: 'var(--sv-red)', borderRadius: 6, fontSize: 13 }}>{error}</div>}
+      <Row3>
+        <Field label="Customer *">
+          <select value={customerId} onChange={event => { setCustomerId(event.target.value ? Number(event.target.value) : ''); setCustomerConfirmed(false); }} style={fieldStyle}>
+            <option value="">Select existing customer</option>
+            {customers.map(customer => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--sv-text-muted)' }}>
+            <input type="checkbox" checked={customerConfirmed} disabled={!customerId} onChange={event => setCustomerConfirmed(event.target.checked)} />
+            Confirm this existing customer
+          </label>
+        </Field>
+        <Field label="Customer PO #"><input value={customerPoNumber} onChange={event => setCustomerPoNumber(event.target.value)} style={fieldStyle} /></Field>
+        <Field label="Order Date"><input type="date" value={orderDate} onChange={event => setOrderDate(event.target.value)} style={fieldStyle} /></Field>
+      </Row3>
+      <Row3>
+        <Field label="Delivery Address"><input value={address.address} onChange={event => setAddress(current => ({ ...current, address: event.target.value }))} style={fieldStyle} /></Field>
+        <Field label="Address Line 2"><input value={address.address2} onChange={event => setAddress(current => ({ ...current, address2: event.target.value }))} style={fieldStyle} /></Field>
+        <Field label="Suburb"><input value={address.suburb} onChange={event => setAddress(current => ({ ...current, suburb: event.target.value }))} style={fieldStyle} /></Field>
+      </Row3>
+      <Row3>
+        <Field label="City"><input value={address.city} onChange={event => setAddress(current => ({ ...current, city: event.target.value }))} style={fieldStyle} /></Field>
+        <Field label="State"><input value={address.state} onChange={event => setAddress(current => ({ ...current, state: event.target.value }))} style={fieldStyle} /></Field>
+        <Field label="Postcode"><input value={address.postcode} onChange={event => setAddress(current => ({ ...current, postcode: event.target.value }))} style={fieldStyle} /></Field>
+      </Row3>
+      <Row2>
+        <Field label="Country"><input value={address.country} onChange={event => setAddress(current => ({ ...current, country: event.target.value }))} style={fieldStyle} /></Field>
+        <Field label="Customer Notes"><textarea value={notes} onChange={event => setNotes(event.target.value)} style={{ ...fieldStyle, minHeight: 58 }} /></Field>
+      </Row2>
+      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-border)', borderRadius: 6, marginTop: 8 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead><tr style={{ background: 'var(--sv-bg-subtle)' }}>
+            {['Skip', 'Requested Product', 'Code / Barcode', 'Qty', 'Existing Variant', 'Match'].map(label => <th key={label} style={{ padding: '7px 8px', textAlign: 'left', color: 'var(--sv-text-muted)', whiteSpace: 'nowrap' }}>{label}</th>)}
+          </tr></thead>
+          <tbody>{result.line_results.map((lineResult, index) => {
+            const line = lineResult.sales_order_line;
+            const variantId = resolvedVariantId(index, lineResult);
+            const skippedLine = skipped.has(index);
+            return <tr key={index} style={{ borderTop: '1px solid var(--sv-border)', opacity: skippedLine ? 0.55 : 1 }}>
+              <td style={{ padding: 8 }}><input type="checkbox" checked={skippedLine} onChange={() => toggleSkipped(index)} aria-label={`Skip ${line.product_name || line.product_code || `line ${index + 1}`}`} /></td>
+              <td style={{ padding: 8 }}>{line.product_name || 'Unnamed product'}{line.variant_description ? ` - ${line.variant_description}` : ''}</td>
+              <td style={{ padding: 8, color: 'var(--sv-text-muted)' }}>{line.product_code || line.barcode || '—'}</td>
+              <td style={{ padding: 8 }}>{line.qty}</td>
+              <td style={{ padding: 5, minWidth: 260 }}><VariantSearch value={variantId ?? ''} variants={variants} onChange={variantId => setOverrides(current => ({ ...current, [index]: variantId }))} style={skippedLine ? { pointerEvents: 'none' } : undefined} /></td>
+              <td style={{ padding: 8, color: variantId ? 'var(--sv-mint)' : 'var(--sv-red)', whiteSpace: 'nowrap' }}>{index in overrides ? 'Manual' : index in aiMatches ? 'AI match' : lineResult.match?.method ?? 'Unresolved'}</td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 12, color: unresolvedCount ? 'var(--sv-red)' : 'var(--sv-text-muted)' }}>{unresolvedCount ? `${unresolvedCount} included line${unresolvedCount === 1 ? '' : 's'} still need a match.` : 'Uploaded prices are ignored. Current customer tier pricing will be applied.'}</div>
+          {unresolvedCount > 0 && <button type="button" onClick={runAiMatching} disabled={aiMatching} style={btnStyle('secondary', 'xs')}>{aiMatching ? 'Matching...' : 'Try AI Matching'}</button>}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={onClose} style={btnStyle('secondary', 'sm')}>Cancel</button>
+          <button type="button" onClick={applyImport} disabled={!canApply} style={{ ...btnStyle('action', 'sm'), opacity: canApply ? 1 : 0.55 }}>Apply to Sales Order</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 type InvoiceParseResult = {
   invoice: { supplier_name: string | null; invoice_number: string | null; invoice_date: string | null; currency: string; prices_include_tax: 'inc_tax' | 'ex_tax' | 'no_tax'; subtotal: number | null; tax_total: number | null; total_amount: number | null; payment_terms: string | null; discount_total?: number | null; freight_total?: number | null };
   matched_supplier: { id: number; name: string } | null;
@@ -12656,12 +12924,14 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [customers, setCustomers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [variants, setVariants] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '' });
+  const [form, setForm] = useState<any>({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier: 'retail', tax_treatment: 'inc_tax', freight: '', discount: '', delivery_address: '', delivery_address2: '', delivery_suburb: '', delivery_city: '', delivery_state: '', delivery_postcode: '', delivery_country: '' });
   const [lineItems, setLineItems] = useState<any[]>([]);
   const [soBulkDiscountPct, setSoBulkDiscountPct] = useState('');
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importSOsOpen, setImportSOsOpen] = useState(false);
+  const [salesOrderUploadOpen, setSalesOrderUploadOpen] = useState(false);
+  const [salesOrderPendingFile, setSalesOrderPendingFile] = useState<File | null>(null);
   const [soXeroWarnModal, setSoXeroWarnModal] = useState<{ action: 'edit' | 'delete'; so: any; onConfirm: () => void } | null>(null);
   const [soXeroWarnBillNum, setSoXeroWarnBillNum] = useState<string | null>(null);
   const [soXeroWarnFetching, setSoXeroWarnFetching] = useState(false);
@@ -12754,10 +13024,23 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const handleSOCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const customer_id = e.target.value;
+    const customer = customers.find((c: any) => String(c.id) === String(customer_id));
     const price_tier = deriveSOPriceTier(customer_id);
     const tax_treatment = deriveSOTaxTreatment(customer_id, price_tier);
     const taxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
-    setForm((p: any) => ({ ...p, customer_id, price_tier, tax_treatment }));
+    setForm((p: any) => ({
+      ...p,
+      customer_id,
+      price_tier,
+      tax_treatment,
+      delivery_address: customer?.address ?? '',
+      delivery_address2: customer?.address2 ?? '',
+      delivery_suburb: customer?.suburb ?? '',
+      delivery_city: customer?.city ?? '',
+      delivery_state: customer?.state ?? '',
+      delivery_postcode: customer?.postcode ?? '',
+      delivery_country: customer?.country ?? '',
+    }));
     setLineItems(items => applySODefaultPricing(items, price_tier, tax_treatment, taxRate));
   };
 
@@ -12825,11 +13108,45 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const openNew = () => {
     const price_tier = 'retail';
     const tax_treatment = (settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? 'inc_tax' : 'no_tax';
-    setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier, tax_treatment, freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '' });
+    setForm({ customer_id: '', customer_po_number: '', location_id: '', order_date: today(), notes: '', payment_terms: '', price_tier, tax_treatment, freight: '', discount: '', tax_code: settings?.sales_tax_code ?? '', delivery_address: '', delivery_address2: '', delivery_suburb: '', delivery_city: '', delivery_state: '', delivery_postcode: '', delivery_country: '' });
     const defaultTaxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
     setLineItems([{ variant_id: '', qty_ordered: 1, unit_price: 0, discount_pct: 0, tax_rate: defaultTaxRate, notes: '' }]);
     setSoBulkDiscountPct('');
     setModal({ open: true, edit: null });
+  };
+
+  const applySalesOrderUpload = (data: SalesOrderUploadData) => {
+    const customer = customers.find((candidate: any) => Number(candidate.id) === Number(data.customer_id));
+    const price_tier = deriveSOPriceTier(data.customer_id);
+    const tax_treatment = deriveSOTaxTreatment(data.customer_id, price_tier);
+    const taxRate = tax_treatment === 'no_tax' ? 0 : Number(settings?.sales_tax_rate ?? 0);
+    setForm((current: any) => ({
+      ...current,
+      customer_id: data.customer_id,
+      customer_po_number: data.customer_po_number,
+      order_date: data.order_date || today(),
+      notes: data.notes,
+      price_tier,
+      tax_treatment,
+      delivery_address: data.delivery_address || customer?.address || '',
+      delivery_address2: data.delivery_address2 || customer?.address2 || '',
+      delivery_suburb: data.delivery_suburb || customer?.suburb || '',
+      delivery_city: data.delivery_city || customer?.city || '',
+      delivery_state: data.delivery_state || customer?.state || '',
+      delivery_postcode: data.delivery_postcode || customer?.postcode || '',
+      delivery_country: data.delivery_country || customer?.country || '',
+    }));
+    setLineItems(data.line_items.map(item => {
+      const variant = variants.find((candidate: any) => candidate.variant_id === item.variant_id);
+      return {
+        variant_id: item.variant_id,
+        qty_ordered: item.qty_ordered,
+        unit_price: variant ? priceForSOVariant(variant, price_tier, tax_treatment) : 0,
+        discount_pct: 0,
+        tax_rate: taxRate,
+        notes: '',
+      };
+    }));
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -12844,7 +13161,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
   const openEdit = async (so: any) => {
     const d = await apiFetch(`/api/ims/sales-orders/${so.id}`);
-    setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', price_tier: normalizeSOPriceTier(d.data.price_tier), tax_treatment: d.data.tax_treatment ?? 'ex_tax', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '' });
+    setForm({ customer_id: d.data.customer_id ?? '', customer_po_number: d.data.customer_po_number ?? '', location_id: d.data.location_id, order_date: d.data.order_date?.slice(0, 10), notes: d.data.notes ?? '', payment_terms: d.data.payment_terms ?? '', price_tier: normalizeSOPriceTier(d.data.price_tier), tax_treatment: d.data.tax_treatment ?? 'ex_tax', freight: d.data.freight ?? '', discount: d.data.discount ?? '', tax_code: d.data.tax_code ?? settings?.sales_tax_code ?? '', delivery_address: d.data.delivery_address ?? '', delivery_address2: d.data.delivery_address2 ?? '', delivery_suburb: d.data.delivery_suburb ?? '', delivery_city: d.data.delivery_city ?? '', delivery_state: d.data.delivery_state ?? '', delivery_postcode: d.data.delivery_postcode ?? '', delivery_country: d.data.delivery_country ?? '' });
     setLineItems((d.data.items || []).map((i: any) => ({ id: i.id, shopify_line_item_id: i.shopify_line_item_id ?? null, variant_id: i.variant_id, qty_ordered: i.qty_ordered, unit_price: i.unit_price, discount_pct: i.discount_pct, tax_rate: i.tax_rate, notes: i.notes ?? '' })));
     setSoBulkDiscountPct('');
     setModal({ open: true, edit: d.data });
@@ -13441,6 +13758,20 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.so_number}` : 'New Sales Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
+            {!modal.edit && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Have a customer purchase order?</div>
+                  <div style={{ fontSize: 12, color: 'var(--sv-text-muted)' }}>Upload a PDF or image to identify products and quantities. Current customer tier pricing is applied.</div>
+                </div>
+                <span style={{ padding: '7px 16px', background: 'var(--sv-accent)', color: '#fff', borderRadius: 6, fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', flexShrink: 0 }}>Upload Sales Order</span>
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={event => {
+                  const file = event.target.files?.[0];
+                  if (file) { setSalesOrderPendingFile(file); setSalesOrderUploadOpen(true); }
+                  event.target.value = '';
+                }} />
+              </label>
+            )}
             {shippedEditLocked && (
               <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid rgba(251,191,36,.45)', borderRadius: 6, background: 'rgba(251,191,36,.08)', color: 'var(--sv-text-main)', fontSize: 12 }}>
                 This order has shipped quantities. Customer, location, pricing, and line items are locked to preserve fulfilment and stock history. Customer PO and notes may still be updated.
@@ -13464,6 +13795,19 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <Row2>
               <Field label="Customer PO #"><input value={form.customer_po_number} onChange={sf('customer_po_number')} style={inputStyle} placeholder="Customer's PO reference" /></Field>
               <Field label="Notes"><input data-testid="so-notes" value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+            </Row2>
+            <Row3>
+              <Field label="Delivery Address"><input value={form.delivery_address} onChange={sf('delivery_address')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+              <Field label="Address Line 2"><input value={form.delivery_address2} onChange={sf('delivery_address2')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+              <Field label="Suburb"><input value={form.delivery_suburb} onChange={sf('delivery_suburb')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+            </Row3>
+            <Row3>
+              <Field label="City"><input value={form.delivery_city} onChange={sf('delivery_city')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+              <Field label="State"><input value={form.delivery_state} onChange={sf('delivery_state')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+              <Field label="Postcode"><input value={form.delivery_postcode} onChange={sf('delivery_postcode')} style={inputStyle} disabled={shippedEditLocked} /></Field>
+            </Row3>
+            <Row2>
+              <Field label="Country"><input value={form.delivery_country} onChange={sf('delivery_country')} style={inputStyle} disabled={shippedEditLocked} /></Field>
             </Row2>
             <Row2>
               <Field label="Payment Terms">
@@ -13600,6 +13944,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         />
       )}
 
+      {salesOrderUploadOpen && (
+        <SalesOrderUploadModal
+          customers={customers}
+          variants={variants}
+          pendingFile={salesOrderPendingFile}
+          onClose={() => { setSalesOrderUploadOpen(false); setSalesOrderPendingFile(null); }}
+          onImport={applySalesOrderUpload}
+        />
+      )}
+
       {/* Xero warning modal for fulfilled SO edit/delete */}
       {soXeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setSoXeroWarnModal(null)}>
@@ -13706,6 +14060,16 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <div><div style={labelStyle}>Customer</div><div>{viewModal.so.customer_name || '—'}</div></div>
             <div><div style={labelStyle}>Location</div><div>{viewModal.so.location_name}</div></div>
             <div><div style={labelStyle}>Status</div><StatusBadge status={viewModal.so.status} orderKind="sales_order" /></div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <div style={labelStyle}>Delivery Address</div>
+              <div style={{ whiteSpace: 'pre-line' }}>{[
+                viewModal.so.delivery_address,
+                viewModal.so.delivery_address2,
+                [viewModal.so.delivery_suburb, viewModal.so.delivery_city].filter(Boolean).join(' '),
+                [viewModal.so.delivery_state, viewModal.so.delivery_postcode].filter(Boolean).join(' '),
+                viewModal.so.delivery_country,
+              ].filter(Boolean).join('\n') || '—'}</div>
+            </div>
             <div><div style={labelStyle}>Order Date</div><div>{viewModal.so.order_date?.slice(0, 10)}</div></div>
             <div><div style={labelStyle}>Cust PO #</div><div>{viewModal.so.customer_po_number || '—'}</div></div>
             <div><div style={labelStyle}>Fulfilled</div><div>{viewModal.so.fulfilled_date?.slice(0, 10) || '—'}</div></div>
@@ -15064,7 +15428,6 @@ function CashBankingView() {
   };
 
   const controlStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
-  const xeroBankTransferLink = (id?: string | null) => id ? `https://go.xero.com/Banking/ViewBankTransfer.aspx?BankTransferID=${encodeURIComponent(id)}` : null;
   return (
     <div>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 18 }}>
@@ -15111,7 +15474,7 @@ function CashBankingView() {
       </>}
       <h2 style={{ margin: '28px 0 10px', fontSize: 15, color: 'var(--sv-text-strong)' }}>Recent deposits</h2>
       <div style={{ borderTop: '1px solid var(--sv-etch)' }}>{deposits.length === 0 ? <div style={{ padding: 18, color: 'var(--sv-text-dim)', fontSize: 13 }}>No cash deposits prepared yet.</div> : deposits.map(deposit => {
-        const deepLink = xeroBankTransferLink(deposit.xero_bank_transfer_id ?? undefined);
+        const deepLink = deposit.xero_bank_transfer_id ? `/api/ims/money/cash-deposits/${deposit.id}/xero` : null;
         const statusColor = deposit.status === 'posted' ? 'var(--sv-mint)' : deposit.status === 'partial' ? 'var(--sv-red)' : 'var(--sv-amber)';
         const statusLabel = deposit.confirmation_status === 'planned' ? 'planned' : deposit.status;
         return (
@@ -15119,6 +15482,7 @@ function CashBankingView() {
             <strong style={{ color: 'var(--sv-text-strong)', fontSize: 13 }}>#{deposit.id}</strong>
             <span style={{ fontSize: 13 }}>{deposit.lodgement_date ? String(deposit.lodgement_date).slice(0, 10) : 'Awaiting lodgement'}</span>
             <span style={{ color: 'var(--sv-text-dim)', fontSize: 13 }}>{deposit.destination_account_name ?? deposit.default_destination_account_name ?? 'Bank not confirmed'}</span>
+            <span title="Cash deposit bank reference" style={{ color: deposit.bank_reference ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13 }}>Ref: {deposit.bank_reference || 'No bank reference'}</span>
             <span style={{ flex: 1 }} />
             <span title="Cash counted when the batch was prepared" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Prepared {fmtCurrency(deposit.counted_total)}</span>
             {deposit.deposited_total != null && <span title="Amount accepted by the bank" style={{ fontSize: 13, color: 'var(--sv-text-strong)' }}>Deposited {fmtCurrency(deposit.deposited_total)}</span>}

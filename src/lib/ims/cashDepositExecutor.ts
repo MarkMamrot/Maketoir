@@ -83,6 +83,7 @@ export async function executeCashDeposit(
         [businessId, action.id],
       );
       let xeroId: string | undefined;
+      let xeroBankTransactionId: string | undefined;
       try {
         if (action.action_type !== 'bank_transfer') {
           if (!deposit.over_short_account_code) throw new Error('Cash Over / Short account is missing from the deposit snapshot');
@@ -112,7 +113,9 @@ export async function executeCashDeposit(
               Reference: deposit.bank_reference || `Cash deposit ${depositId}`,
             }] },
           });
-          xeroId = response?.BankTransfers?.[0]?.BankTransferID;
+          const bankTransfer = response?.BankTransfers?.[0];
+          xeroId = bankTransfer?.BankTransferID;
+          xeroBankTransactionId = bankTransfer?.ToBankTransactionID;
         }
         if (!xeroId) throw new Error(`Xero did not return an ID for ${action.action_type}`);
         await deps.execute(
@@ -122,8 +125,10 @@ export async function executeCashDeposit(
         );
         if (action.action_type === 'bank_transfer') {
           await deps.execute(
-            `UPDATE xero_cash_deposits SET xero_bank_transfer_id = ? WHERE business_id = ? AND id = ?`,
-            [String(xeroId), businessId, depositId],
+            `UPDATE xero_cash_deposits
+                SET xero_bank_transfer_id = ?, xero_bank_transaction_id = ?
+              WHERE business_id = ? AND id = ?`,
+            [String(xeroId), xeroBankTransactionId ? String(xeroBankTransactionId) : null, businessId, depositId],
           );
         }
       } catch (error: any) {

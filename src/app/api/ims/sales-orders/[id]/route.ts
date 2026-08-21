@@ -145,7 +145,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       const existing = await ImsSORepo.get(Number(params.id), businessId);
       if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
       if (['partially_fulfilled', 'fulfilled'].includes(String(existing.status))) {
-        const lockedFields = ['customer_id', 'location_id', 'order_date', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'];
+        const lockedFields = ['customer_id', 'location_id', 'order_date', 'delivery_address', 'delivery_address2', 'delivery_suburb', 'delivery_city', 'delivery_state', 'delivery_postcode', 'delivery_country', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'];
         if (items !== undefined || lockedFields.some(field => soData[field] !== undefined)) {
           return NextResponse.json({
             success: false,

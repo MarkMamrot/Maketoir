@@ -88,11 +88,13 @@ describe('replacement order cloning', () => {
     expect(execute).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO ims_purchase_orders'), expect.anything());
   });
 
-  it('creates a sanitized linked SO Draft without customer PO or fulfilment identity', async () => {
+  it('creates a sanitized linked SO Draft with the delivery snapshot but without customer PO or fulfilment identity', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT * FROM ims_sales_orders')) return [[{
         id: 52, business_id: 'biz-1', so_number: 'SO-2026-0052', status: 'fulfilled', so_type: 'b2b',
         customer_id: 9, customer_po_number: 'CUSTOMER-77', price_tier: 'wholesale', location_id: 4,
+        delivery_address: '1 High St', delivery_address2: 'Rear dock', delivery_suburb: 'Fitzroy',
+        delivery_city: 'Melbourne', delivery_state: 'VIC', delivery_postcode: '3065', delivery_country: 'Australia',
         notes: 'Deliver carefully', payment_terms: '14 days', tax_treatment: 'inc_tax', tax_code: 'OUTPUT',
         freight: 8, discount: 3, subtotal: 100, tax_amount: 10, total_amount: 115,
         currency_code: 'AUD', exchange_rate: 1, fulfilled_date: '2026-08-02', xero_invoice_id: 'xero-2',
@@ -119,7 +121,8 @@ describe('replacement order cloning', () => {
     expect(headerCall[0]).not.toContain('xero_invoice_id');
     expect(headerCall[0]).not.toContain('shopify_order_id');
     expect(headerCall[1]).toEqual([
-      'biz-1', 'SO-2026-0053', 'b2b', 9, 'wholesale', 4, '14 days',
+      'biz-1', 'SO-2026-0053', 'b2b', 9, 'wholesale', 4,
+      '1 High St', 'Rear dock', 'Fitzroy', 'Melbourne', 'VIC', '3065', 'Australia', '14 days',
       'Replacement for SO-2026-0052\n\nDeliver carefully', 'inc_tax', 'OUTPUT', 8, 3, 100, 10, 115, 'AUD', 1, 52,
     ]);
     const lineCall = execute.mock.calls.find(([sql]) => sql.includes('INSERT INTO ims_sales_order_items'))!;

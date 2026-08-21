@@ -374,6 +374,7 @@ CREATE TABLE IF NOT EXISTS xero_cash_deposits (
   posted_by_name              VARCHAR(255) DEFAULT NULL,
   posted_at                   DATETIME     DEFAULT NULL,
   xero_bank_transfer_id       VARCHAR(100) DEFAULT NULL,
+  xero_bank_transaction_id    VARCHAR(100) DEFAULT NULL,
   error_detail                TEXT         DEFAULT NULL,
   external_correction_note    TEXT         DEFAULT NULL,
   external_correction_ref     VARCHAR(255) DEFAULT NULL,
