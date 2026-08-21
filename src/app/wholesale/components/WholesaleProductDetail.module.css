@@ -8,11 +8,16 @@
 .body { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(500px, 1.5fr); min-height: 0; flex: 1; overflow: hidden; }
 .gallery { min-width: 0; padding: 22px; overflow-y: auto; border-right: 1px solid #d9dfda; background: #eef2ef; }
 .imageStage { display: grid; place-items: center; aspect-ratio: 1 / 1; overflow: hidden; background: #fff; color: #849089; font-size: 12px; }
+.imageStage[data-ratio='landscape'] { aspect-ratio: 4 / 3; }
+.imageStage[data-ratio='portrait'] { aspect-ratio: 4 / 5; }
 .imageStage img { width: 100%; height: 100%; object-fit: contain; }
 .thumbnails { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 7px; margin-top: 10px; }
-.thumbnails button { aspect-ratio: 1; overflow: hidden; padding: 0; border: 1px solid #cad4cc; background: #fff; cursor: pointer; }
+.thumbnails button { aspect-ratio: 4 / 3; overflow: hidden; padding: 0; border: 1px solid #cad4cc; background: #fff; cursor: pointer; }
+.thumbnails[data-ratio='square'] button { aspect-ratio: 1 / 1; }
+.thumbnails[data-ratio='portrait'] button { aspect-ratio: 4 / 5; }
 .thumbnails .thumbnailActive { border: 2px solid #267653; }
 .thumbnails img { width: 100%; height: 100%; object-fit: cover; }
+.thumbnails[data-fit='contain'] img { object-fit: contain; }
 .information { min-width: 0; padding: 24px; overflow-y: auto; }
 .path { margin: 0 0 12px; color: #267653; font-size: 11px; font-weight: 750; }
 .description { max-width: 780px; margin: 0 0 26px; color: #637168; font-size: 13px; line-height: 1.65; white-space: pre-line; }

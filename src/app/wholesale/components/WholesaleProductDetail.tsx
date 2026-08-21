@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Heart, ShoppingCart, X } from 'lucide-react';
 import styles from './WholesaleProductDetail.module.css';
+import type { WholesaleProductImageFit, WholesaleProductImageRatio } from '@/lib/wholesale/wholesalePortalSettings';
 
 type DetailVariant = {
   variant_id: string;
@@ -34,6 +35,8 @@ function label(variant: DetailVariant) {
 
 export function WholesaleProductDetail({
   product,
+  imageFit,
+  imageRatio,
   favouriteVariantIds,
   cartQuantities,
   onAdd,
@@ -41,6 +44,8 @@ export function WholesaleProductDetail({
   onClose,
 }: {
   product: WholesaleProductDetailProduct;
+  imageFit: WholesaleProductImageFit;
+  imageRatio: WholesaleProductImageRatio;
   favouriteVariantIds: Set<string>;
   cartQuantities: Record<string, number>;
   onAdd: (variant: DetailVariant, variantLabel: string) => void;
@@ -67,12 +72,12 @@ export function WholesaleProductDetail({
         </header>
         <div className={styles.body}>
           <div className={styles.gallery}>
-            <div className={styles.imageStage}>
+            <div className={styles.imageStage} data-ratio={imageRatio}>
               {activeImage ? <img src={activeImage} alt={product.name} /> : <span>No product image</span>}
             </div>
-            {images.length > 1 && <div className={styles.thumbnails}>{images.map(image => (
+            {images.length > 1 && <div className={styles.thumbnails} data-fit={imageFit} data-ratio={imageRatio}>{images.map(image => (
               <button key={image} className={activeImage === image ? styles.thumbnailActive : ''} onClick={() => setActiveImage(image)} aria-label="View product image">
-                <img src={image} alt="" />
+                <img src={image} alt="" loading="lazy" decoding="async" />
               </button>
             ))}</div>}
           </div>

@@ -14,6 +14,10 @@ import { SALES_DOCUMENT_SETTING_KEYS, validateSalesDocumentSetting } from '@/lib
 import { SELLS_WHOLESALE_SETTING_KEY } from '@/lib/wholesale/wholesaleAccess';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import {
+  applyWholesalePortalSettingDefaults,
+  validateWholesalePortalSetting,
+} from '@/lib/wholesale/wholesalePortalSettings';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -46,6 +50,7 @@ export async function GET() {
     settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] ||= 'auto';
     settings[SALES_DOCUMENT_SETTING_KEYS.showLogo] ??= '1';
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
+    applyWholesalePortalSettingDefaults(settings);
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
@@ -83,6 +88,14 @@ export async function PUT(req: Request) {
     }
     if (pairs[SELLS_WHOLESALE_SETTING_KEY] !== undefined && !['yes', 'no'].includes(String(pairs[SELLS_WHOLESALE_SETTING_KEY]))) {
       return NextResponse.json({ success: false, error: 'Sells wholesale must be yes or no.' }, { status: 400 });
+    }
+    for (const [key, rawValue] of Object.entries(pairs)) {
+      const normalized = validateWholesalePortalSetting(key, rawValue);
+      if (normalized === null) continue;
+      if (!normalized) {
+        return NextResponse.json({ success: false, error: `Invalid wholesale portal setting: ${key}.` }, { status: 400 });
+      }
+      pairs[key] = normalized;
     }
     if (pairs.pending_online_invalid_url_exclusion_days !== undefined) {
       const days = Number(pairs.pending_online_invalid_url_exclusion_days);

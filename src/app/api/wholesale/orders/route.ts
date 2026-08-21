@@ -8,12 +8,17 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { auditWholesalePreviewDraft, requireWholesaleDraftWriteAccess } from '@/lib/wholesale/wholesalePreviewPolicy';
 
 export async function GET() {
   const { session, response } = await requireActiveWholesaleSession();
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const draftPreviewSql = session.preview
+      ? 'AND (o.is_staff_preview_test = 0 OR (o.is_staff_preview_test = 1 AND o.staff_preview_session_id = ?))'
+      : 'AND o.is_staff_preview_test = 0';
+    const draftPreviewParams = session.preview ? [session.preview.previewSessionId] : [];
     const drafts = await imsQuery<any>(
       `SELECT 'draft' AS kind, o.id, CONCAT('Draft #', o.id) AS reference, o.status,
               o.notes, o.subtotal, o.total_amount, o.created_at, o.updated_at,
@@ -30,9 +35,10 @@ export async function GET() {
        WHERE o.business_id = ? AND o.contact_id = ?
          AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
          AND o.status = 'draft'
+         ${draftPreviewSql}
        GROUP BY o.id
        ORDER BY o.updated_at DESC`,
-      [session.businessId, session.contactId, session.companyId, session.memberId],
+      [session.businessId, session.contactId, session.companyId, session.memberId, ...draftPreviewParams],
     );
     const salesOrders = await imsQuery<any>(
       `SELECT 'sales_order' AS kind, o.id, o.so_number AS reference, o.status,
@@ -51,6 +57,7 @@ export async function GET() {
          LEFT JOIN ims_sales_order_items i ON i.so_id = o.id
         WHERE o.business_id = ? AND o.customer_id = ?
           AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
+          AND o.is_staff_preview_test = 0
         GROUP BY o.id
         ORDER BY o.updated_at DESC`,
       [session.businessId, session.contactId, session.companyId, session.memberId],
@@ -78,6 +85,8 @@ export async function POST(req: Request) {
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const accessResponse = await requireWholesaleDraftWriteAccess(session);
+    if (accessResponse) return accessResponse;
     const body = await req.json();
     const notes: string = body.notes ?? '';
     const items = await validateWholesaleOrderItems(session.businessId, brandAccess, body.items);
@@ -88,9 +97,12 @@ export async function POST(req: Request) {
     const res = await imsExecute(
       `INSERT INTO wholesale_draft_orders
          (business_id, contact_id, wholesale_company_id, wholesale_location_id, wholesale_member_id,
-          status, notes, subtotal, total_amount)
-       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
+         is_staff_preview_test, staff_preview_session_id, staff_preview_actor_user_id, staff_preview_actor_name,
+         status, notes, subtotal, total_amount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
       [session.businessId, session.contactId, session.companyId, session.locationId, session.memberId,
+        session.preview ? 1 : 0, session.preview?.previewSessionId ?? null,
+        session.preview?.actorUserId ?? null, session.preview?.actorName ?? null,
         notes, subtotal, subtotal],
     );
     const orderId = (res as any).insertId as number;
@@ -106,6 +118,8 @@ export async function POST(req: Request) {
          item.qty, item.unit_price, lineTotal, item.is_indent ? 1 : 0, Math.max(0, Number(item.indent_qty ?? 0))],
       );
     }
+
+    await auditWholesalePreviewDraft(session, 'staff_test_draft_created', orderId);
 
     return NextResponse.json({ success: true, id: orderId });
   } catch (e: any) {

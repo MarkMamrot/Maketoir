@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminSessionEdge } from '@/lib/auth/adminSessionTokenEdge';
+import { isWholesalePreviewMutationAllowed, type WholesaleStaffPreviewMode } from '@/lib/wholesale/wholesalePortalSettings';
 
 /**
  * Global write-access guard.
@@ -30,10 +31,13 @@ export async function middleware(req: NextRequest) {
   if (WRITE_METHODS.has(req.method) && req.nextUrl.pathname.startsWith('/api/wholesale/')) {
     const previewRaw = req.cookies.get('wholesale_preview_session')?.value;
     if (previewRaw) {
-      const preview = await verifyAdminSessionEdge<{ businessId?: string; preview?: { actorUserId?: number } }>(previewRaw);
+      const preview = await verifyAdminSessionEdge<{ businessId?: string; preview?: { actorUserId?: number; mode?: WholesaleStaffPreviewMode } }>(previewRaw);
       if (preview?.preview?.actorUserId && preview.businessId) {
+        if (isWholesalePreviewMutationAllowed(preview.preview.mode ?? 'read_only', req.method, req.nextUrl.pathname)) {
+          return NextResponse.next();
+        }
         return NextResponse.json(
-          { error: 'Staff preview is read-only. Exit preview to make wholesale changes.', code: 'wholesale_preview_read_only' },
+          { error: 'This action is not available in staff preview.', code: 'wholesale_preview_read_only' },
           { status: 403 },
         );
       }

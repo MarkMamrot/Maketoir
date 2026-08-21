@@ -1,0 +1,69 @@
+export const WHOLESALE_PORTAL_SETTING_KEYS = {
+  staffPreviewMode: 'wholesale_staff_preview_mode',
+  productImageFit: 'wholesale_product_image_fit',
+  productImageRatio: 'wholesale_product_image_ratio',
+} as const;
+
+export type WholesaleStaffPreviewMode = 'read_only' | 'ims_draft_test';
+export type WholesaleProductImageFit = 'cover' | 'contain';
+export type WholesaleProductImageRatio = 'landscape' | 'square' | 'portrait';
+
+export interface WholesalePortalSettings {
+  staffPreviewMode: WholesaleStaffPreviewMode;
+  productImageFit: WholesaleProductImageFit;
+  productImageRatio: WholesaleProductImageRatio;
+}
+
+export const DEFAULT_WHOLESALE_PORTAL_SETTINGS: WholesalePortalSettings = {
+  staffPreviewMode: 'read_only',
+  productImageFit: 'cover',
+  productImageRatio: 'landscape',
+};
+
+const VALID_VALUES: Record<string, readonly string[]> = {
+  [WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode]: ['read_only', 'ims_draft_test'],
+  [WHOLESALE_PORTAL_SETTING_KEYS.productImageFit]: ['cover', 'contain'],
+  [WHOLESALE_PORTAL_SETTING_KEYS.productImageRatio]: ['landscape', 'square', 'portrait'],
+};
+
+export function validateWholesalePortalSetting(key: string, rawValue: unknown): string | null {
+  const allowed = VALID_VALUES[key];
+  if (!allowed) return null;
+  const value = String(rawValue ?? '').trim().toLowerCase();
+  return allowed.includes(value) ? value : '';
+}
+
+export function parseWholesalePortalSettings(settings: Record<string, unknown>): WholesalePortalSettings {
+  const previewMode = validateWholesalePortalSetting(
+    WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode,
+    settings[WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode],
+  );
+  const imageFit = validateWholesalePortalSetting(
+    WHOLESALE_PORTAL_SETTING_KEYS.productImageFit,
+    settings[WHOLESALE_PORTAL_SETTING_KEYS.productImageFit],
+  );
+  const imageRatio = validateWholesalePortalSetting(
+    WHOLESALE_PORTAL_SETTING_KEYS.productImageRatio,
+    settings[WHOLESALE_PORTAL_SETTING_KEYS.productImageRatio],
+  );
+
+  return {
+    staffPreviewMode: previewMode as WholesaleStaffPreviewMode || DEFAULT_WHOLESALE_PORTAL_SETTINGS.staffPreviewMode,
+    productImageFit: imageFit as WholesaleProductImageFit || DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageFit,
+    productImageRatio: imageRatio as WholesaleProductImageRatio || DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageRatio,
+  };
+}
+
+export function applyWholesalePortalSettingDefaults(settings: Record<string, string>): void {
+  settings[WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.staffPreviewMode;
+  settings[WHOLESALE_PORTAL_SETTING_KEYS.productImageFit] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageFit;
+  settings[WHOLESALE_PORTAL_SETTING_KEYS.productImageRatio] ||= DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageRatio;
+}
+
+export function isWholesalePreviewMutationAllowed(mode: WholesaleStaffPreviewMode, method: string, pathname: string): boolean {
+  if (mode !== 'ims_draft_test') return false;
+  if (method === 'POST' && pathname === '/api/wholesale/account/location') return true;
+  if (method === 'POST' && pathname === '/api/wholesale/orders') return true;
+  if (['PUT', 'DELETE'].includes(method) && /^\/api\/wholesale\/orders\/\d+$/.test(pathname)) return true;
+  return method === 'POST' && /^\/api\/wholesale\/orders\/\d+\/submit$/.test(pathname);
+}

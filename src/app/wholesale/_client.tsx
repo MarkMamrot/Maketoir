@@ -21,6 +21,11 @@ import {
   type WholesaleFavouriteDetail,
 } from './components/WholesaleSavedListsView';
 import catalogueStyles from './WholesaleCatalogue.module.css';
+import {
+  DEFAULT_WHOLESALE_PORTAL_SETTINGS,
+  type WholesaleProductImageFit,
+  type WholesaleProductImageRatio,
+} from '@/lib/wholesale/wholesalePortalSettings';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -118,7 +123,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 // Product Card
 // ─────────────────────────────────────────────────────────────────────────────
 function ProductCard({
-  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense,
+  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense, imageFit, imageRatio,
 }: {
   product: WholesaleProduct;
   onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
@@ -127,16 +132,17 @@ function ProductCard({
   onToggleFavourite: (variantId: string) => void;
   onOpen: () => void;
   dense: boolean;
+  imageFit: WholesaleProductImageFit;
+  imageRatio: WholesaleProductImageRatio;
 }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
     <article className={`${catalogueStyles.productCard} ${dense ? catalogueStyles.productCardDense : ''}`}>
       {/* Image */}
-      <button className={catalogueStyles.productImage} onClick={onOpen} aria-label={`View ${product.name} details`}>
+      <button className={catalogueStyles.productImage} data-fit={imageFit} data-ratio={imageRatio} onClick={onOpen} aria-label={`View ${product.name} details`}>
         {product.image_url ? (
-          <img src={product.image_url} alt={product.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" />
         ) : (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5">
@@ -237,11 +243,15 @@ export default function WholesalePortalClient({
 
   // Settings
   const [browseMode, setBrowseMode]   = useState<'category' | 'product_type'>('category');
+  const [imageFit, setImageFit] = useState<WholesaleProductImageFit>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageFit);
+  const [imageRatio, setImageRatio] = useState<WholesaleProductImageRatio>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageRatio);
 
   useEffect(() => {
     fetch('/api/wholesale/settings').then(r => r.json()).then(d => {
       if (d.success && d.data) {
         setBrowseMode(d.data.wholesale_browse_mode === 'product_type' ? 'product_type' : 'category');
+        setImageFit(d.data.productImageFit === 'contain' ? 'contain' : 'cover');
+        setImageRatio(['square', 'portrait'].includes(d.data.productImageRatio) ? d.data.productImageRatio : 'landscape');
       }
     }).catch(() => {});
   }, []);
@@ -698,6 +708,8 @@ export default function WholesalePortalClient({
       {selectedProduct && (
         <WholesaleProductDetail
           product={selectedProduct}
+          imageFit={imageFit}
+          imageRatio={imageRatio}
           favouriteVariantIds={favouriteVariantIds}
           cartQuantities={cartQtyMap}
           onToggleFavourite={variantId => void handleToggleFavourite(variantId)}
@@ -842,7 +854,7 @@ export default function WholesalePortalClient({
                     {activeFilter !== '__all' && ` · ${activeFilter.split('||').join(' › ')}`}
                   </div>
                   <div className={catalogueViewMode === 'grid' ? catalogueStyles.productGrid : catalogueStyles.productList}>
-                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} />)}
+                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} imageFit={imageFit} imageRatio={imageRatio} />)}
                   </div>
                 </>
               )}

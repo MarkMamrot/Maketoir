@@ -11,6 +11,16 @@ import {
 } from '@/lib/wholesale/wholesaleSession';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { randomUUID } from 'crypto';
+import { parseWholesalePortalSettings, WHOLESALE_PORTAL_SETTING_KEYS } from '@/lib/wholesale/wholesalePortalSettings';
+
+async function getPreviewMode(businessId: string) {
+  const rows = await imsQuery<{ value: string }>(
+    'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+    [businessId, WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode],
+  );
+  return parseWholesalePortalSettings({ [WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode]: rows[0]?.value }).staffPreviewMode;
+}
 
 export async function GET() {
   const auth = requireAdminTier();
@@ -20,6 +30,7 @@ export async function GET() {
     const profile = await WholesaleSupplierProfileRepository.getByBusinessId(auth.user.businessId);
     if (!profile?.isActive) return NextResponse.json({ error: 'Wholesale portal is not enabled for this organisation.' }, { status: 409 });
     return runImsForBusiness(auth.user.businessId, async () => {
+      const mode = await getPreviewMode(auth.user.businessId);
       const rows = await imsQuery<any>(
         `SELECT wm.id AS member_id, wm.contact_id, wm.role, wc.id AS company_id, wc.company_name,
                 wl.id AS location_id, wl.location_name, wl.is_primary, c.name, c.email
@@ -38,6 +49,7 @@ export async function GET() {
       return NextResponse.json({
         success: true,
         supplier: { slug: profile.slug, name: profile.displayName },
+        mode,
         targets: rows.map(row => ({
           memberId: Number(row.member_id), contactId: Number(row.contact_id), role: row.role,
           companyId: Number(row.company_id), companyName: row.company_name,
@@ -73,6 +85,7 @@ export async function POST(request: Request) {
     if (!profile?.isActive || !imsDb) return NextResponse.json({ error: 'Wholesale portal is not enabled for this organisation.' }, { status: 409 });
 
     return runImsForBusiness(auth.user.businessId, async () => {
+      const mode = await getPreviewMode(auth.user.businessId);
       const targets = await imsQuery<{ contact_id: number }>(
         `SELECT wm.contact_id FROM ims_wholesale_company_members wm
           JOIN ims_wholesale_member_locations ml ON ml.member_id = wm.id AND ml.business_id = wm.business_id AND ml.company_id = wm.company_id
@@ -85,12 +98,14 @@ export async function POST(request: Request) {
       if (!buyer || buyer.memberId !== memberId) return NextResponse.json({ error: 'That wholesale buyer or location is no longer available.' }, { status: 409 });
 
       const startedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + WHOLESALE_PREVIEW_SESSION_MAX_AGE * 1000).toISOString();
+      const previewSessionId = randomUUID();
       cookies().set(WHOLESALE_PREVIEW_SESSION_COOKIE, signWholesalePreviewSession({
         contactId: buyer.contactId, businessId: buyer.businessId, imsDb, email: buyer.email,
         name: buyer.name, company: buyer.company, supplierSlug: profile.slug,
         companyId: buyer.companyId, locationId: buyer.locationId, memberId: buyer.memberId,
         memberRole: buyer.memberRole,
-        preview: { actorUserId: auth.user.userId, actorName: auth.user.name, actorEmail: auth.user.email, startedAt },
+        preview: { actorUserId: auth.user.userId, actorName: auth.user.name, actorEmail: auth.user.email, startedAt, expiresAt, previewSessionId, mode },
       }), {
         httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict',
         maxAge: WHOLESALE_PREVIEW_SESSION_MAX_AGE, path: '/',
@@ -101,7 +116,7 @@ export async function POST(request: Request) {
          VALUES (?, ?, ?, ?, ?, ?, ?, 'staff_preview_started', ?)`,
         [auth.user.businessId, buyer.companyId, `${auth.user.name} (${auth.user.email})`, buyer.memberId,
           buyer.contactId, buyer.name || buyer.email, buyer.email,
-          JSON.stringify({ actorUserId: auth.user.userId, locationId: buyer.locationId, startedAt })],
+          JSON.stringify({ actorUserId: auth.user.userId, locationId: buyer.locationId, startedAt, expiresAt, previewSessionId, mode })],
       );
       return NextResponse.json({ success: true, nextRoute: `/wholesale/${profile.slug}/catalogue` });
     });

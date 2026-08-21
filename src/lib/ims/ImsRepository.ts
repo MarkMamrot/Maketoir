@@ -327,6 +327,8 @@ export interface SupplierReturnContext {
 export interface ImsSO {
   id: number; so_number: string; customer_id?: number; customer_po_number?: string; location_id: number;
   wholesale_company_id?: number | null; wholesale_location_id?: number | null; wholesale_member_id?: number | null;
+  is_staff_preview_test?: number; staff_preview_session_id?: string | null;
+  staff_preview_actor_user_id?: number | null; staff_preview_actor_name?: string | null;
   status: SOStatus; order_date: string; expected_date?: string;
   fulfilled_date?: string; notes?: string; subtotal: number;
   delivery_address?: string; delivery_address2?: string; delivery_suburb?: string;
@@ -2747,12 +2749,15 @@ export const ImsSORepo = {
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
         (business_id,so_number,so_type,customer_id,wholesale_company_id,wholesale_location_id,wholesale_member_id,
+         is_staff_preview_test,staff_preview_session_id,staff_preview_actor_user_id,staff_preview_actor_name,
          customer_po_number,location_id,status,order_date,expected_date,
          delivery_address,delivery_address2,delivery_suburb,delivery_city,delivery_state,delivery_postcode,delivery_country,notes,
          payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', so_number, 'b2b', data.customer_id ?? null,
        data.wholesale_company_id ?? null, data.wholesale_location_id ?? null, data.wholesale_member_id ?? null,
+      data.is_staff_preview_test ?? 0, data.staff_preview_session_id ?? null,
+      data.staff_preview_actor_user_id ?? null, data.staff_preview_actor_name ?? null,
        data.customer_po_number ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.delivery_address ?? null, data.delivery_address2 ?? null,
        data.delivery_suburb ?? null, data.delivery_city ?? null, data.delivery_state ?? null,
@@ -3079,6 +3084,9 @@ export const ImsSORepo = {
       );
       if (!so) throw new Error('Sales order not found');
       if (so.is_historical) throw new Error('Cannot modify a historical Cin7 record');
+      if (so.is_staff_preview_test && newStatus !== so.status) {
+        throw new Error('Staff preview test orders cannot progress beyond Draft. Delete the test order when inspection is complete.');
+      }
       const amendment = await beginOrderAmendment(conn, operationContext, {
         businessId: String(so.business_id ?? ''), orderKind: 'sales_order', orderId: id,
         orderStatus: String(so.status), beforeHeader: so,

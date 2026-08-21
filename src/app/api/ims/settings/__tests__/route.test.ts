@@ -99,4 +99,34 @@ describe('/api/ims/settings loyalty settings', () => {
     expect(mockImsExecute).toHaveBeenCalledTimes(5);
     expect(mockImsExecute.mock.calls[0][1]).toEqual(['business-1', 'loyalty_enabled', '0']);
   });
+
+  it('returns safe wholesale portal defaults', async () => {
+    const response = await GET();
+    const body = await response.json();
+    expect(body.data).toMatchObject({
+      wholesale_staff_preview_mode: 'read_only',
+      wholesale_product_image_fit: 'cover',
+      wholesale_product_image_ratio: 'landscape',
+    });
+  });
+
+  it('rejects invalid wholesale portal settings before writing', async () => {
+    const response = await PUT(putRequest({ wholesale_staff_preview_mode: 'full_access' }));
+    expect(response.status).toBe(400);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('normalizes and persists valid wholesale portal settings', async () => {
+    const response = await PUT(putRequest({
+      wholesale_staff_preview_mode: ' IMS_DRAFT_TEST ',
+      wholesale_product_image_fit: 'contain',
+      wholesale_product_image_ratio: 'square',
+    }));
+    expect(response.status).toBe(200);
+    expect(mockImsExecute.mock.calls.map(call => call[1])).toEqual([
+      ['business-1', 'wholesale_staff_preview_mode', 'ims_draft_test'],
+      ['business-1', 'wholesale_product_image_fit', 'contain'],
+      ['business-1', 'wholesale_product_image_ratio', 'square'],
+    ]);
+  });
 });

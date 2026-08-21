@@ -5,6 +5,9 @@ import { getActiveWholesaleBuyer } from '@/lib/wholesale/wholesaleIdentity';
 import {
   requireActiveWholesaleSession,
   signWholesaleSession,
+  signWholesalePreviewSession,
+  WHOLESALE_PREVIEW_SESSION_COOKIE,
+  WHOLESALE_PREVIEW_SESSION_MAX_AGE,
   WHOLESALE_SESSION_COOKIE,
   WHOLESALE_SESSION_MAX_AGE,
 } from '@/lib/wholesale/wholesaleSession';
@@ -27,7 +30,8 @@ export async function POST(request: Request) {
     if (!buyer || buyer.companyId !== session.companyId || buyer.memberId !== session.memberId) {
       return NextResponse.json({ error: 'That buying location is not available to your account.' }, { status: 403 });
     }
-    cookies().set(WHOLESALE_SESSION_COOKIE, signWholesaleSession({
+    const cookieName = session.preview ? WHOLESALE_PREVIEW_SESSION_COOKIE : WHOLESALE_SESSION_COOKIE;
+    const signedSession = {
       ...session,
       email: buyer.email,
       name: buyer.name,
@@ -36,11 +40,12 @@ export async function POST(request: Request) {
       locationId: buyer.locationId,
       memberId: buyer.memberId,
       memberRole: buyer.memberRole,
-    }), {
+    };
+    cookies().set(cookieName, session.preview ? signWholesalePreviewSession(signedSession) : signWholesaleSession(signedSession), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: WHOLESALE_SESSION_MAX_AGE,
+      maxAge: session.preview ? WHOLESALE_PREVIEW_SESSION_MAX_AGE : WHOLESALE_SESSION_MAX_AGE,
       path: '/',
     });
     return NextResponse.json({ success: true, locationId });

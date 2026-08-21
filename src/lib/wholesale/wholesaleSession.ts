@@ -11,12 +11,16 @@ import { signAdminSession, verifyAdminSession } from '@/lib/auth/adminSessionTok
 import type { WholesaleBrandAccess } from './wholesaleAccess';
 import { getActiveWholesaleBuyer } from './wholesaleIdentity';
 import { getAdminSession } from '@/lib/sessionUtils';
+import type { WholesaleStaffPreviewMode } from './wholesalePortalSettings';
 
 export interface WholesalePreviewMetadata {
   actorUserId: number;
   actorName: string;
   actorEmail: string;
   startedAt: string;
+  expiresAt: string;
+  previewSessionId: string;
+  mode: WholesaleStaffPreviewMode;
 }
 
 export interface WholesaleSession {
@@ -42,7 +46,7 @@ export type ActiveWholesaleSession = WholesaleSession & Required<Pick<
 export const WHOLESALE_SESSION_COOKIE  = 'wholesale_session';
 export const WHOLESALE_PREVIEW_SESSION_COOKIE = 'wholesale_preview_session';
 export const WHOLESALE_SESSION_MAX_AGE = 60 * 60 * 24; // 24 hours
-export const WHOLESALE_PREVIEW_SESSION_MAX_AGE = 60 * 5;
+export const WHOLESALE_PREVIEW_SESSION_MAX_AGE = 60 * 30;
 
 export function getWholesaleSession(): WholesaleSession | null {
   const previewRaw = cookies().get(WHOLESALE_PREVIEW_SESSION_COOKIE)?.value;

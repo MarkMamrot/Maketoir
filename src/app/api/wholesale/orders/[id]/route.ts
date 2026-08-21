@@ -9,6 +9,8 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { auditWholesalePreviewDraft, previewDraftWhere, requireWholesaleDraftWriteAccess } from '@/lib/wholesale/wholesalePreviewPolicy';
+import type { ActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 
 type Ctx = { params: { id: string } };
 
@@ -26,13 +28,15 @@ async function reportDraftFailure(operation: string, session: { businessId: stri
 
 async function findOrder(
   id: number,
-  owner: { businessId: string; contactId: number; companyId: number; locationId: number; memberId: number },
+  owner: ActiveWholesaleSession,
 ) {
+  const preview = previewDraftWhere(owner);
   const rows = await imsQuery<any>(
     `SELECT * FROM wholesale_draft_orders
       WHERE id = ? AND business_id = ? AND contact_id = ?
-        AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
-    [id, owner.businessId, owner.contactId, owner.companyId, owner.locationId, owner.memberId],
+        AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
+        ${preview.sql}`,
+      [id, owner.businessId, owner.contactId, owner.companyId, owner.locationId, owner.memberId, ...preview.params],
   );
   return rows[0] ?? null;
 }
@@ -68,6 +72,8 @@ export async function PUT(req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const accessResponse = await requireWholesaleDraftWriteAccess(session);
+    if (accessResponse) return accessResponse;
     const order = await findOrder(id, session);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status !== 'draft') return NextResponse.json({ error: 'Only draft orders can be edited.' }, { status: 400 });
@@ -97,6 +103,8 @@ export async function PUT(req: Request, { params }: Ctx) {
       );
     }
 
+    await auditWholesalePreviewDraft(session, 'staff_test_draft_updated', id);
+
     return NextResponse.json({ success: true });
   } catch (e: any) {
     if (e instanceof WholesaleItemValidationError) {
@@ -116,6 +124,8 @@ export async function DELETE(_req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const accessResponse = await requireWholesaleDraftWriteAccess(session);
+    if (accessResponse) return accessResponse;
     const order = await findOrder(id, session);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status === 'submitted') return NextResponse.json({ error: 'Submitted orders cannot be deleted.' }, { status: 400 });
@@ -125,6 +135,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
         WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
       [id, session.businessId, session.companyId, session.locationId, session.memberId],
     );
+    await auditWholesalePreviewDraft(session, 'staff_test_draft_deleted', id);
     return NextResponse.json({ success: true });
   } catch (e: any) {
     await reportDraftFailure('delete_draft_order', session, id, e);

@@ -25268,6 +25268,9 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
       wholesale_min_order_qty:       '1',
       wholesale_show_rrp:            'yes',
       wholesale_notification_email:  '',
+      wholesale_staff_preview_mode:  'read_only',
+      wholesale_product_image_fit:   'cover',
+      wholesale_product_image_ratio: 'landscape',
       ...settings,
     });
   }, [settings]);
@@ -25314,6 +25317,18 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
             <option value="no">No</option>
           </select>
         </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
+          <div><label style={lbl}>Product Image Scale</label><select value={draft.wholesale_product_image_fit ?? 'cover'} onChange={sd('wholesale_product_image_fit')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="cover">Fill frame (crop)</option><option value="contain">Fit whole image</option></select></div>
+          <div><label style={lbl}>Product Image Frame</label><select value={draft.wholesale_product_image_ratio ?? 'landscape'} onChange={sd('wholesale_product_image_ratio')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="landscape">Landscape 4:3</option><option value="square">Square 1:1</option><option value="portrait">Portrait 4:5</option></select></div>
+        </div>
+      </div>
+
+      <div style={card}>
+        <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Staff Preview</h3>
+        <label style={lbl}>Preview Capability</label>
+        <select value={draft.wholesale_staff_preview_mode ?? 'read_only'} onChange={sd('wholesale_staff_preview_mode')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="read_only">Read-only</option><option value="ims_draft_test">Test checkout to IMS Draft</option></select>
+        <p style={{ margin: '7px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.55 }}>Test checkout creates clearly marked, silent Draft Sales Orders for inspection. Test orders cannot be confirmed and must be deleted manually in IMS.</p>
       </div>
 
       <div style={card}>

@@ -5,41 +5,29 @@
  * Auth: wholesale_session (used by the portal) OR marketoir_session (used by IMS admin).
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
-
-async function getSession() {
-  const c = cookies();
-  // Prefer admin session (for IMS settings panel)
-  const admin = c.get('marketoir_session');
-  if (admin?.value) {
-    try { return { ...JSON.parse(admin.value), _type: 'admin' }; } catch { /* */ }
-  }
-  const ws = c.get('wholesale_session');
-  if (ws?.value) {
-    try { return { ...JSON.parse(ws.value), _type: 'wholesale' }; } catch { /* */ }
-  }
-  return null;
-}
+import { parseWholesalePortalSettings, WHOLESALE_PORTAL_SETTING_KEYS } from '@/lib/wholesale/wholesalePortalSettings';
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  if (session._type === 'wholesale') {
-    const active = await requireActiveWholesaleSession();
-    if (active.response) return active.response;
-  }
+  const { session, response } = await requireActiveWholesaleSession();
+  if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const keys = [...Object.values(WHOLESALE_PORTAL_SETTING_KEYS), 'wholesale_browse_mode'];
     const rows = await imsQuery<{ key: string; value: string }>(
-      `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` LIKE 'wholesale_%'`,
-      [session.businessId],
+      `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` IN (${keys.map(() => '?').join(',')})`,
+      [session.businessId, ...keys],
     );
-    const settings: Record<string, string> = {};
-    for (const r of rows) settings[r.key] = r.value;
-    return NextResponse.json({ success: true, data: settings });
+    const settings = Object.fromEntries(rows.map(row => [row.key, row.value]));
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...parseWholesalePortalSettings(settings),
+        wholesale_browse_mode: settings.wholesale_browse_mode === 'product_type' ? 'product_type' : 'category',
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -17,6 +17,7 @@ import { Resend } from 'resend';
 import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 import { sendWholesaleOrderSubmittedReceipt } from '@/lib/wholesale/wholesaleOrderNotifications';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { previewDraftWhere, requireWholesaleDraftWriteAccess } from '@/lib/wholesale/wholesalePreviewPolicy';
 
 type Ctx = { params: { id: string } };
 
@@ -33,16 +34,30 @@ export async function POST(_req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
+    const accessResponse = await requireWholesaleDraftWriteAccess(session);
+    if (accessResponse) return accessResponse;
+    const previewOwnership = previewDraftWhere(session);
     // ── 1. Fetch draft order + items ─────────────────────────────────────────
     const orderRows = await imsQuery<any>(
       `SELECT * FROM wholesale_draft_orders
         WHERE id = ? AND business_id = ? AND contact_id = ?
-          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
-      [id, session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
+          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
+          ${previewOwnership.sql}`,
+      [id, session.businessId, session.contactId, session.companyId, session.locationId, session.memberId, ...previewOwnership.params],
     );
     const order = orderRows[0];
     if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
     if (order.status !== 'draft') {
+      if (session.preview && order.status === 'submitted' && order.so_id) {
+        const replayRows = await imsQuery<{ id: number; so_number: string }>(
+          `SELECT id, so_number FROM ims_sales_orders
+            WHERE id = ? AND business_id = ? AND is_staff_preview_test = 1 AND staff_preview_session_id = ? LIMIT 1`,
+          [order.so_id, session.businessId, session.preview.previewSessionId],
+        );
+        if (replayRows[0]) {
+          return NextResponse.json({ success: true, so_id: replayRows[0].id, so_number: replayRows[0].so_number, is_test: true, replayed: true });
+        }
+      }
       return NextResponse.json({ error: 'Only draft orders can be submitted.' }, { status: 400 });
     }
 
@@ -136,11 +151,13 @@ export async function POST(_req: Request, { params }: Ctx) {
          FROM ims_wholesale_company_members wm
          JOIN ims_wholesale_companies wc
            ON wc.id = wm.company_id AND wc.business_id = wm.business_id AND wc.status = 'active'
+         JOIN ims_wholesale_member_locations ml
+           ON ml.business_id = wm.business_id AND ml.company_id = wm.company_id AND ml.member_id = wm.id
          JOIN ims_wholesale_company_locations wl
-           ON wl.id = wm.location_id AND wl.company_id = wm.company_id
-          AND wl.business_id = wm.business_id AND wl.status = 'active'
+           ON wl.id = ml.location_id AND wl.company_id = ml.company_id
+          AND wl.business_id = ml.business_id AND wl.status = 'active'
         WHERE wm.id = ? AND wm.business_id = ? AND wm.contact_id = ?
-          AND wm.company_id = ? AND wm.location_id = ? AND wm.is_active = 1
+          AND wm.company_id = ? AND ml.location_id = ? AND wm.is_active = 1
         LIMIT 1`,
       [session.memberId, session.businessId, session.contactId, session.companyId, session.locationId],
     );
@@ -168,9 +185,13 @@ export async function POST(_req: Request, { params }: Ctx) {
       order.notes ? `Customer notes: ${order.notes}` : '',
     ].filter(Boolean).join('\n');
 
-    const soId = await ImsSORepo.create(
+    const testSoNumber = session.preview ? `TEST-SO-${new Date().getFullYear()}-${id}` : '';
+    const existingTestRows = session.preview
+      ? await imsQuery<{ id: number }>('SELECT id FROM ims_sales_orders WHERE business_id = ? AND so_number = ? AND is_staff_preview_test = 1 LIMIT 1', [session.businessId, testSoNumber])
+      : [];
+    const soId = existingTestRows[0]?.id ?? await ImsSORepo.create(
       {
-        so_number:    '',       // auto-generated
+        so_number:    testSoNumber,
         customer_id:  session.contactId,
         wholesale_company_id: session.companyId,
         wholesale_location_id: session.locationId,
@@ -190,6 +211,10 @@ export async function POST(_req: Request, { params }: Ctx) {
         subtotal:     validatedTotal,
         tax_amount:   0,
         total_amount: validatedTotal,
+        is_staff_preview_test: session.preview ? 1 : 0,
+        staff_preview_session_id: session.preview?.previewSessionId ?? null,
+        staff_preview_actor_user_id: session.preview?.actorUserId ?? null,
+        staff_preview_actor_name: session.preview?.actorName ?? null,
       },
       soItems,
       session.businessId,
@@ -209,6 +234,18 @@ export async function POST(_req: Request, { params }: Ctx) {
       `SELECT so_number FROM ims_sales_orders WHERE id = ?`, [soId],
     );
     const soNumber = soRows[0]?.so_number ?? `SO-${soId}`;
+
+    if (session.preview) {
+      await imsExecute(
+        `INSERT INTO ims_wholesale_team_events
+           (business_id, company_id, actor_name, target_member_id, target_contact_id, target_name, target_email, action, details_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'staff_test_order_created', ?)`,
+        [session.businessId, session.companyId, `${session.preview.actorName} (${session.preview.actorEmail})`,
+          session.memberId, session.contactId, session.name || session.email, session.email,
+          JSON.stringify({ previewSessionId: session.preview.previewSessionId, wholesaleDraftId: id, salesOrderId: soId, salesOrderNumber: soNumber })],
+      );
+      return NextResponse.json({ success: true, so_id: soId, so_number: soNumber, is_test: true });
+    }
 
     // ── 6. In-app notification ────────────────────────────────────────────────
     await createNotification(
