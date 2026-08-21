@@ -11,7 +11,7 @@ function input(overrides: Partial<MappingReadinessInput> = {}): MappingReadiness
       { accountId: 'bank', code: '090', status: 'ACTIVE', type: 'BANK' },
     ],
     accountMappings: [{ roleKey: 'sales_revenue', accountId: 'sales', accountCode: '200' }],
-    paymentMethods: [], posClearing: [], gateways: [], tracking: [], ...overrides,
+    paymentMethods: [], posRevenue: [], posClearing: [], gateways: [], tracking: [], ...overrides,
   };
 }
 
@@ -37,6 +37,17 @@ describe('evaluateXeroMappingReadiness', () => {
     const item = items.find(candidate => candidate.category === 'pos_clearing')!;
     expect(item).toMatchObject({ requirement: 'required', status: 'missing' });
     expect(item.summary).toContain('POS EOD closure is not blocked');
+  });
+
+  it('requires a valid revenue account for every POS location when POS batch sync is enabled', () => {
+    const items = evaluateXeroMappingReadiness(input({
+      posRevenue: [
+        { locationId: 4, locationName: 'City', accountId: 'sales', accountCode: '200' },
+        { locationId: 5, locationName: 'Beach', accountId: null, accountCode: null },
+      ],
+    }));
+    expect(items.find(item => item.category === 'pos_revenue' && item.key === '4')).toMatchObject({ requirement: 'required', status: 'ready' });
+    expect(items.find(item => item.category === 'pos_revenue' && item.key === '5')).toMatchObject({ requirement: 'required', status: 'missing' });
   });
 
   it('allows Draft online invoices with required gateway payment readiness', () => {

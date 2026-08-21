@@ -4,7 +4,7 @@ export type MappingRequirement = 'required' | 'optional';
 export type MappingReadinessStatus = 'ready' | 'missing' | 'stale' | 'optional';
 
 export type MappingReadinessItem = {
-  category: 'account' | 'payment_method' | 'pos_clearing' | 'gateway' | 'tracking';
+  category: 'account' | 'payment_method' | 'pos_revenue' | 'pos_clearing' | 'gateway' | 'tracking';
   key: string;
   label: string;
   requirement: MappingRequirement;
@@ -17,6 +17,7 @@ export type MappingReadinessInput = {
   accounts: Array<{ accountId: string; code: string; status: string; type?: string; enablePaymentsToAccount?: boolean }>;
   accountMappings: Array<{ roleKey: string; accountId: string; accountCode: string }>;
   paymentMethods: Array<{ side: 'po' | 'so'; id: number; name: string; active: boolean; accountCode: string | null }>;
+  posRevenue: Array<{ locationId: number; locationName: string; accountId: string | null; accountCode: string | null }>;
   posClearing: Array<{ locationId: number; locationName: string; paymentMethod: string; accountId: string | null; accountCode: string | null }>;
   gateways: Array<{ gatewayName: string; displayName: string; accountCode: string | null; feeEnabled?: boolean; feeAccountCode?: string | null }>;
   tracking: Array<{
@@ -33,7 +34,7 @@ export type MappingReadinessInput = {
 const accountRoles: Array<{ key: string; label: string; required: (policy: XeroDocumentPolicy) => boolean }> = [
   { key: 'inventory_asset', label: 'Inventory Asset', required: policy => policy.poCompletedAction !== 'none' || policy.supplierCreditNoteAction !== 'none' },
   { key: 'inventory_in_transit', label: 'Inventory in Transit', required: policy => policy.poCompletedAction !== 'none' },
-  { key: 'sales_revenue', label: 'Sales Revenue', required: policy => policy.soApprovedAction !== 'none' || policy.soCompletedAction !== 'none' || policy.manualCustomerCreditNoteAction !== 'none' || policy.posBatchSyncEnabled || policy.onlineBatchAction !== 'none' },
+  { key: 'sales_revenue', label: 'Sales Revenue', required: policy => policy.soApprovedAction !== 'none' || policy.soCompletedAction !== 'none' || policy.manualCustomerCreditNoteAction !== 'none' || policy.onlineBatchAction !== 'none' },
   { key: 'petty_cash_expense', label: 'Petty Cash Expense', required: policy => policy.posBatchSyncEnabled && policy.posBatchPaymentSyncEnabled },
   { key: 'credit_note', label: 'Customer Returns / Refunds', required: () => false },
   { key: 'supplier_credit_note', label: 'Supplier Credit Notes', required: () => false },
@@ -72,6 +73,18 @@ export function evaluateXeroMappingReadiness(input: MappingReadinessInput): Mapp
       staleSummary: `${role.label} points to a missing, archived, or changed Xero account.`,
     });
   });
+
+  for (const mapping of input.posRevenue) {
+    const account = mapping.accountId ? accountsById.get(mapping.accountId) : undefined;
+    items.push(mappedItem({
+      category: 'pos_revenue', key: String(mapping.locationId), label: `${mapping.locationName}: POS Revenue`,
+      required: input.policy.posBatchSyncEnabled,
+      mapped: !!mapping.accountId && !!mapping.accountCode,
+      valid: !!account && account.status === 'ACTIVE' && account.code === mapping.accountCode && account.type === 'REVENUE',
+      missingSummary: 'POS EOD posting is blocked until this location has a revenue account.',
+      staleSummary: 'The saved revenue account is missing, archived, changed, or is no longer a revenue account.',
+    }));
+  }
 
   for (const method of input.paymentMethods.filter(method => method.active)) {
     const required = method.side === 'po' ? input.policy.poPaymentSyncEnabled : input.policy.soPaymentSyncEnabled;

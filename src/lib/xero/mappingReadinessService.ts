@@ -64,6 +64,10 @@ export async function getXeroMappingReadiness(businessId: string) {
   });
 
   const posMethods = configuredPosMethods(rawPosMethods);
+  const posRevenue = locations.map(location => {
+    const mapping = accountRows.find(row => row.role_key === `pos_sales_revenue:${location.id}`);
+    return { locationId: location.id, locationName: location.name, accountId: mapping?.xero_account_id ?? null, accountCode: mapping?.xero_account_code ?? null };
+  });
   const posClearing = locations.flatMap(location => posMethods.map(paymentMethod => {
     const mapping = posMappingRows.find(row => Number(row.ims_location_id) === location.id && String(row.payment_method).trim().toLowerCase() === paymentMethod.toLowerCase());
     return { locationId: location.id, locationName: location.name, paymentMethod, accountId: mapping?.xero_account_id ?? null, accountCode: mapping?.xero_account_code ?? null };
@@ -78,7 +82,7 @@ export async function getXeroMappingReadiness(businessId: string) {
     policy, accounts,
     accountMappings: accountRows.map(row => ({ roleKey: row.role_key, accountId: row.xero_account_id, accountCode: row.xero_account_code })),
     paymentMethods: paymentMethods.map(method => ({ side: method.type, id: method.id, name: method.name, active: Boolean(method.is_active), accountCode: method.xero_account_code || null })),
-    posClearing, gateways, tracking,
+    posRevenue, posClearing, gateways, tracking,
   });
   return { policy, items, summary: summarizeXeroMappingReadiness(items), checkedAt: new Date().toISOString() };
 }

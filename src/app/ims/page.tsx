@@ -18735,7 +18735,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
     { key: 'inventory_asset', label: 'Inventory Asset', help: 'Stock on hand after goods are received. Used for inventory value on the balance sheet.', example: 'Receive $800 of stock: Inventory Asset goes up by $800.', filter: (a: any) => a.class === 'ASSET' },
     { key: 'inventory_in_transit', label: 'Inventory in Transit', help: 'Holding account for stock that has been ordered or prepaid but not received yet. In this app it is used when a PO has deposits or prepayments.', example: 'Pay a $300 supplier deposit before stock arrives: hold that value in Inventory in Transit until receipt, then move it to Inventory Asset.', filter: (a: any) => a.class === 'ASSET' },
     { key: 'cogs', label: 'Cost of Goods Sold', help: 'Expense account for the cost of stock sold. Used by scheduled COGS journals and as a fallback for some non-stock supplier credits.', example: 'Sell an item that cost $40: COGS increases by $40.', filter: (a: any) => a.class === 'EXPENSE' },
-    { key: 'sales_revenue', label: 'Sales Revenue', help: 'Main income account for sales. Used for wholesale and batch sales invoices, and as a fallback for some optional mappings.', example: 'Sell a product for $110 incl GST: the sale line posts to Sales Revenue.', filter: (a: any) => a.class === 'REVENUE' },
+    { key: 'sales_revenue', label: 'Sales Revenue (Online & Wholesale)', help: 'Main income account for online and wholesale sales. POS sales use the location-specific revenue mappings below.', example: 'Sell an online product for $110 incl GST: the sale line posts to this account.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'credit_note', label: 'Customer Returns / Refunds', help: 'Used for customer return and refund credit note lines in Xero. This account reduces sales when you issue a customer credit note.', example: 'Refund a $110 sale: this account gets the $110 credit note line. If left blank, Sales Revenue is used.', filter: (a: any) => a.class === 'REVENUE' },
     { key: 'rounding', label: 'Cash Rounding', help: 'Optional account for small cash-rounding differences on POS sales. If not set, the app falls back to Sales Revenue.', example: 'Sale total is $10.02 and cash collected is rounded to $10.00: the 2c difference posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
     { key: 'cash_over_short', label: 'Cash Over / Short', help: 'Required account for till variances and cash-banking discrepancies. These entries post without GST.', example: 'Expected cash is $500 but counted cash is $490: the $10 shortfall posts here.', filter: (a: any) => a.class === 'EXPENSE' || a.class === 'REVENUE' },
@@ -18770,7 +18770,7 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
         const locs = Array.isArray(locRes?.data) ? locRes.data
           : Array.isArray(locRes?.locations) ? locRes.locations
           : Array.isArray(locRes) ? locRes : [];
-        setLocations(locs);
+        setLocations(locs.filter((location: any) => location.is_active === true || Number(location.is_active) === 1));
       } catch {}
       setLoading(false);
     })();
@@ -18875,6 +18875,42 @@ function XeroMappingTab({ getBusinessId }: { getBusinessId: () => string }) {
               </div>
             );
           })}
+        </div>
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
+          <h4 style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: 'var(--sv-text-strong)' }}>POS Revenue by Location</h4>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
+            Each location requires its own Xero revenue account before POS EOD sales can post.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {locations.map(location => {
+              const roleKey = `pos_sales_revenue:${location.id}`;
+              const current = mappings[roleKey];
+              const revenueAccounts = accounts.filter(account => account.class === 'REVENUE');
+              const options = [...revenueAccounts];
+              if (current?.xero_account_id && !revenueAccounts.some(account => account.accountId === current.xero_account_id)) {
+                options.unshift({ accountId: current.xero_account_id, code: current.xero_account_code, name: current.xero_account_name, type: '', class: '' });
+              }
+              return (
+                <div key={roleKey}>
+                  <label style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 4, display: 'block' }}>{location.name}</label>
+                  <select
+                    value={current?.xero_account_id ?? ''}
+                    onChange={event => saveAccountMapping(roleKey, event.target.value)}
+                    disabled={saving === roleKey}
+                    style={{ width: '100%', padding: '8px 10px', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, color: 'var(--sv-text-main)', fontSize: 13 }}
+                  >
+                    <option value="">— Select revenue account —</option>
+                    {options.map(account => (
+                      <option key={account.accountId} value={account.accountId}>{account.code} — {account.name}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+          {locations.length === 0 && (
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--sv-text-dim)' }}>No active locations configured.</p>
+          )}
         </div>
         {accounts.length === 0 && (
           <p style={{ margin: '12px 0 0', fontSize: 12, color: '#f87171' }}>Could not load accounts from Xero. Check your connection.</p>

@@ -5127,7 +5127,7 @@ type EodXeroState = {
   syncedAt?: string;
   paymentId?: string;
   paymentRequired?: boolean;
-  status?: 'paid' | 'blocked_missing_mapping' | 'invoice_posted_payment_failed' | 'already_paid' | 'invoice_failed';
+  status?: 'paid' | 'blocked_missing_mapping' | 'blocked_missing_revenue_mapping' | 'invoice_posted_payment_failed' | 'already_paid' | 'invoice_failed';
   error?: string;
 };
 
@@ -5855,7 +5855,7 @@ function EodAccountingSection({
   const isComplete = (state: EodXeroState | null) => !!state && (state.status === 'paid' || state.status === 'already_paid' || (!!state.id && !state.paymentRequired));
   const allSynced = syncable.length > 0 && syncable.every(row => isComplete(row.synced));
   const anySynced = rows.some(row => !!row.synced?.id);
-  const hasAttention = rows.some(row => row.synced?.status === 'blocked_missing_mapping' || row.synced?.status === 'invoice_posted_payment_failed' || row.synced?.status === 'invoice_failed');
+  const hasAttention = rows.some(row => row.synced?.status === 'blocked_missing_mapping' || row.synced?.status === 'blocked_missing_revenue_mapping' || row.synced?.status === 'invoice_posted_payment_failed' || row.synced?.status === 'invoice_failed');
 
   async function syncToXero() {
     setSyncing(true);
@@ -5948,7 +5948,7 @@ function EodAccountingSection({
             <strong>What is sent to Xero:</strong> One ACCREC invoice (AUTHORISED) per payment method
             &nbsp;· Contact: <em>POS Reconciliation (Summary)</em>
             &nbsp;· Reference: EOD-L{session.location_id}-S{'{SessionID}'}-{date}-{'{Method}'}<br />
-            Sales post to Sales Revenue with location tracking, then a payment is applied to this shop&apos;s configured clearing account<br />
+            Sales post to this location&apos;s revenue account with location tracking, then a payment is applied to this shop&apos;s configured clearing account<br />
             Amount sent = Tax-Inc Total (Inclusive tax treatment) — Xero extracts the GST automatically<br />
             Cash Sales = Counted − Opening Float &nbsp;· Other methods = Counted amount
             &nbsp;· Auto-synced on EOD save when admin session is active
@@ -5989,8 +5989,8 @@ function EodAccountingSection({
                     </>
                   ) : (
                     <>
-                      <span style={{ background: synced?.status === 'blocked_missing_mapping' ? 'rgba(245,158,11,.12)' : 'var(--sv-bg-2)', color: synced?.status === 'blocked_missing_mapping' ? 'var(--sv-amber)' : 'var(--sv-text-muted)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 600 }}>
-                        {synced?.status === 'blocked_missing_mapping' ? 'Clearing account required' : 'Not synced'}
+                      <span style={{ background: synced?.status?.startsWith('blocked_missing_') ? 'rgba(245,158,11,.12)' : 'var(--sv-bg-2)', color: synced?.status?.startsWith('blocked_missing_') ? 'var(--sv-amber)' : 'var(--sv-text-muted)', fontSize: '.72rem', padding: '2px 7px', borderRadius: 99, fontWeight: 600 }}>
+                        {synced?.status === 'blocked_missing_mapping' ? 'Clearing account required' : synced?.status === 'blocked_missing_revenue_mapping' ? 'Revenue account required' : 'Not synced'}
                       </span>
                       <span style={{ marginLeft: 'auto', fontSize: '.78rem', color: 'var(--sv-text-dim)' }}>
                         POS Expected: <strong>${fmt(r.exp)}</strong> · Would send: <strong>${fmt(r.taxInc)}</strong>

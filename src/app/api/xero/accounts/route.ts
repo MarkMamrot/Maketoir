@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 
 export async function GET(req: Request) {
   const { user, response } = requireAdminSession();
@@ -68,11 +69,22 @@ export async function POST(req: Request) {
     'store_credit_liability',
     'supplier_credit_note',
   ];
-  if (!validRoles.includes(roleKey)) {
+  const posRevenueMatch = typeof roleKey === 'string' ? /^pos_sales_revenue:(\d+)$/.exec(roleKey) : null;
+  if (!validRoles.includes(roleKey) && !posRevenueMatch) {
     return NextResponse.json({ error: `Invalid role_key: ${roleKey}` }, { status: 400 });
   }
 
   try {
+    if (posRevenueMatch) {
+      const locationId = Number(posRevenueMatch[1]);
+      const locations = await imsQuery<{ id: number }>(
+        'SELECT id FROM ims_locations WHERE id = ? AND business_id = ? AND is_active = 1 LIMIT 1',
+        [locationId, databaseId],
+      );
+      if (!locations.length) {
+        return NextResponse.json({ error: 'Location does not belong to this business or is inactive.' }, { status: 404 });
+      }
+    }
     const accountResponse = await xeroApiFetch(databaseId!, `/Accounts/${encodeURIComponent(String(xeroAccountId ?? ''))}`);
     const account = (accountResponse?.Accounts ?? []).find((candidate: any) => candidate.AccountID === xeroAccountId);
     if (!account || account.Status !== 'ACTIVE' || String(account.Code ?? '') !== String(xeroAccountCode ?? '') || String(account.Name ?? '') !== String(xeroAccountName ?? '')) {
@@ -80,6 +92,9 @@ export async function POST(req: Request) {
     }
     if (roleKey === 'petty_cash_expense' && account.Class !== 'EXPENSE') {
       return NextResponse.json({ error: 'Petty Cash Expense must use an active Xero expense account.' }, { status: 400 });
+    }
+    if (posRevenueMatch && account.Class !== 'REVENUE') {
+      return NextResponse.json({ error: 'POS location revenue must use an active Xero revenue account.' }, { status: 400 });
     }
     await execute(
       `INSERT INTO xero_account_mappings (business_id, role_key, xero_account_id, xero_account_code, xero_account_name)

@@ -5,12 +5,14 @@ const {
   mockAssertBusinessAccess,
   mockExecute,
   mockQuery,
+  mockImsQuery,
   mockXeroApiFetch,
 } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockAssertBusinessAccess: vi.fn(),
   mockExecute: vi.fn(),
   mockQuery: vi.fn(),
+  mockImsQuery: vi.fn(),
   mockXeroApiFetch: vi.fn(),
 }));
 
@@ -22,6 +24,10 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/services/MySQLService', () => ({
   execute: mockExecute,
   query: mockQuery,
+}));
+
+vi.mock('@/services/IMSMySQLService', () => ({
+  imsQuery: mockImsQuery,
 }));
 
 vi.mock('@/services/XeroService', () => ({
@@ -45,12 +51,13 @@ describe('POST /api/xero/accounts', () => {
     mockAssertBusinessAccess.mockReturnValue(null);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
     mockQuery.mockResolvedValue([]);
+    mockImsQuery.mockResolvedValue([{ id: 4 }]);
     mockXeroApiFetch.mockResolvedValue({ Accounts: [
       { AccountID: 'acc-123', Code: '230', Name: 'Gift Card Liability', Status: 'ACTIVE' },
       { AccountID: 'acc-124', Code: '231', Name: 'Store Credit Liability', Status: 'ACTIVE' },
       { AccountID: 'acc-789', Code: '899', Name: 'Cash Rounding', Status: 'ACTIVE' },
       { AccountID: 'acc-790', Code: '898', Name: 'Cash Over and Short', Status: 'ACTIVE' },
-      { AccountID: 'acc-2', Code: '200', Name: 'Sales', Status: 'ACTIVE' },
+      { AccountID: 'acc-2', Code: '200', Name: 'Sales', Status: 'ACTIVE', Class: 'REVENUE' },
     ] });
   });
 
@@ -145,6 +152,39 @@ describe('POST /api/xero/accounts', () => {
 
     expect(res.status).toBe(400);
     expect(String(json.error)).toContain('Invalid role_key: not_a_real_role');
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it('saves a revenue account for an active location in the same business', async () => {
+    const res = await POST(makeRequest({
+      databaseId: 'biz-1',
+      roleKey: 'pos_sales_revenue:4',
+      xeroAccountId: 'acc-2',
+      xeroAccountCode: '200',
+      xeroAccountName: 'Sales',
+    }));
+
+    expect(res.status).toBe(200);
+    expect(mockImsQuery).toHaveBeenCalledWith(
+      expect.stringContaining('business_id = ?'),
+      [4, 'biz-1'],
+    );
+    expect(mockExecute.mock.calls[0][1]).toEqual(['biz-1', 'pos_sales_revenue:4', 'acc-2', '200', 'Sales']);
+  });
+
+  it('rejects a POS revenue mapping for a location outside the business', async () => {
+    mockImsQuery.mockResolvedValueOnce([]);
+
+    const res = await POST(makeRequest({
+      databaseId: 'biz-1',
+      roleKey: 'pos_sales_revenue:99',
+      xeroAccountId: 'acc-2',
+      xeroAccountCode: '200',
+      xeroAccountName: 'Sales',
+    }));
+
+    expect(res.status).toBe(404);
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
     expect(mockExecute).not.toHaveBeenCalled();
   });
 

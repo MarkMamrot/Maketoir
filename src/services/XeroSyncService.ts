@@ -68,6 +68,19 @@ export async function getAccountMappings(businessId: string): Promise<AccountMap
   return map;
 }
 
+function posRevenueRoleKey(locationId: number): string {
+  return `pos_sales_revenue:${locationId}`;
+}
+
+async function getPosRevenueAccountCode(businessId: string, locationId: number): Promise<string | null> {
+  const rows = await query<{ role_key: string; xero_account_code: string }>(
+    'SELECT role_key, xero_account_code FROM xero_account_mappings WHERE business_id = ? AND role_key = ?',
+    [businessId, posRevenueRoleKey(locationId)],
+  );
+  const mapping = rows.find(row => row.role_key === posRevenueRoleKey(locationId));
+  return mapping?.xero_account_code || null;
+}
+
 export async function getTrackingMappings(businessId: string): Promise<TrackingMapping[]> {
   return query<TrackingMapping>(
     'SELECT ims_location_id, ims_channel, xero_tracking_category_id, xero_tracking_option_id FROM xero_tracking_mappings WHERE business_id = ?',
@@ -1759,9 +1772,15 @@ function roundCurrency(value: number): number {
 export async function syncDailySalesBatch(businessId: string, batch: DailySalesBatch): Promise<string | null> {
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
+  const revenueAccountCode = batch.channel === 'pos'
+    ? (batch.locationId ? await getPosRevenueAccountCode(businessId, batch.locationId) : null)
+    : accounts.sales_revenue;
 
-  if (!accounts.sales_revenue) {
-    await logSync(businessId, batch.channel === 'pos' ? 'pos_batch' : 'online_batch', null, null, 'skipped', 'No sales_revenue account mapped');
+  if (!revenueAccountCode) {
+    const detail = batch.channel === 'pos'
+      ? `No POS revenue account mapped for location ${batch.locationId ?? 'unknown'}`
+      : 'No sales_revenue account mapped';
+    await logSync(businessId, batch.channel === 'pos' ? 'pos_batch' : 'online_batch', null, null, 'skipped', detail);
     return null;
   }
 
@@ -1780,7 +1799,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       Description: batch.lineDescription,
       Quantity: 1,
       UnitAmount: batch.totalSales,
-      AccountCode: accounts.sales_revenue,
+      AccountCode: revenueAccountCode,
       TaxAmount: batch.totalTax,
       Tracking: tracking,
     }],
@@ -2632,18 +2651,11 @@ export async function syncEodEntry(
     salesAmount: number; // cash: counted − float; others: counted
     cashRounding?: number; // net cash rounding adjustment for the session (Cash only)
     idempotencyKey?: string;
+    revenueAccountCode: string;
   },
 ): Promise<{ xeroId: string; invoiceNumber: string; amountDue: number } | null> {
   const accounts         = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
-
-  const salesAccountCode = accounts.sales_revenue;
-
-  if (!salesAccountCode) {
-    await logSync(businessId, 'eod_reconciliation', null, null, 'skipped',
-      `No Sales Revenue account mapped for EOD ${entry.date} ${entry.method}`);
-    return null;
-  }
 
   const tracking = getTrackingForLocation(trackingMappings, entry.locationId);
   const regSuffix  = entry.registerId ? `-R${entry.registerId}` : '';
@@ -2665,7 +2677,7 @@ export async function syncEodEntry(
         Description: `${entry.method} Sales — ${entry.locationName}${regLabel}${sessLabel} — ${entry.date}`,
         Quantity:    1,
         UnitAmount:  entry.salesAmount,
-        AccountCode: salesAccountCode,
+        AccountCode: entry.revenueAccountCode,
         TaxType:     'OUTPUT',
         Tracking:    tracking,
       },
@@ -2677,7 +2689,7 @@ export async function syncEodEntry(
             Description: `Cash Rounding Adjustment — ${entry.locationName} — ${entry.date}`,
             Quantity:    1,
             UnitAmount:  entry.cashRounding,
-            AccountCode: accounts.rounding ?? salesAccountCode,
+            AccountCode: accounts.rounding ?? entry.revenueAccountCode,
             TaxType:     'NONE',
           }]
         : []),
@@ -2711,7 +2723,7 @@ type EodSyncPersistence = {
 
 export type EodXeroSyncResult = {
   method: string;
-  status: 'paid' | 'not_required' | 'blocked_missing_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
+  status: 'paid' | 'not_required' | 'blocked_missing_mapping' | 'blocked_missing_revenue_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
   xeroId?: string;
   invoiceNumber?: string;
   error?: string;
@@ -2965,8 +2977,19 @@ export async function triggerEodXeroSync(
   }
   const paymentSyncEnabled = policy.posBatchPaymentSyncEnabled;
   const clearingMappings = await getPosClearingMappings(businessId, locationId);
+  const revenueAccountCode = await getPosRevenueAccountCode(businessId, locationId);
   const accounts = await getAccountMappings(businessId);
   const tracking = getTrackingForLocation(await getTrackingMappings(businessId), locationId);
+
+  if (!revenueAccountCode) {
+    const detail = `Missing POS revenue account mapping for ${locationName}`;
+    for (const row of rows) {
+      if (row.counted_amount == null) continue;
+      await logSync(businessId, 'eod_reconciliation', row.id ?? null, null, 'skipped', detail);
+      results.push({ method: row.payment_method, status: 'blocked_missing_revenue_mapping', error: detail });
+    }
+    return results;
+  }
 
   // Sum net cash rounding for the session so we can attach it to the Cash invoice.
   // Positive = customers paid slightly more (round up); negative = slightly less (round down).
@@ -3167,6 +3190,7 @@ export async function triggerEodXeroSync(
         salesAmount,
         cashRounding,
         idempotencyKey: cashPlan?.invoice_idempotency_key,
+        revenueAccountCode,
       });
       if (!invoiceResult) {
         results.push({ method: row.payment_method, status: 'invoice_failed' });

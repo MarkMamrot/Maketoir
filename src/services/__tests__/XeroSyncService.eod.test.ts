@@ -20,6 +20,8 @@ vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: m
 import { triggerEodXeroSync } from '../XeroSyncService';
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
+const NEWTOWN_REVENUE_MAPPING = [{ role_key: 'pos_sales_revenue:4', xero_account_code: '201' }];
+
 function persistence() {
   return {
     setXeroInvoice: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +37,7 @@ describe('triggerEodXeroSync clearing payments', () => {
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
       if (sql.includes('xero_tracking_mappings')) return Promise.resolve([{
         ims_location_id: 4,
@@ -49,6 +52,24 @@ describe('triggerEodXeroSync clearing payments', () => {
       if (sql.includes('issued_total')) return Promise.resolve([{ issued_total: '0' }]);
       return Promise.resolve([]);
     });
+  });
+
+  it('blocks all EOD posting when the location revenue account is not mapped', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('role_key = ?')) return Promise.resolve([]);
+      if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Card', xero_account_code: '091' }]);
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
+      return Promise.resolve([]);
+    });
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{ payment_method: 'Card', counted_amount: 110, opening_float: 0 }],
+      'Newtown', 2, persistence(),
+    );
+
+    expect(results).toEqual([expect.objectContaining({ method: 'Card', status: 'blocked_missing_revenue_mapping' })]);
+    expect(mockXeroApiFetch).not.toHaveBeenCalled();
   });
 
   it('blocks only the method with no location clearing mapping before creating an invoice', async () => {
@@ -86,6 +107,7 @@ describe('triggerEodXeroSync clearing payments', () => {
   it('completes a zero-sales cash plan without posting an invoice or payment', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
       if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([{
         eod_reconciliation_id: 474,
@@ -119,6 +141,7 @@ describe('triggerEodXeroSync clearing payments', () => {
     });
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
       if (sql.includes('xero_pos_cash_eod_actions')) return Promise.resolve([]);
       return Promise.resolve([]);
@@ -138,9 +161,10 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(store.setXeroPayment).not.toHaveBeenCalled();
   });
 
-  it('posts Sales Revenue with location tracking, persists the invoice, then pays the clearing account', async () => {
+  it('posts location revenue with location tracking, persists the invoice, then pays the clearing account', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Card', xero_account_code: '091' }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
       if (sql.includes('xero_tracking_mappings')) return Promise.resolve([{
         ims_location_id: 4, ims_channel: null,
@@ -163,7 +187,7 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(invoiceCall[1]).toBe('/Invoices');
     expect(invoiceCall[2].body.Invoices[0].LineItems[0]).toEqual(expect.objectContaining({
       UnitAmount: 110,
-      AccountCode: '200',
+      AccountCode: '201',
       TaxType: 'OUTPUT',
       Tracking: [{ TrackingCategoryID: 'category-1', TrackingOptionID: 'option-4' }],
     }));
@@ -180,6 +204,7 @@ describe('triggerEodXeroSync clearing payments', () => {
   it('retries only the payment when a new-flow invoice already exists', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Card', xero_account_code: '091' }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       return Promise.resolve([]);
     });
     mockXeroApiFetch
@@ -202,6 +227,7 @@ describe('triggerEodXeroSync clearing payments', () => {
   it('keeps the invoice and records a retryable error when payment creation fails', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
       if (sql.includes('xero_tracking_mappings')) return Promise.resolve([]);
       return Promise.resolve([]);
@@ -227,6 +253,7 @@ describe('triggerEodXeroSync clearing payments', () => {
       if (sql.includes('xero_pos_clearing_mappings')) {
         return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
       }
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) {
         return Promise.resolve([
           { role_key: 'sales_revenue', xero_account_code: '200' },
@@ -265,7 +292,7 @@ describe('triggerEodXeroSync clearing payments', () => {
     const invoiceOptions = mockXeroApiFetch.mock.calls[0][2];
     expect(invoiceOptions.body.Invoices[0].LineItems[0]).toEqual(expect.objectContaining({
       UnitAmount: 100,
-      AccountCode: '200',
+      AccountCode: '201',
       TaxType: 'OUTPUT',
     }));
     expect(invoiceOptions.idempotencyKey).toHaveLength(64);
@@ -291,6 +318,7 @@ describe('triggerEodXeroSync clearing payments', () => {
       if (sql.includes('xero_pos_clearing_mappings')) {
         return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
       }
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_account_mappings')) {
         return Promise.resolve([
           { role_key: 'sales_revenue', xero_account_code: '200' },
@@ -348,6 +376,7 @@ describe('triggerEodXeroSync clearing payments', () => {
       if (sql.includes('xero_pos_clearing_mappings')) {
         return Promise.resolve([{ payment_method: 'Cash', xero_account_code: '090' }]);
       }
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
       if (sql.includes('xero_pos_cash_eod_actions')) {
         return Promise.resolve([{
           eod_reconciliation_id: 44,
