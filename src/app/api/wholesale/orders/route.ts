@@ -95,7 +95,18 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, id: orderId });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
+    if (e instanceof WholesaleItemValidationError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 409 });
+    }
+    await reportRuntimeIssue({
+      businessId: session.businessId,
+      source: 'wholesale_portal',
+      operation: 'create_draft_order',
+      title: 'Wholesale draft could not be created',
+      error: e,
+      reference: { type: 'wholesale_member', id: session.memberId },
+    }).catch(() => {});
+    return NextResponse.json({ success: false, error: 'The draft could not be created.' }, { status: 500 });
   }
   });
 }

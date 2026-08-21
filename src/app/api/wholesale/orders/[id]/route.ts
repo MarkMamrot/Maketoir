@@ -8,8 +8,21 @@ import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession'
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 type Ctx = { params: { id: string } };
+
+async function reportDraftFailure(operation: string, session: { businessId: string; memberId: number }, id: number, error: unknown) {
+  await reportRuntimeIssue({
+    businessId: session.businessId,
+    source: 'wholesale_portal',
+    operation,
+    title: 'Wholesale draft operation failed',
+    error,
+    context: { wholesaleDraftId: id },
+    reference: { type: 'wholesale_member', id: session.memberId },
+  }).catch(() => {});
+}
 
 async function findOrder(
   id: number,
@@ -41,7 +54,8 @@ export async function GET(_req: Request, { params }: Ctx) {
     );
     return NextResponse.json({ success: true, order: { ...order, items } });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    await reportDraftFailure('load_draft_order', session, id, e);
+    return NextResponse.json({ success: false, error: 'The draft could not be loaded.' }, { status: 500 });
   }
   });
 }
@@ -85,7 +99,11 @@ export async function PUT(req: Request, { params }: Ctx) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
+    if (e instanceof WholesaleItemValidationError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 409 });
+    }
+    await reportDraftFailure('update_draft_order', session, id, e);
+    return NextResponse.json({ success: false, error: 'The draft could not be updated.' }, { status: 500 });
   }
   });
 }
@@ -109,7 +127,8 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     );
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    await reportDraftFailure('delete_draft_order', session, id, e);
+    return NextResponse.json({ success: false, error: 'The draft could not be deleted.' }, { status: 500 });
   }
   });
 }

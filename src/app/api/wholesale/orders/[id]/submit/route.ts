@@ -211,14 +211,24 @@ export async function POST(_req: Request, { params }: Ctx) {
     const soNumber = soRows[0]?.so_number ?? `SO-${soId}`;
 
     // ── 6. In-app notification ────────────────────────────────────────────────
-    createNotification(
+    await createNotification(
       session.businessId,
       'wholesale_order',
       `New Wholesale Order — ${soNumber}`,
       `${session.name || session.email}${session.company ? ` (${session.company})` : ''} submitted wholesale order #${id}. Draft SO ${soNumber} created.`,
       { wholesale_order_id: id, so_id: soId, so_number: soNumber, contact_id: session.contactId },
       'info',
-    ).catch(err => console.error('[wholesale/submit] notification failed:', err));
+    ).catch(async error => {
+      await reportRuntimeIssue({
+        businessId: session.businessId,
+        source: 'wholesale_portal',
+        operation: 'create_supplier_order_notification',
+        title: 'Wholesale supplier notification could not be created',
+        error,
+        context: { wholesaleDraftId: id },
+        reference: { type: 'sales_order', id: soId },
+      }).catch(() => {});
+    });
 
     // ── 7. Email notification ─────────────────────────────────────────────────
     if (notifyEmail && process.env.RESEND_API_KEY) {
@@ -238,7 +248,7 @@ export async function POST(_req: Request, { params }: Ctx) {
       const appUrlRaw = process.env.APP_URL ?? 'https://solvantis.com.au';
       const appUrl = (/^https?:\/\//i.test(appUrlRaw) ? appUrlRaw : `https://${appUrlRaw}`).replace(/\/$/, '');
 
-      resend.emails.send({
+      await resend.emails.send({
         from,
         to: notifyEmail,
         subject: `New Wholesale Order — ${soNumber} from ${session.name || session.email}`,
@@ -289,7 +299,19 @@ export async function POST(_req: Request, { params }: Ctx) {
             </p>
           </div>
         `,
-      }).catch(err => console.error('[wholesale/submit] email send failed:', err));
+      }, { idempotencyKey: `wholesale-supplier-order-${session.businessId}-${soId}` }).then(({ error }) => {
+        if (error) throw new Error(error.message);
+      }).catch(async error => {
+        await reportRuntimeIssue({
+          businessId: session.businessId,
+          source: 'wholesale_portal',
+          operation: 'send_supplier_order_notification',
+          title: 'Wholesale supplier order email could not be sent',
+          error,
+          context: { wholesaleDraftId: id },
+          reference: { type: 'sales_order', id: soId },
+        }).catch(() => {});
+      });
     }
 
     await sendWholesaleOrderSubmittedReceipt({
@@ -317,8 +339,19 @@ export async function POST(_req: Request, { params }: Ctx) {
 
     return NextResponse.json({ success: true, so_id: soId, so_number: soNumber });
   } catch (e: any) {
-    console.error('[wholesale/submit]', e);
-    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
+    if (e instanceof WholesaleItemValidationError) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 409 });
+    }
+    await reportRuntimeIssue({
+      businessId: session.businessId,
+      source: 'wholesale_portal',
+      operation: 'submit_order',
+      title: 'Wholesale order submission failed',
+      error: e,
+      context: { wholesaleDraftId: id },
+      reference: { type: 'wholesale_member', id: session.memberId },
+    }).catch(() => {});
+    return NextResponse.json({ success: false, error: 'The order could not be submitted.' }, { status: 500 });
   }
   });
 }
