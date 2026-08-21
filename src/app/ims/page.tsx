@@ -486,6 +486,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
   // Hide Locations group unless the business explicitly operates multiple locations.
   // Default to showing (treat unset as 'yes') so existing users aren't locked out.
   const showLocations = sidebarSettings.use_multiple_locations !== 'no';
+  const showWholesale = sidebarSettings.sells_wholesale !== 'no';
 
   const toggleSection = (id: string) => setSectionOpen(prev => {
     const shouldOpen = !prev[id];
@@ -573,6 +574,11 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
           </button>
         ));
       })()}
+      {collapsed && showWholesale && (
+        <button onClick={() => window.open('/wholesale', '_blank', 'noopener,noreferrer')} title="Wholesale Portal" aria-label="Open Wholesale Portal" style={collapsedItemStyle(false)}>
+          <NavIcon id="__sales" />
+        </button>
+      )}
 
       {/* Nav items — expanded */}
       {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
@@ -628,6 +634,12 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
                     {child.label}
                   </button>
                 ))}
+                {item.id === '__sales' && showWholesale && (
+                  <a href="/wholesale" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
+                    style={{ padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center', color: '#475569', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
+                    <span style={{ flex: 1 }}>Wholesale Portal</span><span aria-hidden="true">↗</span>
+                  </a>
+                )}
               </div>
             )}
           </div>
@@ -1662,6 +1674,7 @@ const BLANK_CONTACT = {
   date_of_birth: '', gender: '',
   promo_email: 0, promo_sms: 0,
   price_tier: 'retail', order_frequency_days: 45,
+  wholesale_allowed_brands_json: null as string[] | string | null,
   charges_tax: 1, prices_include_tax: 0, tax_rate: '', website_url: '',
 };
 const CONTACT_EXPORT_HEADERS = [
@@ -1736,6 +1749,7 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
 
 function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mode?: 'admin' | 'crm'; isAdvisor?: boolean; onOpenProfile: (id: number) => void }) {
   const isCrmMode = mode === 'crm';
+  const { settings: contactSettings } = useImsSettings();
   const DEFAULT_STATUS_FILTER = '1';
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1769,6 +1783,14 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   const [bulkWorking, setBulkWorking] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [exportingContacts, setExportingContacts] = useState(false);
+  const [wholesaleBrands, setWholesaleBrands] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (contactSettings.sells_wholesale === 'no') return;
+    fetch('/api/ims/wholesale-brands').then(response => response.json()).then(payload => {
+      if (payload.success && Array.isArray(payload.data)) setWholesaleBrands(payload.data);
+    }).catch(() => {});
+  }, [contactSettings.sells_wholesale]);
 
   const flashSyncMsg = useCallback((message: string) => {
     setSyncMsg(message);
@@ -1981,6 +2003,15 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   };
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+  const wholesaleBrandSelection = (() => {
+    const raw = (form as any).wholesale_allowed_brands_json;
+    if (raw == null || raw === '') return null;
+    if (Array.isArray(raw)) return raw as string[];
+    try { return JSON.parse(raw) as string[]; } catch { return null; }
+  })();
+  const wholesaleContactEligible = contactSettings.sells_wholesale !== 'no'
+    && (form.type === 'b2b_customer' || form.type === 'both')
+    && form.price_tier === 'wholesale';
 
   const typeMatchFn = (c: any) => {
     if (typeFilter === 'crm_all') return isCrmCustomerType(c.type);
@@ -2394,6 +2425,34 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
                   </Field>
                   <Field label="Date of Birth"><input type="date" value={f.date_of_birth ?? ''} onChange={sf('date_of_birth')} style={inputStyle} /></Field>
                 </Row2>
+                {wholesaleContactEligible && (
+                  <details style={{ marginTop: 14, borderTop: '1px solid var(--sv-etch)', paddingTop: 12 }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>
+                      Wholesale Brand Access · {wholesaleBrandSelection === null ? 'All brands' : wholesaleBrandSelection.length === 0 ? 'No brands' : `${wholesaleBrandSelection.length} of ${wholesaleBrands.length} brands`}
+                    </summary>
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                        <button type="button" onClick={() => setForm(p => ({ ...p, wholesale_allowed_brands_json: null }))} style={btnStyle('secondary', 'sm')}>Allow all</button>
+                        <button type="button" onClick={() => setForm(p => ({ ...p, wholesale_allowed_brands_json: [] }))} style={btnStyle('secondary', 'sm')}>Unallow all</button>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                        {wholesaleBrands.map(brand => {
+                          const checked = wholesaleBrandSelection === null || wholesaleBrandSelection.some(item => item.toLocaleLowerCase('en-AU') === brand.toLocaleLowerCase('en-AU'));
+                          return <label key={brand} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, color: 'var(--sv-text-main)' }}>
+                            <input type="checkbox" checked={checked} onChange={event => setForm(previous => {
+                              const raw = (previous as any).wholesale_allowed_brands_json;
+                              let selected: string[] = raw == null ? [...wholesaleBrands] : Array.isArray(raw) ? raw : (() => { try { return JSON.parse(raw); } catch { return []; } })();
+                              selected = event.target.checked ? [...new Set([...selected, brand])] : selected.filter(item => item.toLocaleLowerCase('en-AU') !== brand.toLocaleLowerCase('en-AU'));
+                              return { ...previous, wholesale_allowed_brands_json: selected };
+                            })} />
+                            <span>{brand}</span>
+                          </label>;
+                        })}
+                        {wholesaleBrands.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No wholesale-priced product brands are available.</span>}
+                      </div>
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 
@@ -25324,6 +25383,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       use_zones_bins:           'no',
       use_categories:           'no',
       use_foreign_currencies:   'yes',
+      sells_wholesale:          'yes',
       connect_online_shop:      'no',
       online_shop_platform:     'shopify',
       connect_accounting_software: 'no',
@@ -25914,6 +25974,17 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   {(['yes', 'no'] as const).map(opt => {
                     const isOpt = (taxDraft.use_multiple_locations ?? 'yes') === opt;
                     return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_multiple_locations: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={labelStyle}>Does your business sell wholesale?</label>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables the Wholesale Portal and per-customer brand access controls.</p>
+                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
+                  {(['yes', 'no'] as const).map(opt => {
+                    const isOpt = (taxDraft.sells_wholesale ?? 'yes') === opt;
+                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, sells_wholesale: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
                   })}
                 </div>
               </div>
