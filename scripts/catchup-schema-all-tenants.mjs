@@ -1164,6 +1164,14 @@ async function migrateSchema(schema) {
     }
   }
 
+  for (const table of [
+    'ims_wholesale_companies',
+    'ims_wholesale_company_locations',
+    'ims_wholesale_company_members',
+  ]) {
+    await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_contacts', 'business_id');
+  }
+
   // Load existing columns once per schema
   const [rows] = await conn.query(
     `SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ?`,
