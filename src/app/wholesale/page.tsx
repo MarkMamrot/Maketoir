@@ -12,6 +12,7 @@ function getSession(): WholesaleSession | null {
 export default function WholesalePortalPage() {
   const session = getSession();
   if (!session) redirect('/wholesale/login');
+  if (session.supplierSlug) redirect(`/wholesale/${session.supplierSlug}`);
 
   return <WholesalePortalClient session={session} />;
 }

@@ -8,6 +8,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { signAdminSession, verifyAdminSession } from '@/lib/auth/adminSessionToken';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { isWholesaleContactEligible, isWholesaleEnabled, parseWholesaleBrandAccess, type WholesaleBrandAccess } from './wholesaleAccess';
 
@@ -18,6 +19,7 @@ export interface WholesaleSession {
   email:      string;
   name:       string;
   company:    string;
+  supplierSlug?: string;
 }
 
 export const WHOLESALE_SESSION_COOKIE  = 'wholesale_session';
@@ -26,7 +28,20 @@ export const WHOLESALE_SESSION_MAX_AGE = 60 * 60 * 24; // 24 hours
 export function getWholesaleSession(): WholesaleSession | null {
   const raw = cookies().get(WHOLESALE_SESSION_COOKIE)?.value;
   if (!raw) return null;
-  try { return JSON.parse(raw) as WholesaleSession; } catch { return null; }
+  const signed = verifyAdminSession<WholesaleSession>(raw);
+  if (signed) return signed;
+
+  // Temporary migration compatibility for sessions issued before passwordless auth.
+  try {
+    const legacy = JSON.parse(raw) as WholesaleSession;
+    return legacy?.contactId && legacy?.businessId ? legacy : null;
+  } catch {
+    return null;
+  }
+}
+
+export function signWholesaleSession(session: WholesaleSession): string {
+  return signAdminSession(session, { maxAgeSeconds: WHOLESALE_SESSION_MAX_AGE });
 }
 
 /** For use in API routes — returns the session or a 401 NextResponse. */

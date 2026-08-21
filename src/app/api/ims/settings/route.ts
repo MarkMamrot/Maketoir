@@ -12,6 +12,8 @@ import {
 } from '@/lib/website/contentPreferences';
 import { SALES_DOCUMENT_SETTING_KEYS, validateSalesDocumentSetting } from '@/lib/ims/salesDocumentSettings';
 import { SELLS_WHOLESALE_SETTING_KEY } from '@/lib/wholesale/wholesaleAccess';
+import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -140,6 +142,12 @@ export async function PUT(req: Request) {
       );
     }
 
+    if (pairs[SELLS_WHOLESALE_SETTING_KEY] === 'yes') {
+      await WholesaleSupplierProfileRepository.ensureForBusiness(businessId);
+    } else if (pairs[SELLS_WHOLESALE_SETTING_KEY] === 'no') {
+      await WholesaleSupplierProfileRepository.deactivate(businessId);
+    }
+
     // If any inventory-sync setting changed, re-enqueue all Shopify-linked variants
     // so the next cron run applies the new buffer / pick-locations immediately.
     const inventoryAffected = Object.keys(pairs).some(k => INVENTORY_SENSITIVE_KEYS.has(k));
@@ -158,6 +166,13 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims.settings',
+      operation: 'save_settings',
+      title: 'IMS settings could not be saved',
+      error: e,
+    });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

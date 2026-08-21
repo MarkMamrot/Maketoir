@@ -9,6 +9,7 @@ import { primeImsDbMap } from '@/lib/db/BusinessRegistry';
 import {
   WHOLESALE_SESSION_COOKIE,
   WHOLESALE_SESSION_MAX_AGE,
+  signWholesaleSession,
 } from '@/lib/wholesale/wholesaleSession';
 import { isWholesaleEnabled } from '@/lib/wholesale/wholesaleAccess';
 
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
       company:    foundContact.company ?? '',
     };
 
-    cookies().set(WHOLESALE_SESSION_COOKIE, JSON.stringify(sessionData), {
+    cookies().set(WHOLESALE_SESSION_COOKIE, signWholesaleSession(sessionData), {
       httpOnly: true,
       secure:   process.env.NODE_ENV === 'production',
       sameSite: 'strict',

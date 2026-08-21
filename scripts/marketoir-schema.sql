@@ -21,6 +21,44 @@ CREATE TABLE IF NOT EXISTS businesses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
+-- wholesale supplier profiles (public-safe control plane)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS wholesale_supplier_profiles (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  slug                 VARCHAR(80) NOT NULL,
+  display_name         VARCHAR(255) NOT NULL,
+  logo_url             VARCHAR(2048) NULL,
+  support_email        VARCHAR(320) NULL,
+  application_heading  VARCHAR(255) NULL,
+  application_intro    TEXT NULL,
+  terms_url            VARCHAR(2048) NULL,
+  privacy_url          VARCHAR(2048) NULL,
+  theme_json           JSON NULL,
+  is_active            TINYINT(1) NOT NULL DEFAULT 1,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_wholesale_supplier_profiles_slug (slug),
+  INDEX idx_wholesale_supplier_profiles_active (is_active, slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wholesale_otp_challenges (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  contact_id           INT NOT NULL,
+  email                VARCHAR(320) NOT NULL,
+  challenge_token_hash CHAR(64) NOT NULL,
+  code_hash            CHAR(64) NOT NULL,
+  attempt_count        INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at           DATETIME(3) NOT NULL,
+  consumed_at          DATETIME(3) NULL,
+  verified_at          DATETIME(3) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_wholesale_otp_challenge_token (challenge_token_hash),
+  INDEX idx_wholesale_otp_contact_active (business_id, contact_id, consumed_at, expires_at),
+  INDEX idx_wholesale_otp_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
 -- users  (global — no business_id)
 -- From master Users sheet: Name, Company, Email, Phone,
 --   Password, UserSpreadsheetId, RegistrationDate
