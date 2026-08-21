@@ -1,18 +1,12 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
-import WholesalePortalClient from './_client';
+import { getWholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
 
-function getSession(): WholesaleSession | null {
-  const raw = cookies().get('wholesale_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw) as WholesaleSession; } catch { return null; }
-}
-
-export default function WholesalePortalPage() {
-  const session = getSession();
+export default async function WholesalePortalPage() {
+  const session = getWholesaleSession();
   if (!session) redirect('/wholesale/login');
   if (session.supplierSlug) redirect(`/wholesale/${session.supplierSlug}`);
-
-  return <WholesalePortalClient session={session} />;
+  const profile = await WholesaleSupplierProfileRepository.getByBusinessId(session.businessId);
+  if (profile?.isActive) redirect(`/wholesale/${profile.slug}`);
+  redirect('/wholesale/login');
 }

@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SolvantisMark } from '@/components/SolvantisMark';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
+import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
+import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
+import catalogueStyles from './WholesaleCatalogue.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -63,8 +66,6 @@ interface DraftOrder {
   updated_at: string;
   item_count: number;
 }
-
-type PortalView = 'shop' | 'orders';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -341,18 +342,24 @@ function DraftOrdersView({ onLoadDraft }: { onLoadDraft: (id: number) => void })
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Portal
 // ─────────────────────────────────────────────────────────────────────────────
-export default function WholesalePortalClient({ session }: { session: WholesaleSession }) {
+export default function WholesalePortalClient({
+  session,
+  supplier,
+  initialView = 'home',
+}: {
+  session: WholesaleSession;
+  supplier: WholesaleSupplierProfile;
+  initialView?: WholesalePortalView;
+}) {
   const router = useRouter();
 
   // Settings
   const [browseMode, setBrowseMode]   = useState<'category' | 'product_type'>('category');
-  const [portalTitle, setPortalTitle] = useState('Wholesale Portal');
 
   useEffect(() => {
     fetch('/api/wholesale/settings').then(r => r.json()).then(d => {
       if (d.success && d.data) {
         setBrowseMode(d.data.wholesale_browse_mode === 'product_type' ? 'product_type' : 'category');
-        setPortalTitle(d.data.wholesale_portal_title || 'Wholesale Portal');
       }
     }).catch(() => {});
   }, []);
@@ -377,8 +384,14 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
   }, []);
 
   // Navigation
-  const [view, setView]               = useState<PortalView>('shop');
+  const [view, setView]               = useState<WholesalePortalView>(initialView);
   const [activeFilter, setActiveFilter] = useState<string>('__all');
+
+  const handleViewChange = (nextView: WholesalePortalView) => {
+    setView(nextView);
+    const suffix = nextView === 'home' ? '' : `/${nextView}`;
+    router.push(`/wholesale/${supplier.slug}${suffix}`);
+  };
 
   // Search & brand filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -461,7 +474,7 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
       const submitData = await submitRes.json();
       if (!submitData.success) throw new Error(submitData.error ?? 'Submit failed');
       showToast(`✓ Order submitted! Draft SO ${submitData.so_number} created — we'll be in touch.`);
-      clearCart(); setCartOpen(false); setView('orders');
+      clearCart(); setCartOpen(false); handleViewChange('orders');
     } catch (e: any) { showToast(`Error: ${e.message}`); }
     setSaving(false);
   };
@@ -490,12 +503,12 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
           is_indent:     !!item.is_indent,
           indent_qty:    Number(item.indent_qty ?? (item.is_indent ? item.qty : 0)),
         })));
-        setCartNotes(d.order.notes ?? ''); setEditingOrderId(id); setView('shop'); setCartOpen(true);
+        setCartNotes(d.order.notes ?? ''); setEditingOrderId(id); handleViewChange('catalogue'); setCartOpen(true);
       }
     } catch { /* */ }
   };
 
-  const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push('/wholesale/login'); };
+  const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push(`/wholesale/${supplier.slug}`); router.refresh(); };
 
   // Filtered products
   const filteredProducts = React.useMemo(() => {
@@ -555,10 +568,18 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
     );
   };
 
+  const browseOptions = browseMode === 'category'
+    ? categories.flatMap(facet => [
+        { id: facet.category, label: facet.category },
+        ...(facet.subcategory ? [{ id: `${facet.category}||${facet.subcategory}`, label: `${facet.category} — ${facet.subcategory}` }] : []),
+      ]).filter((option, index, options) => options.findIndex(candidate => candidate.id === option.id) === index)
+    : productTypes.map(type => ({ id: type, label: type }));
+
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
+  const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+    <>
       {/* Toast */}
       {toastMsg && (
         <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 9999, background: '#0f172a', color: '#f8fafc', padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,.25)' }}>
@@ -569,43 +590,37 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
       {/* Cart Panel */}
       {cartOpen && <CartPanel items={cartItems} notes={cartNotes} onNotesChange={setCartNotes} onQtyChange={handleQtyChange} onRemove={handleRemove} onSaveDraft={handleSaveDraft} onSubmit={handleSubmitOrder} saving={saving} onClose={() => setCartOpen(false)} />}
 
-      {/* Header */}
-      <header style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,.06)', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <SolvantisMark size={34} variant="tile" />
-            <span style={{ fontSize: 15, fontWeight: 800, color: '#0f172a' }}>{portalTitle}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
-            {(['shop', 'orders'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{ padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', background: view === v ? '#dbeafe' : 'transparent', color: view === v ? '#1d4ed8' : '#64748b', fontWeight: view === v ? 700 : 500, fontSize: 13 }}>
-                {v === 'shop' ? '🛍 Shop' : '📋 My Orders'}
-              </button>
-            ))}
-          </div>
-          <div style={{ flex: 1 }} />
-          <button onClick={() => setCartOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', background: cartCount > 0 ? '#2563eb' : '#f1f5f9', color: cartCount > 0 ? '#fff' : '#475569', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0"/></svg>
-            Cart{cartCount > 0 ? ` (${cartCount})` : ''}
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>{session.name || session.email}</div>
-              {session.company && <div style={{ fontSize: 11, color: '#94a3b8' }}>{session.company}</div>}
-            </div>
-            <button onClick={handleLogout} style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Sign Out</button>
-          </div>
-        </div>
-      </header>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: 24 }}>
-        {view === 'orders' ? (
+      <WholesalePortalShell
+        supplier={supplier}
+        session={session}
+        view={view}
+        searchQuery={searchQuery}
+        cartCount={cartCount}
+        cartValue={cartValue}
+        onViewChange={handleViewChange}
+        onSearchChange={setSearchQuery}
+        onCartOpen={() => setCartOpen(true)}
+        onLogout={handleLogout}
+      >
+        {view === 'home' ? (
+          <WholesaleHomeView
+            session={session}
+            productCount={allProducts.length}
+            cartCount={cartCount}
+            draftActive={editingOrderId !== null}
+            onNavigate={handleViewChange}
+            onCartOpen={() => setCartOpen(true)}
+          />
+        ) : view === 'account' ? (
+          <WholesaleAccountView session={session} />
+        ) : view === 'help' ? (
+          <WholesaleHelpView supplier={supplier} />
+        ) : view === 'orders' ? (
           <DraftOrdersView onLoadDraft={handleLoadDraft} />
         ) : (
-          <div style={{ display: 'flex', gap: 24 }}>
+          <div className={catalogueStyles.layout}>
             {/* Sidebar */}
-            <aside style={{ width: 210, flexShrink: 0, alignSelf: 'flex-start', position: 'sticky', top: 84 }}>
+            <aside className={catalogueStyles.sidebar}>
               <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '12px 8px', boxShadow: '0 1px 3px rgba(0,0,0,.05)' }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .8, padding: '4px 6px 10px', borderBottom: '1px solid #f1f5f9', marginBottom: 6 }}>
                   {browseMode === 'category' ? 'Browse by Category' : 'Browse by Type'}
@@ -615,23 +630,19 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
             </aside>
 
             {/* Grid */}
-            <main style={{ flex: 1, minWidth: 0 }}>
-              {/* Search & Brand filter bar */}
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' as const }}>
-                <div style={{ position: 'relative' as const, flex: '1 1 260px', minWidth: 200 }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
-                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                  </svg>
-                  <input
-                    type="text"
-                    placeholder="Search by name, SKU or barcode…"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    style={{ width: '100%', paddingLeft: 34, paddingRight: searchQuery ? 32 : 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', fontSize: 13, color: '#0f172a', boxSizing: 'border-box' as const, outline: 'none' }}
-                  />
-                  {searchQuery && (
-                    <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
-                  )}
+            <div className={catalogueStyles.grid}>
+              {/* Browse & brand filters */}
+              <div className={catalogueStyles.filters}>
+                <div className={catalogueStyles.mobileBrowse}>
+                  <select
+                    aria-label={browseMode === 'category' ? 'Browse by category' : 'Browse by type'}
+                    value={activeFilter}
+                    onChange={event => setActiveFilter(event.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #d7ddd7', background: '#fff', fontSize: 13, color: '#26332c' }}
+                  >
+                    <option value="__all">All products</option>
+                    {browseOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
                 </div>
                 {allBrands.length > 0 && (
                   <select
@@ -643,8 +654,8 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
                     {allBrands.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 )}
-                {(searchQuery || brandFilter !== '__all') && (
-                  <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
+                {(searchQuery || brandFilter !== '__all' || activeFilter !== '__all') && (
+                  <button onClick={() => { setSearchQuery(''); setBrandFilter('__all'); setActiveFilter('__all'); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Clear</button>
                 )}
               </div>
               {productsError ? (
@@ -669,11 +680,11 @@ export default function WholesalePortalClient({ session }: { session: WholesaleS
                   </div>
                 </>
               )}
-            </main>
+            </div>
           </div>
         )}
-      </div>
-    </div>
+      </WholesalePortalShell>
+    </>
   );
 }
 

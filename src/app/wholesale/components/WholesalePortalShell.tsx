@@ -1,0 +1,187 @@
+'use client';
+
+import { useEffect, useState, type ReactNode } from 'react';
+import {
+  BookOpen,
+  Building2,
+  CircleUserRound,
+  HelpCircle,
+  House,
+  LogOut,
+  MapPin,
+  Menu,
+  PackageSearch,
+  Search,
+  ShoppingBag,
+  ShoppingCart,
+  WifiOff,
+  X,
+} from 'lucide-react';
+import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
+import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
+import styles from './WholesalePortalShell.module.css';
+
+export type WholesalePortalView = 'home' | 'catalogue' | 'orders' | 'account' | 'help';
+
+const navigation = [
+  { id: 'home' as const, label: 'Home', icon: House },
+  { id: 'catalogue' as const, label: 'Catalogue', icon: PackageSearch },
+  { id: 'orders' as const, label: 'Orders', icon: BookOpen },
+  { id: 'account' as const, label: 'Account', icon: CircleUserRound },
+  { id: 'help' as const, label: 'Help', icon: HelpCircle },
+];
+
+function safeLogoUrl(url: string | null): string | null {
+  if (!url || /drive\.google\.com/i.test(url)) return null;
+  return url;
+}
+
+export function WholesalePortalShell({
+  supplier,
+  session,
+  view,
+  searchQuery,
+  cartCount,
+  cartValue,
+  onViewChange,
+  onSearchChange,
+  onCartOpen,
+  onLogout,
+  children,
+}: {
+  supplier: WholesaleSupplierProfile;
+  session: WholesaleSession;
+  view: WholesalePortalView;
+  searchQuery: string;
+  cartCount: number;
+  cartValue: number;
+  onViewChange: (view: WholesalePortalView) => void;
+  onSearchChange: (value: string) => void;
+  onCartOpen: () => void;
+  onLogout: () => void;
+  children: ReactNode;
+}) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [online, setOnline] = useState(true);
+  const logoUrl = safeLogoUrl(supplier.logoUrl);
+  const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const changeView = (nextView: WholesalePortalView) => {
+    setDrawerOpen(false);
+    onViewChange(nextView);
+  };
+
+  const search = (
+    <div className={styles.search}>
+      <Search className={styles.searchIcon} size={17} aria-hidden="true" />
+      <input
+        aria-label="Search catalogue"
+        placeholder="Search products, SKU or barcode"
+        value={searchQuery}
+        onChange={event => onSearchChange(event.target.value)}
+        onFocus={() => view !== 'catalogue' && onViewChange('catalogue')}
+      />
+      {searchQuery && (
+        <button className={`${styles.iconButton} ${styles.clearSearch}`} onClick={() => onSearchChange('')} aria-label="Clear search" title="Clear search">
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  );
+
+  const nav = (
+    <nav className={styles.nav} aria-label="Wholesale portal">
+      {navigation.map(item => {
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            className={`${styles.navButton} ${view === item.id ? styles.navButtonActive : ''}`}
+            onClick={() => changeView(item.id)}
+            aria-current={view === item.id ? 'page' : undefined}
+          >
+            <Icon size={18} aria-hidden="true" />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  return (
+    <div className={styles.shell}>
+      <header className={styles.topbar}>
+        <div className={styles.brand}>
+          <button className={styles.menuButton} onClick={() => setDrawerOpen(true)} aria-label="Open navigation" title="Open navigation">
+            <Menu size={19} />
+          </button>
+          {logoUrl ? <img className={styles.logo} src={logoUrl} alt="" /> : <div className={styles.lettermark}>{initials}</div>}
+          <div style={{ minWidth: 0 }}>
+            <div className={styles.brandName}>{supplier.displayName}</div>
+            <div className={styles.brandLabel}>Wholesale account</div>
+          </div>
+        </div>
+        {search}
+        <div className={styles.actions}>
+          <div className={styles.accountSummary}>
+            <strong>{session.company || session.name}</strong>
+            <span>Primary buying location</span>
+          </div>
+          <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
+            <ShoppingCart size={17} aria-hidden="true" />
+            <span>{cartCount}</span>
+            <span className={styles.cartValue}>${cartValue.toLocaleString('en-AU', { minimumFractionDigits: 2 })}</span>
+          </button>
+          <button className={styles.iconButton} onClick={onLogout} aria-label="Sign out" title="Sign out">
+            <LogOut size={18} />
+          </button>
+        </div>
+      </header>
+
+      <div className={styles.body}>
+        <aside className={styles.sidebar}>
+          {nav}
+          <div className={styles.sidebarFooter}>
+            <div><Building2 size={14} aria-hidden="true" /> {session.company || session.name}</div>
+            <div className={styles.location}><MapPin size={14} aria-hidden="true" /> Primary location</div>
+          </div>
+        </aside>
+        <main className={styles.content}>{children}</main>
+      </div>
+
+      {drawerOpen && (
+        <>
+          <button className={styles.backdrop} onClick={() => setDrawerOpen(false)} aria-label="Close navigation" />
+          <aside className={styles.drawer} aria-label="Mobile navigation">
+            <div className={styles.drawerHead}>
+              <div className={styles.brand}>
+                <div className={styles.lettermark}>{initials}</div>
+                <strong>{supplier.displayName}</strong>
+              </div>
+              <button className={styles.iconButton} onClick={() => setDrawerOpen(false)} aria-label="Close navigation" title="Close navigation"><X size={18} /></button>
+            </div>
+            {search}
+            {nav}
+            <div className={styles.sidebarFooter}>
+              <div className={styles.location}><MapPin size={14} aria-hidden="true" /> Primary location</div>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {!online && <div className={styles.offline} role="status"><WifiOff size={16} /> Offline</div>}
+    </div>
+  );
+}

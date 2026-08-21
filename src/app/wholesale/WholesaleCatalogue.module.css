@@ -1,0 +1,52 @@
+.layout {
+  display: flex;
+  gap: 24px;
+  min-width: 0;
+}
+
+.sidebar {
+  position: sticky;
+  top: 84px;
+  width: 210px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.mobileBrowse {
+  display: none;
+}
+
+.grid {
+  min-width: 0;
+  flex: 1;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    display: block;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .mobileBrowse {
+    display: block;
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+
+  .mobileBrowse select,
+  .filters > select {
+    width: 100%;
+    min-width: 0;
+  }
+}

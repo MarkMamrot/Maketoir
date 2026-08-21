@@ -1,3 +1,27 @@
 {
-  "pages": {}
+  "pages": {
+    "/global-error": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/global-error.js"
+    ],
+    "/wholesale/[slug]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/wholesale/[slug]/page.css",
+      "static/chunks/app/wholesale/[slug]/page.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
+    ],
+    "/wholesale/[slug]/[section]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/wholesale/[slug]/[section]/page.css",
+      "static/chunks/app/wholesale/[slug]/[section]/page.js"
+    ]
+  }
 }
