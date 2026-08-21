@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 
 export async function GET() {
   const { session, response } = await requireActiveWholesaleSession();
@@ -28,26 +29,14 @@ export async function GET() {
   });
 }
 
-interface DraftItem {
-  variant_id: string;
-  product_id: string;
-  product_name: string;
-  variant_label?: string;
-  sku?: string;
-  qty: number;
-  unit_price: number;
-  is_indent?: boolean;
-  indent_qty?: number;
-}
-
 export async function POST(req: Request) {
-  const { session, response } = await requireActiveWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
   return runImsForBusiness(session.businessId, async () => {
    try {
     const body = await req.json();
     const notes: string = body.notes ?? '';
-    const items: DraftItem[] = Array.isArray(body.items) ? body.items : [];
+    const items = await validateWholesaleOrderItems(session.businessId, brandAccess, body.items);
 
     // Calculate totals
     const subtotal = items.reduce((s, i) => s + i.qty * i.unit_price, 0);
@@ -74,7 +63,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, id: orderId });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
   }
   });
 }

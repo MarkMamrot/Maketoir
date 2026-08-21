@@ -14,6 +14,7 @@ import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
 import { createNotification } from '@/lib/ims/createNotification';
 import { Resend } from 'resend';
+import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 
 type Ctx = { params: { id: string } };
 
@@ -23,7 +24,7 @@ const fmtCurrency = (n: number) =>
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export async function POST(_req: Request, { params }: Ctx) {
-  const { session, response } = await requireActiveWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -50,6 +51,7 @@ export async function POST(_req: Request, { params }: Ctx) {
     if (items.length === 0) {
       return NextResponse.json({ error: 'Cannot submit an empty order.' }, { status: 400 });
     }
+    await validateWholesaleOrderItems(session.businessId, brandAccess, items);
 
     // Recompute indent quantities from live availability; client flags are advisory only.
     const variantIds = items.map((item: any) => item.variant_id);
@@ -248,7 +250,7 @@ export async function POST(_req: Request, { params }: Ctx) {
     return NextResponse.json({ success: true, so_id: soId, so_number: soNumber });
   } catch (e: any) {
     console.error('[wholesale/submit]', e);
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
   }
   });
 }

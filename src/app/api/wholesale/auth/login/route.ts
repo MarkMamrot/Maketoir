@@ -10,6 +10,7 @@ import {
   WHOLESALE_SESSION_COOKIE,
   WHOLESALE_SESSION_MAX_AGE,
 } from '@/lib/wholesale/wholesaleSession';
+import { isWholesaleEnabled } from '@/lib/wholesale/wholesaleAccess';
 
 /**
  * POST /api/wholesale/auth/login
@@ -83,6 +84,15 @@ export async function POST(req: Request) {
     // Generic error message prevents email enumeration
     if (!foundContact) {
       return NextResponse.json({ error: 'Invalid email or password.' }, { status: 401 });
+    }
+
+    const foundPool = getIMSPool(foundImsDb);
+    const [settingRows] = await foundPool.execute(
+      `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'sells_wholesale' LIMIT 1`,
+      [foundBusinessId],
+    ) as [Array<{ value: string }>, any];
+    if (!isWholesaleEnabled(settingRows[0]?.value)) {
+      return NextResponse.json({ error: 'Wholesale portal is not enabled for this business.', code: 'wholesale_disabled' }, { status: 403 });
     }
 
     // ── 2. No password set → trigger first-time setup email ──────────────────

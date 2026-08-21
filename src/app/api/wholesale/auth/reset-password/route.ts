@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query, execute } from '@/services/MySQLService';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { getImsDbName } from '@/lib/db/BusinessRegistry';
+import { isWholesaleContactEligible, isWholesaleEnabled } from '@/lib/wholesale/wholesaleAccess';
 
 /**
  * POST /api/wholesale/auth/reset-password
@@ -64,6 +65,19 @@ export async function POST(req: Request) {
     const hash   = await bcrypt.hash(password, 12);
     const imsDb  = await getImsDbName(row.business_id);
     const pool   = getIMSPool(imsDb);
+
+    const [accessRows] = await pool.execute(
+      `SELECT c.type, c.price_tier, c.is_active,
+              (SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'sells_wholesale' LIMIT 1) AS sells_wholesale
+         FROM ims_contacts c
+        WHERE c.id = ? AND c.business_id = ?
+        LIMIT 1`,
+      [row.business_id, row.contact_id, row.business_id],
+    ) as [Array<{ type: string; price_tier: string; is_active: number; sells_wholesale: string | null }>, any];
+    const access = accessRows[0];
+    if (!access || !isWholesaleEnabled(access.sells_wholesale) || !isWholesaleContactEligible(access.type, access.price_tier, access.is_active)) {
+      return NextResponse.json({ error: 'Wholesale portal is not enabled for this account.', code: 'wholesale_disabled' }, { status: 403 });
+    }
 
     await pool.execute(
       `UPDATE ims_contacts SET password_hash = ? WHERE id = ? AND is_active = 1`,

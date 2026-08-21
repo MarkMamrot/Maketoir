@@ -3,6 +3,7 @@ import { getIMSPool } from '@/services/IMSMySQLService';
 import { primeImsDbMap } from '@/lib/db/BusinessRegistry';
 import { query } from '@/services/MySQLService';
 import { sendPasswordEmail } from '../login/route';
+import { isWholesaleEnabled } from '@/lib/wholesale/wholesaleAccess';
 
 /**
  * POST /api/wholesale/auth/forgot-password
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
 
     let foundContact: { id: number; email: string; name: string | null; business_id?: string } | null = null;
     let foundBusinessId = '';
+    let foundImsDb = '';
 
     for (const [imsDb, fallbackBizId] of dbsToSearch) {
       try {
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
         if (rows.length > 0) {
           foundContact    = rows[0];
           foundBusinessId = (foundContact!.business_id || fallbackBizId) ?? '';
+          foundImsDb = imsDb;
           break;
         }
       } catch { /* schema may not have password_hash column yet */ }
@@ -63,9 +66,16 @@ export async function POST(req: Request) {
 
     // Send email only if contact found (but always return success to client)
     if (foundContact) {
-      await sendPasswordEmail(foundContact, foundBusinessId, 'reset').catch(err =>
-        console.error('[wholesale/forgot-password] email send error:', err),
-      );
+      const pool = getIMSPool(foundImsDb);
+      const [settingRows] = await pool.execute(
+        `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'sells_wholesale' LIMIT 1`,
+        [foundBusinessId],
+      ) as [Array<{ value: string }>, any];
+      if (isWholesaleEnabled(settingRows[0]?.value)) {
+        await sendPasswordEmail(foundContact, foundBusinessId, 'reset').catch(err =>
+          console.error('[wholesale/forgot-password] email send error:', err),
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

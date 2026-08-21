@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveWholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib/wholesale/wholesaleOrderItems';
 
 type Ctx = { params: { id: string } };
 
@@ -41,7 +42,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 export async function PUT(req: Request, { params }: Ctx) {
-  const { session, response } = await requireActiveWholesaleSession();
+  const { session, brandAccess, response } = await requireActiveWholesaleSession();
   if (response) return response;
   const id = parseInt(params.id, 10);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -54,7 +55,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 
     const body = await req.json();
     const notes: string = body.notes ?? order.notes ?? '';
-    const items: any[] = Array.isArray(body.items) ? body.items : [];
+    const items = await validateWholesaleOrderItems(session.businessId, brandAccess, body.items);
 
     const subtotal = items.reduce((s: number, i: any) => s + i.qty * i.unit_price, 0);
 
@@ -78,7 +79,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e instanceof WholesaleItemValidationError ? 409 : 500 });
   }
   });
 }
