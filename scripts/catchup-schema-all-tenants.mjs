@@ -1573,7 +1573,7 @@ async function verifyWholesaleSavedListsSchema(schema) {
   for (const table of requiredTables) {
     if (!tables.has(table)) throw new Error(`${schema} is missing ${table}`);
   }
-  console.log(`  verified ${schema} wholesale saved lists schema`);
+  console.log(`  verified ${schema} wholesale saved lists, favourites, and team audit schema`);
 }
 
 try {
