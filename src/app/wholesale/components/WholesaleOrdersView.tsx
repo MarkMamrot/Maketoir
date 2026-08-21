@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CalendarDays, FilePenLine, PackageCheck, PackageOpen, RefreshCw, Trash2, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, FileDown, FilePenLine, PackageCheck, PackageOpen, RefreshCw, Trash2, X } from 'lucide-react';
 import styles from './WholesaleOrdersView.module.css';
 
 type OrderFilter = 'all' | 'open' | 'draft' | 'completed';
@@ -271,6 +271,17 @@ export function WholesaleOrdersView({
               <div><span>Subtotal</span><strong>{formatCurrency(selected.subtotal, selected.currency_code)}</strong></div>
               <div><span>Tax</span><strong>{formatCurrency(selected.tax_amount, selected.currency_code)}</strong></div>
               <div className={styles.grandTotal}><span>Total</span><strong>{formatCurrency(selected.total_amount, selected.currency_code)}</strong></div>
+              <div className={styles.documents}>
+                <span>Documents</span>
+                <div>
+                  <a href={`/api/wholesale/sales-orders/${selected.id}/pdf?document=sales-order`} target="_blank" rel="noreferrer"><FileDown size={15} /> Sales order</a>
+                  {selected.status === 'fulfilled' ? (
+                    <a href={`/api/wholesale/sales-orders/${selected.id}/pdf?document=tax-invoice`} target="_blank" rel="noreferrer"><FileDown size={15} /> Tax invoice</a>
+                  ) : selected.status !== 'cancelled' ? (
+                    <a href={`/api/wholesale/sales-orders/${selected.id}/pdf?document=pro-forma`} target="_blank" rel="noreferrer"><FileDown size={15} /> Pro forma</a>
+                  ) : null}
+                </div>
+              </div>
               {confirmReplaceCart && (
                 <div className={styles.replaceNotice} role="alert">
                   Your current cart has {cartItemCount} line{cartItemCount === 1 ? '' : 's'}. Ordering again will replace it.

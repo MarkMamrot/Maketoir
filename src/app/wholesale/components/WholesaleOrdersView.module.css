@@ -373,6 +373,10 @@
 .totals strong { font-size: 12px; }
 .grandTotal { margin-top: 8px; padding-top: 12px !important; border-top: 1px solid #dce3dd; }
 .grandTotal strong { font-family: Georgia, 'Times New Roman', serif; font-size: 20px; }
+.documents { display: flex !important; align-items: center; justify-content: space-between !important; gap: 12px; margin-top: 14px; padding: 13px 0 !important; border-top: 1px solid #dce3dd; }
+.documents > span { font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.documents > div { display: flex; justify-content: flex-end; gap: 7px; }
+.documents a { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid #cfd8d1; border-radius: 5px; background: #fff; color: #244333; font-size: 11px; font-weight: 800; text-decoration: none; }
 .replaceNotice {
   display: block !important;
   margin-top: 13px;
@@ -420,5 +424,8 @@
   .line { grid-template-columns: 1fr repeat(2, 46px); }
   .line > div:last-child { grid-column: 2 / 4; }
   .totals { padding: 16px 18px 22px; }
+  .documents { align-items: flex-start; flex-direction: column; }
+  .documents > div { width: 100%; }
+  .documents a { flex: 1; }
   .detailActions button { flex: 1; }
 }

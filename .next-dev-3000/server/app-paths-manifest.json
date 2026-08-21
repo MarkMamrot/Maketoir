@@ -1,4 +1,6 @@
 {
+  "/api/wholesale/settings/route": "app/api/wholesale/settings/route.js",
   "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
+  "/api/wholesale/account/route": "app/api/wholesale/account/route.js",
   "/wholesale/[slug]/page": "app/wholesale/[slug]/page.js"
 }
