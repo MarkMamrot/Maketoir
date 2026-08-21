@@ -73,6 +73,9 @@ const tableDefinitions = {
   privacy_version VARCHAR(64) NOT NULL,
   consented_at DATETIME(3) NOT NULL,
   linked_contact_id INT NULL,
+  linked_company_id INT NULL,
+  linked_location_id INT NULL,
+  linked_member_id INT NULL,
   reviewed_by_user_id INT NULL,
   reviewed_by_name VARCHAR(255) NULL,
   reviewed_at DATETIME(3) NULL,
@@ -82,7 +85,8 @@ const tableDefinitions = {
   UNIQUE KEY uq_wholesale_signup_business_email (business_id, email),
   UNIQUE KEY uq_wholesale_signup_verification_token (verification_token_hash),
   INDEX idx_wholesale_signup_queue (business_id, status, email_verified_at, created_at),
-  INDEX idx_wholesale_signup_contact (business_id, linked_contact_id)
+  INDEX idx_wholesale_signup_contact (business_id, linked_contact_id),
+  INDEX idx_wholesale_signup_company (business_id, linked_company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   wholesale_signup_review_events: `CREATE TABLE IF NOT EXISTS wholesale_signup_review_events (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -93,6 +97,9 @@ const tableDefinitions = {
   actor_name VARCHAR(255) NULL,
   reason VARCHAR(1000) NULL,
   linked_contact_id INT NULL,
+  linked_company_id INT NULL,
+  linked_location_id INT NULL,
+  linked_member_id INT NULL,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_wholesale_signup_events_application (business_id, application_id, created_at),
   CONSTRAINT fk_wholesale_signup_events_application
@@ -114,11 +121,12 @@ const requiredColumns = {
     'id', 'business_id', 'company_name', 'contact_name', 'email', 'phone', 'abn',
     'applicant_message', 'status', 'verification_token_hash', 'verification_expires_at',
     'email_verified_at', 'terms_version', 'privacy_version', 'consented_at', 'linked_contact_id',
+    'linked_company_id', 'linked_location_id', 'linked_member_id',
     'reviewed_by_user_id', 'reviewed_by_name', 'reviewed_at', 'review_reason', 'created_at', 'updated_at',
   ],
   wholesale_signup_review_events: [
     'id', 'application_id', 'business_id', 'event_type', 'actor_user_id', 'actor_name',
-    'reason', 'linked_contact_id', 'created_at',
+    'reason', 'linked_contact_id', 'linked_company_id', 'linked_location_id', 'linked_member_id', 'created_at',
   ],
 };
 
@@ -132,12 +140,21 @@ const requiredIndexes = {
   ],
   wholesale_signup_requests: [
     'PRIMARY', 'uq_wholesale_signup_business_email', 'uq_wholesale_signup_verification_token',
-    'idx_wholesale_signup_queue', 'idx_wholesale_signup_contact',
+    'idx_wholesale_signup_queue', 'idx_wholesale_signup_contact', 'idx_wholesale_signup_company',
   ],
   wholesale_signup_review_events: [
     'PRIMARY', 'idx_wholesale_signup_events_application',
   ],
 };
+
+const existingTableMigrations = [
+  ['wholesale_signup_requests', 'linked_company_id', 'INT NULL AFTER linked_contact_id'],
+  ['wholesale_signup_requests', 'linked_location_id', 'INT NULL AFTER linked_company_id'],
+  ['wholesale_signup_requests', 'linked_member_id', 'INT NULL AFTER linked_location_id'],
+  ['wholesale_signup_review_events', 'linked_company_id', 'INT NULL AFTER linked_contact_id'],
+  ['wholesale_signup_review_events', 'linked_location_id', 'INT NULL AFTER linked_company_id'],
+  ['wholesale_signup_review_events', 'linked_member_id', 'INT NULL AFTER linked_location_id'],
+];
 
 function normalizeSlug(value) {
   return String(value ?? '')
@@ -242,9 +259,20 @@ try {
   );
   const existingTableNames = new Set(existingTables.map(row => row.TABLE_NAME));
   const pendingTables = Object.keys(tableDefinitions).filter(name => !existingTableNames.has(name));
+  const [existingColumns] = await connection.query(
+    `SELECT TABLE_NAME, COLUMN_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [database, Object.keys(tableDefinitions)],
+  );
+  const existingColumnNames = new Set(existingColumns.map(row => `${row.TABLE_NAME}:${row.COLUMN_NAME}`));
+  const pendingColumns = existingTableMigrations.filter(
+    ([table, column]) => existingTableNames.has(table) && !existingColumnNames.has(`${table}:${column}`),
+  );
 
   console.log(`Wholesale portal main-schema plan for ${database}:`);
   console.log(`  tables to create: ${pendingTables.join(', ') || 'none'}`);
+  console.log(`  columns to add: ${pendingColumns.map(([table, column]) => `${table}.${column}`).join(', ') || 'none'}`);
 
   if (!apply) {
     console.log('Dry run only. Re-run with --apply to make these changes.');
@@ -252,10 +280,26 @@ try {
     for (const definition of Object.values(tableDefinitions)) {
       await connection.query(definition);
     }
+    for (const [table, column, definition] of pendingColumns) {
+      await connection.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+    }
+    if (pendingColumns.some(([table]) => table === 'wholesale_signup_requests')) {
+      const [companyIndex] = await connection.query(
+        `SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'wholesale_signup_requests'
+            AND INDEX_NAME = 'idx_wholesale_signup_company' LIMIT 1`,
+        [database],
+      );
+      if (!companyIndex.length) {
+        await connection.query(
+          'ALTER TABLE wholesale_signup_requests ADD INDEX idx_wholesale_signup_company (business_id, linked_company_id)',
+        );
+      }
+    }
     console.log('Wholesale portal main schema applied successfully.');
   }
 
-  if (apply || pendingTables.length === 0) {
+  if (apply || (pendingTables.length === 0 && pendingColumns.length === 0)) {
     const [columns] = await connection.query(
       `SELECT TABLE_NAME, COLUMN_NAME
          FROM information_schema.COLUMNS

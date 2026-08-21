@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS wholesale_signup_requests (
   privacy_version           VARCHAR(64) NOT NULL,
   consented_at              DATETIME(3) NOT NULL,
   linked_contact_id         INT NULL,
+  linked_company_id         INT NULL,
+  linked_location_id        INT NULL,
+  linked_member_id          INT NULL,
   reviewed_by_user_id       INT NULL,
   reviewed_by_name          VARCHAR(255) NULL,
   reviewed_at               DATETIME(3) NULL,
@@ -84,7 +87,8 @@ CREATE TABLE IF NOT EXISTS wholesale_signup_requests (
   UNIQUE KEY uq_wholesale_signup_business_email (business_id, email),
   UNIQUE KEY uq_wholesale_signup_verification_token (verification_token_hash),
   INDEX idx_wholesale_signup_queue (business_id, status, email_verified_at, created_at),
-  INDEX idx_wholesale_signup_contact (business_id, linked_contact_id)
+  INDEX idx_wholesale_signup_contact (business_id, linked_contact_id),
+  INDEX idx_wholesale_signup_company (business_id, linked_company_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS wholesale_signup_review_events (
@@ -96,6 +100,9 @@ CREATE TABLE IF NOT EXISTS wholesale_signup_review_events (
   actor_name         VARCHAR(255) NULL,
   reason             VARCHAR(1000) NULL,
   linked_contact_id  INT NULL,
+  linked_company_id  INT NULL,
+  linked_location_id INT NULL,
+  linked_member_id   INT NULL,
   created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   INDEX idx_wholesale_signup_events_application (business_id, application_id, created_at),
   CONSTRAINT fk_wholesale_signup_events_application

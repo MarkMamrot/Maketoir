@@ -1,8 +1,7 @@
-import type { RowDataPacket } from 'mysql2';
+import type { ResultSetHeader, RowDataPacket } from 'mysql2';
 import { getPool } from '@/services/MySQLService';
-import { getIMSPool } from '@/services/IMSMySQLService';
-import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { normalizeWholesaleBrands } from './wholesaleAccess';
+import { ensureApprovedWholesaleAccount } from './wholesaleCompanyAccount';
 import type { WholesaleApplicationStatus } from './wholesaleApplication';
 
 export interface WholesaleApplicationReviewRow {
@@ -34,6 +33,9 @@ interface ApplicationDbRow extends RowDataPacket {
   status: WholesaleApplicationStatus;
   email_verified_at: string | Date | null;
   linked_contact_id: number | null;
+  linked_company_id: number | null;
+  linked_location_id: number | null;
+  linked_member_id: number | null;
   reviewed_by_name: string | null;
   reviewed_at: string | Date | null;
   review_reason: string | null;
@@ -118,67 +120,6 @@ async function claimApproval(input: {
   }
 }
 
-async function ensureApprovedTenantContact(input: {
-  businessId: string;
-  application: ApplicationDbRow;
-  allowedBrands: string[] | null;
-  onAccountLimit: number | null;
-}): Promise<number> {
-  return runImsForBusiness(input.businessId, async () => {
-    const connection = await getIMSPool().getConnection();
-    try {
-      await connection.beginTransaction();
-      const [rows] = await connection.execute<RowDataPacket[]>(
-        `SELECT id, type FROM ims_contacts
-          WHERE business_id = ? AND LOWER(email) = ?
-          ORDER BY id LIMIT 1 FOR UPDATE`,
-        [input.businessId, input.application.email],
-      );
-      const existing = rows[0] as { id: number; type: string } | undefined;
-      const brandsJson = input.allowedBrands === null ? null : JSON.stringify(input.allowedBrands);
-      let contactId: number;
-      if (existing) {
-        const type = existing.type === 'supplier' || existing.type === 'both' ? 'both' : 'b2b_customer';
-        await connection.execute(
-          `UPDATE ims_contacts
-              SET type = ?, price_tier = 'wholesale', is_active = 1,
-                  wholesale_allowed_brands_json = ?, on_account_limit = COALESCE(?, on_account_limit),
-                  company = COALESCE(NULLIF(company, ''), ?), name = COALESCE(NULLIF(name, ''), ?),
-                  phone = COALESCE(NULLIF(phone, ''), ?)
-            WHERE id = ? AND business_id = ?`,
-          [type, brandsJson, input.onAccountLimit, input.application.company_name,
-            input.application.contact_name, input.application.phone, existing.id, input.businessId],
-        );
-        contactId = Number(existing.id);
-      } else {
-        const [result] = await connection.execute(
-          `INSERT INTO ims_contacts
-             (business_id, type, name, company, email, phone, notes, is_active, price_tier,
-              wholesale_allowed_brands_json, on_account_limit, charges_tax, prices_include_tax)
-            VALUES (?, 'b2b_customer', ?, ?, ?, ?, ?, 1, 'wholesale', ?, ?, 1, 1)`,
-          [input.businessId, input.application.contact_name, input.application.company_name,
-            input.application.email, input.application.phone,
-            input.application.abn ? `Wholesale application ABN: ${input.application.abn}` : null,
-            brandsJson, input.onAccountLimit],
-        );
-        contactId = Number((result as { insertId: number }).insertId);
-        await connection.execute(
-          `UPDATE ims_contacts SET customer_code = CONCAT('C-', LPAD(?, 6, '0'))
-            WHERE id = ? AND (customer_code IS NULL OR customer_code = '')`,
-          [contactId, contactId],
-        );
-      }
-      await connection.commit();
-      return contactId;
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  });
-}
-
 export async function approveWholesaleApplication(input: {
   businessId: string;
   applicationId: number;
@@ -186,46 +127,69 @@ export async function approveWholesaleApplication(input: {
   actorName: string;
   allowedBrands: unknown;
   onAccountLimit?: unknown;
-}): Promise<{ contactId: number; replayed: boolean }> {
+}): Promise<{ contactId: number; companyId: number; locationId: number; memberId: number; replayed: boolean }> {
   const allowedBrands = normalizeWholesaleBrands(input.allowedBrands);
   const parsedLimit = input.onAccountLimit == null || input.onAccountLimit === '' ? null : Number(input.onAccountLimit);
   if (parsedLimit !== null && (!Number.isFinite(parsedLimit) || parsedLimit < 0 || parsedLimit > 100_000_000)) {
     throw new Error('Account limit must be a non-negative number.');
   }
   const application = await claimApproval(input);
-  if (application.status === 'approved' && application.linked_contact_id) {
-    return { contactId: Number(application.linked_contact_id), replayed: true };
+  if (application.status === 'approved' && application.linked_contact_id && application.linked_company_id
+    && application.linked_location_id && application.linked_member_id) {
+    return {
+      contactId: Number(application.linked_contact_id), companyId: Number(application.linked_company_id),
+      locationId: Number(application.linked_location_id), memberId: Number(application.linked_member_id), replayed: true,
+    };
   }
-  const contactId = await ensureApprovedTenantContact({
-    businessId: input.businessId, application, allowedBrands, onAccountLimit: parsedLimit,
+  const account = await ensureApprovedWholesaleAccount({
+    businessId: input.businessId, companyName: application.company_name,
+    contactName: application.contact_name, email: application.email, phone: application.phone,
+    abn: application.abn, allowedBrands, onAccountLimit: parsedLimit,
   });
 
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute<ApplicationDbRow[]>(
-      `SELECT status, linked_contact_id FROM wholesale_signup_requests
+      `SELECT status, linked_contact_id, linked_company_id, linked_location_id, linked_member_id
+        FROM wholesale_signup_requests
         WHERE id = ? AND business_id = ? LIMIT 1 FOR UPDATE`,
       [input.applicationId, input.businessId],
     );
     const current = rows[0];
-    if (current?.status !== 'approved') {
+    if (!current) throw new Error('Wholesale application not found during approval finalization.');
+    if (current.status === 'approved') {
       await connection.execute(
         `UPDATE wholesale_signup_requests
-            SET status = 'approved', linked_contact_id = ?, reviewed_by_user_id = ?,
+            SET linked_contact_id = ?, linked_company_id = ?, linked_location_id = ?, linked_member_id = ?
+          WHERE id = ? AND business_id = ? AND status = 'approved'`,
+        [account.contactId, account.companyId, account.locationId, account.memberId,
+          input.applicationId, input.businessId],
+      );
+      await connection.commit();
+      return { ...account, replayed: true };
+    }
+    if (current.status !== 'approving') throw new Error('Wholesale application approval state changed unexpectedly.');
+    const [updateResult] = await connection.execute<ResultSetHeader>(
+        `UPDATE wholesale_signup_requests
+            SET status = 'approved', linked_contact_id = ?, linked_company_id = ?,
+                linked_location_id = ?, linked_member_id = ?, reviewed_by_user_id = ?,
                 reviewed_by_name = ?, reviewed_at = CURRENT_TIMESTAMP(3), review_reason = NULL
           WHERE id = ? AND business_id = ? AND status = 'approving'`,
-        [contactId, input.actorUserId, input.actorName, input.applicationId, input.businessId],
+        [account.contactId, account.companyId, account.locationId, account.memberId,
+          input.actorUserId, input.actorName, input.applicationId, input.businessId],
       );
-      await connection.execute(
+    if (updateResult.affectedRows !== 1) throw new Error('Wholesale application approval could not be finalized.');
+    await connection.execute(
         `INSERT INTO wholesale_signup_review_events
-           (application_id, business_id, event_type, actor_user_id, actor_name, linked_contact_id)
-         VALUES (?, ?, 'approved', ?, ?, ?)`,
-        [input.applicationId, input.businessId, input.actorUserId, input.actorName, contactId],
+           (application_id, business_id, event_type, actor_user_id, actor_name,
+            linked_contact_id, linked_company_id, linked_location_id, linked_member_id)
+         VALUES (?, ?, 'approved', ?, ?, ?, ?, ?, ?)`,
+        [input.applicationId, input.businessId, input.actorUserId, input.actorName,
+          account.contactId, account.companyId, account.locationId, account.memberId],
       );
-    }
     await connection.commit();
-    return { contactId, replayed: current?.status === 'approved' };
+    return { ...account, replayed: false };
   } catch (error) {
     await connection.rollback();
     throw error;

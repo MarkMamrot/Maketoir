@@ -4,21 +4,17 @@ const mocks = vi.hoisted(() => {
   const mainConnection = {
     beginTransaction: vi.fn(), commit: vi.fn(), execute: vi.fn(), release: vi.fn(), rollback: vi.fn(),
   };
-  const imsConnection = {
-    beginTransaction: vi.fn(), commit: vi.fn(), execute: vi.fn(), release: vi.fn(), rollback: vi.fn(),
-  };
   return {
     mainConnection,
-    imsConnection,
     mainPool: { execute: vi.fn(), getConnection: vi.fn().mockResolvedValue(mainConnection) },
-    imsPool: { getConnection: vi.fn().mockResolvedValue(imsConnection) },
-    runImsForBusiness: vi.fn(async (_businessId: string, callback: () => Promise<unknown>) => callback()),
+    ensureApprovedWholesaleAccount: vi.fn(),
   };
 });
 
 vi.mock('@/services/MySQLService', () => ({ getPool: () => mocks.mainPool }));
-vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: () => mocks.imsPool }));
-vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.runImsForBusiness }));
+vi.mock('../wholesaleCompanyAccount', () => ({
+  ensureApprovedWholesaleAccount: mocks.ensureApprovedWholesaleAccount,
+}));
 
 import {
   approveWholesaleApplication,
@@ -30,14 +26,18 @@ const application = {
   id: 17, business_id: 'biz-1', company_name: 'Example Co', contact_name: 'Alex Buyer',
   email: 'buyer@example.com', phone: '0400', abn: '51824753556', applicant_message: null,
   status: 'pending_review', email_verified_at: new Date(), linked_contact_id: null,
+  linked_company_id: null, linked_location_id: null, linked_member_id: null,
   reviewed_by_name: null, reviewed_at: null, review_reason: null, created_at: new Date(),
 };
 
 describe('wholesale application review', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.mainConnection.execute.mockReset();
     mocks.mainPool.getConnection.mockResolvedValue(mocks.mainConnection);
-    mocks.imsPool.getConnection.mockResolvedValue(mocks.imsConnection);
+    mocks.ensureApprovedWholesaleAccount.mockResolvedValue({
+      contactId: 42, companyId: 50, locationId: 60, memberId: 70,
+    });
   });
 
   it('lists applications within the authenticated business', async () => {
@@ -55,16 +55,13 @@ describe('wholesale application review', () => {
       .mockResolvedValueOnce([[{ status: 'approving', linked_contact_id: null }]])
       .mockResolvedValueOnce([{ affectedRows: 1 }])
       .mockResolvedValueOnce([{ affectedRows: 1 }]);
-    mocks.imsConnection.execute
-      .mockResolvedValueOnce([[{ id: 42, type: 'b2b_customer' }]])
-      .mockResolvedValueOnce([{ affectedRows: 1 }]);
-
     await expect(approveWholesaleApplication({
       businessId: 'biz-1', applicationId: 17, actorUserId: 7, actorName: 'Admin',
       allowedBrands: ['Brand A'], onAccountLimit: 5000,
-    })).resolves.toEqual({ contactId: 42, replayed: false });
-    expect(mocks.runImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
-    expect(mocks.imsConnection.execute.mock.calls[1][0]).toContain("price_tier = 'wholesale'");
+    })).resolves.toEqual({ contactId: 42, companyId: 50, locationId: 60, memberId: 70, replayed: false });
+    expect(mocks.ensureApprovedWholesaleAccount).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'biz-1', companyName: 'Example Co', allowedBrands: ['Brand A'], onAccountLimit: 5000,
+    }));
     expect(mocks.mainConnection.execute.mock.calls[5][0]).toContain("'approved'");
   });
 
