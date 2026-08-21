@@ -3,10 +3,11 @@ import { ProductsSection } from './ProductsSection';
 import { OrdersSection } from './OrdersSection';
 import { ReportsSection } from './ReportsSection';
 import { ContactCrmProfile } from './contacts/ContactCrmProfile';
+import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'crm' | 'contact-profile' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -199,6 +200,7 @@ export function MainSections(props: MainSectionsProps) {
           onOpenPosSale={(id: number) => { setPendingOpenPosSale(id); setView('sales-orders'); }}
         />
       )}
+      {view === 'wholesale-applications' && <WholesaleApplicationQueue isAdvisor={isAdvisor} />}
       {view === 'locations' && <LocationsView isAdvisor={isAdvisor} />}
       {view === 'stocktakes' && <StocktakesView isAdvisor={isAdvisor} businessId={businessId} />}
 

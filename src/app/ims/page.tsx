@@ -73,7 +73,7 @@ import {
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'crm' | 'contact-profile' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -97,6 +97,7 @@ const NAV = [
   ]},
   { id: '__sales',         label: 'Sales',            section: 'sales', children: [
     { id: 'sales-orders',     label: 'Sales Orders' },
+    { id: 'wholesale-applications', label: 'Wholesale Applications' },
     { id: 'customer-backorders', label: 'Customer Backorders' },
     { id: 'stock-availability', label: 'Stock Allocation' },
     { id: 'credit-notes',     label: 'Customer Credit Notes' },
@@ -561,7 +562,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
       {collapsed && (() => {
         const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[]; hidden?: boolean }[] = [
           { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
-          { icon: '__sales',           label: 'Sales',            navigate: 'sales-orders',     activeFor: ['sales-orders','customer-backorders','stock-availability','credit-notes','pos-sales','online-sales'] },
+          { icon: '__sales',           label: 'Sales',            navigate: 'sales-orders',     activeFor: ['sales-orders','wholesale-applications','customer-backorders','stock-availability','credit-notes','pos-sales','online-sales'] },
           { icon: '__purchasing',      label: 'Purchasing',       navigate: 'purchase-orders',  activeFor: ['purchase-orders','order-planner','supplier-backorders','supplier-credit-notes'] },
           { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
           { icon: '__contacts',       label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'crm', 'contact-profile'] },
@@ -618,7 +619,7 @@ function Sidebar({ active, onSelect }: { active: ImsView; onSelect: (v: ImsView)
             </button>
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
-                {(item as any).children.map((child: any) => (
+                {(item as any).children.filter((child: any) => child.id !== 'wholesale-applications' || showWholesale).map((child: any) => (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',

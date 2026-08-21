@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Mail, RotateCcw, ShieldCheck } from 'lucide-react';
+import WholesaleApplicationForm from './_applicationClient';
 
 interface SupplierSignInProps {
   supplier: {
@@ -21,6 +22,7 @@ export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [logoFailed, setLogoFailed] = useState(false);
+  const [showApplication, setShowApplication] = useState(false);
   const canRenderLogo = Boolean(supplier.logoUrl)
     && !logoFailed
     && !/^https?:\/\/(?:www\.)?drive\.google\.com\//i.test(supplier.logoUrl ?? '');
@@ -113,7 +115,9 @@ export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
 
         <section className="flex items-center px-6 py-12 lg:px-14">
           <div className="w-full max-w-md">
-            {step === 'email' ? (
+            {showApplication ? (
+              <WholesaleApplicationForm supplier={supplier} onBack={() => setShowApplication(false)} />
+            ) : step === 'email' ? (
               <form onSubmit={requestCode}>
                 <Mail size={30} className="mb-6 text-[#b55332]" aria-hidden="true" />
                 <h2 className="font-serif text-3xl font-semibold">Sign in to order</h2>
@@ -140,6 +144,9 @@ export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
                 >
                   {loading ? 'Sending code...' : 'Email me a sign-in code'}
                   {!loading && <ArrowRight size={18} aria-hidden="true" />}
+                </button>
+                <button type="button" onClick={() => setShowApplication(true)} className="mt-4 h-12 w-full rounded-md border border-[#9aa69f] px-4 font-semibold text-[#163f34] hover:bg-white">
+                  Apply for wholesale access
                 </button>
               </form>
             ) : (

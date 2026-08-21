@@ -1,1 +1,3 @@
-{}
+{
+  "/api/wholesale/suppliers/[slug]/route": "app/api/wholesale/suppliers/[slug]/route.js"
+}

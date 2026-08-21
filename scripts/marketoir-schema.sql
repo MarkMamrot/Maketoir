@@ -58,6 +58,50 @@ CREATE TABLE IF NOT EXISTS wholesale_otp_challenges (
   INDEX idx_wholesale_otp_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS wholesale_signup_requests (
+  id                        BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id               VARCHAR(100) NOT NULL,
+  company_name              VARCHAR(255) NOT NULL,
+  contact_name              VARCHAR(255) NOT NULL,
+  email                     VARCHAR(320) NOT NULL,
+  phone                     VARCHAR(50) NULL,
+  abn                       VARCHAR(32) NULL,
+  applicant_message         TEXT NULL,
+  status                    ENUM('pending_email','pending_review','approving','approved','rejected') NOT NULL DEFAULT 'pending_email',
+  verification_token_hash   CHAR(64) NULL,
+  verification_expires_at   DATETIME(3) NULL,
+  email_verified_at         DATETIME(3) NULL,
+  terms_version             VARCHAR(64) NOT NULL,
+  privacy_version           VARCHAR(64) NOT NULL,
+  consented_at              DATETIME(3) NOT NULL,
+  linked_contact_id         INT NULL,
+  reviewed_by_user_id       INT NULL,
+  reviewed_by_name          VARCHAR(255) NULL,
+  reviewed_at               DATETIME(3) NULL,
+  review_reason             VARCHAR(1000) NULL,
+  created_at                DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_wholesale_signup_business_email (business_id, email),
+  UNIQUE KEY uq_wholesale_signup_verification_token (verification_token_hash),
+  INDEX idx_wholesale_signup_queue (business_id, status, email_verified_at, created_at),
+  INDEX idx_wholesale_signup_contact (business_id, linked_contact_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wholesale_signup_review_events (
+  id                 BIGINT AUTO_INCREMENT PRIMARY KEY,
+  application_id     BIGINT NOT NULL,
+  business_id        VARCHAR(100) NOT NULL,
+  event_type         ENUM('submitted','email_verified','approval_started','approved','rejected') NOT NULL,
+  actor_user_id      INT NULL,
+  actor_name         VARCHAR(255) NULL,
+  reason             VARCHAR(1000) NULL,
+  linked_contact_id  INT NULL,
+  created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_wholesale_signup_events_application (business_id, application_id, created_at),
+  CONSTRAINT fk_wholesale_signup_events_application
+    FOREIGN KEY (application_id) REFERENCES wholesale_signup_requests(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- users  (global — no business_id)
 -- From master Users sheet: Name, Company, Email, Phone,
