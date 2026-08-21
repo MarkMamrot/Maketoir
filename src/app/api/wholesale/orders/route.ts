@@ -18,9 +18,10 @@ export async function GET() {
        FROM wholesale_draft_orders o
        LEFT JOIN wholesale_draft_order_items i ON i.order_id = o.id
        WHERE o.business_id = ? AND o.contact_id = ?
+         AND o.wholesale_company_id = ? AND o.wholesale_location_id = ? AND o.wholesale_member_id = ?
        GROUP BY o.id
        ORDER BY o.updated_at DESC`,
-      [session.businessId, session.contactId],
+      [session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
     );
     return NextResponse.json({ success: true, orders });
   } catch (e: any) {
@@ -43,9 +44,11 @@ export async function POST(req: Request) {
 
     const res = await imsExecute(
       `INSERT INTO wholesale_draft_orders
-         (business_id, contact_id, status, notes, subtotal, total_amount)
-       VALUES (?, ?, 'draft', ?, ?, ?)`,
-      [session.businessId, session.contactId, notes, subtotal, subtotal],
+         (business_id, contact_id, wholesale_company_id, wholesale_location_id, wholesale_member_id,
+          status, notes, subtotal, total_amount)
+       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
+      [session.businessId, session.contactId, session.companyId, session.locationId, session.memberId,
+        notes, subtotal, subtotal],
     );
     const orderId = (res as any).insertId as number;
 

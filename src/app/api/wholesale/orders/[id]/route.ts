@@ -11,10 +11,15 @@ import { validateWholesaleOrderItems, WholesaleItemValidationError } from '@/lib
 
 type Ctx = { params: { id: string } };
 
-async function findOrder(id: number, businessId: string, contactId: number) {
+async function findOrder(
+  id: number,
+  owner: { businessId: string; contactId: number; companyId: number; locationId: number; memberId: number },
+) {
   const rows = await imsQuery<any>(
-    `SELECT * FROM wholesale_draft_orders WHERE id = ? AND business_id = ? AND contact_id = ?`,
-    [id, businessId, contactId],
+    `SELECT * FROM wholesale_draft_orders
+      WHERE id = ? AND business_id = ? AND contact_id = ?
+        AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
+    [id, owner.businessId, owner.contactId, owner.companyId, owner.locationId, owner.memberId],
   );
   return rows[0] ?? null;
 }
@@ -27,7 +32,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
-    const order = await findOrder(id, session.businessId, session.contactId);
+    const order = await findOrder(id, session);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const items = await imsQuery<any>(
@@ -49,7 +54,7 @@ export async function PUT(req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
-    const order = await findOrder(id, session.businessId, session.contactId);
+    const order = await findOrder(id, session);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status !== 'draft') return NextResponse.json({ error: 'Only draft orders can be edited.' }, { status: 400 });
 
@@ -60,8 +65,9 @@ export async function PUT(req: Request, { params }: Ctx) {
     const subtotal = items.reduce((s: number, i: any) => s + i.qty * i.unit_price, 0);
 
     await imsExecute(
-      `UPDATE wholesale_draft_orders SET notes = ?, subtotal = ?, total_amount = ?, updated_at = NOW() WHERE id = ?`,
-      [notes, subtotal, subtotal, id],
+      `UPDATE wholesale_draft_orders SET notes = ?, subtotal = ?, total_amount = ?, updated_at = NOW()
+        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
+      [notes, subtotal, subtotal, id, session.businessId, session.companyId, session.locationId, session.memberId],
     );
     await imsExecute(`DELETE FROM wholesale_draft_order_items WHERE order_id = ?`, [id]);
 
@@ -92,11 +98,15 @@ export async function DELETE(_req: Request, { params }: Ctx) {
 
   return runImsForBusiness(session.businessId, async () => {
    try {
-    const order = await findOrder(id, session.businessId, session.contactId);
+    const order = await findOrder(id, session);
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status === 'submitted') return NextResponse.json({ error: 'Submitted orders cannot be deleted.' }, { status: 400 });
 
-    await imsExecute(`DELETE FROM wholesale_draft_orders WHERE id = ?`, [id]);
+    await imsExecute(
+      `DELETE FROM wholesale_draft_orders
+        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
+      [id, session.businessId, session.companyId, session.locationId, session.memberId],
+    );
     return NextResponse.json({ success: true });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

@@ -84,6 +84,10 @@ export async function POST(request: Request) {
       name: buyer.name,
       company: buyer.company,
       supplierSlug: profile.slug,
+      companyId: buyer.companyId,
+      locationId: buyer.locationId,
+      memberId: buyer.memberId,
+      memberRole: buyer.memberRole,
     }), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

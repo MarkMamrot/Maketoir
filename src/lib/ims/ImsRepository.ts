@@ -326,6 +326,7 @@ export interface SupplierReturnContext {
 
 export interface ImsSO {
   id: number; so_number: string; customer_id?: number; customer_po_number?: string; location_id: number;
+  wholesale_company_id?: number | null; wholesale_location_id?: number | null; wholesale_member_id?: number | null;
   status: SOStatus; order_date: string; expected_date?: string;
   fulfilled_date?: string; notes?: string; subtotal: number;
   delivery_address?: string; delivery_address2?: string; delivery_suburb?: string;
@@ -2745,11 +2746,14 @@ export const ImsSORepo = {
 
     const res = await imsExecute(
       `INSERT INTO ims_sales_orders
-        (business_id,so_number,so_type,customer_id,customer_po_number,location_id,status,order_date,expected_date,
+        (business_id,so_number,so_type,customer_id,wholesale_company_id,wholesale_location_id,wholesale_member_id,
+         customer_po_number,location_id,status,order_date,expected_date,
          delivery_address,delivery_address2,delivery_suburb,delivery_city,delivery_state,delivery_postcode,delivery_country,notes,
          payment_terms,price_tier,tax_treatment,tax_code,freight,discount,subtotal,tax_amount,total_amount,shopify_order_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId ?? '', so_number, 'b2b', data.customer_id ?? null, data.customer_po_number ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [businessId ?? '', so_number, 'b2b', data.customer_id ?? null,
+       data.wholesale_company_id ?? null, data.wholesale_location_id ?? null, data.wholesale_member_id ?? null,
+       data.customer_po_number ?? null, data.location_id, 'draft',
        data.order_date, data.expected_date ?? null, data.delivery_address ?? null, data.delivery_address2 ?? null,
        data.delivery_suburb ?? null, data.delivery_city ?? null, data.delivery_state ?? null,
        data.delivery_postcode ?? null, data.delivery_country ?? null, data.notes ?? null,

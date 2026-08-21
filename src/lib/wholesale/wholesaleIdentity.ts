@@ -1,6 +1,11 @@
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { imsQuery } from '@/services/IMSMySQLService';
-import { isWholesaleContactEligible, isWholesaleEnabled } from './wholesaleAccess';
+import {
+  isWholesaleContactEligible,
+  isWholesaleEnabled,
+  parseWholesaleBrandAccess,
+  type WholesaleBrandAccess,
+} from './wholesaleAccess';
 
 export interface WholesaleBuyerIdentity {
   contactId: number;
@@ -8,6 +13,11 @@ export interface WholesaleBuyerIdentity {
   email: string;
   name: string;
   company: string;
+  companyId: number;
+  locationId: number;
+  memberId: number;
+  memberRole: 'owner' | 'admin' | 'buyer';
+  brandAccess: WholesaleBrandAccess;
 }
 
 interface WholesaleContactRow {
@@ -18,6 +28,12 @@ interface WholesaleContactRow {
   type: string;
   price_tier: string | null;
   is_active: number;
+  wholesale_allowed_brands_json: unknown;
+  company_id: number;
+  location_id: number;
+  member_id: number;
+  member_role: 'owner' | 'admin' | 'buyer';
+  wholesale_company_name: string;
 }
 
 async function isBusinessWholesaleEnabled(businessId: string): Promise<boolean> {
@@ -36,7 +52,12 @@ function mapIdentity(row: WholesaleContactRow, businessId: string): WholesaleBuy
     businessId,
     email: row.email.trim().toLowerCase(),
     name: row.name?.trim() ?? '',
-    company: row.company?.trim() ?? '',
+    company: row.wholesale_company_name?.trim() || row.company?.trim() || '',
+    companyId: Number(row.company_id),
+    locationId: Number(row.location_id),
+    memberId: Number(row.member_id),
+    memberRole: row.member_role,
+    brandAccess: parseWholesaleBrandAccess(row.wholesale_allowed_brands_json),
   };
 }
 
@@ -51,9 +72,20 @@ export async function findWholesaleBuyerByEmail(
     if (!await isBusinessWholesaleEnabled(businessId)) return null;
 
     const rows = await imsQuery<WholesaleContactRow>(
-      `SELECT id, email, name, company, type, price_tier, is_active
-         FROM ims_contacts
-        WHERE business_id = ? AND LOWER(email) = ?
+      `SELECT c.id, c.email, c.name, c.company, c.type, c.price_tier, c.is_active,
+              c.wholesale_allowed_brands_json, wc.id AS company_id,
+              wl.id AS location_id, wm.id AS member_id, wm.role AS member_role,
+              wc.company_name AS wholesale_company_name
+         FROM ims_contacts c
+         JOIN ims_wholesale_company_members wm
+           ON wm.business_id = c.business_id AND wm.contact_id = c.id AND wm.is_active = 1
+         JOIN ims_wholesale_companies wc
+           ON wc.business_id = c.business_id AND wc.id = wm.company_id AND wc.status = 'active'
+         JOIN ims_wholesale_company_locations wl
+           ON wl.business_id = c.business_id AND wl.id = wm.location_id
+          AND wl.company_id = wc.id AND wl.status = 'active'
+        WHERE c.business_id = ? AND LOWER(c.email) = ?
+        ORDER BY wl.is_primary DESC, wm.id
         LIMIT 1`,
       [businessId, email],
     );
@@ -72,9 +104,20 @@ export async function getActiveWholesaleBuyer(
     if (!await isBusinessWholesaleEnabled(businessId)) return null;
 
     const rows = await imsQuery<WholesaleContactRow>(
-      `SELECT id, email, name, company, type, price_tier, is_active
-         FROM ims_contacts
-        WHERE business_id = ? AND id = ?
+      `SELECT c.id, c.email, c.name, c.company, c.type, c.price_tier, c.is_active,
+              c.wholesale_allowed_brands_json, wc.id AS company_id,
+              wl.id AS location_id, wm.id AS member_id, wm.role AS member_role,
+              wc.company_name AS wholesale_company_name
+         FROM ims_contacts c
+         JOIN ims_wholesale_company_members wm
+           ON wm.business_id = c.business_id AND wm.contact_id = c.id AND wm.is_active = 1
+         JOIN ims_wholesale_companies wc
+           ON wc.business_id = c.business_id AND wc.id = wm.company_id AND wc.status = 'active'
+         JOIN ims_wholesale_company_locations wl
+           ON wl.business_id = c.business_id AND wl.id = wm.location_id
+          AND wl.company_id = wc.id AND wl.status = 'active'
+        WHERE c.business_id = ? AND c.id = ?
+        ORDER BY wl.is_primary DESC, wm.id
         LIMIT 1`,
       [businessId, contactId],
     );

@@ -12,6 +12,7 @@ import {
   signWholesaleSession,
 } from '@/lib/wholesale/wholesaleSession';
 import { isWholesaleEnabled } from '@/lib/wholesale/wholesaleAccess';
+import { getActiveWholesaleBuyer } from '@/lib/wholesale/wholesaleIdentity';
 
 /**
  * POST /api/wholesale/auth/login
@@ -95,6 +96,10 @@ export async function POST(req: Request) {
     if (!isWholesaleEnabled(settingRows[0]?.value)) {
       return NextResponse.json({ error: 'Wholesale portal is not enabled for this business.', code: 'wholesale_disabled' }, { status: 403 });
     }
+    const buyer = await getActiveWholesaleBuyer(foundBusinessId, foundContact.id);
+    if (!buyer) {
+      return NextResponse.json({ error: 'This account no longer has wholesale portal access.', code: 'wholesale_account_ineligible' }, { status: 403 });
+    }
 
     // ── 2. No password set → trigger first-time setup email ──────────────────
     if (!foundContact.password_hash) {
@@ -114,12 +119,16 @@ export async function POST(req: Request) {
 
     // ── 4. Issue session cookie ───────────────────────────────────────────────
     const sessionData = {
-      contactId:  foundContact.id,
-      businessId: foundBusinessId,
+      contactId:  buyer.contactId,
+      businessId: buyer.businessId,
       imsDb:      foundImsDb,
-      email:      foundContact.email,
-      name:       foundContact.name   ?? '',
-      company:    foundContact.company ?? '',
+      email:      buyer.email,
+      name:       buyer.name,
+      company:    buyer.company,
+      companyId:  buyer.companyId,
+      locationId: buyer.locationId,
+      memberId:   buyer.memberId,
+      memberRole: buyer.memberRole,
     };
 
     cookies().set(WHOLESALE_SESSION_COOKIE, signWholesaleSession(sessionData), {

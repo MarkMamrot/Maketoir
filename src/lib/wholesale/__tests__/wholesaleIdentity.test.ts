@@ -26,6 +26,12 @@ describe('wholesale buyer identity', () => {
         type: 'b2b_customer',
         price_tier: 'wholesale',
         is_active: 1,
+        wholesale_allowed_brands_json: '["Brand A"]',
+        company_id: 50,
+        location_id: 60,
+        member_id: 70,
+        member_role: 'owner',
+        wholesale_company_name: ' Example Co ',
       }]);
 
     await expect(findWholesaleBuyerByEmail('biz-1', ' BUYER@example.com ')).resolves.toEqual({
@@ -34,6 +40,11 @@ describe('wholesale buyer identity', () => {
       email: 'buyer@example.com',
       name: 'Buyer',
       company: 'Example Co',
+      companyId: 50,
+      locationId: 60,
+      memberId: 70,
+      memberRole: 'owner',
+      brandAccess: { mode: 'selected', brands: ['Brand A'] },
     });
     expect(runImsForBusiness).toHaveBeenCalledWith('biz-1', expect.any(Function));
     expect(imsQuery.mock.calls[1][1]).toEqual(['biz-1', 'buyer@example.com']);
@@ -57,8 +68,23 @@ describe('wholesale buyer identity', () => {
         type: 'retail_customer',
         price_tier: 'retail',
         is_active: 1,
+        wholesale_allowed_brands_json: null,
+        company_id: 50,
+        location_id: 60,
+        member_id: 70,
+        member_role: 'owner',
+        wholesale_company_name: 'Example Co',
       }]);
 
     await expect(getActiveWholesaleBuyer('biz-1', 42)).resolves.toBeNull();
+  });
+
+  it('rejects a buyer when no active account membership resolves', async () => {
+    imsQuery.mockResolvedValueOnce([{ value: 'yes' }]).mockResolvedValueOnce([]);
+
+    await expect(getActiveWholesaleBuyer('biz-1', 42)).resolves.toBeNull();
+    expect(imsQuery.mock.calls[1][0]).toContain("wm.is_active = 1");
+    expect(imsQuery.mock.calls[1][0]).toContain("wc.status = 'active'");
+    expect(imsQuery.mock.calls[1][0]).toContain("wl.status = 'active'");
   });
 });

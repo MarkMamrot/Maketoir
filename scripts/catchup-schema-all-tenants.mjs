@@ -239,11 +239,14 @@ const TABLE_DDLS = [
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
     id INT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(64) NOT NULL, contact_id INT NOT NULL,
+    wholesale_company_id INT NULL, wholesale_location_id INT NULL, wholesale_member_id INT NULL,
     status ENUM('draft','submitted','cancelled') NOT NULL DEFAULT 'draft', reference VARCHAR(100) NULL,
     notes TEXT NULL, subtotal DECIMAL(10,2) NOT NULL DEFAULT 0, total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
     submitted_at DATETIME NULL, so_id INT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_biz_contact (business_id, contact_id), INDEX idx_status (status)
+    INDEX idx_biz_contact (business_id, contact_id),
+    INDEX idx_wholesale_draft_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
+    INDEX idx_status (status)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (
     id INT AUTO_INCREMENT PRIMARY KEY, order_id INT NOT NULL, variant_id VARCHAR(64) NOT NULL,
@@ -931,6 +934,9 @@ const COLUMNS = [
   ['ims_purchase_orders', 'supplier_name_raw',        'VARCHAR(255) NULL'],
   // ── ims_sales_orders ─────────────────────────────────────────────────────
   ['ims_sales_orders', 'customer_po_number',  'VARCHAR(100) NULL'],
+  ['ims_sales_orders', 'wholesale_company_id', 'INT NULL AFTER customer_id'],
+  ['ims_sales_orders', 'wholesale_location_id', 'INT NULL AFTER wholesale_company_id'],
+  ['ims_sales_orders', 'wholesale_member_id', 'INT NULL AFTER wholesale_location_id'],
   ['ims_sales_orders', 'xero_invoice_id',     'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_invoice_number', 'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_synced_at',      'DATETIME NULL'],
@@ -1048,6 +1054,9 @@ const COLUMNS = [
   ['ims_contacts', 'loyalty_member_enrolled_at', 'DATETIME NULL'],
   ['ims_contacts', 'loyalty_member_opted_out_at', 'DATETIME NULL'],
   ['ims_contacts', 'wholesale_allowed_brands_json', 'JSON NULL'],
+  ['wholesale_draft_orders', 'wholesale_company_id', 'INT NULL AFTER contact_id'],
+  ['wholesale_draft_orders', 'wholesale_location_id', 'INT NULL AFTER wholesale_company_id'],
+  ['wholesale_draft_orders', 'wholesale_member_id', 'INT NULL AFTER wholesale_location_id'],
   // ── pos_sales / store_credit_transactions ───────────────────────────────
   ['pos_sales', 'customer_id',       'INT NULL'],
   ['pos_sales', 'credit_note_id',    'INT NULL'],
@@ -1073,6 +1082,8 @@ const INDEXES = [
   ['ims_purchase_orders', 'uq_po_replacement_source', 'UNIQUE INDEX `uq_po_replacement_source` (`business_id`, `replacement_of_po_id`)'],
   ['ims_sales_orders', 'idx_so_backorder_queue', 'INDEX `idx_so_backorder_queue` (`business_id`, `status`, `customer_id`, `created_at`)'],
   ['ims_sales_orders', 'uq_so_replacement_source', 'UNIQUE INDEX `uq_so_replacement_source` (`business_id`, `replacement_of_so_id`)'],
+  ['ims_sales_orders', 'idx_so_wholesale_account', 'INDEX `idx_so_wholesale_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
+  ['wholesale_draft_orders', 'idx_wholesale_draft_account', 'INDEX `idx_wholesale_draft_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
   ['ims_credit_notes', 'idx_shopify_return', 'INDEX `idx_shopify_return` (`business_id`, `shopify_return_id`)'],
@@ -1154,6 +1165,21 @@ async function ensureColumnCollationMatches(schema, table, column, referenceTabl
   );
 }
 
+async function ensureForeignKey(schema, table, constraintName, column, referenceTable) {
+  const [rows] = await conn.query(
+    `SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = ? AND TABLE_NAME = ?
+        AND CONSTRAINT_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY' LIMIT 1`,
+    [schema, table, constraintName],
+  );
+  if (rows.length) return;
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\`
+       ADD CONSTRAINT \`${constraintName}\` FOREIGN KEY (\`${column}\`)
+       REFERENCES \`${referenceTable}\` (id) ON DELETE SET NULL`,
+  );
+}
+
 async function migrateSchema(schema) {
   for (const ddl of TABLE_DDLS) {
     try {
@@ -1221,6 +1247,27 @@ async function migrateSchema(schema) {
   }
 
   try {
+    await ensureColumnCollationMatches(schema, 'wholesale_draft_orders', 'business_id', 'ims_contacts', 'business_id');
+    await ensureForeignKey(schema, 'wholesale_draft_orders', 'fk_wholesale_draft_company', 'wholesale_company_id', 'ims_wholesale_companies');
+    await ensureForeignKey(schema, 'wholesale_draft_orders', 'fk_wholesale_draft_location', 'wholesale_location_id', 'ims_wholesale_company_locations');
+    await ensureForeignKey(schema, 'wholesale_draft_orders', 'fk_wholesale_draft_member', 'wholesale_member_id', 'ims_wholesale_company_members');
+    await ensureForeignKey(schema, 'ims_sales_orders', 'fk_so_wholesale_company', 'wholesale_company_id', 'ims_wholesale_companies');
+    await ensureForeignKey(schema, 'ims_sales_orders', 'fk_so_wholesale_location', 'wholesale_location_id', 'ims_wholesale_company_locations');
+    await ensureForeignKey(schema, 'ims_sales_orders', 'fk_so_wholesale_member', 'wholesale_member_id', 'ims_wholesale_company_members');
+    await conn.query(
+      `UPDATE \`${schema}\`.wholesale_draft_orders d
+         JOIN \`${schema}\`.ims_wholesale_company_members m
+           ON m.business_id = d.business_id AND m.contact_id = d.contact_id AND m.is_active = 1
+         JOIN \`${schema}\`.ims_wholesale_companies c
+           ON c.id = m.company_id AND c.business_id = m.business_id AND c.status = 'active'
+         JOIN \`${schema}\`.ims_wholesale_company_locations l
+           ON l.id = m.location_id AND l.company_id = c.id AND l.business_id = m.business_id AND l.status = 'active'
+          SET d.wholesale_company_id = c.id,
+              d.wholesale_location_id = l.id,
+              d.wholesale_member_id = m.id
+        WHERE d.status = 'draft'
+          AND (d.wholesale_company_id IS NULL OR d.wholesale_location_id IS NULL OR d.wholesale_member_id IS NULL)`,
+    );
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
@@ -1442,6 +1489,34 @@ async function verifyWholesaleAccessSchema(schema) {
   console.log(`  verified ${schema}.ims_contacts.wholesale_allowed_brands_json`);
 }
 
+async function verifyWholesaleOrderOwnershipSchema(schema) {
+  for (const table of ['wholesale_draft_orders', 'ims_sales_orders']) {
+    const [columnRows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, table],
+    );
+    const columns = new Set(columnRows.map(row => row.COLUMN_NAME));
+    for (const column of ['wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id']) {
+      if (!columns.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+    }
+  }
+  const [constraintRows] = await conn.query(
+    `SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS
+      WHERE CONSTRAINT_SCHEMA = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+        AND TABLE_NAME IN ('wholesale_draft_orders', 'ims_sales_orders')`,
+    [schema],
+  );
+  const constraints = new Set(constraintRows.map(row => row.CONSTRAINT_NAME));
+  for (const constraint of [
+    'fk_wholesale_draft_company', 'fk_wholesale_draft_location', 'fk_wholesale_draft_member',
+    'fk_so_wholesale_company', 'fk_so_wholesale_location', 'fk_so_wholesale_member',
+  ]) {
+    if (!constraints.has(constraint)) throw new Error(`${schema} is missing ${constraint}`);
+  }
+  console.log(`  verified ${schema} wholesale order ownership schema`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -1468,6 +1543,7 @@ try {
     await verifyOrderPaymentSchema(schema);
     await verifySalesDocumentSchema(schema);
     await verifyWholesaleAccessSchema(schema);
+    await verifyWholesaleOrderOwnershipSchema(schema);
   }
   console.log('Done.');
 } finally {

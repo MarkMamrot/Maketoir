@@ -64,6 +64,69 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_customer_code (business_id, customer_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Wholesale company accounts ─────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_wholesale_companies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  primary_contact_id INT NULL,
+  company_name VARCHAR(255) NOT NULL,
+  tax_id VARCHAR(50) NULL,
+  payment_terms VARCHAR(100) NULL,
+  on_account_limit DECIMAL(10,2) NULL,
+  status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_wholesale_company_contact (business_id, primary_contact_id),
+  INDEX idx_wholesale_company_status (business_id, status, company_name),
+  CONSTRAINT fk_wholesale_company_contact FOREIGN KEY (primary_contact_id) REFERENCES ims_contacts(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_wholesale_company_locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  company_id INT NOT NULL,
+  location_name VARCHAR(255) NOT NULL,
+  billing_address VARCHAR(255) NULL,
+  billing_address2 VARCHAR(255) NULL,
+  billing_suburb VARCHAR(100) NULL,
+  billing_city VARCHAR(100) NULL,
+  billing_state VARCHAR(100) NULL,
+  billing_postcode VARCHAR(30) NULL,
+  billing_country VARCHAR(100) NOT NULL DEFAULT 'Australia',
+  shipping_address VARCHAR(255) NULL,
+  shipping_address2 VARCHAR(255) NULL,
+  shipping_suburb VARCHAR(100) NULL,
+  shipping_city VARCHAR(100) NULL,
+  shipping_state VARCHAR(100) NULL,
+  shipping_postcode VARCHAR(30) NULL,
+  shipping_country VARCHAR(100) NOT NULL DEFAULT 'Australia',
+  is_primary TINYINT(1) NOT NULL DEFAULT 1,
+  status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_wholesale_company_location (business_id, company_id, location_name),
+  INDEX idx_wholesale_location_primary (business_id, company_id, is_primary, status),
+  CONSTRAINT fk_wholesale_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_wholesale_company_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  company_id INT NOT NULL,
+  location_id INT NOT NULL,
+  contact_id INT NOT NULL,
+  role ENUM('owner','admin','buyer') NOT NULL DEFAULT 'buyer',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_wholesale_company_member (business_id, company_id, contact_id),
+  INDEX idx_wholesale_member_contact (business_id, contact_id, is_active),
+  INDEX idx_wholesale_member_location (business_id, location_id, is_active),
+  CONSTRAINT fk_wholesale_member_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wholesale_member_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
+  CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── CRM (customer interactions, follow-ups and tags) ───────
 CREATE TABLE IF NOT EXISTS ims_crm_interactions (
   id            BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -736,6 +799,9 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   business_id      VARCHAR(100) NOT NULL DEFAULT '',
   so_number        VARCHAR(50) NOT NULL UNIQUE,
   customer_id      INT,
+  wholesale_company_id INT NULL,
+  wholesale_location_id INT NULL,
+  wholesale_member_id INT NULL,
   customer_po_number VARCHAR(100) NULL,
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
@@ -779,10 +845,14 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id),
+  INDEX idx_so_wholesale_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
   INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
   UNIQUE INDEX uq_so_replacement_source (business_id, replacement_of_so_id),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
-  FOREIGN KEY (location_id) REFERENCES ims_locations(id)
+  FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  CONSTRAINT fk_so_wholesale_company FOREIGN KEY (wholesale_company_id) REFERENCES ims_wholesale_companies(id) ON DELETE SET NULL,
+  CONSTRAINT fk_so_wholesale_location FOREIGN KEY (wholesale_location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE SET NULL,
+  CONSTRAINT fk_so_wholesale_member FOREIGN KEY (wholesale_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Sales Order Items ────────────────────────────────────────
@@ -1565,73 +1635,13 @@ CREATE TABLE IF NOT EXISTS pos_petty_cash_transactions (
   INDEX idx_pos_petty_cash_location_date (business_id, location_id, transaction_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ── Wholesale company accounts ─────────────────────────────
-CREATE TABLE IF NOT EXISTS ims_wholesale_companies (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
-  primary_contact_id INT NULL,
-  company_name VARCHAR(255) NOT NULL,
-  tax_id VARCHAR(50) NULL,
-  payment_terms VARCHAR(100) NULL,
-  on_account_limit DECIMAL(10,2) NULL,
-  status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_wholesale_company_contact (business_id, primary_contact_id),
-  INDEX idx_wholesale_company_status (business_id, status, company_name),
-  CONSTRAINT fk_wholesale_company_contact FOREIGN KEY (primary_contact_id) REFERENCES ims_contacts(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_wholesale_company_locations (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
-  company_id INT NOT NULL,
-  location_name VARCHAR(255) NOT NULL,
-  billing_address VARCHAR(255) NULL,
-  billing_address2 VARCHAR(255) NULL,
-  billing_suburb VARCHAR(100) NULL,
-  billing_city VARCHAR(100) NULL,
-  billing_state VARCHAR(100) NULL,
-  billing_postcode VARCHAR(30) NULL,
-  billing_country VARCHAR(100) NOT NULL DEFAULT 'Australia',
-  shipping_address VARCHAR(255) NULL,
-  shipping_address2 VARCHAR(255) NULL,
-  shipping_suburb VARCHAR(100) NULL,
-  shipping_city VARCHAR(100) NULL,
-  shipping_state VARCHAR(100) NULL,
-  shipping_postcode VARCHAR(30) NULL,
-  shipping_country VARCHAR(100) NOT NULL DEFAULT 'Australia',
-  is_primary TINYINT(1) NOT NULL DEFAULT 1,
-  status ENUM('active','inactive','archived') NOT NULL DEFAULT 'active',
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_wholesale_company_location (business_id, company_id, location_name),
-  INDEX idx_wholesale_location_primary (business_id, company_id, is_primary, status),
-  CONSTRAINT fk_wholesale_location_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS ims_wholesale_company_members (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  business_id VARCHAR(100) NOT NULL DEFAULT '',
-  company_id INT NOT NULL,
-  location_id INT NOT NULL,
-  contact_id INT NOT NULL,
-  role ENUM('owner','admin','buyer') NOT NULL DEFAULT 'buyer',
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_wholesale_company_member (business_id, company_id, contact_id),
-  INDEX idx_wholesale_member_contact (business_id, contact_id, is_active),
-  INDEX idx_wholesale_member_location (business_id, location_id, is_active),
-  CONSTRAINT fk_wholesale_member_company FOREIGN KEY (company_id) REFERENCES ims_wholesale_companies(id) ON DELETE CASCADE,
-  CONSTRAINT fk_wholesale_member_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
-  CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(64) NOT NULL,
   contact_id INT NOT NULL,
+  wholesale_company_id INT NULL,
+  wholesale_location_id INT NULL,
+  wholesale_member_id INT NULL,
   status ENUM('draft','submitted','cancelled') NOT NULL DEFAULT 'draft',
   reference VARCHAR(100) NULL,
   notes TEXT NULL,
@@ -1642,7 +1652,11 @@ CREATE TABLE IF NOT EXISTS wholesale_draft_orders (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_biz_contact (business_id, contact_id),
-  INDEX idx_status (status)
+  INDEX idx_wholesale_draft_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
+  INDEX idx_status (status),
+  CONSTRAINT fk_wholesale_draft_company FOREIGN KEY (wholesale_company_id) REFERENCES ims_wholesale_companies(id) ON DELETE SET NULL,
+  CONSTRAINT fk_wholesale_draft_location FOREIGN KEY (wholesale_location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE SET NULL,
+  CONSTRAINT fk_wholesale_draft_member FOREIGN KEY (wholesale_member_id) REFERENCES ims_wholesale_company_members(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS wholesale_draft_order_items (

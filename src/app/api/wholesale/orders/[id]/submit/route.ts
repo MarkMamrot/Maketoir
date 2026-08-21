@@ -33,8 +33,10 @@ export async function POST(_req: Request, { params }: Ctx) {
    try {
     // ── 1. Fetch draft order + items ─────────────────────────────────────────
     const orderRows = await imsQuery<any>(
-      `SELECT * FROM wholesale_draft_orders WHERE id = ? AND business_id = ? AND contact_id = ?`,
-      [id, session.businessId, session.contactId],
+      `SELECT * FROM wholesale_draft_orders
+        WHERE id = ? AND business_id = ? AND contact_id = ?
+          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
+      [id, session.businessId, session.contactId, session.companyId, session.locationId, session.memberId],
     );
     const order = orderRows[0];
     if (!order) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
@@ -144,6 +146,9 @@ export async function POST(_req: Request, { params }: Ctx) {
       {
         so_number:    '',       // auto-generated
         customer_id:  session.contactId,
+        wholesale_company_id: session.companyId,
+        wholesale_location_id: session.locationId,
+        wholesale_member_id: session.memberId,
         location_id:  locationId,
         status:       'draft',
         order_date:   todayIso(),
@@ -160,8 +165,9 @@ export async function POST(_req: Request, { params }: Ctx) {
     await imsExecute(
       `UPDATE wholesale_draft_orders
           SET status = 'submitted', submitted_at = NOW(), so_id = ?
-        WHERE id = ?`,
-      [soId, id],
+        WHERE id = ? AND business_id = ?
+          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
+      [soId, id, session.businessId, session.companyId, session.locationId, session.memberId],
     );
 
     // ── 5. Get SO number for display ─────────────────────────────────────────
