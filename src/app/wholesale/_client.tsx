@@ -8,6 +8,7 @@ import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountPr
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
 import { WholesaleOrdersView } from './components/WholesaleOrdersView';
+import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
 import catalogueStyles from './WholesaleCatalogue.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,19 +45,7 @@ interface WholesaleProduct {
 
 interface CategoryFacet { category: string; subcategory: string | null }
 
-interface CartItem {
-  variant_id: string;
-  product_id: string;
-  product_name: string;
-  variant_label: string;
-  sku: string | null;
-  qty: number;
-  unit_price: number;
-  available: number;
-  allow_indent: boolean;
-  is_indent: boolean;
-  indent_qty: number;
-}
+type CartItem = WholesaleCartItem;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -196,76 +185,6 @@ function ProductCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cart Panel
-// ─────────────────────────────────────────────────────────────────────────────
-function CartPanel({ items, notes, onNotesChange, onQtyChange, onRemove, onSaveDraft, onSubmit, saving, onClose }: {
-  items: CartItem[]; notes: string; onNotesChange: (v: string) => void;
-  onQtyChange: (vid: string, qty: number) => void; onRemove: (vid: string) => void;
-  onSaveDraft: () => void; onSubmit: () => void; saving: boolean; onClose: () => void;
-}) {
-  const subtotal = items.reduce((s, i) => s + i.qty * i.unit_price, 0);
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 500, display: 'flex' }}>
-      <div onClick={onClose} style={{ flex: 1, background: 'rgba(0,0,0,.4)' }} />
-      <div style={{ width: 420, maxWidth: '100vw', background: '#fff', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 24px rgba(0,0,0,.15)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
-          <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>🛒 Cart ({items.length} item{items.length !== 1 ? 's' : ''})</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: '#94a3b8', lineHeight: 1 }}>×</button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
-          {items.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ marginBottom: 10 }}>
-                <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" />
-              </svg>
-              <p style={{ fontSize: 13 }}>Your cart is empty.</p>
-            </div>
-          ) : items.map(item => (
-            <div key={item.variant_id} style={{ padding: '10px 0', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', lineHeight: 1.3 }}>{item.product_name}</div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>{item.variant_label}{item.sku ? ` · ${item.sku}` : ''}</div>
-                {item.indent_qty > 0 && <span style={{ display: 'inline-block', marginTop: 2, fontSize: 10, fontWeight: 700, color: '#f59e0b', background: '#fef3c7', padding: '1px 6px', borderRadius: 99 }}>{item.indent_qty} ON INDENT</span>}
-                <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>{fmtCurrency(item.unit_price)} × {item.qty} = <strong style={{ color: '#0f172a' }}>{fmtCurrency(item.qty * item.unit_price)}</strong></div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                <button onClick={() => onRemove(item.variant_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <button onClick={() => onQtyChange(item.variant_id, Math.max(1, item.qty - 1))} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155' }}>−</button>
-                  <input type="number" min={1} max={item.allow_indent ? undefined : (item.available || undefined)} value={item.qty}
-                    onChange={e => { const n = Math.max(1, parseInt(e.target.value) || 1); onQtyChange(item.variant_id, item.allow_indent ? n : Math.min(n, item.available)); }}
-                    style={{ width: 42, textAlign: 'center', padding: '3px 4px', borderRadius: 6, border: '1px solid #e2e8f0', fontSize: 13 }} />
-                  <button onClick={() => { const n = item.qty + 1; onQtyChange(item.variant_id, item.allow_indent ? n : Math.min(n, item.available)); }} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#334155' }}>+</button>
-                </div>
-                {!item.allow_indent && item.available > 0 && <span style={{ fontSize: 10, color: '#94a3b8' }}>Max {item.available}</span>}
-              </div>
-            </div>
-          ))}
-          <div style={{ marginTop: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 5 }}>Order Notes</label>
-            <textarea value={notes} onChange={e => onNotesChange(e.target.value)} rows={3} placeholder="Special instructions…" style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #e2e8f0', fontSize: 12, resize: 'vertical', boxSizing: 'border-box' as const }} />
-          </div>
-        </div>
-        <div style={{ padding: '16px 20px', borderTop: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#475569' }}>Subtotal</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#0f172a' }}>{fmtCurrency(subtotal)}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onSaveDraft} disabled={items.length === 0 || saving} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2563eb', background: '#fff', color: '#2563eb', fontWeight: 600, fontSize: 13, cursor: items.length === 0 || saving ? 'not-allowed' : 'pointer', opacity: items.length === 0 ? 0.5 : 1 }}>
-              {saving ? 'Saving…' : '💾 Save Draft'}
-            </button>
-            <button onClick={onSubmit} disabled={items.length === 0 || saving} style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: items.length === 0 || saving ? '#94a3b8' : '#2563eb', color: '#fff', fontWeight: 700, fontSize: 13, cursor: items.length === 0 || saving ? 'not-allowed' : 'pointer' }}>
-              {saving ? 'Submitting…' : '✉️ Submit Order'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Main Portal
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WholesalePortalClient({
@@ -393,9 +312,8 @@ export default function WholesalePortalClient({
     setSaving(false);
   };
 
-  const handleSubmitOrder = async () => {
-    if (cartItems.length === 0) return;
-    if (!confirm('Submit this order? Our team will be in touch to confirm.')) return;
+  const handleSubmitOrder = async (): Promise<string | null> => {
+    if (cartItems.length === 0) return null;
     setSaving(true);
     try {
       const body = { notes: cartNotes, items: cartItems };
@@ -413,10 +331,14 @@ export default function WholesalePortalClient({
       const submitRes = await fetch(`/api/wholesale/orders/${orderId}/submit`, { method: 'POST' });
       const submitData = await submitRes.json();
       if (!submitData.success) throw new Error(submitData.error ?? 'Submit failed');
-      showToast(`✓ Order submitted! Draft SO ${submitData.so_number} created — we'll be in touch.`);
-      clearCart(); setCartOpen(false); handleViewChange('orders');
-    } catch (e: any) { showToast(`Error: ${e.message}`); }
-    setSaving(false);
+      clearCart();
+      return String(submitData.so_number);
+    } catch (e: any) {
+      showToast(`Error: ${e.message}`);
+      return null;
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLoadDraft = async (id: number) => {
@@ -528,7 +450,22 @@ export default function WholesalePortalClient({
       )}
 
       {/* Cart Panel */}
-      {cartOpen && <CartPanel items={cartItems} notes={cartNotes} onNotesChange={setCartNotes} onQtyChange={handleQtyChange} onRemove={handleRemove} onSaveDraft={handleSaveDraft} onSubmit={handleSubmitOrder} saving={saving} onClose={() => setCartOpen(false)} />}
+      {cartOpen && (
+        <WholesaleCartPanel
+          items={cartItems}
+          notes={cartNotes}
+          profile={accountProfile}
+          profileError={accountError}
+          saving={saving}
+          onNotesChange={setCartNotes}
+          onQtyChange={handleQtyChange}
+          onRemove={handleRemove}
+          onSaveDraft={handleSaveDraft}
+          onSubmit={handleSubmitOrder}
+          onClose={() => setCartOpen(false)}
+          onViewOrders={() => { setCartOpen(false); handleViewChange('orders'); }}
+        />
+      )}
 
       <WholesalePortalShell
         supplier={supplier}
