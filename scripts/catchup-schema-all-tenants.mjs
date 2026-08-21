@@ -1630,6 +1630,48 @@ async function verifyWholesaleOrderOwnershipSchema(schema) {
   console.log(`  verified ${schema} wholesale order ownership schema`);
 }
 
+async function verifyWholesalePreviewTestSchema(schema) {
+  const expectedColumns = new Map([
+    ['is_staff_preview_test', { type: 'tinyint(1)', nullable: 'NO', defaultValue: '0' }],
+    ['staff_preview_session_id', { type: 'varchar(64)', nullable: 'YES', defaultValue: null }],
+    ['staff_preview_actor_user_id', { type: 'int', nullable: 'YES', defaultValue: null }],
+    ['staff_preview_actor_name', { type: 'varchar(255)', nullable: 'YES', defaultValue: null }],
+  ]);
+  for (const [table, indexName] of [
+    ['wholesale_draft_orders', 'idx_wholesale_draft_preview'],
+    ['ims_sales_orders', 'idx_so_staff_preview'],
+  ]) {
+    const [columnRows] = await conn.query(
+      `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT
+         FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+          AND COLUMN_NAME IN ('is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name')`,
+      [schema, table],
+    );
+    const columns = new Map(columnRows.map(row => [row.COLUMN_NAME, row]));
+    for (const [columnName, expected] of expectedColumns) {
+      const column = columns.get(columnName);
+      if (!column) throw new Error(`${schema}.${table} is missing ${columnName}`);
+      if (String(column.COLUMN_TYPE).toLowerCase() !== expected.type
+        || column.IS_NULLABLE !== expected.nullable
+        || String(column.COLUMN_DEFAULT) !== String(expected.defaultValue)) {
+        throw new Error(`${schema}.${table}.${columnName} has an invalid type, nullability, or default`);
+      }
+    }
+    const [indexRows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?
+        ORDER BY SEQ_IN_INDEX`,
+      [schema, table, indexName],
+    );
+    const indexColumns = indexRows.map(row => row.COLUMN_NAME).join(',');
+    if (indexColumns !== 'business_id,is_staff_preview_test,staff_preview_session_id') {
+      throw new Error(`${schema}.${table} is missing the expected ${indexName} index`);
+    }
+  }
+  console.log(`  verified ${schema} wholesale preview test schema`);
+}
+
 async function verifyWholesaleSavedListsSchema(schema) {
   const requiredTables = [
     'ims_wholesale_member_locations',
@@ -1685,6 +1727,7 @@ try {
     await verifySalesDocumentSchema(schema);
     await verifyWholesaleAccessSchema(schema);
     await verifyWholesaleOrderOwnershipSchema(schema);
+    await verifyWholesalePreviewTestSchema(schema);
     await verifyWholesaleSavedListsSchema(schema);
   }
   console.log('Done.');
