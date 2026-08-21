@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET() {
   const session = await getImsSession();
@@ -20,6 +21,13 @@ export async function GET() {
     );
     return NextResponse.json({ success: true, data: rows.map(row => row.brand) });
   } catch (error: any) {
+    await reportRuntimeIssue({
+      businessId: session.businessId,
+      source: 'WholesaleBrandsRoute',
+      operation: 'list_wholesale_brands',
+      title: 'Wholesale brand options could not be loaded',
+      error,
+    }).catch(() => {});
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

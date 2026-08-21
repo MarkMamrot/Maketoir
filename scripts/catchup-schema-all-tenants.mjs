@@ -1359,6 +1359,22 @@ async function verifySalesDocumentSchema(schema) {
   console.log(`  verified ${schema}.ims_sales_orders.xero_invoice_number`);
 }
 
+async function verifyWholesaleAccessSchema(schema) {
+  const [rows] = await conn.query(
+    `SELECT DATA_TYPE, IS_NULLABLE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_contacts'
+        AND COLUMN_NAME = 'wholesale_allowed_brands_json'`,
+    [schema],
+  );
+  const column = rows[0];
+  if (!column) throw new Error(`${schema}.ims_contacts is missing wholesale_allowed_brands_json`);
+  if (String(column.DATA_TYPE).toLowerCase() !== 'json' || column.IS_NULLABLE !== 'YES') {
+    throw new Error(`${schema}.ims_contacts.wholesale_allowed_brands_json must be nullable JSON`);
+  }
+  console.log(`  verified ${schema}.ims_contacts.wholesale_allowed_brands_json`);
+}
+
 try {
   const schemas = new Set();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -1384,6 +1400,7 @@ try {
     await verifyInventoryDocumentCorrectionSchema(schema);
     await verifyOrderPaymentSchema(schema);
     await verifySalesDocumentSchema(schema);
+    await verifyWholesaleAccessSchema(schema);
   }
   console.log('Done.');
 } finally {

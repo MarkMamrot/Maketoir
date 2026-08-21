@@ -51,7 +51,12 @@ export async function POST(_req: Request, { params }: Ctx) {
     if (items.length === 0) {
       return NextResponse.json({ error: 'Cannot submit an empty order.' }, { status: 400 });
     }
-    await validateWholesaleOrderItems(session.businessId, brandAccess, items);
+    const validatedItems = await validateWholesaleOrderItems(session.businessId, brandAccess, items);
+    for (let index = 0; index < items.length; index += 1) {
+      Object.assign(items[index], validatedItems[index], {
+        line_total: Number(validatedItems[index].qty) * Number(validatedItems[index].unit_price),
+      });
+    }
 
     // Recompute indent quantities from live availability; client flags are advisory only.
     const variantIds = items.map((item: any) => item.variant_id);
