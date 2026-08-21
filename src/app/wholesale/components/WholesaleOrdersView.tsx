@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, CalendarDays, FilePenLine, PackageCheck, PackageOpen, Trash2, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, FilePenLine, PackageCheck, PackageOpen, RefreshCw, Trash2, X } from 'lucide-react';
 import styles from './WholesaleOrdersView.module.css';
 
 type OrderFilter = 'all' | 'open' | 'draft' | 'completed';
@@ -20,8 +20,9 @@ interface PortalOrder {
   updated_at: string;
 }
 
-interface OrderLine {
+export interface WholesaleOrderLine {
   id: number;
+  variant_id: string;
   product_name: string;
   variant_label: string | null;
   sku: string | null;
@@ -39,7 +40,7 @@ interface OrderDetail extends PortalOrder {
   fulfilled_date: string | null;
   payment_terms: string | null;
   created_at: string;
-  items: OrderLine[];
+  items: WholesaleOrderLine[];
 }
 
 const completedStatuses = new Set(['fulfilled', 'cancelled']);
@@ -66,7 +67,15 @@ function orderMatchesFilter(order: PortalOrder, filter: OrderFilter) {
   return order.kind === 'sales_order' && !completedStatuses.has(order.status);
 }
 
-export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number) => void }) {
+export function WholesaleOrdersView({
+  cartItemCount,
+  onLoadDraft,
+  onReorder,
+}: {
+  cartItemCount: number;
+  onLoadDraft: (id: number) => void;
+  onReorder: (items: WholesaleOrderLine[]) => void;
+}) {
   const [orders, setOrders] = useState<PortalOrder[]>([]);
   const [filter, setFilter] = useState<OrderFilter>('all');
   const [loading, setLoading] = useState(true);
@@ -74,6 +83,7 @@ export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number)
   const [deleting, setDeleting] = useState<number | null>(null);
   const [selected, setSelected] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [confirmReplaceCart, setConfirmReplaceCart] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +111,7 @@ export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number)
       const body = await response.json();
       if (!response.ok || !body.success) throw new Error(body.error || 'Order details could not be loaded.');
       setSelected({ ...order, ...body.order });
+      setConfirmReplaceCart(false);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Order details could not be loaded.');
     } finally {
@@ -130,6 +141,15 @@ export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number)
     completed: orders.filter(order => orderMatchesFilter(order, 'completed')).length,
   };
   const visibleOrders = orders.filter(order => orderMatchesFilter(order, filter));
+
+  const reorderSelected = () => {
+    if (!selected) return;
+    if (cartItemCount > 0 && !confirmReplaceCart) {
+      setConfirmReplaceCart(true);
+      return;
+    }
+    onReorder(selected.items);
+  };
 
   return (
     <section className={styles.workspace}>
@@ -223,7 +243,7 @@ export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number)
                 <h2 id="wholesale-order-title">{selected.so_number}</h2>
                 <p>Placed {formatDate(selected.order_date)}</p>
               </div>
-              <button className={styles.iconAction} onClick={() => setSelected(null)} aria-label="Close order details" title="Close"><X size={18} /></button>
+              <button className={styles.iconAction} onClick={() => { setSelected(null); setConfirmReplaceCart(false); }} aria-label="Close order details" title="Close"><X size={18} /></button>
             </header>
 
             <div className={styles.detailDates}>
@@ -251,6 +271,15 @@ export function WholesaleOrdersView({ onLoadDraft }: { onLoadDraft: (id: number)
               <div><span>Subtotal</span><strong>{formatCurrency(selected.subtotal, selected.currency_code)}</strong></div>
               <div><span>Tax</span><strong>{formatCurrency(selected.tax_amount, selected.currency_code)}</strong></div>
               <div className={styles.grandTotal}><span>Total</span><strong>{formatCurrency(selected.total_amount, selected.currency_code)}</strong></div>
+              {confirmReplaceCart && (
+                <div className={styles.replaceNotice} role="alert">
+                  Your current cart has {cartItemCount} line{cartItemCount === 1 ? '' : 's'}. Ordering again will replace it.
+                </div>
+              )}
+              <div className={styles.detailActions}>
+                {confirmReplaceCart && <button className={styles.cancelAction} onClick={() => setConfirmReplaceCart(false)}>Keep current cart</button>}
+                <button className={styles.primaryAction} onClick={reorderSelected}><RefreshCw size={15} /> {confirmReplaceCart ? 'Replace cart' : 'Order again'}</button>
+              </div>
             </footer>
           </aside>
         </div>

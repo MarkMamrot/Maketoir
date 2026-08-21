@@ -373,6 +373,19 @@
 .totals strong { font-size: 12px; }
 .grandTotal { margin-top: 8px; padding-top: 12px !important; border-top: 1px solid #dce3dd; }
 .grandTotal strong { font-family: Georgia, 'Times New Roman', serif; font-size: 20px; }
+.replaceNotice {
+  display: block !important;
+  margin-top: 13px;
+  padding: 10px 11px !important;
+  border-left: 3px solid #b88416;
+  background: #fff4da;
+  color: #74520c;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.detailActions { display: flex !important; justify-content: flex-end !important; gap: 8px; margin-top: 13px; padding: 0 !important; }
+.detailActions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 0 13px; border-radius: 5px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.cancelAction { border: 1px solid #cfd8d1; background: #fff; color: #526158; }
 
 @media (max-width: 1050px) {
   .orderRow {
@@ -407,4 +420,5 @@
   .line { grid-template-columns: 1fr repeat(2, 46px); }
   .line > div:last-child { grid-column: 2 / 4; }
   .totals { padding: 16px 18px 22px; }
+  .detailActions button { flex: 1; }
 }

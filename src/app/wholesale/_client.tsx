@@ -7,7 +7,7 @@ import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplier
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
-import { WholesaleOrdersView } from './components/WholesaleOrdersView';
+import { WholesaleOrdersView, type WholesaleOrderLine } from './components/WholesaleOrdersView';
 import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
 import catalogueStyles from './WholesaleCatalogue.module.css';
 
@@ -370,6 +370,62 @@ export default function WholesalePortalClient({
     } catch { /* */ }
   };
 
+  const handleReorder = (orderLines: WholesaleOrderLine[]) => {
+    const liveVariants = new Map<string, { product: WholesaleProduct; variant: WholesaleVariant }>();
+    for (const product of allProducts) {
+      for (const variant of product.variants ?? []) liveVariants.set(variant.variant_id, { product, variant });
+    }
+
+    let adjustedLines = 0;
+    let unavailableLines = 0;
+    const nextItems = orderLines.flatMap<CartItem>(line => {
+      const live = liveVariants.get(line.variant_id);
+      if (!live) {
+        unavailableLines += 1;
+        return [];
+      }
+
+      const allowIndent = !!live.product.allow_indent_wholesale;
+      const requestedQty = Number(line.qty_ordered);
+      const quantity = allowIndent ? requestedQty : Math.min(requestedQty, live.variant.available);
+      if (quantity <= 0) {
+        unavailableLines += 1;
+        return [];
+      }
+      if (quantity < requestedQty) adjustedLines += 1;
+      const indentQty = Math.max(0, quantity - live.variant.available);
+      return [{
+        variant_id: live.variant.variant_id,
+        product_id: live.product.product_id,
+        product_name: live.product.name,
+        variant_label: variantLabel(live.variant),
+        sku: live.variant.sku,
+        qty: quantity,
+        unit_price: Number(live.variant.price_wholesale),
+        available: Number(live.variant.available),
+        allow_indent: allowIndent,
+        is_indent: indentQty > 0,
+        indent_qty: indentQty,
+      }];
+    });
+
+    if (nextItems.length === 0) {
+      showToast(productsLoading ? 'Catalogue is still loading. Please try again.' : 'These products are no longer available to order.');
+      return;
+    }
+
+    setCartItems(nextItems);
+    setCartNotes('');
+    setEditingOrderId(null);
+    handleViewChange('catalogue');
+    setCartOpen(true);
+    const changes = [
+      adjustedLines > 0 ? `${adjustedLines} adjusted for current stock` : '',
+      unavailableLines > 0 ? `${unavailableLines} unavailable` : '',
+    ].filter(Boolean);
+    showToast(`Order added at current pricing${changes.length ? `; ${changes.join(', ')}` : ''}.`);
+  };
+
   const handleLogout = async () => { await fetch('/api/wholesale/auth/logout', { method: 'POST' }); router.push(`/wholesale/${supplier.slug}`); router.refresh(); };
 
   // Filtered products
@@ -501,7 +557,7 @@ export default function WholesalePortalClient({
         ) : view === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
         ) : view === 'orders' ? (
-          <WholesaleOrdersView onLoadDraft={handleLoadDraft} />
+          <WholesaleOrdersView cartItemCount={cartItems.length} onLoadDraft={handleLoadDraft} onReorder={handleReorder} />
         ) : (
           <div className={catalogueStyles.layout}>
             {/* Sidebar */}
