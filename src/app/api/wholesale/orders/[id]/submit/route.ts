@@ -126,6 +126,29 @@ export async function POST(_req: Request, { params }: Ctx) {
     const taxRate   = parseFloat(settings.sales_tax_rate ?? '0') || 0;
     const notifyEmail = (settings.wholesale_notification_email ?? '').trim();
 
+    const accountRows = await imsQuery<any>(
+      `SELECT wc.payment_terms,
+              wl.shipping_address, wl.shipping_address2, wl.shipping_suburb, wl.shipping_city,
+              wl.shipping_state, wl.shipping_postcode, wl.shipping_country
+         FROM ims_wholesale_company_members wm
+         JOIN ims_wholesale_companies wc
+           ON wc.id = wm.company_id AND wc.business_id = wm.business_id AND wc.status = 'active'
+         JOIN ims_wholesale_company_locations wl
+           ON wl.id = wm.location_id AND wl.company_id = wm.company_id
+          AND wl.business_id = wm.business_id AND wl.status = 'active'
+        WHERE wm.id = ? AND wm.business_id = ? AND wm.contact_id = ?
+          AND wm.company_id = ? AND wm.location_id = ? AND wm.is_active = 1
+        LIMIT 1`,
+      [session.memberId, session.businessId, session.contactId, session.companyId, session.locationId],
+    );
+    const account = accountRows[0];
+    if (!account) {
+      return NextResponse.json(
+        { error: 'Your buying location is no longer available. Sign in again or contact your account manager.' },
+        { status: 409 },
+      );
+    }
+
     // ── 3. Create Draft Sales Order ──────────────────────────────────────────
     const soItems = items.map((item: any) => ({
       variant_id:  item.variant_id,
@@ -152,6 +175,14 @@ export async function POST(_req: Request, { params }: Ctx) {
         location_id:  locationId,
         status:       'draft',
         order_date:   todayIso(),
+        delivery_address: account.shipping_address ?? undefined,
+        delivery_address2: account.shipping_address2 ?? undefined,
+        delivery_suburb: account.shipping_suburb ?? undefined,
+        delivery_city: account.shipping_city ?? undefined,
+        delivery_state: account.shipping_state ?? undefined,
+        delivery_postcode: account.shipping_postcode ?? undefined,
+        delivery_country: account.shipping_country ?? undefined,
+        payment_terms: account.payment_terms ?? undefined,
         notes:        soNotes,
         subtotal:     Number(order.subtotal),
         tax_amount:   0,

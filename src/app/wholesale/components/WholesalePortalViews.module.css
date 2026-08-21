@@ -158,8 +158,6 @@
 }
 
 .details {
-  max-width: 760px;
-  margin-top: 26px;
   border-top: 1px solid #d9dfda;
 }
 
@@ -177,6 +175,119 @@
 
 .detailRow strong {
   color: #26332d;
+}
+
+.accountGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+  padding-top: 30px;
+}
+
+.accountSection {
+  min-width: 0;
+}
+
+.accountSectionTitle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 30px;
+  margin-bottom: 12px;
+  color: #145d4e;
+}
+
+.accountSectionTitle h2 {
+  margin: 0;
+  color: #26332d;
+  font-size: 17px;
+}
+
+.accountSectionTitle span {
+  display: block;
+  margin-top: 3px;
+  color: #718079;
+  font-size: 11px;
+}
+
+.termsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #d9dfda;
+  border: 1px solid #d9dfda;
+}
+
+.termsGrid > div {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-height: 118px;
+  padding: 18px;
+  background: #fff;
+}
+
+.termsGrid svg {
+  color: #145d4e;
+}
+
+.termsGrid span,
+.addressBlock > span {
+  color: #718079;
+  font-size: 11px;
+}
+
+.termsGrid strong {
+  color: #26332d;
+  font-size: 15px;
+}
+
+.locationSection {
+  grid-column: 1 / -1;
+}
+
+.addressGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: #d9dfda;
+  border: 1px solid #d9dfda;
+}
+
+.addressBlock {
+  min-height: 150px;
+  padding: 20px;
+  background: #fff;
+}
+
+.addressBlock strong {
+  display: block;
+  margin-top: 5px;
+  color: #26332d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.addressBlock > span {
+  display: block;
+  margin-bottom: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.accountLoading,
+.accountError {
+  margin-top: 26px;
+  padding: 20px 0;
+  color: #718079;
+  font-size: 13px;
+}
+
+.accountError {
+  border-left: 3px solid #9a493e;
+  padding: 12px 14px;
+  background: #f7e8e5;
+  color: #81392f;
 }
 
 .helpLinks {
@@ -215,8 +326,14 @@
 @media (max-width: 760px) {
   .metrics,
   .sections,
-  .helpLinks {
+  .helpLinks,
+  .accountGrid,
+  .addressGrid {
     grid-template-columns: 1fr;
+  }
+
+  .locationSection {
+    grid-column: auto;
   }
 
   .metric {

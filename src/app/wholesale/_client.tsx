@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
+import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
 import { WholesaleOrdersView } from './components/WholesaleOrdersView';
@@ -311,6 +312,20 @@ export default function WholesalePortalClient({
   // Navigation
   const [view, setView]               = useState<WholesalePortalView>(initialView);
   const [activeFilter, setActiveFilter] = useState<string>('__all');
+  const [accountProfile, setAccountProfile] = useState<WholesaleAccountProfile | null>(null);
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [accountError, setAccountError] = useState('');
+
+  useEffect(() => {
+    fetch('/api/wholesale/account')
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Account details could not be loaded.');
+        setAccountProfile(body.profile);
+      })
+      .catch(error => setAccountError(error instanceof Error ? error.message : 'Account details could not be loaded.'))
+      .finally(() => setAccountLoading(false));
+  }, []);
 
   const handleViewChange = (nextView: WholesalePortalView) => {
     setView(nextView);
@@ -522,6 +537,7 @@ export default function WholesalePortalClient({
         searchQuery={searchQuery}
         cartCount={cartCount}
         cartValue={cartValue}
+        locationName={accountProfile?.location.name}
         onViewChange={handleViewChange}
         onSearchChange={setSearchQuery}
         onCartOpen={() => setCartOpen(true)}
@@ -533,11 +549,12 @@ export default function WholesalePortalClient({
             productCount={allProducts.length}
             cartCount={cartCount}
             draftActive={editingOrderId !== null}
+            accountProfile={accountProfile}
             onNavigate={handleViewChange}
             onCartOpen={() => setCartOpen(true)}
           />
         ) : view === 'account' ? (
-          <WholesaleAccountView session={session} />
+          <WholesaleAccountView session={session} profile={accountProfile} loading={accountLoading} error={accountError} />
         ) : view === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
         ) : view === 'orders' ? (

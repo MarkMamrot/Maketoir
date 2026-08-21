@@ -43,6 +43,7 @@ export function WholesalePortalShell({
   searchQuery,
   cartCount,
   cartValue,
+  locationName,
   onViewChange,
   onSearchChange,
   onCartOpen,
@@ -55,6 +56,7 @@ export function WholesalePortalShell({
   searchQuery: string;
   cartCount: number;
   cartValue: number;
+  locationName?: string;
   onViewChange: (view: WholesalePortalView) => void;
   onSearchChange: (value: string) => void;
   onCartOpen: () => void;
@@ -65,6 +67,7 @@ export function WholesalePortalShell({
   const [online, setOnline] = useState(true);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
+  const buyingLocation = locationName || 'Buying location';
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -137,7 +140,7 @@ export function WholesalePortalShell({
         <div className={styles.actions}>
           <div className={styles.accountSummary}>
             <strong>{session.company || session.name}</strong>
-            <span>Primary buying location</span>
+            <span>{buyingLocation}</span>
           </div>
           <button className={styles.cartButton} onClick={onCartOpen} aria-label={`Open cart with ${cartCount} items`}>
             <ShoppingCart size={17} aria-hidden="true" />
@@ -155,7 +158,7 @@ export function WholesalePortalShell({
           {nav}
           <div className={styles.sidebarFooter}>
             <div><Building2 size={14} aria-hidden="true" /> {session.company || session.name}</div>
-            <div className={styles.location}><MapPin size={14} aria-hidden="true" /> Primary location</div>
+            <div className={styles.location}><MapPin size={14} aria-hidden="true" /> {buyingLocation}</div>
           </div>
         </aside>
         <main className={styles.content}>{children}</main>
@@ -175,7 +178,7 @@ export function WholesalePortalShell({
             {search}
             {nav}
             <div className={styles.sidebarFooter}>
-              <div className={styles.location}><MapPin size={14} aria-hidden="true" /> Primary location</div>
+              <div className={styles.location}><MapPin size={14} aria-hidden="true" /> {buyingLocation}</div>
             </div>
           </aside>
         </>

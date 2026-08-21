@@ -61,6 +61,11 @@ describe('wholesale order submission ownership', () => {
         { key: 'default_warehouse_location_id', value: '9' },
         { key: 'sales_tax_rate', value: '0.1' },
       ])
+      .mockResolvedValueOnce([{
+        payment_terms: '30 days', shipping_address: '12 Market St', shipping_address2: null,
+        shipping_suburb: 'Newtown', shipping_city: 'Sydney', shipping_state: 'NSW',
+        shipping_postcode: '2042', shipping_country: 'Australia',
+      }])
       .mockResolvedValueOnce([{ so_number: 'SO-123' }]);
     mocks.validateWholesaleOrderItems.mockResolvedValueOnce([item]);
     mocks.imsExecute.mockResolvedValue({ affectedRows: 1 });
@@ -72,7 +77,34 @@ describe('wholesale order submission ownership', () => {
       wholesale_company_id: 50,
       wholesale_location_id: 60,
       wholesale_member_id: 70,
+      delivery_address: '12 Market St',
+      delivery_suburb: 'Newtown',
+      delivery_city: 'Sydney',
+      delivery_state: 'NSW',
+      delivery_postcode: '2042',
+      delivery_country: 'Australia',
+      payment_terms: '30 days',
     }));
+    expect(mocks.imsQuery.mock.calls[4][1]).toEqual([70, 'biz-1', 42, 50, 60]);
     expect(mocks.imsExecute.mock.calls.at(-1)?.[1]).toEqual([123, 88, 'biz-1', 50, 60, 70]);
+  });
+
+  it('fails closed when the assigned buying location is no longer active', async () => {
+    const order = { id: 88, status: 'draft', notes: null, subtotal: 25, total_amount: 25 };
+    const item = {
+      id: 5, variant_id: 'variant-1', product_id: 'product-1', product_name: 'Product',
+      variant_label: null, sku: 'SKU-1', qty: 2, unit_price: 12.5, line_total: 25,
+    };
+    mocks.imsQuery
+      .mockResolvedValueOnce([order])
+      .mockResolvedValueOnce([item])
+      .mockResolvedValueOnce([{ variant_id: 'variant-1', available: 10, allow_indent_wholesale: 0 }])
+      .mockResolvedValueOnce([{ key: 'default_warehouse_location_id', value: '9' }])
+      .mockResolvedValueOnce([]);
+    mocks.validateWholesaleOrderItems.mockResolvedValueOnce([item]);
+    mocks.imsExecute.mockResolvedValue({ affectedRows: 1 });
+
+    expect((await POST(new Request('http://localhost'), { params: { id: '88' } })).status).toBe(409);
+    expect(mocks.createSO).not.toHaveBeenCalled();
   });
 });
