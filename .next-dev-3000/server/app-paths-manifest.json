@@ -1,4 +1,5 @@
 {
-  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
-  "/wholesale/[slug]/page": "app/wholesale/[slug]/page.js"
+  "/_not-found/page": "app/_not-found/page.js",
+  "/wholesale/[slug]/page": "app/wholesale/[slug]/page.js",
+  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js"
 }
