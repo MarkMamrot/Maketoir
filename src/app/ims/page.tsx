@@ -12292,7 +12292,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
           <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 720, maxWidth: '96vw', padding: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} {statusBadge(viewModal.scn.status)}</h2>
+              <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} <StatusBadge status={viewModal.scn.status} /></h2>
               <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
