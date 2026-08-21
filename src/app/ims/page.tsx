@@ -13557,6 +13557,11 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
   const getSoActionOptions = (so: any) => {
     const actions: Array<{ label: string; value: string }> = [];
+    if (so.is_staff_preview_test) {
+      if (!isAdvisor) actions.push({ label: 'Edit test Draft', value: 'edit' }, { label: 'Delete test Draft', value: 'delete' });
+      actions.push({ label: 'Open', value: 'open' });
+      return actions;
+    }
     if (!isAdvisor && so.status === 'draft') {
       actions.push({ label: 'Confirm', value: 'confirm' }, { label: 'Edit', value: 'edit' }, { label: 'Delete', value: 'delete' });
     }
@@ -13803,7 +13808,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                       {so.is_pos_ledger ? (
                         <button onClick={() => openPosView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
                       ) : (
-                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}</button>
+                        <button data-testid={`so-open-${so.id}`} onClick={() => openView(so)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{so.so_number}{so.is_staff_preview_test ? ' · TEST' : ''}</button>
                       )}
                     </td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 110, zIndex: 3, background: i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{so.customer_name || '—'}</td>
@@ -13860,6 +13865,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.so_number}` : 'New Sales Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form onSubmit={handleSubmit}>
+            {modal.edit?.is_staff_preview_test ? <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #e5c66b', borderRadius: 5, background: '#fff3cd', color: '#533f03', fontSize: 12 }}><strong>Staff preview test Draft.</strong> Prepared by {modal.edit.staff_preview_actor_name || 'an IMS administrator'}. It cannot be confirmed and should be deleted after inspection.</div> : null}
             {!modal.edit && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
                 <div style={{ flex: 1 }}>
@@ -14102,6 +14108,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       {/* View SO detail modal */}
       {viewModal.open && viewModal.so && (
         <Modal title={`${viewModal.so.so_number} — ${viewModal.so.status}`} onClose={() => { setViewModal({ open: false, so: null }); setSoPayForm(null); }} wide>
+          {viewModal.so.is_staff_preview_test ? <div style={{ marginBottom: 14, padding: '10px 12px', border: '1px solid #e5c66b', borderRadius: 5, background: '#fff3cd', color: '#533f03', fontSize: 12 }}><strong>Staff preview test Draft.</strong> Prepared by {viewModal.so.staff_preview_actor_name || 'an IMS administrator'}. It cannot be confirmed and should be deleted after inspection.</div> : null}
           <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <SOActions isAdvisor={isAdvisor} so={viewModal.so} onEdit={() => editSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onDelete={() => deleteSoWithWarn(viewModal.so, () => setViewModal({ open: false, so: null }))} onStatus={changeStatus} onReturn={() => { setViewModal({ open: false, so: null }); handleReturn(viewModal.so); }} onReplacement={() => createSoReplacement(viewModal.so)} onFulfill={() => { setViewModal({ open: false, so: null }); openSoFulfilmentModal(viewModal.so); }} onResolve={() => setResolveOrder(viewModal.so)} />
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>

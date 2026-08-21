@@ -81,7 +81,7 @@ export const ImsBrandPerformanceRepository = {
            JOIN ims_sales_orders so ON so.id = soi.so_id
            LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
            LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
-           WHERE so.status NOT IN ('draft', 'cancelled') AND so.cin7_order_id IS NULL
+           WHERE so.status NOT IN ('draft', 'cancelled') AND so.is_staff_preview_test = 0 AND so.cin7_order_id IS NULL
              AND so.order_date BETWEEN ? AND ?
          ) s
          JOIN ims_product_variants pv ON pv.variant_id = s.variant_id

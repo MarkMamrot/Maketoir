@@ -60,6 +60,7 @@ export async function GET(request: Request, { params }: Ctx) {
            LEFT JOIN ims_contacts c ON c.id = o.customer_id AND c.business_id = o.business_id
           WHERE o.id = ? AND o.business_id = ? AND o.customer_id = ?
             AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
+            AND o.is_staff_preview_test = 0
             AND EXISTS (
               SELECT 1 FROM ims_wholesale_member_locations ml
                WHERE ml.business_id = o.business_id AND ml.company_id = o.wholesale_company_id

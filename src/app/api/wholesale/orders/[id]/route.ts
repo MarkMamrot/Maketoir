@@ -32,7 +32,7 @@ async function findOrder(
 ) {
   const preview = previewDraftWhere(owner);
   const rows = await imsQuery<any>(
-    `SELECT * FROM wholesale_draft_orders
+    `SELECT o.* FROM wholesale_draft_orders o
       WHERE id = ? AND business_id = ? AND contact_id = ?
         AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
         ${preview.sql}`,
@@ -84,11 +84,14 @@ export async function PUT(req: Request, { params }: Ctx) {
 
     const subtotal = items.reduce((s: number, i: any) => s + i.qty * i.unit_price, 0);
 
-    await imsExecute(
-      `UPDATE wholesale_draft_orders SET notes = ?, subtotal = ?, total_amount = ?, updated_at = NOW()
-        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
-      [notes, subtotal, subtotal, id, session.businessId, session.companyId, session.locationId, session.memberId],
+    const preview = previewDraftWhere(session);
+    const updateResult = await imsExecute(
+      `UPDATE wholesale_draft_orders AS o SET notes = ?, subtotal = ?, total_amount = ?, updated_at = NOW()
+        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
+          AND status = 'draft' ${preview.sql}`,
+      [notes, subtotal, subtotal, id, session.businessId, session.companyId, session.locationId, session.memberId, ...preview.params],
     );
+    if (updateResult.affectedRows === 0) return NextResponse.json({ error: 'The draft changed before it could be updated.' }, { status: 409 });
     await imsExecute(`DELETE FROM wholesale_draft_order_items WHERE order_id = ?`, [id]);
 
     for (const item of items) {
@@ -130,11 +133,14 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     if (order.status === 'submitted') return NextResponse.json({ error: 'Submitted orders cannot be deleted.' }, { status: 400 });
 
-    await imsExecute(
-      `DELETE FROM wholesale_draft_orders
-        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
-      [id, session.businessId, session.companyId, session.locationId, session.memberId],
+    const preview = previewDraftWhere(session);
+    const deleteResult = await imsExecute(
+      `DELETE o FROM wholesale_draft_orders o
+        WHERE id = ? AND business_id = ? AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
+          AND status = 'draft' ${preview.sql}`,
+      [id, session.businessId, session.companyId, session.locationId, session.memberId, ...preview.params],
     );
+    if (deleteResult.affectedRows === 0) return NextResponse.json({ error: 'The draft changed before it could be deleted.' }, { status: 409 });
     await auditWholesalePreviewDraft(session, 'staff_test_draft_deleted', id);
     return NextResponse.json({ success: true });
   } catch (e: any) {

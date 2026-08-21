@@ -123,7 +123,7 @@ export function WholesaleAccountView({
   const [shippingAddress, setShippingAddress] = useState<WholesaleAddress>(profile?.location.shippingAddress ?? emptyAddress);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const canEdit = profile?.member.role === 'owner' || profile?.member.role === 'admin';
+  const canEdit = !session.preview && (profile?.member.role === 'owner' || profile?.member.role === 'admin');
 
   const beginEditing = () => {
     if (!profile) return;

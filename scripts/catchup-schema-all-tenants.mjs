@@ -209,19 +209,19 @@ const TABLE_DDLS = [
     UNIQUE KEY uq_so_shipment_shopify (business_id, shopify_fulfilment_id),
     INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
     CONSTRAINT fk_so_shipment_order FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_so_shipment_items (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
     shopify_line_item_id VARCHAR(100) NOT NULL, quantity DECIMAL(12,4) NOT NULL,
     INDEX idx_so_shipment_item (business_id, shipment_id, id),
     CONSTRAINT fk_so_shipment_item_shipment FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, shipment_id BIGINT NOT NULL,
     company VARCHAR(255) NULL, tracking_number VARCHAR(255) NULL, tracking_url VARCHAR(2000) NULL,
     INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
     CONSTRAINT fk_so_shipment_tracking_shipment FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`,
   `CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
@@ -1222,6 +1222,34 @@ async function ensureColumnCollationMatches(schema, table, column, referenceTabl
   );
 }
 
+async function ensureShopifyLineItemId(schema, table, nullable) {
+  const [rows] = await conn.query(
+    `SELECT c.COLUMN_TYPE, c.IS_NULLABLE, c.CHARACTER_SET_NAME, c.COLLATION_NAME,
+            ref.CHARACTER_SET_NAME AS REF_CHARACTER_SET_NAME, ref.COLLATION_NAME AS REF_COLLATION_NAME
+       FROM information_schema.COLUMNS c
+       JOIN information_schema.COLUMNS ref
+         ON ref.TABLE_SCHEMA = c.TABLE_SCHEMA
+        AND ref.TABLE_NAME = 'ims_sales_order_items'
+        AND ref.COLUMN_NAME = 'business_id'
+      WHERE c.TABLE_SCHEMA = ? AND c.TABLE_NAME = ? AND c.COLUMN_NAME = 'shopify_line_item_id'
+      LIMIT 1`,
+    [schema, table],
+  );
+  const column = rows[0];
+  if (!column?.REF_CHARACTER_SET_NAME || !column.REF_COLLATION_NAME) return;
+  const expectedType = 'varchar(100)';
+  const alreadyNormalized = String(column.COLUMN_TYPE).toLowerCase() === expectedType
+    && column.CHARACTER_SET_NAME === column.REF_CHARACTER_SET_NAME
+    && column.COLLATION_NAME === column.REF_COLLATION_NAME
+    && column.IS_NULLABLE === (nullable ? 'YES' : 'NO');
+  if (alreadyNormalized) return;
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN shopify_line_item_id VARCHAR(100)`
+      + ` CHARACTER SET ${column.REF_CHARACTER_SET_NAME} COLLATE ${column.REF_COLLATION_NAME}`
+      + ` ${nullable ? 'NULL' : 'NOT NULL'}`,
+  );
+}
+
 async function ensureForeignKey(schema, table, constraintName, column, referenceTable) {
   const [rows] = await conn.query(
     `SELECT 1 FROM information_schema.TABLE_CONSTRAINTS
@@ -1256,9 +1284,20 @@ async function migrateSchema(schema) {
     'ims_wholesale_saved_list_items',
     'ims_wholesale_favourites',
     'ims_wholesale_team_events',
+    'ims_so_shipments',
+    'ims_so_shipment_items',
+    'ims_so_shipment_tracking',
   ]) {
-    await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_contacts', 'business_id');
+    await ensureColumnCollationMatches(
+      schema,
+      table,
+      'business_id',
+      table.startsWith('ims_so_shipment') ? 'ims_sales_orders' : 'ims_contacts',
+      'business_id',
+    );
   }
+  await ensureShopifyLineItemId(schema, 'ims_sales_order_items', true);
+  await ensureShopifyLineItemId(schema, 'ims_so_shipment_items', false);
 
   try {
     await conn.query(

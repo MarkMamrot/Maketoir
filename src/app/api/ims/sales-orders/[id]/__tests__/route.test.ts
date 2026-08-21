@@ -128,6 +128,10 @@ describe('PUT /api/ims/sales-orders/[id]', () => {
     expect(shipmentItemSql).toContain('LEFT JOIN ims_product_variants v');
     expect(shipmentItemSql).toContain('LEFT JOIN ims_products p');
     expect(shipmentItemSql).not.toContain('soi.product_name');
+    expect(shipmentItemSql).toContain('soi.business_id COLLATE utf8mb4_general_ci = si.business_id COLLATE utf8mb4_general_ci');
+    expect(shipmentItemSql).toContain('CAST(soi.shopify_line_item_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci');
+    expect(shipmentItemSql).toContain('v.variant_id COLLATE utf8mb4_general_ci = soi.variant_id COLLATE utf8mb4_general_ci');
+    expect(shipmentItemSql).toContain('p.product_id COLLATE utf8mb4_general_ci = v.product_id COLLATE utf8mb4_general_ci');
   });
 
   it('requires the quantity-aware fulfilment route to complete a confirmed SO', async () => {

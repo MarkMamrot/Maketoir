@@ -1007,7 +1007,7 @@ CREATE TABLE IF NOT EXISTS ims_so_shipments (
   UNIQUE KEY uq_so_shipment_shopify (business_id, shopify_fulfilment_id),
   INDEX idx_so_shipment_order (business_id, so_id, fulfilled_at, id),
   FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shipment_items (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1017,7 +1017,7 @@ CREATE TABLE IF NOT EXISTS ims_so_shipment_items (
   quantity                 DECIMAL(12,4) NOT NULL,
   INDEX idx_so_shipment_item (business_id, shipment_id, id),
   FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
   id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -1028,7 +1028,7 @@ CREATE TABLE IF NOT EXISTS ims_so_shipment_tracking (
   tracking_url             VARCHAR(2000) NULL,
   INDEX idx_so_shipment_tracking (business_id, shipment_id, id),
   FOREIGN KEY (shipment_id) REFERENCES ims_so_shipments(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS ims_po_receive_operations (
   id             BIGINT AUTO_INCREMENT PRIMARY KEY,

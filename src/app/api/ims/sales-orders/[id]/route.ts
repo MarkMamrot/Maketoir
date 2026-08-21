@@ -45,14 +45,17 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
                   ) AS variant_label
              FROM ims_so_shipment_items si
              LEFT JOIN ims_sales_order_items soi
-               ON soi.business_id = si.business_id
+               ON soi.business_id COLLATE utf8mb4_general_ci = si.business_id COLLATE utf8mb4_general_ci
               AND soi.so_id = ?
-              AND soi.shopify_line_item_id = si.shopify_line_item_id
+              AND CAST(soi.shopify_line_item_id AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_general_ci
+                = si.shopify_line_item_id COLLATE utf8mb4_general_ci
              LEFT JOIN ims_product_variants v
-               ON v.business_id = si.business_id AND v.variant_id = soi.variant_id
+               ON v.business_id COLLATE utf8mb4_general_ci = si.business_id COLLATE utf8mb4_general_ci
+              AND v.variant_id COLLATE utf8mb4_general_ci = soi.variant_id COLLATE utf8mb4_general_ci
              LEFT JOIN ims_products p
-               ON p.business_id = si.business_id AND p.product_id = v.product_id
-            WHERE si.business_id = ? AND si.shipment_id IN (${placeholders})
+               ON p.business_id COLLATE utf8mb4_general_ci = si.business_id COLLATE utf8mb4_general_ci
+              AND p.product_id COLLATE utf8mb4_general_ci = v.product_id COLLATE utf8mb4_general_ci
+            WHERE si.business_id COLLATE utf8mb4_general_ci = ? AND si.shipment_id IN (${placeholders})
             ORDER BY si.id`,
           [Number(params.id), businessId, ...shipmentIds],
         ),

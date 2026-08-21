@@ -21,6 +21,7 @@ export async function GET() {
        LEFT JOIN ims_contacts c ON c.id = so.customer_id
        LEFT JOIN ims_locations l ON l.id = so.location_id
        WHERE so.business_id = ?
+         AND so.is_staff_preview_test = 0
          AND so.so_type = 'online'
          AND so.status IN ('draft', 'confirmed')
        ORDER BY so.order_date DESC, so.id DESC`,

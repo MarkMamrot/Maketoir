@@ -31,6 +31,7 @@ export function WholesaleSavedListsView({
   onRemoveFavourite,
   onBrowse,
   onNotice,
+  readOnly = false,
 }: {
   cartItems: Array<{ variant_id: string; qty: number }>;
   favouriteDetails: WholesaleFavouriteDetail[];
@@ -39,6 +40,7 @@ export function WholesaleSavedListsView({
   onRemoveFavourite: (variantId: string) => void;
   onBrowse: () => void;
   onNotice: (message: string) => void;
+  readOnly?: boolean;
 }) {
   const [lists, setLists] = useState<WholesaleSavedList[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +79,7 @@ export function WholesaleSavedListsView({
   }, [pendingUse, pendingDelete]);
 
   const saveCurrentCart = async () => {
+    if (readOnly) return;
     if (!name.trim() || cartItems.length === 0) return;
     setSaving(true);
     try {
@@ -106,6 +109,7 @@ export function WholesaleSavedListsView({
   };
 
   const deleteList = async (list: WholesaleSavedList) => {
+    if (readOnly) return;
     try {
       const response = await fetch(`/api/wholesale/saved-lists/${list.id}`, { method: 'DELETE' });
       const body = await response.json();
@@ -129,13 +133,13 @@ export function WholesaleSavedListsView({
         <button className={styles.browseButton} onClick={onBrowse}>Browse catalogue</button>
       </header>
 
-      <section className={styles.saveBand}>
+      {!readOnly && <section className={styles.saveBand}>
         <div><BookmarkPlus size={19} /><span><strong>Save current cart</strong><small>{cartItems.length} variant{cartItems.length === 1 ? '' : 's'} ready</small></span></div>
         <div className={styles.saveControls}>
           <input aria-label="Saved order name" placeholder="e.g. Summer core range" value={name} maxLength={80} onChange={event => setName(event.target.value)} />
           <button onClick={saveCurrentCart} disabled={saving || !name.trim() || cartItems.length === 0}>{saving ? 'Saving…' : 'Save order'}</button>
         </div>
-      </section>
+      </section>}
 
       <div className={styles.columns}>
         <section>
@@ -149,7 +153,7 @@ export function WholesaleSavedListsView({
                 <article className={styles.listRow} key={list.id}>
                   <div><strong>{list.name}</strong><span>{list.items.length} variant{list.items.length === 1 ? '' : 's'} · {list.items.reduce((sum, item) => sum + item.quantity, 0)} units</span></div>
                   <div className={styles.rowActions}>
-                    {list.canManage && <button className={styles.iconButton} onClick={() => setPendingDelete(list)} aria-label={`Delete ${list.name}`} title="Delete saved order"><Trash2 size={16} /></button>}
+                    {!readOnly && list.canManage && <button className={styles.iconButton} onClick={() => setPendingDelete(list)} aria-label={`Delete ${list.name}`} title="Delete saved order"><Trash2 size={16} /></button>}
                     <button className={styles.useButton} onClick={() => requestUse(list)}><ShoppingCart size={15} /> Use order</button>
                   </div>
                 </article>
@@ -166,7 +170,7 @@ export function WholesaleSavedListsView({
                 <article className={styles.favouriteRow} key={item.variantId}>
                   <div><strong>{item.productName}</strong><span>{item.variantLabel}{item.sku ? ` · ${item.sku}` : ''}</span><small>${item.price.toFixed(2)} · {item.available} available</small></div>
                   <div className={styles.rowActions}>
-                    <button className={styles.iconButton} onClick={() => onRemoveFavourite(item.variantId)} aria-label={`Remove ${item.productName} from favourites`} title="Remove favourite"><Heart size={16} fill="currentColor" /></button>
+                    {!readOnly && <button className={styles.iconButton} onClick={() => onRemoveFavourite(item.variantId)} aria-label={`Remove ${item.productName} from favourites`} title="Remove favourite"><Heart size={16} fill="currentColor" /></button>}
                     <button className={styles.useButton} disabled={!item.orderable} onClick={() => onAddFavouriteToCart(item.variantId)}>Add to cart</button>
                   </div>
                 </article>

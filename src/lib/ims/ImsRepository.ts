@@ -3558,7 +3558,7 @@ export const ImsDashboardRepo = {
       `SELECT COUNT(*) AS cnt FROM ims_purchase_orders WHERE status IN ('draft','ordered') ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [openSOs] = await imsQuery<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE status IN ('draft','confirmed') ${businessId ? 'AND business_id = ?' : ''}`, p
+      `SELECT COUNT(*) AS cnt FROM ims_sales_orders WHERE status IN ('draft','confirmed') AND is_staff_preview_test = 0 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
     const [lowStock] = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0 ${businessId ? 'AND business_id = ?' : ''}`, p

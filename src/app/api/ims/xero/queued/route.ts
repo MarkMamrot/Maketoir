@@ -28,7 +28,7 @@ export async function GET() {
               COALESCE(c.name) AS contact_name
          FROM ims_sales_orders so
          LEFT JOIN ims_contacts c ON c.id = so.customer_id
-        WHERE so.xero_sync_status = 'queued' AND so.business_id = ?
+        WHERE so.xero_sync_status = 'queued' AND so.business_id = ? AND so.is_staff_preview_test = 0
         ORDER BY so.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);

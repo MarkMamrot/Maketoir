@@ -232,6 +232,7 @@ export default function WholesalePortalClient({
   initialView?: WholesalePortalView;
 }) {
   const router = useRouter();
+  const canTestCheckout = session.preview?.mode === 'ims_draft_test';
   const cartStorageKey = getWholesaleCartStorageKey({
     supplierSlug: supplier.slug,
     businessId: session.businessId,
@@ -301,7 +302,7 @@ export default function WholesalePortalClient({
   };
 
   const handleLocationChange = async (locationId: number) => {
-    if (session.preview) return;
+    if (session.preview && !canTestCheckout) return;
     if (locationId === session.locationId || locationSwitching) return;
     setLocationSwitching(true);
     try {
@@ -356,7 +357,7 @@ export default function WholesalePortalClient({
   const cartQtyMap = cartItems.reduce<Record<string, number>>((acc, i) => { acc[i.variant_id] = (acc[i.variant_id] ?? 0) + i.qty; return acc; }, {});
 
   const handleAddToCart = (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => {
-    if (session.preview) { showToast('Staff preview is read-only.'); return; }
+    if (session.preview && !canTestCheckout) { showToast('Staff preview is read-only.'); return; }
     setCartItems(prev => {
       const ex = prev.find(i => i.variant_id === item.variant_id);
       if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + 1 : Math.min(i.qty + 1, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
@@ -374,6 +375,7 @@ export default function WholesalePortalClient({
   }));
   const handleRemove    = (vid: string) => setCartItems(p => p.filter(i => i.variant_id !== vid));
   const handleToggleFavourite = async (variantId: string) => {
+    if (session.preview) { showToast('Favourites cannot be changed in staff preview.'); return; }
     const favourite = !favouriteVariantIds.has(variantId);
     setFavouriteVariantIds(current => {
       const next = new Set(current);
@@ -404,6 +406,7 @@ export default function WholesalePortalClient({
   };
 
   const handleSaveDraft = async () => {
+    if (session.preview && !canTestCheckout) { showToast('Staff preview is read-only.'); return; }
     if (cartItems.length === 0) return;
     setSaving(true);
     try {
@@ -422,6 +425,7 @@ export default function WholesalePortalClient({
   };
 
   const handleSubmitOrder = async (): Promise<string | null> => {
+    if (session.preview && !canTestCheckout) { showToast('Staff preview is read-only.'); return null; }
     if (cartItems.length === 0) return null;
     setSaving(true);
     try {
@@ -693,6 +697,7 @@ export default function WholesalePortalClient({
           onSubmit={handleSubmitOrder}
           onClose={() => setCartOpen(false)}
           onViewOrders={() => { setCartOpen(false); handleViewChange('orders'); }}
+          isTestCheckout={canTestCheckout}
         />
       )}
 
@@ -784,6 +789,7 @@ export default function WholesalePortalClient({
             onRemoveFavourite={variantId => void handleToggleFavourite(variantId)}
             onBrowse={() => handleViewChange('catalogue')}
             onNotice={showToast}
+            readOnly={Boolean(session.preview)}
           />
         ) : (
           <div className={catalogueStyles.layout}>

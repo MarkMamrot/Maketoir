@@ -11,6 +11,7 @@ import {
   WHOLESALE_SESSION_COOKIE,
   WHOLESALE_SESSION_MAX_AGE,
 } from '@/lib/wholesale/wholesaleSession';
+import { requireWholesaleDraftWriteAccess } from '@/lib/wholesale/wholesalePreviewPolicy';
 
 export async function POST(request: Request) {
   const { session, response } = await requireActiveWholesaleSession();
@@ -26,6 +27,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    const accessResponse = await requireWholesaleDraftWriteAccess(session);
+    if (accessResponse) return accessResponse;
     const buyer = await getActiveWholesaleBuyer(session.businessId, session.contactId, locationId);
     if (!buyer || buyer.companyId !== session.companyId || buyer.memberId !== session.memberId) {
       return NextResponse.json({ error: 'That buying location is not available to your account.' }, { status: 403 });
@@ -41,11 +44,14 @@ export async function POST(request: Request) {
       memberId: buyer.memberId,
       memberRole: buyer.memberRole,
     };
-    cookies().set(cookieName, session.preview ? signWholesalePreviewSession(signedSession) : signWholesaleSession(signedSession), {
+    const previewSecondsRemaining = session.preview
+      ? Math.max(1, Math.floor((new Date(session.preview.expiresAt).getTime() - Date.now()) / 1000))
+      : WHOLESALE_PREVIEW_SESSION_MAX_AGE;
+    cookies().set(cookieName, session.preview ? signWholesalePreviewSession(signedSession, previewSecondsRemaining) : signWholesaleSession(signedSession), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: session.preview ? WHOLESALE_PREVIEW_SESSION_MAX_AGE : WHOLESALE_SESSION_MAX_AGE,
+      maxAge: session.preview ? previewSecondsRemaining : WHOLESALE_SESSION_MAX_AGE,
       path: '/',
     });
     return NextResponse.json({ success: true, locationId });

@@ -79,8 +79,8 @@ export function signWholesaleSession(session: WholesaleSession): string {
   return signAdminSession(session, { maxAgeSeconds: WHOLESALE_SESSION_MAX_AGE });
 }
 
-export function signWholesalePreviewSession(session: WholesaleSession): string {
-  return signAdminSession(session, { maxAgeSeconds: WHOLESALE_PREVIEW_SESSION_MAX_AGE });
+export function signWholesalePreviewSession(session: WholesaleSession, maxAgeSeconds = WHOLESALE_PREVIEW_SESSION_MAX_AGE): string {
+  return signAdminSession(session, { maxAgeSeconds });
 }
 
 /** For use in API routes — returns the session or a 401 NextResponse. */

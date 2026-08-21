@@ -143,8 +143,11 @@ export async function POST(req: Request) {
         xeroId: result?.xero_bill_id ?? null,
       });
     } else if (type === 'so') {
-      const rows = await imsQuery<{ status: string }>(`SELECT status FROM ims_sales_orders WHERE id = ?`, [id]);
+      const rows = await imsQuery<{ status: string; is_staff_preview_test: number }>(`SELECT status, is_staff_preview_test FROM ims_sales_orders WHERE id = ?`, [id]);
       if (!rows[0]) return NextResponse.json({ error: 'Sales order not found' }, { status: 404 });
+      if (rows[0].is_staff_preview_test) {
+        return NextResponse.json({ error: 'Staff preview test orders cannot be synced to Xero.' }, { status: 409 });
+      }
       const status = rows[0]?.status ?? 'confirmed';
       if (status === 'backordered') {
         return NextResponse.json({ error: 'Release this customer backorder before syncing it to Xero.' }, { status: 409 });

@@ -146,6 +146,7 @@ export async function GET(req: Request) {
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id
        WHERE so.so_type = 'online'
+         AND so.is_staff_preview_test = 0
          AND so.order_date >= ?
          ${soUpperClause}
          AND (so.is_historical IS NULL OR so.is_historical = 0)
@@ -163,6 +164,7 @@ export async function GET(req: Request) {
        FROM ims_sales_orders so
        LEFT JOIN ims_locations l ON l.id = so.location_id
        WHERE so.so_type != 'online'
+         AND so.is_staff_preview_test = 0
          AND so.status = 'fulfilled'
          AND so.order_date >= ?
          ${soUpperClause}
@@ -214,6 +216,7 @@ export async function GET(req: Request) {
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
          LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
          WHERE so.so_type = 'online'
+           AND so.is_staff_preview_test = 0
            AND so.order_date >= ?
            ${soUpperClause}
            AND (so.is_historical IS NULL OR so.is_historical = 0)
@@ -231,6 +234,7 @@ export async function GET(req: Request) {
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
          LEFT JOIN ims_product_variants pv ON pv.variant_id = soi.variant_id
          WHERE so.so_type != 'online'
+           AND so.is_staff_preview_test = 0
            AND so.status = 'fulfilled'
            AND so.order_date >= ?
            ${soUpperClause}
@@ -270,6 +274,7 @@ export async function GET(req: Request) {
          LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
          LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
          WHERE so.order_date >= ?
+           AND so.is_staff_preview_test = 0
            ${soUpperClause}
            AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
              OR (so.so_type != 'online' AND so.status = 'fulfilled'))
@@ -305,6 +310,7 @@ export async function GET(req: Request) {
          FROM ims_sales_orders so
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
          WHERE so.order_date >= ?
+           AND so.is_staff_preview_test = 0
            ${soUpperClause}
            AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
              OR (so.so_type != 'online' AND so.status = 'fulfilled'))
@@ -347,6 +353,7 @@ export async function GET(req: Request) {
         LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
         LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
         WHERE so.order_date >= ?
+          AND so.is_staff_preview_test = 0
           ${soUpperClause}
           AND ((so.so_type = 'online' AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled')
             OR (so.so_type != 'online' AND so.status = 'fulfilled'))

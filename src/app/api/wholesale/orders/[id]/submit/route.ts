@@ -39,7 +39,7 @@ export async function POST(_req: Request, { params }: Ctx) {
     const previewOwnership = previewDraftWhere(session);
     // ── 1. Fetch draft order + items ─────────────────────────────────────────
     const orderRows = await imsQuery<any>(
-      `SELECT * FROM wholesale_draft_orders
+      `SELECT o.* FROM wholesale_draft_orders o
         WHERE id = ? AND business_id = ? AND contact_id = ?
           AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
           ${previewOwnership.sql}`,
@@ -189,8 +189,10 @@ export async function POST(_req: Request, { params }: Ctx) {
     const existingTestRows = session.preview
       ? await imsQuery<{ id: number }>('SELECT id FROM ims_sales_orders WHERE business_id = ? AND so_number = ? AND is_staff_preview_test = 1 LIMIT 1', [session.businessId, testSoNumber])
       : [];
-    const soId = existingTestRows[0]?.id ?? await ImsSORepo.create(
-      {
+    let soId = existingTestRows[0]?.id;
+    if (!soId) {
+      try {
+        soId = await ImsSORepo.create({
         so_number:    testSoNumber,
         customer_id:  session.contactId,
         wholesale_company_id: session.companyId,
@@ -215,18 +217,28 @@ export async function POST(_req: Request, { params }: Ctx) {
         staff_preview_session_id: session.preview?.previewSessionId ?? null,
         staff_preview_actor_user_id: session.preview?.actorUserId ?? null,
         staff_preview_actor_name: session.preview?.actorName ?? null,
-      },
-      soItems,
-      session.businessId,
-    );
+        }, soItems, session.businessId);
+      } catch (error: any) {
+        if (!session.preview || error?.code !== 'ER_DUP_ENTRY') throw error;
+        const racedRows = await imsQuery<{ id: number }>(
+          `SELECT id FROM ims_sales_orders
+            WHERE business_id = ? AND so_number = ? AND is_staff_preview_test = 1
+              AND staff_preview_session_id = ? LIMIT 1`,
+          [session.businessId, testSoNumber, session.preview.previewSessionId],
+        );
+        if (!racedRows[0]) throw error;
+        soId = racedRows[0].id;
+      }
+    }
 
     // ── 4. Mark wholesale draft order as submitted ───────────────────────────
-    await imsExecute(
-      `UPDATE wholesale_draft_orders
+    const submission = await imsExecute(
+      `UPDATE wholesale_draft_orders AS o
           SET status = 'submitted', submitted_at = NOW(), so_id = ?
         WHERE id = ? AND business_id = ?
-          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?`,
-      [soId, id, session.businessId, session.companyId, session.locationId, session.memberId],
+          AND wholesale_company_id = ? AND wholesale_location_id = ? AND wholesale_member_id = ?
+          AND status = 'draft' ${previewOwnership.sql}`,
+      [soId, id, session.businessId, session.companyId, session.locationId, session.memberId, ...previewOwnership.params],
     );
 
     // ── 5. Get SO number for display ─────────────────────────────────────────
@@ -236,6 +248,9 @@ export async function POST(_req: Request, { params }: Ctx) {
     const soNumber = soRows[0]?.so_number ?? `SO-${soId}`;
 
     if (session.preview) {
+      if (submission.affectedRows === 0) {
+        return NextResponse.json({ success: true, so_id: soId, so_number: soNumber, is_test: true, replayed: true });
+      }
       await imsExecute(
         `INSERT INTO ims_wholesale_team_events
            (business_id, company_id, actor_name, target_member_id, target_contact_id, target_name, target_email, action, details_json)

@@ -55,6 +55,7 @@ export async function GET() {
            FROM ims_sales_order_items soi
            JOIN ims_sales_orders so ON so.id = soi.so_id
            WHERE so.status NOT IN ('draft', 'cancelled')
+             AND so.is_staff_preview_test = 0
              AND so.cin7_order_id IS NULL
              AND DATE(so.order_date) BETWEEN ? AND ?
          ) s
@@ -83,6 +84,7 @@ export async function GET() {
            FROM ims_sales_order_items soi
            JOIN ims_sales_orders so ON so.id = soi.so_id
            WHERE so.status NOT IN ('draft', 'cancelled')
+             AND so.is_staff_preview_test = 0
              AND so.cin7_order_id IS NULL
          ) d`,
       ),

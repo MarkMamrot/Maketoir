@@ -2,16 +2,17 @@ import { NextResponse } from 'next/server';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import type { ActiveWholesaleSession } from './wholesaleSession';
 import { parseWholesalePortalSettings, WHOLESALE_PORTAL_SETTING_KEYS } from './wholesalePortalSettings';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 
 export async function requireWholesaleDraftWriteAccess(session: ActiveWholesaleSession): Promise<NextResponse | null> {
   if (!session.preview) return null;
   if (session.preview.mode !== 'ims_draft_test') {
     return NextResponse.json({ error: 'Staff preview is read-only.', code: 'wholesale_preview_read_only' }, { status: 403 });
   }
-  const rows = await imsQuery<{ value: string }>(
+  const rows = await runImsForBusiness(session.businessId, () => imsQuery<{ value: string }>(
     'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
     [session.businessId, WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode],
-  );
+  ));
   const current = parseWholesalePortalSettings({
     [WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode]: rows[0]?.value,
   });

@@ -49,6 +49,7 @@ export function WholesaleCartPanel({
   onSubmit,
   onClose,
   onViewOrders,
+  isTestCheckout = false,
 }: {
   items: WholesaleCartItem[];
   notes: string;
@@ -62,6 +63,7 @@ export function WholesaleCartPanel({
   onSubmit: () => Promise<string | null>;
   onClose: () => void;
   onViewOrders: () => void;
+  isTestCheckout?: boolean;
 }) {
   const [step, setStep] = useState<CartStep>('cart');
   const [submittedNumber, setSubmittedNumber] = useState('');
@@ -82,7 +84,7 @@ export function WholesaleCartPanel({
       <aside className={styles.panel}>
         <header className={styles.header}>
           <div>
-            <span>{step === 'cart' ? 'Current order' : step === 'review' ? 'Final check' : 'Order received'}</span>
+            <span>{step === 'cart' ? 'Current order' : step === 'review' ? 'Final check' : isTestCheckout ? 'Test Draft created' : 'Order received'}</span>
             <h2 id="cart-panel-title">
               {step === 'cart' ? 'Cart' : step === 'review' ? 'Review order' : submittedNumber}
             </h2>
@@ -93,9 +95,9 @@ export function WholesaleCartPanel({
         {step === 'complete' ? (
           <div className={styles.complete}>
             <div className={styles.completeIcon}><PackageCheck size={28} /></div>
-            <p>Submitted to {profile?.company.name || 'your supplier'} for review.</p>
-            <h3>Your order has been received.</h3>
-            <span>The order now appears in Orders, where you can follow its fulfilment progress.</span>
+            <p>{isTestCheckout ? 'Created in IMS for staff inspection.' : `Submitted to ${profile?.company.name || 'your supplier'} for review.`}</p>
+            <h3>{isTestCheckout ? 'Test Draft created.' : 'Your order has been received.'}</h3>
+            <span>{isTestCheckout ? 'This order is marked TEST, cannot be confirmed, and must be deleted manually in IMS after testing.' : 'The order now appears in Orders, where you can follow its fulfilment progress.'}</span>
             <div className={styles.completeLocation}><MapPin size={16} /><div><span>Deliver to</span><strong>{profile?.location.name || 'Assigned buying location'}</strong></div></div>
           </div>
         ) : (
@@ -153,6 +155,7 @@ export function WholesaleCartPanel({
                   <div className={styles.termRow}><span>Payment terms</span><strong>{profile?.company.paymentTerms || 'To be confirmed'}</strong></div>
                   <div className={styles.termRow}><span>Notes</span><strong>{notes || 'None'}</strong></div>
                 </section>
+                {isTestCheckout && <section className={styles.reviewSection}><h3>Test checkout</h3><span>This creates a real Draft Sales Order in IMS marked TEST. It will not notify the buyer or supplier, commit stock, sync to integrations, or enter sales reporting. Delete it manually in IMS when testing is complete.</span></section>}
               </>
             )}
           </div>
@@ -170,7 +173,7 @@ export function WholesaleCartPanel({
           ) : step === 'review' ? (
             <div className={styles.actions}>
               <button className={styles.secondaryButton} onClick={() => setStep('cart')} disabled={saving}><ArrowLeft size={15} /> Back</button>
-              <button className={styles.primaryButton} onClick={() => void submit()} disabled={saving || !profile}><Check size={15} /> {saving ? 'Submitting...' : 'Place order'}</button>
+              <button className={styles.primaryButton} onClick={() => void submit()} disabled={saving || !profile}><Check size={15} /> {saving ? 'Submitting...' : isTestCheckout ? 'Create test Draft in IMS' : 'Place order'}</button>
             </div>
           ) : (
             <div className={styles.actions}>

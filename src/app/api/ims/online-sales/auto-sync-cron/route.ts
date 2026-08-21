@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       `SELECT COUNT(*) AS c
        FROM ims_sales_orders
        WHERE business_id = ?
+         AND is_staff_preview_test = 0
          AND so_type = 'online'
          AND (is_historical IS NULL OR is_historical = 0)
          AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
         `SELECT DATE_FORMAT(order_date, '%Y-%m-%d') AS day
          FROM ims_sales_orders
          WHERE so_type = 'online' AND business_id = ?
+           AND is_staff_preview_test = 0
            AND (is_historical IS NULL OR is_historical = 0)
            AND status != 'cancelled'
            AND DATE_FORMAT(order_date, '%Y-%m-%d') >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)

@@ -30,6 +30,7 @@ export async function GET(_request: Request, { params }: Ctx) {
             AND wl.company_id = ml.company_id AND wl.status = 'active'
           WHERE o.id = ? AND o.business_id = ? AND o.customer_id = ?
             AND o.wholesale_company_id = ? AND o.wholesale_member_id = ?
+            AND o.is_staff_preview_test = 0
           LIMIT 1`,
         [id, session.businessId, session.contactId, session.companyId, session.memberId],
       );
