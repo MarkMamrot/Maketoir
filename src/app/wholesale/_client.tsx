@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
 import type { WholesaleAccountProfile } from '@/lib/wholesale/wholesaleAccountProfile';
+import { buildWholesaleReorderCart } from '@/lib/wholesale/wholesaleReorder';
 import { WholesalePortalShell, type WholesalePortalView } from './components/WholesalePortalShell';
 import { WholesaleAccountView, WholesaleHelpView, WholesaleHomeView } from './components/WholesalePortalViews';
 import { WholesaleOrdersView, type WholesaleOrderLine } from './components/WholesaleOrdersView';
@@ -371,43 +372,7 @@ export default function WholesalePortalClient({
   };
 
   const handleReorder = (orderLines: WholesaleOrderLine[]) => {
-    const liveVariants = new Map<string, { product: WholesaleProduct; variant: WholesaleVariant }>();
-    for (const product of allProducts) {
-      for (const variant of product.variants ?? []) liveVariants.set(variant.variant_id, { product, variant });
-    }
-
-    let adjustedLines = 0;
-    let unavailableLines = 0;
-    const nextItems = orderLines.flatMap<CartItem>(line => {
-      const live = liveVariants.get(line.variant_id);
-      if (!live) {
-        unavailableLines += 1;
-        return [];
-      }
-
-      const allowIndent = !!live.product.allow_indent_wholesale;
-      const requestedQty = Number(line.qty_ordered);
-      const quantity = allowIndent ? requestedQty : Math.min(requestedQty, live.variant.available);
-      if (quantity <= 0) {
-        unavailableLines += 1;
-        return [];
-      }
-      if (quantity < requestedQty) adjustedLines += 1;
-      const indentQty = Math.max(0, quantity - live.variant.available);
-      return [{
-        variant_id: live.variant.variant_id,
-        product_id: live.product.product_id,
-        product_name: live.product.name,
-        variant_label: variantLabel(live.variant),
-        sku: live.variant.sku,
-        qty: quantity,
-        unit_price: Number(live.variant.price_wholesale),
-        available: Number(live.variant.available),
-        allow_indent: allowIndent,
-        is_indent: indentQty > 0,
-        indent_qty: indentQty,
-      }];
-    });
+    const { items: nextItems, adjustedLines, unavailableLines } = buildWholesaleReorderCart(orderLines, allProducts);
 
     if (nextItems.length === 0) {
       showToast(productsLoading ? 'Catalogue is still loading. Please try again.' : 'These products are no longer available to order.');
