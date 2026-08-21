@@ -1130,6 +1130,7 @@ const COLUMNS = [
   ['ims_backorder_merges', 'completed_at', 'DATETIME NULL AFTER created_at'],
   ['ims_po_shortfall_resolutions', 'accounting_action', "ENUM('none','resize_document','credit_note') NOT NULL DEFAULT 'none' AFTER currency_code"],
   ['ims_purchase_order_items', 'discount_pct', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER unit_cost'],
+  ['ims_sales_order_items', 'shopify_line_item_id', 'VARCHAR(100) NULL AFTER so_id'],
 ];
 
 const INDEXES = [
@@ -1154,6 +1155,7 @@ const INDEXES = [
   ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
   ['ims_supplier_credit_note_items', 'idx_scn_source_po_item', 'INDEX `idx_scn_source_po_item` (`source_po_item_id`)'],
+  ['ims_sales_order_items', 'idx_soitem_shopify_li', 'INDEX `idx_soitem_shopify_li` (`shopify_line_item_id`)'],
 ];
 
 async function ensureEnumValues(schema, table, column, requiredValues) {
