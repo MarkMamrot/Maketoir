@@ -183,8 +183,8 @@ export default function Landing() {
               <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/60 border border-white/10 bg-slate-950/40">
                 <video
                   ref={heroVideoRef}
-                  src="/landing/top%20banner.mp4?v=20260819-0852"
-                  poster="/landing/top-banner-poster.jpg"
+                  src="/landing/top%20banner.mp4?v=20260822"
+                  poster="/landing/top-banner-current-poster.jpg?v=20260822"
                   muted
                   loop
                   playsInline

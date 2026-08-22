@@ -307,7 +307,7 @@ export async function POST(_req: Request, { params }: Ctx) {
         html: `
           <div style="font-family:system-ui,sans-serif;max-width:620px;margin:0 auto;padding:32px;background:#fff;border-radius:12px;">
             <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;">
-              <img src="${appUrl}/brand/png/solvantis-icon-192.png" width="38" height="38" alt="Solvantis" style="display:block;border-radius:8px;flex-shrink:0;" />
+              <img src="${appUrl}/brand/png/solvantis-icon-192.png?v=20260822" width="38" height="38" alt="Solvantis" style="display:block;border-radius:8px;flex-shrink:0;" />
               <div>
                 <h1 style="margin:0;font-size:18px;font-weight:800;color:#0f172a;">New Wholesale Order</h1>
                 <p style="margin:0;font-size:13px;color:#64748b;">A customer has submitted an order via the Wholesale Portal</p>
