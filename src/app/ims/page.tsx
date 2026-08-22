@@ -15826,13 +15826,13 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                     <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginLeft: 4 }}>{saleOpen ? '▲' : '▼'}</span>
                   </div>
                   {saleOpen && (
-                    <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
+                    <div style={{ padding: '12px 16px 14px', background: 'color-mix(in srgb, var(--sv-bg-2) 55%, var(--sv-bg-1))', borderTop: '1px solid var(--sv-etch)' }}>
                       {/* Payment split */}
                       {sale.payments?.length > 0 && (
-                        <div style={{ display: 'flex', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginRight: 2 }}>Paid:</span>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 10px', marginBottom: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginRight: 2, fontWeight: 700, textTransform: 'uppercase' }}>Paid</span>
                           {sale.payments.map((p: any, i: number) => (
-                            <span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontWeight: 600 }}>
+                            <span key={i} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontWeight: 600 }}>
                               {p.payment_method} {fmtMoney(p.amount)}{p.reference ? <span style={{ fontWeight: 400, color: 'var(--sv-text-dim)' }}> · {p.reference}</span> : ''}
                             </span>
                           ))}
@@ -15840,20 +15840,21 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                       )}
                       {/* Notes */}
                       {sale.notes && (
-                        <div style={{ display: 'flex', gap: 8, padding: '7px 0', borderBottom: '1px solid var(--sv-etch)', alignItems: 'flex-start' }}>
-                          <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', flexShrink: 0, marginTop: 1 }}>Notes:</span>
+                        <div style={{ display: 'flex', gap: 8, padding: '8px 10px', marginBottom: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', alignItems: 'flex-start' }}>
+                          <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', flexShrink: 0, marginTop: 1, fontWeight: 700, textTransform: 'uppercase' }}>Notes</span>
                           <span style={{ fontSize: 12, color: 'var(--sv-text-main)', fontStyle: 'italic' }}>{sale.notes}</span>
                         </div>
                       )}
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
+                      <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 12 }}>
                         <thead>
-                          <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
-                            <th style={{ textAlign: 'left', padding: '6px 6px 4px', fontWeight: 500 }}>Product</th>
-                            <th style={{ textAlign: 'left', padding: '6px 6px 4px', fontWeight: 500 }}>SKU</th>
-                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Qty</th>
-                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Ex-Tax</th>
-                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>GST</th>
-                            <th style={{ textAlign: 'right', padding: '6px 6px 4px', fontWeight: 500 }}>Total (inc)</th>
+                          <tr style={{ color: 'var(--sv-text-dim)', fontSize: 10, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                            <th style={{ textAlign: 'left', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Product</th>
+                            <th style={{ textAlign: 'left', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>SKU</th>
+                            <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Qty</th>
+                            <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Ex-Tax</th>
+                            <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>GST</th>
+                            <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Total (inc)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -15864,12 +15865,12 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                             const lineGst    = lineInc - lineExc;
                             return (
                               <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: itemIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
-                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
-                                <td style={{ padding: '5px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
-                                <td style={{ padding: '5px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
-                                <td style={{ padding: '5px 6px', textAlign: 'right' }}>{fmtMoney(lineExc)}</td>
-                                <td style={{ padding: '5px 6px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(lineGst)}</td>
-                                <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(lineInc)}</td>
+                                <td style={{ padding: '8px 9px', color: 'var(--sv-text-main)' }}>{item.name}</td>
+                                <td style={{ padding: '8px 9px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
+                                <td style={{ padding: '8px 9px', textAlign: 'right' }}>{Number(item.qty)}</td>
+                                <td style={{ padding: '8px 9px', textAlign: 'right' }}>{fmtMoney(lineExc)}</td>
+                                <td style={{ padding: '8px 9px', textAlign: 'right', color: 'var(--sv-text-dim)' }}>{fmtMoney(lineGst)}</td>
+                                <td style={{ padding: '8px 9px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(lineInc)}</td>
                               </tr>
                             );
                           })}
@@ -15880,6 +15881,7 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                           <tr style={{ borderTop: '2px solid var(--sv-etch)' }}><td colSpan={5} style={{ padding: '5px 6px', textAlign: 'right', fontSize: 12, fontWeight: 600 }}>Total</td><td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>{fmtMoney(sale.total)}</td></tr>
                         </tfoot>
                       </table>
+                      </div>
                       {(() => {
                         const costRows = sale.items.map((item: any) => {
                           const qty = Number(item.qty ?? 0);
@@ -15908,8 +15910,8 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                               { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
                               { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
                             ]} />
-                            <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
-                              <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                            <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+                              <summary style={{ cursor: 'pointer', padding: '9px 11px', fontSize: 12, fontWeight: 650, color: 'var(--sv-text-main)', background: 'var(--sv-bg-2)' }}>Cost and COGS line breakdown</summary>
                               <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
                                 <thead>
                                   <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
