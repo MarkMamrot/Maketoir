@@ -26,7 +26,8 @@ import {
   type WholesaleProductImageFit,
   type WholesaleProductImageRatio,
 } from '@/lib/wholesale/wholesalePortalSettings';
-import type { WholesaleLayoutDocument } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutCanvasSample } from './components/layout/WholesaleLayoutCanvasSample';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -280,6 +281,7 @@ export default function WholesalePortalClient({
   // Navigation
   const [view, setView]               = useState<WholesalePortalView>(initialView);
   const [layoutPreview, setLayoutPreview] = useState<WholesaleLayoutDocument | null>(null);
+  const [layoutPreviewPage, setLayoutPreviewPage] = useState<WholesaleLayoutPageId | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('__all');
   const [accountProfile, setAccountProfile] = useState<WholesaleAccountProfile | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
@@ -674,6 +676,8 @@ export default function WholesalePortalClient({
 
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
   const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
+  const canvasView = layoutPreviewPage === 'home' ? 'home' : layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection' ? 'catalogue' : view;
+  const samplePage = layoutPreviewPage === 'login' || layoutPreviewPage === 'product' || layoutPreviewPage === 'cart' ? layoutPreviewPage : null;
 
   return (
     <>
@@ -738,7 +742,7 @@ export default function WholesalePortalClient({
       <WholesalePortalShell
         supplier={supplier}
         session={session}
-        view={view}
+        view={canvasView}
         searchQuery={searchQuery}
         cartCount={cartCount}
         cartValue={cartValue}
@@ -752,8 +756,17 @@ export default function WholesalePortalClient({
         onLocationChange={handleLocationChange}
         onLogout={handleLogout}
         onLayoutPreviewChange={setLayoutPreview}
+        onLayoutPageChange={setLayoutPreviewPage}
       >
-        {view === 'home' ? (
+        {samplePage && layoutPreview ? (
+          <WholesaleLayoutCanvasSample
+            page={samplePage}
+            supplierName={supplier.displayName}
+            sections={layoutPreview.pages[samplePage].sections}
+            product={selectedProduct || allProducts[0] || null}
+            cartItems={cartItems}
+          />
+        ) : canvasView === 'home' ? (
           <WholesaleHomeView
             session={session}
             productCount={allProducts.length}
@@ -764,7 +777,7 @@ export default function WholesalePortalClient({
             onCartOpen={() => setCartOpen(true)}
             sectionOrder={layoutPreview?.pages.home.sections.map(section => section.type)}
           />
-        ) : view === 'account' ? (
+        ) : canvasView === 'account' ? (
           <WholesaleAccountView
             session={session}
             profile={accountProfile}
@@ -772,9 +785,9 @@ export default function WholesalePortalClient({
             error={accountError}
             onProfileChange={setAccountProfile}
           />
-        ) : view === 'help' ? (
+        ) : canvasView === 'help' ? (
           <WholesaleHelpView supplier={supplier} />
-        ) : view === 'orders' ? (
+        ) : canvasView === 'orders' ? (
           <WholesaleOrdersView
             activeDraftId={editingOrderId}
             cartItemCount={cartItems.length}
@@ -785,7 +798,7 @@ export default function WholesalePortalClient({
             onReorder={handleReorder}
             isPreview={Boolean(session.preview)}
           />
-        ) : view === 'lists' ? (
+        ) : canvasView === 'lists' ? (
           <WholesaleSavedListsView
             cartItems={cartItems}
             favouriteDetails={favouriteDetails}
@@ -797,6 +810,14 @@ export default function WholesalePortalClient({
             readOnly={Boolean(session.preview)}
           />
         ) : (
+          <>
+          {layoutPreviewPage === 'collection' && (
+            <header style={{ maxWidth: 1180, margin: '0 auto 22px', paddingBottom: 20, borderBottom: '1px solid #d9dfda' }}>
+              <p style={{ margin: '0 0 7px', color: '#267653', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Category / Subcategory template</p>
+              <h1 style={{ margin: 0, color: '#17201c', fontSize: 30, letterSpacing: 0 }}>{activeFilter === '__all' ? 'Selected collection' : activeFilter.split('||').join(' / ')}</h1>
+              <p style={{ margin: '8px 0 0', color: '#718078', fontSize: 13 }}>The current category or subcategory name and products populate this global template.</p>
+            </header>
+          )}
           <div className={catalogueStyles.layout}>
             {/* Sidebar */}
             <aside className={catalogueStyles.sidebar}>
@@ -871,6 +892,7 @@ export default function WholesalePortalClient({
               )}
             </div>
           </div>
+          </>
         )}
       </WholesalePortalShell>
     </>

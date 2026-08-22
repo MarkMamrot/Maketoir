@@ -69,7 +69,7 @@ export function WholesaleLayoutEditor({
   onDocumentChange,
   onDirtyChange,
 }: {
-  onPageChange?: (page: WholesaleLayoutPageId) => void;
+  onPageChange?: (page: WholesaleLayoutPageId | null) => void;
   onDocumentChange?: (document: WholesaleLayoutDocument | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -101,9 +101,10 @@ export function WholesaleLayoutEditor({
   useEffect(() => onDocumentChange?.(document), [document, onDocumentChange]);
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   useEffect(() => () => {
+    onPageChange?.(null);
     onDocumentChange?.(null);
     onDirtyChange?.(false);
-  }, [onDirtyChange, onDocumentChange]);
+  }, [onDirtyChange, onDocumentChange, onPageChange]);
 
   useEffect(() => {
     if (!dirty) return;

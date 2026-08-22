@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
-import type { WholesaleLayoutDocument } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import styles from './WholesalePortalShell.module.css';
 import { WholesaleLayoutEditor } from './layout/WholesaleLayoutEditor';
 
@@ -59,6 +59,7 @@ export function WholesalePortalShell({
   onLogout,
   children,
   onLayoutPreviewChange,
+  onLayoutPageChange,
 }: {
   supplier: WholesaleSupplierProfile;
   session: WholesaleSession;
@@ -77,6 +78,7 @@ export function WholesalePortalShell({
   onLogout: () => void;
   children: ReactNode;
   onLayoutPreviewChange?: (document: WholesaleLayoutDocument | null) => void;
+  onLayoutPageChange?: (page: WholesaleLayoutPageId | null) => void;
 }) {
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
@@ -196,7 +198,7 @@ export function WholesalePortalShell({
       </header>
 
       <div className={styles.body}>
-        {layoutEditorOpen && <WholesaleLayoutEditor onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} />}
+        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={onLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} />}
         <aside className={styles.sidebar}>
           {nav}
           <div className={styles.sidebarFooter}>
