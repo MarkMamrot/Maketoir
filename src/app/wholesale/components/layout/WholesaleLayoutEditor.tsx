@@ -95,6 +95,7 @@ export function WholesaleLayoutEditor({
   const [assets, setAssets] = useState<WholesalePortalAsset[]>([]);
   const [uploadingAsset, setUploadingAsset] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [pendingPage, setPendingPage] = useState<WholesaleLayoutPageId | null>(null);
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -240,10 +241,10 @@ export function WholesaleLayoutEditor({
   };
 
   const perform = async (action: 'save_draft' | 'publish' | 'reset_draft') => {
-    if (!state || !document) return;
-    if (action === 'publish' && dirty) { setError('Save the draft before publishing.'); return; }
-    if (action === 'reset_draft' && !confirm('Reset the draft to the currently published layout?')) return;
-    if (action === 'publish' && !confirm('Publish the saved layout across all wholesale portal pages?')) return;
+    if (!state || !document) return false;
+    if (action === 'publish' && dirty) { setError('Save the draft before publishing.'); return false; }
+    if (action === 'reset_draft' && !confirm('Reset the draft to the currently published layout?')) return false;
+    if (action === 'publish' && !confirm('Publish the saved layout across all wholesale portal pages?')) return false;
     setWorking(action === 'save_draft' ? 'save' : action === 'publish' ? 'publish' : 'reset');
     setError(''); setMessage('');
     try {
@@ -257,9 +258,38 @@ export function WholesaleLayoutEditor({
       setDocument(body.state.draft);
       setDirty(false);
       setMessage(action === 'publish' ? 'Published.' : action === 'reset_draft' ? 'Draft reset.' : 'Draft saved.');
+      return true;
     } catch (operationError) {
       setError(operationError instanceof Error ? operationError.message : 'Layout could not be updated.');
+      return false;
     } finally { setWorking(null); }
+  };
+
+  const changePage = (nextPage: WholesaleLayoutPageId) => {
+    setPage(nextPage);
+    setSelectedId(null);
+    setPendingPage(null);
+  };
+
+  const requestPageChange = (nextPage: WholesaleLayoutPageId) => {
+    if (nextPage === page) return;
+    if (dirty) { setPendingPage(nextPage); return; }
+    changePage(nextPage);
+  };
+
+  const saveAndChangePage = async () => {
+    if (!pendingPage) return;
+    const nextPage = pendingPage;
+    if (await perform('save_draft')) changePage(nextPage);
+  };
+
+  const discardAndChangePage = () => {
+    if (!pendingPage || !state) return;
+    setDocument(state.draft);
+    setDirty(false);
+    setError('');
+    setMessage('Unsaved changes discarded.');
+    changePage(pendingPage);
   };
 
   const sections = document?.pages[page].sections ?? [];
@@ -271,7 +301,7 @@ export function WholesaleLayoutEditor({
       <header className={styles.header}>
         <span>Layout editor</span>
         <h2>Page sections</h2>
-        <select value={page} onChange={event => setPage(event.target.value as WholesaleLayoutPageId)} aria-label="Page template">
+        <select value={page} onChange={event => requestPageChange(event.target.value as WholesaleLayoutPageId)} aria-label="Page template">
           {WHOLESALE_LAYOUT_PAGE_IDS.map(pageId => <option key={pageId} value={pageId}>{pageLabels[pageId]}</option>)}
         </select>
         <button className={styles.resetPage} type="button" onClick={resetCurrentPage} disabled={!document || Boolean(working)}><RotateCcw size={14} /> Reset page</button>
@@ -308,6 +338,18 @@ export function WholesaleLayoutEditor({
         <button className={styles.secondary} onClick={() => void perform('save_draft')} disabled={!state || !dirty || Boolean(working)}><Save size={15} /> {working === 'save' ? 'Saving...' : 'Save draft'}</button>
         <button className={styles.primary} onClick={() => void perform('publish')} disabled={!state || dirty || Boolean(working)}><Send size={15} /> {working === 'publish' ? 'Publishing...' : 'Publish'}</button>
       </footer>
+      {pendingPage && <div className={styles.dialogLayer} role="presentation">
+        <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="layout-page-change-title" aria-describedby="layout-page-change-description" onKeyDown={event => { if (event.key === 'Escape' && !working) setPendingPage(null); }}>
+          <h3 id="layout-page-change-title">Save changes before switching?</h3>
+          <p id="layout-page-change-description">You have unsaved layout changes. Save or discard them before opening {pageLabels[pendingPage]}.</p>
+          {error && <div className={styles.error} role="alert">{error}</div>}
+          <div className={styles.dialogActions}>
+            <button type="button" className={styles.secondary} onClick={() => setPendingPage(null)} disabled={Boolean(working)} autoFocus>Cancel</button>
+            <button type="button" className={styles.danger} onClick={discardAndChangePage} disabled={Boolean(working)}>Discard</button>
+            <button type="button" className={styles.primary} onClick={() => void saveAndChangePage()} disabled={Boolean(working)}>{working === 'save' ? 'Saving...' : 'Save draft'}</button>
+          </div>
+        </div>
+      </div>}
     </aside>
   );
 }
