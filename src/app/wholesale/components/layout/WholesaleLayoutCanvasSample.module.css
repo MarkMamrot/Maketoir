@@ -37,3 +37,4 @@
 .cartPanel footer { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 20px; padding: 22px 28px; border-top: 1px solid #dce3de; background: #f7f9f7; }
 .cartPanel footer button { grid-column: 1 / -1; margin-top: 8px; }
 @media (max-width: 760px) { .loginPage, .cartPage { padding: 14px; } .productMedia { grid-template-columns: 1fr; } .productImage { min-height: 240px; } .productCopy { padding: 24px; } .variant, .cartItem { grid-template-columns: 1fr auto; } .stepper, .cartItem > b { grid-column: 1 / -1; } }
+@container wholesale-layout-canvas (max-width: 760px) { .loginPage, .cartPage { padding: 14px; } .productMedia { grid-template-columns: 1fr; } .productImage { min-height: 240px; } .productCopy { padding: 24px; } .variant, .cartItem { grid-template-columns: 1fr auto; } .stepper, .cartItem > b { grid-column: 1 / -1; } }

@@ -102,3 +102,14 @@
   .productCardDense { display: flex; }
   .productCardDense .productImage { height: 170px; min-height: 0; }
 }
+
+@container wholesale-layout-canvas (max-width: 720px) {
+  .layout { display: block; }
+  .sidebar { display: none; }
+  .mobileBrowse { display: block; min-width: 0; flex: 1 1 180px; }
+  .mobileBrowse select, .filters > select { width: 100%; min-width: 0; }
+  .quickOrderButton { order: -1; width: 100%; margin-left: 0; }
+  .viewToggle { margin-left: auto; }
+  .productCardDense { display: flex; }
+  .productCardDense .productImage { height: 170px; min-height: 0; }
+}

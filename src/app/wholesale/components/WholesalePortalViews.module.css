@@ -556,3 +556,14 @@
     gap: 5px;
   }
 }
+
+@container wholesale-layout-canvas (max-width: 760px) {
+  .metrics, .sections, .helpLinks, .accountGrid, .addressGrid { grid-template-columns: 1fr; }
+  .locationSection { grid-column: auto; }
+  .addressEditor { width: 100%; }
+  .editorHeader, .editorBody, .editorFooter { padding-left: 18px; padding-right: 18px; }
+  .fieldPair { grid-template-columns: 1fr; }
+  .locationHeading { align-items: center; }
+  .metric { border-right: 0; border-bottom: 1px solid #d9dfda; }
+  .detailRow { grid-template-columns: 1fr; gap: 5px; }
+}

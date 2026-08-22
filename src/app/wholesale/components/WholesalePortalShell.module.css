@@ -231,6 +231,8 @@
 }
 
 .canvasStage .content {
+  container-name: wholesale-layout-canvas;
+  container-type: inline-size;
   min-height: calc(100vh - 150px);
   margin: 0 auto;
   overflow: hidden;
@@ -241,6 +243,7 @@
 
 .canvasStage[data-viewport='mobile'] .content {
   width: min(390px, 100%);
+  padding: 18px 14px 36px;
 }
 
 .sidebar {

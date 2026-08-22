@@ -26,3 +26,4 @@
 .productGrid img, .productPlaceholder { width: 100%; aspect-ratio: 4 / 3; display: block; background: #eef2ef; object-fit: contain; }
 .productGrid strong { display: block; padding: 11px; color: #243129; font-size: 12px; }
 @media (max-width: 700px) { .section { padding-right: 14px; padding-left: 14px; } .textImage { grid-template-columns: 1fr; gap: 18px; } .textImage[data-image-side='left'] .copy { order: initial; } .textImage[data-image-side='left'] .image, .textImage[data-image-side='left'] .imagePlaceholder { order: initial; } }
+@container wholesale-layout-canvas (max-width: 700px) { .section { padding-right: 14px; padding-left: 14px; } .textImage { grid-template-columns: 1fr; gap: 18px; } .textImage[data-image-side='left'] .copy { order: initial; } .textImage[data-image-side='left'] .image, .textImage[data-image-side='left'] .imagePlaceholder { order: initial; } }
