@@ -15,11 +15,12 @@ export type DashboardSalesComparison = {
 };
 
 const PERIODS = [
-  { days: 1, label: '1 Day' },
-  { days: 7, label: '7 Days' },
-  { days: 30, label: '30 Days' },
-  { days: 90, label: '90 Days' },
-  { days: 365, label: '1 Year' },
+  { days: 1, endOffset: 0, label: 'Today so far' },
+  { days: 1, endOffset: -1, label: 'Yesterday' },
+  { days: 7, endOffset: 0, label: '7 Days' },
+  { days: 30, endOffset: 0, label: '30 Days' },
+  { days: 90, endOffset: 0, label: '90 Days' },
+  { days: 365, endOffset: 0, label: '1 Year' },
 ] as const;
 
 function parseDate(value: string): Date {
@@ -64,25 +65,26 @@ export function buildDashboardSalesComparisons(
 
   const totals = new Map(rows.map(row => [row.saleDate, Number(row.sales ?? 0)]));
 
-  return PERIODS.flatMap(({ days, label }) => {
-    const currentFrom = addDays(today, -(days - 1));
+  return PERIODS.flatMap(({ days, endOffset, label }) => {
+    const currentTo = addDays(today, endOffset);
+    const currentFrom = addDays(currentTo, -(days - 1));
     const comparisonTo = mode === 'prior_period'
       ? addDays(currentFrom, -1)
-      : subtractCalendarYear(today);
+      : subtractCalendarYear(currentTo);
     const comparisonFrom = mode === 'prior_period'
       ? addDays(comparisonTo, -(days - 1))
       : subtractCalendarYear(currentFrom);
 
     if (earliestSaleDate > comparisonFrom) return [];
 
-    const currentSales = sumRange(totals, currentFrom, today);
+    const currentSales = sumRange(totals, currentFrom, currentTo);
     const comparisonSales = sumRange(totals, comparisonFrom, comparisonTo);
     const change = currentSales - comparisonSales;
 
     return [{
       days,
       label,
-      current: { from: currentFrom, to: today, sales: currentSales },
+      current: { from: currentFrom, to: currentTo, sales: currentSales },
       comparison: { from: comparisonFrom, to: comparisonTo, sales: comparisonSales },
       change,
       changePercent: comparisonSales === 0 ? null : (change / comparisonSales) * 100,

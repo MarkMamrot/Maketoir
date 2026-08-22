@@ -24,10 +24,23 @@ describe('buildDashboardSalesComparisons', () => {
     });
   });
 
+  it('adds yesterday as its own period compared with the preceding day', () => {
+    const result = buildDashboardSalesComparisons([
+      { saleDate: '2026-08-14', sales: 60 },
+      { saleDate: '2026-08-15', sales: 80 },
+      { saleDate: '2026-08-16', sales: 100 },
+    ], '2024-01-01', '2026-08-16', 'prior_period');
+
+    expect(result.slice(0, 2)).toMatchObject([
+      { label: 'Today so far', current: { from: '2026-08-16', sales: 100 }, comparison: { from: '2026-08-15', sales: 80 } },
+      { label: 'Yesterday', current: { from: '2026-08-15', sales: 80 }, comparison: { from: '2026-08-14', sales: 60 }, changePercent: 100 / 3 },
+    ]);
+  });
+
   it('hides periods whose comparison baseline predates the first sale', () => {
     const result = buildDashboardSalesComparisons(rows, '2026-08-10', '2026-08-16', 'prior_period');
 
-    expect(result.map(period => period.days)).toEqual([1]);
+    expect(result.map(period => period.label)).toEqual(['Today so far', 'Yesterday']);
   });
 
   it('uses the same calendar dates last year', () => {
