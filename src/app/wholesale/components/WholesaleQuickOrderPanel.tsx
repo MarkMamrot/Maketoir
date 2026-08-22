@@ -10,6 +10,7 @@ import {
   type WholesaleQuickOrderResult,
 } from '@/lib/wholesale/wholesaleQuickOrder';
 import styles from './WholesaleQuickOrderPanel.module.css';
+import type { WholesaleOrderQuantityMode } from '@/lib/wholesale/wholesalePortalSettings';
 
 function currency(value: number) {
   return value.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
@@ -20,18 +21,20 @@ export function WholesaleQuickOrderPanel({
   existingQuantities,
   onAdd,
   onClose,
+  quantityMode,
 }: {
   products: WholesaleQuickOrderProduct[];
   existingQuantities: Record<string, number>;
   onAdd: (items: WholesaleQuickOrderItem[]) => void;
   onClose: () => void;
+  quantityMode: WholesaleOrderQuantityMode;
 }) {
   const [input, setInput] = useState('');
   const [result, setResult] = useState<WholesaleQuickOrderResult | null>(null);
   const [fileName, setFileName] = useState('');
   const [fileError, setFileError] = useState('');
 
-  const review = () => setResult(buildWholesaleQuickOrder(input, products, existingQuantities));
+  const review = () => setResult(buildWholesaleQuickOrder(input, products, existingQuantities, quantityMode));
   const downloadTemplate = () => {
     const blob = new Blob([buildWholesaleQuickOrderTemplate(products)], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -81,7 +84,7 @@ export function WholesaleQuickOrderPanel({
               </div>
               {fileError && <div className={styles.fileError} role="alert">{fileError}</div>}
               <label className={styles.inputGroup}>
-                <span><ClipboardList size={16} /> SKU or barcode, quantity</span>
+                <span><ClipboardList size={16} /> SKU or barcode, {quantityMode === 'pack' ? 'packs' : 'quantity'}</span>
                 <textarea
                   value={input}
                   onChange={event => { setInput(event.target.value); setFileName(''); }}

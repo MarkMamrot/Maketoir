@@ -8,22 +8,23 @@ import { validateWholesaleOrderItems, WholesaleItemValidationError } from '../wh
 const row = {
   variant_id: 'v-1', product_id: 'p-1', product_name: 'Board', brand: 'Acme', sku: 'SKU-1',
   option1_value: 'Blue', option2_value: null, option3_value: null, price_wholesale: 42,
+  pack_size: 6,
 };
 
 describe('validateWholesaleOrderItems', () => {
   beforeEach(() => mockImsQuery.mockReset());
 
   it('uses authoritative tenant product fields and wholesale price', async () => {
-    mockImsQuery.mockResolvedValue([row]);
+    mockImsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([row]);
     const result = await validateWholesaleOrderItems('biz-1', { mode: 'all', brands: [] }, [{
       variant_id: 'v-1', qty: 2, product_name: 'Forged', unit_price: 1,
     }]);
-    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'v-1']);
+    expect(mockImsQuery.mock.calls[1][1]).toEqual(['biz-1', 'v-1']);
     expect(result[0]).toEqual(expect.objectContaining({ product_name: 'Board', unit_price: 42, qty: 2, variant_label: 'Blue' }));
   });
 
   it('rejects a variant outside the contact brand allowlist', async () => {
-    mockImsQuery.mockResolvedValue([row]);
+    mockImsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([row]);
     await expect(validateWholesaleOrderItems('biz-1', { mode: 'selected', brands: ['Beta'] }, [{ variant_id: 'v-1', qty: 1 }]))
       .rejects.toThrow('not available for this wholesale account');
   });
@@ -36,5 +37,14 @@ describe('validateWholesaleOrderItems', () => {
       .rejects.toThrow('whole-number quantity');
     await expect(validateWholesaleOrderItems('biz-1', { mode: 'all', brands: [] }, [{ variant_id: 'v-1', qty: 1 }, { variant_id: 'v-1', qty: 2 }]))
       .rejects.toThrow('Duplicate variants');
+  });
+
+  it('rejects quantities that are not a whole pack when pack ordering is enabled', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{ key: 'wholesale_order_quantity_mode', value: 'pack' }])
+      .mockResolvedValueOnce([row]);
+
+    await expect(validateWholesaleOrderItems('biz-1', { mode: 'all', brands: [] }, [{ variant_id: 'v-1', qty: 17 }]))
+      .rejects.toThrow('multiples of 6 units');
   });
 });

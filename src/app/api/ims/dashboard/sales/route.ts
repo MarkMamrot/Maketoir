@@ -325,6 +325,7 @@ export async function GET(req: Request) {
 
   let topProducts: DashboardProductInsight[] = [];
   let slowProducts: DashboardProductInsight[] = [];
+  let productInsightsByValue: { top: DashboardProductInsight[]; slow: DashboardProductInsight[] } = { top: [], slow: [] };
   try {
     const productSales = `
       SELECT sales_lines.variant_id,
@@ -372,7 +373,8 @@ export async function GET(req: Request) {
              COALESCE(pv.sku, '') AS sku,
              COALESCE(sales.units_sold, 0) AS units_sold,
              COALESCE(sales.revenue, 0) AS revenue,
-             COALESCE(stock.stock_on_hand, 0) AS stock_on_hand
+             COALESCE(stock.stock_on_hand, 0) AS stock_on_hand,
+             COALESCE(stock.stock_on_hand, 0) * COALESCE(pv.avg_cost, pv.cost_aud, 0) AS stock_value
       FROM ims_product_variants pv
       JOIN ims_products p ON p.product_id = pv.product_id
         AND p.business_id = ?
@@ -390,8 +392,7 @@ export async function GET(req: Request) {
         `${productSelect}
          WHERE pv.is_active = 1
            AND COALESCE(sales.units_sold, 0) > 0
-         ORDER BY units_sold DESC, revenue DESC, product_name
-         LIMIT 5`,
+         ORDER BY units_sold DESC, revenue DESC, product_name`,
         productParams,
       ),
       imsQuery<DashboardProductInsight>(
@@ -401,9 +402,10 @@ export async function GET(req: Request) {
         productParams,
       ),
     ]);
-    const productInsights = buildDashboardProductInsights(topRows, slowRows);
-    topProducts = productInsights.top;
-    slowProducts = productInsights.slow;
+    const byQty = buildDashboardProductInsights(topRows, slowRows, 5, 'qty');
+    productInsightsByValue = buildDashboardProductInsights(topRows, slowRows, 5, 'value');
+    topProducts = byQty.top;
+    slowProducts = byQty.slow;
   } catch (error) {
     console.error('[dashboard/sales] Product insight aggregation failed.', error);
     await reportRuntimeIssue({
@@ -433,7 +435,12 @@ export async function GET(req: Request) {
     success: true,
     channelData: normaliseDashboardSalesRows(channelRows),
     brandData: normaliseDashboardBrandRows(brandRows),
-    productInsights: { top: topProducts, slow: slowProducts },
+    productInsights: {
+      top: topProducts,
+      slow: slowProducts,
+      byQty: { top: topProducts, slow: slowProducts },
+      byValue: productInsightsByValue,
+    },
     summary: { itemCount },
     recentPOS,
   });

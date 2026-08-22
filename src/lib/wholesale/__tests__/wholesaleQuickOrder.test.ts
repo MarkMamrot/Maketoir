@@ -99,4 +99,11 @@ describe('buildWholesaleQuickOrder', () => {
     expect(template).toBe('SKU,Quantity\r\n"A,SKU",\r\nZ-SKU,');
     expect(template).not.toContain('52');
   });
+  it('converts pack entries to units and rounds available stock down to whole packs', () => {
+    const packProduct = { ...product, variants: [{ ...product.variants[0], pack_size: 6, available: 17 }] };
+    const result = buildWholesaleQuickOrder('RAIN-GRN-M,3', [packProduct], {}, 'pack');
+
+    expect(result.items[0]).toMatchObject({ qty: 12, pack_size: 6 });
+    expect(result.adjustedLines).toBe(1);
+  });
 });

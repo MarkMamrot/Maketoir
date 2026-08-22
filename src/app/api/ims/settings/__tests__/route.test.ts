@@ -107,6 +107,8 @@ describe('/api/ims/settings loyalty settings', () => {
       wholesale_staff_preview_mode: 'read_only',
       wholesale_product_image_fit: 'cover',
       wholesale_product_image_ratio: 'landscape',
+      wholesale_order_quantity_mode: 'individual',
+      wholesale_catalogue_order_view: 'quick_order',
     });
   });
 
@@ -121,12 +123,16 @@ describe('/api/ims/settings loyalty settings', () => {
       wholesale_staff_preview_mode: ' IMS_DRAFT_TEST ',
       wholesale_product_image_fit: 'contain',
       wholesale_product_image_ratio: 'square',
+      wholesale_order_quantity_mode: 'pack',
+      wholesale_catalogue_order_view: 'storefront',
     }));
     expect(response.status).toBe(200);
     expect(mockImsExecute.mock.calls.map(call => call[1])).toEqual([
       ['business-1', 'wholesale_staff_preview_mode', 'ims_draft_test'],
       ['business-1', 'wholesale_product_image_fit', 'contain'],
       ['business-1', 'wholesale_product_image_ratio', 'square'],
+      ['business-1', 'wholesale_order_quantity_mode', 'pack'],
+      ['business-1', 'wholesale_catalogue_order_view', 'storefront'],
     ]);
   });
 });

@@ -15,6 +15,7 @@ import { WholesaleOrdersView, type WholesaleOrderLine } from './components/Whole
 import { WholesaleCartPanel, type WholesaleCartItem } from './components/WholesaleCartPanel';
 import { WholesaleQuickOrderPanel } from './components/WholesaleQuickOrderPanel';
 import { WholesaleProductDetail } from './components/WholesaleProductDetail';
+import { WholesaleQuantityAdd } from './components/WholesaleQuantityAdd';
 import {
   WholesaleSavedListsView,
   type WholesaleSavedList,
@@ -23,12 +24,15 @@ import {
 import catalogueStyles from './WholesaleCatalogue.module.css';
 import {
   DEFAULT_WHOLESALE_PORTAL_SETTINGS,
+  type WholesaleCatalogueOrderView,
+  type WholesaleOrderQuantityMode,
   type WholesaleProductImageFit,
   type WholesaleProductImageRatio,
 } from '@/lib/wholesale/wholesalePortalSettings';
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import { WholesaleLayoutCanvasSample } from './components/layout/WholesaleLayoutCanvasSample';
 import { WholesaleLayoutPageRenderer } from './components/layout/WholesaleLayoutPageRenderer';
+import { wholesaleEntryQuantityToUnits } from '@/lib/wholesale/wholesaleOrderQuantity';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -126,7 +130,7 @@ function Tooltip({ text, children }: { text: string; children: React.ReactNode }
 // Product Card
 // ─────────────────────────────────────────────────────────────────────────────
 function ProductCard({
-  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense, imageFit, imageRatio,
+  product, onAdd, cartQtyMap, favouriteVariantIds, onToggleFavourite, onOpen, dense, imageFit, imageRatio, quantityMode, orderView,
 }: {
   product: WholesaleProduct;
   onAdd: (item: Omit<CartItem, 'is_indent' | 'indent_qty'>) => void;
@@ -137,6 +141,8 @@ function ProductCard({
   dense: boolean;
   imageFit: WholesaleProductImageFit;
   imageRatio: WholesaleProductImageRatio;
+  quantityMode: WholesaleOrderQuantityMode;
+  orderView: WholesaleCatalogueOrderView;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -172,6 +178,15 @@ function ProductCard({
 
       {/* Variants */}
       <div style={{ padding: '6px 14px 14px' }}>
+        {orderView === 'storefront' ? (
+          <div style={{ display: 'grid', gap: 9 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <strong style={{ color: '#1e293b', fontSize: 14 }}>From {fmtCurrency(Math.min(...product.variants.map(variant => Number(variant.price_wholesale))))}</strong>
+              <span style={{ color: '#718078', fontSize: 10 }}>{product.variants.length} option{product.variants.length === 1 ? '' : 's'}</span>
+            </div>
+            <button type="button" onClick={onOpen} style={{ width: '100%', minHeight: 36, border: '1px solid #267653', borderRadius: 4, background: '#fff', color: '#267653', cursor: 'pointer', fontSize: 12, fontWeight: 800 }}>View options</button>
+          </div>
+        ) : <>
         {(expanded ? product.variants : product.variants.slice(0, 3)).map(v => {
           const lbl = variantLabel(v);
           const inCart  = cartQtyMap[v.variant_id] ?? 0;
@@ -202,12 +217,7 @@ function ProductCard({
               {isOos ? (
                 <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, padding: '3px 7px', border: '1px solid #fecaca', borderRadius: 6 }}>Out of Stock</span>
               ) : (
-                <button
-                  onClick={() => onAdd({ variant_id: v.variant_id, product_id: product.product_id, product_name: product.name, variant_label: lbl, sku: v.sku, qty: 1, unit_price: v.price_wholesale, available: v.available, allow_indent: !!product.allow_indent_wholesale })}
-                  style={{ padding: '5px 10px', fontSize: 12, fontWeight: 600, borderRadius: 7, background: inCart > 0 ? '#dbeafe' : '#2563eb', color: inCart > 0 ? '#1d4ed8' : '#fff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-                >
-                  {inCart > 0 ? `In Cart (${inCart})` : '+ Add'}
-                </button>
+                <WholesaleQuantityAdd productName={product.name} variantLabel={lbl} packSize={v.pack_size} available={v.available} allowIndent={!!product.allow_indent_wholesale} quantityMode={quantityMode} inCart={inCart} compact onAdd={qty => onAdd({ variant_id: v.variant_id, product_id: product.product_id, product_name: product.name, variant_label: lbl, sku: v.sku, qty, pack_size: v.pack_size, unit_price: v.price_wholesale, available: v.available, allow_indent: !!product.allow_indent_wholesale })} />
               )}
             </div>
           );
@@ -217,6 +227,7 @@ function ProductCard({
             {expanded ? '↑ Show less' : `+ ${product.variants.length - 3} more variant${product.variants.length - 3 > 1 ? 's' : ''}`}
           </button>
         )}
+        </>}
       </div>
     </article>
   );
@@ -251,6 +262,8 @@ export default function WholesalePortalClient({
   const [browseMode, setBrowseMode]   = useState<'category' | 'product_type'>('category');
   const [imageFit, setImageFit] = useState<WholesaleProductImageFit>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageFit);
   const [imageRatio, setImageRatio] = useState<WholesaleProductImageRatio>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.productImageRatio);
+  const [quantityMode, setQuantityMode] = useState<WholesaleOrderQuantityMode>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.orderQuantityMode);
+  const [orderView, setOrderView] = useState<WholesaleCatalogueOrderView>(DEFAULT_WHOLESALE_PORTAL_SETTINGS.catalogueOrderView);
 
   useEffect(() => {
     fetch('/api/wholesale/settings').then(r => r.json()).then(d => {
@@ -258,6 +271,8 @@ export default function WholesalePortalClient({
         setBrowseMode(d.data.wholesale_browse_mode === 'product_type' ? 'product_type' : 'category');
         setImageFit(d.data.productImageFit === 'contain' ? 'contain' : 'cover');
         setImageRatio(['square', 'portrait'].includes(d.data.productImageRatio) ? d.data.productImageRatio : 'landscape');
+        setQuantityMode(d.data.orderQuantityMode === 'pack' ? 'pack' : 'individual');
+        setOrderView(d.data.catalogueOrderView === 'storefront' ? 'storefront' : 'quick_order');
       }
     }).catch(() => {});
   }, []);
@@ -368,9 +383,10 @@ export default function WholesalePortalClient({
     if (session.preview && !canTestCheckout) { showToast('Staff preview is read-only.'); return; }
     setCartItems(prev => {
       const ex = prev.find(i => i.variant_id === item.variant_id);
-      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + 1 : Math.min(i.qty + 1, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
-      const indentQty = Math.max(0, 1 - item.available);
-      return [...prev, { ...item, qty: 1, indent_qty: indentQty, is_indent: indentQty > 0 }];
+      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + item.qty : Math.min(i.qty + item.qty, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
+      const qty = item.allow_indent ? item.qty : Math.min(item.qty, item.available);
+      const indentQty = Math.max(0, qty - item.available);
+      return [...prev, { ...item, qty, indent_qty: indentQty, is_indent: indentQty > 0 }];
     });
     showToast(`Added: ${item.product_name} — ${item.variant_label}`);
   };
@@ -566,7 +582,8 @@ export default function WholesalePortalClient({
         product_name: product.name,
         variant_label: variantLabel(variant),
         sku: variant.sku,
-        qty: 1,
+        qty: wholesaleEntryQuantityToUnits(1, variant.pack_size, quantityMode),
+        pack_size: variant.pack_size,
         unit_price: variant.price_wholesale,
         available: variant.available,
         allow_indent: !!product.allow_indent_wholesale,
@@ -723,6 +740,7 @@ export default function WholesalePortalClient({
           isTestCheckout={canTestCheckout}
           layoutSections={effectiveLayout.pages.cart.sections}
           featuredProducts={allProducts}
+          quantityMode={quantityMode}
         />
       )}
 
@@ -730,6 +748,7 @@ export default function WholesalePortalClient({
         <WholesaleQuickOrderPanel
           products={allProducts}
           existingQuantities={cartQtyMap}
+          quantityMode={quantityMode}
           onAdd={handleQuickOrderAdd}
           onClose={() => setQuickOrderOpen(false)}
         />
@@ -740,16 +759,18 @@ export default function WholesalePortalClient({
           product={selectedProduct}
           imageFit={imageFit}
           imageRatio={imageRatio}
+          quantityMode={quantityMode}
           favouriteVariantIds={favouriteVariantIds}
           cartQuantities={cartQtyMap}
           onToggleFavourite={variantId => void handleToggleFavourite(variantId)}
-          onAdd={(variant, label) => handleAddToCart({
+          onAdd={(variant, label, quantity) => handleAddToCart({
             variant_id: variant.variant_id,
             product_id: selectedProduct.product_id,
             product_name: selectedProduct.name,
             variant_label: label,
             sku: variant.sku,
-            qty: 1,
+            qty: quantity,
+            pack_size: variant.pack_size,
             unit_price: variant.price_wholesale,
             available: variant.available,
             allow_indent: !!selectedProduct.allow_indent_wholesale,
@@ -916,7 +937,7 @@ export default function WholesalePortalClient({
                     {activeFilter !== '__all' && ` · ${activeFilter.split('||').join(' › ')}`}
                   </div>
                   <div className={catalogueViewMode === 'grid' ? catalogueStyles.productGrid : catalogueStyles.productList}>
-                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} imageFit={imageFit} imageRatio={imageRatio} />)}
+                    {filteredProducts.map(p => <ProductCard key={p.product_id} product={p} onAdd={handleAddToCart} cartQtyMap={cartQtyMap} favouriteVariantIds={favouriteVariantIds} onToggleFavourite={variantId => void handleToggleFavourite(variantId)} onOpen={() => setSelectedProduct(p)} dense={catalogueViewMode === 'list'} imageFit={imageFit} imageRatio={imageRatio} quantityMode={quantityMode} orderView={orderView} />)}
                   </div>
                 </>
               )}

@@ -909,7 +909,12 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
   ];
   const dashboardSalesRows = (salesData?.channelData as any[]) ?? [];
   const brandChartData = (salesData?.brandData as Array<{ name: string; sales: number }>) ?? [];
-  const productInsights = (salesData?.productInsights as { top?: DashboardProductInsight[]; slow?: DashboardProductInsight[] } | undefined) ?? {};
+  const productInsights = (salesData?.productInsights as {
+    top?: DashboardProductInsight[];
+    slow?: DashboardProductInsight[];
+    byQty?: { top?: DashboardProductInsight[]; slow?: DashboardProductInsight[] };
+    byValue?: { top?: DashboardProductInsight[]; slow?: DashboardProductInsight[] };
+  } | undefined) ?? {};
   const brandMax = brandChartData.reduce((max, brand) => Math.max(max, brand.sales), 0);
   const periodLabel = salesWindow === 'today' ? 'Today' : salesWindow === 'yesterday' ? 'Yesterday' : salesWindow === '365' ? 'Last year' : `Last ${salesWindow} days`;
   const visibleSalesBarCount = dashboardSalesRows.filter(row => Number(row?.total ?? 0) > 0).length;
@@ -1579,8 +1584,10 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               )}
             </div>
             <DashboardProductInsights
-              top={productInsights.top ?? []}
-              slow={productInsights.slow ?? []}
+              top={productInsights.byQty?.top ?? productInsights.top ?? []}
+              slow={productInsights.byQty?.slow ?? productInsights.slow ?? []}
+              valueTop={productInsights.byValue?.top ?? []}
+              valueSlow={productInsights.byValue?.slow ?? []}
               periodLabel={periodLabel}
               loading={salesLoading}
             />
@@ -25297,6 +25304,8 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
       wholesale_staff_preview_mode:  'read_only',
       wholesale_product_image_fit:   'cover',
       wholesale_product_image_ratio: 'landscape',
+      wholesale_order_quantity_mode: 'individual',
+      wholesale_catalogue_order_view: 'quick_order',
       ...settings,
     });
   }, [settings]);
@@ -25347,6 +25356,25 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
           <div><label style={lbl}>Product Image Scale</label><select value={draft.wholesale_product_image_fit ?? 'cover'} onChange={sd('wholesale_product_image_fit')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="cover">Fill frame (crop)</option><option value="contain">Fit whole image</option></select></div>
           <div><label style={lbl}>Product Image Frame</label><select value={draft.wholesale_product_image_ratio ?? 'landscape'} onChange={sd('wholesale_product_image_ratio')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}><option value="landscape">Landscape 4:3</option><option value="square">Square 1:1</option><option value="portrait">Portrait 4:5</option></select></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 16 }}>
+          <div>
+            <label style={lbl}>Order Quantities</label>
+            <select value={draft.wholesale_order_quantity_mode ?? 'individual'} onChange={sd('wholesale_order_quantity_mode')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}>
+              <option value="individual">Individual units</option>
+              <option value="pack">Whole packs</option>
+            </select>
+            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.45 }}>Pack entries are converted to units using each variant&apos;s pack size.</p>
+          </div>
+          <div>
+            <label style={lbl}>Catalogue Ordering</label>
+            <select value={draft.wholesale_catalogue_order_view ?? 'quick_order'} onChange={sd('wholesale_catalogue_order_view')} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13, width: '100%' }}>
+              <option value="quick_order">Order from product cards</option>
+              <option value="storefront">Open product to order</option>
+            </select>
+            <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.45 }}>Storefront mode keeps catalogue cards browse-only and orders from product detail.</p>
+          </div>
         </div>
       </div>
 

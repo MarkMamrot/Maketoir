@@ -12,6 +12,7 @@ interface WholesaleReorderVariant {
   option3_value: string | null;
   price_wholesale: number;
   available: number;
+  pack_size?: number | null;
 }
 
 interface WholesaleReorderProduct {
@@ -33,6 +34,7 @@ export interface WholesaleReorderCartItem {
   allow_indent: boolean;
   is_indent: boolean;
   indent_qty: number;
+  pack_size?: number | null;
 }
 
 export interface WholesaleReorderResult {
@@ -84,6 +86,7 @@ export function buildWholesaleReorderCart(
       allow_indent: allowIndent,
       is_indent: indentQty > 0,
       indent_qty: indentQty,
+      pack_size: live.variant.pack_size,
     }];
   });
 

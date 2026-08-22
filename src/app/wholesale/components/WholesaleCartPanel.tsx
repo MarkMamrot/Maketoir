@@ -5,6 +5,8 @@ import { ArrowLeft, Check, FileText, MapPin, Minus, PackageCheck, Plus, Save, Se
 import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/wholesaleAccountProfile';
 import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
 import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
+import { wholesaleEntryQuantityToUnits, wholesalePackSize, wholesaleUnitsToEntryQuantity } from '@/lib/wholesale/wholesaleOrderQuantity';
+import type { WholesaleOrderQuantityMode } from '@/lib/wholesale/wholesalePortalSettings';
 import styles from './WholesaleCartPanel.module.css';
 
 export interface WholesaleCartItem {
@@ -19,6 +21,7 @@ export interface WholesaleCartItem {
   allow_indent: boolean;
   is_indent: boolean;
   indent_qty: number;
+  pack_size?: number | null;
 }
 
 type CartStep = 'cart' | 'review' | 'complete';
@@ -54,6 +57,7 @@ export function WholesaleCartPanel({
   isTestCheckout = false,
   layoutSections,
   featuredProducts,
+  quantityMode,
 }: {
   items: WholesaleCartItem[];
   notes: string;
@@ -70,6 +74,7 @@ export function WholesaleCartPanel({
   isTestCheckout?: boolean;
   layoutSections: WholesaleLayoutSection[];
   featuredProducts: WholesaleLayoutFeaturedProduct[];
+  quantityMode: WholesaleOrderQuantityMode;
 }) {
   const [step, setStep] = useState<CartStep>('cart');
   const [submittedNumber, setSubmittedNumber] = useState('');
@@ -113,28 +118,34 @@ export function WholesaleCartPanel({
               <>
                 {items.length === 0 ? (
                   <div className={styles.empty}><ShoppingCart size={30} /><strong>Your cart is empty</strong></div>
-                ) : items.map(item => (
+                ) : items.map(item => {
+                  const packSize = quantityMode === 'pack' ? wholesalePackSize(item.pack_size) : 1;
+                  const entryQuantity = wholesaleUnitsToEntryQuantity(item.qty, item.pack_size, quantityMode);
+                  const maximum = item.allow_indent ? undefined : Math.floor(item.available / packSize);
+                  const setEntryQuantity = (value: number) => onQtyChange(item.variant_id, wholesaleEntryQuantityToUnits(Math.max(1, maximum === undefined ? value : Math.min(value, maximum)), item.pack_size, quantityMode));
+                  return (
                   <div className={styles.item} key={item.variant_id}>
                     <div className={styles.itemInfo}>
                       <strong>{item.product_name}</strong>
                       <span>{[item.variant_label, item.sku].filter(Boolean).join(' | ') || 'Standard'}</span>
                       {item.indent_qty > 0 && <small>{item.indent_qty} on indent</small>}
-                      <div>{currency(item.unit_price)} each</div>
+                      <div>{currency(item.unit_price)} each{quantityMode === 'pack' && packSize > 1 ? ` · ${packSize} per pack` : ''}</div>
                     </div>
                     <div className={styles.itemControls}>
                       <button className={styles.removeButton} onClick={() => onRemove(item.variant_id)} aria-label={`Remove ${item.product_name}`} title="Remove"><Trash2 size={15} /></button>
                       <div className={styles.quantity}>
-                        <button onClick={() => onQtyChange(item.variant_id, Math.max(1, item.qty - 1))} aria-label={`Decrease ${item.product_name}`}><Minus size={14} /></button>
-                        <input aria-label={`${item.product_name} quantity`} type="number" min={1} max={item.allow_indent ? undefined : (item.available || undefined)} value={item.qty} onChange={event => {
+                        <button onClick={() => setEntryQuantity(entryQuantity - 1)} aria-label={`Decrease ${item.product_name}`}><Minus size={14} /></button>
+                        <input aria-label={`${item.product_name} quantity${quantityMode === 'pack' && packSize > 1 ? ' in packs' : ''}`} type="number" min={1} max={maximum} value={entryQuantity} onChange={event => {
                           const quantity = Math.max(1, Number.parseInt(event.target.value, 10) || 1);
-                          onQtyChange(item.variant_id, item.allow_indent ? quantity : Math.min(quantity, item.available));
+                          setEntryQuantity(quantity);
                         }} />
-                        <button onClick={() => onQtyChange(item.variant_id, item.allow_indent ? item.qty + 1 : Math.min(item.qty + 1, item.available))} aria-label={`Increase ${item.product_name}`}><Plus size={14} /></button>
+                        <button onClick={() => setEntryQuantity(entryQuantity + 1)} aria-label={`Increase ${item.product_name}`}><Plus size={14} /></button>
                       </div>
                       <strong>{currency(item.qty * item.unit_price)}</strong>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 <label className={styles.notes}>
                   <span><FileText size={14} /> Order notes</span>
                   <textarea value={notes} onChange={event => onNotesChange(event.target.value)} rows={3} maxLength={2000} placeholder="Delivery instructions or purchase reference" />

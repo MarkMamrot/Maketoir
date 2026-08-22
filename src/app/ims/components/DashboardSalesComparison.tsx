@@ -35,6 +35,18 @@ function formatDateRange(from: string, to: string): string {
   return from === to ? format(from) : `${format(from)} - ${format(to)}`;
 }
 
+function formatCompactDateRange(from: string, to: string): string {
+  const format = (value: string, includeYear: boolean) => new Date(`${value}T00:00:00Z`).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: includeYear ? 'numeric' : undefined,
+    timeZone: 'UTC',
+  });
+  if (from === to) return format(from, true);
+  const sameYear = from.slice(0, 4) === to.slice(0, 4);
+  return `${format(from, !sameYear)} - ${format(to, true)}`;
+}
+
 export function DashboardSalesComparison() {
   const [mode, setMode] = useState<DashboardComparisonMode>('prior_period');
   const [data, setData] = useState<ComparisonResponse | null>(null);
@@ -59,12 +71,13 @@ export function DashboardSalesComparison() {
         .dashboard-sales-comparison__kicker { margin:0 0 2px; color:var(--sv-action); font-size:9px; font-weight:800; letter-spacing:0; text-transform:uppercase; }
         .dashboard-sales-comparison__modes { display:flex; align-items:center; gap:3px; padding:3px; border:1px solid var(--sv-etch); border-radius:7px; background:var(--sv-bg-2); }
         .dashboard-sales-comparison__mode { min-height:28px; padding:4px 10px; border:0; border-radius:5px; cursor:pointer; font-size:11px; font-weight:700; transition:background-color .15s, color .15s, box-shadow .15s; }
-        .dashboard-sales-comparison__columns, .dashboard-sales-comparison__row { display:grid; grid-template-columns:82px minmax(190px,.8fr) minmax(280px,620px) 104px; align-items:center; justify-content:space-between; gap:14px; }
+        .dashboard-sales-comparison__columns, .dashboard-sales-comparison__row { display:grid; grid-template-columns:128px minmax(190px,.8fr) minmax(280px,620px) 104px; align-items:center; justify-content:space-between; gap:14px; }
         .dashboard-sales-comparison__columns { padding:7px 16px; color:var(--sv-text-dim); font-size:9px; font-weight:800; letter-spacing:0; text-transform:uppercase; background:color-mix(in srgb, var(--sv-bg-1) 68%, var(--sv-bg-2)); }
         .dashboard-sales-comparison__columns span:last-child { text-align:right; }
         .dashboard-sales-comparison__row { min-height:56px; padding:8px 16px; border-top:1px solid var(--sv-etch); transition:background-color .15s; }
         .dashboard-sales-comparison__row:hover { background:color-mix(in srgb, var(--sv-action) 3%, transparent); }
-        .dashboard-sales-comparison__period { display:inline-flex; width:max-content; align-items:center; min-height:24px; padding:0 7px; border:1px solid var(--sv-etch); border-radius:4px; background:var(--sv-bg-1); color:var(--sv-text-strong); font-size:11px; font-weight:800; }
+        .dashboard-sales-comparison__period { display:flex; flex-direction:column; align-items:flex-start; min-width:0; color:var(--sv-text-strong); font-size:11px; font-weight:800; }
+        .dashboard-sales-comparison__period-range { margin-top:2px; color:var(--sv-text-dim); font-size:9px; font-weight:500; line-height:1.25; }
         .dashboard-sales-comparison__amounts { display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; }
         .dashboard-sales-comparison__bar { position:relative; width:100%; height:18px; display:grid; grid-template-columns:1fr 1fr; border-radius:4px; background:color-mix(in srgb, var(--sv-bg-1) 86%, transparent); overflow:hidden; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--sv-etch) 55%, transparent); }
         .dashboard-sales-comparison__bar::after { content:''; position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--sv-text-dim); opacity:.58; }
@@ -74,7 +87,7 @@ export function DashboardSalesComparison() {
           .dashboard-sales-comparison__modes { width:100%; }
           .dashboard-sales-comparison__mode { flex:1; }
           .dashboard-sales-comparison__columns { display:none; }
-          .dashboard-sales-comparison__row { grid-template-columns:68px 1fr auto; gap:7px 10px; padding:11px 12px; }
+          .dashboard-sales-comparison__row { grid-template-columns:92px 1fr auto; gap:7px 10px; padding:11px 12px; }
           .dashboard-sales-comparison__amounts { grid-column:2 / 4; grid-row:2; }
           .dashboard-sales-comparison__bar { grid-column:1 / 4; grid-row:3; margin-top:4px; }
           .dashboard-sales-comparison__change { grid-column:3; grid-row:1; min-width:0; }
@@ -130,10 +143,16 @@ export function DashboardSalesComparison() {
 
             return (
               <div className="dashboard-sales-comparison__row" key={row.days} title={tooltip}>
-                <div className="dashboard-sales-comparison__period">{row.label}</div>
+                <div className="dashboard-sales-comparison__period">
+                  <span>{row.days === 1 ? 'Today so far' : row.label}</span>
+                  {row.days > 1 && <span className="dashboard-sales-comparison__period-range">{formatCompactDateRange(row.current.from, row.current.to)}</span>}
+                </div>
                 <div className="dashboard-sales-comparison__amounts">
                   <span style={{ color: 'var(--sv-text-strong)', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(row.current.sales)}</span>
-                  <span style={{ color: 'var(--sv-text-dim)', fontSize: 10, whiteSpace: 'nowrap' }}>compared with <strong style={{ color: 'var(--sv-text-main)', fontWeight: 650 }}>{formatCurrency(row.comparison.sales)}</strong></span>
+                  <span style={{ color: 'var(--sv-text-dim)', fontSize: 10 }}>
+                    {row.days === 1 && mode === 'prior_period' ? 'Yesterday' : MODE_LABELS[mode]} <strong style={{ color: 'var(--sv-text-main)', fontWeight: 650 }}>{formatCurrency(row.comparison.sales)}</strong>
+                    {row.days > 1 && <span style={{ marginLeft: 5, fontSize: 9, opacity: .82 }}>({formatCompactDateRange(row.comparison.from, row.comparison.to)})</span>}
+                  </span>
                 </div>
                 <div className="dashboard-sales-comparison__bar" aria-label={`${percentLabel} compared with ${MODE_LABELS[mode]}`}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' }}>

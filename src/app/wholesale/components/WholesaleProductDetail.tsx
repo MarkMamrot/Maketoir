@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Heart, ShoppingCart, X } from 'lucide-react';
+import { Heart, X } from 'lucide-react';
 import styles from './WholesaleProductDetail.module.css';
 import type { WholesaleProductImageFit, WholesaleProductImageRatio } from '@/lib/wholesale/wholesalePortalSettings';
 import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
 import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
+import { WholesaleQuantityAdd } from './WholesaleQuantityAdd';
+import type { WholesaleOrderQuantityMode } from '@/lib/wholesale/wholesalePortalSettings';
 
 type DetailVariant = {
   variant_id: string;
@@ -46,17 +48,19 @@ export function WholesaleProductDetail({
   onClose,
   layoutSections,
   featuredProducts,
+  quantityMode,
 }: {
   product: WholesaleProductDetailProduct;
   imageFit: WholesaleProductImageFit;
   imageRatio: WholesaleProductImageRatio;
   favouriteVariantIds: Set<string>;
   cartQuantities: Record<string, number>;
-  onAdd: (variant: DetailVariant, variantLabel: string) => void;
+  onAdd: (variant: DetailVariant, variantLabel: string, quantity: number) => void;
   onToggleFavourite: (variantId: string) => void;
   onClose: () => void;
   layoutSections: WholesaleLayoutSection[];
   featuredProducts: WholesaleLayoutFeaturedProduct[];
+  quantityMode: WholesaleOrderQuantityMode;
 }) {
   const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
   const [activeImage, setActiveImage] = useState(images[0] ?? '');
@@ -135,7 +139,7 @@ export function WholesaleProductDetail({
                     <strong>${Number(variant.price_wholesale).toFixed(2)}</strong>
                     <div className={styles.actions}>
                       <button className={styles.iconButton} onClick={() => onToggleFavourite(variant.variant_id)} aria-label={`${favourite ? 'Remove' : 'Add'} ${variantLabel} ${favourite ? 'from' : 'to'} favourites`} title={favourite ? 'Remove favourite' : 'Add favourite'}><Heart size={15} fill={favourite ? 'currentColor' : 'none'} /></button>
-                      <button className={styles.addButton} disabled={!orderable} onClick={() => onAdd(variant, variantLabel)}><ShoppingCart size={15} /> {cartQuantities[variant.variant_id] ? `Add (${cartQuantities[variant.variant_id]})` : 'Add'}</button>
+                      <WholesaleQuantityAdd productName={product.name} variantLabel={variantLabel} packSize={variant.pack_size} available={variant.available} allowIndent={!!product.allow_indent_wholesale} quantityMode={quantityMode} inCart={cartQuantities[variant.variant_id] ?? 0} onAdd={quantity => onAdd(variant, variantLabel, quantity)} />
                     </div>
                   </div>
                 );

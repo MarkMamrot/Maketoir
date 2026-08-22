@@ -11,6 +11,7 @@ function product(variantId: string, unitsSold: number | string, stockOnHand: num
     units_sold: unitsSold as number,
     revenue: '125.50' as unknown as number,
     stock_on_hand: stockOnHand as number,
+    stock_value: Number(stockOnHand) * 10,
   };
 }
 
@@ -51,5 +52,24 @@ describe('buildDashboardProductInsights', () => {
     expect(result.top).toHaveLength(5);
     expect(result.slow).toHaveLength(5);
     expect(result.slow.map(row => row.variant_id)).toEqual(['slow-5', 'slow-4', 'slow-3', 'slow-2', 'slow-1']);
+  });
+
+  it('ranks sales and stock exposure by monetary value when requested', () => {
+    const highQty = { ...product('high-qty', 12, 20), revenue: 120, stock_value: 200 };
+    const highValue = { ...product('high-value', 3, 5), revenue: 900, stock_value: 500 };
+    const valueRisk = { ...product('value-risk', 0, 2), revenue: 0, stock_value: 1200 };
+    const candidates = [
+      valueRisk,
+      ...Array.from({ length: 19 }, (_, index) => ({
+        ...product(`seller-${index}`, index + 1, 100),
+        revenue: index + 1,
+        stock_value: 100,
+      })),
+    ];
+
+    const result = buildDashboardProductInsights([highQty, highValue], candidates, 5, 'value');
+
+    expect(result.top[0].variant_id).toBe('high-value');
+    expect(result.slow[0].variant_id).toBe('value-risk');
   });
 });
