@@ -2,6 +2,7 @@
 
 import { LockKeyhole, Minus, Package, Plus, ShoppingCart } from 'lucide-react';
 import type { WholesaleLayoutPageId, WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutPageRenderer } from './WholesaleLayoutPageRenderer';
 import styles from './WholesaleLayoutCanvasSample.module.css';
 
 type SampleProduct = {
@@ -41,7 +42,7 @@ function variantName(product: SampleProduct, index: number) {
   return variant ? [variant.option1_value, variant.option2_value, variant.option3_value].filter(Boolean).join(' / ') || 'Default' : '';
 }
 
-function LoginSample({ supplierName }: { supplierName: string }) {
+function LoginAccess({ supplierName }: { supplierName: string }) {
   return (
     <div className={styles.loginPage}>
       <section className={styles.loginPanel}>
@@ -55,6 +56,10 @@ function LoginSample({ supplierName }: { supplierName: string }) {
       </section>
     </div>
   );
+}
+
+function LoginSample({ supplierName, sections, products }: { supplierName: string; sections: WholesaleLayoutSection[]; products: SampleProduct[] }) {
+  return <WholesaleLayoutPageRenderer sections={sections} systemSections={{ login_access: <LoginAccess supplierName={supplierName} /> }} products={products} />;
 }
 
 function ProductMedia({ product }: { product: SampleProduct | null }) {
@@ -88,15 +93,11 @@ function ProductVariants({ product }: { product: SampleProduct | null }) {
   );
 }
 
-function ProductSample({ product, sections }: { product: SampleProduct | null; sections: WholesaleLayoutSection[] }) {
-  return <div className={styles.productPage}>{sections.map(section => {
-    if (section.type === 'product_media_description') return <ProductMedia key={section.id} product={product} />;
-    if (section.type === 'product_variants') return <ProductVariants key={section.id} product={product} />;
-    return null;
-  })}</div>;
+function ProductSample({ product, sections, products }: { product: SampleProduct | null; sections: WholesaleLayoutSection[]; products: SampleProduct[] }) {
+  return <div className={styles.productPage}><WholesaleLayoutPageRenderer sections={sections} systemSections={{ product_media_description: <ProductMedia product={product} />, product_variants: <ProductVariants product={product} /> }} products={products} /></div>;
 }
 
-function CartSample({ items }: { items: SampleCartItem[] }) {
+function CartWorkflow({ items }: { items: SampleCartItem[] }) {
   const sampleItems = items.slice(0, 4);
   const subtotal = sampleItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
   return (
@@ -112,14 +113,19 @@ function CartSample({ items }: { items: SampleCartItem[] }) {
   );
 }
 
-export function WholesaleLayoutCanvasSample({ page, supplierName, sections, product, cartItems }: {
+function CartSample({ items, sections, products }: { items: SampleCartItem[]; sections: WholesaleLayoutSection[]; products: SampleProduct[] }) {
+  return <WholesaleLayoutPageRenderer sections={sections} systemSections={{ cart_workflow: <CartWorkflow items={items} /> }} products={products} />;
+}
+
+export function WholesaleLayoutCanvasSample({ page, supplierName, sections, product, products, cartItems }: {
   page: Extract<WholesaleLayoutPageId, 'login' | 'product' | 'cart'>;
   supplierName: string;
   sections: WholesaleLayoutSection[];
   product: SampleProduct | null;
+  products: SampleProduct[];
   cartItems: SampleCartItem[];
 }) {
-  if (page === 'login') return <LoginSample supplierName={supplierName} />;
-  if (page === 'product') return <ProductSample product={product} sections={sections} />;
-  return <CartSample items={cartItems} />;
+  if (page === 'login') return <LoginSample supplierName={supplierName} sections={sections} products={products} />;
+  if (page === 'product') return <ProductSample product={product} sections={sections} products={products} />;
+  return <CartSample items={cartItems} sections={sections} products={products} />;
 }

@@ -1,0 +1,28 @@
+.section { box-sizing: border-box; width: 100%; max-width: 1180px; margin: 0 auto; padding: var(--section-top) 22px var(--section-bottom); }
+.section[data-width='narrow'] { max-width: 760px; }
+.section[data-width='full'] { max-width: none; }
+.section h2 { margin: 0 0 12px; color: inherit; font-size: 26px; letter-spacing: 0; }
+.copy { max-width: 760px; margin-right: auto; margin-left: auto; }
+.section[data-alignment='left'] .copy { margin-left: 0; }
+.section[data-alignment='right'] .copy { margin-right: 0; }
+.richText { color: inherit; font-size: 14px; line-height: 1.65; }
+.richText > :first-child { margin-top: 0; }
+.richText > :last-child { margin-bottom: 0; }
+.richText a { color: #176947; text-decoration: underline; }
+.link { display: inline-flex; margin-top: 16px; padding: 10px 14px; border-radius: 4px; background: #176947; color: #fff; font-size: 12px; font-weight: 800; text-decoration: none; }
+.banner { border-block: 1px solid rgba(40, 70, 52, .16); background: #edf5ef; }
+.section hr { margin: 0; border: 0; border-top: 1px solid #d6ddd8; }
+.image { display: block; width: 100%; overflow: hidden; border-radius: 6px; background: #eef2ef; object-fit: cover; }
+.image[data-ratio='landscape'] { aspect-ratio: 16 / 7; }
+.image[data-ratio='square'] { aspect-ratio: 1; }
+.image[data-ratio='portrait'] { aspect-ratio: 4 / 5; }
+.image[data-fit='contain'] { object-fit: contain; }
+.imagePlaceholder { min-height: 180px; display: grid; place-items: center; border: 1px dashed #acb9b0; border-radius: 6px; background: #f5f7f5; color: #758279; font-size: 12px; }
+.textImage { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr); align-items: center; gap: 34px; }
+.textImage[data-image-side='left'] .copy { order: 2; }
+.textImage[data-image-side='left'] .image, .textImage[data-image-side='left'] .imagePlaceholder { order: 1; }
+.productGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.productGrid article { overflow: hidden; border: 1px solid #dce3de; border-radius: 6px; background: #fff; }
+.productGrid img, .productPlaceholder { width: 100%; aspect-ratio: 4 / 3; display: block; background: #eef2ef; object-fit: contain; }
+.productGrid strong { display: block; padding: 11px; color: #243129; font-size: 12px; }
+@media (max-width: 700px) { .section { padding-right: 14px; padding-left: 14px; } .textImage { grid-template-columns: 1fr; gap: 18px; } .textImage[data-image-side='left'] .copy { order: initial; } .textImage[data-image-side='left'] .image, .textImage[data-image-side='left'] .imagePlaceholder { order: initial; } }

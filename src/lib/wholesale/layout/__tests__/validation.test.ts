@@ -63,6 +63,16 @@ describe('wholesale layout validation', () => {
     expect(settings.productLimit).toBe(12);
   });
 
+  it('sanitizes rich content with an allowlist', () => {
+    const layout = normalizeWholesaleLayoutDocument({
+      schemaVersion: 1,
+      pages: { home: { sections: [{ id: 'text-1', type: 'rich_text', settings: {
+        bodyHtml: '<p onclick="alert(1)">Hello <strong>buyer</strong><script>alert(2)</script><a href="javascript:alert(3)">bad</a><a href="https://example.com">good</a></p>',
+      } }] } },
+    });
+    expect(layout.pages.home.sections[0].settings.bodyHtml).toBe('<p>Hello <strong>buyer</strong><a target="_blank" rel="noopener noreferrer">bad</a><a href="https://example.com" target="_blank" rel="noopener noreferrer">good</a></p>');
+  });
+
   it('falls back completely for unsupported schema versions', () => {
     expect(normalizeWholesaleLayoutDocument({ schemaVersion: 99, pages: {} })).toEqual(createDefaultWholesaleLayout());
   });

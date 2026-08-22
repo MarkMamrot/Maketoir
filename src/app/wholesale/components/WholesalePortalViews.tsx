@@ -8,7 +8,8 @@ import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/
 import type { WholesalePortalView } from './WholesalePortalShell';
 import { WholesaleTeamSection } from './WholesaleTeamSection';
 import styles from './WholesalePortalViews.module.css';
-import type { WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
+import type { WholesaleLayoutSection, WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
 
 export function WholesaleHomeView({
   session,
@@ -18,7 +19,8 @@ export function WholesaleHomeView({
   accountProfile,
   onNavigate,
   onCartOpen,
-  sectionOrder,
+  layoutSections,
+  featuredProducts,
 }: {
   session: WholesaleSession;
   productCount: number;
@@ -27,7 +29,8 @@ export function WholesaleHomeView({
   accountProfile: WholesaleAccountProfile | null;
   onNavigate: (view: WholesalePortalView) => void;
   onCartOpen: () => void;
-  sectionOrder?: WholesaleLayoutSectionType[];
+  layoutSections?: WholesaleLayoutSection[];
+  featuredProducts?: WholesaleLayoutFeaturedProduct[];
 }) {
   const sections: Partial<Record<WholesaleLayoutSectionType, ReactNode>> = {
     home_welcome: (
@@ -67,10 +70,12 @@ export function WholesaleHomeView({
       </div>
     ),
   };
-  const orderedTypes = sectionOrder ?? ['home_welcome', 'home_metrics', 'home_workspace'];
+  const orderedTypes: WholesaleLayoutSectionType[] = ['home_welcome', 'home_metrics', 'home_workspace'];
   return (
     <div className={styles.page}>
-      {orderedTypes.map(type => sections[type] ? <div key={type}>{sections[type]}</div> : null)}
+      {layoutSections
+        ? <WholesaleLayoutPageRenderer sections={layoutSections} systemSections={sections} products={featuredProducts} />
+        : orderedTypes.map(type => sections[type] ? <div key={type}>{sections[type]}</div> : null)}
     </div>
   );
 }

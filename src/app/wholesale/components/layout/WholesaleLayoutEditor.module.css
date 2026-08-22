@@ -7,14 +7,23 @@
 .sectionList { display: grid; gap: 7px; }
 .sectionRow { min-height: 54px; display: grid; grid-template-columns: 32px 1fr auto; align-items: center; gap: 7px; padding: 7px; border: 1px solid #cad4cc; border-radius: 5px; background: #fff; box-shadow: 0 1px 2px rgba(20, 45, 32, .04); }
 .sectionRow[data-dragging] { z-index: 2; border-color: #267653; box-shadow: 0 8px 18px rgba(20, 45, 32, .14); }
+.sectionRow[data-selected] { border-color: #267653; box-shadow: 0 0 0 1px #267653; }
 .dragHandle, .moveButtons button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 3px; background: transparent; color: #69776e; cursor: pointer; }
 .dragHandle { cursor: grab; touch-action: none; }
 .dragHandle:active { cursor: grabbing; }
-.moveButtons { display: flex; }
+.moveButtons { display: grid; grid-template-columns: repeat(2, 30px); }
 .moveButtons button:disabled { cursor: default; opacity: .25; }
-.sectionIdentity { min-width: 0; display: grid; gap: 3px; }
+.sectionIdentity { min-width: 0; display: grid; gap: 3px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .sectionIdentity strong { overflow: hidden; text-overflow: ellipsis; font-size: 12px; white-space: nowrap; }
 .sectionIdentity span { width: max-content; padding: 1px 5px; border: 1px solid #b9d4c4; border-radius: 3px; background: #eef7f1; color: #267653; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.addSection { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #d9dfda; }
+.addSection select, .settings input, .settings textarea, .settings select { width: 100%; min-width: 0; border: 1px solid #bdc8c0; border-radius: 4px; background: #fff; color: #243129; font: 12px/1.4 inherit; }
+.addSection select, .settings input, .settings select { height: 34px; padding: 0 8px; }
+.addSection button { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #267653; border-radius: 4px; background: #fff; color: #267653; font-size: 11px; font-weight: 800; cursor: pointer; }
+.settings { display: grid; gap: 10px; margin-top: 12px; padding: 12px; border: 1px solid #cad4cc; border-radius: 5px; background: #fff; }
+.settings h3 { margin: 0 0 2px; font-size: 13px; }
+.settings label { display: grid; gap: 5px; color: #56635b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.settings textarea { resize: vertical; padding: 8px; }
 .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 12px; border-top: 1px solid #d9dfda; background: #fff; }
 .revisions, .error, .message { grid-column: 1 / -1; font-size: 11px; line-height: 1.45; }
 .revisions { color: #69776e; }

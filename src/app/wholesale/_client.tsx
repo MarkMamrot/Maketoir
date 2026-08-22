@@ -28,6 +28,7 @@ import {
 } from '@/lib/wholesale/wholesalePortalSettings';
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import { WholesaleLayoutCanvasSample } from './components/layout/WholesaleLayoutCanvasSample';
+import { WholesaleLayoutPageRenderer } from './components/layout/WholesaleLayoutPageRenderer';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -678,6 +679,12 @@ export default function WholesalePortalClient({
   const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
   const canvasView = layoutPreviewPage === 'home' ? 'home' : layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection' ? 'catalogue' : view;
   const samplePage = layoutPreviewPage === 'login' || layoutPreviewPage === 'product' || layoutPreviewPage === 'cart' ? layoutPreviewPage : null;
+  const catalogueLayoutPage = layoutPreviewPage === 'collection' ? 'collection' : 'catalogue';
+  const catalogueLayoutSections = layoutPreview && (layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection') ? layoutPreview.pages[catalogueLayoutPage].sections : [];
+  const catalogueBrowserType = layoutPreviewPage === 'collection' ? 'collection_browser' : 'catalogue_browser';
+  const catalogueBrowserIndex = catalogueLayoutSections.findIndex(section => section.type === catalogueBrowserType);
+  const catalogueSectionsBefore = catalogueBrowserIndex >= 0 ? catalogueLayoutSections.slice(0, catalogueBrowserIndex) : [];
+  const catalogueSectionsAfter = catalogueBrowserIndex >= 0 ? catalogueLayoutSections.slice(catalogueBrowserIndex + 1) : [];
 
   return (
     <>
@@ -764,6 +771,7 @@ export default function WholesalePortalClient({
             supplierName={supplier.displayName}
             sections={layoutPreview.pages[samplePage].sections}
             product={selectedProduct || allProducts[0] || null}
+            products={allProducts}
             cartItems={cartItems}
           />
         ) : canvasView === 'home' ? (
@@ -775,7 +783,8 @@ export default function WholesalePortalClient({
             accountProfile={accountProfile}
             onNavigate={handleViewChange}
             onCartOpen={() => setCartOpen(true)}
-            sectionOrder={layoutPreview?.pages.home.sections.map(section => section.type)}
+            layoutSections={layoutPreview?.pages.home.sections}
+            featuredProducts={allProducts}
           />
         ) : canvasView === 'account' ? (
           <WholesaleAccountView
@@ -811,6 +820,7 @@ export default function WholesalePortalClient({
           />
         ) : (
           <>
+          {catalogueSectionsBefore.length > 0 && <WholesaleLayoutPageRenderer sections={catalogueSectionsBefore} systemSections={{}} products={allProducts} />}
           {layoutPreviewPage === 'collection' && (
             <header style={{ maxWidth: 1180, margin: '0 auto 22px', paddingBottom: 20, borderBottom: '1px solid #d9dfda' }}>
               <p style={{ margin: '0 0 7px', color: '#267653', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>Category / Subcategory template</p>
@@ -892,6 +902,7 @@ export default function WholesalePortalClient({
               )}
             </div>
           </div>
+          {catalogueSectionsAfter.length > 0 && <WholesaleLayoutPageRenderer sections={catalogueSectionsAfter} systemSections={{}} products={allProducts} />}
           </>
         )}
       </WholesalePortalShell>

@@ -1,3 +1,4 @@
+import sanitizeHtml from 'sanitize-html';
 import { getWholesaleLayoutSectionDefinition, WHOLESALE_LAYOUT_SECTION_REGISTRY } from './registry';
 import {
   WHOLESALE_LAYOUT_PAGE_IDS,
@@ -61,6 +62,20 @@ function validColor(value: unknown): string | undefined {
   return color && /^(#[0-9a-f]{3,8}|rgb\([\d\s,.%]+\)|rgba\([\d\s,.%]+\))$/i.test(color) ? color : undefined;
 }
 
+function safeBodyHtml(value: unknown): string | undefined {
+  const html = boundedString(value, 20_000);
+  if (!html) return undefined;
+  return sanitizeHtml(html, {
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'h2', 'h3', 'h4', 'a'],
+    allowedAttributes: { a: ['href', 'target', 'rel'] },
+    allowedSchemes: ['https', 'mailto'],
+    allowProtocolRelative: false,
+    transformTags: {
+      a: (_tagName, attributes) => ({ tagName: 'a', attribs: { ...attributes, target: '_blank', rel: 'noopener noreferrer' } }),
+    },
+  });
+}
+
 function normalizeSettings(raw: unknown, defaults: WholesaleLayoutSectionSettings): WholesaleLayoutSectionSettings {
   const value = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
   const settings: WholesaleLayoutSectionSettings = { ...defaults };
@@ -74,7 +89,7 @@ function normalizeSettings(raw: unknown, defaults: WholesaleLayoutSectionSetting
   settings.backgroundColor = validColor(value.backgroundColor);
   settings.textColor = validColor(value.textColor);
   settings.heading = boundedString(value.heading, 255);
-  settings.bodyHtml = boundedString(value.bodyHtml, 20_000);
+  settings.bodyHtml = safeBodyHtml(value.bodyHtml);
   settings.imageUrl = validUrl(value.imageUrl);
   settings.assetId = boundedString(value.assetId, 64);
   settings.altText = boundedString(value.altText, 500);
