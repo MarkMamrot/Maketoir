@@ -8,6 +8,7 @@ import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -5210,7 +5211,12 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
           const rec = (d.reconciliations ?? []).find((r: any) => r.payment_method === m);
           init[m] = {
             counted:      rec?.counted_amount != null ? String(rec.counted_amount) : '',
-            openingFloat: rec?.opening_float  != null ? String(rec.opening_float)  : (m === 'Cash' ? String(floatDefault) : '0'),
+            openingFloat: String(resolveEodOpeningFloat({
+              paymentMethod: m,
+              savedOpeningFloat: rec?.opening_float,
+              sessionOpeningFloat: regSession?.opening_float,
+              defaultOpeningFloat: floatDefault,
+            })),
             denominations: rec?.denomination_data ?? {},
             notes:         rec?.notes ?? '',
             showDenom:     false,
@@ -5238,7 +5244,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
         setXeroInvoiceIds(ids);
       })
       .finally(() => setLoading(false));
-  }, [date, methods, session.location_id, regSession?.id, regSessionLoading]);
+  }, [date, methods, session.location_id, regSession?.id, regSession?.opening_float, regSessionLoading, defaultFloat]);
 
   function updateEntry(method: string, key: keyof EodEntryState, value: string | boolean | Record<string, string>) {
     setEntries(prev => {

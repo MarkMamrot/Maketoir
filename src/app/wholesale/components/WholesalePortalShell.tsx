@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   BookOpen,
   Bookmark,
@@ -102,6 +102,7 @@ export function WholesalePortalShell({
   const [layoutViewport, setLayoutViewport] = useState<'desktop' | 'mobile'>('desktop');
   const [layoutEditorPage, setLayoutEditorPage] = useState<WholesaleLayoutPageId>('home');
   const [online, setOnline] = useState(true);
+  const layoutCanvasRef = useRef<HTMLElement>(null);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
   const buyingLocation = locationName || 'Buying location';
@@ -117,6 +118,10 @@ export function WholesalePortalShell({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  useEffect(() => {
+    if (layoutCanvasRef.current) layoutCanvasRef.current.inert = layoutEditorOpen;
+  }, [layoutEditorOpen]);
 
   const changeView = (nextView: WholesalePortalView) => {
     setDrawerOpen(false);
@@ -235,7 +240,7 @@ export function WholesalePortalShell({
           </div>
         </aside>
         <div className={layoutEditorOpen ? styles.canvasStage : styles.canvasStageLive} data-viewport={layoutEditorOpen ? layoutViewport : undefined}>
-          <main className={styles.content} aria-label={layoutEditorOpen ? `${layoutViewport === 'mobile' ? 'Mobile' : 'Desktop'} layout preview canvas` : undefined}>{children}</main>
+          <main ref={layoutCanvasRef} className={styles.content} aria-label={layoutEditorOpen ? `${layoutViewport === 'mobile' ? 'Mobile' : 'Desktop'} layout preview canvas` : undefined}>{children}</main>
         </div>
       </div>
 
