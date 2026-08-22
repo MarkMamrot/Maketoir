@@ -285,6 +285,7 @@ export default function WholesalePortalClient({
   const [view, setView]               = useState<WholesalePortalView>(initialView);
   const [layoutPreview, setLayoutPreview] = useState<WholesaleLayoutDocument | null>(null);
   const [layoutPreviewPage, setLayoutPreviewPage] = useState<WholesaleLayoutPageId | null>(null);
+  const [layoutSampleProductId, setLayoutSampleProductId] = useState('');
   const [activeFilter, setActiveFilter] = useState<string>('__all');
   const [accountProfile, setAccountProfile] = useState<WholesaleAccountProfile | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
@@ -677,6 +678,12 @@ export default function WholesalePortalClient({
       ]).filter((option, index, options) => options.findIndex(candidate => candidate.id === option.id) === index)
     : productTypes.map(type => ({ id: type, label: type }));
 
+  const layoutSampleProduct = allProducts.find(product => product.product_id === layoutSampleProductId) || allProducts[0] || null;
+  const handleLayoutPageChange = (page: WholesaleLayoutPageId | null) => {
+    setLayoutPreviewPage(page);
+    if (page === 'collection' && activeFilter === '__all' && browseOptions[0]) setActiveFilter(browseOptions[0].id);
+  };
+
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
   const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
   const effectiveLayout = layoutPreview ?? publishedLayout;
@@ -770,15 +777,20 @@ export default function WholesalePortalClient({
         onLocationChange={handleLocationChange}
         onLogout={handleLogout}
         onLayoutPreviewChange={setLayoutPreview}
-        onLayoutPageChange={setLayoutPreviewPage}
+        onLayoutPageChange={handleLayoutPageChange}
         layoutProducts={allProducts}
+        layoutProductId={layoutSampleProduct?.product_id}
+        onLayoutProductChange={setLayoutSampleProductId}
+        layoutCollectionId={activeFilter}
+        layoutCollections={browseOptions}
+        onLayoutCollectionChange={setActiveFilter}
       >
         {samplePage && layoutPreview ? (
           <WholesaleLayoutCanvasSample
             page={samplePage}
             supplierName={supplier.displayName}
             sections={layoutPreview.pages[samplePage].sections}
-            product={selectedProduct || allProducts[0] || null}
+            product={layoutSampleProduct}
             products={allProducts}
             cartItems={cartItems}
           />

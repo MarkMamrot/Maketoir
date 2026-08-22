@@ -63,6 +63,11 @@ export function WholesalePortalShell({
   onLayoutPreviewChange,
   onLayoutPageChange,
   layoutProducts,
+  layoutProductId,
+  onLayoutProductChange,
+  layoutCollectionId,
+  layoutCollections,
+  onLayoutCollectionChange,
 }: {
   supplier: WholesaleSupplierProfile;
   session: WholesaleSession;
@@ -83,6 +88,11 @@ export function WholesalePortalShell({
   onLayoutPreviewChange?: (document: WholesaleLayoutDocument | null) => void;
   onLayoutPageChange?: (page: WholesaleLayoutPageId | null) => void;
   layoutProducts?: Array<{ product_id: string; name: string }>;
+  layoutProductId?: string;
+  onLayoutProductChange?: (productId: string) => void;
+  layoutCollectionId?: string;
+  layoutCollections?: Array<{ id: string; label: string }>;
+  onLayoutCollectionChange?: (collectionId: string) => void;
 }) {
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
@@ -90,6 +100,7 @@ export function WholesalePortalShell({
   const [layoutEditorOpen, setLayoutEditorOpen] = useState(isPreview);
   const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
   const [layoutViewport, setLayoutViewport] = useState<'desktop' | 'mobile'>('desktop');
+  const [layoutEditorPage, setLayoutEditorPage] = useState<WholesaleLayoutPageId>('home');
   const [online, setOnline] = useState(true);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
@@ -120,6 +131,11 @@ export function WholesalePortalShell({
   const exitPreview = () => {
     if (layoutEditorDirty && !confirm('Discard unsaved layout changes and exit staff preview?')) return;
     onLogout();
+  };
+
+  const handleLayoutPageChange = (page: WholesaleLayoutPageId | null) => {
+    if (page) setLayoutEditorPage(page);
+    onLayoutPageChange?.(page);
   };
 
   const search = (
@@ -165,6 +181,8 @@ export function WholesalePortalShell({
         <strong>Staff preview · Layout editor</strong>
         <span>{session.company} / {session.name} / {buyingLocation}</span>
         <span>Commerce: {canTestCheckout ? 'Test checkout to IMS Draft' : 'Read-only'}</span>
+        {layoutEditorOpen && layoutEditorPage === 'product' && layoutProducts?.length && onLayoutProductChange && <label className={styles.sampleControl}>Product sample<select value={layoutProductId || layoutProducts[0].product_id} onChange={event => onLayoutProductChange(event.target.value)}>{layoutProducts.map(product => <option key={product.product_id} value={product.product_id}>{product.name}</option>)}</select></label>}
+        {layoutEditorOpen && layoutEditorPage === 'collection' && layoutCollections?.length && onLayoutCollectionChange && <label className={styles.sampleControl}>Collection sample<select value={layoutCollectionId || layoutCollections[0].id} onChange={event => onLayoutCollectionChange(event.target.value)}>{layoutCollections.map(collection => <option key={collection.id} value={collection.id}>{collection.label}</option>)}</select></label>}
         {layoutEditorOpen && <div className={styles.viewportControl} role="group" aria-label="Preview viewport">
           <button onClick={() => setLayoutViewport('desktop')} aria-pressed={layoutViewport === 'desktop'} title="Desktop preview"><Laptop size={14} /> Desktop</button>
           <button onClick={() => setLayoutViewport('mobile')} aria-pressed={layoutViewport === 'mobile'} title="Mobile preview"><Smartphone size={14} /> Mobile</button>
@@ -208,7 +226,7 @@ export function WholesalePortalShell({
       </header>
 
       <div className={`${styles.body} ${layoutEditorOpen ? styles.bodyEditor : ''}`}>
-        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={onLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
+        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={handleLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
         <aside className={styles.sidebar}>
           {nav}
           <div className={styles.sidebarFooter}>
