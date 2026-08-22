@@ -96,6 +96,7 @@ export function WholesaleLayoutEditor({
   const [uploadingAsset, setUploadingAsset] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [pendingPage, setPendingPage] = useState<WholesaleLayoutPageId | null>(null);
+  const [conflictState, setConflictState] = useState<WholesaleLayoutEditorState | null>(null);
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -253,6 +254,14 @@ export function WholesaleLayoutEditor({
         body: JSON.stringify({ action, expectedRevision: state.draftRevision, document: action === 'save_draft' ? document : undefined }),
       });
       const body = await response.json();
+      if (response.status === 409 && body.code === 'wholesale_layout_revision_conflict') {
+        const latestResponse = await fetch('/api/ims/wholesale/layout');
+        const latestBody = await latestResponse.json();
+        if (!latestResponse.ok || !latestBody.success) throw new Error(latestBody.error || 'The latest layout could not be loaded.');
+        setConflictState(latestBody.state);
+        setError('');
+        return false;
+      }
       if (!response.ok || !body.success) throw new Error(body.error || 'Layout could not be updated.');
       setState(body.state);
       setDocument(body.state.draft);
@@ -290,6 +299,25 @@ export function WholesaleLayoutEditor({
     setError('');
     setMessage('Unsaved changes discarded.');
     changePage(pendingPage);
+  };
+
+  const reloadConflictDraft = () => {
+    if (!conflictState) return;
+    setState(conflictState);
+    setDocument(conflictState.draft);
+    setDirty(false);
+    setSelectedId(null);
+    setPendingPage(null);
+    setConflictState(null);
+    setMessage('Latest saved draft loaded.');
+  };
+
+  const keepLocalConflictDraft = () => {
+    if (!conflictState) return;
+    setState(conflictState);
+    setConflictState(null);
+    setDirty(true);
+    setMessage('Local changes kept. Save again to replace the latest draft.');
   };
 
   const sections = document?.pages[page].sections ?? [];
@@ -338,7 +366,7 @@ export function WholesaleLayoutEditor({
         <button className={styles.secondary} onClick={() => void perform('save_draft')} disabled={!state || !dirty || Boolean(working)}><Save size={15} /> {working === 'save' ? 'Saving...' : 'Save draft'}</button>
         <button className={styles.primary} onClick={() => void perform('publish')} disabled={!state || dirty || Boolean(working)}><Send size={15} /> {working === 'publish' ? 'Publishing...' : 'Publish'}</button>
       </footer>
-      {pendingPage && <div className={styles.dialogLayer} role="presentation">
+      {pendingPage && !conflictState && <div className={styles.dialogLayer} role="presentation">
         <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="layout-page-change-title" aria-describedby="layout-page-change-description" onKeyDown={event => { if (event.key === 'Escape' && !working) setPendingPage(null); }}>
           <h3 id="layout-page-change-title">Save changes before switching?</h3>
           <p id="layout-page-change-description">You have unsaved layout changes. Save or discard them before opening {pageLabels[pendingPage]}.</p>
@@ -347,6 +375,16 @@ export function WholesaleLayoutEditor({
             <button type="button" className={styles.secondary} onClick={() => setPendingPage(null)} disabled={Boolean(working)} autoFocus>Cancel</button>
             <button type="button" className={styles.danger} onClick={discardAndChangePage} disabled={Boolean(working)}>Discard</button>
             <button type="button" className={styles.primary} onClick={() => void saveAndChangePage()} disabled={Boolean(working)}>{working === 'save' ? 'Saving...' : 'Save draft'}</button>
+          </div>
+        </div>
+      </div>}
+      {conflictState && <div className={styles.dialogLayer} role="presentation">
+        <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="layout-conflict-title" aria-describedby="layout-conflict-description">
+          <h3 id="layout-conflict-title">Layout changed elsewhere</h3>
+          <p id="layout-conflict-description">Another editor saved draft r{conflictState.draftRevision} after you opened this layout. Reload their version, or keep your local changes and save again to replace it.</p>
+          <div className={styles.dialogActions}>
+            <button type="button" className={styles.secondary} onClick={reloadConflictDraft} autoFocus>Reload</button>
+            <button type="button" className={styles.primary} onClick={keepLocalConflictDraft}>Keep local</button>
           </div>
         </div>
       </div>}
