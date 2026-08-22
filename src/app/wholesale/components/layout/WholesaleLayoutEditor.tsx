@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -98,6 +98,8 @@ export function WholesaleLayoutEditor({
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const callbacksRef = useRef({ onPageChange, onDocumentChange, onDirtyChange });
+  callbacksRef.current = { onPageChange, onDocumentChange, onDirtyChange };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -129,10 +131,10 @@ export function WholesaleLayoutEditor({
   useEffect(() => onDocumentChange?.(document), [document, onDocumentChange]);
   useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
   useEffect(() => () => {
-    onPageChange?.(null);
-    onDocumentChange?.(null);
-    onDirtyChange?.(false);
-  }, [onDirtyChange, onDocumentChange, onPageChange]);
+    callbacksRef.current.onPageChange?.(null);
+    callbacksRef.current.onDocumentChange?.(null);
+    callbacksRef.current.onDirtyChange?.(false);
+  }, []);
 
   useEffect(() => {
     if (!dirty) return;

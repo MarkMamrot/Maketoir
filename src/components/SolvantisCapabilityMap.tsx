@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   Check,
+  Megaphone,
   MousePointerClick,
   Network,
   ScanLine,
@@ -29,6 +30,7 @@ type Capability = {
   x: number;
   y: number;
   size: number;
+  comingSoon?: boolean;
   groups: Array<{
     title: string;
     features: string[];
@@ -295,12 +297,72 @@ const capabilities: Capability[] = [
       },
     ],
   },
+  {
+    id: 'marketing',
+    title: 'Marketing',
+    shortTitle: 'Marketing',
+    eyebrow: 'Coming soon',
+    summary: 'Connected marketing tools are being shaped to bring campaign planning and performance closer to your commerce data.',
+    outcome: 'Marketing is coming soon to the Solvantis capability map.',
+    icon: Megaphone,
+    x: 49.7,
+    y: 50,
+    size: 15,
+    comingSoon: true,
+    groups: [],
+  },
 ];
+
+type CapabilityHotspot = {
+  capabilityId: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+const capabilityMapFlows = {
+  legacy: {
+    image: '/landing/solvantismap.jpg',
+    alt: 'Solvantis platform map showing eight connected retail capabilities',
+    aspectRatio: '991 / 1024',
+    center: { x: 50, y: 50, size: 17 },
+    hotspots: capabilities
+      .filter((capability) => capability.id !== 'marketing')
+      .map((capability) => ({
+        capabilityId: capability.id,
+        label: capability.title,
+        x: capability.x,
+        y: capability.y,
+        width: capability.size,
+        height: capability.size,
+      })),
+  },
+  picto: {
+    image: '/landing/picto.jpg',
+    alt: 'Solvantis commerce operation map showing ten connected capabilities',
+    aspectRatio: '2016 / 2084',
+    center: { x: 50, y: 50.8, size: 24 },
+    hotspots: [
+      { capabilityId: 'pos', label: 'Point of Sale', x: 14.2, y: 16.5, width: 23, height: 20 },
+      { capabilityId: 'wholesale', label: 'Wholesale and Distribution', x: 49.8, y: 16.5, width: 29, height: 21 },
+      { capabilityId: 'inventory', label: 'Advanced Inventory', x: 84.2, y: 16.5, width: 25, height: 20 },
+      { capabilityId: 'crm', label: 'Loyalty', x: 14.2, y: 40.6, width: 23, height: 19 },
+      { capabilityId: 'locations', label: 'Multi Location', x: 84.2, y: 40.6, width: 24, height: 19 },
+      { capabilityId: 'crm', label: 'CRM', x: 14.2, y: 62.9, width: 23, height: 19 },
+      { capabilityId: 'ai', label: 'AI Automated Workflows', x: 84.2, y: 62.9, width: 27, height: 19 },
+      { capabilityId: 'channels', label: 'Multi Channel Commerce', x: 14.2, y: 82.7, width: 25, height: 18 },
+      { capabilityId: 'marketing', label: 'Marketing', x: 49.8, y: 82.7, width: 26, height: 18 },
+      { capabilityId: 'integrations', label: 'Accounting and Ecommerce Integrations', x: 84.2, y: 82.7, width: 29, height: 18 },
+    ] satisfies CapabilityHotspot[],
+  },
+} as const;
+
+const activeMapFlow = capabilityMapFlows.picto;
 
 export default function SolvantisCapabilityMap() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showIntro, setShowIntro] = useState(false);
-  const mapRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selected = capabilities.find((capability) => capability.id === selectedId) ?? null;
@@ -311,29 +373,6 @@ export default function SolvantisCapabilityMap() {
   };
 
   const closeCapability = () => setSelectedId(null);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    let introTimeout: ReturnType<typeof setTimeout> | undefined;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        setShowIntro(true);
-        introTimeout = setTimeout(() => setShowIntro(false), 3200);
-        observer.disconnect();
-      },
-      { threshold: 0.3 },
-    );
-
-    observer.observe(map);
-
-    return () => {
-      observer.disconnect();
-      if (introTimeout) clearTimeout(introTimeout);
-    };
-  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -364,16 +403,19 @@ export default function SolvantisCapabilityMap() {
           <div className="min-w-0">
             <p className="text-sm font-black">Interactive feature map</p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-300 sm:text-sm">
-              <span className="hidden sm:inline">Click any capability circle to open its full feature list.</span>
+              <span className="hidden sm:inline">Click any capability area to open its full feature list.</span>
               <span className="sm:hidden">Tap a capability button below to open its full feature list.</span>
             </p>
           </div>
         </div>
 
-        <div ref={mapRef} className="relative aspect-[991/1024] w-full overflow-hidden rounded-lg border border-slate-200 bg-[#f4f6fa] shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+        <div
+          className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-[#f4f6fa] shadow-[0_24px_70px_rgba(15,23,42,0.12)]"
+          style={{ aspectRatio: activeMapFlow.aspectRatio }}
+        >
           <Image
-            src="/landing/solvantismap.jpg"
-            alt="Solvantis platform map showing eight connected retail capabilities"
+            src={activeMapFlow.image}
+            alt={activeMapFlow.alt}
             fill
             sizes="(max-width: 1024px) 94vw, 920px"
             className="object-contain"
@@ -382,33 +424,34 @@ export default function SolvantisCapabilityMap() {
 
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 hidden aspect-square w-[17%] -translate-x-1/2 -translate-y-1/2 sm:block"
+            className="pointer-events-none absolute hidden -translate-x-1/2 -translate-y-1/2 sm:block"
+            style={{
+              left: `${activeMapFlow.center.x}%`,
+              top: `${activeMapFlow.center.y}%`,
+              width: `${activeMapFlow.center.size}%`,
+              aspectRatio: '1',
+            }}
           >
             <span className="solvantis-center-pulse absolute inset-0 rounded-full" />
           </span>
 
-          {capabilities.map((capability, index) => (
+          {activeMapFlow.hotspots.map((hotspot) => (
             <button
-              key={capability.id}
+              key={hotspot.label}
               type="button"
-              onClick={(event) => openCapability(capability.id, event.currentTarget)}
-              className="group absolute hidden -translate-x-1/2 -translate-y-1/2 rounded-full outline-none sm:block"
-              style={{ left: `${capability.x}%`, top: `${capability.y}%`, width: `${capability.size}%`, aspectRatio: '1' }}
-              aria-label={`Explore ${capability.title} features`}
+              onClick={(event) => openCapability(hotspot.capabilityId, event.currentTarget)}
+              className="group absolute hidden -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-md border border-transparent outline-none transition duration-200 hover:-translate-y-[52%] hover:border-slate-900/35 hover:bg-white/10 focus-visible:border-blue-800 focus-visible:ring-2 focus-visible:ring-blue-800 focus-visible:ring-offset-2 sm:block"
+              style={{ left: `${hotspot.x}%`, top: `${hotspot.y}%`, width: `${hotspot.width}%`, height: `${hotspot.height}%` }}
+              aria-label={`Explore ${hotspot.label} features`}
             >
-              <span
-                className={`absolute inset-1 rounded-full bg-cyan-300/0 shadow-[0_0_0_0_rgba(34,211,238,0)] transition duration-300 group-hover:bg-cyan-300/10 group-hover:shadow-[0_0_34px_12px_rgba(34,211,238,0.34)] group-focus-visible:bg-blue-400/15 group-focus-visible:shadow-[0_0_38px_14px_rgba(37,99,235,0.48)] ${showIntro ? 'capability-intro-glow' : ''}`}
-                style={showIntro ? { animationDelay: `${index * 160}ms` } : undefined}
-              />
-              <span className="absolute inset-2 rounded-full bg-white/0 transition duration-300 group-hover:bg-white/10 group-hover:scale-105 group-focus-visible:scale-105" />
-              <span className="sr-only">Open {capability.title} feature summary</span>
+              <span className="sr-only">Open {hotspot.label} feature summary</span>
             </button>
           ))}
         </div>
 
         <p className="mt-5 hidden items-center justify-center gap-2 text-center text-sm font-semibold text-slate-700 sm:flex">
           <MousePointerClick className="h-4 w-4 flex-none text-blue-600" aria-hidden="true" />
-          <span>Choose a circle to explore what your team can do</span>
+          <span>Choose an area to explore what your team can do</span>
         </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:hidden">
@@ -431,41 +474,25 @@ export default function SolvantisCapabilityMap() {
 
       <style jsx>{`
         .solvantis-center-pulse {
-          background: radial-gradient(circle, rgba(8, 145, 178, 0.54) 0%, rgba(6, 182, 212, 0.38) 38%, rgba(34, 211, 238, 0.16) 58%, transparent 76%);
+          box-shadow: 0 0 42px 14px rgba(30, 58, 138, 0.34);
           animation: solvantis-center-breathe 3.8s ease-in-out infinite;
-        }
-
-        .capability-intro-glow {
-          animation: capability-intro 1100ms ease-in-out both;
         }
 
         @keyframes solvantis-center-breathe {
           0%, 100% {
             opacity: 0.48;
             transform: scale(0.96);
-            box-shadow: 0 0 24px 8px rgba(8, 145, 178, 0.16);
+            box-shadow: 0 0 24px 8px rgba(30, 58, 138, 0.18);
           }
           50% {
-            opacity: 0.94;
-            transform: scale(1.1);
-            box-shadow: 0 0 44px 17px rgba(6, 182, 212, 0.32);
-          }
-        }
-
-        @keyframes capability-intro {
-          0%, 100% {
-            background-color: transparent;
-            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
-          }
-          45% {
-            background-color: rgba(34, 211, 238, 0.28);
-            box-shadow: 0 0 42px 17px rgba(6, 182, 212, 0.58);
+            opacity: 0.88;
+            transform: scale(1.07);
+            box-shadow: 0 0 46px 17px rgba(30, 58, 138, 0.38);
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .solvantis-center-pulse,
-          .capability-intro-glow {
+          .solvantis-center-pulse {
             animation: none;
           }
         }
@@ -502,8 +529,8 @@ export default function SolvantisCapabilityMap() {
               <div className="p-6 md:p-8 lg:p-10">
                 <div className="flex items-start justify-between gap-5">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Connected capability</p>
-                    <h4 className="mt-2 text-2xl font-black text-slate-900">What your team can do</h4>
+                    <p className="text-xs font-bold uppercase tracking-widest text-blue-600">{selected.comingSoon ? 'On the roadmap' : 'Connected capability'}</p>
+                    <h4 className="mt-2 text-2xl font-black text-slate-900">{selected.comingSoon ? 'Coming soon' : 'What your team can do'}</h4>
                   </div>
                   <button
                     ref={closeButtonRef}
@@ -516,23 +543,35 @@ export default function SolvantisCapabilityMap() {
                   </button>
                 </div>
 
-                <div className="mt-8 grid gap-8 md:grid-cols-2">
-                  {selected.groups.map((group) => (
-                    <section key={group.title}>
-                      <h5 className="border-b border-slate-200 pb-3 text-sm font-black uppercase tracking-wide text-slate-900">{group.title}</h5>
-                      <ul className="mt-4 space-y-3.5">
-                        {group.features.map((feature) => (
-                          <li key={feature} className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
-                            <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
-                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                            </span>
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
+                {selected.comingSoon ? (
+                  <div className="mt-8 border-l-4 border-blue-800 bg-blue-50 px-5 py-6">
+                    <div className="flex items-start gap-4">
+                      <Megaphone className="mt-0.5 h-6 w-6 flex-none text-blue-800" aria-hidden="true" />
+                      <div>
+                        <h5 className="text-lg font-black text-slate-900">Marketing tools are on the way</h5>
+                        <p className="mt-2 text-sm leading-relaxed text-slate-700">We are building this capability to work with the same connected commerce operation shown in the map. More detail will be published as the feature set is confirmed.</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-8 grid gap-8 md:grid-cols-2">
+                    {selected.groups.map((group) => (
+                      <section key={group.title}>
+                        <h5 className="border-b border-slate-200 pb-3 text-sm font-black uppercase tracking-wide text-slate-900">{group.title}</h5>
+                        <ul className="mt-4 space-y-3.5">
+                          {group.features.map((feature) => (
+                            <li key={feature} className="flex items-start gap-3 text-sm leading-relaxed text-slate-700">
+                              <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
+                                <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              </span>
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                )}
 
                 <div className="mt-9 flex items-center gap-3 border-t border-slate-200 pt-6 text-sm text-slate-500">
                   <ScanLine className="h-5 w-5 flex-none text-blue-600" aria-hidden="true" />
