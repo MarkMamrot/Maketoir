@@ -91,7 +91,8 @@ function normalizeSettings(raw: unknown, defaults: WholesaleLayoutSectionSetting
   settings.heading = boundedString(value.heading, 255);
   settings.bodyHtml = safeBodyHtml(value.bodyHtml);
   settings.imageUrl = validUrl(value.imageUrl);
-  settings.assetId = boundedString(value.assetId, 64);
+  const assetId = boundedString(value.assetId, 36);
+  settings.assetId = assetId && /^[0-9a-f-]{36}$/.test(assetId) ? assetId : undefined;
   settings.altText = boundedString(value.altText, 500);
   settings.linkUrl = validUrl(value.linkUrl);
   settings.linkLabel = boundedString(value.linkLabel, 100);

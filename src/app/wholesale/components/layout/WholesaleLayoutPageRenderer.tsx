@@ -40,7 +40,7 @@ function SharedSection({ section, products }: { section: WholesaleLayoutSection;
     textAlign: settings.alignment,
   } as CSSProperties;
   const width = settings.width ?? 'content';
-  const imageUrl = safeUrl(settings.imageUrl);
+  const imageUrl = settings.assetId ? `/api/wholesale/layout-assets/${settings.assetId}` : safeUrl(settings.imageUrl);
   const linkUrl = safeUrl(settings.linkUrl);
   const copy = <div className={styles.copy}>{settings.heading && <h2>{settings.heading}</h2>}{settings.bodyHtml && <div className={styles.richText} dangerouslySetInnerHTML={{ __html: safeHtml(settings.bodyHtml) }} />}{linkUrl && settings.linkLabel && <a className={styles.link} href={linkUrl}>{settings.linkLabel}</a>}</div>;
 

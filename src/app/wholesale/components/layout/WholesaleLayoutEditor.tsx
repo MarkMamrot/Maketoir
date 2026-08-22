@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronDown, ChevronUp, Copy, GripVertical, Loader2, Plus, RotateCcw, Save, Send, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Copy, GripVertical, Loader2, Plus, RotateCcw, Save, Send, Trash2, Upload } from 'lucide-react';
 import { WHOLESALE_LAYOUT_SECTION_REGISTRY } from '@/lib/wholesale/layout/registry';
 import { isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
 import {
@@ -28,6 +28,7 @@ import {
   type WholesaleLayoutSection,
 } from '@/lib/wholesale/layout/types';
 import type { WholesaleLayoutEditorState } from '@/lib/wholesale/wholesalePortalLayout';
+import type { WholesalePortalAsset } from '@/lib/wholesale/wholesalePortalAsset';
 import styles from './WholesaleLayoutEditor.module.css';
 
 const pageLabels: Record<WholesaleLayoutPageId, string> = {
@@ -91,6 +92,8 @@ export function WholesaleLayoutEditor({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addType, setAddType] = useState('banner');
   const [productQuery, setProductQuery] = useState('');
+  const [assets, setAssets] = useState<WholesalePortalAsset[]>([]);
+  const [uploadingAsset, setUploadingAsset] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
@@ -110,6 +113,16 @@ export function WholesaleLayoutEditor({
       })
       .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Layout could not be loaded.'))
       .finally(() => setWorking(null));
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/ims/wholesale/layout/assets')
+      .then(async response => {
+        const body = await response.json();
+        if (!response.ok || !body.success) throw new Error(body.error || 'Layout images could not be loaded.');
+        setAssets(body.assets ?? []);
+      })
+      .catch(loadError => setError(loadError instanceof Error ? loadError.message : 'Layout images could not be loaded.'));
   }, []);
 
   useEffect(() => onPageChange?.(page), [onPageChange, page]);
@@ -171,11 +184,35 @@ export function WholesaleLayoutEditor({
     if (selectedId === section.id) setSelectedId(null);
   };
 
-  const updateSetting = (key: keyof WholesaleLayoutSection['settings'], value: string | number | string[] | undefined) => {
+  const updateSettings = (patch: Partial<WholesaleLayoutSection['settings']>) => {
     if (!document || !selectedId) return;
     updateSections(document.pages[page].sections.map(section => section.id === selectedId
-      ? { ...section, settings: { ...section.settings, [key]: value || undefined } }
+      ? { ...section, settings: { ...section.settings, ...patch } }
       : section));
+  };
+
+  const updateSetting = (key: keyof WholesaleLayoutSection['settings'], value: string | number | string[] | undefined) => updateSettings({ [key]: value || undefined });
+
+  const selectAsset = (asset: WholesalePortalAsset) => {
+    updateSettings({ assetId: asset.assetId, imageUrl: undefined, altText: selected?.settings.altText || asset.altText || undefined });
+  };
+
+  const uploadAsset = async (file?: File) => {
+    if (!file) return;
+    setUploadingAsset(true); setError('');
+    try {
+      const form = new FormData();
+      form.set('file', file);
+      form.set('altText', selected?.settings.altText ?? '');
+      const response = await fetch('/api/ims/wholesale/layout/assets', { method: 'POST', body: form });
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.error || 'The layout image could not be uploaded.');
+      setAssets(current => [body.asset, ...current]);
+      selectAsset(body.asset);
+      setMessage('Image uploaded. Save the draft to keep this section selection.');
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'The layout image could not be uploaded.');
+    } finally { setUploadingAsset(false); }
   };
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
@@ -235,7 +272,7 @@ export function WholesaleLayoutEditor({
           <h3>{WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].label}</h3>
           {'heading' in WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].defaultSettings && <label>Heading<input value={selected.settings.heading ?? ''} maxLength={255} onChange={event => updateSetting('heading', event.target.value)} /></label>}
           {'bodyHtml' in WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].defaultSettings && <label>Body HTML<textarea value={selected.settings.bodyHtml ?? ''} maxLength={20000} rows={5} onChange={event => updateSetting('bodyHtml', event.target.value)} /></label>}
-          {(selected.type === 'image' || selected.type === 'text_image') && <><label>Image URL<input type="url" value={selected.settings.imageUrl ?? ''} maxLength={2048} placeholder="https://" onChange={event => updateSetting('imageUrl', event.target.value)} /></label><label>Alt text<input value={selected.settings.altText ?? ''} maxLength={500} onChange={event => updateSetting('altText', event.target.value)} /></label></>}
+          {(selected.type === 'image' || selected.type === 'text_image') && <><div className={styles.assetUpload}><label><Upload size={15} /> {uploadingAsset ? 'Uploading...' : 'Upload image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploadingAsset} onChange={event => { void uploadAsset(event.target.files?.[0]); event.target.value = ''; }} /></label><span>JPEG, PNG, WebP or GIF · 10 MB max</span></div>{assets.length > 0 && <div className={styles.assetGrid} aria-label="Uploaded layout images">{assets.map(asset => <button key={asset.assetId} type="button" data-selected={selected.settings.assetId === asset.assetId || undefined} onClick={() => selectAsset(asset)} title={asset.originalName}><img src={asset.url} alt={asset.altText ?? ''} /><span>{asset.originalName}</span></button>)}</div>}<label>Or image URL<input type="url" value={selected.settings.imageUrl ?? ''} maxLength={2048} placeholder="https://" onChange={event => updateSettings({ imageUrl: event.target.value || undefined, assetId: undefined })} /></label><label>Alt text<input value={selected.settings.altText ?? ''} maxLength={500} onChange={event => updateSetting('altText', event.target.value)} /></label></>}
           {(selected.type === 'banner' || selected.type === 'rich_text' || selected.type === 'text_image') && <label>Alignment<select value={selected.settings.alignment ?? 'left'} onChange={event => updateSetting('alignment', event.target.value)}><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option></select></label>}
           {!WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].singleton && selected.type !== 'spacer' && <label>Width<select value={selected.settings.width ?? 'content'} onChange={event => updateSetting('width', event.target.value)}><option value="narrow">Narrow</option><option value="content">Content</option><option value="full">Full width</option></select></label>}
           {!WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].singleton && <><label>Space above<select value={selected.settings.spacingTop ?? 'medium'} onChange={event => updateSetting('spacingTop', event.target.value)}><option value="none">None</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><label>Space below<select value={selected.settings.spacingBottom ?? 'medium'} onChange={event => updateSetting('spacingBottom', event.target.value)}><option value="none">None</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label></>}

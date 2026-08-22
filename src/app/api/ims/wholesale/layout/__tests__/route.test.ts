@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   getProfile: vi.fn(),
   reportRuntimeIssue: vi.fn().mockResolvedValue(undefined),
   revalidatePath: vi.fn(),
+  findOwnedActiveIds: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminTier: mocks.requireAdminTier }));
@@ -27,6 +28,7 @@ vi.mock('@/lib/wholesale/wholesaleSupplierProfile', () => ({
   WholesaleSupplierProfileRepository: { getByBusinessId: mocks.getProfile },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/wholesale/wholesalePortalAsset', () => ({ WholesalePortalAssetRepository: { findOwnedActiveIds: mocks.findOwnedActiveIds } }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 
 import { GET, PUT } from '../route';
@@ -43,6 +45,7 @@ describe('IMS wholesale layout route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireAdminTier.mockReturnValue({ user });
+    mocks.findOwnedActiveIds.mockResolvedValue(new Set());
   });
 
   it('loads the tenant editor state', async () => {
@@ -70,6 +73,20 @@ describe('IMS wholesale layout route', () => {
     }));
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ code: 'wholesale_layout_revision_conflict', currentRevision: 4 });
+    expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
+  });
+
+  it('rejects an asset reference that is not owned by the authenticated business', async () => {
+    const document = createDefaultWholesaleLayout();
+    document.pages.home.sections.push({ id: 'image-1', type: 'image', settings: { assetId: '123e4567-e89b-12d3-a456-426614174000' } });
+    mocks.findOwnedActiveIds.mockResolvedValue(new Set());
+    const response = await PUT(new Request('http://localhost/api/ims/wholesale/layout', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_draft', expectedRevision: 2, document }),
+    }));
+    expect(response.status).toBe(400);
+    expect(mocks.findOwnedActiveIds).toHaveBeenCalledWith('biz-1', ['123e4567-e89b-12d3-a456-426614174000']);
+    expect(mocks.saveDraft).not.toHaveBeenCalled();
     expect(mocks.reportRuntimeIssue).not.toHaveBeenCalled();
   });
 

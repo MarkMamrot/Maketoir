@@ -8,6 +8,7 @@ import {
   WholesalePortalLayoutRepository,
 } from '@/lib/wholesale/wholesalePortalLayout';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
+import { WholesalePortalAssetRepository } from '@/lib/wholesale/wholesalePortalAsset';
 
 export async function GET() {
   const auth = requireAdminTier();
@@ -48,10 +49,18 @@ export async function PUT(request: Request) {
 
   const actor = { userId: auth.user.userId, name: auth.user.name };
   try {
+    const normalizedDocument = action === 'save_draft' ? normalizeWholesaleLayoutDocument(body.document) : null;
+    if (normalizedDocument) {
+      const assetIds = [...new Set(Object.values(normalizedDocument.pages).flatMap(page => page.sections.map(section => section.settings.assetId).filter((id): id is string => Boolean(id))))];
+      const ownedAssetIds = await WholesalePortalAssetRepository.findOwnedActiveIds(auth.user.businessId, assetIds);
+      if (ownedAssetIds.size !== assetIds.length) {
+        return NextResponse.json({ error: 'One or more selected layout images are unavailable for this organisation.' }, { status: 400 });
+      }
+    }
     const state = action === 'save_draft'
       ? await WholesalePortalLayoutRepository.saveDraft(
           auth.user.businessId,
-          normalizeWholesaleLayoutDocument(body.document),
+          normalizedDocument!,
           expectedRevision,
           actor,
         )

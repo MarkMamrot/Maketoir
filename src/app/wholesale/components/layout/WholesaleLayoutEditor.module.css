@@ -28,6 +28,15 @@
 .productPicker label { display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 6px; padding: 7px 8px; border-bottom: 1px solid #edf0ee; color: #34433a; font-size: 11px; font-weight: 600; text-transform: none; }
 .productPicker label:last-child { border-bottom: 0; }
 .productPicker input { width: 15px; height: 15px; }
+.assetUpload { display: grid; gap: 5px; }
+.assetUpload label { min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #267653; border-radius: 4px; background: #eef7f1; color: #267653; cursor: pointer; }
+.assetUpload input { display: none; }
+.assetUpload span { color: #758279; font-size: 10px; }
+.assetGrid { max-height: 230px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; overflow-y: auto; }
+.assetGrid button { min-width: 0; overflow: hidden; padding: 0; border: 1px solid #cad4cc; border-radius: 4px; background: #fff; cursor: pointer; text-align: left; }
+.assetGrid button[data-selected] { border-color: #267653; box-shadow: 0 0 0 2px #b9d4c4; }
+.assetGrid img { width: 100%; aspect-ratio: 4 / 3; display: block; background: #eef2ef; object-fit: cover; }
+.assetGrid span { display: block; overflow: hidden; padding: 5px 6px; color: #56635b; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 12px; border-top: 1px solid #d9dfda; background: #fff; }
 .revisions, .error, .message { grid-column: 1 / -1; font-size: 11px; line-height: 1.45; }
 .revisions { color: #69776e; }
