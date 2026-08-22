@@ -43,13 +43,13 @@ export default function PreviewLauncher() {
         <div><h1 style={{ fontSize: 20, margin: 0, letterSpacing: 0 }}>Preview wholesale portal</h1><p style={{ margin: '4px 0 0', color: '#64707d', fontSize: 14 }}>{supplier}</p></div>
       </header>
       <div style={{ padding: 28 }}>
-        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>{mode === 'ims_draft_test' ? 'Test the buyer journey through creation of a clearly marked IMS Draft. Test orders are silent, cannot be confirmed, and the session expires after 30 minutes.' : 'View the portal as an approved wholesale buyer. Preview access is read-only and expires after 30 minutes.'}</p>
+        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>{mode === 'ims_draft_test' ? 'The Layout Editor opens automatically. Commerce testing can create a clearly marked, silent IMS Draft that cannot be confirmed. The session expires after 30 minutes.' : 'The Layout Editor opens automatically. Buyer ordering actions remain read-only and the session expires after 30 minutes.'}</p>
         {loading ? <p>Loading approved buyers...</p> : targets.length > 0 ? <>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }} htmlFor="preview-target">Buyer and buying location</label>
           <select id="preview-target" value={selection} onChange={event => setSelection(event.target.value)} style={{ width: '100%', padding: '11px 12px', border: '1px solid #aeb8c2', borderRadius: 5, background: '#fff', fontSize: 14 }}>
             {targets.map(target => <option key={`${target.memberId}:${target.locationId}`} value={`${target.memberId}:${target.locationId}`}>{target.companyName} / {target.buyerName} / {target.locationName}{target.isPrimary ? ' (primary)' : ''}</option>)}
           </select>
-          <button onClick={start} disabled={starting || !selection} style={{ marginTop: 18, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', border: 0, borderRadius: 5, background: '#147a8c', color: '#fff', fontWeight: 700, cursor: starting ? 'wait' : 'pointer' }}>{starting ? 'Opening preview...' : mode === 'ims_draft_test' ? 'Open test checkout' : 'Open read-only preview'} <ExternalLink size={16} /></button>
+          <button onClick={start} disabled={starting || !selection} style={{ marginTop: 18, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', border: 0, borderRadius: 5, background: '#147a8c', color: '#fff', fontWeight: 700, cursor: starting ? 'wait' : 'pointer' }}>{starting ? 'Opening editor...' : 'Open Layout Editor'} <ExternalLink size={16} /></button>
         </> : !error && <p>No active approved wholesale buyers with buying locations are available.</p>}
         {error && <p role="alert" style={{ color: '#a12828', background: '#fff1f1', border: '1px solid #f1c4c4', padding: 12, borderRadius: 5 }}>{error}</p>}
       </div>
