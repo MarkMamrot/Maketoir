@@ -41,6 +41,39 @@ CREATE TABLE IF NOT EXISTS wholesale_supplier_profiles (
   INDEX idx_wholesale_supplier_profiles_active (is_active, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS wholesale_portal_layouts (
+  business_id                 VARCHAR(100) PRIMARY KEY,
+  schema_version              INT UNSIGNED NOT NULL DEFAULT 1,
+  draft_json                  JSON NULL,
+  published_json              JSON NULL,
+  draft_revision              INT UNSIGNED NOT NULL DEFAULT 0,
+  published_revision          INT UNSIGNED NOT NULL DEFAULT 0,
+  draft_updated_by_user_id    INT NULL,
+  draft_updated_by_name       VARCHAR(255) NULL,
+  draft_updated_at            DATETIME(3) NULL,
+  published_by_user_id        INT NULL,
+  published_by_name           VARCHAR(255) NULL,
+  published_at                DATETIME(3) NULL,
+  created_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wholesale_portal_assets (
+  asset_id                    CHAR(36) PRIMARY KEY,
+  business_id                 VARCHAR(100) NOT NULL,
+  stored_filename             VARCHAR(255) NOT NULL,
+  mime_type                   VARCHAR(100) NOT NULL,
+  byte_size                   BIGINT UNSIGNED NOT NULL,
+  original_name               VARCHAR(255) NOT NULL,
+  alt_text                    VARCHAR(500) NULL,
+  created_by_user_id          INT NULL,
+  created_by_name             VARCHAR(255) NULL,
+  is_active                   TINYINT(1) NOT NULL DEFAULT 1,
+  created_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_wholesale_portal_asset_file (business_id, stored_filename),
+  INDEX idx_wholesale_portal_assets_active (business_id, is_active, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS wholesale_otp_challenges (
   id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id          VARCHAR(100) NOT NULL,

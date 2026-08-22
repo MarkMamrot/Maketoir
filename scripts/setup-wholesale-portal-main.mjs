@@ -40,6 +40,37 @@ const tableDefinitions = {
   UNIQUE KEY uq_wholesale_supplier_profiles_slug (slug),
   INDEX idx_wholesale_supplier_profiles_active (is_active, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  wholesale_portal_layouts: `CREATE TABLE IF NOT EXISTS wholesale_portal_layouts (
+  business_id VARCHAR(100) PRIMARY KEY,
+  schema_version INT UNSIGNED NOT NULL DEFAULT 1,
+  draft_json JSON NULL,
+  published_json JSON NULL,
+  draft_revision INT UNSIGNED NOT NULL DEFAULT 0,
+  published_revision INT UNSIGNED NOT NULL DEFAULT 0,
+  draft_updated_by_user_id INT NULL,
+  draft_updated_by_name VARCHAR(255) NULL,
+  draft_updated_at DATETIME(3) NULL,
+  published_by_user_id INT NULL,
+  published_by_name VARCHAR(255) NULL,
+  published_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  wholesale_portal_assets: `CREATE TABLE IF NOT EXISTS wholesale_portal_assets (
+  asset_id CHAR(36) PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  stored_filename VARCHAR(255) NOT NULL,
+  mime_type VARCHAR(100) NOT NULL,
+  byte_size BIGINT UNSIGNED NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  alt_text VARCHAR(500) NULL,
+  created_by_user_id INT NULL,
+  created_by_name VARCHAR(255) NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_wholesale_portal_asset_file (business_id, stored_filename),
+  INDEX idx_wholesale_portal_assets_active (business_id, is_active, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   wholesale_otp_challenges: `CREATE TABLE IF NOT EXISTS wholesale_otp_challenges (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id VARCHAR(100) NOT NULL,
@@ -113,6 +144,15 @@ const requiredColumns = {
     'application_heading', 'application_intro', 'terms_url', 'privacy_url',
     'theme_json', 'is_active', 'created_at', 'updated_at',
   ],
+  wholesale_portal_layouts: [
+    'business_id', 'schema_version', 'draft_json', 'published_json', 'draft_revision',
+    'published_revision', 'draft_updated_by_user_id', 'draft_updated_by_name', 'draft_updated_at',
+    'published_by_user_id', 'published_by_name', 'published_at', 'created_at', 'updated_at',
+  ],
+  wholesale_portal_assets: [
+    'asset_id', 'business_id', 'stored_filename', 'mime_type', 'byte_size', 'original_name',
+    'alt_text', 'created_by_user_id', 'created_by_name', 'is_active', 'created_at',
+  ],
   wholesale_otp_challenges: [
     'id', 'business_id', 'contact_id', 'email', 'challenge_token_hash',
     'code_hash', 'attempt_count', 'expires_at', 'consumed_at', 'verified_at', 'created_at',
@@ -133,6 +173,10 @@ const requiredColumns = {
 const requiredIndexes = {
   wholesale_supplier_profiles: [
     'PRIMARY', 'uq_wholesale_supplier_profiles_slug', 'idx_wholesale_supplier_profiles_active',
+  ],
+  wholesale_portal_layouts: ['PRIMARY'],
+  wholesale_portal_assets: [
+    'PRIMARY', 'uq_wholesale_portal_asset_file', 'idx_wholesale_portal_assets_active',
   ],
   wholesale_otp_challenges: [
     'PRIMARY', 'uq_wholesale_otp_challenge_token', 'idx_wholesale_otp_contact_active',
