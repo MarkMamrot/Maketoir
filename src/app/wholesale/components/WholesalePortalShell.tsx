@@ -60,6 +60,7 @@ export function WholesalePortalShell({
   children,
   onLayoutPreviewChange,
   onLayoutPageChange,
+  layoutProducts,
 }: {
   supplier: WholesaleSupplierProfile;
   session: WholesaleSession;
@@ -79,6 +80,7 @@ export function WholesalePortalShell({
   children: ReactNode;
   onLayoutPreviewChange?: (document: WholesaleLayoutDocument | null) => void;
   onLayoutPageChange?: (page: WholesaleLayoutPageId | null) => void;
+  layoutProducts?: Array<{ product_id: string; name: string }>;
 }) {
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
@@ -198,7 +200,7 @@ export function WholesalePortalShell({
       </header>
 
       <div className={styles.body}>
-        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={onLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} />}
+        {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={onLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
         <aside className={styles.sidebar}>
           {nav}
           <div className={styles.sidebarFooter}>

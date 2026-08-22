@@ -24,6 +24,10 @@
 .settings h3 { margin: 0 0 2px; font-size: 13px; }
 .settings label { display: grid; gap: 5px; color: #56635b; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .settings textarea { resize: vertical; padding: 8px; }
+.productPicker { max-height: 190px; overflow-y: auto; border: 1px solid #d9dfda; border-radius: 4px; }
+.productPicker label { display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 6px; padding: 7px 8px; border-bottom: 1px solid #edf0ee; color: #34433a; font-size: 11px; font-weight: 600; text-transform: none; }
+.productPicker label:last-child { border-bottom: 0; }
+.productPicker input { width: 15px; height: 15px; }
 .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 12px; border-top: 1px solid #d9dfda; background: #fff; }
 .revisions, .error, .message { grid-column: 1 / -1; font-size: 11px; line-height: 1.45; }
 .revisions { color: #69776e; }

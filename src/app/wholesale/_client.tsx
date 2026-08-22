@@ -229,10 +229,12 @@ export default function WholesalePortalClient({
   session,
   supplier,
   initialView = 'home',
+  publishedLayout,
 }: {
   session: WholesaleSession;
   supplier: WholesaleSupplierProfile;
   initialView?: WholesalePortalView;
+  publishedLayout: WholesaleLayoutDocument;
 }) {
   const router = useRouter();
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
@@ -677,11 +679,12 @@ export default function WholesalePortalClient({
 
   const cartCount = cartItems.reduce((s, i) => s + i.qty, 0);
   const cartValue = cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
+  const effectiveLayout = layoutPreview ?? publishedLayout;
   const canvasView = layoutPreviewPage === 'home' ? 'home' : layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection' ? 'catalogue' : view;
   const samplePage = layoutPreviewPage === 'login' || layoutPreviewPage === 'product' || layoutPreviewPage === 'cart' ? layoutPreviewPage : null;
-  const catalogueLayoutPage = layoutPreviewPage === 'collection' ? 'collection' : 'catalogue';
-  const catalogueLayoutSections = layoutPreview && (layoutPreviewPage === 'catalogue' || layoutPreviewPage === 'collection') ? layoutPreview.pages[catalogueLayoutPage].sections : [];
-  const catalogueBrowserType = layoutPreviewPage === 'collection' ? 'collection_browser' : 'catalogue_browser';
+  const catalogueLayoutPage = layoutPreviewPage === 'collection' || (!layoutPreviewPage && activeFilter !== '__all') ? 'collection' : 'catalogue';
+  const catalogueLayoutSections = canvasView === 'catalogue' ? effectiveLayout.pages[catalogueLayoutPage].sections : [];
+  const catalogueBrowserType = catalogueLayoutPage === 'collection' ? 'collection_browser' : 'catalogue_browser';
   const catalogueBrowserIndex = catalogueLayoutSections.findIndex(section => section.type === catalogueBrowserType);
   const catalogueSectionsBefore = catalogueBrowserIndex >= 0 ? catalogueLayoutSections.slice(0, catalogueBrowserIndex) : [];
   const catalogueSectionsAfter = catalogueBrowserIndex >= 0 ? catalogueLayoutSections.slice(catalogueBrowserIndex + 1) : [];
@@ -711,6 +714,8 @@ export default function WholesalePortalClient({
           onClose={() => setCartOpen(false)}
           onViewOrders={() => { setCartOpen(false); handleViewChange('orders'); }}
           isTestCheckout={canTestCheckout}
+          layoutSections={effectiveLayout.pages.cart.sections}
+          featuredProducts={allProducts}
         />
       )}
 
@@ -743,6 +748,8 @@ export default function WholesalePortalClient({
             allow_indent: !!selectedProduct.allow_indent_wholesale,
           })}
           onClose={() => setSelectedProduct(null)}
+          layoutSections={effectiveLayout.pages.product.sections}
+          featuredProducts={allProducts}
         />
       )}
 
@@ -764,6 +771,7 @@ export default function WholesalePortalClient({
         onLogout={handleLogout}
         onLayoutPreviewChange={setLayoutPreview}
         onLayoutPageChange={setLayoutPreviewPage}
+        layoutProducts={allProducts}
       >
         {samplePage && layoutPreview ? (
           <WholesaleLayoutCanvasSample
@@ -783,7 +791,7 @@ export default function WholesalePortalClient({
             accountProfile={accountProfile}
             onNavigate={handleViewChange}
             onCartOpen={() => setCartOpen(true)}
-            layoutSections={layoutPreview?.pages.home.sections}
+            layoutSections={effectiveLayout.pages.home.sections}
             featuredProducts={allProducts}
           />
         ) : canvasView === 'account' ? (

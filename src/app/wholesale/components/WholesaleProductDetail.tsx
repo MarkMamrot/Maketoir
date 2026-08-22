@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Heart, ShoppingCart, X } from 'lucide-react';
 import styles from './WholesaleProductDetail.module.css';
 import type { WholesaleProductImageFit, WholesaleProductImageRatio } from '@/lib/wholesale/wholesalePortalSettings';
+import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
 
 type DetailVariant = {
   variant_id: string;
@@ -42,6 +44,8 @@ export function WholesaleProductDetail({
   onAdd,
   onToggleFavourite,
   onClose,
+  layoutSections,
+  featuredProducts,
 }: {
   product: WholesaleProductDetailProduct;
   imageFit: WholesaleProductImageFit;
@@ -51,6 +55,8 @@ export function WholesaleProductDetail({
   onAdd: (variant: DetailVariant, variantLabel: string) => void;
   onToggleFavourite: (variantId: string) => void;
   onClose: () => void;
+  layoutSections: WholesaleLayoutSection[];
+  featuredProducts: WholesaleLayoutFeaturedProduct[];
 }) {
   const images = product.images?.length ? product.images : product.image_url ? [product.image_url] : [];
   const [activeImage, setActiveImage] = useState(images[0] ?? '');
@@ -72,7 +78,9 @@ export function WholesaleProductDetail({
           <div><span>{product.brand || 'Wholesale catalogue'}</span><h2 id="product-detail-title">{product.name}</h2></div>
           <button className={styles.iconButton} onClick={onClose} aria-label="Close product details" title="Close"><X size={18} /></button>
         </header>
-        <div className={styles.body}>
+        <div className={styles.layoutBody}>
+        <WholesaleLayoutPageRenderer sections={layoutSections} products={featuredProducts} systemSections={{
+          product_media_description: <div className={styles.body}>
           <div className={styles.gallery}>
             <div className={styles.imageStage} data-ratio={imageRatio}>
               {activeImage ? <img src={activeImage} alt={product.name} /> : <span>No product image</span>}
@@ -110,6 +118,9 @@ export function WholesaleProductDetail({
                 )}
               </section>
             )}
+          </div>
+        </div>,
+          product_variants: <div className={styles.variantBody}>
             <div className={styles.matrix}>
               <div className={styles.matrixHead}><span>Variant</span><span>Pack</span><span>Available</span><span>Price</span><span>Actions</span></div>
               {product.variants.map(variant => {
@@ -130,7 +141,8 @@ export function WholesaleProductDetail({
                 );
               })}
             </div>
-          </div>
+          </div>,
+        }} />
         </div>
       </section>
     </div>

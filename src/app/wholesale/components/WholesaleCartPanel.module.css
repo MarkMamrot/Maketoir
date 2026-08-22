@@ -1,6 +1,8 @@
 .layer { position: fixed; inset: 0; z-index: 500; }
 .backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(12, 25, 18, .5); cursor: pointer; }
 .panel { position: absolute; inset: 0 0 0 auto; display: flex; flex-direction: column; width: min(500px, 96vw); background: #f8faf8; box-shadow: -14px 0 40px rgba(12, 25, 18, .18); color: #243129; }
+.layoutBody { min-height: 0; display: flex; flex: 1; flex-direction: column; overflow-y: auto; }
+.layoutBody > div { min-height: 100%; display: flex; flex: 1; flex-direction: column; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px; border-bottom: 1px solid #d9dfda; background: #fff; }
 .header span { color: #267653; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .header h2 { margin: 5px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 25px; font-weight: 500; }

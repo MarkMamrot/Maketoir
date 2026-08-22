@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, Mail, RotateCcw, ShieldCheck } from 'lucide-react';
 import WholesaleApplicationForm from './_applicationClient';
+import type { WholesaleLayoutDocument } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from '../components/layout/WholesaleLayoutPageRenderer';
 
 interface SupplierSignInProps {
   supplier: {
@@ -13,7 +15,7 @@ interface SupplierSignInProps {
   };
 }
 
-export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
+export default function SupplierSignIn({ supplier, publishedLayout, featuredProducts }: SupplierSignInProps & { publishedLayout: WholesaleLayoutDocument; featuredProducts: WholesaleLayoutFeaturedProduct[] }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [challengeToken, setChallengeToken] = useState('');
@@ -77,8 +79,7 @@ export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
     setError('');
   }
 
-  return (
-    <main className="min-h-screen bg-[#f4f3ef] text-[#18211d]">
+  const loginAccess = (
       <div className="mx-auto grid min-h-screen max-w-6xl lg:grid-cols-[1.1fr_0.9fr]">
         <section className="flex flex-col justify-between border-b border-[#d8d8d1] px-6 py-8 lg:border-b-0 lg:border-r lg:px-14 lg:py-12">
           <div className="flex items-center gap-4">
@@ -191,6 +192,11 @@ export default function SupplierSignIn({ supplier }: SupplierSignInProps) {
           </div>
         </section>
       </div>
+  );
+
+  return (
+    <main className="min-h-screen bg-[#f4f3ef] text-[#18211d]">
+      <WholesaleLayoutPageRenderer sections={publishedLayout.pages.login.sections} systemSections={{ login_access: loginAccess }} products={featuredProducts} />
     </main>
   );
 }

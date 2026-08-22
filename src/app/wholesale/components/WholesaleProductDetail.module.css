@@ -1,11 +1,12 @@
 .layer { position: fixed; inset: 0; z-index: 540; }
 .backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgba(12, 25, 18, .56); }
 .panel { position: absolute; inset: 4vh 3vw; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #cad4cc; background: #f8faf8; box-shadow: 0 20px 55px rgba(12, 25, 18, .25); color: #243129; }
+.layoutBody { min-height: 0; flex: 1; overflow-y: auto; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 19px 22px; border-bottom: 1px solid #d9dfda; background: #fff; }
 .header span { color: #267653; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .header h2 { margin: 5px 0 0; font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 500; }
 .iconButton { width: 34px; height: 34px; display: inline-grid; place-items: center; flex-shrink: 0; border: 1px solid #cbd5cd; border-radius: 4px; background: #fff; color: #526158; cursor: pointer; }
-.body { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(500px, 1.5fr); min-height: 0; flex: 1; overflow: hidden; }
+.body { display: grid; grid-template-columns: minmax(280px, .85fr) minmax(500px, 1.5fr); min-height: 0; overflow: hidden; }
 .gallery { min-width: 0; padding: 22px; overflow-y: auto; border-right: 1px solid #d9dfda; background: #eef2ef; }
 .imageStage { display: grid; place-items: center; aspect-ratio: 1 / 1; overflow: hidden; background: #fff; color: #849089; font-size: 12px; }
 .imageStage[data-ratio='landscape'] { aspect-ratio: 4 / 3; }
@@ -19,6 +20,7 @@
 .thumbnails img { width: 100%; height: 100%; object-fit: cover; }
 .thumbnails[data-fit='contain'] img { object-fit: contain; }
 .information { min-width: 0; padding: 24px; overflow-y: auto; }
+.variantBody { padding: 0 24px 24px; overflow-x: auto; }
 .path { margin: 0 0 12px; color: #267653; font-size: 11px; font-weight: 750; }
 .descriptionSection { max-width: 780px; margin: 0 0 26px; }
 .descriptionHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }

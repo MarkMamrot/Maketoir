@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ArrowLeft, Check, FileText, MapPin, Minus, PackageCheck, Plus, Save, Send, ShoppingCart, Trash2, X } from 'lucide-react';
 import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/wholesaleAccountProfile';
+import type { WholesaleLayoutSection } from '@/lib/wholesale/layout/types';
+import { WholesaleLayoutPageRenderer, type WholesaleLayoutFeaturedProduct } from './layout/WholesaleLayoutPageRenderer';
 import styles from './WholesaleCartPanel.module.css';
 
 export interface WholesaleCartItem {
@@ -50,6 +52,8 @@ export function WholesaleCartPanel({
   onClose,
   onViewOrders,
   isTestCheckout = false,
+  layoutSections,
+  featuredProducts,
 }: {
   items: WholesaleCartItem[];
   notes: string;
@@ -64,6 +68,8 @@ export function WholesaleCartPanel({
   onClose: () => void;
   onViewOrders: () => void;
   isTestCheckout?: boolean;
+  layoutSections: WholesaleLayoutSection[];
+  featuredProducts: WholesaleLayoutFeaturedProduct[];
 }) {
   const [step, setStep] = useState<CartStep>('cart');
   const [submittedNumber, setSubmittedNumber] = useState('');
@@ -92,7 +98,8 @@ export function WholesaleCartPanel({
           <button className={styles.iconButton} onClick={onClose} aria-label="Close cart" title="Close"><X size={18} /></button>
         </header>
 
-        {step === 'complete' ? (
+        <div className={styles.layoutBody}>
+        <WholesaleLayoutPageRenderer sections={layoutSections} products={featuredProducts} systemSections={{ cart_workflow: <>{step === 'complete' ? (
           <div className={styles.complete}>
             <div className={styles.completeIcon}><PackageCheck size={28} /></div>
             <p>{isTestCheckout ? 'Created in IMS for staff inspection.' : `Submitted to ${profile?.company.name || 'your supplier'} for review.`}</p>
@@ -181,7 +188,8 @@ export function WholesaleCartPanel({
               <button className={styles.primaryButton} onClick={onViewOrders}>View orders <ArrowLeft className={styles.forwardArrow} size={15} /></button>
             </div>
           )}
-        </footer>
+        </footer></> }} />
+        </div>
       </aside>
     </div>
   );

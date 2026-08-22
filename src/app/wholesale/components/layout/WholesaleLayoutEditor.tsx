@@ -78,16 +78,19 @@ export function WholesaleLayoutEditor({
   onPageChange,
   onDocumentChange,
   onDirtyChange,
+  products = [],
 }: {
   onPageChange?: (page: WholesaleLayoutPageId | null) => void;
   onDocumentChange?: (document: WholesaleLayoutDocument | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  products?: Array<{ product_id: string; name: string }>;
 }) {
   const [state, setState] = useState<WholesaleLayoutEditorState | null>(null);
   const [document, setDocument] = useState<WholesaleLayoutDocument | null>(null);
   const [page, setPage] = useState<WholesaleLayoutPageId>('home');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addType, setAddType] = useState('banner');
+  const [productQuery, setProductQuery] = useState('');
   const [dirty, setDirty] = useState(false);
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
@@ -168,7 +171,7 @@ export function WholesaleLayoutEditor({
     if (selectedId === section.id) setSelectedId(null);
   };
 
-  const updateSetting = (key: keyof WholesaleLayoutSection['settings'], value: string | number | undefined) => {
+  const updateSetting = (key: keyof WholesaleLayoutSection['settings'], value: string | number | string[] | undefined) => {
     if (!document || !selectedId) return;
     updateSections(document.pages[page].sections.map(section => section.id === selectedId
       ? { ...section, settings: { ...section.settings, [key]: value || undefined } }
@@ -206,6 +209,7 @@ export function WholesaleLayoutEditor({
 
   const sections = document?.pages[page].sections ?? [];
   const selected = sections.find(section => section.id === selectedId) ?? null;
+  const visibleProducts = products.filter(product => product.name.toLocaleLowerCase('en-AU').includes(productQuery.trim().toLocaleLowerCase('en-AU'))).slice(0, 30);
   const addable = sections.length >= 40 ? [] : Object.values(WHOLESALE_LAYOUT_SECTION_REGISTRY).filter(definition => definition.allowedPages.includes(page) && !definition.requiredOn?.includes(page) && (!definition.singleton || !sections.some(section => section.type === definition.type)));
   return (
     <aside className={styles.editor} aria-label="Wholesale layout editor">
@@ -238,7 +242,7 @@ export function WholesaleLayoutEditor({
           {(selected.type === 'banner' || selected.type === 'rich_text' || selected.type === 'text_image') && <><label>Background colour<input value={selected.settings.backgroundColor ?? ''} maxLength={32} placeholder="#ffffff" onChange={event => updateSetting('backgroundColor', event.target.value)} /></label><label>Text colour<input value={selected.settings.textColor ?? ''} maxLength={32} placeholder="#17201c" onChange={event => updateSetting('textColor', event.target.value)} /></label><label>Link label<input value={selected.settings.linkLabel ?? ''} maxLength={100} onChange={event => updateSetting('linkLabel', event.target.value)} /></label><label>Link URL<input type="url" value={selected.settings.linkUrl ?? ''} maxLength={2048} placeholder="https:// or /catalogue" onChange={event => updateSetting('linkUrl', event.target.value)} /></label></>}
           {selected.type === 'text_image' && <label>Image side<select value={selected.settings.imageSide ?? 'right'} onChange={event => updateSetting('imageSide', event.target.value)}><option value="left">Left</option><option value="right">Right</option></select></label>}
           {(selected.type === 'image' || selected.type === 'text_image') && <><label>Image fit<select value={selected.settings.imageFit ?? 'cover'} onChange={event => updateSetting('imageFit', event.target.value)}><option value="cover">Cover</option><option value="contain">Contain</option></select></label><label>Image ratio<select value={selected.settings.imageRatio ?? 'landscape'} onChange={event => updateSetting('imageRatio', event.target.value)}><option value="landscape">Landscape</option><option value="square">Square</option><option value="portrait">Portrait</option></select></label></>}
-          {selected.type === 'featured_products' && <label>Product limit<input type="number" min={1} max={12} value={selected.settings.productLimit ?? 4} onChange={event => updateSetting('productLimit', Number(event.target.value))} /></label>}
+          {selected.type === 'featured_products' && <><label>Product limit<input type="number" min={1} max={12} value={selected.settings.productLimit ?? 4} onChange={event => updateSetting('productLimit', Number(event.target.value))} /></label><label>Find products<input type="search" value={productQuery} onChange={event => setProductQuery(event.target.value)} /></label><div className={styles.productPicker}>{visibleProducts.map(product => { const checked = selected.settings.productIds?.includes(product.product_id) ?? false; const atLimit = (selected.settings.productIds?.length ?? 0) >= 24; return <label key={product.product_id}><input type="checkbox" checked={checked} disabled={!checked && atLimit} onChange={() => updateSetting('productIds', checked ? (selected.settings.productIds ?? []).filter(id => id !== product.product_id) : [...(selected.settings.productIds ?? []), product.product_id])} /><span>{product.name}</span></label>; })}</div></>}
         </div>}
       </div>
       <footer className={styles.footer}>
