@@ -14,13 +14,18 @@
 .productImage img { width: 100%; height: 100%; max-height: 440px; object-fit: contain; }
 .productCopy { padding: 38px; }
 .productCopy > span { color: #718078; font-size: 12px; }
-.description { margin-top: 28px; color: #4f5e56; font-size: 14px; line-height: 1.7; white-space: pre-line; }
+.description { min-width: 0; margin-top: 28px; color: #4f5e56; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.description > :first-child { margin-top: 0; }
+.description > :last-child { margin-bottom: 0; }
+.description img { max-width: 100%; height: auto; }
 .variants { overflow: hidden; }
 .variants header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #e2e7e3; }
 .variants h2 { margin: 0; color: #17201c; font-size: 20px; }
 .variant, .cartItem { display: grid; grid-template-columns: minmax(160px, 1fr) 110px 106px; align-items: center; gap: 16px; padding: 15px 24px; border-bottom: 1px solid #edf0ee; }
 .variant div:first-child, .cartItem div { display: grid; gap: 4px; }
+.variant div:first-child, .variant span, .cartItem div, .cartItem span { min-width: 0; overflow-wrap: anywhere; }
 .variant span, .cartItem span { color: #76837b; font-size: 12px; }
+.variant > b { white-space: nowrap; }
 .stepper { height: 32px; display: grid; grid-template-columns: 30px 1fr 30px; align-items: center; border: 1px solid #ccd6cf; border-radius: 4px; text-align: center; }
 .stepper button { height: 100%; display: grid; place-items: center; border: 0; background: #f5f7f5; color: #56635b; }
 .empty { padding: 42px 24px; color: #829087; text-align: center; }

@@ -71,7 +71,9 @@ function ProductMedia({ product }: { product: SampleProduct | null }) {
         <p>{product?.brand || 'Wholesale catalogue'}</p>
         <h1>{product?.name || 'Sample product'}</h1>
         <span>{[product?.category, product?.subcategory].filter(Boolean).join(' / ') || 'Category / Subcategory'}</span>
-        <div className={styles.description}>{product?.description || 'Product description appears here.'}</div>
+        {product?.description
+          ? <div className={styles.description} dangerouslySetInnerHTML={{ __html: product.description }} />
+          : <div className={styles.description}>Product description appears here.</div>}
       </div>
     </section>
   );
