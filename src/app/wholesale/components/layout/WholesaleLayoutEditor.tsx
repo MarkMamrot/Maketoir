@@ -20,7 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, Copy, GripVertical, Loader2, Plus, RotateCcw, Save, Send, Trash2, Upload } from 'lucide-react';
 import { WHOLESALE_LAYOUT_SECTION_REGISTRY } from '@/lib/wholesale/layout/registry';
-import { createDefaultWholesaleLayout, isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
+import { createDefaultWholesaleLayout, getChangedWholesaleLayoutPages, isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
 import {
   WHOLESALE_LAYOUT_PAGE_IDS,
   type WholesaleLayoutDocument,
@@ -97,6 +97,7 @@ export function WholesaleLayoutEditor({
   const [dirty, setDirty] = useState(false);
   const [pendingPage, setPendingPage] = useState<WholesaleLayoutPageId | null>(null);
   const [conflictState, setConflictState] = useState<WholesaleLayoutEditorState | null>(null);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
   const [working, setWorking] = useState<'load' | 'save' | 'publish' | 'reset' | null>('load');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -245,7 +246,6 @@ export function WholesaleLayoutEditor({
     if (!state || !document) return false;
     if (action === 'publish' && dirty) { setError('Save the draft before publishing.'); return false; }
     if (action === 'reset_draft' && !confirm('Reset the draft to the currently published layout?')) return false;
-    if (action === 'publish' && !confirm('Publish the saved layout across all wholesale portal pages?')) return false;
     setWorking(action === 'save_draft' ? 'save' : action === 'publish' ? 'publish' : 'reset');
     setError(''); setMessage('');
     try {
@@ -266,6 +266,7 @@ export function WholesaleLayoutEditor({
       setState(body.state);
       setDocument(body.state.draft);
       setDirty(false);
+      if (action === 'publish') setPublishConfirmationOpen(false);
       setMessage(action === 'publish' ? 'Published.' : action === 'reset_draft' ? 'Draft reset.' : 'Draft saved.');
       return true;
     } catch (operationError) {
@@ -309,6 +310,7 @@ export function WholesaleLayoutEditor({
     setSelectedId(null);
     setPendingPage(null);
     setConflictState(null);
+    setPublishConfirmationOpen(false);
     setMessage('Latest saved draft loaded.');
   };
 
@@ -317,6 +319,7 @@ export function WholesaleLayoutEditor({
     setState(conflictState);
     setConflictState(null);
     setDirty(true);
+    setPublishConfirmationOpen(false);
     setMessage('Local changes kept. Save again to replace the latest draft.');
   };
 
@@ -324,6 +327,10 @@ export function WholesaleLayoutEditor({
   const selected = sections.find(section => section.id === selectedId) ?? null;
   const visibleProducts = products.filter(product => product.name.toLocaleLowerCase('en-AU').includes(productQuery.trim().toLocaleLowerCase('en-AU'))).slice(0, 30);
   const addable = sections.length >= 40 ? [] : Object.values(WHOLESALE_LAYOUT_SECTION_REGISTRY).filter(definition => definition.allowedPages.includes(page) && !definition.requiredOn?.includes(page) && (!definition.singleton || !sections.some(section => section.type === definition.type)));
+  const changedPages = state ? getChangedWholesaleLayoutPages(state.draft, state.published) : [];
+  const lastPublished = state?.publishedBy?.at
+    ? `${state.publishedBy.name || 'Unknown staff member'} on ${new Intl.DateTimeFormat('en-AU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.publishedBy.at))}`
+    : 'Never published';
   return (
     <aside className={styles.editor} aria-label="Wholesale layout editor">
       <header className={styles.header}>
@@ -364,7 +371,7 @@ export function WholesaleLayoutEditor({
         <div className={styles.revisions}>Draft r{state?.draftRevision ?? 0} · Published r{state?.publishedRevision ?? 0}{dirty ? ' · Unsaved changes' : ''}</div>
         <button className={styles.secondary} onClick={() => void perform('reset_draft')} disabled={!state || Boolean(working)}><RotateCcw size={15} /> Reset draft</button>
         <button className={styles.secondary} onClick={() => void perform('save_draft')} disabled={!state || !dirty || Boolean(working)}><Save size={15} /> {working === 'save' ? 'Saving...' : 'Save draft'}</button>
-        <button className={styles.primary} onClick={() => void perform('publish')} disabled={!state || dirty || Boolean(working)}><Send size={15} /> {working === 'publish' ? 'Publishing...' : 'Publish'}</button>
+        <button className={styles.primary} onClick={() => setPublishConfirmationOpen(true)} disabled={!state || dirty || Boolean(working)}><Send size={15} /> {working === 'publish' ? 'Publishing...' : 'Publish'}</button>
       </footer>
       {pendingPage && !conflictState && <div className={styles.dialogLayer} role="presentation">
         <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="layout-page-change-title" aria-describedby="layout-page-change-description" onKeyDown={event => { if (event.key === 'Escape' && !working) setPendingPage(null); }}>
@@ -385,6 +392,21 @@ export function WholesaleLayoutEditor({
           <div className={styles.dialogActions}>
             <button type="button" className={styles.secondary} onClick={reloadConflictDraft} autoFocus>Reload</button>
             <button type="button" className={styles.primary} onClick={keepLocalConflictDraft}>Keep local</button>
+          </div>
+        </div>
+      </div>}
+      {publishConfirmationOpen && !conflictState && <div className={styles.dialogLayer} role="presentation">
+        <div className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="layout-publish-title" aria-describedby="layout-publish-description" onKeyDown={event => { if (event.key === 'Escape' && !working) setPublishConfirmationOpen(false); }}>
+          <h3 id="layout-publish-title">Publish saved layout?</h3>
+          <p id="layout-publish-description">This makes the saved draft visible across the wholesale portal.</p>
+          <strong className={styles.dialogLabel}>Changed templates</strong>
+          {changedPages.length > 0
+            ? <ul className={styles.changeList}>{changedPages.map(pageId => <li key={pageId}>{pageLabels[pageId]}</li>)}</ul>
+            : <p className={styles.noChanges}>No page content differs from the published layout.</p>}
+          <div className={styles.publishMeta}><span>Last published</span><strong>{lastPublished}</strong></div>
+          <div className={styles.dialogActions}>
+            <button type="button" className={styles.secondary} onClick={() => setPublishConfirmationOpen(false)} disabled={Boolean(working)} autoFocus>Cancel</button>
+            <button type="button" className={styles.primary} onClick={() => void perform('publish')} disabled={Boolean(working)}><Send size={15} /> {working === 'publish' ? 'Publishing...' : 'Publish now'}</button>
           </div>
         </div>
       </div>}

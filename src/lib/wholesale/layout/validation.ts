@@ -141,3 +141,10 @@ export function normalizeWholesaleLayoutDocument(raw: unknown): WholesaleLayoutD
 export function isRequiredWholesaleLayoutSection(page: WholesaleLayoutPageId, type: WholesaleLayoutSectionType): boolean {
   return Boolean(WHOLESALE_LAYOUT_SECTION_REGISTRY[type].requiredOn?.includes(page));
 }
+
+export function getChangedWholesaleLayoutPages(
+  draft: WholesaleLayoutDocument,
+  published: WholesaleLayoutDocument,
+): WholesaleLayoutPageId[] {
+  return WHOLESALE_LAYOUT_PAGE_IDS.filter(page => JSON.stringify(draft.pages[page]) !== JSON.stringify(published.pages[page]));
+}

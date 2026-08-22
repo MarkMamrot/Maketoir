@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultWholesaleLayout, isRequiredWholesaleLayoutSection, normalizeWholesaleLayoutDocument } from '../validation';
+import { createDefaultWholesaleLayout, getChangedWholesaleLayoutPages, isRequiredWholesaleLayoutSection, normalizeWholesaleLayoutDocument } from '../validation';
 
 describe('wholesale layout validation', () => {
+  it('identifies only page templates changed from the published document', () => {
+    const published = createDefaultWholesaleLayout();
+    const draft = structuredClone(published);
+    draft.pages.home.sections.push({ id: 'home-banner', type: 'banner', settings: { heading: 'New' } });
+    draft.pages.product.sections.reverse();
+
+    expect(getChangedWholesaleLayoutPages(draft, published)).toEqual(['home', 'product']);
+    expect(getChangedWholesaleLayoutPages(published, published)).toEqual([]);
+  });
+
   it('encodes current required composite sections in deterministic defaults', () => {
     const layout = createDefaultWholesaleLayout();
     expect(layout.pages.product.sections.map(section => section.type)).toEqual([
