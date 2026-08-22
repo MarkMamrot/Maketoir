@@ -15805,7 +15805,7 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
             )}
             {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading transactions…</div>}
             {!isLoading && sales.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No transactions found.</div>}
-            {!isLoading && sales.map((sale: any) => {
+            {!isLoading && sales.map((sale: any, saleIndex: number) => {
               const saleOpen = expandedSales.has(sale.id);
               const isReturn = sale.sale_type === 'return';
               const isExchange = isReturn
@@ -15813,7 +15813,7 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                 && sale.items.some((item: any) => Number(item.qty) > 0);
               return (
                 <div key={sale.id} style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                  <div onClick={() => toggleSale(sale.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}>
+                  <div onClick={() => toggleSale(sale.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: saleOpen ? 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-1))' : saleIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', minWidth: 50, fontFamily: 'monospace', opacity: .7 }}>#{sale.id}</span>
                     <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 68 }}>{fmtTime(sale.completed_at)}</span>
                     <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, fontWeight: 600, background: isReturn ? 'rgba(239,68,68,.12)' : 'rgba(16,185,129,.1)', color: isReturn ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{isExchange ? 'Exchange' : isReturn ? 'Return' : 'Sale'}</span>
@@ -15857,13 +15857,13 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
                           </tr>
                         </thead>
                         <tbody>
-                          {sale.items.map((item: any) => {
+                          {sale.items.map((item: any, itemIndex: number) => {
                             const taxRatePct = Number(item.tax_rate ?? 10);
                             const lineInc    = Number(item.line_total);
                             const lineExc    = taxRatePct > 0 ? lineInc / (1 + taxRatePct / 100) : lineInc;
                             const lineGst    = lineInc - lineExc;
                             return (
-                              <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                              <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: itemIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                                 <td style={{ padding: '5px 6px', color: 'var(--sv-text-main)' }}>{item.name}</td>
                                 <td style={{ padding: '5px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.code || '—'}</td>
                                 <td style={{ padding: '5px 6px', textAlign: 'right' }}>{Number(item.qty)}</td>
@@ -16305,7 +16305,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
               <div style={{ borderTop: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)' }}>
                 {isLoading && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Loading orders…</div>}
                 {!isLoading && orders.length === 0 && <div style={{ padding: '16px 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>No orders found.</div>}
-                {!isLoading && orders.map((order: any) => {
+                {!isLoading && orders.map((order: any, orderIndex: number) => {
                   const orderOpen = expandedOrders.has(order.id);
                   const badge     = getSourceBadge(order);
                   return (
@@ -16313,7 +16313,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                       {/* Order row */}
                       <div
                         onClick={() => toggleOrder(order.id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: orderOpen ? 'rgba(255,255,255,.02)' : 'transparent' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 20px', cursor: 'pointer', background: orderOpen ? 'color-mix(in srgb, var(--sv-action) 5%, var(--sv-bg-1))' : orderIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}
                       >
                         <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 100, fontFamily: 'monospace' }}>
                           {order.so_number}
@@ -16383,12 +16383,12 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               </tr>
                             </thead>
                             <tbody>
-                              {order.items.map((item: any) => {
+                              {order.items.map((item: any, itemIndex: number) => {
                                 const qty = Number(item.qty_ordered);
                                 const avail = Number(item.warehouse_available ?? 0);
                                 const short = item.missing || avail < qty;
                                 return (
-                                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                                <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: itemIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
                                   <td style={{ padding: '8px 9px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
                                   <td style={{ padding: '8px 9px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
                                   <td style={{ padding: '8px 9px', textAlign: 'right' }}>{qty}</td>
