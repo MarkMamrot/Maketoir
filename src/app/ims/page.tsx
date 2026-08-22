@@ -16439,18 +16439,21 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                             </tfoot>
                           </table>
                           {(() => {
+                            const isFulfilled = order.status === 'fulfilled';
                             const costRows = (order.items || []).map((item: any) => {
-                              const qty = Math.abs(Number(item.qty_ordered ?? 0));
+                              const qty = Math.abs(Number(item.qty_fulfilled ?? 0));
                               const avgCost = item.unit_cost != null
                                 ? Number(item.unit_cost)
                                 : item.avg_cost != null
                                   ? Number(item.avg_cost)
-                                  : null;
-                              const cogs = avgCost != null ? qty * avgCost : null;
+                                  : item.cost_aud != null
+                                    ? Number(item.cost_aud)
+                                    : null;
+                              const cogs = isFulfilled && avgCost != null ? qty * avgCost : null;
                               const lineRevenue = Number(item.line_total || 0);
                               return { item, qty, avgCost, cogs, lineRevenue };
                             });
-                            const hasCosts = costRows.some((r: any) => r.avgCost != null);
+                            const hasCosts = isFulfilled && costRows.every((r: any) => r.avgCost != null);
                             const revenue = costRows.reduce((s: number, r: any) => s + r.lineRevenue, 0);
                             const totalCogs = hasCosts ? costRows.reduce((s: number, r: any) => s + (r.cogs ?? 0), 0) : null;
                             const grossProfit = totalCogs != null ? revenue - totalCogs : null;
@@ -16459,9 +16462,25 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               <div style={{ marginTop: 10 }}>
                                 <CostSummaryPills items={[
                                   { label: 'Revenue', value: fmtMoney(revenue) },
-                                  { label: 'COGS', value: totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
+                                  { label: 'COGS', value: !isFulfilled ? 'Not fulfilled' : totalCogs != null ? fmtMoney(totalCogs) : '—', tone: totalCogs != null ? 'default' : 'warn' },
                                   { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
                                 ]} />
+                                {isFulfilled && (order.shipments || []).some((shipment: any) => (shipment.tracking || []).length > 0) && (
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 10px', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--sv-text-dim)', fontWeight: 600 }}>Tracking</span>
+                                    {(order.shipments || []).flatMap((shipment: any) => shipment.tracking || []).map((tracking: any, index: number) => (
+                                      tracking.tracking_url ? (
+                                        <a key={`${tracking.tracking_number || tracking.tracking_url}-${index}`} href={tracking.tracking_url} target="_blank" rel="noreferrer" style={{ color: 'var(--sv-mint)', fontWeight: 600 }}>
+                                          {[tracking.company, tracking.tracking_number || 'Open tracking'].filter(Boolean).join(' · ')}
+                                        </a>
+                                      ) : (
+                                        <span key={`${tracking.tracking_number || index}`} style={{ color: 'var(--sv-text-dim)' }}>
+                                          {[tracking.company, tracking.tracking_number || 'Tracking pending'].filter(Boolean).join(' · ')}
+                                        </span>
+                                      )
+                                    ))}
+                                  </div>
+                                )}
                                 <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
                                   <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>

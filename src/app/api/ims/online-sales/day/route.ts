@@ -7,7 +7,9 @@ import { query } from '@/services/MySQLService';
 // GET /api/ims/online-sales/day?date=YYYY-MM-DD&location_id=X
 // Returns all sales orders (with items) for a given day.
 export async function GET(req: NextRequest) {
-  if (!await getImsSession()) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
 
   const { searchParams } = new URL(req.url);
   const date = searchParams.get('date');
@@ -40,7 +42,9 @@ export async function GET(req: NextRequest) {
       `SELECT i.*,
               COALESCE(p.name, i.name) AS product_name,
               p.product_id AS product_id,
-              v.sku
+              v.sku,
+              v.avg_cost,
+              v.cost_aud
        FROM ims_sales_order_items i
        LEFT JOIN ims_product_variants v ON v.variant_id = i.variant_id
        LEFT JOIN ims_products p ON p.product_id = v.product_id
@@ -49,6 +53,27 @@ export async function GET(req: NextRequest) {
       orderIds,
     );
 
+    const shipments = await imsQuery<any>(
+      `SELECT id, so_id, shopify_fulfilment_id, status, fulfilled_at
+         FROM ims_so_shipments
+        WHERE business_id = ? AND so_id IN (${orderIds.map(() => '?').join(',')})
+        ORDER BY COALESCE(fulfilled_at, created_at), id`,
+      [businessId, ...orderIds],
+    );
+    if (shipments.length > 0) {
+      const shipmentIds = shipments.map((shipment: any) => Number(shipment.id));
+      const tracking = await imsQuery<any>(
+        `SELECT shipment_id, company, tracking_number, tracking_url
+           FROM ims_so_shipment_tracking
+          WHERE business_id = ? AND shipment_id IN (${shipmentIds.map(() => '?').join(',')})
+          ORDER BY id`,
+        [businessId, ...shipmentIds],
+      );
+      for (const shipment of shipments) {
+        shipment.tracking = tracking.filter((entry: any) => Number(entry.shipment_id) === Number(shipment.id));
+      }
+    }
+
     const itemsByOrder = new Map<number, any[]>();
     for (const item of items) {
       if (!itemsByOrder.has(item.so_id)) itemsByOrder.set(item.so_id, []);
@@ -56,23 +81,20 @@ export async function GET(req: NextRequest) {
     }
 
     // ── Resolve pick location per line item ──────────────────────────────────
-    const session = await getImsSession();
-    const businessId = session?.businessId as string | undefined;
-
     // Priority-ordered pick location list (from settings), fall back to has_online locations
     let priority: number[] = [];
     try {
       const rows = await imsQuery<{ value: string }>(
         `SELECT value FROM ims_settings WHERE business_id = ? AND \`key\` = 'online_pick_priority' LIMIT 1`,
-        [businessId ?? ''],
+        [businessId],
       );
       if (rows[0]?.value) { const arr = JSON.parse(rows[0].value); if (Array.isArray(arr)) priority = arr.map(Number).filter(Boolean); }
     } catch {}
     if (priority.length === 0) {
       try {
         const locs = await imsQuery<{ id: number }>(
-          `SELECT id FROM ims_locations WHERE has_online = 1 ${businessId ? 'AND business_id = ?' : ''} ORDER BY name`,
-          businessId ? [businessId] : [],
+          `SELECT id FROM ims_locations WHERE has_online = 1 AND business_id = ? ORDER BY name`,
+          [businessId],
         );
         priority = locs.map(l => l.id);
       } catch {}
@@ -171,7 +193,13 @@ export async function GET(req: NextRequest) {
       });
       const has_missing  = its.some((it: any) => it.missing);
       const has_transfer = its.some((it: any) => it.needs_transfer && !it.missing);
-      return { ...o, items: its, has_missing, has_transfer };
+      return {
+        ...o,
+        items: its,
+        has_missing,
+        has_transfer,
+        shipments: shipments.filter((shipment: any) => Number(shipment.so_id) === Number(o.id)),
+      };
     });
 
     // Shop domain for building Shopify admin order links (returns are initiated there).
@@ -179,7 +207,7 @@ export async function GET(req: NextRequest) {
     try {
       const conn = await query<{ shopify_shop_id: string | null }>(
         `SELECT shopify_shop_id FROM connections WHERE business_id = ? LIMIT 1`,
-        [businessId ?? ''],
+        [businessId],
       );
       const raw = conn[0]?.shopify_shop_id;
       if (raw) shopDomain = String(raw).replace(/\.myshopify\.com$/, '') + '.myshopify.com';
