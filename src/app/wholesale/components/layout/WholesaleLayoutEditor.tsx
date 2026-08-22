@@ -20,7 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronDown, ChevronUp, Copy, GripVertical, Loader2, Plus, RotateCcw, Save, Send, Trash2, Upload } from 'lucide-react';
 import { WHOLESALE_LAYOUT_SECTION_REGISTRY } from '@/lib/wholesale/layout/registry';
-import { isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
+import { createDefaultWholesaleLayout, isRequiredWholesaleLayoutSection } from '@/lib/wholesale/layout/validation';
 import {
   WHOLESALE_LAYOUT_PAGE_IDS,
   type WholesaleLayoutDocument,
@@ -184,6 +184,22 @@ export function WholesaleLayoutEditor({
     if (selectedId === section.id) setSelectedId(null);
   };
 
+  const resetSelectedSection = (section: WholesaleLayoutSection) => {
+    if (!confirm(`Reset ${WHOLESALE_LAYOUT_SECTION_REGISTRY[section.type].label} to its default settings?`)) return;
+    const defaults = WHOLESALE_LAYOUT_SECTION_REGISTRY[section.type].defaultSettings;
+    const settings = { ...defaults, productIds: defaults.productIds ? [...defaults.productIds] : undefined };
+    updateSections(document!.pages[page].sections.map(candidate => candidate.id === section.id ? { ...candidate, settings } : candidate));
+    setMessage('Section reset locally. Save the draft to keep this change.');
+  };
+
+  const resetCurrentPage = () => {
+    if (!document || !confirm(`Reset the ${pageLabels[page]} page to its default sections? Optional sections on this page will be removed.`)) return;
+    const defaultSections = createDefaultWholesaleLayout().pages[page].sections;
+    updateSections(defaultSections);
+    setSelectedId(null);
+    setMessage(`${pageLabels[page]} reset locally. Save the draft to keep this change.`);
+  };
+
   const updateSettings = (patch: Partial<WholesaleLayoutSection['settings']>) => {
     if (!document || !selectedId) return;
     updateSections(document.pages[page].sections.map(section => section.id === selectedId
@@ -256,6 +272,7 @@ export function WholesaleLayoutEditor({
         <select value={page} onChange={event => setPage(event.target.value as WholesaleLayoutPageId)} aria-label="Page template">
           {WHOLESALE_LAYOUT_PAGE_IDS.map(pageId => <option key={pageId} value={pageId}>{pageLabels[pageId]}</option>)}
         </select>
+        <button className={styles.resetPage} type="button" onClick={resetCurrentPage} disabled={!document || Boolean(working)}><RotateCcw size={14} /> Reset page</button>
       </header>
       <div className={styles.body}>
         {working === 'load' ? <div className={styles.loading}><Loader2 size={18} /> Loading layout...</div> : error && !document ? <div className={styles.error}>{error}</div> : (
@@ -269,7 +286,7 @@ export function WholesaleLayoutEditor({
         )}
         {document && <div className={styles.addSection}><select value={addType} onChange={event => setAddType(event.target.value)} aria-label="Section type to add">{addable.map(definition => <option key={definition.type} value={definition.type}>{definition.label}</option>)}</select><button onClick={addSection} disabled={!addable.length}><Plus size={15} /> Add section</button></div>}
         {selected && <div className={styles.settings}>
-          <h3>{WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].label}</h3>
+          <div className={styles.settingsHeader}><h3>{WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].label}</h3><button type="button" onClick={() => resetSelectedSection(selected)}><RotateCcw size={13} /> Reset</button></div>
           {'heading' in WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].defaultSettings && <label>Heading<input value={selected.settings.heading ?? ''} maxLength={255} onChange={event => updateSetting('heading', event.target.value)} /></label>}
           {'bodyHtml' in WHOLESALE_LAYOUT_SECTION_REGISTRY[selected.type].defaultSettings && <label>Body HTML<textarea value={selected.settings.bodyHtml ?? ''} maxLength={20000} rows={5} onChange={event => updateSetting('bodyHtml', event.target.value)} /></label>}
           {(selected.type === 'image' || selected.type === 'text_image') && <><div className={styles.assetUpload}><label><Upload size={15} /> {uploadingAsset ? 'Uploading...' : 'Upload image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploadingAsset} onChange={event => { void uploadAsset(event.target.files?.[0]); event.target.value = ''; }} /></label><span>JPEG, PNG, WebP or GIF · 10 MB max</span></div>{assets.length > 0 && <div className={styles.assetGrid} aria-label="Uploaded layout images">{assets.map(asset => <button key={asset.assetId} type="button" data-selected={selected.settings.assetId === asset.assetId || undefined} onClick={() => selectAsset(asset)} title={asset.originalName}><img src={asset.url} alt={asset.altText ?? ''} /><span>{asset.originalName}</span></button>)}</div>}<label>Or image URL<input type="url" value={selected.settings.imageUrl ?? ''} maxLength={2048} placeholder="https://" onChange={event => updateSettings({ imageUrl: event.target.value || undefined, assetId: undefined })} /></label><label>Alt text<input value={selected.settings.altText ?? ''} maxLength={500} onChange={event => updateSetting('altText', event.target.value)} /></label></>}
