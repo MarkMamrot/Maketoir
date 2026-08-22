@@ -33,8 +33,9 @@ describe('buildDashboardSalesComparisons', () => {
 
     expect(result.slice(0, 2)).toMatchObject([
       { label: 'Today so far', current: { from: '2026-08-16', sales: 100 }, comparison: { from: '2026-08-15', sales: 80 } },
-      { label: 'Yesterday', current: { from: '2026-08-15', sales: 80 }, comparison: { from: '2026-08-14', sales: 60 }, changePercent: 100 / 3 },
+      { label: 'Yesterday', current: { from: '2026-08-15', sales: 80 }, comparison: { from: '2026-08-14', sales: 60 } },
     ]);
+    expect(result[1].changePercent).toBeCloseTo(100 / 3);
   });
 
   it('hides periods whose comparison baseline predates the first sale', () => {
@@ -49,6 +50,11 @@ describe('buildDashboardSalesComparisons', () => {
     expect(result[0]).toMatchObject({
       comparison: { from: '2025-08-16', to: '2025-08-16', sales: 50 },
       changePercent: 100,
+    });
+    expect(result[1]).toMatchObject({
+      label: 'Yesterday',
+      current: { from: '2026-08-15', to: '2026-08-15', sales: 80 },
+      comparison: { from: '2025-08-15', to: '2025-08-15' },
     });
   });
 
