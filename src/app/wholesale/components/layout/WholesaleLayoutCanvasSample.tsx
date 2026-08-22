@@ -113,8 +113,19 @@ function CartWorkflow({ items }: { items: SampleCartItem[] }) {
   );
 }
 
+function sampleCartItems(products: SampleProduct[]): SampleCartItem[] {
+  return products.slice(0, 2).map((product, index) => ({
+    variant_id: product.variants[0]?.variant_id || `layout-sample-${product.product_id}`,
+    product_name: product.name,
+    variant_label: variantName(product, 0) || 'Default',
+    qty: index + 1,
+    unit_price: product.variants[0]?.price_wholesale || 0,
+  }));
+}
+
 function CartSample({ items, sections, products }: { items: SampleCartItem[]; sections: WholesaleLayoutSection[]; products: SampleProduct[] }) {
-  return <WholesaleLayoutPageRenderer sections={sections} systemSections={{ cart_workflow: <CartWorkflow items={items} /> }} products={products} />;
+  const previewItems = items.length ? items : sampleCartItems(products);
+  return <WholesaleLayoutPageRenderer sections={sections} systemSections={{ cart_workflow: <CartWorkflow items={previewItems} /> }} products={products} />;
 }
 
 export function WholesaleLayoutCanvasSample({ page, supplierName, sections, product, products, cartItems }: {

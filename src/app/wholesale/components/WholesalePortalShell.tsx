@@ -8,6 +8,7 @@ import {
   CircleUserRound,
   HelpCircle,
   House,
+  Laptop,
   LogOut,
   PanelsTopLeft,
   MapPin,
@@ -16,6 +17,7 @@ import {
   Search,
   ShoppingBag,
   ShoppingCart,
+  Smartphone,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -87,6 +89,7 @@ export function WholesalePortalShell({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [layoutEditorOpen, setLayoutEditorOpen] = useState(isPreview);
   const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
+  const [layoutViewport, setLayoutViewport] = useState<'desktop' | 'mobile'>('desktop');
   const [online, setOnline] = useState(true);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
@@ -162,6 +165,10 @@ export function WholesalePortalShell({
         <strong>Staff preview · Layout editor</strong>
         <span>{session.company} / {session.name} / {buyingLocation}</span>
         <span>Commerce: {canTestCheckout ? 'Test checkout to IMS Draft' : 'Read-only'}</span>
+        {layoutEditorOpen && <div className={styles.viewportControl} role="group" aria-label="Preview viewport">
+          <button onClick={() => setLayoutViewport('desktop')} aria-pressed={layoutViewport === 'desktop'} title="Desktop preview"><Laptop size={14} /> Desktop</button>
+          <button onClick={() => setLayoutViewport('mobile')} aria-pressed={layoutViewport === 'mobile'} title="Mobile preview"><Smartphone size={14} /> Mobile</button>
+        </div>}
         <button onClick={toggleLayoutEditor} aria-pressed={layoutEditorOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #9b7a1b', borderRadius: 4, background: layoutEditorOpen ? '#533f03' : '#fffaf0', color: layoutEditorOpen ? '#fff' : '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}><PanelsTopLeft size={14} /> {layoutEditorOpen ? 'Close layout editor' : 'Edit layout'}</button>
         <button onClick={exitPreview} style={{ border: '1px solid #9b7a1b', borderRadius: 4, background: '#fffaf0', color: '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}>Exit preview</button>
       </div>}
@@ -200,7 +207,7 @@ export function WholesalePortalShell({
         </div>
       </header>
 
-      <div className={styles.body}>
+      <div className={`${styles.body} ${layoutEditorOpen ? styles.bodyEditor : ''}`}>
         {layoutEditorOpen && <WholesaleLayoutEditor onPageChange={onLayoutPageChange} onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} products={layoutProducts} />}
         <aside className={styles.sidebar}>
           {nav}
@@ -209,7 +216,9 @@ export function WholesalePortalShell({
             <div className={styles.location}><MapPin size={14} aria-hidden="true" /> {buyingLocation}</div>
           </div>
         </aside>
-        <main className={styles.content} aria-label={layoutEditorOpen ? 'Layout preview canvas' : undefined}>{children}</main>
+        <div className={layoutEditorOpen ? styles.canvasStage : styles.canvasStageLive} data-viewport={layoutEditorOpen ? layoutViewport : undefined}>
+          <main className={styles.content} aria-label={layoutEditorOpen ? `${layoutViewport === 'mobile' ? 'Mobile' : 'Desktop'} layout preview canvas` : undefined}>{children}</main>
+        </div>
       </div>
 
       {drawerOpen && (
