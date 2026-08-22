@@ -22,7 +22,7 @@ function formatCurrency(value: number): string {
 }
 
 export function DashboardProductInsights({ top, slow, valueTop, valueSlow, periodLabel, loading }: DashboardProductInsightsProps) {
-  const [mode, setMode] = useState<'qty' | 'value'>('qty');
+  const [mode, setMode] = useState<'qty' | 'value'>('value');
   const activeTop = mode === 'value' ? valueTop : top;
   const activeSlow = mode === 'value' ? valueSlow : slow;
   const topMetric = (product: DashboardProductInsight) => mode === 'value' ? Number(product.revenue ?? 0) : Number(product.units_sold ?? 0);

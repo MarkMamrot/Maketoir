@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 
 import type {
   DashboardComparisonMode,
@@ -76,6 +76,8 @@ export function DashboardSalesComparison() {
         .dashboard-sales-comparison__columns span:last-child { text-align:right; }
         .dashboard-sales-comparison__row { min-height:56px; padding:8px 16px; border-top:1px solid var(--sv-etch); transition:background-color .15s; }
         .dashboard-sales-comparison__row:hover { background:color-mix(in srgb, var(--sv-action) 3%, transparent); }
+        .dashboard-sales-comparison__row--baseline { background:color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-2)); }
+        .dashboard-sales-comparison__baseline-note { color:var(--sv-text-dim); font-size:10px; }
         .dashboard-sales-comparison__period { display:flex; flex-direction:column; align-items:flex-start; min-width:0; color:var(--sv-text-strong); font-size:11px; font-weight:800; }
         .dashboard-sales-comparison__period-range { margin-top:2px; color:var(--sv-text-dim); font-size:9px; font-weight:500; line-height:1.25; }
         .dashboard-sales-comparison__amounts { display:flex; flex-direction:column; align-items:flex-start; gap:1px; min-width:0; }
@@ -90,6 +92,7 @@ export function DashboardSalesComparison() {
           .dashboard-sales-comparison__row { grid-template-columns:92px 1fr auto; gap:7px 10px; padding:11px 12px; }
           .dashboard-sales-comparison__amounts { grid-column:2 / 4; grid-row:2; }
           .dashboard-sales-comparison__bar { grid-column:1 / 4; grid-row:3; margin-top:4px; }
+          .dashboard-sales-comparison__baseline-note { grid-column:2 / 4; grid-row:2; }
           .dashboard-sales-comparison__change { grid-column:3; grid-row:1; min-width:0; }
         }
       `}</style>
@@ -142,17 +145,20 @@ export function DashboardSalesComparison() {
             const tooltip = `Current: ${formatDateRange(row.current.from, row.current.to)}. ${MODE_LABELS[mode]}: ${formatDateRange(row.comparison.from, row.comparison.to)}.`;
 
             return (
-              <div className="dashboard-sales-comparison__row" key={row.days} title={tooltip}>
+              <Fragment key={row.days}>
+              <div className="dashboard-sales-comparison__row" title={tooltip}>
                 <div className="dashboard-sales-comparison__period">
                   <span>{row.days === 1 ? 'Today so far' : row.label}</span>
                   {row.days > 1 && <span className="dashboard-sales-comparison__period-range">{formatCompactDateRange(row.current.from, row.current.to)}</span>}
                 </div>
                 <div className="dashboard-sales-comparison__amounts">
                   <span style={{ color: 'var(--sv-text-strong)', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(row.current.sales)}</span>
-                  <span style={{ color: 'var(--sv-text-dim)', fontSize: 10 }}>
-                    {row.days === 1 && mode === 'prior_period' ? 'Yesterday' : MODE_LABELS[mode]} <strong style={{ color: 'var(--sv-text-main)', fontWeight: 650 }}>{formatCurrency(row.comparison.sales)}</strong>
-                    {row.days > 1 && <span style={{ marginLeft: 5, fontSize: 9, opacity: .82 }}>({formatCompactDateRange(row.comparison.from, row.comparison.to)})</span>}
-                  </span>
+                  {row.days > 1 && (
+                    <span style={{ color: 'var(--sv-text-dim)', fontSize: 10 }}>
+                      {MODE_LABELS[mode]} <strong style={{ color: 'var(--sv-text-main)', fontWeight: 650 }}>{formatCurrency(row.comparison.sales)}</strong>
+                      <span style={{ marginLeft: 5, fontSize: 9, opacity: .82 }}>({formatCompactDateRange(row.comparison.from, row.comparison.to)})</span>
+                    </span>
+                  )}
                 </div>
                 <div className="dashboard-sales-comparison__bar" aria-label={`${percentLabel} compared with ${MODE_LABELS[mode]}`}>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', overflow: 'hidden' }}>
@@ -167,6 +173,21 @@ export function DashboardSalesComparison() {
                   <div style={{ marginTop: 1, color: 'var(--sv-text-dim)', fontSize: 10, whiteSpace: 'nowrap' }}>{row.change > 0 ? '+' : ''}{formatCurrency(row.change)}</div>
                 </div>
               </div>
+              {row.days === 1 && (
+                <div className="dashboard-sales-comparison__row dashboard-sales-comparison__row--baseline" title={`${MODE_LABELS[mode]}: ${formatDateRange(row.comparison.from, row.comparison.to)}.`}>
+                    <div className="dashboard-sales-comparison__period">
+                      <span>{mode === 'prior_period' ? 'Yesterday' : 'Same day last year'}</span>
+                      <span className="dashboard-sales-comparison__period-range">{formatCompactDateRange(row.comparison.from, row.comparison.to)}</span>
+                    </div>
+                    <div className="dashboard-sales-comparison__amounts">
+                      <span style={{ color: 'var(--sv-text-strong)', fontSize: 15, fontWeight: 800, whiteSpace: 'nowrap' }}>{formatCurrency(row.comparison.sales)}</span>
+                      <span style={{ color: 'var(--sv-text-dim)', fontSize: 10 }}>Comparison baseline</span>
+                    </div>
+                    <div className="dashboard-sales-comparison__baseline-note">Baseline for Today so far</div>
+                    <div className="dashboard-sales-comparison__change" style={{ color: 'var(--sv-text-dim)', background: 'color-mix(in srgb, var(--sv-text-dim) 6%, transparent)' }}>Baseline</div>
+                </div>
+              )}
+              </Fragment>
             );
           })}
         </div>
