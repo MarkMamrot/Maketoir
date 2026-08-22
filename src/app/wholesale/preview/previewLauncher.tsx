@@ -12,14 +12,12 @@ export default function PreviewLauncher() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [mode, setMode] = useState<'read_only' | 'ims_draft_test'>('read_only');
 
   useEffect(() => {
     fetch('/api/ims/wholesale/preview').then(async response => {
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Preview could not be loaded.');
       setTargets(body.targets || []); setSupplier(body.supplier?.name || 'Wholesale portal');
-      setMode(body.mode === 'ims_draft_test' ? 'ims_draft_test' : 'read_only');
       if (body.targets?.[0]) setSelection(`${body.targets[0].memberId}:${body.targets[0].locationId}`);
     }).catch(cause => setError(cause instanceof Error ? cause.message : 'Preview could not be loaded.')).finally(() => setLoading(false));
   }, []);
@@ -29,7 +27,7 @@ export default function PreviewLauncher() {
     if (!memberId || !locationId) return;
     setStarting(true); setError('');
     try {
-      const response = await fetch('/api/ims/wholesale/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId, locationId }) });
+      const response = await fetch('/api/ims/wholesale/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId, locationId, mode: 'ims_draft_test' }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'Preview could not be started.');
       window.location.href = body.nextRoute;
@@ -43,7 +41,7 @@ export default function PreviewLauncher() {
         <div><h1 style={{ fontSize: 20, margin: 0, letterSpacing: 0 }}>Preview wholesale portal</h1><p style={{ margin: '4px 0 0', color: '#64707d', fontSize: 14 }}>{supplier}</p></div>
       </header>
       <div style={{ padding: 28 }}>
-        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>{mode === 'ims_draft_test' ? 'The Layout Editor opens automatically. Commerce testing can create a clearly marked, silent IMS Draft that cannot be confirmed. The session expires after 30 minutes.' : 'The Layout Editor opens automatically. Buyer ordering actions remain read-only and the session expires after 30 minutes.'}</p>
+        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>The Layout Editor opens automatically with test checkout enabled. Test orders are clearly marked, silent IMS Drafts that cannot be confirmed. The session expires after 30 minutes.</p>
         {loading ? <p>Loading approved buyers...</p> : targets.length > 0 ? <>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }} htmlFor="preview-target">Buyer and buying location</label>
           <select id="preview-target" value={selection} onChange={event => setSelection(event.target.value)} style={{ width: '100%', padding: '11px 12px', border: '1px solid #aeb8c2', borderRadius: 5, background: '#fff', fontSize: 14 }}>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -53,25 +54,39 @@ export async function GET(req: NextRequest) {
       orderIds,
     );
 
-    const shipments = await imsQuery<any>(
-      `SELECT id, so_id, shopify_fulfilment_id, status, fulfilled_at
-         FROM ims_so_shipments
-        WHERE business_id = ? AND so_id IN (${orderIds.map(() => '?').join(',')})
-        ORDER BY COALESCE(fulfilled_at, created_at), id`,
-      [businessId, ...orderIds],
-    );
-    if (shipments.length > 0) {
-      const shipmentIds = shipments.map((shipment: any) => Number(shipment.id));
-      const tracking = await imsQuery<any>(
-        `SELECT shipment_id, company, tracking_number, tracking_url
-           FROM ims_so_shipment_tracking
-          WHERE business_id = ? AND shipment_id IN (${shipmentIds.map(() => '?').join(',')})
-          ORDER BY id`,
-        [businessId, ...shipmentIds],
+    let shipments: any[] = [];
+    try {
+      shipments = await imsQuery<any>(
+        `SELECT id, so_id, shopify_fulfilment_id, status, fulfilled_at
+           FROM ims_so_shipments
+          WHERE business_id = ? AND so_id IN (${orderIds.map(() => '?').join(',')})
+          ORDER BY COALESCE(fulfilled_at, created_at), id`,
+        [businessId, ...orderIds],
       );
-      for (const shipment of shipments) {
-        shipment.tracking = tracking.filter((entry: any) => Number(entry.shipment_id) === Number(shipment.id));
+      if (shipments.length > 0) {
+        const shipmentIds = shipments.map((shipment: any) => Number(shipment.id));
+        const tracking = await imsQuery<any>(
+          `SELECT shipment_id, company, tracking_number, tracking_url
+             FROM ims_so_shipment_tracking
+            WHERE business_id = ? AND shipment_id IN (${shipmentIds.map(() => '?').join(',')})
+            ORDER BY id`,
+          [businessId, ...shipmentIds],
+        );
+        for (const shipment of shipments) {
+          shipment.tracking = tracking.filter((entry: any) => Number(entry.shipment_id) === Number(shipment.id));
+        }
       }
+    } catch (error) {
+      shipments = [];
+      await reportRuntimeIssue({
+        businessId,
+        source: 'ims.online-sales.day',
+        operation: 'load-shipment-tracking',
+        severity: 'warning',
+        title: 'Online Sales tracking could not be loaded',
+        error,
+        context: { date, locationId, orderCount: orderIds.length },
+      });
     }
 
     const itemsByOrder = new Map<number, any[]>();

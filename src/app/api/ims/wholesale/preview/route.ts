@@ -69,9 +69,12 @@ export async function POST(request: Request) {
   if (auth.response) return auth.response;
   let memberId: number;
   let locationId: number;
+  let requestedMode: 'read_only' | 'ims_draft_test';
   try {
     const body = await request.json();
     memberId = Number(body.memberId); locationId = Number(body.locationId);
+    if (body.mode !== 'read_only' && body.mode !== 'ims_draft_test') throw new Error();
+    requestedMode = body.mode;
     if (![memberId, locationId].every(value => Number.isSafeInteger(value) && value > 0)) throw new Error();
   } catch {
     return NextResponse.json({ error: 'Select a valid wholesale buyer and location.' }, { status: 400 });
@@ -85,7 +88,11 @@ export async function POST(request: Request) {
     if (!profile?.isActive || !imsDb) return NextResponse.json({ error: 'Wholesale portal is not enabled for this organisation.' }, { status: 409 });
 
     return runImsForBusiness(auth.user.businessId, async () => {
-      const mode = await getPreviewMode(auth.user.businessId);
+      await imsExecute(
+        'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+        [auth.user.businessId, WHOLESALE_PORTAL_SETTING_KEYS.staffPreviewMode, requestedMode],
+      );
+      const mode = requestedMode;
       const targets = await imsQuery<{ contact_id: number }>(
         `SELECT wm.contact_id FROM ims_wholesale_company_members wm
           JOIN ims_wholesale_member_locations ml ON ml.member_id = wm.id AND ml.business_id = wm.business_id AND ml.company_id = wm.company_id
