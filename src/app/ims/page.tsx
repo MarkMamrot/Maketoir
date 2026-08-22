@@ -16368,17 +16368,18 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
 
                       {/* Order items */}
                       {orderOpen && (
-                        <div style={{ padding: '0 20px 12px 20px', background: 'rgba(0,0,0,.15)' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                        <div style={{ padding: '12px 16px 14px', background: 'color-mix(in srgb, var(--sv-bg-2) 55%, var(--sv-bg-1))', borderTop: '1px solid var(--sv-etch)' }}>
+                          <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', boxShadow: '0 1px 2px rgba(15,23,42,.04)' }}>
+                          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 12 }}>
                             <thead>
-                              <tr style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>
-                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Product</th>
-                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>SKU</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Qty</th>
-                                <th style={{ textAlign: 'left', padding: '4px 6px', fontWeight: 500 }}>Transfer from</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Avail</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Unit</th>
-                                <th style={{ textAlign: 'right', padding: '4px 6px', fontWeight: 500 }}>Total</th>
+                              <tr style={{ color: 'var(--sv-text-dim)', fontSize: 10, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
+                                <th style={{ textAlign: 'left', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Product</th>
+                                <th style={{ textAlign: 'left', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>SKU</th>
+                                <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Qty</th>
+                                <th style={{ textAlign: 'left', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Transfer from</th>
+                                <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Avail</th>
+                                <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Unit</th>
+                                <th style={{ textAlign: 'right', padding: '7px 9px', fontWeight: 700, textTransform: 'uppercase' }}>Total</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -16388,10 +16389,10 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                 const short = item.missing || avail < qty;
                                 return (
                                 <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
-                                  <td style={{ padding: '4px 6px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{qty}</td>
-                                  <td style={{ padding: '4px 6px', fontSize: 11 }}>
+                                  <td style={{ padding: '8px 9px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
+                                  <td style={{ padding: '8px 9px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
+                                  <td style={{ padding: '8px 9px', textAlign: 'right' }}>{qty}</td>
+                                  <td style={{ padding: '8px 9px', fontSize: 11 }}>
                                     <span style={{ color: short ? 'var(--sv-red)' : item.needs_transfer ? 'var(--sv-red)' : 'var(--sv-text-dim)' }}>
                                       {item.pick_location_name || '—'}
                                     </span>
@@ -16399,7 +16400,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                       <span title="Stock exists but a transfer or buffer adjustment is needed" style={{ marginLeft: 5, fontSize: 10, padding: '1px 5px', borderRadius: 99, fontWeight: 700, background: 'rgba(239,68,68,.14)', color: 'var(--sv-red)', border: '1px solid rgba(239,68,68,.3)', whiteSpace: 'nowrap' }}>Transfer required</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+                                  <td style={{ padding: '8px 9px', textAlign: 'right' }}>
                                     {item.product_id ? (
                                       <button
                                         onClick={() => setOsStockModal({ productId: item.product_id, productName: item.product_name || item.name })}
@@ -16410,8 +16411,8 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                       <span style={{ fontWeight: 700, color: short ? 'var(--sv-red)' : 'var(--sv-mint)' }}>{avail}</span>
                                     )}
                                   </td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
-                                  <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtMoney(item.line_total)}</td>
+                                  <td style={{ padding: '8px 9px', textAlign: 'right' }}>{fmtMoney(item.unit_price)}</td>
+                                  <td style={{ padding: '8px 9px', textAlign: 'right', fontWeight: 700 }}>{fmtMoney(item.line_total)}</td>
                                 </tr>
                                 );
                               })}
@@ -16445,6 +16446,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                               </tr>
                             </tfoot>
                           </table>
+                          </div>
                           {(() => {
                             const isFulfilled = order.status === 'fulfilled';
                             const costRows = (order.items || []).map((item: any) => {
@@ -16473,7 +16475,7 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                   { label: 'Gross Margin', value: marginPct != null ? `${marginPct.toFixed(1)}%` : '—', tone: marginPct != null ? (marginPct >= 0 ? 'good' : 'bad') : 'warn' },
                                 ]} />
                                 {isFulfilled && (order.shipments || []).some((shipment: any) => (shipment.tracking || []).length > 0) && (
-                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 10px', fontSize: 12 }}>
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '10px 0', padding: '8px 10px', border: '1px solid color-mix(in srgb, var(--sv-mint) 30%, var(--sv-etch))', borderRadius: 6, background: 'color-mix(in srgb, var(--sv-mint) 6%, var(--sv-bg-1))', fontSize: 12 }}>
                                     <span style={{ color: 'var(--sv-text-dim)', fontWeight: 600 }}>Tracking</span>
                                     {(order.shipments || []).flatMap((shipment: any) => shipment.tracking || []).map((tracking: any, index: number) => (
                                       tracking.tracking_url ? (
@@ -16488,8 +16490,8 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                     ))}
                                   </div>
                                 )}
-                                <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '6px 10px', background: 'var(--sv-bg-1)' }}>
-                                  <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--sv-text-dim)' }}>Cost and COGS line breakdown</summary>
+                                <details style={{ border: '1px solid var(--sv-etch)', borderRadius: 7, background: 'var(--sv-bg-1)', overflow: 'hidden' }}>
+                                  <summary style={{ cursor: 'pointer', padding: '9px 11px', fontSize: 12, fontWeight: 650, color: 'var(--sv-text-main)', background: 'var(--sv-bg-2)' }}>Cost and COGS line breakdown</summary>
                                   <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8, fontSize: 11 }}>
                                     <thead>
                                       <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
