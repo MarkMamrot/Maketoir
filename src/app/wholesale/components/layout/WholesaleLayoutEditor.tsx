@@ -64,7 +64,15 @@ function SortableSection({
   );
 }
 
-export function WholesaleLayoutEditor({ onPageChange }: { onPageChange?: (page: WholesaleLayoutPageId) => void }) {
+export function WholesaleLayoutEditor({
+  onPageChange,
+  onDocumentChange,
+  onDirtyChange,
+}: {
+  onPageChange?: (page: WholesaleLayoutPageId) => void;
+  onDocumentChange?: (document: WholesaleLayoutDocument | null) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [state, setState] = useState<WholesaleLayoutEditorState | null>(null);
   const [document, setDocument] = useState<WholesaleLayoutDocument | null>(null);
   const [page, setPage] = useState<WholesaleLayoutPageId>('home');
@@ -90,6 +98,19 @@ export function WholesaleLayoutEditor({ onPageChange }: { onPageChange?: (page: 
   }, []);
 
   useEffect(() => onPageChange?.(page), [onPageChange, page]);
+  useEffect(() => onDocumentChange?.(document), [document, onDocumentChange]);
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
+  useEffect(() => () => {
+    onDocumentChange?.(null);
+    onDirtyChange?.(false);
+  }, [onDirtyChange, onDocumentChange]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   const reorder = (from: number, to: number) => {
     if (!document || to < 0 || to >= document.pages[page].sections.length || from === to) return;

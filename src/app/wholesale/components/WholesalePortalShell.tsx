@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
+import type { WholesaleLayoutDocument } from '@/lib/wholesale/layout/types';
 import styles from './WholesalePortalShell.module.css';
 import { WholesaleLayoutEditor } from './layout/WholesaleLayoutEditor';
 
@@ -57,6 +58,7 @@ export function WholesalePortalShell({
   onLocationChange,
   onLogout,
   children,
+  onLayoutPreviewChange,
 }: {
   supplier: WholesaleSupplierProfile;
   session: WholesaleSession;
@@ -74,11 +76,13 @@ export function WholesalePortalShell({
   onLocationChange?: (locationId: number) => void;
   onLogout: () => void;
   children: ReactNode;
+  onLayoutPreviewChange?: (document: WholesaleLayoutDocument | null) => void;
 }) {
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
+  const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
   const [online, setOnline] = useState(true);
   const logoUrl = safeLogoUrl(supplier.logoUrl);
   const initials = supplier.displayName.trim().charAt(0).toUpperCase() || 'W';
@@ -99,6 +103,16 @@ export function WholesalePortalShell({
   const changeView = (nextView: WholesalePortalView) => {
     setDrawerOpen(false);
     onViewChange(nextView);
+  };
+
+  const toggleLayoutEditor = () => {
+    if (layoutEditorOpen && layoutEditorDirty && !confirm('Discard unsaved layout changes and exit the editor?')) return;
+    setLayoutEditorOpen(open => !open);
+  };
+
+  const exitPreview = () => {
+    if (layoutEditorDirty && !confirm('Discard unsaved layout changes and exit staff preview?')) return;
+    onLogout();
   };
 
   const search = (
@@ -143,8 +157,8 @@ export function WholesalePortalShell({
       {session.preview && <div role="status" style={{ minHeight: 42, padding: '8px 18px', background: '#fff3cd', borderBottom: '1px solid #e5c66b', color: '#533f03', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', fontSize: 13 }}>
         <strong>Staff preview · {canTestCheckout ? 'Test checkout' : 'Read-only'}</strong>
         <span>{session.company} / {session.name} / {buyingLocation}</span>
-        <button onClick={() => setLayoutEditorOpen(open => !open)} aria-pressed={layoutEditorOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #9b7a1b', borderRadius: 4, background: layoutEditorOpen ? '#533f03' : '#fffaf0', color: layoutEditorOpen ? '#fff' : '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}><PanelsTopLeft size={14} /> {layoutEditorOpen ? 'Exit layout editor' : 'Edit layout'}</button>
-        <button onClick={onLogout} style={{ border: '1px solid #9b7a1b', borderRadius: 4, background: '#fffaf0', color: '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}>Exit preview</button>
+        <button onClick={toggleLayoutEditor} aria-pressed={layoutEditorOpen} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #9b7a1b', borderRadius: 4, background: layoutEditorOpen ? '#533f03' : '#fffaf0', color: layoutEditorOpen ? '#fff' : '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}><PanelsTopLeft size={14} /> {layoutEditorOpen ? 'Exit layout editor' : 'Edit layout'}</button>
+        <button onClick={exitPreview} style={{ border: '1px solid #9b7a1b', borderRadius: 4, background: '#fffaf0', color: '#533f03', padding: '4px 9px', fontWeight: 700, cursor: 'pointer' }}>Exit preview</button>
       </div>}
       <header className={styles.topbar}>
         <div className={styles.brand}>
@@ -182,7 +196,7 @@ export function WholesalePortalShell({
       </header>
 
       <div className={styles.body}>
-        {layoutEditorOpen && <WholesaleLayoutEditor />}
+        {layoutEditorOpen && <WholesaleLayoutEditor onDocumentChange={onLayoutPreviewChange} onDirtyChange={setLayoutEditorDirty} />}
         <aside className={styles.sidebar}>
           {nav}
           <div className={styles.sidebarFooter}>

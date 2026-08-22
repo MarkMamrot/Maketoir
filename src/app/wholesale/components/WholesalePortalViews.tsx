@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowRight, Building2, Check, CreditCard, LifeBuoy, Mail, MapPin, PackageSearch, Pencil, ReceiptText, Save, ShoppingCart, UserRound, X } from 'lucide-react';
 import type { WholesaleSession } from '@/lib/wholesale/wholesaleSession';
 import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplierProfile';
@@ -8,6 +8,7 @@ import type { WholesaleAccountProfile, WholesaleAddress } from '@/lib/wholesale/
 import type { WholesalePortalView } from './WholesalePortalShell';
 import { WholesaleTeamSection } from './WholesaleTeamSection';
 import styles from './WholesalePortalViews.module.css';
+import type { WholesaleLayoutSectionType } from '@/lib/wholesale/layout/types';
 
 export function WholesaleHomeView({
   session,
@@ -17,6 +18,7 @@ export function WholesaleHomeView({
   accountProfile,
   onNavigate,
   onCartOpen,
+  sectionOrder,
 }: {
   session: WholesaleSession;
   productCount: number;
@@ -25,9 +27,10 @@ export function WholesaleHomeView({
   accountProfile: WholesaleAccountProfile | null;
   onNavigate: (view: WholesalePortalView) => void;
   onCartOpen: () => void;
+  sectionOrder?: WholesaleLayoutSectionType[];
 }) {
-  return (
-    <div className={styles.page}>
+  const sections: Partial<Record<WholesaleLayoutSectionType, ReactNode>> = {
+    home_welcome: (
       <section className={styles.hero}>
         <p className={styles.eyebrow}>Buyer workspace</p>
         <h1 className={styles.title}>Welcome back, {session.name || session.company}.</h1>
@@ -37,11 +40,15 @@ export function WholesaleHomeView({
           {(cartCount > 0 || draftActive) && <button className={styles.secondary} onClick={onCartOpen}><ShoppingCart size={17} /> Continue order</button>}
         </div>
       </section>
+    ),
+    home_metrics: (
       <div className={styles.metrics}>
         <div className={styles.metric}><span>Available products</span><strong>{productCount}</strong></div>
         <div className={styles.metric}><span>Items in current order</span><strong>{cartCount}</strong></div>
         <div className={styles.metric}><span>Buying location</span><strong>{accountProfile?.location.name || 'Loading'}</strong></div>
       </div>
+    ),
+    home_workspace: (
       <div className={styles.sections}>
         <section>
           <h2 className={styles.sectionTitle}>Order workspace</h2>
@@ -58,6 +65,12 @@ export function WholesaleHomeView({
           <div className={styles.contextItem}><UserRound size={18} /><div><span>Signed in as</span><strong>{session.name || session.email}</strong></div></div>
         </aside>
       </div>
+    ),
+  };
+  const orderedTypes = sectionOrder ?? ['home_welcome', 'home_metrics', 'home_workspace'];
+  return (
+    <div className={styles.page}>
+      {orderedTypes.map(type => sections[type] ? <div key={type}>{sections[type]}</div> : null)}
     </div>
   );
 }

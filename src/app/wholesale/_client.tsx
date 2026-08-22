@@ -26,6 +26,7 @@ import {
   type WholesaleProductImageFit,
   type WholesaleProductImageRatio,
 } from '@/lib/wholesale/wholesalePortalSettings';
+import type { WholesaleLayoutDocument } from '@/lib/wholesale/layout/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -278,6 +279,7 @@ export default function WholesalePortalClient({
 
   // Navigation
   const [view, setView]               = useState<WholesalePortalView>(initialView);
+  const [layoutPreview, setLayoutPreview] = useState<WholesaleLayoutDocument | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('__all');
   const [accountProfile, setAccountProfile] = useState<WholesaleAccountProfile | null>(null);
   const [accountLoading, setAccountLoading] = useState(true);
@@ -749,6 +751,7 @@ export default function WholesalePortalClient({
         onCartOpen={() => setCartOpen(true)}
         onLocationChange={handleLocationChange}
         onLogout={handleLogout}
+        onLayoutPreviewChange={setLayoutPreview}
       >
         {view === 'home' ? (
           <WholesaleHomeView
@@ -759,6 +762,7 @@ export default function WholesalePortalClient({
             accountProfile={accountProfile}
             onNavigate={handleViewChange}
             onCartOpen={() => setCartOpen(true)}
+            sectionOrder={layoutPreview?.pages.home.sections.map(section => section.type)}
           />
         ) : view === 'account' ? (
           <WholesaleAccountView
