@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import RuntimeIssuesView from './RuntimeIssuesView';
+import WorkflowFindingsView from './WorkflowFindingsView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -18,7 +19,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'runtime-issues';
+type View = 'businesses' | 'users' | 'runtime-issues' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -694,6 +695,7 @@ export default function AdminPage() {
             { id: 'businesses', label: 'Businesses' },
             { id: 'users',      label: 'Users' },
             { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
+            { id: 'workflow-findings', label: 'Workflow Findings' },
           ] as { id: View; label: string }[]).map(item => (
             <button key={item.id} onClick={() => setView(item.id)} style={S.navBtn(view === item.id)}>{item.label}</button>
           ))}
@@ -704,6 +706,7 @@ export default function AdminPage() {
           {view === 'businesses' && <BusinessesView />}
           {view === 'users'      && <UsersView />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
+          {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { candidateMatchesIdentity, signAssistantCandidate, verifyAssistantCandid
 import { runAssistant, type AssistantChatMessage } from './orchestrator';
 import type { AssistantPrincipal } from './tools';
 import type { AssistantAudience, WorkflowFindingEvidence } from './policy';
+import { checkAssistantRateLimit } from './rateLimit';
 
 export interface AssistantRouteIdentity {
   businessId: string;
@@ -30,6 +31,13 @@ export async function handleAssistantChat(
   principal: AssistantPrincipal,
   identity: AssistantRouteIdentity,
 ): Promise<NextResponse> {
+  const rateLimit = checkAssistantRateLimit(`${identity.businessId}:${identity.actorType}:${identity.actorId}:chat`);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many assistant requests. Please wait a moment and try again.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
+  }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const message = String(body?.message ?? '').trim();
   if (!message || message.length > 2_000) {
@@ -90,6 +98,13 @@ export async function handleAssistantWorkflowConfirmation(
   request: Request,
   identity: AssistantRouteIdentity,
 ): Promise<NextResponse> {
+  const rateLimit = checkAssistantRateLimit(`${identity.businessId}:${identity.actorType}:${identity.actorId}:review`);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many review requests. Please wait a moment and try again.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } },
+    );
+  }
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const token = String(body?.candidateToken ?? '');
   const signedCandidate = token ? verifyAssistantCandidate(token) : null;

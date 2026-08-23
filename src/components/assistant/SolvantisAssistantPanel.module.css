@@ -1,7 +1,7 @@
 .root {
   position: fixed;
   bottom: 18px;
-  z-index: 8800;
+  z-index: 12000;
   font-family: "Aptos", "Segoe UI", sans-serif;
 }
 

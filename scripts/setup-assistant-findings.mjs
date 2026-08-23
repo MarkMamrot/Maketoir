@@ -110,6 +110,40 @@ try {
         REFERENCES assistant_escalations(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+
+  const expectedTables = [
+    'assistant_workflow_findings',
+    'assistant_workflow_finding_businesses',
+    'assistant_workflow_finding_events',
+    'assistant_escalations',
+    'assistant_escalation_events',
+  ];
+  const [tableRows] = await connection.query(
+    `SELECT TABLE_NAME
+       FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (${expectedTables.map(() => '?').join(',')})`,
+    expectedTables,
+  );
+  const existingTables = new Set(tableRows.map(row => row.TABLE_NAME));
+  const missingTables = expectedTables.filter(table => !existingTables.has(table));
+  if (missingTables.length > 0) throw new Error(`Assistant schema verification failed; missing tables: ${missingTables.join(', ')}`);
+
+  const [columnRows] = await connection.query(
+    `SELECT TABLE_NAME, COLUMN_NAME
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND ((TABLE_NAME = 'assistant_workflow_findings' AND COLUMN_NAME IN ('fingerprint','status','evidence_json','alert_pending'))
+          OR (TABLE_NAME = 'assistant_escalations' AND COLUMN_NAME IN ('public_reference','idempotency_key','response_due_at','parent_kind')))`,
+  );
+  const columns = new Set(columnRows.map(row => `${row.TABLE_NAME}.${row.COLUMN_NAME}`));
+  const expectedColumns = [
+    'assistant_workflow_findings.fingerprint', 'assistant_workflow_findings.status',
+    'assistant_workflow_findings.evidence_json', 'assistant_workflow_findings.alert_pending',
+    'assistant_escalations.public_reference', 'assistant_escalations.idempotency_key',
+    'assistant_escalations.response_due_at', 'assistant_escalations.parent_kind',
+  ];
+  const missingColumns = expectedColumns.filter(column => !columns.has(column));
+  if (missingColumns.length > 0) throw new Error(`Assistant schema verification failed; missing columns: ${missingColumns.join(', ')}`);
   console.log(`Assistant finding and escalation tables are ready in ${process.env.MYSQL_DATABASE}.`);
 } finally {
   await connection.end();
