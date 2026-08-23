@@ -89,6 +89,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_online_shop_shipping_rules',
   'ims_online_shop_pickup_locations',
   'ims_online_shop_checkouts',
+  'ims_online_shop_fulfilment_groups',
   'ims_online_shop_checkout_items',
   'ims_online_shop_stock_reservations',
   'ims_online_shop_payment_attempts',

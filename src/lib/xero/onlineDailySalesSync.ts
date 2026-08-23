@@ -16,6 +16,30 @@ function isPayPalGateway(value: string): boolean {
   return normalizeOnlineGateway(value).includes('paypal');
 }
 
+interface OnlineBatchOrderRow {
+  sales_channel: string | null;
+  native_checkout_id: string | null;
+  shopify_order_id: string | null;
+  shopify_order_name: string | null;
+  payment_gateway: string | null;
+  total_amount: string;
+  tax_amount: string;
+}
+
+export function getOnlineBatchOrderIdentity(row: Pick<OnlineBatchOrderRow, 'sales_channel' | 'native_checkout_id' | 'shopify_order_id' | 'shopify_order_name'>): {
+  id: string;
+  reference: string;
+} | null {
+  if (row.sales_channel === 'native_shop') {
+    const checkoutId = String(row.native_checkout_id ?? '').trim();
+    return checkoutId ? { id: `native-${checkoutId}`, reference: `Native order ${checkoutId}` } : null;
+  }
+  const orderId = String(row.shopify_order_id ?? '').trim();
+  if (!orderId) return null;
+  const orderName = String(row.shopify_order_name ?? '').trim();
+  return { id: orderId, reference: orderName || `Shopify order ${orderId}` };
+}
+
 export function calculateGatewayFee(grossAmount: number, fixedAmount: number, percentageRate: number): number {
   return Math.round((fixedAmount + grossAmount * percentageRate / 100) * 100) / 100;
 }
@@ -56,6 +80,7 @@ export async function syncOnlineDailySalesDay(
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
             AND so_type = 'online'
+            AND COALESCE(is_staff_preview_test, 0) = 0
             AND (is_historical IS NULL OR is_historical = 0)
             AND status != 'cancelled'`,
         [businessId, date],
@@ -67,22 +92,19 @@ export async function syncOnlineDailySalesDay(
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
             AND so_type = 'online'
+            AND COALESCE(is_staff_preview_test, 0) = 0
             AND (is_historical IS NULL OR is_historical = 0)
             AND status != 'cancelled'
           GROUP BY COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
         [businessId, date],
       ),
-      imsQuery<{
-        shopify_order_id: string | null;
-        shopify_order_name: string | null;
-        payment_gateway: string | null;
-        total_amount: string;
-        tax_amount: string;
-      }>(
-        `SELECT shopify_order_id, shopify_order_name, payment_gateway, total_amount, tax_amount
+      imsQuery<OnlineBatchOrderRow>(
+        `SELECT sales_channel, native_checkout_id, shopify_order_id, shopify_order_name,
+                payment_gateway, total_amount, tax_amount
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
             AND so_type = 'online'
+            AND COALESCE(is_staff_preview_test, 0) = 0
             AND (is_historical IS NULL OR is_historical = 0)
             AND status != 'cancelled'
           ORDER BY id ASC`,
@@ -144,10 +166,9 @@ export async function syncOnlineDailySalesDay(
         const gateway = normalizeOnlineGateway(row.payment_gateway);
         const mapping = findOnlineGatewayMapping(gateway, gatewayMappings);
         if (!hasCalculatedFees(gateway, mapping) || !mapping?.clearing_account_code || !mapping.fee_account_code) return null;
-        const orderId = String(row.shopify_order_id ?? '').trim();
-        const orderName = String(row.shopify_order_name ?? '').trim();
+        const identity = getOnlineBatchOrderIdentity(row);
         const amount = Math.round(Number(row.total_amount) * 100) / 100;
-        if (!orderId || !(amount > 0)) return null;
+        if (!identity || !(amount > 0)) return null;
         const feeAmount = calculateGatewayFee(
           amount,
           Number(mapping.fixed_fee_amount ?? 0),
@@ -157,8 +178,8 @@ export async function syncOnlineDailySalesDay(
           accountCode: mapping.clearing_account_code,
           amount,
           label: gateway,
-          paymentKey: `gateway-order-${orderId}`,
-          reference: orderName ? `${mapping.gateway_name} ${orderName}` : `${mapping.gateway_name} order ${orderId}`,
+          paymentKey: `gateway-order-${identity.id}`,
+          reference: `${mapping.gateway_name} ${identity.reference}`,
           ...(feeAmount > 0 ? {
             fee: {
               amount: feeAmount,
@@ -171,24 +192,23 @@ export async function syncOnlineDailySalesDay(
       })
       .filter((payment): payment is NonNullable<typeof payment> => !!payment) : [];
     const paypalOrderRows = orderRows.filter(row => isPayPalGateway(String(row.payment_gateway ?? '')));
-    const paypalOrdersMissingIds = paypalOrderRows.filter(row => !String(row.shopify_order_id ?? '').trim());
+    const paypalOrdersMissingIds = paypalOrderRows.filter(row => !getOnlineBatchOrderIdentity(row));
     if (paypalOrdersMissingIds.length > 0) {
-      throw new Error(`${paypalOrdersMissingIds.length} PayPal order(s) have no Shopify order ID and cannot be posted safely`);
+      throw new Error(`${paypalOrdersMissingIds.length} PayPal order(s) have no stable online order ID and cannot be posted safely`);
     }
     const paypalPayments = policy.onlineBatchPaymentSyncEnabled ? paypalOrderRows
       .map(row => {
         const gateway = normalizeOnlineGateway(row.payment_gateway);
         const accountCode = findOnlineGatewayClearingAccount(gateway, gatewayMappings);
-        const orderId = String(row.shopify_order_id ?? '').trim();
-        const orderName = String(row.shopify_order_name ?? '').trim();
+        const identity = getOnlineBatchOrderIdentity(row);
         const amount = Math.round(Number(row.total_amount) * 100) / 100;
-        if (!accountCode || !orderId || !(amount > 0)) return null;
+        if (!accountCode || !identity || !(amount > 0)) return null;
         return {
           accountCode,
           amount,
           label: gateway,
-          paymentKey: `paypal-order-${orderId}`,
-          reference: orderName ? `PayPal ${orderName}` : `PayPal order ${orderId}`,
+          paymentKey: `paypal-order-${identity.id}`,
+          reference: `PayPal ${identity.reference}`,
         };
       })
       .filter((payment): payment is NonNullable<typeof payment> => !!payment) : [];

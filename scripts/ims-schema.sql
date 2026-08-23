@@ -2011,6 +2011,7 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_checkouts (
   customer_id BIGINT NULL,
   guest_email VARCHAR(320) NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'open',
+  fulfilment_mode VARCHAR(32) NOT NULL DEFAULT 'single_location',
   fulfilment_type VARCHAR(32) NOT NULL DEFAULT 'delivery',
   location_id INT NOT NULL,
   shipping_rule_id BIGINT NULL,
@@ -2033,6 +2034,22 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_checkouts (
   CONSTRAINT fk_online_checkout_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
   CONSTRAINT fk_online_checkout_shipping_rule FOREIGN KEY (shipping_rule_id) REFERENCES ims_online_shop_shipping_rules(id) ON DELETE SET NULL,
   CONSTRAINT fk_online_checkout_so FOREIGN KEY (completed_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_fulfilment_groups (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  location_id INT NOT NULL,
+  completed_so_id INT NULL,
+  completed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_fulfilment_group (checkout_id, location_id),
+  INDEX idx_online_fulfilment_group_business (business_id, checkout_id),
+  CONSTRAINT fk_online_fulfilment_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
+  CONSTRAINT fk_online_fulfilment_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  CONSTRAINT fk_online_fulfilment_so FOREIGN KEY (completed_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ims_online_shop_checkout_items (

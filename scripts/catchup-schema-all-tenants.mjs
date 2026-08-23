@@ -20,6 +20,7 @@ const ONLINE_SHOP_TABLES = [
   'ims_online_shop_shipping_rules',
   'ims_online_shop_pickup_locations',
   'ims_online_shop_checkouts',
+  'ims_online_shop_fulfilment_groups',
   'ims_online_shop_checkout_items',
   'ims_online_shop_stock_reservations',
   'ims_online_shop_payment_attempts',
@@ -962,6 +963,7 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_online_shop_checkouts', 'fulfilment_mode', "VARCHAR(32) NOT NULL DEFAULT 'single_location' AFTER status"],
   ['ims_wholesale_team_events', 'details_json', 'JSON NULL AFTER after_role'],
   ['wholesale_draft_order_items', 'indent_qty', 'DECIMAL(12,4) NOT NULL DEFAULT 0 AFTER is_indent'],
   ['ims_purchase_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],

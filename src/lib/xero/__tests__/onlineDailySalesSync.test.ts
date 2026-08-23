@@ -36,6 +36,7 @@ vi.mock('@/lib/xero/documentPolicyRepository', () => ({
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 import { calculateGatewayFee, syncOnlineDailySalesDay } from '../onlineDailySalesSync';
+import { getOnlineBatchOrderIdentity } from '../onlineDailySalesSync';
 
 describe('calculateGatewayFee', () => {
   it('rounds a fixed plus percentage fee to cents', () => {
@@ -44,6 +45,14 @@ describe('calculateGatewayFee', () => {
   });
 });
 
+describe('getOnlineBatchOrderIdentity', () => {
+  it('keeps Shopify keys stable and gives native checkouts a separate idempotency namespace', () => {
+    expect(getOnlineBatchOrderIdentity({ sales_channel: 'shopify', native_checkout_id: null, shopify_order_id: '1001', shopify_order_name: '#1001' }))
+      .toEqual({ id: '1001', reference: '#1001' });
+    expect(getOnlineBatchOrderIdentity({ sales_channel: 'native_shop', native_checkout_id: 'checkout-1', shopify_order_id: null, shopify_order_name: null }))
+      .toEqual({ id: 'native-checkout-1', reference: 'Native order checkout-1' });
+  });
+});
 describe('syncOnlineDailySalesDay', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -159,6 +168,39 @@ describe('syncOnlineDailySalesDay', () => {
         fee: { amount: 1.3, gatewayName: 'afterpay', accountCode: '404', taxType: 'INPUT' },
       })],
     }));
+  });
+
+  it('includes native Stripe orders in the regular online batch without Shopify payout handling', async () => {
+    mockQuery.mockResolvedValueOnce([{ gateway_name: 'stripe', clearing_account_code: '094' }]);
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ total_sales: '88', total_tax: '8', gift_card_amount: '0', order_count: '1' }])
+      .mockResolvedValueOnce([{ gateway: 'stripe', total_sales: '88', total_tax: '8' }])
+      .mockResolvedValueOnce([{
+        sales_channel: 'native_shop',
+        native_checkout_id: 'checkout-1',
+        shopify_order_id: null,
+        shopify_order_name: null,
+        payment_gateway: 'Stripe',
+        total_amount: '88',
+        tax_amount: '8',
+      }]);
+
+    await syncOnlineDailySalesDay('biz-1', '2026-07-25');
+
+    expect(mockSyncDailySalesBatch).toHaveBeenCalledTimes(1);
+    expect(mockSyncDailySalesBatch).toHaveBeenCalledWith('biz-1', expect.objectContaining({
+      channel: 'online',
+      totalSales: 80,
+      totalTax: 8,
+      payoutManaged: false,
+      clearingPayments: [{ accountCode: '094', amount: 88, label: 'stripe' }],
+      gatewayAllocations: [{ gateway: 'stripe', amount: 88, payoutManaged: false }],
+    }));
+    for (const [sql] of mockImsQuery.mock.calls) {
+      expect(sql).toContain("so_type = 'online'");
+      expect(sql).toContain('COALESCE(is_staff_preview_test, 0) = 0');
+    }
   });
 
   it('creates a Draft online invoice without immediate clearing payments', async () => {
