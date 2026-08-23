@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import IntegrationOfferingsView from './IntegrationOfferingsView';
+import ProspectInsightsView from './ProspectInsightsView';
+import ProspectLeadsView from './ProspectLeadsView';
 import RuntimeIssuesView from './RuntimeIssuesView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 
@@ -19,7 +22,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'runtime-issues' | 'workflow-findings';
+type View = 'businesses' | 'users' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'runtime-issues' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -694,6 +697,9 @@ export default function AdminPage() {
           {([
             { id: 'businesses', label: 'Businesses' },
             { id: 'users',      label: 'Users' },
+            { id: 'integration-offerings', label: 'Integration Offerings' },
+            { id: 'prospect-leads', label: 'Prospect Leads' },
+            { id: 'prospect-insights', label: 'Prospect Insights' },
             { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
             { id: 'workflow-findings', label: 'Workflow Findings' },
           ] as { id: View; label: string }[]).map(item => (
@@ -705,6 +711,9 @@ export default function AdminPage() {
         <div style={S.main}>
           {view === 'businesses' && <BusinessesView />}
           {view === 'users'      && <UsersView />}
+          {view === 'integration-offerings' && <IntegrationOfferingsView />}
+          {view === 'prospect-leads' && <ProspectLeadsView />}
+          {view === 'prospect-insights' && <ProspectInsightsView />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>

@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import type { ResultSetHeader } from 'mysql2/promise';
 import { getPool, query as mainQuery } from '@/services/MySQLService';
 import { sanitizeProspectAttribution, validateProspectLead } from './policy';
-import type { ProspectLeadInput, PublicIntegrationOffering } from './types';
+import type { ProspectChatMessage, ProspectLeadInput, PublicIntegrationOffering } from './types';
 
 interface RepositoryConnection {
   beginTransaction(): Promise<void>;
@@ -122,7 +122,7 @@ export function createSalesAssistantRepository(overrides: Partial<SalesAssistant
       modelName?: string | null;
       promptVersion?: string | null;
       metadata?: unknown;
-    }): Promise<{ messageId: string }> {
+    }): Promise<{ messageId: string; messageCount: number }> {
       const content = requiredText(input.content, 'Assistant message', 20_000);
       const sessionIdHash = hash(requiredText(input.sessionId, 'Session ID', 500));
       const messageId = dependencies.newId();
@@ -141,7 +141,61 @@ export function createSalesAssistantRepository(overrides: Partial<SalesAssistant
            VALUES (?, ?, 'assistant', ?, ?, ?, ?)`,
           [messageId, input.conversationId, content, input.modelName ?? null, input.promptVersion ?? null, json(input.metadata)],
         );
-        return { messageId };
+        const [rows] = await connection.execute<Array<{ message_count: number }>>(
+          'SELECT message_count FROM prospect_conversations WHERE id = ? AND session_id_hash = ? LIMIT 1',
+          [input.conversationId, sessionIdHash],
+        );
+        return { messageId, messageCount: Number(rows[0]?.message_count ?? 0) };
+      });
+    },
+
+    async getOwnedConversation(input: { conversationId: string; sessionId: string }): Promise<{
+      conversationId: string;
+      status: string;
+      messages: Array<ProspectChatMessage & { id: string; createdAt: string | Date }>;
+    } | null> {
+      const conversationId = requiredText(input.conversationId, 'Conversation ID', 36);
+      const sessionIdHash = hash(requiredText(input.sessionId, 'Session ID', 500));
+      const conversations = await dependencies.query<ArrayRecord>(
+        `SELECT id, status FROM prospect_conversations
+          WHERE id = ? AND session_id_hash = ? AND status <> 'blocked' LIMIT 1`,
+        [conversationId, sessionIdHash],
+      );
+      if (conversations.length !== 1) return null;
+      const messages = await dependencies.query<ArrayRecord>(
+        `SELECT id, role, content, created_at FROM prospect_messages
+          WHERE conversation_id = ? ORDER BY created_at, id LIMIT 100`,
+        [conversationId],
+      );
+      return {
+        conversationId,
+        status: String(conversations[0].status),
+        messages: messages.map(message => ({
+          id: String(message.id),
+          role: message.role === 'assistant' ? 'assistant' : 'user',
+          content: String(message.content).slice(0, 20_000),
+          createdAt: message.created_at as string | Date,
+        })),
+      };
+    },
+
+    async deleteOwnedConversation(input: { conversationId: string; sessionId: string }): Promise<boolean> {
+      const conversationId = requiredText(input.conversationId, 'Conversation ID', 36);
+      const sessionIdHash = hash(requiredText(input.sessionId, 'Session ID', 500));
+      return inTransaction(dependencies, async connection => {
+        const [owned] = await connection.execute<Array<{ id: string }>>(
+          'SELECT id FROM prospect_conversations WHERE id = ? AND session_id_hash = ? LIMIT 1 FOR UPDATE',
+          [conversationId, sessionIdHash],
+        );
+        if (owned.length !== 1) return false;
+        await connection.execute(
+          `UPDATE prospect_conversations
+              SET status = 'blocked', last_user_prompt = NULL, attribution_json = NULL, updated_at = UTC_TIMESTAMP(3)
+            WHERE id = ? AND session_id_hash = ?`,
+          [conversationId, sessionIdHash],
+        );
+        await connection.execute('DELETE FROM prospect_messages WHERE conversation_id = ?', [conversationId]);
+        return true;
       });
     },
 
@@ -180,6 +234,12 @@ export function createSalesAssistantRepository(overrides: Partial<SalesAssistant
            VALUES (?, ?, 'created_with_consent', ?)
            ON DUPLICATE KEY UPDATE id = id`,
           [`${idempotencyKey}:created`, leadId, json({ preferredContact: lead.preferredContact })],
+        );
+        await connection.execute(
+          `INSERT INTO prospect_lead_events (idempotency_key, lead_id, event_type, event_data_json)
+           VALUES (?, ?, 'alert_pending', ?)
+           ON DUPLICATE KEY UPDATE id = id`,
+          [`lead-alert-pending:${leadId}`, leadId, json({})],
         );
         if (lead.conversationId) {
           await connection.execute(

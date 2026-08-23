@@ -32,7 +32,7 @@ const FALLBACK: ProspectAssistantDecision = {
 
 interface SalesRepository {
   prepareUserPrompt(input: { conversationId?: string | null; sessionId: string; prompt: string; attribution?: unknown }): Promise<{ conversationId: string; userMessageId: string }>;
-  appendAssistantMessage(input: { conversationId: string; sessionId: string; content: string; modelName?: string | null; promptVersion?: string | null; metadata?: unknown }): Promise<{ messageId: string }>;
+  appendAssistantMessage(input: { conversationId: string; sessionId: string; content: string; modelName?: string | null; promptVersion?: string | null; metadata?: unknown }): Promise<{ messageId: string; messageCount?: number }>;
   listPublicEnabledIntegrations(): Promise<PublicIntegrationOffering[]>;
 }
 
@@ -136,7 +136,7 @@ export async function runProspectSalesAssistant(input: {
     }).catch(() => null);
   }
 
-  await dependencies.repository.appendAssistantMessage({
+  const appended = await dependencies.repository.appendAssistantMessage({
     conversationId: prepared.conversationId,
     sessionId: input.sessionId,
     content: decision.answer,
@@ -144,7 +144,7 @@ export async function runProspectSalesAssistant(input: {
     promptVersion: SALES_PROMPT_VERSION,
     metadata: { ...decision, providerFailure: failed },
   });
-  return { ...decision, conversationId: prepared.conversationId };
+  return { ...decision, conversationId: prepared.conversationId, messageCount: appended.messageCount ?? (input.history?.length ?? 0) + 2 };
 }
 
 export const salesOrchestratorInternals = { SYSTEM_INSTRUCTION, PROCEDURAL_PATTERNS, FALLBACK };

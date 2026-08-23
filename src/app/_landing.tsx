@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
 import PricingPlanCards from '@/components/PricingPlanCards';
 import SolvantisCapabilityMap from '@/components/SolvantisCapabilityMap';
+import { ProspectLeadDialog } from '@/components/assistant/ProspectLeadForm';
+import { ProspectSalesAssistant } from '@/components/assistant/ProspectSalesAssistant';
 import Nav from './_nav';
 
 // ─── Tiny reusable components ──────────────────────────────────────────────────
@@ -42,13 +44,9 @@ function Eyebrow({ children, light = false }: { children: React.ReactNode; light
   );
 }
 
-// ─── Demo form type ────────────────────────────────────────────────────────────
-interface DemoForm { name: string; email: string; company: string; message: string; }
-
 // ─── Main component ────────────────────────────────────────────────────────────
 export default function Landing() {
   const [demoOpen, setDemoOpen] = useState(false);
-  const [form, setForm] = useState<DemoForm>({ name: '', email: '', company: '', message: '' });
   const [activeWorkflow, setActiveWorkflow] = useState<string | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -112,16 +110,6 @@ export default function Landing() {
     };
   }, [selectedFeature]);
 
-  function handleDemoSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const subject = encodeURIComponent(`Demo Request – ${form.company || form.name}`);
-    const body = encodeURIComponent(
-      `Hi Solvantis Sales,\n\nI'd like to book a product demo.\n\nName: ${form.name}\nEmail: ${form.email}\nCompany: ${form.company}\n\nMessage:\n${form.message}\n\nThanks`
-    );
-    window.location.href = `mailto:sales@solvantis.com?subject=${subject}&body=${body}`;
-    setDemoOpen(false);
-  }
-
   return (
     <div className="bg-white text-slate-900 overflow-x-hidden min-h-screen" style={{ fontFamily: 'Inter, sans-serif' }}>
       <Nav onDemo={() => setDemoOpen(true)} />
@@ -175,6 +163,7 @@ export default function Landing() {
                 </button>
               </div>
               <p className="text-slate-500 text-xs mt-4">3 months for $1 · No credit card required · Cancel anytime</p>
+              <ProspectSalesAssistant sourcePath="/" showHeroPrompt />
             </div>
 
             {/* Right — hero video */}
@@ -753,7 +742,7 @@ export default function Landing() {
                   { label: 'Book a Demo', href: '#demo' },
                   { label: 'Sign In', href: '/login' },
                   { label: 'Get Started', href: '/register' },
-                  { label: 'Contact Sales', href: 'mailto:sales@solvantis.com' },
+                  { label: 'Contact Sales', href: '#demo' },
                 ],
               },
             ].map((col) => (
@@ -835,86 +824,7 @@ export default function Landing() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          DEMO MODAL
-      ══════════════════════════════════════════════════════════════════════ */}
-      {demoOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          onClick={() => setDemoOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h3 className="text-xl font-black text-slate-900">Book a Free Demo</h3>
-                <p className="text-slate-500 text-sm mt-0.5">30 minutes · No obligation · Tailored to you</p>
-              </div>
-              <button
-                onClick={() => setDemoOpen(false)}
-                className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition -mt-1"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <form onSubmit={handleDemoSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Full Name *</label>
-                <input
-                  required
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Jane Smith"
-                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Work Email *</label>
-                <input
-                  required
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="jane@yourstore.com"
-                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Company / Store Name</label>
-                <input
-                  type="text"
-                  value={form.company}
-                  onChange={(e) => setForm({ ...form, company: e.target.value })}
-                  placeholder="Threads & Co."
-                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">What would you like to see?</label>
-                <textarea
-                  rows={3}
-                  value={form.message}
-                  onChange={(e) => setForm({ ...form, message: e.target.value })}
-                  placeholder="e.g. POS, multi-branch inventory, automation, wholesale tools..."
-                  className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                />
-              </div>
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition text-sm shadow-sm"
-              >
-                Send Request →
-              </button>
-              <p className="text-center text-xs text-slate-400">We&apos;ll reply within 1 business day.</p>
-            </form>
-          </div>
-        </div>
-      )}
+      <ProspectLeadDialog open={demoOpen} sourcePath="/" onClose={() => setDemoOpen(false)} />
     </div>
   );
 }

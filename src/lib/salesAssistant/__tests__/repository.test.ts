@@ -36,11 +36,28 @@ describe('sales assistant repository', () => {
   });
 
   it('enforces session ownership when appending an assistant message', async () => {
-    const { repository, connection } = fakeRepository();
-    await repository.appendAssistantMessage({ conversationId: 'conversation-id', sessionId: 'owner', content: 'Answer' });
+    const { repository, connection } = fakeRepository(sql => sql.includes('SELECT message_count')
+      ? [{ message_count: 2 }]
+      : { affectedRows: 1, insertId: 1 });
+    await expect(repository.appendAssistantMessage({ conversationId: 'conversation-id', sessionId: 'owner', content: 'Answer' }))
+      .resolves.toMatchObject({ messageCount: 2 });
     const ownershipSql = connection.execute.mock.calls[0][0];
     expect(ownershipSql).toContain('WHERE id = ? AND session_id_hash = ?');
     expect(connection.execute.mock.calls[1][0]).toContain("'assistant'");
+  });
+
+  it('restores and deletes only a session-owned conversation', async () => {
+    const { repository, dependencies, connection } = fakeRepository(sql => sql.includes('SELECT id FROM prospect_conversations')
+      ? [{ id: 'conversation-id' }]
+      : { affectedRows: 1, insertId: 1 });
+    vi.mocked(dependencies.query)
+      .mockResolvedValueOnce([{ id: 'conversation-id', status: 'active' }])
+      .mockResolvedValueOnce([{ id: 'message-id', role: 'user', content: 'Hello', created_at: '2026-08-23' }]);
+    await expect(repository.getOwnedConversation({ conversationId: 'conversation-id', sessionId: 'owner' }))
+      .resolves.toMatchObject({ messages: [{ role: 'user', content: 'Hello' }] });
+    await expect(repository.deleteOwnedConversation({ conversationId: 'conversation-id', sessionId: 'owner' })).resolves.toBe(true);
+    expect(connection.execute.mock.calls.some(call => String(call[0]).includes("status = 'blocked'"))).toBe(true);
+    expect(connection.execute.mock.calls.some(call => String(call[0]).includes('DELETE FROM prospect_messages'))).toBe(true);
   });
 
   it('rolls back when a conversation is not owned by the session', async () => {
