@@ -158,7 +158,7 @@ export default function Landing() {
                 </span>
               </h1>
               <p className="text-lg text-slate-300 mb-8 leading-relaxed max-w-lg">
-                Advanced Inventory, POS, AI tools, analytics, and CRM — unified in one platform, built for the way modern retailers and wholesalers work.
+                Advanced Inventory, POS, Automation, Wholesale Tools, analytics, and CRM — unified in one platform, built for the way modern retailers and wholesalers work.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
@@ -729,7 +729,8 @@ export default function Landing() {
                 links: [
                   { label: 'Inventory (IMS)', href: '/#features' },
                   { label: 'Point of Sale', href: '/#features' },
-                  { label: 'AI Tools', href: '/#features' },
+                  { label: 'Automation', href: '/#features' },
+                  { label: 'Wholesale Tools', href: '/#features' },
                   { label: 'Analytics', href: '/#features' },
                   { label: 'Pricing', href: '/pricing' },
                 ],
@@ -899,7 +900,7 @@ export default function Landing() {
                   rows={3}
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}
-                  placeholder="e.g. POS, multi-branch inventory, AI tools..."
+                  placeholder="e.g. POS, multi-branch inventory, automation, wholesale tools..."
                   className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 />
               </div>

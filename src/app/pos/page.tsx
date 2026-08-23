@@ -8,6 +8,7 @@ import * as Zeller from '@/lib/zeller';
 import { getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
 import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
@@ -2651,6 +2652,13 @@ function MainPos({
       {/* Change Due overlay removed — lifted to PosPage so it survives screen transition */}
 
       <PosHelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
+      <SolvantisAssistantPanel
+        chatEndpoint="/api/pos/assistant/chat"
+        escalationEndpoint="/api/pos/assistant/escalate"
+        currentView={screen}
+        disabled={!isOnline || offlineMode}
+        side="left"
+      />
       {posSettingsOpen && (
         <PosSettingsModal
           locationId={session.location_id}

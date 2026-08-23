@@ -67,7 +67,7 @@ function LoginForm() {
             <span className="mt-2 block text-cyan-300">For Modern Commerce.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-slate-200 sm:text-lg">
-            Advanced Inventory, POS, AI tools, analytics, and CRM, unified in one platform built for the way modern retailers and wholesalers work.
+            Advanced Inventory, POS, Automation, Wholesale Tools, analytics, and CRM, unified in one platform built for the way modern retailers and wholesalers work.
           </p>
         </section>
 

@@ -18,6 +18,7 @@ import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -21782,6 +21783,11 @@ export default function ImsPage() {
         isOpen={helpOpen}
         onClose={() => setHelpOpen(false)}
         defaultSection={helpSection}
+      />
+      <SolvantisAssistantPanel
+        chatEndpoint="/api/ims/assistant/chat"
+        escalationEndpoint="/api/ims/assistant/escalate"
+        currentView={view}
       />
       <SettingsModal
         isOpen={settingsOpen}

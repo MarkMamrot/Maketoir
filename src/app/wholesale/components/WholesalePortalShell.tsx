@@ -26,6 +26,7 @@ import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplier
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import styles from './WholesalePortalShell.module.css';
 import { WholesaleLayoutEditor } from './layout/WholesaleLayoutEditor';
+import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 
 export type WholesalePortalView = 'home' | 'catalogue' | 'lists' | 'orders' | 'account' | 'help';
 
@@ -265,6 +266,12 @@ export function WholesalePortalShell({
       )}
 
       {!online && <div className={styles.offline} role="status"><WifiOff size={16} /> Offline</div>}
+      {!isPreview && <SolvantisAssistantPanel
+        chatEndpoint="/api/wholesale/assistant/chat"
+        escalationEndpoint="/api/wholesale/assistant/escalate"
+        currentView={view}
+        disabled={!online}
+      />}
     </div>
   );
 }

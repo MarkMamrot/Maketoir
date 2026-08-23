@@ -14,6 +14,25 @@ interface AlertIssue {
   last_seen_at: string | Date;
 }
 
+interface DigestWorkflowFinding {
+  id: number;
+  category: string;
+  impact: string;
+  capability: string;
+  title: string;
+  occurrence_count: number;
+  affected_business_count: number;
+}
+
+interface DigestEscalation {
+  public_reference: string;
+  business_name: string;
+  audience: string;
+  status: string;
+  response_due_at: string | Date;
+  parent_kind: string;
+}
+
 function escapeHtml(value: string): string {
   return value.replace(/[&<>'"]/g, character => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
@@ -126,36 +145,76 @@ export async function retryPendingRuntimeIssueAlerts(limit = 50): Promise<{ atte
   return { attempted: pending.length, sent };
 }
 
-export async function sendRuntimeIssuesDailyDigest(now = new Date()): Promise<{ sent: boolean; issueCount: number }> {
-  const issues = await query<AlertIssue>(
-    `SELECT ri.id, COALESCE(b.name, 'System') AS business_name, ri.source, ri.operation,
-            ri.severity, ri.title, ri.message, ri.occurrence_count, ri.last_seen_at
-       FROM runtime_issues ri
-       LEFT JOIN businesses b ON b.business_id = ri.business_id
-      WHERE ri.status IN ('new', 'in_progress')
-      ORDER BY FIELD(ri.severity, 'critical', 'error', 'warning'), ri.last_seen_at DESC
-      LIMIT 200`,
-  );
-  if (issues.length === 0) return { sent: false, issueCount: 0 };
+export async function sendRuntimeIssuesDailyDigest(now = new Date()): Promise<{
+  sent: boolean;
+  issueCount: number;
+  findingCount: number;
+  dueCaseCount: number;
+}> {
+  const [issues, findings, dueCases] = await Promise.all([
+    query<AlertIssue>(
+      `SELECT ri.id, COALESCE(b.name, 'System') AS business_name, ri.source, ri.operation,
+              ri.severity, ri.title, ri.message, ri.occurrence_count, ri.last_seen_at
+         FROM runtime_issues ri
+         LEFT JOIN businesses b ON b.business_id = ri.business_id
+        WHERE ri.status IN ('new', 'in_progress')
+        ORDER BY FIELD(ri.severity, 'critical', 'error', 'warning'), ri.last_seen_at DESC
+        LIMIT 200`,
+    ),
+    query<DigestWorkflowFinding>(
+      `SELECT id, category, impact, capability, title, occurrence_count, affected_business_count
+         FROM assistant_workflow_findings
+        WHERE status IN ('new', 'triaging', 'confirmed_defect', 'confirmed_gap', 'planned')
+        ORDER BY FIELD(impact, 'critical', 'high', 'medium', 'low'), last_seen_at DESC
+        LIMIT 100`,
+    ).catch(() => []),
+    query<DigestEscalation>(
+      `SELECT ae.public_reference, COALESCE(b.name, ae.business_id) AS business_name,
+              ae.audience, ae.status, ae.response_due_at, ae.parent_kind
+         FROM assistant_escalations ae
+         LEFT JOIN businesses b ON b.business_id = ae.business_id
+        WHERE ae.status IN ('open', 'acknowledged', 'investigating')
+          AND ae.response_due_at <= DATE_ADD(?, INTERVAL 1 DAY)
+        ORDER BY ae.response_due_at, ae.id
+        LIMIT 100`,
+      [now],
+    ).catch(() => []),
+  ]);
+  if (issues.length === 0 && findings.length === 0 && dueCases.length === 0) {
+    return { sent: false, issueCount: 0, findingCount: 0, dueCaseCount: 0 };
+  }
 
   const recipients = await getRecipients();
-  const rows = issues.map(issue => `<tr>
+  const issueRows = issues.map(issue => `<tr>
     <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(issue.severity)}</td>
     <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(issue.business_name)}</td>
     <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(issue.title)}</strong><br><small>${escapeHtml(issue.source)} / ${escapeHtml(issue.operation)}</small></td>
     <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${issue.occurrence_count}</td>
   </tr>`).join('');
+  const findingRows = findings.map(finding => `<tr>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(finding.impact)}</td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(finding.capability)}</td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(finding.title)}</strong><br><small>${escapeHtml(finding.category)}</small></td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${finding.occurrence_count} / ${finding.affected_business_count}</td>
+  </tr>`).join('');
+  const dueCaseRows = dueCases.map(escalation => `<tr>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;"><strong>${escapeHtml(escalation.public_reference)}</strong></td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(escalation.business_name)}</td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(escalation.audience)} / ${escapeHtml(escalation.parent_kind)}</td>
+    <td style="padding:8px;border-bottom:1px solid #e2e8f0;">${escapeHtml(new Date(escalation.response_due_at).toISOString().slice(0, 10))}</td>
+  </tr>`).join('');
   const date = now.toISOString().slice(0, 10);
   await sendEmail({
     recipients,
-    subject: `Solvantis Runtime Issues digest — ${issues.length} unresolved`,
+    subject: `Solvantis daily review: ${issues.length} issues, ${findings.length} findings, ${dueCases.length} cases due`,
     idempotencyKey: `runtime-issues-digest-${date}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#0f172a;">
-      <h1 style="font-size:22px;">Runtime Issues daily digest</h1>
-      <p>${issues.length} unresolved issue${issues.length === 1 ? '' : 's'} require review.</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th>Severity</th><th>Organisation</th><th>Issue</th><th>Count</th></tr></thead><tbody>${rows}</tbody></table>
-      <p><a href="${escapeHtml(process.env.APP_URL ?? 'https://solvantis.com.au')}/admin">Open Runtime Issues</a></p>
+      <h1 style="font-size:22px;">Solvantis daily review</h1>
+      ${issues.length ? `<h2 style="font-size:17px;">Runtime issues</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th>Severity</th><th>Organisation</th><th>Issue</th><th>Count</th></tr></thead><tbody>${issueRows}</tbody></table>` : ''}
+      ${findings.length ? `<h2 style="font-size:17px;margin-top:24px;">Workflow findings</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th>Impact</th><th>Capability</th><th>Candidate finding</th><th>Occurrences / businesses</th></tr></thead><tbody>${findingRows}</tbody></table>` : ''}
+      ${dueCases.length ? `<h2 style="font-size:17px;margin-top:24px;">User cases due within one day</h2><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr><th>Reference</th><th>Organisation</th><th>Audience / type</th><th>Due</th></tr></thead><tbody>${dueCaseRows}</tbody></table>` : ''}
+      <p><a href="${escapeHtml(process.env.APP_URL ?? 'https://solvantis.com.au')}/admin">Open admin review</a></p>
     </div>`,
   });
-  return { sent: true, issueCount: issues.length };
+  return { sent: true, issueCount: issues.length, findingCount: findings.length, dueCaseCount: dueCases.length };
 }

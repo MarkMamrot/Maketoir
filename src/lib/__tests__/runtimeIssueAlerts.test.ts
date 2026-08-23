@@ -90,11 +90,32 @@ describe('runtime issue alerts', () => {
   });
 
   it('sends a daily digest of unresolved issues', async () => {
-    mockQuery.mockResolvedValueOnce([issue]);
+    mockQuery.mockResolvedValueOnce([issue]).mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
-    await expect(sendRuntimeIssuesDailyDigest(new Date('2026-08-01T21:00:00Z'))).resolves.toEqual({ sent: true, issueCount: 1 });
+    await expect(sendRuntimeIssuesDailyDigest(new Date('2026-08-01T21:00:00Z'))).resolves.toEqual({
+      sent: true, issueCount: 1, findingCount: 0, dueCaseCount: 0,
+    });
 
     expect(mockSend.mock.calls[0][1]).toEqual({ idempotencyKey: 'runtime-issues-digest-2026-08-01' });
+  });
+
+  it('sends a digest for findings and cases when there are no runtime issues', async () => {
+    mockQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 9, category: 'workflow_gap', impact: 'high', capability: 'orders',
+        title: 'Required reference cannot be preserved', occurrence_count: 2, affected_business_count: 1,
+      }])
+      .mockResolvedValueOnce([{
+        public_reference: 'SA-ABC', business_name: 'Monsterthreads', audience: 'ims',
+        status: 'open', response_due_at: '2026-08-02T00:00:00.000Z', parent_kind: 'workflow_finding',
+      }]);
+
+    await expect(sendRuntimeIssuesDailyDigest(new Date('2026-08-01T21:00:00Z'))).resolves.toEqual({
+      sent: true, issueCount: 0, findingCount: 1, dueCaseCount: 1,
+    });
+    expect(mockSend.mock.calls[0][0].html).toContain('Workflow findings');
+    expect(mockSend.mock.calls[0][0].html).toContain('SA-ABC');
   });
 
   it('retries bounded pending immediate alerts', async () => {
