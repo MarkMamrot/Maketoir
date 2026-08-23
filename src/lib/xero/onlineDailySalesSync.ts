@@ -86,36 +86,57 @@ export async function syncOnlineDailySalesDay(
         [businessId, date],
       ),
       imsQuery<{ gateway: string; total_sales: string; total_tax: string }>(
-        `SELECT COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') AS gateway,
-                COALESCE(SUM(total_amount), 0) AS total_sales,
-                COALESCE(SUM(tax_amount), 0) AS total_tax
-           FROM ims_sales_orders
-          WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
-            AND so_type = 'online'
-            AND COALESCE(is_staff_preview_test, 0) = 0
-            AND (is_historical IS NULL OR is_historical = 0)
-            AND status != 'cancelled'
-          GROUP BY COALESCE(LOWER(TRIM(payment_gateway)), '_unknown')`,
-        [businessId, date],
+        `SELECT gateway, COALESCE(SUM(total_sales), 0) AS total_sales, COALESCE(SUM(total_tax), 0) AS total_tax
+           FROM (
+             SELECT COALESCE(LOWER(TRIM(payment_gateway)), '_unknown') AS gateway,
+                    total_amount AS total_sales, tax_amount AS total_tax
+               FROM ims_sales_orders
+              WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
+                AND so_type = 'online' AND COALESCE(sales_channel, '') <> 'native_shop'
+                AND COALESCE(is_staff_preview_test, 0) = 0
+                AND (is_historical IS NULL OR is_historical = 0) AND status != 'cancelled'
+             UNION ALL
+             SELECT CASE WHEN sop.notes LIKE 'Native Store Credit %' THEN 'store_credit' ELSE 'stripe' END AS gateway,
+                    sop.amount AS total_sales, 0 AS total_tax
+               FROM ims_sales_orders so
+               JOIN ims_sales_order_payments sop ON sop.so_id = so.id AND sop.business_id = so.business_id
+              WHERE so.business_id = ? AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+                AND so.so_type = 'online' AND so.sales_channel = 'native_shop'
+                AND COALESCE(so.is_staff_preview_test, 0) = 0
+                AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled'
+           ) gateway_sales GROUP BY gateway`,
+        [businessId, date, businessId, date],
       ),
       imsQuery<OnlineBatchOrderRow>(
         `SELECT sales_channel, native_checkout_id, shopify_order_id, shopify_order_name,
                 payment_gateway, total_amount, tax_amount
            FROM ims_sales_orders
           WHERE business_id = ? AND DATE_FORMAT(order_date, '%Y-%m-%d') = ?
-            AND so_type = 'online'
+            AND so_type = 'online' AND COALESCE(sales_channel, '') <> 'native_shop'
             AND COALESCE(is_staff_preview_test, 0) = 0
-            AND (is_historical IS NULL OR is_historical = 0)
-            AND status != 'cancelled'
-          ORDER BY id ASC`,
-        [businessId, date],
+            AND (is_historical IS NULL OR is_historical = 0) AND status != 'cancelled'
+          UNION ALL
+         SELECT so.sales_channel, CONCAT(so.native_checkout_id, '-so-', so.id), so.shopify_order_id, so.shopify_order_name,
+                CASE WHEN sop.notes LIKE 'Native Store Credit %' THEN 'store_credit' ELSE 'stripe' END,
+                sop.amount, 0
+           FROM ims_sales_orders so
+           JOIN ims_sales_order_payments sop ON sop.so_id = so.id AND sop.business_id = so.business_id
+          WHERE so.business_id = ? AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+            AND so.so_type = 'online' AND so.sales_channel = 'native_shop'
+            AND COALESCE(so.is_staff_preview_test, 0) = 0
+            AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled'`,
+        [businessId, date, businessId, date],
       ),
       query<OnlineGatewayMapping>(
         `SELECT gateway_name, clearing_account_code, fee_account_code, fee_tax_type,
                 deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
            FROM xero_gateway_mappings
-          WHERE business_id = ?`,
-        [businessId],
+          WHERE business_id = ?
+          UNION ALL
+         SELECT 'store_credit', xero_account_code, NULL, 'NONE', 0, 0, 0
+           FROM xero_account_mappings
+          WHERE business_id = ? AND role_key = 'store_credit_liability' AND xero_account_code IS NOT NULL`,
+        [businessId, businessId],
       ).catch(() => []),
     ]);
 

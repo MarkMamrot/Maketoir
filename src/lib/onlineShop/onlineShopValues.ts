@@ -83,10 +83,11 @@ async function lockContext(
   );
   const loyaltyPoints = Number(accountRows[0]?.balance_points ?? 0);
   const [reservedRows] = await connection.execute<any[]>(
-    `SELECT value_type, points, amount_cents
-       FROM ims_online_shop_value_reservations
-      WHERE business_id = ? AND contact_id = ? AND checkout_id <> ?
-        AND status = 'active' AND expires_at > UTC_TIMESTAMP()
+    `SELECT vr.value_type, vr.points, vr.amount_cents
+       FROM ims_online_shop_value_reservations vr
+       JOIN ims_online_shop_checkouts c ON c.checkout_id = vr.checkout_id AND c.business_id = vr.business_id
+      WHERE vr.business_id = ? AND vr.contact_id = ? AND vr.checkout_id <> ?
+        AND vr.status = 'active' AND (vr.expires_at > UTC_TIMESTAMP() OR c.status = 'payment_pending')
       FOR UPDATE`,
     [input.businessId, input.contactId, input.checkoutId],
   );

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping"],"order":95,"summary":"Prepare and publish the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
+{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"order":95,"summary":"Prepare and publish the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
 ---
 # Online Shop
 
@@ -13,6 +13,7 @@ Administrators open **Integrations > Online Shop** to prepare Solvantis's native
 - Publish eligible products to the native shop independently of Shopify.
 - Configure delivery rates, free-shipping thresholds, click-and-collect locations, and order fulfilment behavior.
 - Connect the merchant's Stripe account for secure checkout payments.
+- Let signed-in customers apply an eligible loyalty reward, store credit, or both at checkout.
 - Review the active native online channel, catalogue availability, prices, and public routes.
 
 ## Before you begin
@@ -48,6 +49,12 @@ Checkout also requires active online stock locations, at least one delivery rate
 
 In Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key.
 
+### Use loyalty rewards and store credit
+
+Customers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied first and store credit is applied to the remaining value.
+
+The selection is reserved while checkout is active but does not change either customer ledger until payment succeeds. Starting payment locks the selection. If the selected value covers the complete order, checkout completes without opening Stripe.
+
 ## Statuses, calculations, and permissions
 
 Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.
@@ -56,7 +63,7 @@ A custom page is publicly eligible only after it has published content and is ma
 
 Retail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.
 
-The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A successful Stripe webhook converts the reservation into ordinary confirmed IMS online sales orders. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes.
+The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A loyalty reward is an order discount; store credit settles the discounted balance and Stripe settles any amount still due. Successful settlement converts the reservation into ordinary confirmed IMS online sales orders and records loyalty and store-credit ledger entries idempotently. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes, where Stripe cash and store-credit liability settlement remain separate.
 
 ## Troubleshooting
 
@@ -67,6 +74,7 @@ The server recalculates product prices, delivery, GST, and stock when checkout i
 - Every cart refresh recalculates current publication, price, and availability on the server.
 - If checkout reports no delivery option, review the destination state/postcode coverage and active rates.
 - If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.
+- If a reward or store-credit selection has expired, review the current balance and apply it again before starting payment.
 
 ## Related tasks
 
@@ -81,3 +89,7 @@ Create a Returns page, choose its address and navigation placement, write and sa
 ### Unpublish a native product without affecting Shopify
 
 Open the product in Online Shop and unpublish it from the native channel. It disappears from native browsing, while the IMS product and any existing Shopify mapping remain intact.
+
+### Combine a reward and store credit
+
+For a $100 order, a signed-in customer may select a fixed $20 reward and then apply $30 store credit. The order records a $20 loyalty discount, $30 of store-credit settlement, and $50 due through Stripe. Points and store credit remain unchanged until successful settlement.

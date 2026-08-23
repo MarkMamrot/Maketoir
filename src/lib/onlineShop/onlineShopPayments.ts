@@ -33,14 +33,16 @@ async function createInTenant(input: { businessId: string; checkoutId: string })
     );
     existing = attemptRows[0];
     const [valueRows] = await connection.execute<any[]>(
-      `SELECT value_type, COALESCE(SUM(amount_cents), 0) AS amount_cents
+      `SELECT value_type, amount_cents
          FROM ims_online_shop_value_reservations
         WHERE business_id = ? AND checkout_id = ? AND status = 'active' AND expires_at > UTC_TIMESTAMP()
-        GROUP BY value_type FOR UPDATE`,
+        FOR UPDATE`,
       [input.businessId, input.checkoutId],
     );
-    const reservedLoyaltyCents = Number(valueRows.find(row => row.value_type === 'loyalty')?.amount_cents ?? 0);
-    const reservedStoreCreditCents = Number(valueRows.find(row => row.value_type === 'store_credit')?.amount_cents ?? 0);
+    const reservedLoyaltyCents = valueRows.filter(row => row.value_type === 'loyalty')
+      .reduce((sum, row) => sum + Number(row.amount_cents ?? 0), 0);
+    const reservedStoreCreditCents = valueRows.filter(row => row.value_type === 'store_credit')
+      .reduce((sum, row) => sum + Number(row.amount_cents ?? 0), 0);
     if (reservedLoyaltyCents !== Number(checkout.loyalty_cents)
       || reservedStoreCreditCents !== Number(checkout.store_credit_cents)) {
       throw new Error('Reserved rewards or store credit have expired. Review the order total before paying.');
