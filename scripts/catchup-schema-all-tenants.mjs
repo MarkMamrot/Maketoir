@@ -1173,7 +1173,7 @@ const INDEXES = [
   ['wholesale_draft_orders', 'idx_wholesale_draft_account', 'INDEX `idx_wholesale_draft_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
   ['ims_sales_orders', 'idx_so_staff_preview', 'INDEX `idx_so_staff_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_sales_orders', 'idx_so_online_channel', 'INDEX `idx_so_online_channel` (`business_id`, `sales_channel`, `order_date`, `id`)'],
-  ['ims_sales_orders', 'uq_so_native_checkout', 'UNIQUE INDEX `uq_so_native_checkout` (`business_id`, `native_checkout_id`)'],
+  ['ims_sales_orders', 'uq_so_native_checkout', 'UNIQUE INDEX `uq_so_native_checkout` (`business_id`, `native_checkout_id`, `location_id`)'],
   ['wholesale_draft_orders', 'idx_wholesale_draft_preview', 'INDEX `idx_wholesale_draft_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
@@ -1300,6 +1300,18 @@ async function ensureForeignKey(schema, table, constraintName, column, reference
   );
 }
 
+async function ensureNativeCheckoutIndex(schema) {
+  const [rows] = await conn.query(
+    `SELECT COLUMN_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_sales_orders' AND INDEX_NAME = 'uq_so_native_checkout'
+      ORDER BY SEQ_IN_INDEX`, [schema],
+  );
+  const columns = rows.map(row => row.COLUMN_NAME).join(',');
+  if (columns === 'business_id,native_checkout_id,location_id') return;
+  if (rows.length) await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders DROP INDEX uq_so_native_checkout`);
+  await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
+}
+
 async function migrateSchema(schema) {
   for (const ddl of TABLE_DDLS) {
     try {
@@ -1344,6 +1356,7 @@ async function migrateSchema(schema) {
   }
   await ensureShopifyLineItemId(schema, 'ims_sales_order_items', true);
   await ensureShopifyLineItemId(schema, 'ims_so_shipment_items', false);
+  await ensureNativeCheckoutIndex(schema);
 
   try {
     await conn.query(

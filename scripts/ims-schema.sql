@@ -929,7 +929,7 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   INDEX idx_so_wholesale_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
   INDEX idx_so_staff_preview (business_id, is_staff_preview_test, staff_preview_session_id),
   INDEX idx_so_online_channel (business_id, sales_channel, order_date, id),
-  UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id),
+  UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id),
   INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
   UNIQUE INDEX uq_so_replacement_source (business_id, replacement_of_so_id),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
