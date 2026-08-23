@@ -1,3 +1,11 @@
+## 2026-08-01 - Native online-shop foundation and schemas
+
+- Added the independent native online-shop control plane, IMS workspace, layout/page publishing, asset library, product publication, hosted catalogue/product/content routes, and server-revalidated store cart.
+- Applied and verified the six main-database online-shop tables. A dry rerun reported no pending tables and verified 76 columns plus 16 indexes.
+- Applied the additive online-shop tenant schema to all four registered IMS schemas. The strict rerun reported zero pending columns/indexes and asserted all 11 native tables exist per tenant.
+- Legacy Monsterthreads product and variant key definitions were incompatible with three canonical external foreign keys. Fresh canonical schemas retain those constraints; all-tenant catch-up omits only those three constraints and retains native internal constraints and lookup indexes.
+- No online sales channel, shop profile, product publication, order, checkout, or payment was activated or created by migration/validation.
+
 # Project Memory & Development Notes
 
 **🤖 AI AGENT INSTRUCTIONS:** 

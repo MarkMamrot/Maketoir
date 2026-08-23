@@ -32,7 +32,10 @@ const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
   const match = canonicalImsSchema.match(expression);
   if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
-  return match[0].replace(/;$/, '');
+  return match[0]
+    .replace(/^\s*CONSTRAINT (?:fk_online_shop_product|fk_online_checkout_item_variant|fk_online_stock_reservation_variant)\b[^\n]*,?\r?\n/gm, '')
+    .replace(/,\s*(\) ENGINE=)/, '\n$1')
+    .replace(/;$/, '');
 });
 
 const conn = await mysql.createConnection({
@@ -1303,6 +1306,17 @@ async function migrateSchema(schema) {
     } catch (e) {
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
+  }
+
+  const [onlineShopTables] = await conn.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [schema, ONLINE_SHOP_TABLES],
+  );
+  const presentOnlineShopTables = new Set(onlineShopTables.map(row => row.TABLE_NAME));
+  const missingOnlineShopTables = ONLINE_SHOP_TABLES.filter(table => !presentOnlineShopTables.has(table));
+  if (missingOnlineShopTables.length) {
+    throw new Error(`${schema} is missing required online shop tables: ${missingOnlineShopTables.join(', ')}`);
   }
 
   for (const table of [
