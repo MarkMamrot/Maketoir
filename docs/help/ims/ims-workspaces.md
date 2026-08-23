@@ -14,6 +14,12 @@ IMS brings product, stock, purchasing, sales, customer, location, reporting, and
 - Use **Reports** for read-only operational and financial analysis.
 - Use **Integrations** to configure and monitor Xero, Shopify, and the Online Shop.
 
+## Ask Solvantis
+
+Ask Solvantis uses the current IMS workspace as context. It can receive a bounded outline of visible headings, field labels, active tabs, and table headings. Some workspaces also provide a structured snapshot of the currently expanded operational records; Online Sales can provide visible filters, summary totals, order references, statuses, and expanded item lines. This lets the assistant explain what is on screen without sending raw page HTML, form values, hidden content, credentials, or customer identity fields.
+
+The screen snapshot is evidence from the open workspace, not a fresh database lookup. If an answer requires a record that is not currently visible, identify the order or product so the assistant can use an authorised live lookup when one is available.
+
 ## Dashboard
 
 The IMS Dashboard summarises current operational state and provides entry points into detailed workspaces. Treat summary values as navigation cues; use the owning report or list when reviewing individual records.

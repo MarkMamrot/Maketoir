@@ -26,7 +26,7 @@ interface IndexedChunk {
 
 const TERM_ALIASES: Record<string, string[]> = {
   po: ['purchase', 'order'],
-  pos: ['purchase', 'orders'],
+  pos: ['point', 'sale'],
   orders: ['order'],
   products: ['product'],
   variants: ['variant'],

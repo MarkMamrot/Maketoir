@@ -22,6 +22,37 @@ interface ChatEntry {
   reviewSent?: boolean;
 }
 
+function readVisibleScreenContext(currentView?: string | null): unknown {
+  if (!currentView || typeof document === 'undefined') return null;
+  const workspace = document.querySelector<HTMLElement>('main');
+  const screenOutline = workspace ? Array.from(workspace.querySelectorAll<HTMLElement>('h1, h2, h3, th, label, [role="tab"][aria-selected="true"]'))
+    .filter(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== 'hidden')
+    .map(element => {
+      if (element.tagName !== 'LABEL') return element.textContent?.replace(/\s+/g, ' ').trim().slice(0, 160) || '';
+      return Array.from(element.childNodes)
+        .filter(node => node.nodeType === Node.TEXT_NODE)
+        .map(node => node.textContent || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 160);
+    })
+    .filter((text, index, all) => Boolean(text) && all.indexOf(text) === index)
+    .slice(0, 60) : [];
+  const element = Array.from(document.querySelectorAll<HTMLElement>('[data-assistant-context]'))
+    .find(candidate => candidate.dataset.assistantContext === currentView);
+  const serialized = element?.dataset.assistantScreenContext;
+  if (!serialized) return screenOutline.length > 0 ? { screen: currentView, screenOutline } : null;
+  try {
+    const declared = JSON.parse(serialized);
+    return declared && typeof declared === 'object' && !Array.isArray(declared)
+      ? { ...declared, screenOutline }
+      : { screen: currentView, screenOutline };
+  } catch {
+    return screenOutline.length > 0 ? { screen: currentView, screenOutline } : null;
+  }
+}
+
 export function SolvantisAssistantPanel({
   chatEndpoint,
   escalationEndpoint,
@@ -70,7 +101,7 @@ export function SolvantisAssistantPanel({
       const response = await fetch(chatEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history, currentView }),
+        body: JSON.stringify({ message, history, currentView, screenContext: readVisibleScreenContext(currentView) }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Assistant is unavailable right now.');

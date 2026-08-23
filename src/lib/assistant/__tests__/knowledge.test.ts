@@ -59,6 +59,18 @@ describe('assistant knowledge retrieval', () => {
     expect(timing?.content).toContain('automatically starts');
   });
 
+  it('explains Shopify Misc Charge as an unmatched variant fallback', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Why does my online order have Shopify Misc Charge in IMS?',
+      audience: 'ims',
+      currentView: 'online-sales',
+    });
+    const explanation = results.find(result => result.heading === 'POS and online sales');
+    expect(explanation?.content).toContain('not an extra fee');
+    expect(explanation?.content).toContain('no variant ID or its Shopify variant is not linked');
+    expect(results.some(result => result.content.includes('product-mapping fallback, not a Xero policy charge'))).toBe(true);
+  });
+
   it('returns the organisation-wide weighted-average inventory cost method', () => {
     const results = retrieveAssistantKnowledge({
       query: 'What kind of inventory cost system does Solvantis use?',

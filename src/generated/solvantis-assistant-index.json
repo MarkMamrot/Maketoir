@@ -2584,6 +2584,62 @@
       "id": "ims-workspaces:3",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
+      "heading": "Ask Solvantis",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS",
+      "topicId": "ims-workspaces",
+      "contexts": [
+        "dashboard",
+        "products",
+        "stock",
+        "brands",
+        "gift-cards",
+        "bulk-edit",
+        "sales-orders",
+        "wholesale-applications",
+        "backorders",
+        "customer-backorders",
+        "stock-availability",
+        "credit-notes",
+        "pos-sales",
+        "online-sales",
+        "order-planner",
+        "supplier-backorders",
+        "supplier-credit-notes",
+        "contacts",
+        "crm",
+        "contact-profile",
+        "locations",
+        "branch-transfers",
+        "smart-device-receive",
+        "receive-transfers",
+        "stocktakes",
+        "reports",
+        "report-sales-detail",
+        "report-sales-by-branch",
+        "report-sales-summary",
+        "report-sales-search",
+        "report-inventory-valuation",
+        "report-product-margin",
+        "report-pos-price-changes",
+        "report-pos-registers",
+        "report-cash-banking",
+        "report-stock-availability",
+        "xero",
+        "shopify",
+        "online-shop"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-23",
+      "content": "Ask Solvantis uses the current IMS workspace as context. It can receive a bounded outline of visible headings, field labels, active tabs, and table headings. Some workspaces also provide a structured snapshot of the currently expanded operational records; Online Sales can provide visible filters, summary totals, order references, statuses, and expanded item lines. This lets the assistant explain what is on screen without sending raw page HTML, form values, hidden content, credentials, or customer identity fields.\n\nThe screen snapshot is evidence from the open workspace, not a fresh database lookup. If an answer requires a record that is not currently visible, identify the order or product so the assistant can use an authorised live lookup when one is available."
+    },
+    {
+      "id": "ims-workspaces:4",
+      "documentId": "ims-workspaces",
+      "title": "IMS Workspaces",
       "heading": "Dashboard",
       "audiences": [
         "ims"
@@ -2637,7 +2693,7 @@
       "content": "The IMS Dashboard summarises current operational state and provides entry points into detailed workspaces. Treat summary values as navigation cues; use the owning report or list when reviewing individual records."
     },
     {
-      "id": "ims-workspaces:4",
+      "id": "ims-workspaces:5",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "All Products",
@@ -2693,7 +2749,7 @@
       "content": "Open **Products > All Products** to search, create, review, and maintain products and variants. Product detail owns identity, descriptions, barcodes, pricing, tax-inclusive POS values, supplier information, images, online content, and variant settings. Availability and role determine which edits are offered."
     },
     {
-      "id": "ims-workspaces:5",
+      "id": "ims-workspaces:6",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Stock Levels",
@@ -2749,7 +2805,7 @@
       "content": "Open **Products > Stock Levels** to compare stock on hand, incoming, committed, and available quantities by location. Average cost is organisation-wide per variant, while displayed stock value is based on each location's quantity at that shared cost."
     },
     {
-      "id": "ims-workspaces:6",
+      "id": "ims-workspaces:7",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Brands",
@@ -2805,7 +2861,7 @@
       "content": "Brands provide catalogue grouping and can affect online and wholesale presentation. Keep brand identity consistent before assigning products or using brand-specific portal settings."
     },
     {
-      "id": "ims-workspaces:7",
+      "id": "ims-workspaces:8",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Gift Cards",
@@ -2861,7 +2917,7 @@
       "content": "Gift Cards shows issued cards and supported balance activity. POS issue and redemption accounting follows the configured gift-card workflow; do not replace balances through generic product or customer edits."
     },
     {
-      "id": "ims-workspaces:8",
+      "id": "ims-workspaces:9",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Bulk Edit",
@@ -2917,7 +2973,7 @@
       "content": "Bulk Edit changes supported product fields across selected records. Filter and review the selected set carefully before applying changes, especially prices, tax, online state, and stock-related settings."
     },
     {
-      "id": "ims-workspaces:9",
+      "id": "ims-workspaces:10",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Sales Orders",
@@ -2973,7 +3029,7 @@
       "content": "Sales Orders records customer demand from Draft through confirmation, incremental fulfilment, completion, cancellation, and supported correction. Confirmed quantities can commit stock. Use Fulfil or Continue Fulfilment for shipment quantities and Resolve Outstanding for an unshipped balance."
     },
     {
-      "id": "ims-workspaces:10",
+      "id": "ims-workspaces:11",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Wholesale Applications",
@@ -3029,7 +3085,7 @@
       "content": "Wholesale Applications is the review queue for buyer access requests. Approval should confirm the intended customer/company relationship and permitted portal access before the applicant can order."
     },
     {
-      "id": "ims-workspaces:11",
+      "id": "ims-workspaces:12",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Customer Backorders",
@@ -3085,7 +3141,7 @@
       "content": "Customer Backorders tracks outstanding customer supply. Use the owning order and allocation workflow to source, release, transfer, or fulfil demand without duplicating stock movements."
     },
     {
-      "id": "ims-workspaces:12",
+      "id": "ims-workspaces:13",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Stock Allocation",
@@ -3141,7 +3197,7 @@
       "content": "Stock Allocation links specific incoming PO supply to outstanding SO demand. It distinguishes protected, received-ready, incoming, unsourced, overdue, and at-risk quantities. Allocation protects supply but does not itself fulfil the customer order."
     },
     {
-      "id": "ims-workspaces:13",
+      "id": "ims-workspaces:14",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Customer Credit Notes",
@@ -3197,7 +3253,7 @@
       "content": "Customer Credit Notes owns manual IMS returns and customer credits. Completion can restock eligible lines and issue store credit through the customer ledger. POS returns create linked POS-sourced credit notes so stock is not returned twice."
     },
     {
-      "id": "ims-workspaces:14",
+      "id": "ims-workspaces:15",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "POS Sales",
@@ -3253,7 +3309,7 @@
       "content": "POS Sales provides read-only transaction and payment detail from store activity. Use it to inspect line items, returns, payment splits, and source references; corrections should use the supported POS or credit-note workflow."
     },
     {
-      "id": "ims-workspaces:15",
+      "id": "ims-workspaces:16",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Online Sales",
@@ -3309,7 +3365,7 @@
       "content": "Online Sales shows imported online activity and its synchronization state. Online accounting is separate from POS EOD summaries and follows the configured online-sales/Xero policy."
     },
     {
-      "id": "ims-workspaces:16",
+      "id": "ims-workspaces:17",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Order Planner",
@@ -3365,7 +3421,7 @@
       "content": "Order Planner analyses demand and supply signals to suggest replenishment. Review location, supplier, quantities, current stock, incoming stock, and forecast assumptions before creating purchasing work."
     },
     {
-      "id": "ims-workspaces:17",
+      "id": "ims-workspaces:18",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Supplier Backorders",
@@ -3421,7 +3477,7 @@
       "content": "Supplier Backorders shows supplier-side outstanding supply. Continue receiving genuine later deliveries or use the supported outstanding-resolution path for cancelled or transferred balances."
     },
     {
-      "id": "ims-workspaces:18",
+      "id": "ims-workspaces:19",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Supplier Credit Notes",
@@ -3477,7 +3533,7 @@
       "content": "Supplier Credit Notes records supplier returns and credits. Use completion and correction actions so stock, supplier value, evidence, and Xero state remain auditable."
     },
     {
-      "id": "ims-workspaces:19",
+      "id": "ims-workspaces:20",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Contacts",
@@ -3533,7 +3589,7 @@
       "content": "Contacts contains customers, suppliers, leads, and related commercial details. Generic edits must not overwrite ledger-owned store credit or loyalty balances."
     },
     {
-      "id": "ims-workspaces:20",
+      "id": "ims-workspaces:21",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "CRM",
@@ -3589,7 +3645,7 @@
       "content": "CRM provides customer profiles, derived activity history, manual interactions, tasks, tags, live segments, pipeline stages, and opportunities. CRM activity supplements authoritative POS, order, credit, loyalty, and store-credit records rather than replacing them."
     },
     {
-      "id": "ims-workspaces:21",
+      "id": "ims-workspaces:22",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Locations",
@@ -3645,7 +3701,7 @@
       "content": "Locations defines operating branches and settings used by stock, POS, transfers, tracking, and reporting. Deactivation or configuration changes can affect downstream availability and mappings."
     },
     {
-      "id": "ims-workspaces:22",
+      "id": "ims-workspaces:23",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Branch Transfers",
@@ -3701,7 +3757,7 @@
       "content": "Branch Transfers moves stock between locations through explicit send and receive stages. The source movement occurs when sent; the destination movement occurs when received. Do not use generic adjustments to imitate a transfer already in progress."
     },
     {
-      "id": "ims-workspaces:23",
+      "id": "ims-workspaces:24",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Receive Transfers",
@@ -3757,7 +3813,7 @@
       "content": "Receive Transfers records physical arrival at the destination. Confirm quantities against the shipment and investigate discrepancies before completion."
     },
     {
-      "id": "ims-workspaces:24",
+      "id": "ims-workspaces:25",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Stocktakes",
@@ -3813,7 +3869,7 @@
       "content": "Stocktakes compares counted stock with the locked application snapshot and applies the exact difference on completion. A supported mistaken-stocktake reversal compensates the original applied delta while preserving intervening movements."
     },
     {
-      "id": "ims-workspaces:25",
+      "id": "ims-workspaces:26",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Reports",
@@ -3869,7 +3925,7 @@
       "content": "Reports contains Sales Detail, Sales by Branch, Sales Summary, Sales Search, Inventory Valuation, Product Margin, POS Price Changes, POS Registers, Cash Banking, and Stock Availability. Date-based reports use shared presets or a custom range. Reports are analytical and do not mutate source transactions."
     },
     {
-      "id": "ims-workspaces:26",
+      "id": "ims-workspaces:27",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Xero",
@@ -3925,7 +3981,7 @@
       "content": "Xero contains connection status, automation policy, ledger and tracking mappings, payment routing, Sync History, COGS Reconciliation, and Shopify Payout activity. Use Sync History to distinguish successful, pending, blocked, and retryable accounting work. Missing mappings can block only the affected posting while the underlying operational transaction remains valid."
     },
     {
-      "id": "ims-workspaces:27",
+      "id": "ims-workspaces:28",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Shopify",
@@ -3981,7 +4037,7 @@
       "content": "Shopify controls product, customer, order, inventory, webhook, and related synchronization. Review connection status and the owning workflow before manually retrying; imports and webhooks must remain tenant-bound and idempotent."
     },
     {
-      "id": "ims-workspaces:28",
+      "id": "ims-workspaces:29",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Online Shop",
@@ -4037,7 +4093,7 @@
       "content": "Online Shop configures the customer-facing catalogue and content workflow. Product publication, images, pricing, availability, collections, and generated content should be reviewed before becoming visible online."
     },
     {
-      "id": "ims-workspaces:29",
+      "id": "ims-workspaces:30",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Troubleshooting",
@@ -4093,7 +4149,7 @@
       "content": "- If an action is unavailable, check role, lifecycle state, existing physical/accounting effects, and the actions offered on the owning document.\n- If a list appears empty, confirm filters, date range, location, and status before assuming data is missing.\n- If an integration fails after an IMS transaction succeeds, repair and retry the integration action instead of repeating stock or financial work.\n- Advisor accounts are intentionally read-only in operational IMS workflows."
     },
     {
-      "id": "ims-workspaces:30",
+      "id": "ims-workspaces:31",
       "documentId": "ims-workspaces",
       "title": "IMS Workspaces",
       "heading": "Worked examples",
@@ -5446,7 +5502,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "POS Sales and Online Sales provide source transaction and synchronization detail. Use them to inspect lines, payments, returns, references, and status. Online accounting follows the configured online-sales policy and is separate from POS End of Day summaries."
+      "content": "POS Sales and Online Sales provide source transaction and synchronization detail. Use them to inspect lines, payments, returns, references, and status. Online accounting follows the configured online-sales policy and is separate from POS End of Day summaries.\n\nWhen Shopify sends an order, Solvantis matches each Shopify variant ID to the corresponding IMS variant. If a line has no variant ID or its Shopify variant is not linked to an IMS variant, the line is assigned to the protected, non-stock **Shopify Misc Charge** item with SKU **SHOPIFY-MISC**. The original Shopify line title appears beneath it in Online Sales. This is not an extra fee added by Solvantis: it preserves the Shopify line and its value without moving stock against the wrong product.\n\nIf a normal product appears as Shopify Misc Charge, check that the product and variant have synced from Shopify and retain their Shopify linkage. The protected fallback item should not be edited or deleted. Correcting the product mapping prevents later Shopify lines from falling back; an already imported order may need its Shopify update processed again after the mapping is repaired."
     },
     {
       "id": "ims-customer-orders:7",
@@ -5471,7 +5527,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "- If fulfilment is unavailable, check confirmation state, remaining quantity, location, and role.\n- If stock appears reserved, inspect confirmed orders and allocation before adjusting quantity.\n- If a return already has a linked credit note, continue in that note rather than creating another return.\n- If an accounting sync fails, repair the integration and retry the unfinished posting without repeating fulfilment or return stock.\n- If a native payment refund fails, retry the credit-note completion after resolving the Stripe connection or payment issue. No return stock or customer value is changed until settlement succeeds."
+      "content": "- If fulfilment is unavailable, check confirmation state, remaining quantity, location, and role.\n- If stock appears reserved, inspect confirmed orders and allocation before adjusting quantity.\n- If a return already has a linked credit note, continue in that note rather than creating another return.\n- If an accounting sync fails, repair the integration and retry the unfinished posting without repeating fulfilment or return stock.\n- If Shopify Misc Charge appears, compare the **Shopify item** title shown beneath it with the intended IMS product, then check that product's Shopify variant linkage. It is a product-mapping fallback, not a Xero policy charge.\n- If a native payment refund fails, retry the credit-note completion after resolving the Stripe connection or payment issue. No return stock or customer value is changed until settlement succeeds."
     },
     {
       "id": "ims-customer-orders:8",

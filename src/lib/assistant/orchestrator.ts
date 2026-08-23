@@ -4,6 +4,7 @@ import { retrieveAssistantKnowledge } from './knowledge';
 import { loadAssistantPrompt } from './promptManifest';
 import { getAssistantToolDefinitions, executeAssistantTool, type AssistantPrincipal } from './tools';
 import type { WorkflowFindingCategory } from './policy';
+import type { AssistantScreenContext } from './screenContext';
 
 export interface AssistantChatMessage {
   role: 'user' | 'assistant';
@@ -86,12 +87,14 @@ function promptContext(input: {
   message: string;
   history: AssistantChatMessage[];
   currentView?: string | null;
+  screenContext?: AssistantScreenContext | null;
   knowledge: ReturnType<typeof retrieveAssistantKnowledge>;
   tools: ReturnType<typeof getAssistantToolDefinitions>;
   toolResult?: { name: string; result: unknown } | null;
 }) {
   return JSON.stringify({
     currentView: input.currentView?.slice(0, 100) ?? null,
+    visibleScreen: input.screenContext ?? null,
     recentConversation: input.history.slice(-6).map(message => ({ role: message.role, content: message.content.slice(0, 1_000) })),
     userMessage: input.message.slice(0, 2_000),
     knowledge: input.knowledge.map(chunk => ({ id: chunk.id, title: chunk.title, heading: chunk.heading, screen: chunk.screen, content: chunk.content })),
@@ -105,6 +108,7 @@ export async function runAssistant(input: {
   message: string;
   history?: AssistantChatMessage[];
   currentView?: string | null;
+  screenContext?: AssistantScreenContext | null;
 }): Promise<AssistantResponse> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Assistant provider is not configured.');
@@ -125,6 +129,7 @@ export async function runAssistant(input: {
         message: input.message,
         history: input.history ?? [],
         currentView: input.currentView,
+        screenContext: input.screenContext,
         knowledge,
         tools: toolResult ? [] : tools,
         toolResult,

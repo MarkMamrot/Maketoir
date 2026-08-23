@@ -31,12 +31,17 @@ Customer Credit Notes owns manual IMS returns and customer credits. Complete eli
 
 POS Sales and Online Sales provide source transaction and synchronization detail. Use them to inspect lines, payments, returns, references, and status. Online accounting follows the configured online-sales policy and is separate from POS End of Day summaries.
 
+When Shopify sends an order, Solvantis matches each Shopify variant ID to the corresponding IMS variant. If a line has no variant ID or its Shopify variant is not linked to an IMS variant, the line is assigned to the protected, non-stock **Shopify Misc Charge** item with SKU **SHOPIFY-MISC**. The original Shopify line title appears beneath it in Online Sales. This is not an extra fee added by Solvantis: it preserves the Shopify line and its value without moving stock against the wrong product.
+
+If a normal product appears as Shopify Misc Charge, check that the product and variant have synced from Shopify and retain their Shopify linkage. The protected fallback item should not be edited or deleted. Correcting the product mapping prevents later Shopify lines from falling back; an already imported order may need its Shopify update processed again after the mapping is repaired.
+
 ## Troubleshooting
 
 - If fulfilment is unavailable, check confirmation state, remaining quantity, location, and role.
 - If stock appears reserved, inspect confirmed orders and allocation before adjusting quantity.
 - If a return already has a linked credit note, continue in that note rather than creating another return.
 - If an accounting sync fails, repair the integration and retry the unfinished posting without repeating fulfilment or return stock.
+- If Shopify Misc Charge appears, compare the **Shopify item** title shown beneath it with the intended IMS product, then check that product's Shopify variant linkage. It is a product-mapping fallback, not a Xero policy charge.
 - If a native payment refund fails, retry the credit-note completion after resolving the Stripe connection or payment issue. No return stock or customer value is changed until settlement succeeds.
 
 ## Worked examples

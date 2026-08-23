@@ -16165,11 +16165,44 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
   const totalRevenue  = filteredDays.reduce((s, d) => s + Number(d.total), 0);
   const totalOrders   = filteredDays.reduce((s, d) => s + Number(d.count), 0);
   const totalShopify  = filteredDays.reduce((s, d) => s + Number(d.shopify_count), 0);
+  const assistantScreenContext = useMemo(() => {
+    const visibleOrders = Array.from(expandedDays)
+      .flatMap(day => (dayData[day] ?? []).map((order: any) => ({ day, order })))
+      .slice(0, 8)
+      .map(({ day, order }) => ({
+        day,
+        reference: String(order.shopify_order_name || order.so_number || '').slice(0, 80),
+        source: getSourceBadge(order).label,
+        status: String(order.status || '').slice(0, 40),
+        location: String(order.location_name || '').slice(0, 100),
+        total: Number(order.total_amount || 0),
+        detailOpen: expandedOrders.has(order.id),
+        items: expandedOrders.has(order.id) ? (order.items ?? []).slice(0, 12).map((item: any) => ({
+          product: String(item.product_name || item.name || '').slice(0, 160),
+          sku: String(item.sku || item.code || '').slice(0, 80),
+          shopifyLineTitle: String(item.notes || '').slice(0, 160),
+          quantity: Number(item.qty_ordered || 0),
+          unitPrice: Number(item.unit_price || 0),
+          lineTotal: Number(item.line_total || 0),
+          usesShopifyFallback: String(item.sku || item.code || '').trim().toUpperCase() === 'SHOPIFY-MISC',
+        })) : [],
+      }));
+    return {
+      screen: 'Online Sales',
+      filters: {
+        branch: locationId ? locations.find(location => location.id === locationId)?.name || String(locationId) : 'All branches',
+        dateRange: dateRange.label,
+      },
+      summary: { revenue: totalRevenue, orders: totalOrders, shopifyOrders: totalShopify, tradingDays: filteredDays.length },
+      expandedDays: Array.from(expandedDays).slice(0, 12),
+      visibleOrders,
+    };
+  }, [dateRange.label, dayData, expandedDays, expandedOrders, filteredDays.length, locationId, locations, totalOrders, totalRevenue, totalShopify]);
 
   const selStyle: React.CSSProperties = { padding: '6px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'inherit', fontSize: 13 };
 
   return (
-    <div>
+    <div data-assistant-context="online-sales" data-assistant-screen-context={JSON.stringify(assistantScreenContext)}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>Online Sales</h1>
@@ -16393,7 +16426,12 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
                                 const short = item.missing || avail < qty;
                                 return (
                                 <tr key={item.id} style={{ borderTop: '1px solid var(--sv-etch)', background: itemIndex % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
-                                  <td style={{ padding: '8px 9px', color: 'var(--sv-text-main)' }}>{item.product_name || item.name}</td>
+                                  <td style={{ padding: '8px 9px', color: 'var(--sv-text-main)' }}>
+                                    <div>{item.product_name || item.name}</div>
+                                    {String(item.sku || item.code || '').trim().toUpperCase() === 'SHOPIFY-MISC' && item.notes && (
+                                      <div style={{ marginTop: 2, color: 'var(--sv-text-dim)', fontSize: 10 }}>Shopify item: {item.notes}</div>
+                                    )}
+                                  </td>
                                   <td style={{ padding: '8px 9px', color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: 11 }}>{item.sku || item.code || '—'}</td>
                                   <td style={{ padding: '8px 9px', textAlign: 'right' }}>{qty}</td>
                                   <td style={{ padding: '8px 9px', fontSize: 11 }}>

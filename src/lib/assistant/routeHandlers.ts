@@ -6,6 +6,7 @@ import { runAssistant, type AssistantChatMessage } from './orchestrator';
 import type { AssistantPrincipal } from './tools';
 import type { AssistantAudience, WorkflowFindingEvidence } from './policy';
 import { checkAssistantRateLimit } from './rateLimit';
+import { sanitizeAssistantScreenContext } from './screenContext';
 
 export interface AssistantRouteIdentity {
   businessId: string;
@@ -44,12 +45,14 @@ export async function handleAssistantChat(
     return NextResponse.json({ error: 'Message must be between 1 and 2,000 characters.' }, { status: 400 });
   }
   const currentView = String(body?.currentView ?? '').trim().slice(0, 100) || null;
+  const screenContext = sanitizeAssistantScreenContext(body?.screenContext);
   try {
     const response = await runAssistant({
       principal,
       message,
       history: parseHistory(body?.history),
       currentView,
+      screenContext,
     });
     const candidateToken = response.workflowCandidate
       ? signAssistantCandidate({
