@@ -23,6 +23,7 @@
 }
 
 .left .trigger { margin-left: 0; }
+.open .trigger { display: none; }
 
 .panel {
   width: min(390px, calc(100vw - 28px));

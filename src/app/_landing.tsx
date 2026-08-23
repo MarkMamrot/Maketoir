@@ -158,7 +158,7 @@ export default function Landing() {
                 </span>
               </h1>
               <p className="text-lg text-slate-300 mb-8 leading-relaxed max-w-lg">
-                Advanced Inventory, POS, Automation, Wholesale Tools, analytics, and CRM — unified in one platform, built for the way modern retailers and wholesalers work.
+                Advanced Inventory, POS, Automation Tools, Wholesale Tools, analytics, and CRM — unified in one platform, built for the way modern retailers and wholesalers work.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link

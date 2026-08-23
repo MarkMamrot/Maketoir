@@ -113,7 +113,7 @@ export function SolvantisAssistantPanel({
   };
 
   return (
-    <div className={`${styles.root} ${side === 'left' ? styles.left : styles.right}`}>
+    <div className={`${styles.root} ${side === 'left' ? styles.left : styles.right} ${open ? styles.open : ''}`}>
       {open && (
         <section className={styles.panel} role="dialog" aria-modal="false" aria-labelledby="solvantis-assistant-title">
           <header className={styles.header}>
