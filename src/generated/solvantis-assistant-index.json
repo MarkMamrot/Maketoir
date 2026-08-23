@@ -415,7 +415,21 @@
       "screen": "Orders",
       "sourcePriority": 3,
       "lastReviewed": "2026-08-23",
-      "content": "IMS users can create and manage supplier purchase orders from **Purchasing > Purchase Orders** in the left navigation. If the sidebar is collapsed, the **Purchasing** icon opens Purchase Orders directly. Select **New Purchase Order**, choose the supplier and receiving location, add product variants and quantities, and review costs, tax, dates, freight, discounts, currency, and landed costs as applicable.\n\nA purchase order can remain Draft while it is being prepared. Confirming it records incoming stock. Confirmed orders can be received incrementally; quantities not yet received remain outstanding on a Partially Received order until a later receipt or supported resolution. Completed and Cancelled orders remain as audit records. Advisor accounts are read-only, and actions can be restricted when receipts, payments, credits, or accounting state require a controlled correction workflow.\n\n---"
+      "content": "IMS users can create and manage supplier purchase orders from **Purchasing > Purchase Orders** in the left navigation. If the sidebar is collapsed, the **Purchasing** icon opens Purchase Orders directly. Select **New Purchase Order**, choose the supplier and receiving location, add product variants and quantities, and review costs, tax, dates, freight, discounts, currency, and landed costs as applicable.\n\nA purchase order can remain Draft while it is being prepared. Confirming it records incoming stock. Confirmed orders can be received incrementally; quantities not yet received remain outstanding on a Partially Received order until a later receipt or supported resolution. Completed and Cancelled orders remain as audit records. Advisor accounts are read-only, and actions can be restricted when receipts, payments, credits, or accounting state require a controlled correction workflow."
+    },
+    {
+      "id": "project-overview:3",
+      "documentId": "project-overview",
+      "title": "Solvantis product reference",
+      "heading": "IMS Online Shop workspace",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Catalogue",
+      "sourcePriority": 3,
+      "lastReviewed": "2026-08-23",
+      "content": "Administrators can open **Integrations > Online Shop** to prepare Solvantis's native consumer storefront. **Store settings** manages the store name, hosted store address, support email, logo, and default search metadata. Uploaded store images accept JPEG, PNG, WebP, and GIF files up to 10 MB and remain separate from wholesale portal images.\n\n**Templates** manages independent drafts for the Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account storefront views. Required commerce sections cannot be removed. Administrators can add and reorder compatible content sections, edit their content and images, save a draft, reset it to the published version, and publish saved changes. Publishing is blocked while the editor still has unsaved changes, and revision checks prevent one editor from silently overwriting another editor's saved draft.\n\n**Pages** manages separate custom content pages such as About, Shipping, Returns, and Privacy. Each page has its own address, navigation placement, visibility, content draft, and published revision. A page is publicly eligible only after it has published content and is marked visible. The workspace displays the current online sales channel but does not change or activate that channel.\n\n---"
     }
   ]
 }

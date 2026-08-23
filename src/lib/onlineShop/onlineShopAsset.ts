@@ -26,6 +26,8 @@ function mapAsset(row: AssetRow): OnlineShopStoredAsset {
 
 const columns = `asset_id, business_id, stored_filename, mime_type, byte_size, original_name,
   alt_text, created_by_user_id, created_by_name, created_at`;
+const aliasedColumns = `a.asset_id, a.business_id, a.stored_filename, a.mime_type, a.byte_size, a.original_name,
+  a.alt_text, a.created_by_user_id, a.created_by_name, a.created_at`;
 
 export const OnlineShopAssetRepository = {
   async findOwnedActiveIds(businessId: string, assetIds: readonly string[]): Promise<Set<string>> {
@@ -56,7 +58,7 @@ export const OnlineShopAssetRepository = {
   },
 
   async getPublicActive(assetId: string): Promise<OnlineShopStoredAsset | null> {
-    const rows = await query<AssetRow>(`SELECT ${columns.split(', ').map(column => `a.${column.trim()}`).join(', ')}
+    const rows = await query<AssetRow>(`SELECT ${aliasedColumns}
       FROM online_shop_assets a
       JOIN online_shop_profiles p ON p.business_id = a.business_id AND p.is_active = 1
       JOIN business_online_channels c ON c.business_id = a.business_id AND c.active_channel = 'native_shop'

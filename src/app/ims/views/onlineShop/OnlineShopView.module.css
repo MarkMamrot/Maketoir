@@ -46,6 +46,16 @@
 .settingsPanel label:has(textarea) { grid-column: 1 / -1; }
 .revision { margin-top: 14px; color: #68756d; font-size: 11px; }
 .pagesLayout { grid-template-columns: 240px minmax(0, 1fr); }
+.productsPanel { padding: 20px 0; }
+.productToolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 180px auto; gap: 8px; max-width: 760px; margin-bottom: 14px; }
+.productToolbar input, .productToolbar select { height: 36px; padding: 0 9px; border: 1px solid #bdc8c0; border-radius: 4px; background: #fff; }
+.productToolbar button, .publicationList button { min-height: 36px; padding: 0 12px; border: 1px solid #b9c4bd; border-radius: 4px; background: #fff; color: #3e4c44; cursor: pointer; font-size: 11px; font-weight: 800; }
+.publicationList { display: grid; gap: 1px; background: #dfe5e1; }
+.publicationList article { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(180px, 260px) 110px 90px; align-items: center; gap: 14px; padding: 11px 12px; background: #fff; }
+.publicationList article > div { display: grid; gap: 3px; }.publicationList article > div span, .variantCount { color: #6b776f; font-size: 10px; }
+.publicationList label { display: grid; gap: 3px; color: #69756d; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.publicationList input { width: 100%; height: 32px; box-sizing: border-box; padding: 0 8px; border: 1px solid #c5cec8; border-radius: 3px; }
+.publicationList .publish { border-color: #176342; background: #176342; color: #fff; }.publicationList .unpublish { border-color: #cc8a83; color: #9d3028; }
 .pageSidebar form { display: grid; gap: 7px; padding-bottom: 14px; border-bottom: 1px solid #dfe5e1; }
 .pageList { display: grid; gap: 3px; margin-top: 12px; }
 .pageList button { display: grid; gap: 3px; }
@@ -61,4 +71,6 @@
 .message { border: 1px solid #b9d8c8; background: #f0f8f3; color: #176342; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 850px) { .editorLayout, .pagesLayout { grid-template-columns: 1fr; } .templateNav, .pageSidebar { border-right: 0; border-bottom: 1px solid #dfe5e1; } .templateNav { flex-direction: row; flex-wrap: wrap; } .editorBody { padding-left: 0; } }
+@media (max-width: 850px) { .publicationList article { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 620px) { .header, .editorHeading { align-items: flex-start; flex-direction: column; } .formGrid, .pageFields, .settingsPanel { grid-template-columns: 1fr; } .wide, .settingsPanel label:has(textarea) { grid-column: auto; } .actions { flex-wrap: wrap; justify-content: flex-start; } }
+@media (max-width: 620px) { .productToolbar, .publicationList article { grid-template-columns: 1fr; } }
