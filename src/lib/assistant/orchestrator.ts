@@ -35,6 +35,7 @@ export interface AssistantResponse {
   promptVersion: string;
   indexVersion: string;
   toolUsed: string | null;
+  toolsUsed: string[];
   workflowCandidate: AssistantWorkflowCandidate | null;
 }
 
@@ -46,6 +47,14 @@ interface ModelDecision {
   arguments?: unknown;
   candidate?: Record<string, unknown>;
 }
+
+interface AssistantToolResult {
+  name: string;
+  arguments: Record<string, unknown>;
+  result: unknown;
+}
+
+const MAX_TOOL_STEPS = 4;
 
 const FINDING_CATEGORIES = new Set<WorkflowFindingCategory>([
   'logical_flow_error', 'workflow_gap', 'missing_capability', 'edge_case', 'documentation_gap',
@@ -90,7 +99,8 @@ function promptContext(input: {
   screenContext?: AssistantScreenContext | null;
   knowledge: ReturnType<typeof retrieveAssistantKnowledge>;
   tools: ReturnType<typeof getAssistantToolDefinitions>;
-  toolResult?: { name: string; result: unknown } | null;
+  toolResults?: AssistantToolResult[];
+  mustAnswer?: boolean;
 }) {
   return JSON.stringify({
     currentView: input.currentView?.slice(0, 100) ?? null,
@@ -98,9 +108,45 @@ function promptContext(input: {
     recentConversation: input.history.slice(-6).map(message => ({ role: message.role, content: message.content.slice(0, 1_000) })),
     userMessage: input.message.slice(0, 2_000),
     knowledge: input.knowledge.map(chunk => ({ id: chunk.id, title: chunk.title, heading: chunk.heading, screen: chunk.screen, content: chunk.content })),
-    allowedTools: input.tools.map(tool => ({ name: tool.name, description: tool.description, arguments: tool.arguments })),
-    toolResult: input.toolResult ?? null,
+    allowedTools: input.mustAnswer ? [] : input.tools.map(tool => ({ name: tool.name, description: tool.description, arguments: tool.arguments })),
+    research: {
+      completedSteps: input.toolResults ?? [],
+      remainingToolSteps: input.mustAnswer ? 0 : Math.max(0, MAX_TOOL_STEPS - (input.toolResults?.length ?? 0)),
+      instruction: input.mustAnswer
+        ? 'Synthesize the final answer now from the supplied evidence. Do not request another tool.'
+        : 'Decide whether another read-only lookup is needed. If evidence is sufficient, synthesize the final answer now.',
+    },
   });
+}
+
+async function runResearchLoop(input: {
+  tools: ReturnType<typeof getAssistantToolDefinitions>;
+  request: (toolResults: AssistantToolResult[], mustAnswer: boolean) => Promise<ModelDecision>;
+  execute: (toolName: string, args: Record<string, unknown>) => Promise<unknown>;
+}): Promise<{ decision: ModelDecision; toolResults: AssistantToolResult[] }> {
+  const toolResults: AssistantToolResult[] = [];
+  const seenCalls = new Set<string>();
+  let decision = await input.request(toolResults, false);
+
+  while (decision.mode === 'tool' && toolResults.length < MAX_TOOL_STEPS) {
+    const tool = input.tools.find(item => item.name === decision.tool);
+    if (!tool) throw new Error('Assistant requested an unauthorized tool.');
+    const args = decision.arguments && typeof decision.arguments === 'object' && !Array.isArray(decision.arguments)
+      ? decision.arguments as Record<string, unknown>
+      : {};
+    const signature = `${tool.name}:${JSON.stringify(args)}`;
+    if (seenCalls.has(signature)) {
+      decision = await input.request(toolResults, true);
+      return { decision, toolResults };
+    }
+    seenCalls.add(signature);
+    const result = await input.execute(tool.name, args);
+    toolResults.push({ name: tool.name, arguments: args, result });
+    decision = await input.request(toolResults, toolResults.length >= MAX_TOOL_STEPS);
+  }
+
+  if (decision.mode === 'tool') decision = await input.request(toolResults, true);
+  return { decision, toolResults };
 }
 
 export async function runAssistant(input: {
@@ -122,7 +168,7 @@ export async function runAssistant(input: {
   });
   const tools = getAssistantToolDefinitions(input.principal.audience);
   const ai = new GoogleGenAI({ apiKey });
-  const request = async (toolResult?: { name: string; result: unknown } | null) => {
+  const request = async (toolResults: AssistantToolResult[], mustAnswer: boolean) => {
     const response = await ai.models.generateContent({
       model,
       contents: promptContext({
@@ -131,8 +177,9 @@ export async function runAssistant(input: {
         currentView: input.currentView,
         screenContext: input.screenContext,
         knowledge,
-        tools: toolResult ? [] : tools,
-        toolResult,
+        tools,
+        toolResults,
+        mustAnswer,
       }),
       config: {
         systemInstruction: prompt.content,
@@ -144,18 +191,13 @@ export async function runAssistant(input: {
     return parseDecision(response.text ?? '');
   };
 
-  let decision = await request();
-  let toolUsed: string | null = null;
-  if (decision.mode === 'tool') {
-    const tool = tools.find(item => item.name === decision.tool);
-    if (!tool) throw new Error('Assistant requested an unauthorized tool.');
-    const args = decision.arguments && typeof decision.arguments === 'object' && !Array.isArray(decision.arguments)
-      ? decision.arguments as Record<string, unknown>
-      : {};
-    const result = await executeAssistantTool(input.principal, tool.name, args);
-    toolUsed = tool.name;
-    decision = await request({ name: tool.name, result });
-  }
+  const research = await runResearchLoop({
+    tools,
+    request,
+    execute: (toolName, args) => executeAssistantTool(input.principal, toolName, args),
+  });
+  const decision = research.decision;
+  const toolsUsed = research.toolResults.map(result => result.name);
 
   const allowedSources = new Map(knowledge.map(chunk => [chunk.id, chunk]));
   const sourceIds = Array.isArray(decision.sourceIds) ? decision.sourceIds.slice(0, 4).map(String) : [];
@@ -178,9 +220,10 @@ export async function runAssistant(input: {
     model,
     promptVersion: prompt.version,
     indexVersion: '1',
-    toolUsed,
+    toolUsed: toolsUsed.at(-1) ?? null,
+    toolsUsed,
     workflowCandidate: candidate,
   };
 }
 
-export const assistantOrchestratorInternals = { parseDecision, normalizeCandidate };
+export const assistantOrchestratorInternals = { parseDecision, normalizeCandidate, runResearchLoop };

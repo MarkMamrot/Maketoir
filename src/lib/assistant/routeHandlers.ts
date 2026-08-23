@@ -89,6 +89,7 @@ export async function handleAssistantChat(
       answer: escalation.message,
       citations: [],
       toolUsed: null,
+      toolsUsed: [],
       workflowCandidate: null,
       candidateToken: null,
       escalated: escalation.escalated,

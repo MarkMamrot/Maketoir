@@ -594,7 +594,7 @@
         {
           "id": "ims-workspaces:3",
           "heading": "Ask Solvantis",
-          "content": "Ask Solvantis uses the current IMS workspace as context. It can receive a bounded outline of visible headings, field labels, active tabs, and table headings. Some workspaces also provide a structured snapshot of the currently expanded operational records; Online Sales can provide visible filters, summary totals, order references, statuses, and expanded item lines. This lets the assistant explain what is on screen without sending raw page HTML, form values, hidden content, credentials, or customer identity fields.\n\nThe screen snapshot is evidence from the open workspace, not a fresh database lookup. If an answer requires a record that is not currently visible, identify the order or product so the assistant can use an authorised live lookup when one is available."
+          "content": "Ask Solvantis uses the current IMS workspace as context. It can receive a bounded outline of visible headings, field labels, active tabs, and table headings. Some workspaces also provide a structured snapshot of the currently expanded operational records; Online Sales can provide visible filters, summary totals, order references, statuses, and expanded item lines. This lets the assistant explain what is on screen without sending raw page HTML, form values, hidden content, credentials, or customer identity fields.\n\nThe screen snapshot is evidence from the open workspace, not a fresh database lookup. If an answer requires a record that is not currently visible, identify the order or product so the assistant can use an authorised live lookup when one is available.\n\nFor questions that need several facts, the assistant can plan and perform up to four allowlisted read-only lookups before making a final synthesis pass. IMS research can inspect bounded product and stock results, one detailed purchase or sales order, up to 20 recent orders, or up to 20 stock exceptions. It cannot run arbitrary database queries, change records, approve work, or execute a workflow."
         },
         {
           "id": "ims-workspaces:4",
@@ -1465,7 +1465,7 @@
         {
           "id": "pos-workspaces:8",
           "heading": "Offline operation",
-          "content": "Supported selling can continue from the local product cache and queue while offline. Review connection and queue state before closing the browser or device. Solvantis Assistant requires a network connection and does not queue questions."
+          "content": "Supported selling can continue from the local product cache and queue while offline. Review connection and queue state before closing the browser or device. Solvantis Assistant requires a network connection and does not queue questions. It can plan several read-only checks when needed, but POS lookups remain limited to product and stock information for the signed-in location plus the current register context; it cannot change the sale or register."
         },
         {
           "id": "pos-workspaces:9",
@@ -1681,7 +1681,7 @@
         {
           "id": "wholesale-portal:8",
           "heading": "Support",
-          "content": "Use Ask Solvantis for product and workflow guidance. Use the supplier support details shown in Help when account approval, commercial terms, unavailable catalogue access, or an order requires direct supplier review."
+          "content": "Use Ask Solvantis for product and workflow guidance. It can plan several read-only checks when needed, but every lookup remains limited to this buyer's approved catalogue, assigned account/location, and owned orders. It cannot submit or alter an order. Use the supplier support details shown in Help when account approval, commercial terms, unavailable catalogue access, or an order requires direct supplier review."
         },
         {
           "id": "wholesale-portal:9",

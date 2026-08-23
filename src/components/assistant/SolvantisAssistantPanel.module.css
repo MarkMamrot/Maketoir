@@ -62,6 +62,7 @@
 .message { width: fit-content; max-width: 88%; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--sv-etch, #dfe4e1); border-radius: 7px; font-size: 13px; line-height: 1.48; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assistant { margin-right: auto; background: var(--sv-bg-1, #fff); }
 .user { margin-left: auto; border-color: #126c65; background: #126c65; color: #fff; }
+.liveChecks { margin-top: 9px; display: flex; align-items: center; gap: 5px; color: #315b56; font-size: 10px; font-weight: 700; }
 .citations { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 5px; }
 .citations button { max-width: 100%; display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 0; border-radius: 4px; background: #edf5f3; color: #315b56; font: inherit; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .citations button:disabled { cursor: default; }

@@ -38,7 +38,7 @@ POS Reports provides transaction and daily activity for the active role and loca
 
 ## Offline operation
 
-Supported selling can continue from the local product cache and queue while offline. Review connection and queue state before closing the browser or device. Solvantis Assistant requires a network connection and does not queue questions.
+Supported selling can continue from the local product cache and queue while offline. Review connection and queue state before closing the browser or device. Solvantis Assistant requires a network connection and does not queue questions. It can plan several read-only checks when needed, but POS lookups remain limited to product and stock information for the signed-in location plus the current register context; it cannot change the sale or register.
 
 ## Troubleshooting
 

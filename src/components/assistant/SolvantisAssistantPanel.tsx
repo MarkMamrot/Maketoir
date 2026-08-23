@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ArrowUp, BookOpen, Check, MessageCircle, Sparkles, X } from 'lucide-react';
+import { ArrowUp, BookOpen, Check, Database, MessageCircle, Sparkles, X } from 'lucide-react';
 
 import styles from './SolvantisAssistantPanel.module.css';
 
@@ -18,9 +18,22 @@ interface ChatEntry {
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
+  toolsUsed?: string[];
   candidateToken?: string | null;
   reviewSent?: boolean;
 }
+
+const LIVE_CHECK_LABELS: Record<string, string> = {
+  ims_product_lookup: 'Products and stock',
+  ims_order_summary: 'Order detail',
+  ims_order_search: 'Recent orders',
+  ims_stock_alerts: 'Stock exceptions',
+  pos_product_lookup: 'Location products and stock',
+  pos_session_context: 'Register context',
+  wholesale_catalogue_lookup: 'Approved catalogue',
+  wholesale_order_summary: 'Account order',
+  wholesale_account_summary: 'Account terms',
+};
 
 function readVisibleScreenContext(currentView?: string | null): unknown {
   if (!currentView || typeof document === 'undefined') return null;
@@ -110,6 +123,7 @@ export function SolvantisAssistantPanel({
         role: 'assistant',
         content: String(data.answer || 'I could not prepare an answer.'),
         citations: Array.isArray(data.citations) ? data.citations : [],
+        toolsUsed: Array.isArray(data.toolsUsed) ? data.toolsUsed.map(String).filter(tool => LIVE_CHECK_LABELS[tool]) : [],
         candidateToken: typeof data.candidateToken === 'string' ? data.candidateToken : null,
       }]);
     } catch (error) {
@@ -176,6 +190,11 @@ export function SolvantisAssistantPanel({
             {messages.map(message => (
               <article key={message.id} className={`${styles.message} ${message.role === 'user' ? styles.user : styles.assistant}`}>
                 <div>{message.content}</div>
+                {message.toolsUsed && message.toolsUsed.length > 0 && (
+                  <div className={styles.liveChecks}>
+                    <Database size={12} /> Checked live: {Array.from(new Set(message.toolsUsed.map(tool => LIVE_CHECK_LABELS[tool]))).join(', ')}
+                  </div>
+                )}
                 {message.citations && message.citations.length > 0 && (
                   <div className={styles.citations} aria-label="Sources">
                     {message.citations.map((citation, index) => (

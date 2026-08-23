@@ -36,7 +36,7 @@ Account contains permitted profile, buying-location, team, and address controls.
 
 ## Support
 
-Use Ask Solvantis for product and workflow guidance. Use the supplier support details shown in Help when account approval, commercial terms, unavailable catalogue access, or an order requires direct supplier review.
+Use Ask Solvantis for product and workflow guidance. It can plan several read-only checks when needed, but every lookup remains limited to this buyer's approved catalogue, assigned account/location, and owned orders. It cannot submit or alter an order. Use the supplier support details shown in Help when account approval, commercial terms, unavailable catalogue access, or an order requires direct supplier review.
 
 ## Troubleshooting
 

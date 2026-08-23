@@ -20,6 +20,8 @@ Ask Solvantis uses the current IMS workspace as context. It can receive a bounde
 
 The screen snapshot is evidence from the open workspace, not a fresh database lookup. If an answer requires a record that is not currently visible, identify the order or product so the assistant can use an authorised live lookup when one is available.
 
+For questions that need several facts, the assistant can plan and perform up to four allowlisted read-only lookups before making a final synthesis pass. IMS research can inspect bounded product and stock results, one detailed purchase or sales order, up to 20 recent orders, or up to 20 stock exceptions. It cannot run arbitrary database queries, change records, approve work, or execute a workflow.
+
 ## Dashboard
 
 The IMS Dashboard summarises current operational state and provides entry points into detailed workspaces. Treat summary values as navigation cues; use the owning report or list when reviewing individual records.
