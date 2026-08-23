@@ -22,7 +22,7 @@ export type LoyaltyTransactionType =
   | 'adjustment'
   | 'migration';
 
-export type LoyaltyChannel = 'pos' | 'shopify' | 'manual' | 'migration';
+export type LoyaltyChannel = 'pos' | 'shopify' | 'native_shop' | 'manual' | 'migration';
 export type LoyaltyAccountStatus = 'active' | 'suspended' | 'closed';
 export type LoyaltyRedemptionStatus = 'reserved' | 'issued' | 'used' | 'cancelled' | 'expired';
 

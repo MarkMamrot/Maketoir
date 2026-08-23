@@ -2131,6 +2131,8 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_value_reservations (
   checkout_id CHAR(36) NOT NULL,
   contact_id INT NOT NULL,
   value_type VARCHAR(32) NOT NULL,
+  reward_id INT NULL,
+  loyalty_redemption_id BIGINT NULL,
   points INT UNSIGNED NULL,
   amount_cents INT UNSIGNED NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'active',

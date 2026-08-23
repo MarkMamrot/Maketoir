@@ -964,6 +964,8 @@ const TABLE_DDLS = [
 // Column definitions: [table, column, definition]
 const COLUMNS = [
   ['ims_online_shop_checkouts', 'fulfilment_mode', "VARCHAR(32) NOT NULL DEFAULT 'single_location' AFTER status"],
+  ['ims_online_shop_value_reservations', 'reward_id', 'INT NULL AFTER value_type'],
+  ['ims_online_shop_value_reservations', 'loyalty_redemption_id', 'BIGINT NULL AFTER reward_id'],
   ['ims_wholesale_team_events', 'details_json', 'JSON NULL AFTER after_role'],
   ['wholesale_draft_order_items', 'indent_qty', 'DECIMAL(12,4) NOT NULL DEFAULT 0 AFTER is_indent'],
   ['ims_purchase_order_payments', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
