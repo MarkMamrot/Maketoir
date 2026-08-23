@@ -19,6 +19,8 @@ interface PublicationProduct { product_id: string; name: string; brand: string |
 interface FulfilmentLocation { id: number; name: string; priority: number }
 interface ShippingRule { id: number; name: string; amountCents: number; freeOverCents: number | null; states: string[]; postcodes: string[]; sortOrder: number; isActive: boolean }
 interface PickupOption { locationId: number; label: string; instructions: string | null; sortOrder: number; isActive: boolean }
+interface StripeConnection { stripeAccountId: string; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }
+interface ActivationState { activeChannel: OnlineSalesChannel; isActive: boolean; ready: boolean; items: Array<{ id: string; label: string; ready: boolean }> }
 const pageLabels: Record<OnlineShopLayoutPageId, string> = { home: 'Home', catalogue: 'Catalogue', collection: 'Collection',
   product: 'Product', cart: 'Cart', checkout: 'Checkout', login: 'Sign in', account: 'Account' };
 
@@ -77,6 +79,8 @@ export default function OnlineShopView() {
     fulfilmentMode: 'single_location', dispatchLocationId: '' });
   const [fulfilmentLocations, setFulfilmentLocations] = useState<FulfilmentLocation[]>([]);
   const [shippingRules, setShippingRules] = useState<ShippingRule[]>([]); const [pickupOptions, setPickupOptions] = useState<PickupOption[]>([]);
+  const [stripeConnection, setStripeConnection] = useState<StripeConnection | null>(null); const [stripePublishableKey, setStripePublishableKey] = useState('missing');
+  const [activation, setActivation] = useState<ActivationState | null>(null);
   const [shippingForm, setShippingForm] = useState({ name: '', amount: '', freeOver: '', states: '', postcodes: '' });
   const [layoutState, setLayoutState] = useState<OnlineShopLayoutEditorState | null>(null); const [layout, setLayout] = useState<OnlineShopLayoutDocument | null>(null);
   const [template, setTemplate] = useState<OnlineShopLayoutPageId>('home'); const [layoutDirty, setLayoutDirty] = useState(false);
@@ -89,15 +93,17 @@ export default function OnlineShopView() {
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const [profileBody, layoutBody, assetBody, pageBody, productBody, shippingBody] = await Promise.all([
+      const [profileBody, layoutBody, assetBody, pageBody, productBody, shippingBody, stripeBody, activationBody] = await Promise.all([
         jsonRequest('/api/ims/online-shop/profile'), jsonRequest('/api/ims/online-shop/layout'),
         jsonRequest('/api/ims/online-shop/assets'), jsonRequest('/api/ims/online-shop/pages'), jsonRequest('/api/ims/online-shop/products'),
-        jsonRequest('/api/ims/online-shop/shipping')]);
+        jsonRequest('/api/ims/online-shop/shipping'), jsonRequest('/api/ims/online-shop/stripe'), jsonRequest('/api/ims/online-shop/activation')]);
       setProfile(profileBody.profile); setChannel(profileBody.activeChannel); setLayoutState(layoutBody.state); setLayout(layoutBody.state.draft);
       setAssets(assetBody.assets ?? []); setPages(pageBody.pages ?? []);
       setProducts(productBody.products ?? []);
       setFulfilmentLocations(profileBody.fulfilment?.locations ?? []);
       setShippingRules(shippingBody.rules ?? []); setPickupOptions(shippingBody.pickups ?? []);
+      setStripeConnection(stripeBody.connection ?? null); setStripePublishableKey(stripeBody.publishableKey ?? 'missing');
+      setActivation(activationBody.state ?? null);
       const item = profileBody.profile; setProfileForm({ slug: item?.slug ?? '', displayName: item?.displayName ?? '', supportEmail: item?.supportEmail ?? '',
         defaultMetaTitle: item?.defaultMetaTitle ?? '', defaultMetaDescription: item?.defaultMetaDescription ?? '', logoUrl: item?.logoUrl ?? '',
         fulfilmentMode: profileBody.fulfilment?.settings?.mode ?? 'single_location',
@@ -112,6 +118,14 @@ export default function OnlineShopView() {
     const body = await jsonRequest('/api/ims/online-shop/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileForm) });
     setProfile(body.profile); setMessage('Store settings saved.');
   }); };
+  const changeActivation = (active: boolean) => void run('activation', async () => {
+    const forceSwitch = active && activation?.activeChannel === 'shopify'
+      ? confirm('Shopify is currently the active consumer channel. Switch public online sales to the native shop?') : false;
+    if (active && activation?.activeChannel === 'shopify' && !forceSwitch) return;
+    const body = await jsonRequest('/api/ims/online-shop/activation', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active, forceSwitch }) }); setActivation(body.state); setChannel(body.state.activeChannel);
+    setMessage(active ? 'Native online shop activated.' : 'Native online shop deactivated.');
+  });
   const reloadShipping = async () => { const body = await jsonRequest('/api/ims/online-shop/shipping'); setShippingRules(body.rules ?? []); setPickupOptions(body.pickups ?? []); };
   const saveShippingRule = (event: FormEvent) => { event.preventDefault(); void run('shipping-rule', async () => {
     await jsonRequest('/api/ims/online-shop/shipping', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
@@ -177,6 +191,13 @@ export default function OnlineShopView() {
       {profileForm.fulfilmentMode === 'consolidate' && <label>Dispatch location<select required value={profileForm.dispatchLocationId} onChange={event => setProfileForm({ ...profileForm, dispatchLocationId: event.target.value })}>
         <option value="">Choose a location</option>{fulfilmentLocations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}
       </select></label>}
+      <div className={styles.wide}><h2>Payments</h2><p>{stripeConnection?.chargesEnabled && stripeConnection.detailsSubmitted
+        ? `Stripe connected (${stripeConnection.stripeAccountId}). Payments and payouts are merchant-owned.`
+        : stripeConnection ? 'Stripe is connected but account setup is incomplete.' : 'Connect the merchant Stripe account before activating checkout.'}</p>
+        {stripePublishableKey === 'missing' && <p className={styles.error}>Stripe publishable key is not configured for this deployment.</p>}
+        <a className={styles.primary} href="/api/stripe/connect">{stripeConnection ? 'Reconnect Stripe' : 'Connect Stripe'}</a></div>
+      {activation && <div className={styles.wide}><h2>Activation</h2><div className={styles.publicationList}>{activation.items.map(item => <article key={item.id}><strong>{item.label}</strong><span>{item.ready ? 'Ready' : 'Required'}</span></article>)}</div>
+        <div className={styles.actions}><button type="button" className={activation.isActive ? styles.unpublish : styles.primary} disabled={Boolean(working) || (!activation.ready && !activation.isActive)} onClick={() => changeActivation(!activation.isActive)}>{activation.isActive ? 'Deactivate native shop' : activation.activeChannel === 'shopify' ? 'Switch from Shopify and activate' : 'Activate native shop'}</button></div></div>}
     </div><div className={styles.actions}><label className={styles.uploadButton}><ImagePlus size={16} /> {working === 'upload' ? 'Uploading...' : 'Upload image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = ''; }} /></label><button className={styles.primary} disabled={Boolean(working)}><Save size={16} /> {working === 'profile' ? 'Saving...' : 'Save settings'}</button></div></form>}
     {tab === 'products' && <div className={styles.productsPanel}><div className={styles.productToolbar}><input placeholder="Search products" value={productQuery} onChange={event => setProductQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') loadProducts(); }} /><select value={productFilter} onChange={event => setProductFilter(event.target.value)}><option value="all">All products</option><option value="published">Published</option><option value="unpublished">Unpublished</option></select><button onClick={loadProducts}>Search</button></div><div className={styles.publicationList}>{products.map(product => <article key={product.product_id}><div><strong>{product.name}</strong><span>{[product.brand, product.base_sku].filter(Boolean).join(' · ') || 'No brand or base SKU'}{product.shopify_product_id ? ' · Shopify linked' : ''}</span></div><label>Store address<input value={product.slug ?? ''} disabled={product.is_published === 1} onChange={event => setProducts(current => current.map(item => item.product_id === product.product_id ? { ...item, slug: event.target.value } : item))} /></label><span className={styles.variantCount}>{Number(product.retail_variant_count)} retail {Number(product.retail_variant_count) === 1 ? 'variant' : 'variants'}</span><button className={product.is_published === 1 ? styles.unpublish : styles.publish} disabled={Boolean(working) || Number(product.retail_variant_count) < 1} onClick={() => updatePublication(product, product.is_published !== 1)}>{product.is_published === 1 ? 'Unpublish' : 'Publish'}</button></article>)}</div></div>}
     {tab === 'shipping' && <div className={styles.form}><div className={styles.formGrid}><form className={styles.wide} onSubmit={saveShippingRule}>

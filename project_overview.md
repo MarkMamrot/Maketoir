@@ -65,6 +65,13 @@ Current user-facing product behavior is maintained in the canonical Help corpus 
 - **Tax:** Australian GST 10%. All POS prices stored **tax-inclusive**. GST is always extracted, never added.
 - **POS stack:** Browser-based POS at `/pos`, service worker for offline shell, localStorage for device config + product cache + offline queue
 
+### Native Online Shop
+- The native consumer shop uses main-DB control-plane records for channel, profile, layout, pages, assets, OTP challenges, and Stripe Connect account identity. Product publication, checkout, reservation, shipping, payment-event, and order state live in each tenant IMS schema.
+- Public routes first resolve an active native profile in the main database, then use callback-form `runImsForBusiness()` for all IMS access. Native publication is independent of Shopify IDs.
+- Checkout snapshots tax-inclusive AUD prices, extracts GST, locks current stock, and reserves concrete location quantities. Merchant policy supports one-location orders, consolidation by branch transfer into a dispatch location, or split sales orders by source location.
+- Stripe Connect Standard uses direct charges with no platform fee. Merchant secret keys are not stored. Signed webhooks idempotently convert successful payments into normal `so_type='online'`, `sales_channel='native_shop'` IMS orders.
+- Native orders use the existing daily online Xero summary process. Stripe is a regular gateway-clearing allocation; Stripe webhooks never create Xero invoices directly.
+
 ### Customer Returns and Store Credit
 - IMS customer credit notes are the authoritative return records. Completing a manual IMS credit note issues the customer store credit; drafts do not affect the balance.
 - POS returns automatically create completed `source='pos'` IMS credit notes. Store-credit returns issue credit through that note; cash/card refunds create the note without changing store credit.

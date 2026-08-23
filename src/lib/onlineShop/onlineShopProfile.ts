@@ -140,6 +140,11 @@ export const OnlineShopProfileRepository = {
     );
   },
 
+  async setActive(businessId: string, isActive: boolean): Promise<void> {
+    await execute('UPDATE online_shop_profiles SET is_active = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE business_id = ?',
+      [isActive ? 1 : 0, businessId]);
+  },
+
   fallbackSlug(businessId: string, displayName: string): string {
     const base = normalizeOnlineShopSlug(displayName);
     if (base.length >= 3 && !RESERVED_SHOP_SLUGS.has(base)) return base;

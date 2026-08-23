@@ -1,0 +1,196 @@
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getOrCreateOnlineShopCustomer } from '@/lib/onlineShop/onlineShopIdentity';
+import { getIMSPool } from '@/services/IMSMySQLService';
+
+interface CheckoutRow {
+  checkout_id: string; status: string; fulfilment_mode: 'single_location' | 'consolidate' | 'split'; fulfilment_type: string;
+  location_id: number; shipping_address_json: unknown; subtotal_cents: number; tax_cents: number; shipping_cents: number;
+  total_cents: number; currency_code: string; completed_so_id: number | null;
+}
+interface CheckoutItemRow { variant_id: string; quantity: number; unit_price_cents: number; tax_cents: number; line_total_cents: number }
+interface ReservationRow { id: number; variant_id: string; location_id: number; quantity: number; status: string }
+interface GroupRow { id: number; location_id: number; completed_so_id: number | null }
+
+function parseAddress(value: unknown): Record<string, string> {
+  if (value && typeof value === 'object') return value as Record<string, string>;
+  try { const parsed = JSON.parse(String(value ?? '{}')); return parsed && typeof parsed === 'object' ? parsed : {}; }
+  catch { return {}; }
+}
+
+function nativeOrderNumber(checkoutId: string, locationId: number): string {
+  return `NS-${checkoutId.replace(/-/g, '').slice(0, 12).toUpperCase()}-${locationId}`;
+}
+
+function nativeTransferNumber(checkoutId: string, sourceLocationId: number): string {
+  return `NT-${checkoutId.replace(/-/g, '').slice(0, 12).toUpperCase()}-${sourceLocationId}`;
+}
+
+async function finalizeInTenant(input: { businessId: string; checkoutId: string; providerPaymentId: string; amountCents: number }): Promise<number[]> {
+  const checkoutIdentityConnection = await getIMSPool().getConnection();
+  let checkoutEmail = '';
+  try {
+    const [rows] = await checkoutIdentityConnection.execute<any[]>('SELECT guest_email FROM ims_online_shop_checkouts WHERE business_id = ? AND checkout_id = ? LIMIT 1', [input.businessId, input.checkoutId]);
+    checkoutEmail = String(rows[0]?.guest_email ?? '');
+  } finally { checkoutIdentityConnection.release(); }
+  const customerId = (await getOrCreateOnlineShopCustomer(input.businessId, checkoutEmail)).contactId;
+  const connection = await getIMSPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [checkoutRows] = await connection.execute<any[]>(
+      `SELECT checkout_id, status, fulfilment_mode, fulfilment_type, location_id, shipping_address_json,
+              subtotal_cents, tax_cents, shipping_cents, total_cents, currency_code, completed_so_id
+         FROM ims_online_shop_checkouts WHERE business_id = ? AND checkout_id = ? LIMIT 1 FOR UPDATE`,
+      [input.businessId, input.checkoutId],
+    );
+    const checkout = checkoutRows[0] as CheckoutRow | undefined;
+    if (!checkout) throw new Error('Paid checkout was not found.');
+    const [existingGroups] = await connection.execute<any[]>(
+      'SELECT id, location_id, completed_so_id FROM ims_online_shop_fulfilment_groups WHERE business_id = ? AND checkout_id = ? ORDER BY id FOR UPDATE',
+      [input.businessId, input.checkoutId],
+    );
+    if (checkout.status === 'completed' && existingGroups.every(group => group.completed_so_id)) {
+      await connection.commit();
+      return existingGroups.map(group => Number(group.completed_so_id));
+    }
+    if (!['open', 'payment_pending'].includes(checkout.status)) throw new Error(`Checkout cannot be finalized from status ${checkout.status}.`);
+    if (Number(checkout.total_cents) !== input.amountCents || checkout.currency_code !== 'AUD') throw new Error('Stripe payment does not match the checkout total.');
+    const [attemptRows] = await connection.execute<any[]>(
+      `SELECT id, amount_cents FROM ims_online_shop_payment_attempts
+        WHERE business_id = ? AND checkout_id = ? AND provider = 'stripe' AND provider_payment_id = ? LIMIT 1 FOR UPDATE`,
+      [input.businessId, input.checkoutId, input.providerPaymentId],
+    );
+    if (!attemptRows[0] || Number(attemptRows[0].amount_cents) !== input.amountCents) throw new Error('Stripe payment attempt does not match this checkout.');
+    const [itemRows] = await connection.execute<any[]>(
+      `SELECT variant_id, quantity, unit_price_cents, tax_cents, line_total_cents
+         FROM ims_online_shop_checkout_items WHERE business_id = ? AND checkout_id = ? ORDER BY id FOR UPDATE`,
+      [input.businessId, input.checkoutId],
+    );
+    const items = itemRows as CheckoutItemRow[];
+    const [reservationRows] = await connection.execute<any[]>(
+      `SELECT id, variant_id, location_id, quantity, status FROM ims_online_shop_stock_reservations
+        WHERE business_id = ? AND checkout_id = ? ORDER BY id FOR UPDATE`, [input.businessId, input.checkoutId],
+    );
+    const reservations = reservationRows as ReservationRow[];
+    if (!items.length || !reservations.length || reservations.some(reservation => reservation.status !== 'active')) {
+      throw new Error('Paid checkout stock reservations are no longer available.');
+    }
+    const groups = existingGroups as GroupRow[];
+    if (!groups.length) throw new Error('Paid checkout has no fulfilment groups.');
+    const address = parseAddress(checkout.shipping_address_json);
+    const soIds: number[] = [];
+
+    for (const [groupIndex, group] of groups.entries()) {
+      const groupQuantities = new Map<string, number>();
+      if (checkout.fulfilment_mode === 'consolidate') {
+        for (const item of items) groupQuantities.set(item.variant_id, Number(item.quantity));
+      } else {
+        for (const reservation of reservations.filter(row => Number(row.location_id) === Number(group.location_id))) {
+          groupQuantities.set(reservation.variant_id, (groupQuantities.get(reservation.variant_id) ?? 0) + Number(reservation.quantity));
+        }
+      }
+      const groupItems = items.flatMap(item => {
+        const quantity = groupQuantities.get(item.variant_id) ?? 0;
+        return quantity > 0 ? [{ ...item, quantity, lineTotalCents: quantity * Number(item.unit_price_cents),
+          taxCents: Math.round(quantity * Number(item.unit_price_cents) - quantity * Number(item.unit_price_cents) / 1.1) }] : [];
+      });
+      if (!groupItems.length) throw new Error(`Fulfilment group ${group.location_id} has no reserved items.`);
+      const shippingCents = groupIndex === 0 ? Number(checkout.shipping_cents) : 0;
+      const merchandiseCents = groupItems.reduce((sum, item) => sum + item.lineTotalCents, 0);
+      const taxCents = groupItems.reduce((sum, item) => sum + item.taxCents, 0) + Math.round(shippingCents - shippingCents / 1.1);
+      const orderNumber = nativeOrderNumber(checkout.checkout_id, Number(group.location_id));
+      const [orderResult] = await connection.execute<any>(
+        `INSERT INTO ims_sales_orders
+           (business_id, so_number, customer_id, price_tier, so_type, sales_channel, native_checkout_id, location_id,
+            status, order_date, delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state,
+            delivery_postcode, delivery_country, tax_treatment, freight, discount, subtotal, tax_amount, total_amount,
+            currency_code, payment_gateway, financial_status, notes)
+         VALUES (?, ?, ?, 'retail', 'online', 'native_shop', ?, ?, 'confirmed', UTC_DATE(), ?, ?, ?, ?, ?, ?, ?,
+                 'inc_tax', ?, 0, ?, ?, ?, 'AUD', 'Stripe', 'paid', ?)`,
+        [input.businessId, orderNumber, customerId, checkout.checkout_id, group.location_id,
+          address.address || null, address.address2 || null, address.suburb || null, address.city || null,
+          address.state || null, address.postcode || null, address.country || null, shippingCents / 100,
+          merchandiseCents / 100, taxCents / 100, (merchandiseCents + shippingCents) / 100,
+          `Native online checkout ${checkout.checkout_id}`],
+      );
+      const soId = Number(orderResult.insertId); soIds.push(soId);
+      for (const item of groupItems) {
+        await connection.execute(
+          `INSERT INTO ims_sales_order_items
+             (business_id, so_id, variant_id, qty_ordered, qty_fulfilled, unit_price, discount_pct, tax_rate, line_total, notes)
+           VALUES (?, ?, ?, ?, 0, ?, 0, 0.1, ?, 'Native online shop')`,
+          [input.businessId, soId, item.variant_id, item.quantity, Number(item.unit_price_cents) / 100, item.lineTotalCents / 100],
+        );
+        await connection.execute(
+          `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+           VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+          [input.businessId, item.variant_id, group.location_id, item.quantity],
+        );
+      }
+      await connection.execute(
+        `INSERT INTO ims_sales_order_payments
+           (business_id, so_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, xero_post_intent)
+         VALUES (?, ?, UTC_DATE(), ?, 'AUD', 1, ?, ?, 'solvantis_only')`,
+        [input.businessId, soId, (merchandiseCents + shippingCents) / 100, (merchandiseCents + shippingCents) / 100,
+          `Stripe ${input.providerPaymentId}`],
+      );
+      await connection.execute(
+        'UPDATE ims_online_shop_fulfilment_groups SET completed_so_id = ?, completed_at = UTC_TIMESTAMP() WHERE id = ? AND business_id = ?',
+        [soId, group.id, input.businessId],
+      );
+      await connection.execute(
+        `UPDATE ims_online_shop_stock_reservations SET status = 'converted', converted_so_id = ?
+          WHERE business_id = ? AND checkout_id = ? AND status = 'active' ${checkout.fulfilment_mode === 'split' ? 'AND location_id = ?' : ''}`,
+        checkout.fulfilment_mode === 'split' ? [soId, input.businessId, input.checkoutId, group.location_id] : [soId, input.businessId, input.checkoutId],
+      );
+    }
+
+    if (checkout.fulfilment_mode === 'consolidate') {
+      const sourceGroups = new Map<number, ReservationRow[]>();
+      for (const reservation of reservations.filter(row => Number(row.location_id) !== Number(checkout.location_id))) {
+        const list = sourceGroups.get(Number(reservation.location_id)) ?? []; list.push(reservation); sourceGroups.set(Number(reservation.location_id), list);
+      }
+      for (const [sourceLocationId, sourceReservations] of sourceGroups) {
+        const transferNumber = nativeTransferNumber(checkout.checkout_id, sourceLocationId);
+        const [transferResult] = await connection.execute<any>(
+          `INSERT INTO ims_branch_transfers
+             (business_id, transfer_number, from_location_id, to_location_id, status, transfer_date, notes, total_value)
+           VALUES (?, ?, ?, ?, 'sent', UTC_DATE(), ?, 0)`,
+          [input.businessId, transferNumber, sourceLocationId, checkout.location_id, `Native checkout ${checkout.checkout_id}`],
+        );
+        for (const reservation of sourceReservations) {
+          const [costRows] = await connection.execute<any[]>('SELECT COALESCE(avg_cost, cost_aud, cost, 0) AS unit_cost FROM ims_product_variants WHERE business_id = ? AND variant_id = ? LIMIT 1', [input.businessId, reservation.variant_id]);
+          const unitCost = Number(costRows[0]?.unit_cost) || 0;
+          await connection.execute(
+            `INSERT INTO ims_branch_transfer_items (transfer_id, variant_id, qty_sent, unit_cost, line_value, notes)
+             VALUES (?, ?, ?, ?, ?, 'Native online consolidation')`,
+            [Number(transferResult.insertId), reservation.variant_id, reservation.quantity, unitCost, unitCost * reservation.quantity],
+          );
+          await connection.execute(
+            `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed) VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+            [input.businessId, reservation.variant_id, sourceLocationId, reservation.quantity],
+          );
+        }
+      }
+    }
+    await connection.execute(
+      `UPDATE ims_online_shop_payment_attempts SET status = 'succeeded', updated_at = CURRENT_TIMESTAMP
+        WHERE business_id = ? AND checkout_id = ? AND provider = 'stripe' AND provider_payment_id = ?`,
+      [input.businessId, input.checkoutId, input.providerPaymentId],
+    );
+    await connection.execute(
+      `UPDATE ims_online_shop_checkouts SET status = 'completed', completed_so_id = ?, completed_at = UTC_TIMESTAMP()
+        WHERE business_id = ? AND checkout_id = ?`, [soIds[0], input.businessId, input.checkoutId],
+    );
+    await connection.commit();
+    return soIds;
+  } catch (error) {
+    await connection.rollback(); throw error;
+  } finally { connection.release(); }
+}
+
+export const OnlineShopOrderFinalizer = {
+  finalizePaid(input: { businessId: string; checkoutId: string; providerPaymentId: string; amountCents: number }): Promise<number[]> {
+    return runImsForBusiness(input.businessId, () => finalizeInTenant(input));
+  },
+};

@@ -1,0 +1,10 @@
+'use client';
+import { useState, type FormEvent } from 'react';
+import styles from '../Storefront.module.css';
+
+export function OnlineShopLoginClient({ storeSlug }: { storeSlug: string }) {
+  const [email, setEmail] = useState(''); const [token, setToken] = useState(''); const [code, setCode] = useState(''); const [message, setMessage] = useState(''); const [error, setError] = useState(''); const [working, setWorking] = useState(false);
+  const requestCode = async (event: FormEvent) => { event.preventDefault(); setWorking(true); setError(''); const response = await fetch(`/api/shop/${storeSlug}/auth/code/request`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }); const body = await response.json(); setToken(body.challengeToken); setMessage(body.message); setWorking(false); };
+  const verify = async (event: FormEvent) => { event.preventDefault(); setWorking(true); setError(''); const response = await fetch(`/api/shop/${storeSlug}/auth/code/verify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challengeToken: token, code }) }); const body = await response.json(); if (!response.ok) { setError(body.error || 'Sign in failed.'); setWorking(false); return; } window.location.assign(body.nextRoute); };
+  return <div className={`${styles.content} ${styles.checkoutNarrow}`}><div className={styles.checkoutComplete}><span>Customer account</span><h1>Sign in</h1>{!token ? <form className={styles.paymentForm} onSubmit={requestCode}><label>Email<input required type="email" value={email} onChange={event => setEmail(event.target.value)} /></label><button disabled={working}>Email sign-in code</button></form> : <form className={styles.paymentForm} onSubmit={verify}><p>{message}</p><label>Six-digit code<input required inputMode="numeric" maxLength={6} value={code} onChange={event => setCode(event.target.value.replace(/\D/g, ''))} /></label><button disabled={working || code.length !== 6}>Sign in</button></form>}{error && <div className={styles.checkoutError}>{error}</div>}</div></div>;
+}

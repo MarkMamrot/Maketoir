@@ -1,5 +1,5 @@
 ---
-{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products"],"order":95,"summary":"Prepare and publish the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
+{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping"],"order":95,"summary":"Prepare and publish the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
 ---
 # Online Shop
 
@@ -11,11 +11,15 @@ Administrators open **Integrations > Online Shop** to prepare Solvantis's native
 - Edit and publish templates for Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account.
 - Create and publish custom content pages such as About, Shipping, Returns, and Privacy.
 - Publish eligible products to the native shop independently of Shopify.
+- Configure delivery rates, free-shipping thresholds, click-and-collect locations, and order fulfilment behavior.
+- Connect the merchant's Stripe account for secure checkout payments.
 - Review the active native online channel, catalogue availability, prices, and public routes.
 
 ## Before you begin
 
 The native shop profile and native online sales channel must be active for public browsing. Product publication requires at least one active retail-priced variant and a unique native product address. Uploaded store images support JPEG, PNG, WebP, and GIF up to 10 MB.
+
+Checkout also requires active online stock locations, at least one delivery rate or click-and-collect location, and a connected Stripe account that is ready to accept charges.
 
 ## Step-by-step workflows
 
@@ -33,6 +37,17 @@ The native shop profile and native online sales channel must be active for publi
 3. Review imagery, content, current sale pricing, and availability.
 4. Publish to the native shop. Existing Shopify links remain for context but do not control native publication.
 
+### Configure fulfilment and shipping
+
+1. In Store settings, choose whether each delivery order must come from one location, may be consolidated to a dispatch location, or may split by fulfilment location.
+2. For consolidation, choose the branch that dispatches the completed parcel.
+3. Open Shipping and add tax-inclusive delivery rates. Optionally limit a rate by Australian state, exact postcode, postcode range, or prefix, and set a free-shipping threshold.
+4. Enable each online location that customers may choose for click and collect.
+
+### Connect payments
+
+In Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key.
+
 ## Statuses, calculations, and permissions
 
 Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.
@@ -41,6 +56,8 @@ A custom page is publicly eligible only after it has published content and is ma
 
 Retail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.
 
+The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A successful Stripe webhook converts the reservation into ordinary confirmed IMS online sales orders. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes.
+
 ## Troubleshooting
 
 - Save outstanding editor changes before publishing.
@@ -48,6 +65,8 @@ Retail prices are tax-inclusive AUD values. Active sale pricing respects saved s
 - Confirm page visibility and published content when a custom page is not public.
 - Confirm native publication, active retail pricing, unique address, channel state, and enabled online stock locations when a product is absent.
 - Every cart refresh recalculates current publication, price, and availability on the server.
+- If checkout reports no delivery option, review the destination state/postcode coverage and active rates.
+- If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.
 
 ## Related tasks
 

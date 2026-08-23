@@ -181,6 +181,8 @@ async function createCheckoutInTransaction(input: CreateCheckoutInput): Promise<
       ? quoteOnlineShopShipping({ address: shippingAddress, subtotalCents: plan.subtotalCents, rules: [shippingRule] }) : [];
     const shippingCents = input.fulfilmentType === 'delivery' ? shippingOptions[0]?.amountCents : 0;
     if (input.fulfilmentType === 'delivery' && shippingCents === undefined) throw new Error('The selected delivery option does not cover this address.');
+    const shippingTaxCents = Math.round(shippingCents - shippingCents / 1.1);
+    const totalTaxCents = plan.taxCents + shippingTaxCents;
     const checkoutId = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
@@ -190,7 +192,7 @@ async function createCheckoutInTransaction(input: CreateCheckoutInput): Promise<
           subtotal_cents, tax_cents, shipping_cents, total_cents, currency_code, expires_at)
        VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'AUD', ?)`,
       [checkoutId, input.businessId, guestEmail, fulfilmentMode, input.fulfilmentType, plan.dispatchLocationId, shippingRuleId,
-        shippingAddress ? JSON.stringify(shippingAddress) : null, plan.subtotalCents, plan.taxCents, shippingCents,
+        shippingAddress ? JSON.stringify(shippingAddress) : null, plan.subtotalCents, totalTaxCents, shippingCents,
         plan.subtotalCents + shippingCents, expiresAt],
     );
     for (const group of plan.fulfilmentGroups) {
@@ -221,7 +223,7 @@ async function createCheckoutInTransaction(input: CreateCheckoutInput): Promise<
     }
     await connection.commit();
     return { checkoutId, status: 'open', fulfilmentType: input.fulfilmentType, locationId: plan.dispatchLocationId,
-      expiresAt: expiresAt.toISOString(), subtotalCents: plan.subtotalCents, taxCents: plan.taxCents,
+      expiresAt: expiresAt.toISOString(), subtotalCents: plan.subtotalCents, taxCents: totalTaxCents,
       shippingCents, totalCents: plan.subtotalCents + shippingCents, currencyCode: 'AUD' };
   } catch (error) {
     await connection.rollback();
