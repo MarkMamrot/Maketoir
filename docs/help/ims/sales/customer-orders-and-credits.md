@@ -25,7 +25,7 @@ Customer Backorders identifies outstanding supply. Stock Allocation links incomi
 
 ## Customer credit notes
 
-Customer Credit Notes owns manual IMS returns and customer credits. Complete eligible lines through the supported workflow so stock and customer value remain linked and auditable. POS returns use a linked POS-sourced credit note as the sole return-stock owner; do not restock both records.
+Customer Credit Notes owns manual IMS returns and customer credits. Complete eligible lines through the supported workflow so stock and customer value remain linked and auditable. POS and native online returns use the linked credit note as the sole return-stock owner; do not restock both records. For a native order, **Original payment refund** restores the original store-credit portion first and sends any remainder to Stripe before stock is returned.
 
 ## POS and online sales
 
@@ -37,6 +37,7 @@ POS Sales and Online Sales provide source transaction and synchronization detail
 - If stock appears reserved, inspect confirmed orders and allocation before adjusting quantity.
 - If a return already has a linked credit note, continue in that note rather than creating another return.
 - If an accounting sync fails, repair the integration and retry the unfinished posting without repeating fulfilment or return stock.
+- If a native payment refund fails, retry the credit-note completion after resolving the Stripe connection or payment issue. No return stock or customer value is changed until settlement succeeds.
 
 ## Worked examples
 

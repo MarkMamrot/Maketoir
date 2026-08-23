@@ -15,10 +15,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = session.businessId as string;
   const cnId = Number(params.id);
+  let nativeRefundAttempted = false;
   try {
     const body = await request.json().catch(() => null);
     if (!body?.operationKey) return NextResponse.json({ success: false, error: 'operationKey is required.' }, { status: 400 });
-    await settleNativeCreditNoteRefund({ businessId, creditNoteId: cnId });
+    const pendingNote = await ImsCNRepo.get(cnId, businessId);
+    if (pendingNote?.so_id && pendingNote.settlement_method === 'refund') {
+      nativeRefundAttempted = true;
+      await settleNativeCreditNoteRefund({ businessId, creditNoteId: cnId });
+    }
     await ImsCNRepo.complete(cnId, businessId, {
       operationKey: body.operationKey,
       requestHash: await hashInventoryDocumentRequest({}),
@@ -46,6 +51,16 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
     });
   } catch (e: any) {
+    if (nativeRefundAttempted) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'online_shop_refunds',
+        operation: 'settle_credit_note',
+        title: 'Native online order refund could not be settled',
+        error: e,
+        reference: { type: 'credit_note', id: cnId },
+      }).catch(() => {});
+    }
     const conflict = e instanceof InventoryDocumentLifecycleConflict || e instanceof InventoryDocumentOperationConflict || e instanceof InventoryDocumentRevisionConflict;
     return NextResponse.json({ success: false, error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: conflict ? 409 : 500 });
   }

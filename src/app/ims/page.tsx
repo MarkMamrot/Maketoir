@@ -11722,7 +11722,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                 ['Customer', viewModal.cn.customer_name ?? '—'],
                 ['Reference', viewModal.cn.reference ?? '—'],
                 ['Source', viewModal.cn.source === 'pos' ? 'POS return' : viewModal.cn.source === 'shopify' ? 'Shopify' : 'Manual IMS'],
-                ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Cash / card refund' : 'External (Shopify)'],
+                ['Settlement', viewModal.cn.settlement_method === 'store_credit' ? 'Customer store credit' : viewModal.cn.settlement_method === 'refund' ? 'Original payment refund' : 'External (Shopify)'],
                 ['Tax Treatment', viewModal.cn.tax_treatment === 'inc_tax' ? 'Inc-Tax' : viewModal.cn.tax_treatment === 'no_tax' ? 'No Tax' : 'Ex-Tax'],
                 ['Status', viewModal.cn.status],
               ].map(([label, val]) => (
