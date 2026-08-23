@@ -169,12 +169,12 @@ export function ProspectSalesAssistant({
   const openDialog = (opener?: HTMLElement | null) => {
     returnFocusRef.current = opener || document.activeElement as HTMLElement | null;
     setOpen(true);
-    recordEvent('assistant_opened', { source: showHeroPrompt ? 'hero_or_launcher' : 'launcher' });
+    recordEvent('assistant_impression', { source: showHeroPrompt ? 'hero_or_launcher' : 'launcher' });
   };
 
   const closeDialog = () => {
     setOpen(false);
-    recordEvent('assistant_closed');
+    recordEvent('close');
     window.setTimeout(() => returnFocusRef.current?.focus(), 0);
   };
 
@@ -233,13 +233,13 @@ export function ProspectSalesAssistant({
     event.preventDefault();
     if (!heroDraft.trim()) return;
     openDialog(event.currentTarget.querySelector('button'));
-    recordEvent('hero_prompt_sent');
+    recordEvent('hero_prompt_send');
     void sendMessage(heroDraft);
   };
 
   const useStarter = (starter: string, opener: HTMLElement) => {
     openDialog(opener);
-    recordEvent('suggested_prompt_selected', { starter });
+    recordEvent('suggested_prompt', { starter });
     void sendMessage(starter);
   };
 
@@ -277,7 +277,7 @@ export function ProspectSalesAssistant({
         <div className={styles.heroPrompt}>
           <div className={styles.heroPromptHeading}><Sparkles size={16} /><span>Ask about your retail setup</span></div>
           <form onSubmit={submitHero} className={styles.heroInputRow}>
-            <input value={heroDraft} onChange={event => setHeroDraft(event.target.value.slice(0, 2_000))} onFocus={() => recordEvent('hero_prompt_focused')} placeholder="e.g. Could this work across our stores and online shop?" aria-label="Ask the Solvantis sales assistant" />
+            <input value={heroDraft} onChange={event => setHeroDraft(event.target.value.slice(0, 2_000))} onFocus={() => recordEvent('hero_prompt_focus')} placeholder="e.g. Could this work across our stores and online shop?" aria-label="Ask the Solvantis sales assistant" />
             <button type="submit" disabled={!heroDraft.trim()} aria-label="Send question" title="Send question"><ArrowUp size={18} /></button>
           </form>
           <div className={styles.starters} aria-label="Example questions">
@@ -340,7 +340,7 @@ export function ProspectSalesAssistant({
               {contactOpen && (
                 <div className={styles.contactForm}>
                   <div className={styles.contactFormHeader}><div><strong>Talk to sales</strong><span>Choose exactly how we may reply.</span></div><button type="button" onClick={() => setContactOpen(false)} aria-label="Close contact form"><X size={17} /></button></div>
-                  <ProspectLeadForm compact conversationId={conversationId} sourcePath={sourcePath} onSuccess={reference => recordEvent('lead_captured', { reference })} />
+                  <ProspectLeadForm compact conversationId={conversationId} sourcePath={sourcePath} onSuccess={reference => recordEvent('consented_submit', { reference })} />
                 </div>
               )}
               {deleteError && <p className={styles.errorText} role="alert">{deleteError}</p>}

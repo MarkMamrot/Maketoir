@@ -8,7 +8,7 @@ const EVENT_TYPES = new Set([
   'assistant_impression', 'hero_prompt_focus', 'hero_prompt_send', 'launcher_open',
   'first_meaningful_turn', 'second_meaningful_turn', 'suggested_prompt', 'contact_cta_shown',
   'contact_cta_opened', 'contact_cta_dismissed', 'consented_submit', 'demo_click',
-  'trial_click', 'pricing_click', 'close', 'pagehide', 'return',
+  'trial_click', 'pricing_click', 'fit_classified', 'close', 'pagehide', 'return',
 ]);
 
 export async function POST(request: Request) {
