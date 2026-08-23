@@ -30,6 +30,6 @@ export class StripeConnectPaymentProvider implements StorefrontPaymentProvider {
   async refund(providerPaymentId: string, amountMinor: number, idempotencyKey: string): Promise<StorefrontPaymentSession> {
     const refund = await getStripeClient().refunds.create({ payment_intent: providerPaymentId, amount: amountMinor },
       { stripeAccount: this.stripeAccountId, idempotencyKey });
-    return { provider: this.id, providerPaymentId, status: refund.status === 'succeeded' ? 'refunded' : 'processing' };
+    return { provider: this.id, providerPaymentId: refund.id, status: refund.status === 'succeeded' ? 'refunded' : 'processing' };
   }
 }

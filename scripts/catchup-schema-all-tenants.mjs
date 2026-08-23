@@ -26,6 +26,7 @@ const ONLINE_SHOP_TABLES = [
   'ims_online_shop_payment_attempts',
   'ims_online_shop_payment_events',
   'ims_online_shop_value_reservations',
+  'ims_online_shop_refunds',
 ];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');

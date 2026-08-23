@@ -2147,6 +2147,31 @@ CREATE TABLE IF NOT EXISTS ims_online_shop_value_reservations (
   CONSTRAINT fk_online_value_reservation_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_online_shop_refunds (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  credit_note_id INT NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  so_id INT NOT NULL,
+  contact_id INT NOT NULL,
+  provider_payment_id VARCHAR(191) NULL,
+  provider_refund_id VARCHAR(191) NULL,
+  stripe_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  store_credit_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  status VARCHAR(32) NOT NULL DEFAULT 'pending',
+  idempotency_key VARCHAR(191) NOT NULL,
+  safe_error VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  completed_at DATETIME NULL,
+  UNIQUE KEY uq_online_shop_refund_cn (business_id, credit_note_id),
+  UNIQUE KEY uq_online_shop_refund_key (business_id, idempotency_key),
+  INDEX idx_online_shop_refund_checkout (business_id, checkout_id, status),
+  CONSTRAINT fk_online_shop_refund_cn FOREIGN KEY (credit_note_id) REFERENCES ims_credit_notes(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_online_shop_refund_so FOREIGN KEY (so_id) REFERENCES ims_sales_orders(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_online_shop_refund_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS loyalty_rewards (
   id                           INT AUTO_INCREMENT PRIMARY KEY,
   business_id                  VARCHAR(100) NOT NULL,
