@@ -29,10 +29,11 @@ describe('assistant knowledge retrieval', () => {
       audience: 'ims',
     });
     expect(result).toEqual(expect.objectContaining({
-      heading: 'IMS purchase orders',
+      heading: 'Purchase Orders',
+      screen: 'Purchasing > Purchase Orders',
     }));
     expect(result.content).toContain('Purchasing > Purchase Orders');
-    expect(result.title).toBe('Solvantis product reference');
+    expect(result.title).toBe('Purchase Orders');
   });
 
   it('returns actionable purchase-order creation guidance for PO synonyms', () => {
@@ -40,9 +41,20 @@ describe('assistant knowledge retrieval', () => {
       query: 'Can I make a PO in Solvantis?',
       audience: 'ims',
     });
-    const creation = results.find(result => result.heading === 'IMS purchase orders');
+    const creation = results.find(result => result.content.includes('New Purchase Order'));
     expect(creation?.content).toContain('New Purchase Order');
-    expect(creation?.content).toContain('Advisor');
+    expect(results.some(result => result.content.includes('Advisor'))).toBe(true);
+  });
+
+  it('explains that counted POS EOD closure triggers Xero sync', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'At what point does Solvantis send Xero syncs for POS sales?',
+      audience: 'ims',
+      currentView: 'eod',
+    });
+    const timing = results.find(result => result.title === 'End of Day and Xero');
+    expect(timing?.content).toContain('not sent to Xero individually at checkout');
+    expect(timing?.content).toContain('automatically starts');
   });
 
   it('returns the organisation-wide weighted-average inventory cost method', () => {

@@ -18,6 +18,7 @@ interface IndexedChunk {
   audiences: AssistantAudience[];
   capability: string;
   screen: string;
+  contexts?: string[];
   content: string;
   sourcePriority?: number;
 }
@@ -61,7 +62,8 @@ export function retrieveAssistantKnowledge(input: {
       const bodyTerms = terms(chunk.content);
       const titleMatches = titleTerms.filter(term => queryTerms.has(term)).length;
       const bodyMatches = bodyTerms.filter(term => queryTerms.has(term)).length;
-      const viewBoost = currentView && (
+      const exactContextMatch = currentView && chunk.contexts?.some(context => context.toLowerCase() === currentView);
+      const viewBoost = exactContextMatch ? 10 : currentView && (
         chunk.screen.toLowerCase().includes(currentView)
         || currentView.includes(chunk.screen.toLowerCase())
         || chunk.capability.toLowerCase() === currentView

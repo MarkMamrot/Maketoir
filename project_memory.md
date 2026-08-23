@@ -1,4 +1,4 @@
-## 2026-08-01 - Native online-shop foundation and schemas
+## 2026-08-23 - Native online-shop foundation and schemas
 
 - Added the independent native online-shop control plane, IMS workspace, layout/page publishing, asset library, product publication, hosted catalogue/product/content routes, and server-revalidated store cart.
 - Applied and verified the six main-database online-shop tables. A dry rerun reported no pending tables and verified 76 columns plus 16 indexes.

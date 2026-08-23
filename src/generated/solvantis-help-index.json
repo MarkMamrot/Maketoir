@@ -1,0 +1,136 @@
+{
+  "version": 1,
+  "topics": [
+    {
+      "id": "ims-purchase-orders",
+      "title": "Purchase Orders",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Purchasing > Purchase Orders",
+      "product": "ims",
+      "parentId": "ims-purchasing",
+      "contexts": [
+        "purchase-orders",
+        "purchase-order-detail",
+        "purchase-order-edit",
+        "purchase-order-receive",
+        "purchase-order-resolve",
+        "purchase-order-replacement"
+      ],
+      "order": 10,
+      "summary": "Create, confirm, receive, correct, and review supplier purchase orders.",
+      "lastReviewed": "2026-08-23",
+      "owner": "inventory",
+      "filename": "docs/help/ims/purchasing/purchase-orders.md",
+      "sections": [
+        {
+          "id": "ims-purchase-orders:1",
+          "heading": "Purchase Orders",
+          "content": "Purchase Orders records planned and received supply from a supplier. Open **Purchasing > Purchase Orders** in IMS. If the sidebar is collapsed, selecting the **Purchasing** icon opens Purchase Orders directly."
+        },
+        {
+          "id": "ims-purchase-orders:2",
+          "heading": "Main operations",
+          "content": "- Select **New Purchase Order** to create a Draft, then choose the supplier and receiving location and add product variants and quantities.\n- Review costs, tax, dates, freight, discounts, currency, landed costs, and notes before confirming.\n- Confirm the order to record incoming stock.\n- Use **Receive** or **Continue Receiving** to record only stock that physically arrived.\n- Use the available correction, resolution, credit, reversal, or replacement action when later stock or accounting activity prevents direct editing."
+        },
+        {
+          "id": "ims-purchase-orders:3",
+          "heading": "Before you begin",
+          "content": "The supplier, receiving location, products, quantities, and commercial values should be known before confirmation. Advisor accounts are read-only. Other actions can be restricted by role or when receipts, payments, credits, allocations, or accounting records already exist."
+        },
+        {
+          "id": "ims-purchase-orders:4",
+          "heading": "Step-by-step workflows",
+          "content": "### Create and confirm an order\n\n1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.\n2. Choose the supplier and receiving location.\n3. Add product variants and quantities.\n4. Review tax-exclusive costs, tax, discounts, freight, currency, landed costs, dates, and notes.\n5. Save as Draft if further preparation is needed, or confirm when the order is ready to place.\n\n### Receive stock\n\n1. Open the confirmed order and select **Receive**.\n2. Enter only the quantity physically received for each line.\n3. Save a partial receipt when more stock is still expected, or complete the receipt when the remaining supply is resolved.\n4. Review any protected customer demand or short-receipt warnings before confirming."
+        },
+        {
+          "id": "ims-purchase-orders:5",
+          "heading": "Statuses, calculations, and permissions",
+          "content": "- **Draft**: editable preparation state; no incoming stock has been recorded.\n- **Confirmed**: expected quantities contribute to incoming stock.\n- **Partially Received**: some stock is received and the balance remains outstanding.\n- **Completed**: receiving is finished and the order remains as an audit record.\n- **Cancelled**: the order is retained but no longer active.\n\nReceived inventory cost uses the purchase-order line cost after discount, removes included purchase tax when applicable, converts foreign currency to AUD, and can include allocated freight and landed costs. Solvantis then updates the organisation-wide weighted-average cost for the variant."
+        },
+        {
+          "id": "ims-purchase-orders:6",
+          "heading": "Troubleshooting",
+          "content": "- If editing is unavailable, inspect the available order actions. Existing receipts, allocations, payments, credits, or Xero state can require a controlled correction instead of direct editing.\n- If only part of the shipment arrived, do not mark unreceived units as received. Save the actual receipt and leave or resolve the outstanding balance.\n- If an accounting action fails after stock receipt succeeds, review the visible Xero status or Sync History and retry the unfinished accounting action rather than receiving stock again."
+        },
+        {
+          "id": "ims-purchase-orders:7",
+          "heading": "Related tasks",
+          "content": "Related Help topics include Supplier Backorders, Supplier Credit Notes, Stock Allocation, Inventory Costing, Xero, and Order Planner."
+        },
+        {
+          "id": "ims-purchase-orders:8",
+          "heading": "Worked examples",
+          "content": "### Receive one shipment in two deliveries\n\nA confirmed order contains 10 units. Six arrive today, so receive 6. The order becomes Partially Received with 4 outstanding. When the final 4 arrive, use Continue Receiving and receive 4; Solvantis completes the order without repeating the first stock movement.\n\n### Correct a completed order\n\nAn order has already been received and its accounting record exists. Direct line editing is unavailable because it would rewrite stock and financial history. Use the order's supported correction, supplier-credit, reversal, or replacement workflow according to what physically happened."
+        }
+      ]
+    },
+    {
+      "id": "pos-end-of-day-xero",
+      "title": "End of Day and Xero",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > End of Day",
+      "product": "pos",
+      "parentId": "pos-end-of-day",
+      "contexts": [
+        "eod",
+        "pos-eod",
+        "pos-reports",
+        "xero-pos-eod"
+      ],
+      "order": 90,
+      "summary": "Close a counted register session and understand when POS sales post to Xero.",
+      "lastReviewed": "2026-08-23",
+      "owner": "retail",
+      "filename": "docs/help/pos/end-of-day-xero.md",
+      "sections": [
+        {
+          "id": "pos-end-of-day-xero:1",
+          "heading": "End of Day and Xero",
+          "content": "POS sales are not sent to Xero individually at checkout. When staff close End of Day with at least one counted payment amount, Solvantis automatically starts the configured POS EOD Xero sync in the background."
+        },
+        {
+          "id": "pos-end-of-day-xero:2",
+          "heading": "Main operations",
+          "content": "- Count each payment method and save the End of Day reconciliation.\n- Closing a counted EOD starts the Xero sync; register closure does not wait for Xero to finish.\n- Solvantis processes each counted payment method and creates its configured Authorised sales invoice.\n- When clearing payments are enabled, Solvantis applies the invoice payment to the mapped clearing account.\n- Review Xero Sync History or use the available retry action when an invoice or payment remains unfinished."
+        },
+        {
+          "id": "pos-end-of-day-xero:3",
+          "heading": "Before you begin",
+          "content": "The register session should be open for the correct location and the physical payment totals should be counted. Xero posting depends on the business Xero connection, POS batch policy, location revenue mapping, and payment-method clearing mappings. Missing Xero configuration does not prevent the register from closing."
+        },
+        {
+          "id": "pos-end-of-day-xero:4",
+          "heading": "Step-by-step workflows",
+          "content": "### Close the register\n\n1. Open **End of Day** from POS.\n2. Review expected totals and enter the counted amount for each payment method.\n3. Record the cash opening float and denomination count where applicable.\n4. Save and close the reconciliation.\n5. Solvantis starts the configured Xero posting in the background for the counted methods.\n\n### Review or retry Xero posting\n\n1. Review the EOD result and Xero Sync History from IMS when an accounting action is incomplete.\n2. Correct missing or stale revenue and clearing mappings before retrying.\n3. Retry the unfinished EOD sync. Existing invoice and payment identifiers are reused so a retry does not intentionally create another invoice."
+        },
+        {
+          "id": "pos-end-of-day-xero:5",
+          "heading": "Statuses, calculations, and permissions",
+          "content": "POS prices and totals are tax-inclusive. The Xero EOD invoice uses inclusive tax treatment so Xero extracts GST rather than adding GST on top. Posting policy can disable all POS batch posting or allow invoice creation without clearing payments.\n\nFor cash, Solvantis separates the opening float from sales and can account for cash rounding, till variance, and petty cash using the configured mappings. Non-cash methods use their counted EOD amount and mapped clearing account."
+        },
+        {
+          "id": "pos-end-of-day-xero:6",
+          "heading": "Troubleshooting",
+          "content": "- **Nothing posted:** Check that at least one counted amount was saved, POS batch posting is enabled, Xero is connected, and the location has a revenue mapping.\n- **One payment method did not post:** Check that method's clearing mapping. Other correctly mapped methods can still post.\n- **Invoice posted but payment failed:** Retry the EOD sync. Solvantis retains the existing invoice and retries the unfinished payment.\n- **Register closed while Xero failed:** This is expected separation. Register closure remains valid; repair and retry the accounting action without reopening or repeating sales."
+        },
+        {
+          "id": "pos-end-of-day-xero:7",
+          "heading": "Related tasks",
+          "content": "Related Help topics include Opening a Register, POS Payments, Returns, Cash Banking, Xero Ledger Mapping, and Xero Sync History."
+        },
+        {
+          "id": "pos-end-of-day-xero:8",
+          "heading": "Worked examples",
+          "content": "### Normal card EOD\n\nA counted card total of $1,100 is saved at register close. Solvantis starts EOD sync, creates the configured tax-inclusive Authorised sales invoice for that payment method, and applies $1,100 to its mapped clearing account when payment sync is enabled.\n\n### Missing card clearing account\n\nCash and card are counted, but card has no clearing mapping. The register still closes. Any correctly configured methods can post, while card remains blocked. After an Admin saves the mapping, retrying the EOD sync completes the unfinished card posting without entering the sales again."
+        }
+      ]
+    }
+  ]
+}
