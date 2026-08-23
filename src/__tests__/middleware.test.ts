@@ -80,3 +80,39 @@ describe('wholesale staff preview middleware', () => {
     expect((await middleware(request(method, true, pathname))).status).toBe(403);
   });
 });
+
+describe('online shop custom-domain middleware', () => {
+  beforeEach(() => {
+    vi.stubEnv('APP_URL', 'https://solvantis.com.au');
+  });
+
+  it('rewrites a verified custom host into the existing storefront route', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ slug: 'shop-one' }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    const response = await middleware(new NextRequest('https://store-one.example/products/widget', {
+      headers: { host: 'store-one.example' },
+    }));
+    expect(response.headers.get('x-middleware-rewrite')).toContain('/shop/shop-one/products/widget');
+    expect(fetch).toHaveBeenCalledWith(expect.objectContaining({ hostname: 'solvantis.com.au' }), expect.anything());
+  });
+
+  it('redirects hosted storefront links back to a clean custom-domain path', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ slug: 'shop-two' }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    })));
+    const response = await middleware(new NextRequest('https://store-two.example/shop/shop-two/checkout', {
+      headers: { host: 'store-two.example' },
+    }));
+    expect(response.status).toBe(308);
+    expect(response.headers.get('location')).toBe('https://store-two.example/checkout');
+  });
+
+  it('isolates an unresolved custom host from the main application', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })));
+    const response = await middleware(new NextRequest('https://unknown-store.example/', {
+      headers: { host: 'unknown-store.example' },
+    }));
+    expect(response.headers.get('x-middleware-rewrite')).toContain('/404');
+  });
+});

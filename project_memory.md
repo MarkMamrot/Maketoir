@@ -1,3 +1,11 @@
+## 2026-08-23 - Native shop customer value, refunds, and custom domains
+
+- Signed-in native checkout now reserves one eligible fixed loyalty reward before store credit, freezes value when payment starts, finalizes both ledgers idempotently, and completes fully covered orders without creating a zero-value Stripe PaymentIntent. Native orders persist loyalty as a merchandise discount and Stripe/store-credit settlement as separate sales-order payment rows; loyalty earning uses the shared policy on eligible merchandise after the reward discount.
+- Linked IMS customer credit notes own native return stock and accounting. Partial mixed-payment refunds restore the original store-credit portion before an idempotent Stripe Connect refund; provider failure leaves the note incomplete and retryable. Earned and redeemed points reverse proportionally to cumulative returned eligible merchandise.
+- `ims_online_shop_refunds` was applied through the all-tenant catch-up to Monsterthreads, Sage, Solvantis, and Monsterthreads Sandbox. The online-shop main schema now has eight tables, 94 columns, and 22 indexes after adding `online_shop_domains`.
+- Custom domains require the displayed ownership TXT record, a CNAME to `ONLINE_SHOP_CNAME_TARGET` (or the configured application host), hosting-side domain/certificate setup, and a successful HTTPS probe before activation. Verified hosts are resolved through the control plane and rewritten by middleware into the existing slug storefront; unresolved custom hosts receive a neutral 404 and the hosted `/shop/` address remains available.
+- Canonical Online Shop and Customer Orders Help topics, context mapping, `project_overview.md`, and both generated Help/Assistant indexes were updated. Validation: 391 test files passed / one skipped, 1,899 tests passed / one skipped, focused middleware/domain/refund/schema tests passed, all four tenant migrations succeeded, main schema verification passed, and the production build passed.
+
 ## 2026-08-23 - Native online-shop foundation and schemas
 
 - Added the independent native online-shop control plane, IMS workspace, layout/page publishing, asset library, product publication, hosted catalogue/product/content routes, and server-revalidated store cart.

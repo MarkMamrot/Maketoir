@@ -8,6 +8,7 @@ Administrators open **Integrations > Online Shop** to prepare Solvantis's native
 ## Main operations
 
 - Configure store identity, hosted address, support email, logo, and search metadata.
+- Connect and verify an optional custom storefront domain.
 - Edit and publish templates for Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account.
 - Create and publish custom content pages such as About, Shipping, Returns, and Privacy.
 - Publish eligible products to the native shop independently of Shopify.
@@ -49,6 +50,15 @@ Checkout also requires active online stock locations, at least one delivery rate
 
 In Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key.
 
+### Connect a custom domain
+
+1. In Store settings, enter the storefront domain without `https://` or a path and save it.
+2. Add the exact ownership TXT and CNAME records shown by Solvantis to the domain's DNS provider.
+3. Complete the custom-domain and certificate setup with the hosting administrator.
+4. Choose **Verify DNS** after DNS and HTTPS are available.
+
+The custom domain becomes active only after ownership, the CNAME target, HTTPS routing, and its certificate are all verified. The hosted `/shop/` address continues working when a custom domain is pending, disconnected, or unavailable.
+
 ### Use loyalty rewards and store credit
 
 Customers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points and eligible merchandise to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied to merchandise first and store credit is applied to the remaining order value.
@@ -82,6 +92,7 @@ The server recalculates product prices, delivery, GST, and stock when checkout i
 - If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.
 - If a reward or store-credit selection has expired, review the current balance and apply it again before starting payment.
 - If a native refund remains incomplete, review the credit note settlement error and retry completion. A Stripe failure does not restock goods or change customer value.
+- If a custom domain does not verify, compare both displayed DNS records exactly, confirm HTTPS setup is complete, allow for DNS propagation, and retry verification.
 
 ## Related tasks
 

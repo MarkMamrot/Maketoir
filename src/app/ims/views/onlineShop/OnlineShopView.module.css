@@ -1,3 +1,12 @@
+.domainRow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.domainPanel { margin-top: 14px; padding: 16px; border: 1px solid #c8c5bb; border-left: 4px solid #b7791f; border-radius: 4px; background: #fbfaf7; }
+.domainPanel[data-active] { border-left-color: #24714a; }
+.domainPanel > div:first-child { display: flex; justify-content: space-between; gap: 16px; }
+.domainPanel dl { display: grid; gap: 8px; margin: 16px 0; }
+.domainPanel dl div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; }
+.domainPanel dt { color: #66635b; }
+.domainPanel dd { margin: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+@media (max-width: 640px) { .domainRow { grid-template-columns: 1fr; } .domainPanel dl div { grid-template-columns: 1fr; gap: 2px; } }
 .workspace { min-height: 680px; color: #18221d; background: #fff; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 16px; border-bottom: 1px solid #dfe5e1; }
 .header span, .editorHeading span { color: #627068; font-size: 10px; font-weight: 800; text-transform: uppercase; }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowDown, ArrowUp, FilePlus2, ImagePlus, Loader2, Plus, RotateCcw, Save, Send, Store, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ExternalLink, FilePlus2, Globe2, ImagePlus, Loader2, Plus, RotateCcw, Save, Send, Store, Trash2 } from 'lucide-react';
 import { ONLINE_SHOP_LAYOUT_SECTION_REGISTRY } from '@/lib/onlineShop/layout/registry';
 import { ONLINE_SHOP_LAYOUT_PAGE_IDS, ONLINE_SHOP_SHARED_SECTION_TYPES, type OnlineShopContentPageDocument,
   type OnlineShopLayoutDocument, type OnlineShopLayoutPageId, type OnlineShopLayoutSection, type OnlineShopLayoutSectionType } from '@/lib/onlineShop/layout/types';
@@ -21,6 +21,8 @@ interface ShippingRule { id: number; name: string; amountCents: number; freeOver
 interface PickupOption { locationId: number; label: string; instructions: string | null; sortOrder: number; isActive: boolean }
 interface StripeConnection { stripeAccountId: string; chargesEnabled: boolean; payoutsEnabled: boolean; detailsSubmitted: boolean }
 interface ActivationState { activeChannel: OnlineSalesChannel; isActive: boolean; ready: boolean; items: Array<{ id: string; label: string; ready: boolean }> }
+interface ShopDomain { domainName: string; status: 'pending' | 'verified' | 'error'; isActive: boolean; safeError: string | null }
+interface DomainRecords { txtHost: string; txtValue: string; cnameHost: string; cnameTarget: string }
 const pageLabels: Record<OnlineShopLayoutPageId, string> = { home: 'Home', catalogue: 'Catalogue', collection: 'Collection',
   product: 'Product', cart: 'Cart', checkout: 'Checkout', login: 'Sign in', account: 'Account' };
 
@@ -80,6 +82,8 @@ export default function OnlineShopView() {
   const [fulfilmentLocations, setFulfilmentLocations] = useState<FulfilmentLocation[]>([]);
   const [shippingRules, setShippingRules] = useState<ShippingRule[]>([]); const [pickupOptions, setPickupOptions] = useState<PickupOption[]>([]);
   const [stripeConnection, setStripeConnection] = useState<StripeConnection | null>(null); const [stripePublishableKey, setStripePublishableKey] = useState('missing');
+  const [shopDomain, setShopDomain] = useState<ShopDomain | null>(null); const [domainRecords, setDomainRecords] = useState<DomainRecords | null>(null);
+  const [domainName, setDomainName] = useState('');
   const [activation, setActivation] = useState<ActivationState | null>(null);
   const [shippingForm, setShippingForm] = useState({ name: '', amount: '', freeOver: '', states: '', postcodes: '' });
   const [layoutState, setLayoutState] = useState<OnlineShopLayoutEditorState | null>(null); const [layout, setLayout] = useState<OnlineShopLayoutDocument | null>(null);
@@ -93,10 +97,11 @@ export default function OnlineShopView() {
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const [profileBody, layoutBody, assetBody, pageBody, productBody, shippingBody, stripeBody, activationBody] = await Promise.all([
+      const [profileBody, layoutBody, assetBody, pageBody, productBody, shippingBody, stripeBody, activationBody, domainBody] = await Promise.all([
         jsonRequest('/api/ims/online-shop/profile'), jsonRequest('/api/ims/online-shop/layout'),
         jsonRequest('/api/ims/online-shop/assets'), jsonRequest('/api/ims/online-shop/pages'), jsonRequest('/api/ims/online-shop/products'),
-        jsonRequest('/api/ims/online-shop/shipping'), jsonRequest('/api/ims/online-shop/stripe'), jsonRequest('/api/ims/online-shop/activation')]);
+        jsonRequest('/api/ims/online-shop/shipping'), jsonRequest('/api/ims/online-shop/stripe'), jsonRequest('/api/ims/online-shop/activation'),
+        jsonRequest('/api/ims/online-shop/domain')]);
       setProfile(profileBody.profile); setChannel(profileBody.activeChannel); setLayoutState(layoutBody.state); setLayout(layoutBody.state.draft);
       setAssets(assetBody.assets ?? []); setPages(pageBody.pages ?? []);
       setProducts(productBody.products ?? []);
@@ -104,6 +109,7 @@ export default function OnlineShopView() {
       setShippingRules(shippingBody.rules ?? []); setPickupOptions(shippingBody.pickups ?? []);
       setStripeConnection(stripeBody.connection ?? null); setStripePublishableKey(stripeBody.publishableKey ?? 'missing');
       setActivation(activationBody.state ?? null);
+      setShopDomain(domainBody.domain ?? null); setDomainRecords(domainBody.records ?? null); setDomainName(domainBody.domain?.domainName ?? '');
       const item = profileBody.profile; setProfileForm({ slug: item?.slug ?? '', displayName: item?.displayName ?? '', supportEmail: item?.supportEmail ?? '',
         defaultMetaTitle: item?.defaultMetaTitle ?? '', defaultMetaDescription: item?.defaultMetaDescription ?? '', logoUrl: item?.logoUrl ?? '',
         fulfilmentMode: profileBody.fulfilment?.settings?.mode ?? 'single_location',
@@ -125,6 +131,20 @@ export default function OnlineShopView() {
     const body = await jsonRequest('/api/ims/online-shop/activation', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active, forceSwitch }) }); setActivation(body.state); setChannel(body.state.activeChannel);
     setMessage(active ? 'Native online shop activated.' : 'Native online shop deactivated.');
+  });
+  const saveDomain = () => void run('domain-save', async () => {
+    const body = await jsonRequest('/api/ims/online-shop/domain', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domainName }) });
+    setShopDomain(body.domain); setDomainRecords(body.records); setDomainName(body.domain.domainName); setMessage('Custom domain saved. Add the DNS records, then verify.');
+  });
+  const verifyDomain = () => void run('domain-verify', async () => {
+    const body = await jsonRequest('/api/ims/online-shop/domain', { method: 'POST' });
+    setShopDomain(body.domain); setDomainRecords(body.records);
+    setMessage(body.domain.isActive ? 'Custom domain verified and active.' : 'DNS records are not ready yet.');
+  });
+  const removeDomain = () => confirm('Disconnect this custom domain? The hosted shop address will keep working.') && void run('domain-remove', async () => {
+    await jsonRequest('/api/ims/online-shop/domain', { method: 'DELETE' });
+    setShopDomain(null); setDomainRecords(null); setDomainName(''); setMessage('Custom domain disconnected.');
   });
   const reloadShipping = async () => { const body = await jsonRequest('/api/ims/online-shop/shipping'); setShippingRules(body.rules ?? []); setPickupOptions(body.pickups ?? []); };
   const saveShippingRule = (event: FormEvent) => { event.preventDefault(); void run('shipping-rule', async () => {
@@ -196,6 +216,16 @@ export default function OnlineShopView() {
         : stripeConnection ? 'Stripe is connected but account setup is incomplete.' : 'Connect the merchant Stripe account before activating checkout.'}</p>
         {stripePublishableKey === 'missing' && <p className={styles.error}>Stripe publishable key is not configured for this deployment.</p>}
         <a className={styles.primary} href="/api/stripe/connect">{stripeConnection ? 'Reconnect Stripe' : 'Connect Stripe'}</a></div>
+      <div className={styles.wide}><h2><Globe2 size={18} /> Custom domain</h2>
+        <div className={styles.domainRow}><label>Domain name<input placeholder="shop.example.com" value={domainName} onChange={event => setDomainName(event.target.value)} /></label>
+          <button type="button" className={styles.primary} disabled={Boolean(working) || !domainName.trim()} onClick={saveDomain}>{working === 'domain-save' ? 'Saving...' : 'Save domain'}</button></div>
+        {shopDomain && <div className={styles.domainPanel} data-active={shopDomain.isActive || undefined}><div><strong>{shopDomain.domainName}</strong><span>{shopDomain.isActive ? 'Verified and active' : shopDomain.status === 'error' ? 'DNS check failed' : 'Waiting for DNS'}</span></div>
+          {shopDomain.safeError && <p className={styles.error}>{shopDomain.safeError}</p>}
+          {domainRecords && <dl><div><dt>TXT host</dt><dd>{domainRecords.txtHost}</dd></div><div><dt>TXT value</dt><dd>{domainRecords.txtValue}</dd></div><div><dt>CNAME host</dt><dd>{domainRecords.cnameHost}</dd></div><div><dt>CNAME target</dt><dd>{domainRecords.cnameTarget}</dd></div></dl>}
+          <div className={styles.actions}><button type="button" onClick={verifyDomain} disabled={Boolean(working)}>{working === 'domain-verify' ? 'Checking DNS...' : 'Verify DNS'}</button>
+            {shopDomain.isActive && <a className={styles.primary} href={`https://${shopDomain.domainName}`} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Open shop</a>}
+            <button type="button" className={styles.unpublish} onClick={removeDomain} disabled={Boolean(working)}>Disconnect</button></div></div>}
+      </div>
       {activation && <div className={styles.wide}><h2>Activation</h2><div className={styles.publicationList}>{activation.items.map(item => <article key={item.id}><strong>{item.label}</strong><span>{item.ready ? 'Ready' : 'Required'}</span></article>)}</div>
         <div className={styles.actions}><button type="button" className={activation.isActive ? styles.unpublish : styles.primary} disabled={Boolean(working) || (!activation.ready && !activation.isActive)} onClick={() => changeActivation(!activation.isActive)}>{activation.isActive ? 'Deactivate native shop' : activation.activeChannel === 'shopify' ? 'Switch from Shopify and activate' : 'Activate native shop'}</button></div></div>}
     </div><div className={styles.actions}><label className={styles.uploadButton}><ImagePlus size={16} /> {working === 'upload' ? 'Uploading...' : 'Upload image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = ''; }} /></label><button className={styles.primary} disabled={Boolean(working)}><Save size={16} /> {working === 'profile' ? 'Saving...' : 'Save settings'}</button></div></form>}

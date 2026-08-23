@@ -49,6 +49,21 @@ CREATE TABLE IF NOT EXISTS online_shop_profiles (
   INDEX idx_online_shop_profiles_active (is_active, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS online_shop_domains (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  domain_name          VARCHAR(253) NOT NULL,
+  verification_token   VARCHAR(64) NOT NULL,
+  status               ENUM('pending','verified','error') NOT NULL DEFAULT 'pending',
+  is_active            TINYINT(1) NOT NULL DEFAULT 0,
+  verified_at          DATETIME(3) NULL,
+  last_checked_at      DATETIME(3) NULL,
+  safe_error           VARCHAR(500) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_domain_name (domain_name),
+  INDEX idx_online_shop_domain_active (is_active, status, domain_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS online_shop_layouts (
   business_id                 VARCHAR(100) PRIMARY KEY,
   schema_version              INT UNSIGNED NOT NULL DEFAULT 1,

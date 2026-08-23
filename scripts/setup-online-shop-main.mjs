@@ -21,6 +21,11 @@ const tableContracts = {
     columns: ['business_id', 'slug', 'display_name', 'logo_url', 'support_email', 'default_meta_title', 'default_meta_description', 'is_active', 'created_at', 'updated_at'],
     indexes: ['PRIMARY', 'uq_online_shop_profiles_slug', 'idx_online_shop_profiles_active'],
   },
+  online_shop_domains: {
+    columns: ['business_id', 'domain_name', 'verification_token', 'status', 'is_active', 'verified_at',
+      'last_checked_at', 'safe_error', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_domain_name', 'idx_online_shop_domain_active'],
+  },
   online_shop_layouts: {
     columns: ['business_id', 'schema_version', 'draft_json', 'published_json', 'draft_revision', 'published_revision',
       'draft_updated_by_user_id', 'draft_updated_by_name', 'draft_updated_at', 'published_by_user_id',
