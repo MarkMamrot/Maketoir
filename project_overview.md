@@ -22,6 +22,10 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 
 Current user-facing product behavior is maintained in the canonical Help corpus under `docs/help/`. The normal build validates that content and compiles it into both the contextual in-product Help index and the private Solvantis Assistant retrieval index. This overview remains the project and architecture reference rather than a second copy of product Help.
 
+The public landing and pricing pages use a separate prospect sales assistant. Its build-time index contains only public feature, fit, integration, pricing, onboarding, and use-case summaries; it cannot retrieve private procedural Help or use authenticated tenant tools. Anonymous conversations, consented leads, events, integration demand, and database-backed rate limits live only in the shared main database. Raw IP addresses are not stored.
+
+Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEMINI_API_KEY`, `CRON_SECRET`, `APP_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `SALES_LEAD_RECIPIENTS`. GitHub Actions calls `/api/cron/prospect-conversations` hourly for abandonment, alert retry, demand aggregation, retention, and rate-limit cleanup. Integration claims are controlled through the SuperAdmin catalogue; on-demand offerings must remain subject to discovery, scope, timing, and quote.
+
 ---
 
 ## 🗺️ Roadmap & Next Steps
