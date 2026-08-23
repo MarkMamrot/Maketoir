@@ -80,6 +80,19 @@ describe('stock allocation service', () => {
     expect(connection.rollback).not.toHaveBeenCalled();
   });
 
+  it('rejects incoming allocation for an online sales order', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_sales_order_items')) return [[{
+        id: 11, so_id: 1, variant_id: 'v-1', qty_ordered: 1, qty_fulfilled: 0,
+        business_id: 'biz-1', location_id: 4, status: 'confirmed', so_type: 'online',
+      }]];
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    await expect(createStockAllocation(input)).rejects.toThrow('Online sales orders');
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
   it('replays a completed matching request without inserting another allocation', async () => {
     execute.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM ims_sales_order_items')) return [[{
@@ -330,5 +343,15 @@ describe('stock allocation service', () => {
         expect.objectContaining({ poItemId: 22, freeQuantity: 8 }),
       ],
     })]);
+  });
+
+  it('returns no incoming allocation demand for online sales orders', async () => {
+    execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM ims_sales_order_items')) return [[]];
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    await expect(listStockAllocationCandidates({ businessId: 'biz-1', soId: 1 })).resolves.toEqual([]);
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("COALESCE(so.so_type, '') <> 'online'"), ['biz-1', 'biz-1', 1, 'biz-1']);
   });
 });

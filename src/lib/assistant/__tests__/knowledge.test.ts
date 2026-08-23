@@ -15,13 +15,13 @@ describe('assistant knowledge retrieval', () => {
     const [result] = retrieveAssistantKnowledge({
       query: 'How do I partially fulfil a customer sales order?',
       audience: 'ims',
-      currentView: 'orders',
+      currentView: 'sales-orders',
     });
     expect(result).toEqual(expect.objectContaining({
-      title: 'Customer Orders, Allocation, and Credits',
-      heading: 'Sales orders',
-      screen: 'Sales',
-      topicId: 'ims-customer-orders',
+      title: 'Sales Orders and Fulfilment',
+      heading: 'Step-by-step',
+      screen: 'Sales > Sales Orders',
+      topicId: 'ims-sales-orders-fulfilment',
     }));
   });
 
@@ -29,13 +29,14 @@ describe('assistant knowledge retrieval', () => {
     const [result] = retrieveAssistantKnowledge({
       query: 'Where is the purchase order screen?',
       audience: 'ims',
+      currentView: 'purchase-orders',
     });
     expect(result).toEqual(expect.objectContaining({
-      heading: 'Purchase Orders',
+      title: 'Purchase Orders',
       screen: 'Purchasing > Purchase Orders',
     }));
-    expect(result.content).toContain('Purchasing > Purchase Orders');
-    expect(result.title).toBe('Purchase Orders');
+    expect(result.content).toContain('purchase order records what you intend to buy');
+    expect(result.topicId).toBe('ims-purchase-orders');
   });
 
   it('returns actionable purchase-order creation guidance for PO synonyms', () => {
@@ -55,8 +56,8 @@ describe('assistant knowledge retrieval', () => {
       currentView: 'eod',
     });
     const timing = results.find(result => result.title === 'End of Day and Xero');
-    expect(timing?.content).toContain('not sent to Xero individually at checkout');
-    expect(timing?.content).toContain('automatically starts');
+    expect(timing?.content).toContain('not posted one by one at checkout');
+    expect(timing?.content).toContain('configured EOD process');
   });
 
   it('explains Shopify Misc Charge as an unmatched variant fallback', () => {
@@ -66,9 +67,9 @@ describe('assistant knowledge retrieval', () => {
       currentView: 'online-sales',
     });
     const explanation = results.find(result => result.heading === 'POS and online sales');
-    expect(explanation?.content).toContain('not an extra fee');
-    expect(explanation?.content).toContain('no variant ID or its Shopify variant is not linked');
-    expect(results.some(result => result.content.includes('product-mapping fallback, not a Xero policy charge'))).toBe(true);
+    expect(explanation?.content).toContain('not an added fee');
+    expect(explanation?.content).toContain('cannot be matched to an IMS variant');
+    expect(results.some(result => result.title === 'Shopify Sync and Product Mapping')).toBe(true);
   });
 
   it('returns the organisation-wide weighted-average inventory cost method', () => {
@@ -77,8 +78,8 @@ describe('assistant knowledge retrieval', () => {
       audience: 'ims',
     });
     expect(results.some(result => result.title === 'Inventory Costing and Stock Value')).toBe(true);
-    expect(results.some(result => result.content.includes('organisation-wide weighted-average cost'))).toBe(true);
-    expect(results.some(result => result.content.includes('not FIFO or LIFO'))).toBe(true);
+    expect(results.some(result => result.content.includes('one organisation-wide weighted-average cost for each variant'))).toBe(true);
+    expect(results.some(result => result.content.includes('not separate FIFO or LIFO cost layers'))).toBe(true);
   });
 
   it('recognizes WAC and COGS inventory terminology', () => {
@@ -86,9 +87,9 @@ describe('assistant knowledge retrieval', () => {
       query: 'Does WAC feed COGS and stock valuation?',
       audience: 'ims',
     });
-    const costing = results.find(result => result.title === 'Inventory Costing and Stock Value' && result.content.includes('fallback cost of goods sold'));
-    expect(costing?.content).toContain('fallback cost of goods sold');
-    expect(costing?.content).toContain('inventory valuation');
+    const costing = results.find(result => result.title === 'Inventory Costing and Stock Value' && result.heading === 'Main operations');
+    expect(costing?.content).toContain('historical margin and cost of goods sold (COGS)');
+    expect(costing?.content).toContain("today's inventory valuation");
   });
 
   it('keeps wholesale account ownership guidance within wholesale results', () => {
@@ -96,7 +97,31 @@ describe('assistant knowledge retrieval', () => {
       query: 'Can I see another company location order?',
       audience: 'wholesale',
     });
-    expect(results.some(result => result.title === 'Wholesale Portal' && result.heading === 'Account')).toBe(true);
+    expect(results.some(result => result.title === 'Team, Locations, and Permissions')).toBe(true);
+    expect(results.some(result => result.content.includes('assigned buying locations'))).toBe(true);
+  });
+
+  it('finds the plain-language return guide from old ownership wording', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Customer Credit Notes owns manual IMS returns and the linked credit note is the sole return stock owner. What does that mean?',
+      audience: 'ims',
+      currentView: 'credit-notes',
+    });
+    expect(results[0]).toEqual(expect.objectContaining({ title: 'Customer Returns, Store Credit, and Refunds' }));
+    expect(results.some(result => result.content.includes('What adds stock back once'))).toBe(true);
+  });
+
+  it('explains wholesale indent as approved pre-order quantity', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'What does indent mean and can I order more than is in stock?',
+      audience: 'wholesale',
+      currentView: 'catalogue',
+    });
+    expect(results[0]).toEqual(expect.objectContaining({
+      title: 'Ordering, Saved Lists, and Stock Rules',
+      heading: 'Stock and indent decisions',
+    }));
+    expect(results[0].content).toContain('approved that product for pre-order beyond current available stock');
   });
 
   it('returns no results for an empty query', () => {

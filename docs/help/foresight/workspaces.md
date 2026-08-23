@@ -1,83 +1,70 @@
 ---
-{"id":"foresight-workspaces","title":"Foresight and Dashboard","audiences":["ims"],"capability":"navigation","screen":"Foresight","product":"foresight","contexts":["home","ai-helper","business-intelligence","business-info","brand-profile","sync-data","calculated-data","inventory","inactive-candidates","lost-candidates","space-analysis","stock-turnover","marketing","sync-ads","marketing-assistant","planning-workspace","marketing-recommendations","creative-review","campaign-audit","brand-assets","brand-assets-models","brand-assets-backdrops","brand-assets-poses","brand-assets-scenes","brand-assets-templates","website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates","appearance","connections","marketing-settings","data-source"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper","business-intelligence":"Business Intelligence","business-info":"Business Intelligence","brand-profile":"Business Intelligence","sync-data":"Business Intelligence","calculated-data":"Business Intelligence","inventory":"Inventory analysis","inactive-candidates":"Inventory analysis","lost-candidates":"Inventory analysis","space-analysis":"Inventory analysis","stock-turnover":"Inventory analysis","marketing":"Foresight","sync-ads":"Foresight","marketing-assistant":"Foresight","planning-workspace":"Planning Workspace","marketing-recommendations":"Recommendation Inbox","creative-review":"Creative Review","campaign-audit":"Campaign Audit","brand-assets":"Brand Assets","brand-assets-models":"Brand Assets","brand-assets-backdrops":"Brand Assets","brand-assets-poses":"Brand Assets","brand-assets-scenes":"Brand Assets","brand-assets-templates":"Brand Assets","website":"Website","pending-online":"Website","product-description-template":"Website","bulk-edit-listings":"Website","customer-service":"Customer Service","cs-inbox":"Customer Service","cs-compose":"Customer Service","cs-templates":"Customer Service","appearance":"Settings and connections","connections":"Settings and connections","marketing-settings":"Settings and connections","data-source":"Settings and connections"},"order":1,"summary":"Understand business intelligence, Foresight planning and review, brand assets, website content, and customer service.","lastReviewed":"2026-08-23","owner":"foresight"}
+{"id":"foresight-workspaces","title":"Foresight and Dashboard","audiences":["ims"],"capability":"navigation","screen":"Foresight","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Foresight workspace and understand what each area can change.","lastReviewed":"2026-08-23","owner":"foresight"}
 ---
 # Foresight and Dashboard
 
-The Dashboard combines reporting, business context, inventory analysis, marketing intelligence, Foresight planning and review, brand assets, website content, and customer-service workflows.
+Use this page to choose the right workspace before you start reviewing data, planning work, or preparing customer-facing content.
 
 ## Main operations
 
-- Keep Business/Brand information and connected data current before relying on analysis.
-- Use inventory and calculated reports to investigate operational patterns.
-- Use Foresight to review evidence, recommendations, plans, creative work, and campaign structure.
-- Keep human review and approval distinct from planning and from any supported execution control.
-- Use Brand Assets and Website tools to prepare governed customer-facing content.
+- Check Dashboard for a summary, then open the detailed view behind a figure.
+- Ask AI Helper for an explanation or a starting point without treating its reply as approval.
+- Use Business Intelligence to check business facts, source freshness, and inventory signals.
+- Use Planning and Review to move a recommendation through a recorded human decision.
+- Use Content and Service to prepare assets, product content, and customer replies for review.
+
+## Choose a workspace
+
+| You need to | Open | What you get | Does opening it change anything outside Solvantis? |
+| --- | --- | --- | --- |
+| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |
+| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |
+| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |
+| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |
+| Prepare product content or a customer reply | Website or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |
+
+> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened.
 
 ## Dashboard
 
-Dashboard summarises reporting and activity. Open the owning analysis or workflow before making a decision from an aggregate figure.
+Dashboard brings important figures and recent activity together. Use it to spot something worth investigating, then open the detailed report or workspace before making a decision.
+
+| Input | Human decision | Output | External change |
+| --- | --- | --- | --- |
+| Available reporting and activity | Which result needs investigation | A summary and links to detail | None |
 
 ## AI Helper
 
-AI Helper works with the business context available to its own workflow. Solvantis Help explains product operation; Foresight analysis and planning uses governed evidence and does not treat ordinary chat as approval to publish or execute.
+AI Helper can explain information available to its workflow and help you form the next question. Its conversation does not accept a plan, send content, publish a listing, or change an advertising account.
 
-## Business Intelligence
+| Input | Human decision | Output | External change |
+| --- | --- | --- | --- |
+| Your question and the business information available to the helper | Whether the answer is useful and what to inspect next | A written answer | None |
 
-Business/Brand Key Information and Brand Profile provide maintained business context. Sync Data refreshes supported source information. Reports derives bounded calculations from available data. Review source freshness and definitions when comparing figures.
+## What happens next
 
-## Inventory analysis
-
-Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover identify records for review. They are decision-support views; inspect source products, stock, sales windows, and assumptions before changing operations.
-
-## Foresight
-
-Sync Marketing Data refreshes supported evidence. Marketing Assistant provides analysis and recommendations. Foresight separates cited facts, human context, assumptions, inferences, and proposals so generated advice is not mistaken for verified execution.
-
-## Planning Workspace
-
-Planning Workspace holds persistent strategy, initiative, and recommendation threads with versioned plans. Drafting a plan does not authorise platform changes. Submission, review, acceptance, deliverable review, experiment design, launch packaging, implementation attestation, and outcome review remain distinct governed stages.
-
-## Recommendation Inbox
-
-Recommendation Inbox presents proposals and their evidence, risks, guardrails, review state, and supported next actions. Approval does not prove an external change occurred; implementation or execution must be recorded through the relevant controlled workflow.
-
-## Creative Review
-
-Creative Review governs briefs and generated packages through explicit accept, reject, or revision decisions. Accepted artifacts are tied to their exact reviewed version and cannot be silently replaced.
-
-## Campaign Audit
-
-Campaign Audit inspects supported campaign structure and evidence. Findings are advisory until a user follows the relevant review and execution process.
-
-## Brand Assets
-
-Models, Backdrops, Poses, Scenes, and Templates provide reusable governed assets. Review rights, source imagery, intended use, and output before using an asset in customer-facing work.
-
-## Website
-
-Website Content Studio, Web Field Templates, and bulk listing tools prepare and review product content. Research and generated text remain reviewable; candidate images are not automatic replacements and existing images remain intact unless the user explicitly changes them.
-
-## Customer Service
-
-Customer Service Inbox manages supported customer queries and drafts. Review customer context and draft content before sending. Features marked as coming soon are not available workflows.
-
-## Settings and connections
-
-Appearance controls presentation. Connections owns supported service credentials and status. Marketing Settings controls applicable analysis, alert, and execution guardrails. Changes require the role shown by the interface.
+| Area | Typical next step | Where the result is checked |
+| --- | --- | --- |
+| Business Intelligence | Confirm dates, source freshness, and the underlying records | The detailed analysis or source screen |
+| Planning and Review | Submit the exact plan or item for a human decision | Planning Workspace or Recommendation Inbox |
+| Experiments | Accept a design, record or perform the launch, then review the result | Recommendation Inbox |
+| Content and Service | Check accuracy, audience, tone, and recipients | Website, Brand Assets, or Customer Service |
 
 ## Troubleshooting
 
-- Refresh or inspect source-data status when analysis appears stale.
-- Distinguish a generated proposal from an accepted plan, reviewed deliverable, recorded implementation, or verified execution.
-- Reconnect a service when authorization has expired rather than repeatedly rerunning a dependent workflow.
-- Use the exact review stage offered by the workspace; chat text is not an approval signal.
+| Symptom | Likely cause | Safe action |
+| --- | --- | --- |
+| A figure looks old | Its source has not refreshed or the date range differs | Check the source status and date range before refreshing once |
+| A suggestion looks like completed work | You are viewing a draft or review stage | Check the status and open the page that records implementation or sending |
+| An action is unavailable | The item is at the wrong stage or your role cannot perform it | Read the status, complete the earlier step, or ask an administrator |
+| A retry gives the same error | A connection or required field still needs attention | Stop repeated retries and inspect the specific connection or validation message |
 
 ## Worked examples
 
-### Turn a recommendation into a reviewed plan
+### Investigate a sales concern
 
-Open Recommendation Inbox, inspect evidence and guardrails, start or open the linked Planning Workspace thread, develop the plan, submit the exact version for review, and record the human decision. Acceptance still does not publish or execute campaign changes.
+Dashboard shows online sales below the previous period. Open the detailed view, use the same dates for both periods, and check whether source data is current. The dashboard result starts the investigation; it does not decide that a campaign or product caused the change.
 
-### Investigate declining stock turnover
+### Move from a question to a decision
 
-Open Stock Turnover, select the relevant date range and product, inspect sales and stock context, compare related inventory analysis, and confirm source freshness before deciding on replenishment, pricing, or merchandising action.
+Ask AI Helper why winter jackets may be moving slowly. Use the reply to open the relevant inventory and sales views. If a marketing idea follows, create or open a Planning Workspace thread and submit the exact plan for review rather than treating the chat reply as approval.

@@ -95,6 +95,13 @@ function parseDocument(filename, source, options = {}) {
     }
     const unsafe = unsafeHelpPatterns.find(pattern => pattern.test(match[2]));
     if (unsafe) throw new Error(`${filename}: contains forbidden internal or sensitive content (${unsafe})`);
+    if (metadata.format != null && !['overview', 'task', 'reference'].includes(metadata.format)) {
+      throw new Error(`${filename}: invalid format`);
+    }
+    if (metadata.relatedTopics != null && (!Array.isArray(metadata.relatedTopics)
+      || metadata.relatedTopics.some(value => !String(value).trim()))) {
+      throw new Error(`${filename}: invalid relatedTopics`);
+    }
   }
 
   const sections = [];
@@ -133,6 +140,15 @@ function parseDocument(filename, source, options = {}) {
     const headings = new Set(sections.map(section => section.heading.toLowerCase()));
     for (const required of ['Main operations', 'Worked examples']) {
       if (!headings.has(required.toLowerCase())) throw new Error(`${filename}: missing required section ${required}`);
+    }
+    if (metadata.format === 'task') {
+      for (const required of ['At a glance', 'Before you begin', 'Step-by-step', 'Troubleshooting']) {
+        if (!headings.has(required.toLowerCase())) throw new Error(`${filename}: task guide missing section ${required}`);
+      }
+      if (!/^\|.+\|\r?\n\|[-:| ]+\|/m.test(match[2])) throw new Error(`${filename}: task guide must include a Markdown table`);
+      if (!/^> \*\*(?:Note|Tip|Important|Warning):\*\*/m.test(match[2])) {
+        throw new Error(`${filename}: task guide must include a labelled callout`);
+      }
     }
   }
   return { metadata, sections, source: match[2].trim() };
@@ -180,6 +196,31 @@ const capabilityIds = new Set(capabilities.map(capability => capability.id));
 for (const document of documents) {
   if (!capabilityIds.has(document.capability)) {
     throw new Error(`${document.filename}: unknown capability ${document.capability}`);
+  }
+}
+
+const documentsById = new Map(documents.map(document => [document.id, document]));
+const topicsById = new Map(helpTopics.map(topic => [topic.id, topic]));
+for (const topic of helpTopics) {
+  const sectionHeadings = new Set(topic.sections.map(section => section.heading.toLowerCase()));
+  for (const [context, heading] of Object.entries(topic.contextSections ?? {})) {
+    if (!topic.contexts.includes(context)) throw new Error(`${topic.filename}: contextSections contains unknown context ${context}`);
+    if (!sectionHeadings.has(String(heading).toLowerCase())) {
+      throw new Error(`${topic.filename}: context ${context} targets missing section ${heading}`);
+    }
+  }
+  for (const relatedId of topic.relatedTopics ?? []) {
+    const related = documentsById.get(relatedId);
+    if (!related) throw new Error(`${topic.filename}: unknown related topic ${relatedId}`);
+    if (!topic.audiences.some(audience => related.audiences.includes(audience))) {
+      throw new Error(`${topic.filename}: related topic ${relatedId} has no shared audience`);
+    }
+  }
+  if (topic.parentId) {
+    const parent = topicsById.get(topic.parentId);
+    if (parent && !topic.audiences.some(audience => parent.audiences.includes(audience))) {
+      throw new Error(`${topic.filename}: parent topic ${topic.parentId} has no shared audience`);
+    }
   }
 }
 

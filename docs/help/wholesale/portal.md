@@ -1,55 +1,55 @@
 ---
-{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","contexts":["home","catalogue","lists","orders","account","help"],"contextSections":{"home":"Home","catalogue":"Catalogue","lists":"Saved Lists","orders":"Orders","account":"Account","help":"Support"},"order":1,"summary":"Browse the approved catalogue, prepare orders, reuse saved lists, and manage your buying account.","lastReviewed":"2026-08-23","owner":"wholesale"}
+{"id":"wholesale-portal","title":"Wholesale Portal","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Portal","product":"wholesale","format":"overview","relatedTopics":["wholesale-getting-started-account-approval","wholesale-ordering-saved-lists-stock-rules","wholesale-team-locations-permissions"],"contexts":["home","help"],"contextSections":{"home":"Home","help":"Support"},"order":1,"summary":"Find the right wholesale guide for account access, ordering, saved lists, stock rules, locations, and team permissions.","lastReviewed":"2026-08-23","owner":"wholesale"}
 ---
 # Wholesale Portal
 
-The portal shows catalogue, pricing, locations, and orders available to the signed-in wholesale account. Access is limited to the verified company, member, and permitted buying locations.
+Use this overview to choose the wholesale guide for your account, order, or team task.
 
 ## Main operations
 
-- Browse or search the approved catalogue and inspect product variants.
-- Add available or permitted indent quantities to the cart.
-- Save reusable lists for recurring purchasing.
-- Prepare, review, and submit orders for the selected buying location.
-- Review order history and reorder using current catalogue information.
-- Maintain permitted account, location, team, and address information.
+| What you need to do | Open this Help topic |
+|---|---|
+| Apply, verify your email, wait for approval, or sign in | Getting Started and Account Approval |
+| Browse approved products, use saved lists, reorder, or understand stock and indent | Ordering, Saved Lists, and Stock Rules |
+| Switch buying location, edit addresses, or manage team access | Team, Locations, and Permissions |
+
+> **Important:** The supplier controls account approval, wholesale pricing, brand access, payment terms, and which products permit indent ordering. The portal applies those current settings whenever you load or submit an order.
 
 ## Home
 
-Home summarises the current wholesale workspace and gives quick access to catalogue and order activity. Confirm the displayed buying location before starting an order.
+Home shows the signed-in company, active buying location, available-product count, open-order count, and shortcuts into the approved catalogue and recent activity. Check the buying location in the header before starting work.
 
-## Catalogue
-
-Catalogue search and filters show products approved for this portal. Product cards and detail views provide current pricing, variants, and relevant availability or indent behavior. Items unavailable to the account are not exposed through Help or assistant lookup.
-
-## Saved Lists
-
-Saved Lists stores reusable product selections. Applying a list rebuilds a current cart; it does not preserve old pricing or override present availability and indent rules.
-
-## Orders
-
-Orders contains drafts, submitted orders, statuses, and history belonging to the verified account context. Review location, products, quantities, current price, and totals before submission. Reordering uses current catalogue data; retired lines can be omitted and stock-limited lines can be reduced.
-
-## Account
-
-Account contains permitted profile, buying-location, team, and address controls. Switching location changes the buying context and can change catalogue availability, delivery information, and the orders visible to the current member.
+All signed-in roles can browse their approved catalogue, prepare carts, save drafts, submit orders, use saved lists and favourites, and review orders available to their company and assigned buying locations. Owner and Admin roles also receive account-management controls.
 
 ## Support
 
-Use Ask Solvantis for product and workflow guidance. It can plan several read-only checks when needed, but every lookup remains limited to this buyer's approved catalogue, assigned account/location, and owned orders. It cannot submit or alter an order. Use the supplier support details shown in Help when account approval, commercial terms, unavailable catalogue access, or an order requires direct supplier review.
+Use **Help** for the supplier's support email or existing account-manager contact. Contact the supplier when an application needs review, a commercial term is wrong, a brand or product is unavailable, or an order needs a change that the portal does not offer.
+
+Ask Solvantis can explain products and workflows using read-only information limited to the signed-in buyer, company, assigned location, approved catalogue, and owned orders. It cannot submit or alter an order.
+
+## Daily buying checklist
+
+- [ ] Confirm the company and buying location in the portal header.
+- [ ] Review current price, pack rules, available quantity, and indent labels.
+- [ ] Read every adjustment message after loading a draft, saved list, or prior order.
+- [ ] Confirm the delivery address and payment terms before submission.
+- [ ] Use Orders to verify the submitted reference and status.
 
 ## Troubleshooting
 
-- Confirm the current buying location if catalogue or order results differ from expectation.
-- Refresh a saved list or reorder and review current quantities rather than assuming the original order can be repeated unchanged.
-- Contact the supplier for account approval, pricing agreements, credit terms, or products not approved for the portal.
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| Expected products or brands are missing | They are not in the account's current approved catalogue | Clear filters, then contact the supplier if access should change |
+| Orders differ after changing location | Orders and drafts are tied to their buying location | Switch to the location shown on the order before editing its draft |
+| A repeat order has fewer lines or units | Current stock or catalogue rules changed | Review the adjustment message and cart before submitting |
+| Account controls are missing | The signed-in member is a Buyer | Ask an Owner or Admin to make the account change |
 
 ## Worked examples
 
-### Reorder a previous purchase
+### Start an order for the correct shop
 
-Open Orders, select the previous order, and choose reorder. Solvantis rebuilds the cart using current products, pricing, stock limits, and indent rules. Review any omitted or reduced lines before submitting.
+Morgan is assigned to Sydney and Newcastle. The header shows Sydney, but the goods are for Newcastle. Morgan switches the buying location to Newcastle before opening Catalogue, then confirms the Newcastle shipping address in the cart before submission.
 
-### Order for another permitted location
+## Related tasks
 
-Switch the buying location from Account or the location control, return to Catalogue, build the cart, and confirm the selected location before submission. Orders for locations outside the verified account cannot be viewed or created.
+Use the three related task guides for complete application, ordering, and account-management procedures.

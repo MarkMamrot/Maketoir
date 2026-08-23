@@ -1,117 +1,82 @@
 ---
-{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"order":95,"summary":"Prepare and publish the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
+{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","screen":"Integrations > Online Shop","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"contextSections":{"online-shop":"Storefront workflow","online-shop-settings":"Store settings","online-shop-templates":"Templates and pages","online-shop-pages":"Templates and pages","online-shop-products":"Products and publication","online-shop-shipping":"Shipping and fulfilment","online-shop-checkout":"Checkout and signed-in customers","online-shop-account":"Checkout and signed-in customers"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-customer-orders"],"order":95,"summary":"Configure, publish, fulfil, and support the native Solvantis consumer storefront.","lastReviewed":"2026-08-23","owner":"commerce"}
 ---
 # Online Shop
 
-Administrators open **Integrations > Online Shop** to prepare Solvantis's native consumer storefront. Native publication is separate from Shopify publication.
+The Online Shop is Solvantis's native consumer storefront. Its publication is separate from Shopify, while successful checkouts become normal IMS online Sales Orders.
 
 ## Main operations
 
-- Configure store identity, hosted address, support email, logo, and search metadata.
-- Connect and verify an optional custom storefront domain.
-- Edit and publish templates for Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account.
-- Create and publish custom content pages such as About, Shipping, Returns, and Privacy.
-- Publish eligible products to the native shop independently of Shopify.
-- Configure delivery rates, free-shipping thresholds, click-and-collect locations, and order fulfilment behavior.
-- Connect the merchant's Stripe account for secure checkout payments.
-- Let signed-in customers apply an eligible loyalty reward, store credit, or both at checkout.
-- Review the active native online channel, catalogue availability, prices, and public routes.
+- Configure store identity, hosted address, optional custom domain, and Stripe connection.
+- Build and publish templates and content pages.
+- Publish eligible IMS products independently of Shopify.
+- Configure delivery rates, click and collect, and order fulfilment.
+- Support signed-in customer rewards, store credit, orders, and refunds.
 
-## Before you begin
+## Storefront workflow
 
-The native shop profile and native online sales channel must be active for public browsing. Product publication requires at least one active retail-priced variant and a unique native product address. Uploaded store images support JPEG, PNG, WebP, and GIF up to 10 MB.
+| Area | Main decision | Public effect |
+|---|---|---|
+| Store settings | Identity, address, domain, payments, fulfilment mode | Controls whether checkout and the storefront can operate |
+| Products | Publish or unpublish eligible products | Changes native catalogue visibility only |
+| Shipping | Delivery coverage, price, free threshold, pickup branches | Controls available checkout choices |
+| Templates | Draft, review, and publish page layouts | Changes standard storefront pages |
+| Pages | Content, navigation, visibility, and publication | Adds pages such as Shipping, Returns, or Privacy |
 
-Checkout also requires active online stock locations, at least one delivery rate or click-and-collect location, and a connected Stripe account that is ready to accept charges.
+## Store settings
 
-## Step-by-step workflows
+Checkout needs an active native shop, online stock locations, a delivery rate or click-and-collect option, and a connected Stripe account ready to accept charges. An optional custom domain becomes active only after the displayed ownership record, CNAME target, HTTPS routing, and certificate are verified. The hosted `/shop/` address continues to work while a custom domain is pending or disconnected.
 
-### Publish a template change
+Retail prices and delivery rates are tax-inclusive AUD amounts. At checkout the server recalculates publication, price, delivery, GST, and available stock before reserving concrete quantities for a limited time.
 
-1. Open Templates and choose the storefront view.
-2. Add, edit, remove where allowed, or reorder compatible sections.
-3. Save the draft.
-4. Review the saved version and publish it. Publishing is blocked while unsaved editor changes remain.
+> **Important:** Native publication does not depend on a Shopify product ID. Switching a product on or off in the native shop does not publish or unpublish it in Shopify.
 
-### Publish a product
+## Products and publication
 
-1. Open Products in Online Shop.
-2. Confirm an active variant has a retail price and the product has a unique native address.
-3. Review imagery, content, current sale pricing, and availability.
-4. Publish to the native shop. Existing Shopify links remain for context but do not control native publication.
+A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out products may remain visible but cannot be added to the cart.
 
-### Configure fulfilment and shipping
+## Templates and pages
 
-1. In Store settings, choose whether each delivery order must come from one location, may be consolidated to a dispatch location, or may split by fulfilment location.
-2. For consolidation, choose the branch that dispatches the completed parcel.
-3. Open Shipping and add tax-inclusive delivery rates. Optionally limit a rate by Australian state, exact postcode, postcode range, or prefix, and set a free-shipping threshold.
-4. Enable each online location that customers may choose for click and collect.
+Templates and content pages keep separate draft and published revisions. Save the draft before publishing; publishing is blocked while the editor has unsaved changes. A content page is public only when it has published content and **Visible when published** is selected.
 
-### Connect payments
+## Shipping and fulfilment
 
-In Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key.
+| Mode | Best when | What Solvantis creates |
+|---|---|---|
+| **One location per order** | One branch can supply the complete delivery | One order from that location; checkout cannot combine stock from several branches |
+| **Consolidate to one dispatch location** | One parcel and one dispatch team are preferred | Transfer work brings stock to the selected dispatch branch before fulfilment |
+| **Split by fulfilment location** | Faster supply matters more than one parcel | One Sales Order per source location, which may mean separate fulfilments |
 
-### Connect a custom domain
+Choose consolidation when staff can manage the transfer and the customer should receive one dispatch. Choose split fulfilment when separate branch work and possible separate parcels are acceptable. Click and collect uses the customer-selected enabled pickup location.
 
-1. In Store settings, enter the storefront domain without `https://` or a path and save it.
-2. Add the exact ownership TXT and CNAME records shown by Solvantis to the domain's DNS provider.
-3. Complete the custom-domain and certificate setup with the hosting administrator.
-4. Choose **Verify DNS** after DNS and HTTPS are available.
+## Checkout and signed-in customers
 
-The custom domain becomes active only after ownership, the CNAME target, HTTPS routing, and its certificate are all verified. The hosted `/shop/` address continues working when a custom domain is pending, disconnected, or unavailable.
+| Shopper | Checkout capability |
+|---|---|
+| Guest | Delivery or click and collect, current pricing, secure Stripe payment |
+| Signed in | Guest capabilities plus eligible loyalty rewards and available store credit |
 
-### Use loyalty rewards and store credit
+Signed-in customers can view account value and use one eligible fixed-value loyalty reward, store credit, or both. The reward reduces eligible merchandise first; store credit then settles the remaining order value before Stripe. Reservations do not change points or store credit until checkout succeeds. If account value covers the whole order, checkout completes without opening Stripe.
 
-Customers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points and eligible merchandise to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied to merchandise first and store credit is applied to the remaining order value.
-
-The selection is reserved while checkout is active but does not change either customer ledger until payment succeeds. Starting payment locks the selection. If the selected value covers the complete order, checkout completes without opening Stripe.
-
-### Refund a native order
-
-Create the customer credit note from the linked native sales order, keep its item links and return quantities, choose **Refund**, and complete the note. The credit note remains the owner of returned stock and accounting. For an order paid with both store credit and Stripe, a partial refund restores the original store-credit payment first and refunds any remainder to Stripe. Stripe must accept the idempotent refund before the credit note completes and restocks items.
-
-Completed partial returns reverse earned loyalty points proportionally. Points spent on the original reward are also restored proportionally to returned eligible merchandise. If earned points have since been spent and cannot be reversed, completion is blocked until the later loyalty activity is resolved.
-
-## Statuses, calculations, and permissions
-
-Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.
-
-A custom page is publicly eligible only after it has published content and is marked visible. Product unpublishing removes it from native browsing without deleting the IMS product or Shopify mapping.
-
-Retail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.
-
-The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A loyalty reward is a merchandise discount; store credit settles the discounted balance and Stripe settles any amount still due. Successful settlement converts the reservation into ordinary confirmed IMS online sales orders, records loyalty and store-credit ledger entries idempotently, and awards points on eligible merchandise after the loyalty discount. Delivery and payment methods do not reduce eligible merchandise spend. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes, where Stripe cash and store-credit liability settlement remain separate.
+For a native return, create the customer credit note from the linked Sales Order and complete the supported refund choice. A partial mixed-payment refund restores the original store-credit payment before sending any remainder to Stripe. Stock and customer value do not change if Stripe rejects the refund.
 
 ## Troubleshooting
 
-- Save outstanding editor changes before publishing.
-- Resolve a revision conflict by refreshing and reconciling the newer saved draft rather than overwriting it blindly.
-- Confirm page visibility and published content when a custom page is not public.
-- Confirm native publication, active retail pricing, unique address, channel state, and enabled online stock locations when a product is absent.
-- Every cart refresh recalculates current publication, price, and availability on the server.
-- If checkout reports no delivery option, review the destination state/postcode coverage and active rates.
-- If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.
-- If a reward or store-credit selection has expired, review the current balance and apply it again before starting payment.
-- If a native refund remains incomplete, review the credit note settlement error and retry completion. A Stripe failure does not restock goods or change customer value.
-- If a custom domain does not verify, compare both displayed DNS records exactly, confirm HTTPS setup is complete, allow for DNS propagation, and retry verification.
-
-## Related tasks
-
-Related Help topics include All Products, Website Content Studio, Shopify, Online Sales, Brands, and Stock Levels.
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| A product is absent | Not published, no active retail-priced variant, duplicate address, or no online stock location | Correct the requirement and publish again |
+| A page is not public | Draft not published or visibility is off | Publish the saved revision and enable visibility |
+| No delivery option appears | Address is outside active state or postcode rules | Review the destination and delivery-rate coverage |
+| Payment cannot start | Stripe setup is incomplete or charges are not enabled | Complete or reconnect the merchant Stripe account |
+| Reward or store credit is unavailable | Shopper is not signed in, balance changed, or selection expired | Sign in, refresh the current value, and apply it again |
+| A custom domain will not verify | DNS record, CNAME, HTTPS, or certificate is incomplete | Compare the displayed records exactly and retry after propagation |
 
 ## Worked examples
 
-### Publish a returns page
+### Choose split or consolidated fulfilment
 
-Create a Returns page, choose its address and navigation placement, write and save the draft, publish that revision, and mark the page visible. A saved but unpublished or hidden page is not publicly eligible.
-
-### Unpublish a native product without affecting Shopify
-
-Open the product in Online Shop and unpublish it from the native channel. It disappears from native browsing, while the IMS product and any existing Shopify mapping remain intact.
+A customer orders a jacket held at Brisbane and shoes held at Sydney. **Split by fulfilment location** creates separate branch Sales Orders. **Consolidate** creates transfer work to the chosen dispatch branch so one team can send the complete parcel.
 
 ### Combine a reward and store credit
 
-For a $100 order, a signed-in customer may select a fixed $20 reward and then apply $30 store credit. The order records a $20 loyalty discount, $30 of store-credit settlement, and $50 due through Stripe. Points and store credit remain unchanged until successful settlement.
-
-### Partially refund a mixed payment
-
-For an order settled with $30 store credit and $50 through Stripe, a $40 credit note restores $30 to the customer's store-credit balance and refunds $10 through Stripe. A later refund can use only the remaining Stripe-settled value.
+For a $100 order, a signed-in customer applies a $20 reward and $30 store credit. The order records a $20 merchandise discount, $30 settled by store credit, and $50 due through Stripe. Points and store credit change only after successful checkout.

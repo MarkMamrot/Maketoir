@@ -1,51 +1,72 @@
 ---
-{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","parentId":"ims-products","contexts":["products","stock","brands","gift-cards","bulk-edit"],"contextSections":{"products":"Products and variants","stock":"Stock levels","brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit"},"order":15,"summary":"Maintain products, variants, brands, stock visibility, gift cards, and supported bulk changes.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-08-23","owner":"inventory"}
 ---
 # Catalogue and Stock
 
+Use this page to choose the right Products workspace. Product details describe what you sell; stock records show what is physically available and why.
+
 ## Main operations
 
-- Use **All Products** to create and maintain products and variants.
-- Use **Stock Levels** to compare on-hand, committed, incoming, and available quantities by location.
-- Maintain brands before relying on brand filters or customer-facing presentation.
-- Review issued gift cards and supported balance activity from the dedicated workspace.
-- Use **Bulk Edit** only after filtering and reviewing the complete selected set.
+| I need to... | Open | What it changes |
+|---|---|---|
+| Create an item or add sizes and colours | **Products > All Products** | Product and variant details |
+| Check quantity at a store | **Products > Stock Levels** | Nothing; this is a read-only view |
+| Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |
+| Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |
+| Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |
+| Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |
 
-## Products and variants
+> **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive.
 
-Product detail owns catalogue identity, descriptions, SKUs, barcodes, tax-inclusive selling prices, suppliers, images, online content, and variant settings. Search before creating a product to avoid duplicate identities. Where a product has variants, maintain variant-specific identifiers and prices on the correct row.
+## Choosing a workspace
 
-Stock quantity is not ordinary product metadata. Use receipts, sales, transfers, stocktakes, returns, and supported adjustments so quantity changes retain an operational reason.
+| Question | Best place to start |
+|---|---|
+| Is the SKU, barcode, price or variant wrong? | All Products |
+| Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |
+| Did a delivery arrive? | Purchase Orders and Receive |
+| Does the shelf count differ from the system? | Stocktakes |
+| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Edit |
 
-## Stock levels
-
-Stock Levels separates physical stock on hand from quantities committed to demand, expected from supply, and available to promise. Select the relevant location before comparing values. Average cost is shared organisation-wide per variant; location stock value differs because each location has its own quantity.
+Do not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.
 
 ## Brands
 
-Brands provide consistent catalogue grouping and can affect online and wholesale presentation. Confirm the intended name and customer-facing identity before assigning products. Review dependent products before renaming or retiring a brand.
+Create a consistent brand name before assigning it to products. A brand can be used in filters and may also affect online or wholesale presentation, so check affected products before renaming it.
+
+Use one spelling for the same brand. For example, choose **Coastal Home** rather than mixing **Coastal Home**, **CoastalHome** and **Coastal Home AU**.
 
 ## Gift cards
 
-Gift Cards shows issued cards and supported balance activity. Issue and redemption effects belong to the gift-card and POS workflow. Do not imitate a balance change through product pricing, customer credit, or a generic stock edit.
+Gift Cards shows issued cards and their supported balance activity. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity.
 
 ## Bulk edit
 
-Bulk Edit applies supported field changes across the selected product set. Check active filters, selected variants, destination value, tax treatment, and online state before applying. Reopen a sample of affected products after completion to verify the intended result.
+Bulk Edit is useful when the same supported change applies to a known group. Before applying it:
+
+- [ ] Clear old filters.
+- [ ] Filter to the intended products or variants.
+- [ ] Review the full selection, not only the first rows.
+- [ ] Check whether the value is tax-inclusive or tax-exclusive.
+- [ ] Reopen a few affected products after the change.
+
+Stop and narrow the selection if unrelated products appear. Use the individual product screen when exceptions need different values.
 
 ## Troubleshooting
 
-- If a product is missing, clear filters and search by SKU or barcode as well as name.
-- If available stock differs from on hand, inspect committed demand and incoming supply.
-- If an edit is unavailable, check role, product state, and whether the value belongs to a stock or ledger workflow.
-- If a bulk change selected too many records, stop before applying and narrow the filters.
+| Symptom | Likely reason | What to do |
+|---|---|---|
+| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |
+| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |
+| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |
+| Bulk Edit includes too many items | The selection is broader than intended | Stop before applying, refine the filters and review again |
 
 ## Worked examples
 
-### Investigate low availability
+### Update a winter price group
 
-Open Stock Levels, choose the location, and compare on hand, committed, incoming, and available. Follow committed quantities into Sales Orders or Stock Allocation and incoming quantities into Purchase Orders before changing stock.
+A retailer needs to change 24 winter jackets to a tax-inclusive retail price of $220. They filter by the exact brand and product type, review all 24 products, apply the supported price change, then open three products to confirm the new price. The $220 price already contains $20 GST; GST is not added again at the register.
 
-### Prepare a controlled price update
+### Investigate a stock question
 
-Filter Bulk Edit to the intended products, review the complete selection, choose the supported selling-price field, and enter tax-inclusive prices. Apply the change, then open representative products to confirm the result.
+Stock Levels shows 10 candles on hand and 3 committed, so 7 are available. The retailer checks the customer orders behind the committed quantity instead of increasing stock to 10 again.

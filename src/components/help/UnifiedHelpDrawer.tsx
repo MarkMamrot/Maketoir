@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
+import { searchHelpTopics } from '@/lib/help/searchHelpTopics';
 import type { HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
+import { HelpMarkdown } from './HelpMarkdown';
 import styles from './UnifiedHelpDrawer.module.css';
 
 export function UnifiedHelpDrawer({
@@ -65,9 +65,9 @@ export function UnifiedHelpDrawer({
   }, [open, closeDrawer]);
 
   const selected = topics.find(topic => topic.id === selectedId) ?? contextual?.topic ?? topics[0] ?? null;
-  const filtered = query.trim()
-    ? topics.filter(topic => `${topic.title} ${topic.summary} ${topic.sections.map(section => section.heading).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))
-    : topics;
+  const normalizedQuery = query.trim().toLowerCase();
+  const searchResults = useMemo(() => searchHelpTopics(topics, normalizedQuery), [topics, normalizedQuery]);
+  const filtered = normalizedQuery ? [] : topics;
   const topicGroups = filtered.reduce<Array<{ label: string; topics: HelpTopic[] }>>((groups, topic) => {
     const label = topic.screen.split(' > ')[0];
     const existing = groups.find(group => group.label === label);
@@ -76,10 +76,15 @@ export function UnifiedHelpDrawer({
     return groups;
   }, []);
 
-  const selectTopic = (topic: HelpTopic) => {
+  const selectTopic = (topic: HelpTopic, sectionId?: string) => {
     setSelectedId(topic.id);
     setQuery('');
+    if (sectionId) requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' }));
   };
+
+  const relatedTopics = selected?.relatedTopics
+    ?.map(topicId => topics.find(topic => topic.id === topicId))
+    .filter((topic): topic is HelpTopic => Boolean(topic)) ?? [];
 
   return (
     <>
@@ -140,17 +145,22 @@ export function UnifiedHelpDrawer({
                   <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Help" aria-label="Search Help" />
                 </label>
                 <div className={styles.topicList}>
+                  {normalizedQuery && searchResults.map(({ topic, section, snippet }) => (
+                    <button key={`${topic.id}:${section.id}`} className={styles.searchResult} onClick={() => selectTopic(topic, section.id)}>
+                      <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span><ChevronRight size={15} />
+                    </button>
+                  ))}
                   {topicGroups.map(group => (
                     <div className={styles.topicGroup} key={group.label}>
                       <h3>{group.label}</h3>
                       {group.topics.map(topic => (
-                        <button key={topic.id} className={topic.id === selected?.id ? styles.selectedTopic : ''} onClick={() => selectTopic(topic)}>
+                        <button key={topic.id} className={`${topic.id === selected?.id ? styles.selectedTopic : ''} ${topic.parentId && topics.some(candidate => candidate.id === topic.parentId) ? styles.childTopic : ''}`} onClick={() => selectTopic(topic)}>
                           <span>{topic.title}</span><ChevronRight size={15} />
                         </button>
                       ))}
                     </div>
                   ))}
-                  {filtered.length === 0 && <p className={styles.noResults}>No matching topics.</p>}
+                  {normalizedQuery && searchResults.length === 0 && <p className={styles.noResults}>No matching topics.</p>}
                 </div>
               </nav>
 
@@ -167,10 +177,16 @@ export function UnifiedHelpDrawer({
                       {selected.sections.map(section => (
                         <section key={section.id} id={section.id} className={section.heading === 'Main operations' ? styles.mainOperations : ''}>
                           <h2>{section.heading}</h2>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
+                          <HelpMarkdown>{section.content}</HelpMarkdown>
                         </section>
                       ))}
                     </div>
+                    {relatedTopics.length > 0 && (
+                      <nav className={styles.relatedTopics} aria-label="Related Help topics">
+                        <h2>Related Help</h2>
+                        <div>{relatedTopics.map(topic => <button key={topic.id} onClick={() => selectTopic(topic)}>{topic.title}<ChevronRight size={14} /></button>)}</div>
+                      </nav>
+                    )}
                   </>
                 ) : (
                   <div className={styles.empty}><BookOpen size={24} /><strong>Help is being prepared for this screen.</strong></div>

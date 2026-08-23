@@ -56,7 +56,7 @@ export function retrieveAssistantKnowledge(input: {
   if (queryTerms.size === 0) return [];
   const currentView = input.currentView?.trim().toLowerCase() ?? '';
 
-  return (assistantIndex.chunks as IndexedChunk[])
+  const ranked = (assistantIndex.chunks as IndexedChunk[])
     .filter(chunk => chunk.audiences.includes(input.audience))
     .map(chunk => {
       const titleTerms = terms(`${chunk.title} ${chunk.heading}`);
@@ -72,7 +72,17 @@ export function retrieveAssistantKnowledge(input: {
       return { ...chunk, score: titleMatches * 5 + bodyMatches + viewBoost + Number(chunk.sourcePriority ?? 0) };
     })
     .filter(chunk => chunk.score > 0)
-    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
-    .slice(0, Math.min(Math.max(input.limit ?? 4, 1), 8))
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
+  const limit = Math.min(Math.max(input.limit ?? 4, 1), 8);
+  const topicCounts = new Map<string, number>();
+  return ranked
+    .filter(chunk => {
+      const topic = chunk.topicId ?? chunk.title;
+      const count = topicCounts.get(topic) ?? 0;
+      if (count >= 2) return false;
+      topicCounts.set(topic, count + 1);
+      return true;
+    })
+    .slice(0, limit)
     .map(({ id, title, heading, screen, topicId, content, score }) => ({ id, title, heading, screen, topicId, content, score }));
 }

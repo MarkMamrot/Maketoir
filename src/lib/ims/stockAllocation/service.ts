@@ -93,8 +93,8 @@ export async function createStockAllocation(input: CreateStockAllocationInput): 
   try {
     await conn.beginTransaction();
     const [[soItem]] = await conn.execute<any[]>(
-      `SELECT soi.id, soi.so_id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled,
-              so.business_id, so.location_id, so.status
+            `SELECT soi.id, soi.so_id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled,
+              so.business_id, so.location_id, so.status, so.so_type
          FROM ims_sales_order_items soi
          JOIN ims_sales_orders so ON so.id = soi.so_id
         WHERE soi.id = ? AND soi.business_id = ? AND so.business_id = ?
@@ -102,6 +102,9 @@ export async function createStockAllocation(input: CreateStockAllocationInput): 
       [input.soItemId, input.businessId, input.businessId],
     );
     if (!soItem) throw new StockAllocationConflict('Sales order line was not found.');
+    if (String(soItem.so_type) === 'online') {
+      throw new StockAllocationConflict('Online sales orders are fulfilled from available stock and cannot receive incoming allocation.');
+    }
     if (!['confirmed', 'partially_fulfilled', 'backordered'].includes(String(soItem.status))) {
       throw new StockAllocationConflict('Only confirmed, partially fulfilled, or held backorder demand can receive incoming allocation.');
     }
@@ -369,12 +372,12 @@ export async function listStockAllocationCandidates(input: { businessId: string;
   const [demandRows] = await getIMSPool().execute<any[]>(
     `SELECT soi.id AS so_item_id, soi.variant_id, soi.qty_ordered, soi.qty_fulfilled,
             v.sku, p.name AS product_name,
-            so.location_id, so.status
+            so.location_id, so.status, so.so_type
        FROM ims_sales_order_items soi
        JOIN ims_sales_orders so ON so.id = soi.so_id AND so.business_id = ?
        LEFT JOIN ims_product_variants v ON v.variant_id = soi.variant_id
        LEFT JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
-      WHERE soi.so_id = ? AND soi.business_id = ?
+      WHERE soi.so_id = ? AND soi.business_id = ? AND COALESCE(so.so_type, '') <> 'online'
       ORDER BY soi.id`,
     [input.businessId, input.businessId, input.soId, input.businessId],
   );

@@ -4,12 +4,16 @@ import { listHelpTopics, resolveHelpContext } from '../resolveHelpContext';
 
 describe('resolveHelpContext', () => {
   it('opens Purchase Orders for its IMS view and child workflows', () => {
-    for (const context of ['purchase-orders', 'purchase-order-detail', 'purchase-order-receive']) {
+    for (const context of ['purchase-orders', 'purchase-order-detail']) {
       expect(resolveHelpContext({ audience: 'ims', product: 'ims', context })).toEqual(expect.objectContaining({
         exact: true,
         topic: expect.objectContaining({ id: 'ims-purchase-orders' }),
       }));
     }
+    expect(resolveHelpContext({ audience: 'ims', product: 'ims', context: 'purchase-order-receive' })).toEqual(expect.objectContaining({
+      exact: true,
+      topic: expect.objectContaining({ id: 'ims-po-receiving-resolution' }),
+    }));
   });
 
   it('opens POS EOD and Xero help from the EOD screen', () => {
@@ -22,5 +26,13 @@ describe('resolveHelpContext', () => {
   it('never returns IMS-only topics to wholesale users', () => {
     expect(listHelpTopics('wholesale').every(topic => topic.audiences.includes('wholesale'))).toBe(true);
     expect(resolveHelpContext({ audience: 'wholesale', product: 'ims', context: 'purchase-orders' })).toBeNull();
+  });
+
+  it('includes shared references in product topic lists without taking over contextual routing', () => {
+    const topics = listHelpTopics('pos', 'pos');
+    expect(topics.some(topic => topic.id === 'shared-plain-language-glossary')).toBe(true);
+    expect(resolveHelpContext({ audience: 'pos', product: 'pos', context: 'pos' })).toEqual(expect.objectContaining({
+      topic: expect.objectContaining({ product: 'pos' }),
+    }));
   });
 });

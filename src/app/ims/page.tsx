@@ -14285,17 +14285,19 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             </tfoot>
           </table>
 
-          <StockAllocationPanel
-            mode="sales_order"
-            orderId={Number(viewModal.so.id)}
-            items={viewModal.so.items || []}
-            allocations={viewModal.so.stock_allocations || []}
-            readOnly={isAdvisor}
-            onChanged={async () => {
-              const detail = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
-              setViewModal({ open: true, so: detail.data });
-            }}
-          />
+          {viewModal.so.so_type !== 'online' && (
+            <StockAllocationPanel
+              mode="sales_order"
+              orderId={Number(viewModal.so.id)}
+              items={viewModal.so.items || []}
+              allocations={viewModal.so.stock_allocations || []}
+              readOnly={isAdvisor}
+              onChanged={async () => {
+                const detail = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`);
+                setViewModal({ open: true, so: detail.data });
+              }}
+            />
+          )}
 
           {/* ── Payments ── */}
           {(() => {

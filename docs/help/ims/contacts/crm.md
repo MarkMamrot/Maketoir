@@ -1,39 +1,59 @@
 ---
-{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","parentId":"ims-contacts","contexts":["contacts","crm","contact-profile"],"contextSections":{"contacts":"Contacts","crm":"CRM workspace","contact-profile":"Customer profiles"},"order":40,"summary":"Maintain commercial contacts and coordinate customer relationships without overwriting transaction-owned records.","lastReviewed":"2026-08-23","owner":"customer"}
+{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-08-23","owner":"customer"}
 ---
 # Contacts and CRM
 
+Contacts holds maintained customer, supplier, and lead details. CRM adds relationship work and a combined view of customer activity.
+
 ## Main operations
 
-- Search for an existing contact before creating a customer, supplier, or lead.
-- Maintain identity, company, contact, and applicable commercial details on the owning contact.
-- Use CRM profiles, interactions, tasks, tags, segments, pipeline stages, and opportunities for relationship work.
-- Treat POS, orders, credits, loyalty, and store-credit records as authoritative transaction history.
+- Search before creating a contact so one person or company is not duplicated.
+- Maintain names, contact details, company details, and contact type in Contacts.
+- Open a customer profile to review activity and follow its source links.
+- Use CRM tasks, segments, and pipeline for follow-up and sales development.
 
-## Contacts
+## Choose the right contact area
 
-Contacts contains customers, suppliers, leads, and related commercial details. Confirm the intended contact type and company relationship before saving. Generic contact edits must not overwrite balances owned by a ledger or transaction workflow.
-
-## CRM workspace
-
-CRM combines derived activity with manually recorded relationship work. Use tasks for follow-up, interactions for relevant notes, tags and live segments for grouping, and pipeline stages or opportunities for active commercial work. Keep notes factual and appropriate for shared business records.
+| Need | Use | What happens |
+|---|---|---|
+| Add or correct contact details | **Contacts** | The maintained contact record changes |
+| Review purchases, credits, loyalty, or follow-ups | **CRM > Contacts** | A combined profile and timeline opens |
+| Organise follow-up work | **CRM > Tasks** | Tasks can be assigned, completed, or cancelled |
+| Group customers from current data | **CRM > Segments** | Membership recalculates when viewed or refreshed |
+| Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |
 
 ## Customer profiles
 
-A profile brings together maintained details and supported activity history. Use source links to inspect an order, sale, credit, loyalty entry, or store-credit transaction. Correct the source transaction through its owning workflow rather than rewriting the CRM summary.
+A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.
+
+| Information | Where it comes from | Where to correct it |
+|---|---|---|
+| Name, company, email, phone, address, contact type | Contact record | **Contacts** |
+| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |
+| Customer order and fulfilment | Sales Order | The linked Sales Order |
+| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |
+| Loyalty points | Loyalty activity | The supported loyalty or return workflow |
+| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |
+| Follow-up commitment | CRM task | The task queue or customer profile |
+| Potential sale and forecast value | CRM opportunity | The Pipeline |
+
+> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent.
 
 ## Troubleshooting
 
-- If history appears incomplete, check date filters and the source workspace before adding a duplicate manual interaction.
-- If a balance cannot be edited, use the owning credit, loyalty, payment, or return workflow.
-- If a segment membership looks unexpected, inspect its live criteria and current contact values.
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| A customer appears twice | Separate contacts were created | Check both records and use the supported data-quality merge action if appropriate |
+| Profile activity looks incomplete | A category or date filter is active | Clear filters, then open the source workspace |
+| A balance cannot be typed over | It changes through transactions | Open the relevant credit, return, payment, or loyalty activity |
+| A supplier has no retail CRM history | CRM activity is limited to eligible customer and lead types | Confirm the contact type before changing it |
 
 ## Worked examples
 
-### Follow up a wholesale lead
+### Correct a customer's email
 
-Find or create the contact with the correct company relationship, record the relevant interaction, create a dated task, and place the opportunity in the appropriate stage. Update each item as the conversation progresses.
+Open **Contacts**, search for the customer, edit the maintained email address, and save. Do not add a CRM interaction as a substitute for correcting the contact.
 
-### Investigate customer store credit
+### Investigate store credit
 
-Open the customer profile and follow the store-credit history to its source transactions. Use the linked credit-note or payment workflow for corrections; do not type a replacement balance into the contact.
+Open the customer profile and review the store-credit activity. Follow the linked credit note or payment source when available, then use that workflow for any correction rather than entering a replacement balance.

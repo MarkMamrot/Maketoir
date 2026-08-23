@@ -46,6 +46,7 @@ describe('GET /api/ims/stock-availability', () => {
     expect(body.summary).toMatchObject({ total: 1, counts: { unsourced: 1, ready: 1, incoming: 1, at_risk: 0 } });
     expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1', 'biz-1', 'biz-1']);
     expect(String(mockImsQuery.mock.calls[0][0])).toContain('po.business_id COLLATE utf8mb4_general_ci = a.business_id COLLATE utf8mb4_general_ci');
+    expect(String(mockImsQuery.mock.calls[0][0])).toContain("COALESCE(so.so_type, '') <> 'online'");
   });
 
   it('reports operational query failures', async () => {

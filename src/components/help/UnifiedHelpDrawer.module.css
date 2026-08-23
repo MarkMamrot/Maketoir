@@ -45,6 +45,14 @@
 .topicList button { min-height: 40px; padding: 8px 9px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 13px; cursor: pointer; }
 .topicList button:hover { background: var(--sv-bg-1, #fff); }
 .topicList .selectedTopic { background: #dcefeb; color: #0e625b; font-weight: 800; }
+.topicList .childTopic { padding-left: 20px; }
+.topicList .childTopic::before { content: ''; width: 7px; height: 7px; margin-left: -10px; border-left: 1px solid #91aaa4; border-bottom: 1px solid #91aaa4; }
+.topicList .searchResult { min-height: 72px; }
+.searchResult span { min-width: 0; display: grid; gap: 2px; }
+.searchResult strong, .searchResult small, .searchResult em { overflow: hidden; text-overflow: ellipsis; }
+.searchResult strong { font-size: 12px; }
+.searchResult small { color: #0f6a62; font-size: 11px; font-weight: 700; }
+.searchResult em { color: var(--sv-text-dim, #64736f); font-size: 11px; font-style: normal; line-height: 1.35; }
 .noResults { padding: 10px; color: var(--sv-text-dim, #64736f); font-size: 12px; }
 
 .content { min-width: 0; overflow-y: auto; padding: 26px clamp(20px, 4vw, 42px) 52px; background: var(--sv-bg-1, #fff); }
@@ -62,7 +70,13 @@
 .sections table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .sections th, .sections td { padding: 8px; border: 1px solid var(--sv-etch, #dce3e0); text-align: left; vertical-align: top; }
 .sections th { background: var(--sv-bg-0, #f5f7f6); }
+.sections input[type="checkbox"] { margin: 0 7px 0 -1px; accent-color: #168077; }
+.sections li:has(> input[type="checkbox"]) { list-style: none; margin-left: -20px; }
 .mainOperations { padding: 16px 18px; border-left: 3px solid #168077; background: #f0f7f5; }
+.relatedTopics { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
+.relatedTopics h2 { margin: 0 0 10px; font-size: 16px; }
+.relatedTopics div { display: grid; gap: 7px; }
+.relatedTopics button { min-height: 38px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--sv-etch, #d2dbd7); border-radius: 5px; background: var(--sv-bg-0, #f5f7f6); color: var(--sv-text-main, #25322f); text-align: left; cursor: pointer; }
 .assistantPane { min-height: 0; }
 .empty { min-height: 100%; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--sv-text-dim, #64736f); }
 

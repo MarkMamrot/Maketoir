@@ -1,66 +1,91 @@
 ---
-{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-receive","purchase-order-resolve","purchase-order-replacement"],"order":10,"summary":"Create, confirm, receive, correct, and review supplier purchase orders.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-purchase-orders","title":"Purchase Orders","audiences":["ims"],"capability":"orders","screen":"Purchasing > Purchase Orders","product":"ims","format":"overview","parentId":"ims-purchasing","contexts":["purchase-orders","purchase-order-detail","purchase-order-edit","purchase-order-replacement"],"contextSections":{"purchase-orders":"Main operations","purchase-order-detail":"Review an order","purchase-order-edit":"Create or edit a purchase order","purchase-order-replacement":"Corrections and replacement drafts"},"relatedTopics":["ims-po-receiving-resolution","ims-supplier-returns-credit-notes","ims-inventory-costing","ims-supplier-work"],"order":10,"summary":"Create, confirm, review and correct supplier purchase orders.","lastReviewed":"2026-08-23","owner":"inventory"}
 ---
 # Purchase Orders
 
-Purchase Orders records planned and received supply from a supplier. Open **Purchasing > Purchase Orders** in IMS. If the sidebar is collapsed, selecting the **Purchasing** icon opens Purchase Orders directly.
+A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery.
 
 ## Main operations
 
-- Select **New Purchase Order** to create a Draft, then choose the supplier and receiving location and add product variants and quantities.
-- Review costs, tax, dates, freight, discounts, currency, landed costs, and notes before confirming.
-- Confirm the order to record incoming stock.
-- Use **Receive** or **Continue Receiving** to record only stock that physically arrived.
-- Use the available correction, resolution, credit, reversal, or replacement action when later stock or accounting activity prevents direct editing.
-- Advisor accounts are read-only and cannot create or change purchase orders.
+| Action | Use it when | Stock effect |
+|---|---|---|
+| New Purchase Order | You are preparing a supplier order | None while Draft |
+| Confirm | The order is ready to place | Quantity becomes incoming, not on hand |
+| Receive | Goods have physically arrived | Adds the entered quantity to on hand |
+| Resolve Outstanding | A partial delivery has a balance to decide | Resolves only the unreceived balance |
+| Supplier Return / Credit | Received goods are going back or the supplier gives a credit | Depends on **Return stock** |
+| Create Replacement Draft | You need a fresh draft based on a completed or cancelled order | No stock effect by itself |
 
-## Before you begin
+Advisor access is read-only. Other actions can be unavailable when the order's status or later stock, payment, credit or accounting activity requires a controlled correction.
 
-The supplier, receiving location, products, quantities, and commercial values should be known before confirmation. Advisor accounts are read-only. Other actions can be restricted by role or when receipts, payments, credits, allocations, or accounting records already exist.
-
-## Step-by-step workflows
-
-### Create and confirm an order
+## Create or edit a purchase order
 
 1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.
 2. Choose the supplier and receiving location.
-3. Add product variants and quantities.
-4. Review tax-exclusive costs, tax, discounts, freight, currency, landed costs, dates, and notes.
-5. Save as Draft if further preparation is needed, or confirm when the order is ready to place.
+3. Add the exact product variants and quantities.
+4. Check order and expected dates, supplier invoice details, discounts, freight, currency, exchange rate, landed costs and notes.
+5. Check the supplier's tax treatment.
+6. Save as **Draft** while details are still being prepared, or confirm when the order is ready to place.
 
-### Receive stock
+Supplier unit costs are normally tax-exclusive. If a supplier charges 10% GST and quotes a $55 tax-inclusive cost, the stock cost is $50 and GST is $5. Choose **Tax inclusive** only when the entered supplier amount already includes tax.
 
-1. Open the confirmed order and select **Receive**.
-2. Enter only the quantity physically received for each line.
-3. Save a partial receipt when more stock is still expected, or complete the receipt when the remaining supply is resolved.
-4. Review any protected customer demand or short-receipt warnings before confirming.
+> **Important:** Confirming a PO does not mean the goods have arrived. It records expected supply. Use Receive only after checking the physical delivery.
 
-## Statuses, calculations, and permissions
+## Purchase order status flow
 
-- **Draft**: editable preparation state; no incoming stock has been recorded.
-- **Confirmed**: expected quantities contribute to incoming stock.
-- **Partially Received**: some stock is received and the balance remains outstanding.
-- **Completed**: receiving is finished and the order remains as an audit record.
-- **Cancelled**: the order is retained but no longer active.
+| Status | What it means | Usual next action |
+|---|---|---|
+| Draft | The order is being prepared | Edit, confirm or delete |
+| Confirmed | The supplier order is active and quantity is incoming | Receive, edit, revert to Draft or cancel where offered |
+| Partially Received | Some goods arrived and some remain outstanding | Continue Receiving or Resolve Outstanding |
+| Backordered | Outstanding quantity was moved to a held child order | Release when it should become active, or cancel |
+| Complete | Receiving is finished | Review, return goods, correct a mistaken receipt or create a replacement draft |
+| Cancelled | The order is closed without further receiving | Review or create a replacement draft |
 
-Received inventory cost uses the purchase-order line cost after discount, removes included purchase tax when applicable, converts foreign currency to AUD, and can include allocated freight and landed costs. Solvantis then updates the organisation-wide weighted-average cost for the variant.
+## Review an order
+
+Open the PO number to review products, quantities, supplier invoice details, receipts, payments, files and Xero status. Activity History shows later edits, status changes, receipts, resolution choices, linked supplier credits and replacement orders.
+
+Use the current status and available actions as your guide. A missing action usually means the order has already produced a physical or accounting result that should not be overwritten.
+
+## Costs and stock value
+
+The received cost can include line discounts, foreign-currency conversion, freight and landed costs according to the saved settings. Included purchase tax is removed from inventory cost. Completing a receipt updates the current weighted-average cost for each received variant.
+
+| Entered amount | Tax choice | Cost before other adjustments | GST |
+|---:|---|---:|---:|
+| $50.00 | Tax exclusive at 10% | $50.00 | $5.00 |
+| $55.00 | Tax inclusive at 10% | $50.00 | $5.00 |
+| $50.00 | No tax | $50.00 | $0.00 |
+
+## Corrections and replacement drafts
+
+Choose the action that matches what happened:
+
+| Situation | Use | Do not use |
+|---|---|---|
+| The receipt was entered, but the goods never arrived | **Undo Mistaken Receipt**, when offered | Supplier Return / Credit |
+| Goods arrived and are now being sent back | **Supplier Return / Credit** | Undo Mistaken Receipt |
+| You need a new order with similar lines | **Create Replacement Draft** | Reopen a completed PO |
+| Stock receipt succeeded but Xero failed | Retry or repair the Xero action | Receive the stock again |
+
+A replacement is a new Draft. It does not undo the original receipt or change the original accounting record.
 
 ## Troubleshooting
 
-- If editing is unavailable, inspect the available order actions. Existing receipts, allocations, payments, credits, or Xero state can require a controlled correction instead of direct editing.
-- If only part of the shipment arrived, do not mark unreceived units as received. Save the actual receipt and leave or resolve the outstanding balance.
-- If an accounting action fails after stock receipt succeeds, review the visible Xero status or Sync History and retry the unfinished accounting action rather than receiving stock again.
-
-## Related tasks
-
-Related Help topics include Supplier Backorders, Supplier Credit Notes, Stock Allocation, Inventory Costing, Xero, and Order Planner.
+| Symptom | Likely reason | What to do |
+|---|---|---|
+| Receive is unavailable | The PO is still Draft, already Complete, Cancelled or held | Check the status and choose an offered action |
+| Mark Complete asks for more information | A supplier invoice number is required | Enter the supplier invoice number, then complete |
+| Direct editing is limited | Receipts or later records already exist | Use Resolve Outstanding, Undo Mistaken Receipt, Supplier Return / Credit or Replacement as appropriate |
+| Xero failed after stock was received | The operational receipt and accounting result are separate | Check Xero status and retry only the accounting action |
 
 ## Worked examples
 
-### Receive one shipment in two deliveries
+### Place a local supplier order
 
-A confirmed order contains 10 units. Six arrive today, so receive 6. The order becomes Partially Received with 4 outstanding. When the final 4 arrive, use Continue Receiving and receive 4; Solvantis completes the order without repeating the first stock movement.
+A Brisbane store orders 20 water bottles at $15 each before GST. The PO subtotal is $300, GST is $30 and the supplier total is $330. Confirming makes 20 incoming. It does not add 20 to on hand until staff receive the delivery.
 
-### Correct a completed order
+### Replace a cancelled order
 
-An order has already been received and its accounting record exists. Direct line editing is unavailable because it would rewrite stock and financial history. Use the order's supported correction, supplier-credit, reversal, or replacement workflow according to what physically happened.
+A cancelled PO has the right products but the supplier has changed. Staff choose **Create Replacement Draft**, update the supplier and dates, review every line, then confirm the new order. The old PO stays cancelled for reference.

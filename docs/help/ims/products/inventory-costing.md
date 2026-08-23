@@ -1,60 +1,78 @@
 ---
-{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","parentId":"ims-products","contexts":["inventory-costing","average-cost","stock-value"],"order":20,"summary":"Understand weighted-average cost, stock value, margin, and historical movement cost.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-inventory-costing","title":"Inventory Costing and Stock Value","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","format":"reference","parentId":"ims-products","contexts":["inventory-costing","average-cost","stock-value"],"relatedTopics":["ims-stock-levels-adjustments","ims-purchase-orders","ims-supplier-returns-credit-notes"],"order":20,"summary":"Understand average cost, stock value, margin, and the cost saved on past stock movements.","lastReviewed":"2026-08-23","owner":"inventory"}
 ---
 # Inventory Costing and Stock Value
 
-Solvantis uses one organisation-wide weighted-average cost for each product variant. This is also called weighted average cost, average cost, moving average cost, or WAC. It is not FIFO or LIFO and does not maintain a different average cost for each location.
+Solvantis keeps one current weighted-average cost for each variant across the business. Every location uses that same unit cost, while each location has its own quantity and stock value.
 
 ## Main operations
 
-- View Average Cost from **Products > All Products** by enabling the Average Cost column.
-- View average cost and stock value by location from **Products > Stock Levels**.
-- Review Product Margin to compare selling values with recorded costs.
-- Review Stock History when investigating the cost recorded on completed movements.
+Solvantis uses one organisation-wide weighted-average cost for each variant, not separate FIFO or LIFO cost layers. That current average feeds today's inventory valuation. Completed sales and other past stock movements keep the cost recorded at the time, which supports historical margin and cost of goods sold (COGS).
 
-## Before you begin
+| To answer... | Use |
+|---|---|
+| What is this variant's current average cost? | Enable **Average Cost** in All Products, or open Stock Levels |
+| What is the current stock value at a location? | **Products > Stock Levels** |
+| What cost was attached to an earlier receipt, sale or return? | **Stock History** |
+| How does selling price compare with cost? | **Reports > Product Margin** |
+| Does the accounting value agree with IMS? | **Xero > COGS Reconciliation** and Inventory Valuation |
 
-POS and product prices are tax-inclusive, while inventory cost calculations use the appropriate tax-exclusive AUD cost. Confirm purchase tax, currency, discount, freight, and landed-cost settings before relying on a new receipt cost.
+## Cost terms in plain language
 
-## Step-by-step workflows
+| Term | Meaning |
+|---|---|
+| Average cost | The current blended tax-exclusive AUD cost for one variant |
+| Stock value | On-hand quantity multiplied by current average cost |
+| Historical movement cost | The cost saved when a receipt, sale, return or adjustment was completed |
+| Landed cost | An extra purchasing cost, such as duty or inbound handling, allocated to stock |
 
-### Cost a receipt
+Solvantis does not use a separate average cost for each store. It also does not treat the oldest or newest unit as a separate cost layer.
 
-1. Start with the variant's total existing organisation-wide stock quantity and current average cost.
-2. Determine the received tax-exclusive unit cost after line discount.
-3. Convert foreign currency to AUD when applicable.
-4. Include allocated landed costs and freight according to the saved costing settings.
-5. Combine existing stock value and received stock value, then divide by the combined positive quantity.
+## Tax and currency
 
-If there is no existing positive stock quantity, the received unit cost becomes the new average cost.
+Retail and POS selling prices are tax-inclusive. For example, a $110 selling price contains $10 GST.
 
-## Statuses, calculations, and permissions
+Supplier costs used for inventory value are tax-exclusive. If a GST-registered Australian supplier quotes $55 including 10% GST, the inventory cost before other adjustments is $50 and the GST is $5. If the supplier form is set to **Tax exclusive**, entering $50 produces a $55 total. If it is set to **Tax inclusive**, entering $55 still leaves $50 as the cost basis.
 
-For positive existing and received quantities, the conceptual calculation is:
+For a foreign-currency order, the cost is converted to AUD using the recorded exchange rate. Line discounts and configured freight or landed-cost allocation can also change the final received cost.
 
-`new average = (existing quantity × existing average + received quantity × received unit cost) ÷ (existing quantity + received quantity)`
+> **Important:** Check the supplier's tax treatment and currency before receiving. Correcting a draft is simpler than explaining an incorrect average cost after stock has moved.
 
-The shared average cost supports current inventory valuation, product margin analysis, and fallback cost of goods sold. Location stock rows mirror the same variant average; location value differs because quantity differs.
+## How a receipt changes average cost
 
-Completed stock movements retain the unit cost recorded when they were completed. A later purchase receipt updates current average cost but does not rewrite historical movement cost.
+For positive existing and received quantities:
+
+`new average cost = (existing quantity × existing average cost + received quantity × received unit cost) ÷ total quantity`
+
+| Stage | Quantity | Unit cost | Value |
+|---|---:|---:|---:|
+| Existing stock | 10 | $20.00 | $200.00 |
+| New receipt | 5 | $26.00 | $130.00 |
+| Combined | 15 | $22.00 average | $330.00 |
+
+If there is no positive stock before the receipt, the final tax-exclusive AUD receipt cost becomes the new average cost.
+
+## Current cost and past cost
+
+A new receipt changes the current average cost. It does not rewrite the cost saved on earlier completed movements.
+
+This distinction matters when investigating margin. A jacket sold last month can keep its $40 historical sale cost even if a new delivery moves the current average to $44. Current stock value uses $44; the earlier sale remains recorded at $40.
 
 ## Troubleshooting
 
-- Check whether the receipt cost included tax and whether Solvantis correctly removed included purchase tax.
-- Check currency and exchange rate for foreign purchases.
-- Review line discount, freight allocation, and landed-cost settings.
-- Do not expect separate average costs for two locations; the model is organisation-wide per variant.
-
-## Related tasks
-
-Related Help topics include Purchase Orders, Supplier Credit Notes, Stocktakes, Inventory Valuation, Product Margin, and Xero COGS Reconciliation.
+| Symptom | Check | Action |
+|---|---|---|
+| Average cost jumped after a receipt | Tax treatment, currency, exchange rate, discount and landed costs | Correct the source through the supported PO or supplier-credit action; do not overwrite history casually |
+| Two stores show the same average cost | This is expected for the same variant | Compare each store's quantity to understand its different stock value |
+| A past sale has a different cost from today's average | The sale kept its completion-time cost | Use Stock History for the past movement and Stock Levels for current value |
+| Stock value looks wrong | Quantity or current average cost may be wrong | Check the physical quantity path first, then review the most recent receipts and returns |
 
 ## Worked examples
 
-### Weighted receipt
+### GST-inclusive supplier invoice
 
-A variant has 10 units at an average cost of $20, giving existing value of $200. Five more units are received at a final tax-exclusive AUD cost of $26, adding $130. The new average is `$330 ÷ 15 = $22` per unit across every location.
+A local supplier invoice shows 8 mugs at $22 each including GST. The tax-exclusive unit cost is `$22 ÷ 1.1 = $20`. Inventory value added before freight is `8 × $20 = $160`; the $16 GST is not part of stock value.
 
-### Receipt after stock reaches zero
+### Value by location
 
-A variant has no positive stock and 8 units are received at a final cost of $17.50 each. The new organisation-wide average becomes $17.50 because there is no positive existing quantity to blend.
+The same scarf variant has an average cost of $18. Brisbane holds 12, so its stock value is $216. Sydney holds 5, so its value is $90. The unit cost is shared, but the location values differ because the quantities differ.

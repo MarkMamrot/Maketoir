@@ -16,6 +16,7 @@ export interface HelpTopic {
   screen: string;
   product: HelpProduct;
   parentId?: string | null;
+  relatedTopics?: string[];
   contexts: string[];
   contextSections?: Record<string, string>;
   order?: number;

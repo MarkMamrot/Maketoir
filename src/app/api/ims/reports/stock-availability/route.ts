@@ -58,6 +58,7 @@ export async function GET() {
          ) a ON a.so_item_id = soi.id
         WHERE soi.business_id = ?
           AND so.status IN ('confirmed','partially_fulfilled','backordered')
+          AND COALESCE(so.so_type, '') <> 'online'
           AND so.is_historical = 0
           AND COALESCE(p.is_stock_item, 1) = 1
           AND soi.qty_ordered > soi.qty_fulfilled

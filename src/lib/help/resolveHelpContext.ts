@@ -20,7 +20,7 @@ function normalize(value?: string | null): string {
 
 export function listHelpTopics(audience: AssistantAudience, product?: HelpProduct): HelpTopic[] {
   return topics
-    .filter(topic => topic.audiences.includes(audience) && (!product || topic.product === product))
+    .filter(topic => topic.audiences.includes(audience) && (!product || topic.product === product || topic.product === 'shared'))
     .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0) || left.title.localeCompare(right.title));
 }
 
@@ -30,7 +30,7 @@ export function resolveHelpContext(input: {
   context?: string | null;
 }): ResolvedHelpContext | null {
   const context = normalize(input.context);
-  const available = listHelpTopics(input.audience, input.product);
+  const available = listHelpTopics(input.audience, input.product).filter(topic => topic.product === input.product);
   const exactTopic = context
     ? available
       .filter(topic => topic.contexts.some(alias => normalize(alias) === context))

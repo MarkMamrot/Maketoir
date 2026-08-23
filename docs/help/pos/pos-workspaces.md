@@ -1,58 +1,52 @@
 ---
-{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","contexts":["pos","reports","parked","receive-transfers","branch-transfer"],"contextSections":{"pos":"Selling","reports":"POS Reports","parked":"Parked Sales","receive-transfers":"Receive Transfers","branch-transfer":"Branch Transfers"},"order":1,"summary":"Sell, take payments, manage register work, transfers, returns, and reports.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["reports"],"contextSections":{"reports":"POS reports"},"order":1,"summary":"Find the right POS guide for selling, payments, returns, transfers, register work, and recovery.","lastReviewed":"2026-08-23","owner":"retail"}
 ---
 # Point of Sale
 
-POS is the location-bound workspace for staff selling, receiving payment, parking sales, processing supported returns, transferring stock, and closing the register.
+Use this overview to choose the POS guide for the job in front of you.
 
 ## Main operations
 
-- Sign in with the assigned staff identity and work only in the active location/register context.
-- Search or scan products, build the cart, review tax-inclusive prices, and take payment.
-- Park an unfinished sale and resume it later from Parked Sales.
-- Use the linked return and credit-note workflow for returns.
-- Send and receive branch transfers through their dedicated screens.
-- Close and reconcile the register through End of Day.
+| What you need to do | Open this Help topic |
+|---|---|
+| Set up a device, select its branch and register, or sign in | Register, Device, and Login |
+| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |
+| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |
+| Send stock or receive an incoming transfer | POS Branch Transfers |
+| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |
+| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |
 
-## Selling
+> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout.
 
-Search by product, SKU, or barcode and add the correct variant. Review quantities, discounts, customer selection, loyalty/store-credit/gift-card effects, notes, and payment tender before completion. Protected discounts, adjustments, voids, and register actions can require manager authority.
+## POS reports
 
-POS prices are tax-inclusive. Solvantis extracts GST from the total; it does not add GST on top. Completed stock-item sales reduce stock at the active location. Supported oversell handling prevents POS-originated deductions from leaving recorded stock below zero while preserving the movement evidence.
+Open **Reports** to review daily totals and completed transactions for the active location. Expand a transaction to inspect its products, payment lines, notes, and receipt, or start a linked return from an eligible completed sale.
 
-## Parked Sales
+Editing or deleting a transaction from the current open register session requires the location manager PIN. **Edit payment split** only reallocates the fixed sale total between payment methods.
 
-Park a sale when checkout cannot be completed immediately. Resuming restores the saved cart for review; current product availability and permissions still apply before final payment.
+## Daily operating checklist
 
-## Branch Transfers
-
-Create an outbound transfer from the current POS branch, choose the destination, add products and quantities, and send it through the protected transfer workflow. Sending records the source stock movement.
-
-## Receive Transfers
-
-Open Receive Transfers at the destination, scan or review the incoming transfer, confirm physically received quantities, and complete receipt. Receiving records destination stock and closes the transfer when appropriate.
-
-## POS Reports
-
-POS Reports provides transaction and daily activity for the active role and location. Use transaction detail to inspect products, payments, returns, and references; reports do not edit completed sales.
-
-## Offline operation
-
-Supported selling can continue from the local product cache and queue while offline. Review connection and queue state before closing the browser or device. Solvantis Assistant requires a network connection and does not queue questions. It can plan several read-only checks when needed, but POS lookups remain limited to product and stock information for the signed-in location plus the current register context; it cannot change the sale or register.
+- [ ] Confirm the device shows the correct branch and register before signing in.
+- [ ] Open the register and count the opening float before the first sale.
+- [ ] Watch the online, queued, and failed-sale indicators during trade.
+- [ ] Record petty cash while the register is open and keep its receipt.
+- [ ] Complete End of Day with physical counts before leaving the register closed.
 
 ## Troubleshooting
 
-- Confirm the device location, active register, and signed-in operator when products or actions differ from expectation.
-- Resolve queued offline sales after connectivity returns before assuming the sale was lost.
-- Use a manager-authorised workflow for protected adjustments rather than sharing PINs or bypassing controls.
-- Use the linked credit note for returns so stock and customer credit are recorded once.
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| Products or actions differ from expectation | The device is assigned to another branch or register | Check the branch and register shown at sign-in before continuing. |
+| A completed sale is not in Reports yet | It is still queued on this device | Reconnect, use **Sync**, and confirm the queue clears before entering the sale again. |
+| An action asks for a manager PIN | The current workflow is protected | Ask an authorised manager to enter the location manager PIN. Do not share PINs. |
+| Stock or customer credit looks doubled after a return | The return may have been entered more than once | Stop and review the original sale and linked credit note before making another correction. |
 
 ## Worked examples
 
-### Split tender sale
+### Choose the correct recovery path
 
-Add the products, review the tax-inclusive total, select split payment, enter each tender amount, and complete only when the split equals the amount due. The receipt records each payment component.
+A cashier can still see products but the header says **Offline** and shows two queued sales. They continue only with supported ordinary sales, keep the device open, reconnect, select **Sync**, and confirm both transactions appear in Reports. They do not recreate either sale.
 
-### Offline sale recovery
+## Related tasks
 
-Complete the supported sale while offline and leave the device open until connectivity returns. Confirm the queue synchronizes and the transaction appears in POS Reports before attempting to enter it again.
+Open the related task guides below for complete procedures, decision tables, and examples.

@@ -1,48 +1,63 @@
 ---
-{"id":"foresight-planning","title":"Foresight Planning and Review","audiences":["ims"],"capability":"navigation","screen":"Foresight > Planning","product":"foresight","parentId":"foresight-planning","contexts":["marketing","sync-ads","marketing-assistant","planning-workspace","marketing-recommendations","creative-review","campaign-audit"],"contextSections":{"marketing":"Evidence and recommendations","sync-ads":"Evidence and recommendations","marketing-assistant":"Evidence and recommendations","planning-workspace":"Planning workspace","marketing-recommendations":"Recommendation inbox","creative-review":"Creative review","campaign-audit":"Campaign audit"},"order":20,"summary":"Move evidence and recommendations through explicit planning, review, approval, and implementation stages.","lastReviewed":"2026-08-23","owner":"foresight"}
+{"id":"foresight-planning","title":"Foresight Planning and Review","audiences":["ims"],"capability":"navigation","screen":"Foresight > Planning","product":"foresight","format":"overview","parentId":"foresight-workspaces","contexts":["marketing","sync-ads","marketing-assistant"],"contextSections":{"marketing":"Evidence and recommendations","sync-ads":"Refresh marketing information","marketing-assistant":"Evidence and recommendations"},"relatedTopics":["foresight-planning-workspace-lifecycle","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":20,"summary":"Move current evidence through planning, review, implementation, and learning without confusing one stage for another.","lastReviewed":"2026-08-23","owner":"foresight"}
 ---
 # Foresight Planning and Review
 
+Use this overview to choose the next planning or review step and understand whether that step changes anything outside Solvantis.
+
 ## Main operations
 
-- Refresh supported marketing evidence before analysis.
-- Review recommendations with their citations, assumptions, risks, and guardrails.
-- Develop persistent, versioned plans in Planning Workspace.
-- Submit and decide on the exact plan or creative version under review.
-- Record implementation and outcomes separately from planning approval.
+- Refresh marketing information before reviewing a time-sensitive recommendation.
+- Separate source facts from Foresight suggestions.
+- Draft and submit the exact plan version you want reviewed.
+- Record implementation separately from plan or recommendation approval.
+- Review experiment results before accepting them as future planning evidence.
+
+## Refresh marketing information
+
+Sync Marketing Data updates supported information from connected services. Check the selected account and status, then wait for the refresh to finish before starting another.
+
+| Input | Human decision | Output | External change |
+| --- | --- | --- | --- |
+| Connected marketing sources | Whether the sources and accounts are ready | Refreshed information or a clear failure | No campaign change |
 
 ## Evidence and recommendations
 
-Sync Marketing Data refreshes supported evidence. Marketing Assistant separates cited facts, human context, assumptions, inferences, and proposals. Generated advice remains a proposal until a user follows the relevant governed workflow.
+Foresight can combine source facts, business information, assumptions, and suggestions. Read the evidence and dates before deciding whether a recommendation deserves planning work.
 
-## Planning workspace
+> **Important:** Evidence describes what the system can support. A recommendation says what may be worth doing. Neither proves that the suggested action is correct or already completed.
 
-Planning Workspace holds persistent strategy, initiative, and recommendation threads with versioned plans. Drafting does not authorize platform changes. Submission, review, acceptance, deliverable review, experiment design, launch packaging, implementation attestation, and outcome review are distinct stages.
+| Stage | Human decision | Output | External change |
+| --- | --- | --- | --- |
+| Review evidence | Is the information current and relevant? | A decision to investigate, dismiss, or plan | None |
+| Draft plan | Does the proposed approach fit the business? | A versioned plan | None |
+| Review plan or creative | Accept, reject, or request revision | A recorded decision on that exact version | None |
+| Implement | What was actually changed and when? | An implementation record or supported execution result | Only when the external action succeeds |
+| Measure | What happened after the change? | An outcome, conclusion, or lesson | None |
 
-## Recommendation inbox
+## Choose the next guide
 
-Recommendation Inbox presents proposals with evidence, risks, guardrails, review state, and supported next actions. Approval records a human decision about the proposal; it does not prove an external change occurred.
-
-## Creative review
-
-Creative Review ties accept, reject, or revision decisions to the exact artifact version reviewed. Accepted output cannot be silently replaced with a later generated version.
-
-## Campaign audit
-
-Campaign Audit inspects supported campaign structure and evidence. Findings remain advisory until reviewed and acted on through the relevant controlled process.
+| Current need | Read |
+| --- | --- |
+| Create a thread, draft a plan, or submit it | Planning Workspace Lifecycle |
+| Review a recommendation, creative item, or campaign audit | Recommendations, Creative Review, and Audits |
+| Design an experiment or review its result | Experiments, Outcomes, and Learning |
 
 ## Troubleshooting
 
-- If evidence is stale, refresh the supported source before regenerating analysis.
-- If a decision appears missing, confirm the exact version was submitted to the correct review stage.
-- Do not treat chat text, a draft, or recommendation approval as proof of implementation.
+| Symptom | Likely cause | Safe action |
+| --- | --- | --- |
+| A recommendation uses old information | The supporting source has not refreshed | Refresh once and recheck its evidence dates |
+| A plan cannot be reviewed | It is still drafting or has not passed its checks | Complete the plan and submit the exact version |
+| Approval is shown but no external change exists | Approval and implementation are separate stages | Check for an implementation or execution result |
+| A repeated action fails | The connection, review state, or required confirmation is unresolved | Stop and read the specific message before retrying |
 
 ## Worked examples
 
-### Turn a recommendation into a reviewed plan
+### Review a paid-media recommendation
 
-Open Recommendation Inbox, inspect evidence and guardrails, and start or open the linked Planning Workspace thread. Develop the plan, submit the exact version, and record the human decision. Use later stages to review deliverables and record implementation.
+Confirm the evidence period and connected account, then decide whether the recommendation needs a plan. Accepting the plan records a decision about that version. Record the actual campaign change separately, or use a supported execution control and confirm its result.
 
-### Request a creative revision
+### Reject weak evidence
 
-Open Creative Review, inspect the submitted artifact and brief, record specific revision feedback, and submit the new version separately. Accept only the exact version that meets the review requirements.
+A recommendation refers to a partial day of results. Do not approve it because the headline looks urgent. Refresh after a complete reporting period or reject the recommendation with a short reason.

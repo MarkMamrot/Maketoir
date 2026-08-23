@@ -1,43 +1,45 @@
 ---
-{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","parentId":"ims-integrations","contexts":["xero","shopify"],"contextSections":{"xero":"Xero","shopify":"Shopify"},"order":90,"summary":"Configure, monitor, troubleshoot, and safely retry supported accounting and commerce synchronization.","lastReviewed":"2026-08-23","owner":"integrations"}
+{"id":"ims-xero-shopify","title":"Xero and Shopify","audiences":["ims"],"capability":"integrations","screen":"Integrations","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["integrations"],"contextSections":{"integrations":"Choose an integration"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-online-shop"],"order":90,"summary":"Choose the right setup, monitoring, and recovery guide for Xero or Shopify.","lastReviewed":"2026-08-23","owner":"integrations"}
 ---
 # Xero and Shopify
 
+Xero handles supported accounting work. Shopify exchanges supported catalogue, customer, order, inventory, fulfilment, and payout information. Each integration has its own connection, mappings, statuses, and retry path.
+
 ## Main operations
 
-- Confirm connection health before changing mappings or retrying work.
-- Maintain Xero ledger, tax, tracking, payment, and automation settings required by enabled postings.
-- Use Xero Sync History to inspect the source, status, and retry path of accounting work.
-- Review Shopify product, customer, order, inventory, and webhook synchronization from its owning status.
-- Retry only the failed integration action; do not repeat a successful stock, order, sale, receipt, or credit operation.
+- Confirm connection health before changing mappings or retrying records.
+- Use Xero for accounting setup, Sync History, cost reconciliation, and Shopify payout posting.
+- Use Shopify for commerce sync, product linkage, webhooks, and sync history.
+- Retry only the failed integration action after fixing its cause.
 
-## Xero
+## Choose an integration
 
-Xero configuration includes connection status, automation policy, ledgers, tracking, payment routing, Sync History, COGS Reconciliation, and applicable Shopify payout activity. A missing mapping can block the affected accounting posting while the operational transaction remains valid. Correct the mapping or connection, then retry the unfinished posting.
+| Need | Open | Detailed guide |
+|---|---|---|
+| Configure Xero accounts, tracking, payments, or sync rules | **Xero > Setup** | **Xero Sync and Reconciliation** |
+| Investigate an accounting warning | **Xero > Sync History** | **Xero Sync and Reconciliation** |
+| Review COGS or Shopify payouts in Xero | **Xero > Activity** | **Xero Sync and Reconciliation** |
+| Sync products or check Shopify linkage | **Shopify** | **Shopify Sync and Product Mapping** |
+| Investigate a stale order, inventory update, or webhook | **Shopify > Sync History** | **Shopify Sync and Product Mapping** |
+| Publish through Solvantis instead of Shopify | **Online Shop** | **Online Shop** |
 
-POS sales are summarized for Xero by the End of Day workflow. Online sales follow the configured online-sales accounting policy rather than being included in the POS EOD summary.
+## Safe retry rule
 
-## Shopify
+An IMS operation and its integration posting are separate steps. A sale, fulfilment, receipt, return, or credit can be complete even when Xero or Shopify still needs attention.
 
-Shopify integration coordinates supported products, customers, orders, inventory, and webhooks. Check source ownership and status before manual action. A delayed or failed synchronization does not by itself mean the operational record should be recreated.
-
-## Sync status and retries
-
-Use status and history to distinguish pending, successful, blocked, and retryable work. Resolve expired authorization or missing mappings first. Repeating the source transaction can duplicate stock or financial effects, whereas a supported retry continues only the integration work.
+> **Warning:** Do not recreate a successful IMS transaction to clear an integration error. Repair the connection or mapping, then retry the unfinished sync where offered.
 
 ## Troubleshooting
 
-- If many actions fail together, check connection authorization before individual records.
-- If one posting is blocked, inspect its required ledger, tax, tracking, or payment mapping.
-- If Shopify data appears stale, review sync and webhook status before editing both systems.
-- Keep online sales and POS EOD accounting workflows separate when reconciling Xero.
+| Symptom | Start with | Do not do |
+|---|---|---|
+| Many Xero items fail together | Connection authorization | Recreate every source transaction |
+| One Xero item is blocked | Its required account, tax, tracking, or payment mapping | Post an unrelated manual duplicate |
+| Shopify information looks stale | Connection, sync history, and webhooks | Edit stock independently in both systems without tracing the sync |
+| Shopify Misc Charge appears | The original Shopify line and variant linkage | Edit or delete the protected fallback product |
 
 ## Worked examples
 
-### Retry a blocked Xero posting
+### Choose the right recovery page
 
-Open Sync History, select the failed source, read the safe error detail, and correct the missing mapping or connection. Retry that posting and confirm success without recreating the operational transaction.
-
-### Investigate a Shopify inventory delay
-
-Open Shopify integration status, confirm connection health and the product mapping, then inspect the relevant sync or webhook event. Retry only where offered after correcting the cause; verify the destination before making any manual stock change.
+A completed supplier receipt shows a Xero warning. Open **Xero > Sync History**, not the Purchase Order receipt action. Fix the named accounting setup and retry the posting so the stock receipt is not repeated.

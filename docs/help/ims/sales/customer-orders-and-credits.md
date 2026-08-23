@@ -1,55 +1,46 @@
 ---
-{"id":"ims-customer-orders","title":"Customer Orders, Allocation, and Credits","audiences":["ims"],"capability":"orders","screen":"Sales","product":"ims","parentId":"ims-sales","contexts":["sales-orders","wholesale-applications","backorders","customer-backorders","stock-availability","credit-notes","pos-sales","online-sales"],"contextSections":{"sales-orders":"Sales orders","wholesale-applications":"Wholesale applications","backorders":"Backorders and allocation","customer-backorders":"Backorders and allocation","stock-availability":"Backorders and allocation","credit-notes":"Customer credit notes","pos-sales":"POS and online sales","online-sales":"POS and online sales"},"order":30,"summary":"Manage customer demand, fulfilment, stock allocation, returns, credits, and imported sales activity.","lastReviewed":"2026-08-23","owner":"sales"}
+{"id":"ims-customer-orders","title":"Customer Orders, Allocation, and Credits","audiences":["ims"],"capability":"orders","screen":"Sales","product":"ims","format":"overview","parentId":"ims-sales","relatedTopics":["ims-sales-orders-fulfilment","ims-stock-allocation-backorders","ims-customer-returns-refunds"],"contexts":["wholesale-applications","pos-sales","online-sales"],"contextSections":{"wholesale-applications":"Wholesale applications","pos-sales":"POS and online sales","online-sales":"POS and online sales"},"order":30,"summary":"Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.","lastReviewed":"2026-08-23","owner":"sales"}
 ---
 # Customer Orders, Allocation, and Credits
 
+Use this page to choose where to start. Each related task guide explains what changes in stock and customer value.
+
 ## Main operations
 
-- Draft and confirm Sales Orders before recording fulfilment.
-- Fulfil only quantities actually shipped and continue later for partial supply.
-- Use Stock Allocation to protect incoming supply for known customer demand.
-- Complete customer returns and credits through Customer Credit Notes.
-- Review POS Sales and Online Sales as source activity; correct them through their owning workflow.
-
-## Sales orders
-
-A Draft order can be prepared without committing stock. Confirmation establishes active demand and can commit quantity. Use **Fulfil** or **Continue Fulfilment** for quantities actually shipped. Use the offered outstanding-resolution action when an unshipped balance will not be supplied. Cancellation and correction options depend on lifecycle state and existing stock or accounting effects.
+| What you need to do | Start here | What it changes |
+|---|---|---|
+| Create, confirm, ship, or finish a customer order | **Sales Orders** | Customer demand and stock when goods are shipped |
+| Protect incoming purchase-order stock for a customer | **Stock Allocation** | Which customer demand is protected by incoming supply |
+| Record a return, store credit, or original-payment refund | **Customer Credit Notes** | Returned stock and customer value when the credit note completes |
+| Investigate a register or online transaction | **POS Sales** or **Online Sales** | Nothing until you use the return or correction action offered for that source |
 
 ## Wholesale applications
 
-Review the applicant, company relationship, intended customer account, and requested access before approval. Approval grants portal access to the linked commercial identity; it should not be used to work around missing customer setup.
-
-## Backorders and allocation
-
-Customer Backorders identifies outstanding supply. Stock Allocation links incoming PO quantities to SO demand and distinguishes received-ready, incoming, unsourced, overdue, and at-risk quantities. Allocation protects supply but does not receive the purchase order or fulfil the sales order.
-
-## Customer credit notes
-
-Customer Credit Notes owns manual IMS returns and customer credits. Complete eligible lines through the supported workflow so stock and customer value remain linked and auditable. POS and native online returns use the linked credit note as the sole return-stock owner; do not restock both records. For a native order, **Original payment refund** restores the original store-credit portion first and sends any remainder to Stripe before stock is returned.
+Review the applicant, company relationship, intended customer account, and requested access before approval. Approval gives the linked business customer access to the wholesale portal; it does not replace missing customer or catalogue setup.
 
 ## POS and online sales
 
-POS Sales and Online Sales provide source transaction and synchronization detail. Use them to inspect lines, payments, returns, references, and status. Online accounting follows the configured online-sales policy and is separate from POS End of Day summaries.
+Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.
 
-When Shopify sends an order, Solvantis matches each Shopify variant ID to the corresponding IMS variant. If a line has no variant ID or its Shopify variant is not linked to an IMS variant, the line is assigned to the protected, non-stock **Shopify Misc Charge** item with SKU **SHOPIFY-MISC**. The original Shopify line title appears beneath it in Online Sales. This is not an extra fee added by Solvantis: it preserves the Shopify line and its value without moving stock against the wrong product.
+Shopify lines that cannot be matched to an IMS variant appear as **Shopify Misc Charge** with SKU **SHOPIFY-MISC**. The Shopify item title remains visible underneath. This preserves the order value without moving stock for the wrong product; it is not an added fee.
 
-If a normal product appears as Shopify Misc Charge, check that the product and variant have synced from Shopify and retain their Shopify linkage. The protected fallback item should not be edited or deleted. Correcting the product mapping prevents later Shopify lines from falling back; an already imported order may need its Shopify update processed again after the mapping is repaired.
+If a normal product appears this way, check that its Shopify product and variant link is current. Repairing the link prevents later orders from using the fallback, but an existing import may need to be processed again.
 
 ## Troubleshooting
 
-- If fulfilment is unavailable, check confirmation state, remaining quantity, location, and role.
-- If stock appears reserved, inspect confirmed orders and allocation before adjusting quantity.
-- If a return already has a linked credit note, continue in that note rather than creating another return.
-- If an accounting sync fails, repair the integration and retry the unfinished posting without repeating fulfilment or return stock.
-- If Shopify Misc Charge appears, compare the **Shopify item** title shown beneath it with the intended IMS product, then check that product's Shopify variant linkage. It is a product-mapping fallback, not a Xero policy charge.
-- If a native payment refund fails, retry the credit-note completion after resolving the Stripe connection or payment issue. No return stock or customer value is changed until settlement succeeds.
+| Symptom | Likely reason | What to do |
+|---|---|---|
+| An order cannot be fulfilled | It is not confirmed, has no remaining quantity, or your access is read-only | Review its status, remaining quantity, location, and available actions |
+| Stock looks reserved | A confirmed order or allocation is protecting it | Open Stock Allocation before changing stock |
+| A return already shows a credit-note number | The return record already exists | Open that credit note; do not create another return |
+| Shopify Misc Charge appears | The Shopify line did not match an IMS variant | Compare the shown Shopify title, repair the variant link, and reprocess only if required |
 
 ## Worked examples
 
-### Partially fulfil an order
+### Choose the correct workflow
 
-Open the confirmed Sales Order, choose Fulfil, enter only shipped quantities, and complete that fulfilment. When later stock arrives, reopen the order and use Continue Fulfilment for the remaining shipment.
+A customer ordered 12 jackets, 8 shipped, and 4 are waiting on a purchase order. Use **Sales Orders** to review the shipment, **Stock Allocation** to protect 4 incoming jackets, and **Customer Credit Notes** only if the customer later returns shipped goods.
 
-### Allocate incoming supply
+### Investigate an online line
 
-Open Stock Allocation, select the outstanding customer demand, inspect matching incoming PO supply and dates, and assign the required quantity. Receive the PO when stock physically arrives, then fulfil the Sales Order separately.
+An online order contains a $44.95 item shown as Shopify Misc Charge. Read the original Shopify title under the line, repair the intended variant link, and avoid making a stock adjustment for the fallback item.
