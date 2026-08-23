@@ -10,12 +10,13 @@ export async function POST(request: Request, { params }: { params: { slug: strin
   if (!profile) return NextResponse.json({ error: 'Store not found.' }, { status: 404 });
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid checkout request is required.' }, { status: 400 }); }
-  if (body?.fulfilmentType !== 'pickup') {
-    return NextResponse.json({ error: 'Delivery checkout is not available until a shipping option has been selected.' }, { status: 400 });
-  }
+  if (!['pickup', 'delivery'].includes(body?.fulfilmentType)) return NextResponse.json({ error: 'Choose delivery or pickup.' }, { status: 400 });
   try {
-    const checkout = await OnlineShopCheckoutRepository.createPickup({ businessId: profile.businessId,
-      guestEmail: String(body?.guestEmail ?? ''), pickupLocationId: Number(body?.pickupLocationId), cart: body?.cart });
+    const checkout = body.fulfilmentType === 'pickup'
+      ? await OnlineShopCheckoutRepository.createPickup({ businessId: profile.businessId,
+        guestEmail: String(body?.guestEmail ?? ''), pickupLocationId: Number(body?.pickupLocationId), cart: body?.cart })
+      : await OnlineShopCheckoutRepository.createDelivery({ businessId: profile.businessId,
+        guestEmail: String(body?.guestEmail ?? ''), shippingRuleId: Number(body?.shippingRuleId), shippingAddress: body?.shippingAddress, cart: body?.cart });
     return NextResponse.json({ success: true, checkout }, { status: 201 });
   } catch (error) {
     if (error instanceof OnlineShopStockConflict) return NextResponse.json({ error: error.message }, { status: 409 });
