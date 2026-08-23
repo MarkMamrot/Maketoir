@@ -37,6 +37,18 @@ describe('online shop persistence', () => {
     expect(mocks.query.mock.calls[0][1]).toEqual(['business-1', 'returns-policy']);
   });
 
+  it('returns only published content from the public page boundary', async () => {
+    const published = { schemaVersion: 1, sections: [] };
+    mocks.query.mockResolvedValue([{ page_id: 'page-1', slug: 'returns', title: 'Returns', meta_title: null,
+      meta_description: null, navigation_location: 'footer', navigation_label: null, sort_order: 0, is_visible: 1,
+      draft_json: JSON.stringify({ schemaVersion: 1, sections: [{ id: 'private-draft' }] }),
+      published_json: JSON.stringify(published), draft_revision: 5, published_revision: 2, published_at: null }]);
+    const page = await OnlineShopPageRepository.getPublishedBySlug('business-1', 'returns');
+    expect(page).toEqual(expect.objectContaining({ slug: 'returns', document: published }));
+    expect(page).not.toHaveProperty('draft');
+    expect(page).not.toHaveProperty('draftRevision');
+  });
+
   it('normalizes stable page slugs', () => {
     expect(normalizeOnlineShopPageSlug(' About Us! ')).toBe('about-us');
   });

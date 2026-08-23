@@ -4,6 +4,7 @@ import { OrdersSection } from './OrdersSection';
 import { ReportsSection } from './ReportsSection';
 import { ContactCrmProfile } from './contacts/ContactCrmProfile';
 import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue';
+import OnlineShopView from './onlineShop/OnlineShopView';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
@@ -12,7 +13,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
-  | 'xero' | 'shopify';
+  | 'xero' | 'shopify' | 'online-shop';
 
 interface MainSectionsProps {
   view: ImsView;
@@ -285,6 +286,7 @@ export function MainSections(props: MainSectionsProps) {
         />
       )}
       {view === 'shopify' && <ShopifyView businessId={businessId} />}
+      {view === 'online-shop' && <OnlineShopView />}
     </>
   );
 }

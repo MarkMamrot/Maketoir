@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
-import { getPool, query } from '@/services/MySQLService';
+import { execute, getPool, query } from '@/services/MySQLService';
 import { createDefaultOnlineShopContentPage, normalizeOnlineShopContentPage } from './layout/validation';
 import { ONLINE_SHOP_CONTENT_PAGE_SCHEMA_VERSION, type OnlineShopContentPageDocument } from './layout/types';
 
@@ -15,6 +15,11 @@ export interface OnlineShopPageSummary {
 export interface OnlineShopPageEditorState extends OnlineShopPageSummary {
   metaTitle: string | null; metaDescription: string | null;
   draft: OnlineShopContentPageDocument; published: OnlineShopContentPageDocument | null;
+}
+export interface OnlineShopPublishedPage {
+  pageId: string; slug: string; title: string; metaTitle: string | null; metaDescription: string | null;
+  navigationLocation: OnlineShopPageNavigation; navigationLabel: string | null; sortOrder: number;
+  document: OnlineShopContentPageDocument; publishedAt: string | null;
 }
 
 interface PageRow extends RowDataPacket {
@@ -69,6 +74,14 @@ function mapState(row: PageRow): OnlineShopPageEditorState {
   };
 }
 
+function mapPublished(row: PageRow): OnlineShopPublishedPage | null {
+  const document = parseDocument(row.published_json);
+  if (!document) return null;
+  return { pageId: row.page_id, slug: row.slug, title: row.title, metaTitle: row.meta_title,
+    metaDescription: row.meta_description, navigationLocation: row.navigation_location,
+    navigationLabel: row.navigation_label, sortOrder: Number(row.sort_order), document, publishedAt: iso(row.published_at) };
+}
+
 const select = `SELECT page_id, slug, title, meta_title, meta_description, navigation_location, navigation_label,
   sort_order, is_visible, draft_json, published_json, draft_revision, published_revision, published_at FROM online_shop_pages`;
 
@@ -95,11 +108,17 @@ export const OnlineShopPageRepository = {
     return rows[0] ? mapState(rows[0]) : null;
   },
 
-  async getPublishedBySlug(businessId: string, slugInput: unknown): Promise<OnlineShopPageEditorState | null> {
+  async getPublishedBySlug(businessId: string, slugInput: unknown): Promise<OnlineShopPublishedPage | null> {
     const slug = normalizeOnlineShopPageSlug(slugInput);
     if (!slug) return null;
     const rows = await query<PageRow>(`${select} WHERE business_id = ? AND slug = ? AND is_visible = 1 AND published_json IS NOT NULL LIMIT 1`, [businessId, slug]);
-    return rows[0] ? mapState(rows[0]) : null;
+    return rows[0] ? mapPublished(rows[0]) : null;
+  },
+
+  async listPublishedNavigation(businessId: string): Promise<OnlineShopPublishedPage[]> {
+    const rows = await query<PageRow>(`${select} WHERE business_id = ? AND is_visible = 1 AND published_json IS NOT NULL
+      AND navigation_location <> 'none' ORDER BY sort_order, title, page_id`, [businessId]);
+    return rows.map(mapPublished).filter((page): page is OnlineShopPublishedPage => Boolean(page));
   },
 
   async create(businessId: string, input: { slug: unknown; title: unknown }, actor: OnlineShopPageActor): Promise<OnlineShopPageEditorState> {
@@ -170,5 +189,11 @@ export const OnlineShopPageRepository = {
           WHERE business_id = ? AND page_id = ?`, [actor.userId, actor.name, businessId, pageId]);
       return mapState((await selectForUpdate(connection, businessId, pageId))!);
     });
+  },
+
+  async delete(businessId: string, pageId: string): Promise<boolean> {
+    const result = await execute(
+      'DELETE FROM online_shop_pages WHERE business_id = ? AND page_id = ?', [businessId, pageId]);
+    return result.affectedRows > 0;
   },
 };

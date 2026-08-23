@@ -79,7 +79,7 @@ type ImsView =
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
   | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability'
-  | 'xero' | 'shopify';
+  | 'xero' | 'shopify' | 'online-shop';
 
 interface User { name: string; email: string; company: string; businessId: string; tier?: string; hasForesight?: boolean }
 
@@ -125,6 +125,7 @@ const NAV = [
   { id: '__integrations',   label: 'Integrations',     section: 'integrations', children: [
     { id: 'xero',           label: 'Xero' },
     { id: 'shopify',        label: 'Shopify' },
+    { id: 'online-shop',    label: 'Online Shop' },
   ]},
 ] as const;
 
@@ -599,7 +600,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
           { icon: '__purchasing',      label: 'Purchasing',       navigate: 'purchase-orders',  activeFor: ['purchase-orders','order-planner','supplier-backorders','supplier-credit-notes'] },
           { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
           { icon: '__contacts',       label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'crm', 'contact-profile'] },
-          { icon: '__integrations',   label: 'Integrations',     navigate: 'shopify',          activeFor: ['xero','shopify'] },
+          { icon: '__integrations',   label: 'Integrations',     navigate: 'online-shop',      activeFor: ['xero','shopify','online-shop'] },
         ];
         return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
           <button key={entry.icon} data-testid={`ims-nav-${entry.navigate}`} onClick={() => onSelect(entry.navigate)} title={entry.label}
@@ -696,7 +697,7 @@ type ImsOnboardingAction =
 const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   business_profile: { type: 'settings', section: 'business-profile', label: 'Open Business Profile' },
   operations_tax:   { type: 'settings', section: 'general',          label: 'Open IMS Settings' },
-  online_shop:      { type: 'nav',      view: 'shopify',             label: 'Open Shopify' },
+  online_shop:      { type: 'nav',      view: 'online-shop',         label: 'Open Online Shop' },
   accounting:       { type: 'nav',      view: 'xero',                label: 'Open Xero' },
   users:            { type: 'settings', section: 'users',            label: 'Add Users' },
   locations:        { type: 'nav',      view: 'locations',           label: 'Add Locations' },

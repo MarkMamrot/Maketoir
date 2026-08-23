@@ -123,6 +123,8 @@ export const OnlineShopProfileRepository = {
     const slug = validateOnlineShopSlug(input.slug);
     const displayName = input.displayName.trim();
     if (!displayName) throw new Error('Online shop display name is required.');
+    const supportEmail = input.supportEmail?.trim().toLowerCase() || null;
+    if (supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(supportEmail)) throw new Error('Enter a valid online shop support email.');
     await execute(
       `INSERT INTO online_shop_profiles
          (business_id, slug, display_name, logo_url, support_email, default_meta_title, default_meta_description, is_active)
@@ -133,7 +135,7 @@ export const OnlineShopProfileRepository = {
          default_meta_description = VALUES(default_meta_description), is_active = VALUES(is_active),
          updated_at = CURRENT_TIMESTAMP(3)`,
       [input.businessId, slug, displayName, input.logoUrl?.trim() || null,
-        input.supportEmail?.trim().toLowerCase() || null, input.defaultMetaTitle?.trim() || null,
+        supportEmail, input.defaultMetaTitle?.trim() || null,
         input.defaultMetaDescription?.trim() || null, input.isActive === true ? 1 : 0],
     );
   },
