@@ -41,7 +41,10 @@
 .topicList { margin-top: 10px; display: grid; gap: 3px; }
 .topicGroup { display: grid; gap: 3px; }
 .topicGroup + .topicGroup { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
-.topicGroup h3 { margin: 0; padding: 4px 9px; color: var(--sv-text-dim, #64736f); font-size: 10px; line-height: 1.3; letter-spacing: 0; text-transform: uppercase; }
+.topicList .groupToggle { min-height: 32px; padding: 5px 8px; color: var(--sv-text-dim, #64736f); font-size: 10px; font-weight: 800; line-height: 1.3; text-transform: uppercase; }
+.groupToggle svg { transition: transform 160ms ease; }
+.groupToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+.groupTopics { display: grid; gap: 3px; }
 .topicList button { min-height: 40px; padding: 8px 9px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 13px; cursor: pointer; }
 .topicList button:hover { background: var(--sv-bg-1, #fff); }
 .topicList .selectedTopic { background: #dcefeb; color: #0e625b; font-weight: 800; }
@@ -85,12 +88,11 @@
 @media (max-width: 720px) {
   .drawer { inset: 0; width: 100%; border: 0; border-radius: 0; }
   .helpLayout { grid-template-columns: 1fr; }
-  .topicNav { max-height: 132px; border-right: 0; border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
-  .topicList { display: flex; overflow-x: auto; }
-  .topicGroup { display: flex; }
-  .topicGroup + .topicGroup { margin-top: 0; padding-top: 0; padding-left: 8px; border-top: 0; border-left: 1px solid var(--sv-etch, #dfe5e2); }
-  .topicGroup h3 { align-self: center; }
-  .topicList button { min-width: max-content; }
+  .topicNav { max-height: 240px; border-right: 0; border-bottom: 1px solid var(--sv-etch, #dfe5e2); }
+  .topicList { display: grid; overflow: visible; }
+  .topicGroup { display: grid; }
+  .topicGroup + .topicGroup { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--sv-etch, #dfe5e2); border-left: 0; }
+  .topicList button { min-width: 0; }
   .content { padding: 22px 18px 44px; }
   .content h1 { font-size: 24px; }
   .floatingTrigger { right: 10px; bottom: 10px; }

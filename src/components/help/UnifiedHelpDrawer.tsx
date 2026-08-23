@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
@@ -10,6 +10,14 @@ import type { HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import { HelpMarkdown } from './HelpMarkdown';
 import styles from './UnifiedHelpDrawer.module.css';
+
+function topicGroupLabel(topic: HelpTopic): string {
+  return topic.screen.split(' > ')[0];
+}
+
+function topicGroupId(label: string): string {
+  return `help-topic-group-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
 
 export function UnifiedHelpDrawer({
   open,
@@ -39,6 +47,9 @@ export function UnifiedHelpDrawer({
   const topics = useMemo(() => listHelpTopics(audience, product), [audience, product]);
   const [mode, setMode] = useState<'help' | 'ask'>('help');
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set(contextual?.topic ? [topicGroupLabel(contextual.topic)] : []),
+  );
   const [query, setQuery] = useState('');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const closeDrawer = useCallback(() => {
@@ -49,6 +60,7 @@ export function UnifiedHelpDrawer({
   useEffect(() => {
     if (!open) return;
     setSelectedId(contextual?.topic.id ?? null);
+    setExpandedGroups(new Set(contextual?.topic ? [topicGroupLabel(contextual.topic)] : []));
     closeButtonRef.current?.focus();
     if (contextual?.sectionId) {
       requestAnimationFrame(() => document.getElementById(contextual.sectionId!)?.scrollIntoView({ block: 'start' }));
@@ -69,7 +81,7 @@ export function UnifiedHelpDrawer({
   const searchResults = useMemo(() => searchHelpTopics(topics, normalizedQuery), [topics, normalizedQuery]);
   const filtered = normalizedQuery ? [] : topics;
   const topicGroups = filtered.reduce<Array<{ label: string; topics: HelpTopic[] }>>((groups, topic) => {
-    const label = topic.screen.split(' > ')[0];
+    const label = topicGroupLabel(topic);
     const existing = groups.find(group => group.label === label);
     if (existing) existing.topics.push(topic);
     else groups.push({ label, topics: [topic] });
@@ -78,8 +90,18 @@ export function UnifiedHelpDrawer({
 
   const selectTopic = (topic: HelpTopic, sectionId?: string) => {
     setSelectedId(topic.id);
+    setExpandedGroups(current => new Set(current).add(topicGroupLabel(topic)));
     setQuery('');
     if (sectionId) requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' }));
+  };
+
+  const toggleGroup = (label: string) => {
+    setExpandedGroups(current => {
+      const next = new Set(current);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
   };
 
   const relatedTopics = selected?.relatedTopics
@@ -129,8 +151,10 @@ export function UnifiedHelpDrawer({
                 disabled={assistantDisabled}
                 disabledLabel={assistantDisabledLabel}
                 onCitationOpen={citation => {
-                  if (!citation.topicId || !topics.some(topic => topic.id === citation.topicId)) return;
-                  setSelectedId(citation.topicId);
+                  const topic = topics.find(candidate => candidate.id === citation.topicId);
+                  if (!topic) return;
+                  setSelectedId(topic.id);
+                  setExpandedGroups(current => new Set(current).add(topicGroupLabel(topic)));
                   setMode('help');
                   if (citation.sectionId) requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' }));
                 }}
@@ -152,12 +176,25 @@ export function UnifiedHelpDrawer({
                   ))}
                   {topicGroups.map(group => (
                     <div className={styles.topicGroup} key={group.label}>
-                      <h3>{group.label}</h3>
-                      {group.topics.map(topic => (
-                        <button key={topic.id} className={`${topic.id === selected?.id ? styles.selectedTopic : ''} ${topic.parentId && topics.some(candidate => candidate.id === topic.parentId) ? styles.childTopic : ''}`} onClick={() => selectTopic(topic)}>
-                          <span>{topic.title}</span><ChevronRight size={15} />
-                        </button>
-                      ))}
+                      <button
+                        type="button"
+                        className={styles.groupToggle}
+                        aria-expanded={expandedGroups.has(group.label)}
+                        aria-controls={topicGroupId(group.label)}
+                        onClick={() => toggleGroup(group.label)}
+                      >
+                        <span>{group.label}</span>
+                        <ChevronDown size={14} aria-hidden="true" />
+                      </button>
+                      {expandedGroups.has(group.label) && (
+                        <div id={topicGroupId(group.label)} className={styles.groupTopics}>
+                          {group.topics.map(topic => (
+                            <button key={topic.id} className={`${topic.id === selected?.id ? styles.selectedTopic : ''} ${topic.parentId && topics.some(candidate => candidate.id === topic.parentId) ? styles.childTopic : ''}`} onClick={() => selectTopic(topic)}>
+                              <span>{topic.title}</span><ChevronRight size={15} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {normalizedQuery && searchResults.length === 0 && <p className={styles.noResults}>No matching topics.</p>}
@@ -171,7 +208,7 @@ export function UnifiedHelpDrawer({
                     <h1>{selected.title}</h1>
                     <p className={styles.summary}>{selected.summary}</p>
                     {selected.id !== contextual?.topic.id && contextual && (
-                      <button className={styles.contextButton} onClick={() => setSelectedId(contextual.topic.id)}>Back to help for this page</button>
+                      <button className={styles.contextButton} onClick={() => selectTopic(contextual.topic)}>Back to help for this page</button>
                     )}
                     <div className={styles.sections}>
                       {selected.sections.map(section => (
