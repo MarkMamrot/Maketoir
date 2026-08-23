@@ -44,6 +44,11 @@ const tableContracts = {
       'expires_at', 'consumed_at', 'verified_at', 'created_at'],
     indexes: ['PRIMARY', 'uq_online_shop_otp_token', 'idx_online_shop_otp_email_active', 'idx_online_shop_otp_expiry'],
   },
+  online_shop_stripe_connections: {
+    columns: ['business_id', 'stripe_account_id', 'charges_enabled', 'payouts_enabled', 'details_submitted',
+      'connected_by_user_id', 'connected_at', 'updated_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_stripe_account', 'idx_online_shop_stripe_ready'],
+  },
 };
 
 function extractDefinition(schema, table) {

@@ -127,6 +127,19 @@ CREATE TABLE IF NOT EXISTS online_shop_otp_challenges (
   INDEX idx_online_shop_otp_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS online_shop_stripe_connections (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  stripe_account_id    VARCHAR(64) NOT NULL,
+  charges_enabled      TINYINT(1) NOT NULL DEFAULT 0,
+  payouts_enabled      TINYINT(1) NOT NULL DEFAULT 0,
+  details_submitted    TINYINT(1) NOT NULL DEFAULT 0,
+  connected_by_user_id INT NULL,
+  connected_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_stripe_account (stripe_account_id),
+  INDEX idx_online_shop_stripe_ready (charges_enabled, business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- wholesale supplier profiles (public-safe control plane)
 -- ---------------------------------------------------------
