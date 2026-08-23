@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateOnlineShopValue } from '../onlineShopValueAllocation';
+import { allocateCentsProportionally, allocateOnlineShopValue } from '../onlineShopValueAllocation';
 
 describe('allocateOnlineShopValue', () => {
   it('applies a fixed reward before store credit', () => {
@@ -46,5 +46,10 @@ describe('allocateOnlineShopValue', () => {
       storeCreditReservedElsewhereCents: 0,
       requestedStoreCreditCents: 0,
     })).toThrow('reward value exceeds');
+  });
+
+  it('allocates cents deterministically across fulfilment groups', () => {
+    expect(allocateCentsProportionally(1_001, [2_000, 3_000])).toEqual([400, 601]);
+    expect(allocateCentsProportionally(5_000, [2_000, 3_000])).toEqual([2_000, 3_000]);
   });
 });

@@ -46,3 +46,20 @@ export function allocateOnlineShopValue(input: OnlineShopValueAllocationInput): 
     availableStoreCreditCents,
   };
 }
+
+export function allocateCentsProportionally(totalCents: number, weights: number[]): number[] {
+  requireNonNegativeInteger(totalCents, 'Allocation total');
+  weights.forEach(weight => requireNonNegativeInteger(weight, 'Allocation weight'));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  if (totalCents > totalWeight) throw new Error('Allocation total cannot exceed the combined weights.');
+  if (!weights.length || totalCents === 0) return weights.map(() => 0);
+  if (totalWeight === 0) throw new Error('A positive allocation requires a positive weight.');
+
+  let remaining = totalCents;
+  return weights.map((weight, index) => {
+    if (index === weights.length - 1) return remaining;
+    const allocation = Math.min(weight, Math.round(totalCents * weight / totalWeight));
+    remaining -= allocation;
+    return allocation;
+  });
+}
