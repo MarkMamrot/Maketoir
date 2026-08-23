@@ -66,11 +66,17 @@ function plainHeading(value) {
 }
 
 function inferOverviewMetadata(heading, content, capabilities) {
+  const headingValue = heading.toLowerCase();
   const value = `${heading} ${content}`.toLowerCase();
-  const capability = value.includes('wholesale') ? 'wholesale'
+  const capability = headingValue.includes('wholesale') ? 'wholesale'
+    : /\bpos\b|point of sale/.test(headingValue) ? 'pos'
+    : /inventory|stock|product|cost|valuation|margin/.test(headingValue) ? 'inventory'
+    : /purchase|sales order|backorder|fulfil|supplier receipt/.test(headingValue) ? 'orders'
+    : /xero|shopify|cin7|integration|connection/.test(headingValue) ? 'integrations'
+    : value.includes('wholesale') ? 'wholesale'
     : /\bpos\b|point of sale/.test(value) ? 'pos'
-    : /purchase|sales order|backorder|fulfil|supplier receipt/.test(value) ? 'orders'
     : /inventory|stock|product|cost|valuation|margin/.test(value) ? 'inventory'
+    : /purchase|sales order|backorder|fulfil|supplier receipt/.test(value) ? 'orders'
     : /xero|shopify|cin7|integration|connection/.test(value) ? 'integrations'
     : 'navigation';
   const definition = capabilities.find(item => item.id === capability) ?? capabilities[0];

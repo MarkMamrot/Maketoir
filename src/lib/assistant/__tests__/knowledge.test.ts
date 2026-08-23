@@ -53,6 +53,7 @@ describe('assistant knowledge retrieval', () => {
     expect(result).toEqual(expect.objectContaining({
       title: 'Solvantis product reference',
       heading: 'IMS inventory costing and stock value',
+      screen: 'Products',
     }));
     expect(result.content).toContain('organisation-wide weighted-average cost');
     expect(result.content).toContain('not FIFO or LIFO');

@@ -397,8 +397,8 @@
       "audiences": [
         "ims"
       ],
-      "capability": "orders",
-      "screen": "Orders",
+      "capability": "inventory",
+      "screen": "Products",
       "sourcePriority": 3,
       "lastReviewed": "2026-08-23",
       "content": "Solvantis uses one organisation-wide weighted-average cost for each product variant. This method is also called weighted average cost, average cost, moving average cost, or WAC. It is not FIFO or LIFO, and it does not maintain a different average cost for each location.\n\nWhen stock is received, the new average combines the value of existing stock on hand with the tax-exclusive AUD cost of the received stock. The received cost reflects the purchase-order line cost after discount, removes included purchase tax when applicable, converts foreign currency to AUD, and can include allocated landed costs and freight according to the saved costing settings. If there is no existing positive stock quantity, the received unit cost becomes the new average cost.\n\nThe organisation-wide average cost is used for current inventory valuation, product margin analysis, and as the fallback cost of goods sold. Completed stock movements preserve their recorded unit cost, so later receipts do not rewrite historical movement costs. In IMS, open **Products > All Products** and enable **Average Cost**, or open **Products > Stock Levels** to see average cost and stock value by location."
