@@ -7,6 +7,7 @@ export interface AssistantKnowledgeResult {
   title: string;
   heading: string;
   screen: string;
+  topicId?: string;
   content: string;
   score: number;
 }
@@ -73,5 +74,5 @@ export function retrieveAssistantKnowledge(input: {
     .filter(chunk => chunk.score > 0)
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
     .slice(0, Math.min(Math.max(input.limit ?? 4, 1), 8))
-    .map(({ id, title, heading, screen, content, score }) => ({ id, title, heading, screen, content, score }));
+    .map(({ id, title, heading, screen, topicId, content, score }) => ({ id, title, heading, screen, topicId, content, score }));
 }

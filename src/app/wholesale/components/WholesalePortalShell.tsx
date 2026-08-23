@@ -26,7 +26,7 @@ import type { WholesaleSupplierProfile } from '@/lib/wholesale/wholesaleSupplier
 import type { WholesaleLayoutDocument, WholesaleLayoutPageId } from '@/lib/wholesale/layout/types';
 import styles from './WholesalePortalShell.module.css';
 import { WholesaleLayoutEditor } from './layout/WholesaleLayoutEditor';
-import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
+import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 
 export type WholesalePortalView = 'home' | 'catalogue' | 'lists' | 'orders' | 'account' | 'help';
 
@@ -98,6 +98,7 @@ export function WholesalePortalShell({
   const isPreview = Boolean(session.preview);
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(view === 'help');
   const [layoutEditorOpen, setLayoutEditorOpen] = useState(isPreview);
   const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
   const [layoutViewport, setLayoutViewport] = useState<'desktop' | 'mobile'>('desktop');
@@ -126,6 +127,10 @@ export function WholesalePortalShell({
 
   const changeView = (nextView: WholesalePortalView) => {
     setDrawerOpen(false);
+    if (nextView === 'help') {
+      setHelpOpen(true);
+      return;
+    }
     onViewChange(nextView);
   };
 
@@ -266,11 +271,16 @@ export function WholesalePortalShell({
       )}
 
       {!online && <div className={styles.offline} role="status"><WifiOff size={16} /> Offline</div>}
-      {!isPreview && <SolvantisAssistantPanel
+      {!isPreview && <UnifiedHelpDrawer
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        audience="wholesale"
+        product="wholesale"
+        currentContext={view}
         chatEndpoint="/api/wholesale/assistant/chat"
         escalationEndpoint="/api/wholesale/assistant/escalate"
-        currentView={view}
-        disabled={!online}
+        assistantDisabled={!online}
+        assistantDisabledLabel="Assistant needs an internet connection"
       />}
     </div>
   );

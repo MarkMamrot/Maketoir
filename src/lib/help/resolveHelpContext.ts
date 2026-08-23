@@ -6,8 +6,12 @@ import type { HelpProduct, HelpTopic, ResolvedHelpContext } from './types';
 const topics = helpIndex.topics as HelpTopic[];
 
 const productFallbacks: Partial<Record<HelpProduct, string>> = {
-  ims: 'ims-purchase-orders',
-  pos: 'pos-end-of-day-xero',
+  ims: 'ims-workspaces',
+  pos: 'pos-workspaces',
+  wholesale: 'wholesale-portal',
+  foresight: 'foresight-workspaces',
+  dashboard: 'foresight-workspaces',
+  setup: 'setup-connections',
 };
 
 function normalize(value?: string | null): string {
@@ -28,7 +32,9 @@ export function resolveHelpContext(input: {
   const context = normalize(input.context);
   const available = listHelpTopics(input.audience, input.product);
   const exactTopic = context
-    ? available.find(topic => topic.contexts.some(alias => normalize(alias) === context))
+    ? available
+      .filter(topic => topic.contexts.some(alias => normalize(alias) === context))
+      .sort((left, right) => left.contexts.length - right.contexts.length)[0]
     : undefined;
   const topic = exactTopic
     ?? available.find(candidate => candidate.id === productFallbacks[input.product])

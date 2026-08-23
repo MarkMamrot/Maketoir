@@ -18,8 +18,10 @@ describe('assistant knowledge retrieval', () => {
       currentView: 'orders',
     });
     expect(result).toEqual(expect.objectContaining({
-      title: 'Purchase and sales order workflows',
-      screen: 'Orders',
+      title: 'Customer Orders, Allocation, and Credits',
+      heading: 'Sales orders',
+      screen: 'Sales',
+      topicId: 'ims-customer-orders',
     }));
   });
 
@@ -41,9 +43,9 @@ describe('assistant knowledge retrieval', () => {
       query: 'Can I make a PO in Solvantis?',
       audience: 'ims',
     });
-    const creation = results.find(result => result.content.includes('New Purchase Order'));
+    const creation = results.find(result => result.title === 'Purchase Orders' && result.content.includes('New Purchase Order'));
     expect(creation?.content).toContain('New Purchase Order');
-    expect(results.some(result => result.content.includes('Advisor'))).toBe(true);
+    expect(creation?.content).toContain('Advisor');
   });
 
   it('explains that counted POS EOD closure triggers Xero sync', () => {
@@ -58,17 +60,13 @@ describe('assistant knowledge retrieval', () => {
   });
 
   it('returns the organisation-wide weighted-average inventory cost method', () => {
-    const [result] = retrieveAssistantKnowledge({
+    const results = retrieveAssistantKnowledge({
       query: 'What kind of inventory cost system does Solvantis use?',
       audience: 'ims',
     });
-    expect(result).toEqual(expect.objectContaining({
-      title: 'Solvantis product reference',
-      heading: 'IMS inventory costing and stock value',
-      screen: 'Products',
-    }));
-    expect(result.content).toContain('organisation-wide weighted-average cost');
-    expect(result.content).toContain('not FIFO or LIFO');
+    expect(results.some(result => result.title === 'Inventory Costing and Stock Value')).toBe(true);
+    expect(results.some(result => result.content.includes('organisation-wide weighted-average cost'))).toBe(true);
+    expect(results.some(result => result.content.includes('not FIFO or LIFO'))).toBe(true);
   });
 
   it('recognizes WAC and COGS inventory terminology', () => {
@@ -76,7 +74,7 @@ describe('assistant knowledge retrieval', () => {
       query: 'Does WAC feed COGS and stock valuation?',
       audience: 'ims',
     });
-    const costing = results.find(result => result.heading === 'IMS inventory costing and stock value');
+    const costing = results.find(result => result.title === 'Inventory Costing and Stock Value' && result.content.includes('fallback cost of goods sold'));
     expect(costing?.content).toContain('fallback cost of goods sold');
     expect(costing?.content).toContain('inventory valuation');
   });
@@ -86,7 +84,7 @@ describe('assistant knowledge retrieval', () => {
       query: 'Can I see another company location order?',
       audience: 'wholesale',
     });
-    expect(results.some(result => result.heading === 'Account and location boundaries')).toBe(true);
+    expect(results.some(result => result.title === 'Wholesale Portal' && result.heading === 'Account')).toBe(true);
   });
 
   it('returns no results for an empty query', () => {

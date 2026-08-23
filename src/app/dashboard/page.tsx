@@ -18,6 +18,7 @@ import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
+import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -9021,6 +9022,7 @@ export default function DashboardPage() {
   const [businessName, setBusinessName] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [activeSettingView, setActiveSettingView] = useState('appearance');
 
   useEffect(() => {
@@ -9294,6 +9296,15 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      <UnifiedHelpDrawer
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        audience="ims"
+        product="foresight"
+        currentContext={settingsOpen ? activeSettingView : activeView}
+        chatEndpoint="/api/ims/assistant/chat"
+        escalationEndpoint="/api/ims/assistant/escalate"
+      />
     </div>
   );
 }

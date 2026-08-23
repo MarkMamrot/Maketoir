@@ -14,6 +14,8 @@ export interface AssistantCitation {
   title: string;
   section: string;
   screen: string;
+  topicId?: string;
+  sectionId?: string;
 }
 
 export interface AssistantWorkflowCandidate {
@@ -154,7 +156,13 @@ export async function runAssistant(input: {
   const sourceIds = Array.isArray(decision.sourceIds) ? decision.sourceIds.slice(0, 4).map(String) : [];
   const citations = sourceIds.flatMap(sourceId => {
     const source = allowedSources.get(sourceId);
-    return source ? [{ title: source.title, section: source.heading, screen: source.screen }] : [];
+    return source ? [{
+      title: source.title,
+      section: source.heading,
+      screen: source.screen,
+      topicId: source.topicId,
+      sectionId: source.topicId ? source.id : undefined,
+    }] : [];
   });
   const candidate = decision.mode === 'workflow_candidate' ? normalizeCandidate(decision.candidate) : null;
   const answer = boundedAnswer(decision.answer);

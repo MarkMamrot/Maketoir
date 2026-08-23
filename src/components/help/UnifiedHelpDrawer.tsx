@@ -1,0 +1,185 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, ChevronRight, HelpCircle, MessageCircle, Search, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+import type { AssistantAudience } from '@/lib/assistant/policy';
+import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
+import type { HelpProduct, HelpTopic } from '@/lib/help/types';
+import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
+import styles from './UnifiedHelpDrawer.module.css';
+
+export function UnifiedHelpDrawer({
+  open,
+  onOpenChange,
+  audience,
+  product,
+  currentContext,
+  chatEndpoint,
+  escalationEndpoint,
+  assistantDisabled = false,
+  assistantDisabledLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  audience: AssistantAudience;
+  product: HelpProduct;
+  currentContext?: string | null;
+  chatEndpoint: string;
+  escalationEndpoint: string;
+  assistantDisabled?: boolean;
+  assistantDisabledLabel?: string;
+}) {
+  const contextual = useMemo(
+    () => resolveHelpContext({ audience, product, context: currentContext }),
+    [audience, product, currentContext],
+  );
+  const topics = useMemo(() => listHelpTopics(audience, product), [audience, product]);
+  const [mode, setMode] = useState<'help' | 'ask'>('help');
+  const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
+  const [query, setQuery] = useState('');
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeDrawer = useCallback(() => {
+    setMode('help');
+    onOpenChange(false);
+  }, [onOpenChange]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedId(contextual?.topic.id ?? null);
+    closeButtonRef.current?.focus();
+    if (contextual?.sectionId) {
+      requestAnimationFrame(() => document.getElementById(contextual.sectionId!)?.scrollIntoView({ block: 'start' }));
+    }
+  }, [open, contextual?.topic.id, contextual?.sectionId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDrawer();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, closeDrawer]);
+
+  const selected = topics.find(topic => topic.id === selectedId) ?? contextual?.topic ?? topics[0] ?? null;
+  const filtered = query.trim()
+    ? topics.filter(topic => `${topic.title} ${topic.summary} ${topic.sections.map(section => section.heading).join(' ')}`.toLowerCase().includes(query.trim().toLowerCase()))
+    : topics;
+  const topicGroups = filtered.reduce<Array<{ label: string; topics: HelpTopic[] }>>((groups, topic) => {
+    const label = topic.screen.split(' > ')[0];
+    const existing = groups.find(group => group.label === label);
+    if (existing) existing.topics.push(topic);
+    else groups.push({ label, topics: [topic] });
+    return groups;
+  }, []);
+
+  const selectTopic = (topic: HelpTopic) => {
+    setSelectedId(topic.id);
+    setQuery('');
+  };
+
+  return (
+    <>
+      {!open && (
+        <button
+          className={styles.floatingTrigger}
+          onClick={() => { setMode('ask'); onOpenChange(true); }}
+          aria-label="Open Solvantis Help"
+          title="Help and Ask Solvantis"
+        >
+          <MessageCircle size={21} />
+        </button>
+      )}
+      {open && (
+        <aside className={styles.drawer} role="dialog" aria-modal="false" aria-labelledby="unified-help-title">
+          <header className={styles.header}>
+            <div className={styles.brandMark}><HelpCircle size={19} /></div>
+            <div className={styles.headingText}>
+              <h2 id="unified-help-title">Solvantis Help</h2>
+              <span>{contextual?.exact ? `Help for ${contextual.topic.title}` : 'Product guidance and live assistance'}</span>
+            </div>
+            <button ref={closeButtonRef} className={styles.iconButton} onClick={closeDrawer} aria-label="Close Help" title="Close Help">
+              <X size={20} />
+            </button>
+          </header>
+
+          <div className={styles.modeTabs} role="tablist" aria-label="Help mode">
+            <button className={mode === 'help' ? styles.activeTab : ''} onClick={() => setMode('help')} role="tab" aria-selected={mode === 'help'}>
+              <BookOpen size={16} /> Help
+            </button>
+            <button className={mode === 'ask' ? styles.activeTab : ''} onClick={() => setMode('ask')} role="tab" aria-selected={mode === 'ask'}>
+              <MessageCircle size={16} /> Ask Solvantis
+            </button>
+          </div>
+
+          {mode === 'ask' ? (
+            <div className={styles.assistantPane}>
+              <SolvantisAssistantPanel
+                chatEndpoint={chatEndpoint}
+                escalationEndpoint={escalationEndpoint}
+                currentView={currentContext}
+                disabled={assistantDisabled}
+                disabledLabel={assistantDisabledLabel}
+                onCitationOpen={citation => {
+                  if (!citation.topicId || !topics.some(topic => topic.id === citation.topicId)) return;
+                  setSelectedId(citation.topicId);
+                  setMode('help');
+                  if (citation.sectionId) requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' }));
+                }}
+                embedded
+              />
+            </div>
+          ) : (
+            <div className={styles.helpLayout}>
+              <nav className={styles.topicNav} aria-label="Help topics">
+                <label className={styles.searchBox}>
+                  <Search size={15} />
+                  <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search Help" aria-label="Search Help" />
+                </label>
+                <div className={styles.topicList}>
+                  {topicGroups.map(group => (
+                    <div className={styles.topicGroup} key={group.label}>
+                      <h3>{group.label}</h3>
+                      {group.topics.map(topic => (
+                        <button key={topic.id} className={topic.id === selected?.id ? styles.selectedTopic : ''} onClick={() => selectTopic(topic)}>
+                          <span>{topic.title}</span><ChevronRight size={15} />
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                  {filtered.length === 0 && <p className={styles.noResults}>No matching topics.</p>}
+                </div>
+              </nav>
+
+              <article className={styles.content}>
+                {selected ? (
+                  <>
+                    <div className={styles.breadcrumbs}>{selected.screen.split(' > ').map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}</div>
+                    <h1>{selected.title}</h1>
+                    <p className={styles.summary}>{selected.summary}</p>
+                    {selected.id !== contextual?.topic.id && contextual && (
+                      <button className={styles.contextButton} onClick={() => setSelectedId(contextual.topic.id)}>Back to help for this page</button>
+                    )}
+                    <div className={styles.sections}>
+                      {selected.sections.map(section => (
+                        <section key={section.id} id={section.id} className={section.heading === 'Main operations' ? styles.mainOperations : ''}>
+                          <h2>{section.heading}</h2>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{section.content}</ReactMarkdown>
+                        </section>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className={styles.empty}><BookOpen size={24} /><strong>Help is being prepared for this screen.</strong></div>
+                )}
+              </article>
+            </div>
+          )}
+        </aside>
+      )}
+    </>
+  );
+}

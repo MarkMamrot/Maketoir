@@ -9,6 +9,8 @@ interface Citation {
   title: string;
   section: string;
   screen: string;
+  topicId?: string;
+  sectionId?: string;
 }
 
 interface ChatEntry {
@@ -27,6 +29,8 @@ export function SolvantisAssistantPanel({
   disabled = false,
   disabledLabel = 'Assistant needs an internet connection',
   side = 'right',
+  embedded = false,
+  onCitationOpen,
 }: {
   chatEndpoint: string;
   escalationEndpoint: string;
@@ -34,8 +38,10 @@ export function SolvantisAssistantPanel({
   disabled?: boolean;
   disabledLabel?: string;
   side?: 'left' | 'right';
+  embedded?: boolean;
+  onCitationOpen?: (citation: Citation) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(embedded);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -113,7 +119,7 @@ export function SolvantisAssistantPanel({
   };
 
   return (
-    <div className={`${styles.root} ${side === 'left' ? styles.left : styles.right} ${open ? styles.open : ''}`}>
+    <div className={`${embedded ? styles.embeddedRoot : styles.root} ${side === 'left' ? styles.left : styles.right} ${open ? styles.open : ''}`}>
       {open && (
         <section className={styles.panel} role="dialog" aria-modal="false" aria-labelledby="solvantis-assistant-title">
           <header className={styles.header}>
@@ -122,9 +128,11 @@ export function SolvantisAssistantPanel({
               <h2 id="solvantis-assistant-title">Solvantis Assistant</h2>
               <span>Business help and live lookups</span>
             </div>
-            <button className={styles.iconButton} onClick={() => setOpen(false)} aria-label="Close assistant" title="Close assistant">
-              <X size={19} />
-            </button>
+            {!embedded && (
+              <button className={styles.iconButton} onClick={() => setOpen(false)} aria-label="Close assistant" title="Close assistant">
+                <X size={19} />
+              </button>
+            )}
           </header>
 
           <div className={styles.messages} ref={scrollRef} aria-live="polite">
@@ -140,9 +148,15 @@ export function SolvantisAssistantPanel({
                 {message.citations && message.citations.length > 0 && (
                   <div className={styles.citations} aria-label="Sources">
                     {message.citations.map((citation, index) => (
-                      <span key={`${citation.title}-${citation.section}-${index}`} title={citation.screen}>
+                      <button
+                        key={`${citation.title}-${citation.section}-${index}`}
+                        type="button"
+                        title={citation.screen}
+                        disabled={!citation.topicId || !onCitationOpen}
+                        onClick={() => onCitationOpen?.(citation)}
+                      >
                         <BookOpen size={12} /> {citation.title}: {citation.section}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -183,7 +197,7 @@ export function SolvantisAssistantPanel({
         </section>
       )}
 
-      <button
+      {!embedded && <button
         className={styles.trigger}
         onClick={() => setOpen(value => !value)}
         aria-expanded={open}
@@ -191,7 +205,7 @@ export function SolvantisAssistantPanel({
         title={disabled ? disabledLabel : 'Solvantis Assistant'}
       >
         {open ? <X size={20} /> : <MessageCircle size={21} />}
-      </button>
+      </button>}
     </div>
   );
 }

@@ -12,6 +12,7 @@ Purchase Orders records planned and received supply from a supplier. Open **Purc
 - Confirm the order to record incoming stock.
 - Use **Receive** or **Continue Receiving** to record only stock that physically arrived.
 - Use the available correction, resolution, credit, reversal, or replacement action when later stock or accounting activity prevents direct editing.
+- Advisor accounts are read-only and cannot create or change purchase orders.
 
 ## Before you begin
 

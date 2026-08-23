@@ -18,35 +18,9 @@ Target user: retail store owners/managers who need a unified view of POS sales, 
 
 ---
 
-## 📘 Assistant-Safe Product Reference
+## Help and Assistant Knowledge
 
-This section is the canonical user-facing description of current Solvantis behaviour. It is compiled automatically into the Solvantis Assistant knowledge index during every build. Keep it current whenever visible workflows, calculations, navigation, permissions, or integration behaviour change. Describe only current product behaviour; do not include credentials, tenant identifiers, database objects, source paths, incidents, deployment commands, or planned features.
-
-### IMS inventory costing and stock value
-
-Solvantis uses one organisation-wide weighted-average cost for each product variant. This method is also called weighted average cost, average cost, moving average cost, or WAC. It is not FIFO or LIFO, and it does not maintain a different average cost for each location.
-
-When stock is received, the new average combines the value of existing stock on hand with the tax-exclusive AUD cost of the received stock. The received cost reflects the purchase-order line cost after discount, removes included purchase tax when applicable, converts foreign currency to AUD, and can include allocated landed costs and freight according to the saved costing settings. If there is no existing positive stock quantity, the received unit cost becomes the new average cost.
-
-The organisation-wide average cost is used for current inventory valuation, product margin analysis, and as the fallback cost of goods sold. Completed stock movements preserve their recorded unit cost, so later receipts do not rewrite historical movement costs. In IMS, open **Products > All Products** and enable **Average Cost**, or open **Products > Stock Levels** to see average cost and stock value by location.
-
-### IMS purchase orders
-
-IMS users can create and manage supplier purchase orders from **Purchasing > Purchase Orders** in the left navigation. If the sidebar is collapsed, the **Purchasing** icon opens Purchase Orders directly. Select **New Purchase Order**, choose the supplier and receiving location, add product variants and quantities, and review costs, tax, dates, freight, discounts, currency, and landed costs as applicable.
-
-A purchase order can remain Draft while it is being prepared. Confirming it records incoming stock. Confirmed orders can be received incrementally; quantities not yet received remain outstanding on a Partially Received order until a later receipt or supported resolution. Completed and Cancelled orders remain as audit records. Advisor accounts are read-only, and actions can be restricted when receipts, payments, credits, or accounting state require a controlled correction workflow.
-
-### IMS Online Shop workspace
-
-Administrators can open **Integrations > Online Shop** to prepare Solvantis's native consumer storefront. **Store settings** manages the store name, hosted store address, support email, logo, and default search metadata. Uploaded store images accept JPEG, PNG, WebP, and GIF files up to 10 MB and remain separate from wholesale portal images.
-
-**Templates** manages independent drafts for the Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account storefront views. Required commerce sections cannot be removed. Administrators can add and reorder compatible content sections, edit their content and images, save a draft, reset it to the published version, and publish saved changes. Publishing is blocked while the editor still has unsaved changes, and revision checks prevent one editor from silently overwriting another editor's saved draft.
-
-**Pages** manages separate custom content pages such as About, Shipping, Returns, and Privacy. Each page has its own address, navigation placement, visibility, content draft, and published revision. A page is publicly eligible only after it has published content and is marked visible. The workspace displays the current online sales channel but does not change or activate that channel.
-
-**Products** controls native storefront publication independently of Shopify. Publishing requires at least one active retail-priced variant and a unique native product address. Existing Shopify links are preserved and displayed for context, but they do not publish or hide a native storefront product. Unpublishing removes the product from native public browsing without deleting its IMS product or Shopify mapping.
-
-When an organisation's native shop profile and native online sales channel are active, customers can browse the hosted store, catalogue, routed product details, and visible published content pages. Retail prices are tax-inclusive AUD prices, active sale pricing respects its saved start and end dates, and only whole individual units are orderable. Availability is calculated from uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added. The browser cart is scoped to the individual store, while every cart refresh recalculates published products, current prices, and availability on the server. Checkout and customer account actions are not currently exposed.
+Current user-facing product behavior is maintained in the canonical Help corpus under `docs/help/`. The normal build validates that content and compiles it into both the contextual in-product Help index and the private Solvantis Assistant retrieval index. This overview remains the project and architecture reference rather than a second copy of product Help.
 
 ---
 

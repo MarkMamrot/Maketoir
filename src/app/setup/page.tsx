@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 
 type UISkin = 'dark' | 'default';
 const UI_SKIN_STORAGE_KEY = 'solvantis_ui_skin';
@@ -1042,90 +1043,10 @@ function ConnectionStatus({ result }: { result: any }) {
   );
 }
 
-// --- Connection Help Modal ---
-interface HelpStep { text: string; }
-interface HelpInfo { title: string; url: string; urlLabel: string; steps: HelpStep[]; }
-
-const HELP: Record<string, HelpInfo> = {
-  shopify: {
-    title: 'Connect Shopify',
-    url: 'https://help.shopify.com/en/manual/apps/app-types/custom-apps',
-    urlLabel: 'Shopify custom apps docs →',
-    steps: [
-      { text: 'Log in to your Shopify Admin (admin.shopify.com).' },
-      { text: 'Go to Settings → Apps and sales channels → Develop apps.' },
-      { text: 'Click "Allow custom app development", then "Create an app".' },
-      { text: 'Give it a name (e.g. "Marketoir"), then click "Configure Admin API scopes".' },
-      { text: 'Enable read_products, read_orders, read_inventory, read_customers, and write_customers at minimum, then click Save.' },
-      { text: 'Go to the API credentials tab and click "Install app".' },
-      { text: 'Copy the Admin API access token (starts with shpat_) — this is your Access Token.' },
-      { text: 'Your Shop ID is your store URL, e.g. mystore.myshopify.com.' },
-    ],
-  },
-  meta: {
-    title: 'Connect Meta Ads',
-    url: 'https://business.facebook.com/settings/ad-accounts',
-    urlLabel: 'Open Meta Business Settings →',
-    steps: [
-      { text: 'Make sure your Facebook profile has access to the required ad account in Meta Business Settings.' },
-      { text: 'Select Connect Meta Ads in Solvantis and sign in to Meta.' },
-      { text: 'Approve the requested read-only advertising and business asset permissions.' },
-      { text: 'If Meta returns more than one ad account, select the account belonging to this Solvantis business.' },
-      { text: 'Solvantis stores the resulting long-lived token encrypted and never exposes it in the browser or a URL.' },
-    ],
-  },
-  cin7: {
-    title: 'Connect Cin7 Omni',
-    url: 'https://go.cin7.com/',
-    urlLabel: 'Open Cin7 Omni →',
-    steps: [
-      { text: 'Log in to Cin7 Omni at go.cin7.com.' },
-      { text: 'Go to Settings → Integrations → API.' },
-      { text: 'Note your Account ID shown at the top of the page (e.g. MystoreTGAU).' },
-      { text: 'Click "Generate API Key" (or copy an existing one).' },
-      { text: 'Copy both the Account ID and the API Key into the fields here, then click Save.' },
-    ],
-  },
-};
-
-function HelpModal({ id, onClose }: { id: string; onClose: () => void }) {
-  const info = HELP[id];
-  if (!info) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 flex flex-col gap-4"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="text-lg font-bold text-gray-800">{info.title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none mt-0.5">✕</button>
-        </div>
-        <ol className="flex flex-col gap-2">
-          {info.steps.map((s, i) => (
-            <li key={i} className="flex gap-3 text-sm text-gray-700">
-              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
-              <span>{s.text}</span>
-            </li>
-          ))}
-        </ol>
-        <a
-          href={info.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline font-medium"
-        >
-          {info.urlLabel}
-        </a>
-      </div>
-    </div>
-  );
-}
-
 // --- Embedded Connections Component ---
 export interface Business { name: string; userId: string; databaseId: string; }
 
-export function ConnectionsTab({ business }: { business: Business | null }) {
+export function ConnectionsTab({ business, onHelp }: { business: Business | null; onHelp: (context: string) => void }) {
   // Per-business credential state
   const [shopId, setShopId] = useState('');
   const [accessToken, setAccessToken] = useState('');
@@ -1178,9 +1099,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
   } | null>(null);
   const [xeroLoading, setXeroLoading] = useState(false);
   const [xeroDisconnecting, setXeroDisconnecting] = useState(false);
-
-  // Help modal
-  const [openHelp, setOpenHelp] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1665,7 +1583,6 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
-      {openHelp && <HelpModal id={openHelp} onClose={() => setOpenHelp(null)} />}
       <p className="text-sm text-gray-500">Credentials for <span className="font-semibold text-gray-700">{business.name}</span> — loaded from their database sheet.</p>
 
       {/* Shopify */}
@@ -1675,7 +1592,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
             <h2 className="text-xl font-bold">Shopify</h2>
             <ConnectionStatus result={syncResult} />
           </div>
-          <button onClick={() => setOpenHelp('shopify')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
+          <button onClick={() => onHelp('shopify')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
         </div>
         <div className="w-full">
           <label className="block text-xs font-semibold text-gray-600 mb-1">Shop ID</label>
@@ -1785,7 +1702,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
               <h2 className="text-lg font-bold">Meta Ads</h2>
               <ConnectionStatus result={metaResult} />
             </div>
-            <button onClick={() => setOpenHelp('meta')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
+            <button onClick={() => onHelp('meta')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
           </div>
           {metaAccounts.length > 0 ? (
             <div className="w-full border border-gray-200">
@@ -1866,7 +1783,7 @@ export function ConnectionsTab({ business }: { business: Business | null }) {
               <h2 className="text-lg font-bold">Cin7 Omni</h2>
               <ConnectionStatus result={cin7Result} />
             </div>
-            <button onClick={() => setOpenHelp('cin7')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
+            <button onClick={() => onHelp('cin7')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
           </div>
           <div className="w-full">
             <label className="block text-xs font-semibold text-gray-600 mb-1">Account ID</label>
@@ -2477,6 +2394,8 @@ function SetupPageContent() {
     ? 'data-source'
     : 'connections';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpContext, setHelpContext] = useState<string | null>(null);
 
   // Business selector state
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -2620,7 +2539,7 @@ function SetupPageContent() {
 
         {/* Tab Content */}
         <div className="mt-4">
-          {activeTab === 'connections' && <ConnectionsTab business={selectedBusiness} />}
+          {activeTab === 'connections' && <ConnectionsTab business={selectedBusiness} onHelp={context => { setHelpContext(context); setHelpOpen(true); }} />}
           {activeTab === 'business' && <BusinessInfoTab business={selectedBusiness} />}
           {activeTab === 'profile' && <BrandProfileTab business={selectedBusiness} />}
           {activeTab === 'appearance' && <AppearanceTab />}
@@ -2629,6 +2548,15 @@ function SetupPageContent() {
           {activeTab === 'team' && <TeamTab business={selectedBusiness} />}
         </div>
       </main>
+      <UnifiedHelpDrawer
+        open={helpOpen}
+        onOpenChange={next => { setHelpOpen(next); if (!next) setHelpContext(null); }}
+        audience="ims"
+        product="setup"
+        currentContext={helpContext ?? activeTab}
+        chatEndpoint="/api/ims/assistant/chat"
+        escalationEndpoint="/api/ims/assistant/escalate"
+      />
     </div>
   );
 }
