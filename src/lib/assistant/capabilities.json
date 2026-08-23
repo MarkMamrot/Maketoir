@@ -1,0 +1,8 @@
+[
+  {"id":"navigation","title":"Navigation and access","audiences":["ims","pos","wholesale"],"screens":["Solvantis"],"tools":[]},
+  {"id":"orders","title":"Purchase and sales orders","audiences":["ims"],"screens":["Orders"],"tools":["ims_order_summary"]},
+  {"id":"inventory","title":"Products and stock","audiences":["ims"],"screens":["Products","Inventory"],"tools":["ims_product_lookup","ims_stock_lookup"]},
+  {"id":"pos","title":"Point of Sale","audiences":["ims","pos"],"screens":["Point of Sale"],"tools":["pos_product_lookup","pos_session_context"]},
+  {"id":"wholesale","title":"Wholesale portal","audiences":["wholesale"],"screens":["Catalogue","Orders","Account","Saved"],"tools":["wholesale_catalogue_lookup","wholesale_order_summary","wholesale_account_summary"]},
+  {"id":"integrations","title":"Connected services","audiences":["ims"],"screens":["Connections","Settings"],"tools":["ims_integration_status"]}
+]

@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "assistant:index": "node scripts/build-solvantis-assistant-index.mjs",
+    "assistant:setup-findings": "node scripts/setup-assistant-findings.mjs",
+    "build": "npm run assistant:index && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",

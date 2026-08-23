@@ -19,6 +19,8 @@ export interface ReportRuntimeIssueInput {
   error: unknown;
   context?: Record<string, unknown>;
   reference?: RuntimeIssueReference;
+  notifyDevelopers?: boolean;
+  deferAlert?: boolean;
 }
 
 const SENSITIVE_KEY = /(authorization|cookie|password|secret|token|api[-_]?key|access[-_]?token|refresh[-_]?token)/i;
@@ -138,7 +140,7 @@ export async function reportRuntimeIssue(input: ReportRuntimeIssueInput): Promis
         input.reference?.type?.slice(0, 64) ?? null,
         input.reference?.id != null ? String(input.reference.id).slice(0, 191) : null,
         contextJson,
-        (input.severity ?? 'error') === 'critical' ? 1 : 0,
+        (input.severity ?? 'error') === 'critical' || input.notifyDevelopers ? 1 : 0,
       ],
     );
     const issueId = Number(result.insertId);
@@ -151,9 +153,11 @@ export async function reportRuntimeIssue(input: ReportRuntimeIssueInput): Promis
     await connection.commit();
     connection.release();
     released = true;
-    await deliverPendingRuntimeIssueAlert(issueId).catch(error => {
-      console.error('[runtime-issues] post-commit alert delivery failed:', error);
-    });
+    if (!input.deferAlert) {
+      await deliverPendingRuntimeIssueAlert(issueId).catch(error => {
+        console.error('[runtime-issues] post-commit alert delivery failed:', error);
+      });
+    }
     return issueId;
   } catch (error) {
     await connection.rollback().catch(() => {});

@@ -1,0 +1,379 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "id": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "owner": "inventory",
+      "filename": "ims-orders.md"
+    },
+    {
+      "id": "pos-operations",
+      "title": "POS register and selling workflows",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "Point of Sale",
+      "lastReviewed": "2026-08-23",
+      "owner": "retail",
+      "filename": "pos-operations.md"
+    },
+    {
+      "id": "shared-navigation",
+      "title": "Finding your way around Solvantis",
+      "audiences": [
+        "ims",
+        "pos",
+        "wholesale"
+      ],
+      "capability": "navigation",
+      "screen": "Solvantis",
+      "lastReviewed": "2026-08-23",
+      "owner": "product",
+      "filename": "shared-navigation.md"
+    },
+    {
+      "id": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "owner": "wholesale",
+      "filename": "wholesale-orders.md"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "navigation",
+      "title": "Navigation and access",
+      "audiences": [
+        "ims",
+        "pos",
+        "wholesale"
+      ],
+      "screens": [
+        "Solvantis"
+      ],
+      "tools": []
+    },
+    {
+      "id": "orders",
+      "title": "Purchase and sales orders",
+      "audiences": [
+        "ims"
+      ],
+      "screens": [
+        "Orders"
+      ],
+      "tools": [
+        "ims_order_summary"
+      ]
+    },
+    {
+      "id": "inventory",
+      "title": "Products and stock",
+      "audiences": [
+        "ims"
+      ],
+      "screens": [
+        "Products",
+        "Inventory"
+      ],
+      "tools": [
+        "ims_product_lookup",
+        "ims_stock_lookup"
+      ]
+    },
+    {
+      "id": "pos",
+      "title": "Point of Sale",
+      "audiences": [
+        "ims",
+        "pos"
+      ],
+      "screens": [
+        "Point of Sale"
+      ],
+      "tools": [
+        "pos_product_lookup",
+        "pos_session_context"
+      ]
+    },
+    {
+      "id": "wholesale",
+      "title": "Wholesale portal",
+      "audiences": [
+        "wholesale"
+      ],
+      "screens": [
+        "Catalogue",
+        "Orders",
+        "Account",
+        "Saved"
+      ],
+      "tools": [
+        "wholesale_catalogue_lookup",
+        "wholesale_order_summary",
+        "wholesale_account_summary"
+      ]
+    },
+    {
+      "id": "integrations",
+      "title": "Connected services",
+      "audiences": [
+        "ims"
+      ],
+      "screens": [
+        "Connections",
+        "Settings"
+      ],
+      "tools": [
+        "ims_integration_status"
+      ]
+    }
+  ],
+  "chunks": [
+    {
+      "id": "ims-orders:1",
+      "documentId": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "heading": "Purchase and sales order workflows",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "content": "Orders use guided lifecycle states so stock, commitments, credits, and accounting documents stay aligned. Use the action offered on the order rather than manually recreating stock or financial effects elsewhere."
+    },
+    {
+      "id": "ims-orders:2",
+      "documentId": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "heading": "Partial customer fulfilment",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "content": "A customer sales order can be fulfilled incrementally. Shipping part of an order leaves the remaining quantity committed on the original order. Each fulfilment reduces stock and commitments only by the shipped quantity. The final fulfilment completes the order."
+    },
+    {
+      "id": "ims-orders:3",
+      "documentId": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "heading": "Resolving an outstanding balance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "content": "For a partially fulfilled sales order, Resolve Outstanding can leave the balance open, cancel it, or transfer it to a held child order. This avoids repeating stock movements already recorded by the original shipment."
+    },
+    {
+      "id": "ims-orders:4",
+      "documentId": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "heading": "Partial supplier receipts",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "content": "A purchase order can be received incrementally. Record only quantities actually received. Remaining quantities stay outstanding until a later receipt or an approved resolution path is used."
+    },
+    {
+      "id": "ims-orders:5",
+      "documentId": "ims-orders",
+      "title": "Purchase and sales order workflows",
+      "heading": "Why some direct edits are unavailable",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Orders",
+      "lastReviewed": "2026-08-23",
+      "content": "Actions may be restricted after stock, payments, credits, or external accounting documents exist. These restrictions preserve the audit trail. Use the order's amendment, resolution, credit, or reversal workflow where available."
+    },
+    {
+      "id": "pos-operations:1",
+      "documentId": "pos-operations",
+      "title": "POS register and selling workflows",
+      "heading": "POS register and selling workflows",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "Point of Sale",
+      "lastReviewed": "2026-08-23",
+      "content": "The POS supports product search, barcode scanning, parked sales, split payments, receipts, returns, register sessions, and end-of-day reconciliation. Available controls depend on the signed-in operator and location."
+    },
+    {
+      "id": "pos-operations:2",
+      "documentId": "pos-operations",
+      "title": "POS register and selling workflows",
+      "heading": "Location and register access",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "Point of Sale",
+      "lastReviewed": "2026-08-23",
+      "content": "POS users work within their assigned location and active register. Stock and register information shown by the assistant is limited to that verified context. A manager may be required for protected adjustments."
+    },
+    {
+      "id": "pos-operations:3",
+      "documentId": "pos-operations",
+      "title": "POS register and selling workflows",
+      "heading": "Working offline",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "Point of Sale",
+      "lastReviewed": "2026-08-23",
+      "content": "The POS can continue supported selling workflows while offline using its local product cache and queue. AI assistance requires a network connection and does not queue requests for later processing."
+    },
+    {
+      "id": "pos-operations:4",
+      "documentId": "pos-operations",
+      "title": "POS register and selling workflows",
+      "heading": "Returns and store credit",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "Point of Sale",
+      "lastReviewed": "2026-08-23",
+      "content": "Returns use the linked credit-note workflow so stock and customer credit are recorded once. Store credit is ledger-owned and should not be manually overwritten through customer contact editing."
+    },
+    {
+      "id": "shared-navigation:1",
+      "documentId": "shared-navigation",
+      "title": "Finding your way around Solvantis",
+      "heading": "Finding your way around Solvantis",
+      "audiences": [
+        "ims",
+        "pos",
+        "wholesale"
+      ],
+      "capability": "navigation",
+      "screen": "Solvantis",
+      "lastReviewed": "2026-08-23",
+      "content": "Solvantis shows tools according to the signed-in user's role and the part of the platform they are using. If a screen or action is unavailable, check that the user is signed in to the correct workspace and has the required access before changing the workflow."
+    },
+    {
+      "id": "shared-navigation:2",
+      "documentId": "shared-navigation",
+      "title": "Finding your way around Solvantis",
+      "heading": "Getting help for the current screen",
+      "audiences": [
+        "ims",
+        "pos",
+        "wholesale"
+      ],
+      "capability": "navigation",
+      "screen": "Solvantis",
+      "lastReviewed": "2026-08-23",
+      "content": "Ask about the outcome you need, including the order, product, location, or account involved when appropriate. Solvantis can explain the supported workflow and, where permission allows, inspect current read-only business information. It will not make changes on your behalf."
+    },
+    {
+      "id": "shared-navigation:3",
+      "documentId": "shared-navigation",
+      "title": "Finding your way around Solvantis",
+      "heading": "When a workflow differs",
+      "audiences": [
+        "ims",
+        "pos",
+        "wholesale"
+      ],
+      "capability": "navigation",
+      "screen": "Solvantis",
+      "lastReviewed": "2026-08-23",
+      "content": "Some outcomes have a specific supported path to protect stock, financial records, or account ownership. A different sequence is not necessarily an error. Solvantis should explain the supported alternative and confirm whether it meets the essential business requirement."
+    },
+    {
+      "id": "wholesale-orders:1",
+      "documentId": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "heading": "Wholesale ordering and account access",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "content": "The wholesale portal shows the approved catalogue, pricing, availability, account details, saved lists, drafts, and orders available to the signed-in company member and assigned buying location."
+    },
+    {
+      "id": "wholesale-orders:2",
+      "documentId": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "heading": "Catalogue and pricing",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "content": "Catalogue results use current product availability, approved brand access, wholesale pricing, stock, and indent policy. Historical order prices do not replace current catalogue pricing when reordering."
+    },
+    {
+      "id": "wholesale-orders:3",
+      "documentId": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "heading": "Drafts and submitted orders",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "content": "Drafts remain editable until submitted. Submitted sales orders are read-only in the buyer portal and show buyer-safe lifecycle, product, fulfilment, terms, and total information. Internal supplier notes are never shown."
+    },
+    {
+      "id": "wholesale-orders:4",
+      "documentId": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "heading": "Account and location boundaries",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "content": "Orders and drafts are restricted to the active contact, company, member, and buying-location identity. A member cannot inspect another company's orders or switch location unless that capability is explicitly supported for the account."
+    },
+    {
+      "id": "wholesale-orders:5",
+      "documentId": "wholesale-orders",
+      "title": "Wholesale ordering and account access",
+      "heading": "Reordering",
+      "audiences": [
+        "wholesale"
+      ],
+      "capability": "wholesale",
+      "screen": "Wholesale portal",
+      "lastReviewed": "2026-08-23",
+      "content": "Reordering rebuilds a cart using current catalogue data. Retired or unavailable lines may be omitted, stock-limited lines may be reduced, and current pricing and indent rules always apply."
+    }
+  ]
+}
