@@ -117,10 +117,12 @@ function buildQuote(
   selected: { rewardId: number | null; requestedStoreCreditCents: number },
 ): OnlineShopValueQuote {
   const grossTotalCents = Number(context.checkout.subtotal_cents) + Number(context.checkout.shipping_cents);
+  const merchandiseCents = Number(context.checkout.subtotal_cents);
   const reward = selected.rewardId === null ? null : context.rewards.find(row => Number(row.id) === selected.rewardId);
   if (selected.rewardId !== null && !reward) throw new Error('The selected reward is not available.');
   if (reward && !Number(context.contact.loyalty_member)) throw new Error('This customer is not enrolled in the loyalty program.');
   if (reward && Number(reward.points_cost) > context.availableLoyaltyPoints) throw new Error('There are not enough available loyalty points for this reward.');
+  if (reward && cents(reward.value_aud) > merchandiseCents) throw new Error('Eligible merchandise must cover the full loyalty reward value.');
   const allocation = allocateOnlineShopValue({
     grossTotalCents,
     rewardValueCents: reward ? cents(reward.value_aud) : 0,
@@ -141,7 +143,7 @@ function buildQuote(
       description: row.description,
       pointsCost: Number(row.points_cost),
       valueCents: cents(row.value_aud),
-      eligible: Boolean(context.contact.loyalty_member) && Number(row.points_cost) <= context.availableLoyaltyPoints && cents(row.value_aud) <= grossTotalCents,
+      eligible: Boolean(context.contact.loyalty_member) && Number(row.points_cost) <= context.availableLoyaltyPoints && cents(row.value_aud) <= merchandiseCents,
     })),
   };
 }

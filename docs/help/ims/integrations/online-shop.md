@@ -51,7 +51,7 @@ In Store settings, connect the merchant's Stripe account. Stripe must report tha
 
 ### Use loyalty rewards and store credit
 
-Customers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied first and store credit is applied to the remaining value.
+Customers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points and eligible merchandise to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied to merchandise first and store credit is applied to the remaining order value.
 
 The selection is reserved while checkout is active but does not change either customer ledger until payment succeeds. Starting payment locks the selection. If the selected value covers the complete order, checkout completes without opening Stripe.
 
@@ -63,7 +63,7 @@ A custom page is publicly eligible only after it has published content and is ma
 
 Retail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.
 
-The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A loyalty reward is an order discount; store credit settles the discounted balance and Stripe settles any amount still due. Successful settlement converts the reservation into ordinary confirmed IMS online sales orders and records loyalty and store-credit ledger entries idempotently. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes, where Stripe cash and store-credit liability settlement remain separate.
+The server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A loyalty reward is a merchandise discount; store credit settles the discounted balance and Stripe settles any amount still due. Successful settlement converts the reservation into ordinary confirmed IMS online sales orders, records loyalty and store-credit ledger entries idempotently, and awards points on eligible merchandise after the loyalty discount. Delivery and payment methods do not reduce eligible merchandise spend. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes, where Stripe cash and store-credit liability settlement remain separate.
 
 ## Troubleshooting
 

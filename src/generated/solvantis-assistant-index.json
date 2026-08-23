@@ -367,7 +367,9 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "order": 95,
       "summary": "Prepare and publish the native Solvantis consumer storefront.",
@@ -4163,7 +4165,9 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
@@ -4186,11 +4190,13 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "- Configure store identity, hosted address, support email, logo, and search metadata.\n- Edit and publish templates for Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account.\n- Create and publish custom content pages such as About, Shipping, Returns, and Privacy.\n- Publish eligible products to the native shop independently of Shopify.\n- Configure delivery rates, free-shipping thresholds, click-and-collect locations, and order fulfilment behavior.\n- Connect the merchant's Stripe account for secure checkout payments.\n- Review the active native online channel, catalogue availability, prices, and public routes."
+      "content": "- Configure store identity, hosted address, support email, logo, and search metadata.\n- Edit and publish templates for Home, Catalogue, Collection, Product, Cart, Checkout, Sign in, and Account.\n- Create and publish custom content pages such as About, Shipping, Returns, and Privacy.\n- Publish eligible products to the native shop independently of Shopify.\n- Configure delivery rates, free-shipping thresholds, click-and-collect locations, and order fulfilment behavior.\n- Connect the merchant's Stripe account for secure checkout payments.\n- Let signed-in customers apply an eligible loyalty reward, store credit, or both at checkout.\n- Review the active native online channel, catalogue availability, prices, and public routes."
     },
     {
       "id": "ims-online-shop:3",
@@ -4209,7 +4215,9 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
@@ -4232,11 +4240,13 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "### Publish a template change\n\n1. Open Templates and choose the storefront view.\n2. Add, edit, remove where allowed, or reorder compatible sections.\n3. Save the draft.\n4. Review the saved version and publish it. Publishing is blocked while unsaved editor changes remain.\n\n### Publish a product\n\n1. Open Products in Online Shop.\n2. Confirm an active variant has a retail price and the product has a unique native address.\n3. Review imagery, content, current sale pricing, and availability.\n4. Publish to the native shop. Existing Shopify links remain for context but do not control native publication.\n\n### Configure fulfilment and shipping\n\n1. In Store settings, choose whether each delivery order must come from one location, may be consolidated to a dispatch location, or may split by fulfilment location.\n2. For consolidation, choose the branch that dispatches the completed parcel.\n3. Open Shipping and add tax-inclusive delivery rates. Optionally limit a rate by Australian state, exact postcode, postcode range, or prefix, and set a free-shipping threshold.\n4. Enable each online location that customers may choose for click and collect.\n\n### Connect payments\n\nIn Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key."
+      "content": "### Publish a template change\n\n1. Open Templates and choose the storefront view.\n2. Add, edit, remove where allowed, or reorder compatible sections.\n3. Save the draft.\n4. Review the saved version and publish it. Publishing is blocked while unsaved editor changes remain.\n\n### Publish a product\n\n1. Open Products in Online Shop.\n2. Confirm an active variant has a retail price and the product has a unique native address.\n3. Review imagery, content, current sale pricing, and availability.\n4. Publish to the native shop. Existing Shopify links remain for context but do not control native publication.\n\n### Configure fulfilment and shipping\n\n1. In Store settings, choose whether each delivery order must come from one location, may be consolidated to a dispatch location, or may split by fulfilment location.\n2. For consolidation, choose the branch that dispatches the completed parcel.\n3. Open Shipping and add tax-inclusive delivery rates. Optionally limit a rate by Australian state, exact postcode, postcode range, or prefix, and set a free-shipping threshold.\n4. Enable each online location that customers may choose for click and collect.\n\n### Connect payments\n\nIn Store settings, connect the merchant's Stripe account. Stripe must report that account setup is complete and charges are enabled before checkout can start payment. Payments, Stripe fees, disputes, and payouts belong to the connected merchant account; Solvantis does not store the merchant's Stripe secret key.\n\n### Use loyalty rewards and store credit\n\nCustomers sign in before creating the checkout and use the same email address at checkout. After stock is reserved, checkout shows active fixed-value rewards that the customer has enough available points to use, plus available store credit. A customer may apply one reward and store credit together. The reward is applied first and store credit is applied to the remaining value.\n\nThe selection is reserved while checkout is active but does not change either customer ledger until payment succeeds. Starting payment locks the selection. If the selected value covers the complete order, checkout completes without opening Stripe."
     },
     {
       "id": "ims-online-shop:5",
@@ -4255,11 +4265,13 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.\n\nA custom page is publicly eligible only after it has published content and is marked visible. Product unpublishing removes it from native browsing without deleting the IMS product or Shopify mapping.\n\nRetail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.\n\nThe server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A successful Stripe webhook converts the reservation into ordinary confirmed IMS online sales orders. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes."
+      "content": "Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.\n\nA custom page is publicly eligible only after it has published content and is marked visible. Product unpublishing removes it from native browsing without deleting the IMS product or Shopify mapping.\n\nRetail prices are tax-inclusive AUD values. Active sale pricing respects saved start and end dates. Availability uses uncommitted stock at active locations enabled for online sales. Sold-out products remain browseable but cannot be added, and only whole individual units are orderable.\n\nThe server recalculates product prices, delivery, GST, and stock when checkout is created. Checkout reserves concrete stock for a limited period. A loyalty reward is an order discount; store credit settles the discounted balance and Stripe settles any amount still due. Successful settlement converts the reservation into ordinary confirmed IMS online sales orders and records loyalty and store-credit ledger entries idempotently. Split fulfilment creates one order per source location; consolidation creates transfer work into the selected dispatch location. These orders continue through the normal IMS fulfilment and daily online Xero batch processes, where Stripe cash and store-credit liability settlement remain separate."
     },
     {
       "id": "ims-online-shop:6",
@@ -4278,11 +4290,13 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "- Save outstanding editor changes before publishing.\n- Resolve a revision conflict by refreshing and reconciling the newer saved draft rather than overwriting it blindly.\n- Confirm page visibility and published content when a custom page is not public.\n- Confirm native publication, active retail pricing, unique address, channel state, and enabled online stock locations when a product is absent.\n- Every cart refresh recalculates current publication, price, and availability on the server.\n- If checkout reports no delivery option, review the destination state/postcode coverage and active rates.\n- If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured."
+      "content": "- Save outstanding editor changes before publishing.\n- Resolve a revision conflict by refreshing and reconciling the newer saved draft rather than overwriting it blindly.\n- Confirm page visibility and published content when a custom page is not public.\n- Confirm native publication, active retail pricing, unique address, channel state, and enabled online stock locations when a product is absent.\n- Every cart refresh recalculates current publication, price, and availability on the server.\n- If checkout reports no delivery option, review the destination state/postcode coverage and active rates.\n- If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.\n- If a reward or store-credit selection has expired, review the current balance and apply it again before starting payment."
     },
     {
       "id": "ims-online-shop:7",
@@ -4301,7 +4315,9 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
@@ -4324,11 +4340,13 @@
         "online-shop-templates",
         "online-shop-pages",
         "online-shop-products",
-        "online-shop-shipping"
+        "online-shop-shipping",
+        "online-shop-checkout",
+        "online-shop-account"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "### Publish a returns page\n\nCreate a Returns page, choose its address and navigation placement, write and save the draft, publish that revision, and mark the page visible. A saved but unpublished or hidden page is not publicly eligible.\n\n### Unpublish a native product without affecting Shopify\n\nOpen the product in Online Shop and unpublish it from the native channel. It disappears from native browsing, while the IMS product and any existing Shopify mapping remain intact."
+      "content": "### Publish a returns page\n\nCreate a Returns page, choose its address and navigation placement, write and save the draft, publish that revision, and mark the page visible. A saved but unpublished or hidden page is not publicly eligible.\n\n### Unpublish a native product without affecting Shopify\n\nOpen the product in Online Shop and unpublish it from the native channel. It disappears from native browsing, while the IMS product and any existing Shopify mapping remain intact.\n\n### Combine a reward and store credit\n\nFor a $100 order, a signed-in customer may select a fixed $20 reward and then apply $30 store credit. The order records a $20 loyalty discount, $30 of store-credit settlement, and $50 due through Stripe. Points and store credit remain unchanged until successful settlement."
     },
     {
       "id": "ims-xero-shopify:1",

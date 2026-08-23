@@ -1,5 +1,7 @@
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { LoyaltyRepository } from '@/lib/ims/LoyaltyRepository';
+import { calculateEarnedPoints, parseLoyaltySettings } from '@/lib/loyalty/calculations';
+import { LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
 import { getOrCreateOnlineShopCustomer } from '@/lib/onlineShop/onlineShopIdentity';
 import { allocateCentsProportionally } from '@/lib/onlineShop/onlineShopValueAllocation';
 import { getIMSPool } from '@/services/IMSMySQLService';
@@ -178,7 +180,7 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
       const merchandiseCents = groupItems.reduce((sum, item) => sum + item.lineTotalCents, 0);
       return { group, groupItems, shippingCents, merchandiseCents, grossCents: merchandiseCents + shippingCents };
     });
-    const loyaltyByGroup = allocateCentsProportionally(Number(checkout.loyalty_cents), groupPlans.map(plan => plan.grossCents));
+    const loyaltyByGroup = allocateCentsProportionally(Number(checkout.loyalty_cents), groupPlans.map(plan => plan.merchandiseCents));
     const orderTotals = groupPlans.map((plan, index) => plan.grossCents - loyaltyByGroup[index]);
     const storeCreditByGroup = allocateCentsProportionally(Number(checkout.store_credit_cents), orderTotals);
 
@@ -274,6 +276,40 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
              ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
             [input.businessId, reservation.variant_id, sourceLocationId, reservation.quantity],
           );
+        }
+      }
+    }
+    const [loyaltySettingRows] = await connection.execute<any[]>(
+      `SELECT \`key\`, value FROM ims_settings
+        WHERE business_id = ? AND \`key\` IN (?, ?, ?)`,
+      [input.businessId, LOYALTY_SETTING_KEYS.enabled, LOYALTY_SETTING_KEYS.earnRate, LOYALTY_SETTING_KEYS.startedAt],
+    );
+    const loyaltySettings = parseLoyaltySettings(Object.fromEntries(loyaltySettingRows.map(row => [String(row.key), String(row.value ?? '')])));
+    const today = new Date().toISOString().slice(0, 10);
+    if (loyaltySettings.enabled && (!loyaltySettings.startedAt || today >= loyaltySettings.startedAt)) {
+      const points = calculateEarnedPoints({
+        merchandiseTotal: Number(checkout.subtotal_cents) / 100,
+        loyaltyDiscountTotal: Number(checkout.loyalty_cents) / 100,
+        earnRate: loyaltySettings.earnRate,
+      });
+      if (points > 0) {
+        const [memberRows] = await connection.execute<any[]>(
+          `SELECT id FROM ims_contacts WHERE business_id = ? AND id = ? AND is_active = 1 AND loyalty_member = 1
+            AND type IN ('retail_customer','b2b_customer','both') LIMIT 1`,
+          [input.businessId, customerId],
+        );
+        if (memberRows[0]) {
+          await LoyaltyRepository.applyTransaction(connection, {
+            businessId: input.businessId,
+            contactId: customerId,
+            type: 'earn',
+            pointsDelta: points,
+            eligibleSpendCents: Math.max(0, Number(checkout.subtotal_cents) - Number(checkout.loyalty_cents)),
+            channel: 'native_shop',
+            sourceType: 'native_checkout',
+            sourceId: input.checkoutId,
+            idempotencyKey: `native-checkout:${input.checkoutId}:earn`,
+          });
         }
       }
     }
