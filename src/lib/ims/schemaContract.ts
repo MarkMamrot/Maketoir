@@ -95,6 +95,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_online_shop_payment_attempts',
   'ims_online_shop_payment_events',
   'ims_online_shop_value_reservations',
+  'ims_online_shop_refunds',
   'gift_cards',
   'gift_card_transactions',
   'store_credit_transactions',
@@ -192,6 +193,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ],
   ims_stocktake_items: ['soh_at_apply', 'applied_delta', 'unit_cost_at_apply'],
   store_credit_transactions: ['credit_note_id', 'idempotency_key'],
+  ims_online_shop_refunds: ['credit_note_id', 'checkout_id', 'so_id', 'contact_id', 'provider_refund_id', 'stripe_cents', 'store_credit_cents', 'status', 'idempotency_key'],
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
@@ -214,6 +216,7 @@ export const IMS_SCHEMA_REQUIRED_INDEXES = {
     'idx_wholesale_member_location',
   ],
   store_credit_transactions: ['idx_sct_credit_note', 'uq_sct_idempotency'],
+  ims_online_shop_refunds: ['uq_online_shop_refund_cn', 'uq_online_shop_refund_key', 'idx_online_shop_refund_checkout'],
 } as const;
 
 export type ImsSchemaRequiredTable = keyof typeof IMS_SCHEMA_REQUIRED_COLUMNS;

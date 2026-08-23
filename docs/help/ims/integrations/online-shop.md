@@ -55,6 +55,12 @@ Customers sign in before creating the checkout and use the same email address at
 
 The selection is reserved while checkout is active but does not change either customer ledger until payment succeeds. Starting payment locks the selection. If the selected value covers the complete order, checkout completes without opening Stripe.
 
+### Refund a native order
+
+Create the customer credit note from the linked native sales order, keep its item links and return quantities, choose **Refund**, and complete the note. The credit note remains the owner of returned stock and accounting. For an order paid with both store credit and Stripe, a partial refund restores the original store-credit payment first and refunds any remainder to Stripe. Stripe must accept the idempotent refund before the credit note completes and restocks items.
+
+Completed partial returns reverse earned loyalty points proportionally. Points spent on the original reward are also restored proportionally to returned eligible merchandise. If earned points have since been spent and cannot be reversed, completion is blocked until the later loyalty activity is resolved.
+
 ## Statuses, calculations, and permissions
 
 Each template and content page has draft and published revisions. Revision checks prevent one editor from silently overwriting another saved draft. Required commerce sections cannot be removed.
@@ -75,6 +81,7 @@ The server recalculates product prices, delivery, GST, and stock when checkout i
 - If checkout reports no delivery option, review the destination state/postcode coverage and active rates.
 - If payment cannot start, complete Stripe account onboarding and confirm the deployment publishable key and Connect webhook are configured.
 - If a reward or store-credit selection has expired, review the current balance and apply it again before starting payment.
+- If a native refund remains incomplete, review the credit note settlement error and retry completion. A Stripe failure does not restock goods or change customer value.
 
 ## Related tasks
 
@@ -93,3 +100,7 @@ Open the product in Online Shop and unpublish it from the native channel. It dis
 ### Combine a reward and store credit
 
 For a $100 order, a signed-in customer may select a fixed $20 reward and then apply $30 store credit. The order records a $20 loyalty discount, $30 of store-credit settlement, and $50 due through Stripe. Points and store credit remain unchanged until successful settlement.
+
+### Partially refund a mixed payment
+
+For an order settled with $30 store credit and $50 through Stripe, a $40 credit note restores $30 to the customer's store-credit balance and refunds $10 through Stripe. A later refund can use only the remaining Stripe-settled value.

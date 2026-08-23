@@ -76,6 +76,7 @@ Current user-facing product behavior is maintained in the canonical Help corpus 
 - IMS customer credit notes are the authoritative return records. Completing a manual IMS credit note issues the customer store credit; drafts do not affect the balance.
 - POS returns automatically create completed `source='pos'` IMS credit notes. Store-credit returns issue credit through that note; cash/card refunds create the note without changing store credit.
 - Native-shop checkout reserves signed-in customer value without mutating ledgers. One fixed loyalty reward is applied as an order discount before store credit, and successful settlement finalizes both ledgers idempotently. Store credit and Stripe are persisted as separate sales-order payments for the online Xero batch.
+- Native-shop refunds are driven by linked IMS customer credit notes. Partial mixed-payment refunds restore store credit before Stripe, while earned and redeemed loyalty points reverse proportionally to cumulative returned eligible merchandise.
 - POS-sourced credit notes remain in the existing POS/EOD Xero accounting flow and are not posted as separate Xero credit notes. Shopify credit notes remain externally settled by Shopify.
 - `ims_contacts.store_credit` is a read-only cached balance. Runtime mutations must be recorded through `store_credit_transactions`; generic contact updates must never replace it.
 

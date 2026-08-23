@@ -6,6 +6,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCommands';
 import { hashInventoryDocumentRequest, InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
 import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
+import { settleNativeCreditNoteRefund } from '@/lib/onlineShop/onlineShopRefunds';
 
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -17,6 +18,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
   try {
     const body = await request.json().catch(() => null);
     if (!body?.operationKey) return NextResponse.json({ success: false, error: 'operationKey is required.' }, { status: 400 });
+    await settleNativeCreditNoteRefund({ businessId, creditNoteId: cnId });
     await ImsCNRepo.complete(cnId, businessId, {
       operationKey: body.operationKey,
       requestHash: await hashInventoryDocumentRequest({}),

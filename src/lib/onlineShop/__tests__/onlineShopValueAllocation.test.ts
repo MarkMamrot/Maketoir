@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { allocateCentsProportionally, allocateOnlineShopValue } from '../onlineShopValueAllocation';
+import { allocateCentsProportionally, allocateOnlineShopRefund, allocateOnlineShopValue } from '../onlineShopValueAllocation';
 
 describe('allocateOnlineShopValue', () => {
   it('applies a fixed reward before store credit', () => {
@@ -51,5 +51,20 @@ describe('allocateOnlineShopValue', () => {
   it('allocates cents deterministically across fulfilment groups', () => {
     expect(allocateCentsProportionally(1_001, [2_000, 3_000])).toEqual([400, 601]);
     expect(allocateCentsProportionally(5_000, [2_000, 3_000])).toEqual([2_000, 3_000]);
+  });
+
+  it('restores store credit before refunding Stripe', () => {
+    expect(allocateOnlineShopRefund({ refundCents: 4_000, originalStripeCents: 7_000,
+      originalStoreCreditCents: 3_000, refundedStripeCents: 0, refundedStoreCreditCents: 0 }))
+      .toEqual({ storeCreditCents: 3_000, stripeCents: 1_000 });
+    expect(allocateOnlineShopRefund({ refundCents: 2_000, originalStripeCents: 7_000,
+      originalStoreCreditCents: 3_000, refundedStripeCents: 1_000, refundedStoreCreditCents: 3_000 }))
+      .toEqual({ storeCreditCents: 0, stripeCents: 2_000 });
+  });
+
+  it('rejects a refund above the remaining settled value', () => {
+    expect(() => allocateOnlineShopRefund({ refundCents: 5_001, originalStripeCents: 7_000,
+      originalStoreCreditCents: 3_000, refundedStripeCents: 2_000, refundedStoreCreditCents: 3_000 }))
+      .toThrow('remaining settled order value');
   });
 });

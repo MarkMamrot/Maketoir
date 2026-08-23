@@ -63,3 +63,20 @@ export function allocateCentsProportionally(totalCents: number, weights: number[
     return allocation;
   });
 }
+
+export function allocateOnlineShopRefund(input: {
+  refundCents: number;
+  originalStripeCents: number;
+  originalStoreCreditCents: number;
+  refundedStripeCents: number;
+  refundedStoreCreditCents: number;
+}): { stripeCents: number; storeCreditCents: number } {
+  Object.entries(input).forEach(([label, value]) => requireNonNegativeInteger(value, label));
+  const remainingStripeCents = Math.max(0, input.originalStripeCents - input.refundedStripeCents);
+  const remainingStoreCreditCents = Math.max(0, input.originalStoreCreditCents - input.refundedStoreCreditCents);
+  if (input.refundCents > remainingStripeCents + remainingStoreCreditCents) {
+    throw new Error('The refund exceeds the remaining settled order value.');
+  }
+  const storeCreditCents = Math.min(input.refundCents, remainingStoreCreditCents);
+  return { storeCreditCents, stripeCents: input.refundCents - storeCreditCents };
+}

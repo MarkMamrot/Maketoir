@@ -3,6 +3,7 @@ import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { applyNativeRefundLedgers } from '@/lib/onlineShop/onlineShopRefunds';
 import { assertNoActiveStockAllocations, markPurchaseOrderAllocationPromisesAtRisk } from './stockAllocation/service';
 import {
   loadStockAllocationExceptionGroups,
@@ -5465,7 +5466,21 @@ export const ImsCNRepo = {
         : (cn.settlement_method ?? 'store_credit');
 
       let storeCreditTransactionId: number | null = null;
-      if (settlementMethod === 'store_credit') {
+      if (settlementMethod === 'refund' && cn.so_id && cn.customer_id) {
+        const [nativeOrderRows] = await conn.execute<any[]>(
+          `SELECT native_checkout_id FROM ims_sales_orders
+            WHERE business_id = ? AND id = ? AND sales_channel = 'native_shop' LIMIT 1 FOR UPDATE`,
+          [businessId, cn.so_id],
+        );
+        if (nativeOrderRows[0]?.native_checkout_id) {
+          storeCreditTransactionId = await applyNativeRefundLedgers(conn, {
+            businessId,
+            creditNoteId: id,
+            contactId: cn.customer_id,
+            checkoutId: String(nativeOrderRows[0].native_checkout_id),
+          });
+        }
+      } else if (settlementMethod === 'store_credit') {
         if (!cn.customer_id) throw new Error('A customer is required to issue store credit');
         const [contactRows] = await conn.execute(
           `SELECT id, type, store_credit
