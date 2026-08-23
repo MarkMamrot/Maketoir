@@ -1503,3 +1503,150 @@ CREATE TABLE IF NOT EXISTS order_planner_drafts (
   created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_business_id (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
+-- public prospect sales assistant (shared main database)
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS sales_integration_offerings (
+  id                       BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  slug                     VARCHAR(100) NOT NULL,
+  name                     VARCHAR(255) NOT NULL,
+  category                 VARCHAR(100) NOT NULL,
+  delivery_mode            ENUM('native','on_demand','beta','not_offered') NOT NULL,
+  public_summary           TEXT NOT NULL,
+  example_providers_json   JSON NOT NULL,
+  supported_workflows_json JSON NOT NULL,
+  qualification_questions_json JSON NOT NULL,
+  is_enabled               TINYINT(1) NOT NULL DEFAULT 1,
+  internal_notes           TEXT NULL,
+  created_at               DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at               DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_sales_integration_offering_slug (slug),
+  INDEX idx_sales_integration_offering_public (is_enabled, delivery_mode, category, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_conversations (
+  id                  CHAR(36) PRIMARY KEY,
+  session_id_hash     CHAR(64) NOT NULL,
+  status              ENUM('active','converted','closed','blocked') NOT NULL DEFAULT 'active',
+  source_path         VARCHAR(500) NULL,
+  attribution_json    JSON NULL,
+  last_user_prompt    LONGTEXT NULL,
+  message_count       INT UNSIGNED NOT NULL DEFAULT 0,
+  last_message_at     DATETIME(3) NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_prospect_conversation_session (session_id_hash, updated_at),
+  INDEX idx_prospect_conversation_status (status, updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_messages (
+  id                  CHAR(36) PRIMARY KEY,
+  conversation_id     CHAR(36) NOT NULL,
+  role                ENUM('user','assistant') NOT NULL,
+  content             LONGTEXT NOT NULL,
+  model_name          VARCHAR(100) NULL,
+  prompt_version      VARCHAR(100) NULL,
+  metadata_json       JSON NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_prospect_message_conversation (conversation_id, created_at, id),
+  CONSTRAINT fk_prospect_message_conversation FOREIGN KEY (conversation_id)
+    REFERENCES prospect_conversations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sales_integration_events (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  idempotency_key     VARCHAR(191) NOT NULL,
+  offering_id         BIGINT UNSIGNED NULL,
+  conversation_id     CHAR(36) NULL,
+  event_type          VARCHAR(64) NOT NULL,
+  provider_name       VARCHAR(191) NULL,
+  event_data_json     JSON NULL,
+  occurred_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_sales_integration_event_idempotency (idempotency_key),
+  INDEX idx_sales_integration_event_offering (offering_id, occurred_at),
+  INDEX idx_sales_integration_event_conversation (conversation_id, occurred_at),
+  CONSTRAINT fk_sales_integration_event_offering FOREIGN KEY (offering_id)
+    REFERENCES sales_integration_offerings(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sales_integration_event_conversation FOREIGN KEY (conversation_id)
+    REFERENCES prospect_conversations(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_events (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  idempotency_key     VARCHAR(191) NOT NULL,
+  conversation_id     CHAR(36) NULL,
+  event_type          VARCHAR(64) NOT NULL,
+  event_data_json     JSON NULL,
+  occurred_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_prospect_event_idempotency (idempotency_key),
+  INDEX idx_prospect_event_conversation (conversation_id, occurred_at),
+  INDEX idx_prospect_event_type (event_type, occurred_at),
+  CONSTRAINT fk_prospect_event_conversation FOREIGN KEY (conversation_id)
+    REFERENCES prospect_conversations(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_leads (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  idempotency_key     VARCHAR(191) NOT NULL,
+  conversation_id     CHAR(36) NULL,
+  name                VARCHAR(255) NOT NULL,
+  company             VARCHAR(255) NULL,
+  email               VARCHAR(320) NULL,
+  phone               VARCHAR(32) NULL,
+  preferred_contact   ENUM('email','phone','sms') NOT NULL,
+  consent_email       TINYINT(1) NOT NULL DEFAULT 0,
+  consent_phone       TINYINT(1) NOT NULL DEFAULT 0,
+  consent_sms         TINYINT(1) NOT NULL DEFAULT 0,
+  consented_at        DATETIME(3) NOT NULL,
+  locations           VARCHAR(100) NULL,
+  current_systems     TEXT NULL,
+  timeframe           VARCHAR(100) NULL,
+  source_path         VARCHAR(500) NULL,
+  status              ENUM('new','contacting','qualified','demo_booked','won','lost','spam') NOT NULL DEFAULT 'new',
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_prospect_lead_idempotency (idempotency_key),
+  UNIQUE KEY uq_prospect_lead_conversation (conversation_id),
+  INDEX idx_prospect_lead_status (status, created_at),
+  CONSTRAINT fk_prospect_lead_conversation FOREIGN KEY (conversation_id)
+    REFERENCES prospect_conversations(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_lead_events (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  idempotency_key     VARCHAR(191) NOT NULL,
+  lead_id             BIGINT UNSIGNED NOT NULL,
+  event_type          VARCHAR(64) NOT NULL,
+  event_data_json     JSON NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_prospect_lead_event_idempotency (idempotency_key),
+  INDEX idx_prospect_lead_event_lead (lead_id, created_at),
+  CONSTRAINT fk_prospect_lead_event_lead FOREIGN KEY (lead_id)
+    REFERENCES prospect_leads(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_demand_insights (
+  id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  fingerprint         CHAR(64) NOT NULL,
+  demand_type         ENUM('integration','feature','workflow','industry') NOT NULL,
+  requested_name      VARCHAR(255) NOT NULL,
+  requested_provider  VARCHAR(255) NULL,
+  sample_prompt       TEXT NULL,
+  first_seen_at       DATETIME(3) NOT NULL,
+  last_seen_at        DATETIME(3) NOT NULL,
+  occurrence_count    INT UNSIGNED NOT NULL DEFAULT 1,
+  conversation_count  INT UNSIGNED NOT NULL DEFAULT 1,
+  UNIQUE KEY uq_prospect_demand_insight_fingerprint (fingerprint),
+  INDEX idx_prospect_demand_insight_recent (demand_type, last_seen_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS prospect_rate_limits (
+  rate_key_hash       CHAR(64) NOT NULL,
+  operation           VARCHAR(64) NOT NULL,
+  window_started_at   DATETIME(3) NOT NULL,
+  request_count       INT UNSIGNED NOT NULL DEFAULT 1,
+  expires_at          DATETIME(3) NOT NULL,
+  PRIMARY KEY (rate_key_hash, operation, window_started_at),
+  INDEX idx_prospect_rate_limit_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

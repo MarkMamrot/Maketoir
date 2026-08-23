@@ -7,7 +7,26 @@ const capabilityPath = path.join(root, 'src', 'lib', 'assistant', 'capabilities.
 const outputDirectory = path.join(root, 'src', 'generated');
 const outputPath = path.join(outputDirectory, 'solvantis-assistant-index.json');
 const helpOutputPath = path.join(outputDirectory, 'solvantis-help-index.json');
+const prospectOutputPath = path.join(outputDirectory, 'solvantis-prospect-index.json');
 const validAudiences = new Set(['ims', 'pos', 'wholesale']);
+const prospectAudience = 'prospect';
+const prospectProduct = 'prospect';
+const validProspectCapabilities = new Set([
+  'accounting',
+  'analytics',
+  'commerce',
+  'crm',
+  'implementation',
+  'integrations',
+  'inventory',
+  'marketing',
+  'onboarding',
+  'pos',
+  'pricing',
+  'purchasing',
+  'support',
+  'wholesale',
+]);
 const unsafeHelpPatterns = [
   /\b(?:MYSQL|IMS_MYSQL|AUTH_SESSION|RESEND_API|GEMINI_API)_[A-Z0-9_]*\b/,
   /\breadyedu_[A-Za-z0-9_]+\b/,
@@ -15,6 +34,47 @@ const unsafeHelpPatterns = [
   /\/api\/[A-Za-z0-9_./[\]-]+/i,
   /\b(?:CREATE|ALTER|DROP)\s+TABLE\b|\bSELECT\s+.+\s+FROM\b|\bINSERT\s+INTO\b|\bUPDATE\s+[A-Za-z_][A-Za-z0-9_]*\s+SET\b|\bDELETE\s+FROM\b/i,
 ];
+const unsafeProspectPatterns = [
+  ...unsafeHelpPatterns,
+  /\b(?:businessId|getImsSession|runImsForBusiness|imsQuery|imsExecute|AsyncLocalStorage)\b/i,
+  /\b(?:tenant|schema|database|table|cookie|session token)\b/i,
+  /\b(?:password|credential|secret|access token|api key|authorization header)\b/i,
+  /\b(?:click|navigate|open)\s+(?:the|to|in)\b/i,
+  /\b(?:enter|paste|copy)\s+(?:your|the)\b/i,
+  /\bstep\s+\d+\b/i,
+  /(?:^|\s)#[A-Za-z0-9_-]+/,
+];
+
+function parseProspectDocument(filename, source) {
+  const match = source.match(/^---\r?\n([^\n]+)\r?\n---\r?\n([\s\S]*)$/);
+  if (!match) throw new Error(`${filename}: expected single-line JSON frontmatter`);
+  const metadata = JSON.parse(match[1]);
+  for (const field of ['id', 'title', 'summary', 'lastReviewed', 'owner']) {
+    if (!String(metadata[field] ?? '').trim()) throw new Error(`${filename}: missing ${field}`);
+  }
+  if (metadata.product !== prospectProduct) throw new Error(`${filename}: invalid prospect product`);
+  if (!Array.isArray(metadata.audiences) || metadata.audiences.length !== 1 || metadata.audiences[0] !== prospectAudience) {
+    throw new Error(`${filename}: invalid prospect audiences`);
+  }
+  if (!Array.isArray(metadata.capabilityTags) || metadata.capabilityTags.length === 0
+    || metadata.capabilityTags.some(value => !validProspectCapabilities.has(value))) {
+    throw new Error(`${filename}: invalid prospect capabilityTags`);
+  }
+  if (metadata.summary.length > 500) throw new Error(`${filename}: prospect summary exceeds 500 characters`);
+  const unsafe = unsafeProspectPatterns.find(pattern => pattern.test(source));
+  if (unsafe) throw new Error(`${filename}: contains forbidden prospect content (${unsafe})`);
+
+  return {
+    metadata,
+    projection: {
+      id: metadata.id,
+      title: metadata.title,
+      summary: metadata.summary,
+      capabilities: Array.from(new Set(metadata.capabilityTags)),
+      product: metadata.product,
+    },
+  };
+}
 
 function parseDocument(filename, source, options = {}) {
   const match = source.match(/^---\r?\n([^\n]+)\r?\n---\r?\n([\s\S]*)$/);
@@ -92,10 +152,18 @@ async function markdownFiles(directory) {
 const documents = [];
 const chunks = [];
 const helpTopics = [];
+const prospectSources = [];
 const ids = new Set();
 const capabilities = JSON.parse(await fs.readFile(capabilityPath, 'utf8'));
 for (const helpPath of await markdownFiles(helpDirectory)) {
   const relativePath = path.relative(root, helpPath).replaceAll('\\', '/');
+  if (relativePath.startsWith('docs/help/prospect/')) {
+    const parsed = parseProspectDocument(relativePath, await fs.readFile(helpPath, 'utf8'));
+    if (ids.has(parsed.metadata.id)) throw new Error(`Duplicate help document id: ${parsed.metadata.id}`);
+    ids.add(parsed.metadata.id);
+    prospectSources.push(parsed.projection);
+    continue;
+  }
   const parsed = parseDocument(relativePath, await fs.readFile(helpPath, 'utf8'), { help: true });
   if (ids.has(parsed.metadata.id)) throw new Error(`Duplicate help document id: ${parsed.metadata.id}`);
   ids.add(parsed.metadata.id);
@@ -118,4 +186,5 @@ for (const document of documents) {
 await fs.mkdir(outputDirectory, { recursive: true });
 await fs.writeFile(outputPath, `${JSON.stringify({ version: 1, documents, capabilities, chunks }, null, 2)}\n`);
 await fs.writeFile(helpOutputPath, `${JSON.stringify({ version: 1, topics: helpTopics }, null, 2)}\n`);
-console.log(`Built private Solvantis indexes with ${documents.length} documents, ${chunks.length} assistant chunks, and ${helpTopics.length} help topics.`);
+await fs.writeFile(prospectOutputPath, `${JSON.stringify({ version: 1, sources: prospectSources }, null, 2)}\n`);
+console.log(`Built private Solvantis indexes with ${documents.length} documents, ${chunks.length} assistant chunks, and ${helpTopics.length} help topics; built public prospect index with ${prospectSources.length} sources.`);

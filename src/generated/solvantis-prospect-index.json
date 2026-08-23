@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "prospect-integrations",
+      "title": "Integration Approach",
+      "summary": "Solvantis has native capabilities for Xero accounting, Shopify commerce, Cin7 inventory, and connected Google and Meta marketing analysis. Exact workflows depend on the selected plan, connected service and agreed operating design. Other providers, including 3PL and external platforms, are assessed during discovery and are scoped and quoted rather than guaranteed.",
+      "capabilities": [
+        "integrations",
+        "accounting",
+        "commerce",
+        "inventory",
+        "marketing",
+        "analytics"
+      ],
+      "product": "prospect"
+    },
+    {
+      "id": "prospect-onboarding-support",
+      "title": "Onboarding and Support",
+      "summary": "Data migration is included across current plans. Basic includes local phone and email support, Growth includes priority phone support, and Enterprise includes migration and training, priority 24/7 support, a dedicated account manager and service-level terms. Implementation scope is agreed against each retailer's locations, data and integration needs.",
+      "capabilities": [
+        "onboarding",
+        "implementation",
+        "support"
+      ],
+      "product": "prospect"
+    },
+    {
+      "id": "prospect-pricing-offer",
+      "title": "Plans, Pricing and Current Offer",
+      "summary": "Basic is $60 per month for up to 3 locations and 5 users. Growth is $200 per month base, plus $50 per month for each additional location, for 2-10 locations and up to 50 users. Enterprise has custom terms for 10+ locations. The current public offer provides 3 months on a chosen plan for a one-time $1 payment, with no card required upfront, no lock-in and normal billing after the offer unless cancelled.",
+      "capabilities": [
+        "pricing"
+      ],
+      "product": "prospect"
+    },
+    {
+      "id": "prospect-product-fit",
+      "title": "Solvantis Product and Fit",
+      "summary": "Solvantis brings inventory, purchasing, in-store point of sale, customer management, wholesale, online commerce and business analysis together for Australian retailers. It is a strong fit for teams that want shared product and stock visibility across one or many locations, with deeper planning and control available as operations grow.",
+      "capabilities": [
+        "inventory",
+        "purchasing",
+        "pos",
+        "crm",
+        "wholesale",
+        "commerce",
+        "analytics"
+      ],
+      "product": "prospect"
+    },
+    {
+      "id": "prospect-retail-use-cases",
+      "title": "Retail Use Cases",
+      "summary": "Solvantis supports single-store and multi-location retailers that need coordinated stock, purchasing, point of sale, customer orders, loyalty, wholesale or online sales. Common use cases include shared product control across locations, replenishment planning, combined in-store and online operations, and business analysis grounded in retail activity.",
+      "capabilities": [
+        "inventory",
+        "purchasing",
+        "pos",
+        "crm",
+        "wholesale",
+        "commerce",
+        "analytics"
+      ],
+      "product": "prospect"
+    }
+  ]
+}
