@@ -172,7 +172,7 @@ export async function createAssistantEscalation(
       `SELECT public_reference, response_due_at FROM assistant_escalations WHERE id = ? LIMIT 1`,
       [escalationId],
     );
-    const persisted = rows[0]?.[0];
+    const persisted = rows[0];
     if (!persisted) throw new Error('Assistant escalation could not be reloaded after persistence.');
     await connection.execute(
       `INSERT INTO assistant_escalation_events (escalation_id, event_type, message)

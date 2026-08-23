@@ -158,8 +158,7 @@ export default function Landing() {
                 </span>
               </h1>
               <p className="text-lg text-slate-300 mb-8 leading-relaxed max-w-lg">
-                Inventory, POS, AI tools, analytics, and CRM — unified in one platform.
-                Stop juggling spreadsheets and fragmented systems. Start scaling.
+                Advanced Inventory, POS, AI tools, analytics, and CRM — unified in one platform, built for the way modern retailers and wholesalers work.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link

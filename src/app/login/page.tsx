@@ -62,12 +62,12 @@ function LoginForm() {
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-7xl items-center gap-10 px-5 py-8 sm:px-8 lg:grid-cols-[minmax(0,1fr)_30rem] lg:gap-20 lg:px-12">
         <section className="max-w-2xl pt-6 text-white lg:pt-0">
           <p className="mb-5 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">Solvantis</p>
-          <h1 className="text-4xl font-black leading-[1.05] sm:text-5xl lg:text-7xl">
+          <h1 className="text-3xl font-black leading-[1.05] text-white sm:text-5xl lg:text-7xl">
             The Operating System
             <span className="mt-2 block text-cyan-300">For Modern Commerce.</span>
           </h1>
           <p className="mt-6 max-w-xl text-base leading-7 text-slate-200 sm:text-lg">
-            Inventory, POS, AI tools, analytics, and CRM, unified in one platform built for the way modern retailers work.
+            Advanced Inventory, POS, AI tools, analytics, and CRM, unified in one platform built for the way modern retailers and wholesalers work.
           </p>
         </section>
 
