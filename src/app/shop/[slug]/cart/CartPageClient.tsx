@@ -29,6 +29,6 @@ export function CartPageClient({ storeSlug }: { storeSlug: string }) {
       <div><Link href={`/shop/${storeSlug}/products/${line.productSlug}`}><strong>{line.name}</strong></Link>{line.optionLabel && <span>{line.optionLabel}</span>}<span>{money(line.unitPriceCents)}</span>{!line.isAvailable && <em>Only {line.availableUnits} available</em>}</div>
       <input aria-label={`Quantity for ${line.name}`} type="number" min={0} max={Math.max(0, line.availableUnits)} value={line.quantity} onChange={event => update(line.variantId, Math.max(0, Math.floor(Number(event.target.value) || 0)))} />
       <strong>{money(line.lineTotalCents)}</strong><button onClick={() => update(line.variantId, 0)}>Remove</button>
-    </article>)}</div><aside className={styles.summary}><div><span>Subtotal</span><strong>{money(quote.subtotalCents)}</strong></div><p>Shipping and discounts are calculated at checkout.</p><button disabled>Checkout setup in progress</button></aside></div>}
+    </article>)}</div><aside className={styles.summary}><div><span>Subtotal</span><strong>{money(quote.subtotalCents)}</strong></div><p>Shipping and discounts are calculated at checkout.</p><Link className={quote.canCheckout ? styles.checkoutButton : styles.checkoutButtonDisabled} aria-disabled={!quote.canCheckout} href={quote.canCheckout ? `/shop/${storeSlug}/checkout` : '#'}>Checkout</Link></aside></div>}
   </div>;
 }
