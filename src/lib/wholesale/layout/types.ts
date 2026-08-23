@@ -1,3 +1,14 @@
+import type {
+  StorefrontLayoutDocument,
+  StorefrontLayoutPage,
+  StorefrontLayoutSection,
+  StorefrontLayoutSectionDefinition,
+  StorefrontLayoutSectionSettings,
+  StorefrontSectionAlignment,
+  StorefrontSectionSpacing,
+  StorefrontSectionWidth,
+} from '@/lib/storefront/layout';
+
 export const WHOLESALE_LAYOUT_SCHEMA_VERSION = 1 as const;
 
 export const WHOLESALE_LAYOUT_PAGE_IDS = ['login', 'home', 'catalogue', 'cart', 'collection', 'product'] as const;
@@ -23,51 +34,18 @@ export const WHOLESALE_LAYOUT_SECTION_TYPES = [
 ] as const;
 export type WholesaleLayoutSectionType = typeof WHOLESALE_LAYOUT_SECTION_TYPES[number];
 
-export type WholesaleSectionWidth = 'narrow' | 'content' | 'full';
-export type WholesaleSectionAlignment = 'left' | 'center' | 'right';
-export type WholesaleSectionSpacing = 'none' | 'small' | 'medium' | 'large';
-
-export interface WholesaleLayoutSectionSettings {
-  width?: WholesaleSectionWidth;
-  alignment?: WholesaleSectionAlignment;
-  spacingTop?: WholesaleSectionSpacing;
-  spacingBottom?: WholesaleSectionSpacing;
-  backgroundColor?: string;
-  textColor?: string;
-  heading?: string;
-  bodyHtml?: string;
-  imageUrl?: string;
-  assetId?: string;
-  altText?: string;
-  linkUrl?: string;
-  linkLabel?: string;
-  imageFit?: 'cover' | 'contain';
-  imageRatio?: 'landscape' | 'square' | 'portrait';
-  imageSide?: 'left' | 'right';
-  productIds?: string[];
-  productLimit?: number;
-}
-
-export interface WholesaleLayoutSection {
-  id: string;
-  type: WholesaleLayoutSectionType;
-  settings: WholesaleLayoutSectionSettings;
-}
-
-export interface WholesaleLayoutPage {
-  sections: WholesaleLayoutSection[];
-}
-
-export interface WholesaleLayoutDocument {
-  schemaVersion: typeof WHOLESALE_LAYOUT_SCHEMA_VERSION;
-  pages: Record<WholesaleLayoutPageId, WholesaleLayoutPage>;
-}
-
-export interface WholesaleLayoutSectionDefinition {
-  type: WholesaleLayoutSectionType;
-  label: string;
-  allowedPages: readonly WholesaleLayoutPageId[];
-  requiredOn?: readonly WholesaleLayoutPageId[];
-  singleton?: boolean;
-  defaultSettings: WholesaleLayoutSectionSettings;
-}
+export type WholesaleSectionWidth = StorefrontSectionWidth;
+export type WholesaleSectionAlignment = StorefrontSectionAlignment;
+export type WholesaleSectionSpacing = StorefrontSectionSpacing;
+export type WholesaleLayoutSectionSettings = StorefrontLayoutSectionSettings;
+export type WholesaleLayoutSection = StorefrontLayoutSection<WholesaleLayoutSectionType>;
+export type WholesaleLayoutPage = StorefrontLayoutPage<WholesaleLayoutSectionType>;
+export type WholesaleLayoutDocument = StorefrontLayoutDocument<
+  WholesaleLayoutPageId,
+  WholesaleLayoutSectionType,
+  typeof WHOLESALE_LAYOUT_SCHEMA_VERSION
+>;
+export type WholesaleLayoutSectionDefinition = StorefrontLayoutSectionDefinition<
+  WholesaleLayoutPageId,
+  WholesaleLayoutSectionType
+>;

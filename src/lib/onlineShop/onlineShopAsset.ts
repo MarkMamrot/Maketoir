@@ -1,0 +1,66 @@
+import type { RowDataPacket } from 'mysql2/promise';
+import { execute, query } from '@/services/MySQLService';
+
+interface AssetRow extends RowDataPacket {
+  asset_id: string; business_id: string; stored_filename: string; mime_type: string; byte_size: number;
+  original_name: string; alt_text: string | null; created_by_user_id: number | null;
+  created_by_name: string | null; created_at: Date | string;
+}
+
+export interface OnlineShopAsset {
+  assetId: string; url: string; mimeType: string; byteSize: number; originalName: string; altText: string | null;
+  createdBy: { userId: number | null; name: string | null }; createdAt: string;
+}
+export interface OnlineShopStoredAsset extends OnlineShopAsset { businessId: string; storedFilename: string }
+
+function mapAsset(row: AssetRow): OnlineShopStoredAsset {
+  const date = row.created_at instanceof Date ? row.created_at : new Date(row.created_at);
+  return {
+    assetId: row.asset_id, businessId: row.business_id, storedFilename: row.stored_filename,
+    url: `/api/shop/assets/${row.asset_id}`, mimeType: row.mime_type, byteSize: Number(row.byte_size),
+    originalName: row.original_name, altText: row.alt_text,
+    createdBy: { userId: row.created_by_user_id, name: row.created_by_name },
+    createdAt: Number.isNaN(date.getTime()) ? '' : date.toISOString(),
+  };
+}
+
+const columns = `asset_id, business_id, stored_filename, mime_type, byte_size, original_name,
+  alt_text, created_by_user_id, created_by_name, created_at`;
+
+export const OnlineShopAssetRepository = {
+  async findOwnedActiveIds(businessId: string, assetIds: readonly string[]): Promise<Set<string>> {
+    const ids = [...new Set(assetIds)];
+    if (!ids.length) return new Set();
+    const rows = await query<{ asset_id: string } & RowDataPacket>(
+      `SELECT asset_id FROM online_shop_assets WHERE business_id = ? AND is_active = 1 AND asset_id IN (${ids.map(() => '?').join(',')})`,
+      [businessId, ...ids]);
+    return new Set(rows.map(row => row.asset_id));
+  },
+
+  async listOwned(businessId: string): Promise<OnlineShopAsset[]> {
+    const rows = await query<AssetRow>(`SELECT ${columns} FROM online_shop_assets
+      WHERE business_id = ? AND is_active = 1 ORDER BY created_at DESC, asset_id DESC`, [businessId]);
+    return rows.map(row => { const { businessId: _businessId, storedFilename: _storedFilename, ...asset } = mapAsset(row); return asset; });
+  },
+
+  async create(input: { assetId: string; businessId: string; storedFilename: string; mimeType: string;
+    byteSize: number; originalName: string; altText: string | null; actor: { userId: number; name: string } }): Promise<OnlineShopAsset> {
+    await execute(`INSERT INTO online_shop_assets (asset_id, business_id, stored_filename, mime_type, byte_size,
+      original_name, alt_text, created_by_user_id, created_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [input.assetId, input.businessId, input.storedFilename, input.mimeType, input.byteSize, input.originalName,
+      input.altText, input.actor.userId, input.actor.name]);
+    const rows = await query<AssetRow>(`SELECT ${columns} FROM online_shop_assets WHERE asset_id = ? AND business_id = ? LIMIT 1`, [input.assetId, input.businessId]);
+    if (!rows[0]) throw new Error('Uploaded online shop asset could not be reloaded.');
+    const { businessId: _businessId, storedFilename: _storedFilename, ...asset } = mapAsset(rows[0]);
+    return asset;
+  },
+
+  async getPublicActive(assetId: string): Promise<OnlineShopStoredAsset | null> {
+    const rows = await query<AssetRow>(`SELECT ${columns.split(', ').map(column => `a.${column.trim()}`).join(', ')}
+      FROM online_shop_assets a
+      JOIN online_shop_profiles p ON p.business_id = a.business_id AND p.is_active = 1
+      JOIN business_online_channels c ON c.business_id = a.business_id AND c.active_channel = 'native_shop'
+      WHERE a.asset_id = ? AND a.is_active = 1 LIMIT 1`, [assetId]);
+    return rows[0] ? mapAsset(rows[0]) : null;
+  },
+};

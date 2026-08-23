@@ -884,6 +884,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   customer_po_number VARCHAR(100) NULL,
   price_tier       ENUM('retail','wholesale') NOT NULL DEFAULT 'retail',
   so_type          VARCHAR(10) NOT NULL DEFAULT 'b2b',
+  sales_channel    ENUM('shopify','native_shop') NULL,
+  native_checkout_id CHAR(36) NULL,
   location_id      INT NOT NULL,
   status           ENUM('draft','confirmed','partially_fulfilled','backordered','fulfilled','cancelled') NOT NULL DEFAULT 'draft',
   order_date       DATE NOT NULL,
@@ -926,6 +928,8 @@ CREATE TABLE IF NOT EXISTS ims_sales_orders (
   INDEX idx_business_id (business_id),
   INDEX idx_so_wholesale_account (business_id, wholesale_company_id, wholesale_location_id, wholesale_member_id),
   INDEX idx_so_staff_preview (business_id, is_staff_preview_test, staff_preview_session_id),
+  INDEX idx_so_online_channel (business_id, sales_channel, order_date, id),
+  UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id),
   INDEX idx_so_backorder_queue (business_id, status, customer_id, created_at),
   UNIQUE INDEX uq_so_replacement_source (business_id, replacement_of_so_id),
   FOREIGN KEY (customer_id) REFERENCES ims_contacts(id) ON DELETE SET NULL,
@@ -1905,7 +1909,7 @@ CREATE TABLE IF NOT EXISTS loyalty_transactions (
   points_delta    INT NOT NULL,
   balance_after   INT NOT NULL,
   eligible_spend_cents INT UNSIGNED NULL,
-  channel         ENUM('pos','shopify','manual','migration') NOT NULL,
+  channel         ENUM('pos','shopify','native_shop','manual','migration') NOT NULL,
   source_type     VARCHAR(50) NULL,
   source_id       VARCHAR(191) NULL,
   idempotency_key VARCHAR(191) NULL,
@@ -1917,6 +1921,211 @@ CREATE TABLE IF NOT EXISTS loyalty_transactions (
   INDEX idx_loyalty_transaction_source (business_id, source_type, source_id),
   INDEX idx_loyalty_transaction_type (business_id, type, created_at),
   CONSTRAINT fk_loyalty_transaction_account FOREIGN KEY (account_id) REFERENCES loyalty_accounts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ── Native Online Shop ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_online_shop_products (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  product_id VARCHAR(36) NOT NULL,
+  slug VARCHAR(120) NOT NULL,
+  meta_title VARCHAR(255) NULL,
+  meta_description VARCHAR(500) NULL,
+  is_published TINYINT(1) NOT NULL DEFAULT 0,
+  published_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_shop_product (business_id, product_id),
+  UNIQUE KEY uq_online_shop_product_slug (business_id, slug),
+  INDEX idx_online_shop_product_public (business_id, is_published, slug),
+  CONSTRAINT fk_online_shop_product FOREIGN KEY (product_id) REFERENCES ims_products(product_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_customers (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  contact_id INT NOT NULL,
+  normalized_email VARCHAR(320) NOT NULL,
+  email_verified_at DATETIME NULL,
+  last_login_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_shop_customer_email (business_id, normalized_email),
+  UNIQUE KEY uq_online_shop_customer_contact (business_id, contact_id),
+  CONSTRAINT fk_online_shop_customer_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_addresses (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  customer_id BIGINT NOT NULL,
+  label VARCHAR(80) NULL,
+  recipient_name VARCHAR(255) NOT NULL,
+  address VARCHAR(255) NOT NULL,
+  address2 VARCHAR(255) NULL,
+  suburb VARCHAR(100) NOT NULL,
+  city VARCHAR(100) NULL,
+  state VARCHAR(100) NOT NULL,
+  postcode VARCHAR(20) NOT NULL,
+  country VARCHAR(100) NOT NULL DEFAULT 'Australia',
+  is_primary TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_online_shop_address_customer (business_id, customer_id, is_primary, id),
+  CONSTRAINT fk_online_shop_address_customer FOREIGN KEY (customer_id) REFERENCES ims_online_shop_customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_shipping_rules (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  rule_type VARCHAR(32) NOT NULL DEFAULT 'flat',
+  amount_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  free_over_cents INT UNSIGNED NULL,
+  states_json JSON NULL,
+  postcodes_json JSON NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_online_shipping_rule_active (business_id, is_active, sort_order, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_pickup_locations (
+  business_id VARCHAR(100) NOT NULL,
+  location_id INT NOT NULL,
+  display_name VARCHAR(255) NULL,
+  instructions VARCHAR(1000) NULL,
+  sort_order INT NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (business_id, location_id),
+  INDEX idx_online_pickup_active (business_id, is_active, sort_order),
+  CONSTRAINT fk_online_pickup_location FOREIGN KEY (location_id) REFERENCES ims_locations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_checkouts (
+  checkout_id CHAR(36) PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  customer_id BIGINT NULL,
+  guest_email VARCHAR(320) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'open',
+  fulfilment_type VARCHAR(32) NOT NULL DEFAULT 'delivery',
+  location_id INT NOT NULL,
+  shipping_rule_id BIGINT NULL,
+  shipping_address_json JSON NULL,
+  subtotal_cents INT UNSIGNED NOT NULL,
+  tax_cents INT UNSIGNED NOT NULL,
+  shipping_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  loyalty_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  store_credit_cents INT UNSIGNED NOT NULL DEFAULT 0,
+  total_cents INT UNSIGNED NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'AUD',
+  expires_at DATETIME NOT NULL,
+  completed_so_id INT NULL,
+  completed_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_online_checkout_status (business_id, status, expires_at),
+  INDEX idx_online_checkout_customer (business_id, customer_id, created_at),
+  CONSTRAINT fk_online_checkout_customer FOREIGN KEY (customer_id) REFERENCES ims_online_shop_customers(id) ON DELETE SET NULL,
+  CONSTRAINT fk_online_checkout_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  CONSTRAINT fk_online_checkout_shipping_rule FOREIGN KEY (shipping_rule_id) REFERENCES ims_online_shop_shipping_rules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_online_checkout_so FOREIGN KEY (completed_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_checkout_items (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  variant_id VARCHAR(36) NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  unit_price_cents INT UNSIGNED NOT NULL,
+  tax_cents INT UNSIGNED NOT NULL,
+  line_total_cents INT UNSIGNED NOT NULL,
+  product_name VARCHAR(255) NOT NULL,
+  variant_label VARCHAR(255) NULL,
+  sku VARCHAR(100) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_checkout_variant (checkout_id, variant_id),
+  INDEX idx_online_checkout_item_business (business_id, checkout_id),
+  CONSTRAINT fk_online_checkout_item_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
+  CONSTRAINT fk_online_checkout_item_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_stock_reservations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  variant_id VARCHAR(36) NOT NULL,
+  location_id INT NOT NULL,
+  quantity INT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  expires_at DATETIME NOT NULL,
+  released_at DATETIME NULL,
+  converted_so_id INT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_stock_reservation (checkout_id, variant_id, location_id),
+  INDEX idx_online_stock_reservation_active (business_id, variant_id, location_id, status, expires_at),
+  CONSTRAINT fk_online_stock_reservation_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
+  CONSTRAINT fk_online_stock_reservation_variant FOREIGN KEY (variant_id) REFERENCES ims_product_variants(variant_id),
+  CONSTRAINT fk_online_stock_reservation_location FOREIGN KEY (location_id) REFERENCES ims_locations(id),
+  CONSTRAINT fk_online_stock_reservation_so FOREIGN KEY (converted_so_id) REFERENCES ims_sales_orders(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_payment_attempts (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  provider VARCHAR(50) NOT NULL,
+  provider_payment_id VARCHAR(191) NOT NULL,
+  idempotency_key VARCHAR(191) NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  amount_cents INT UNSIGNED NOT NULL,
+  currency_code CHAR(3) NOT NULL DEFAULT 'AUD',
+  safe_error VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_payment_provider_id (business_id, provider, provider_payment_id),
+  UNIQUE KEY uq_online_payment_idempotency (business_id, idempotency_key),
+  INDEX idx_online_payment_checkout (business_id, checkout_id, created_at),
+  CONSTRAINT fk_online_payment_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_payment_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  provider VARCHAR(50) NOT NULL,
+  provider_event_id VARCHAR(191) NOT NULL,
+  provider_payment_id VARCHAR(191) NULL,
+  event_type VARCHAR(100) NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'received',
+  safe_error VARCHAR(500) NULL,
+  received_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  processed_at DATETIME NULL,
+  UNIQUE KEY uq_online_payment_event (business_id, provider, provider_event_id),
+  INDEX idx_online_payment_event_status (business_id, status, received_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ims_online_shop_value_reservations (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL,
+  checkout_id CHAR(36) NOT NULL,
+  contact_id INT NOT NULL,
+  value_type VARCHAR(32) NOT NULL,
+  points INT UNSIGNED NULL,
+  amount_cents INT UNSIGNED NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'active',
+  idempotency_key VARCHAR(191) NOT NULL,
+  expires_at DATETIME NOT NULL,
+  finalized_at DATETIME NULL,
+  released_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_online_value_reservation_key (business_id, idempotency_key),
+  INDEX idx_online_value_reservation_active (business_id, contact_id, value_type, status, expires_at),
+  CONSTRAINT fk_online_value_reservation_checkout FOREIGN KEY (checkout_id) REFERENCES ims_online_shop_checkouts(checkout_id) ON DELETE CASCADE,
+  CONSTRAINT fk_online_value_reservation_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS loyalty_rewards (

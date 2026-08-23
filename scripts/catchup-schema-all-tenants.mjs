@@ -7,10 +7,33 @@
  */
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import fs from 'node:fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
+const ONLINE_SHOP_TABLES = [
+  'ims_online_shop_products',
+  'ims_online_shop_customers',
+  'ims_online_shop_addresses',
+  'ims_online_shop_shipping_rules',
+  'ims_online_shop_pickup_locations',
+  'ims_online_shop_checkouts',
+  'ims_online_shop_checkout_items',
+  'ims_online_shop_stock_reservations',
+  'ims_online_shop_payment_attempts',
+  'ims_online_shop_payment_events',
+  'ims_online_shop_value_reservations',
+];
+
+const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
+const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
+});
 
 const conn = await mysql.createConnection({
   host:           process.env.MYSQL_HOST,
@@ -931,6 +954,7 @@ const TABLE_DDLS = [
     CONSTRAINT fk_wholesale_member_location FOREIGN KEY (location_id) REFERENCES ims_wholesale_company_locations(id) ON DELETE CASCADE,
     CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ...ONLINE_SHOP_TABLE_DDLS,
 ];
 
 // Column definitions: [table, column, definition]
@@ -988,6 +1012,8 @@ const COLUMNS = [
   ['ims_sales_orders', 'staff_preview_session_id', 'VARCHAR(64) NULL AFTER is_staff_preview_test'],
   ['ims_sales_orders', 'staff_preview_actor_user_id', 'INT NULL AFTER staff_preview_session_id'],
   ['ims_sales_orders', 'staff_preview_actor_name', 'VARCHAR(255) NULL AFTER staff_preview_actor_user_id'],
+  ['ims_sales_orders', 'sales_channel', "ENUM('shopify','native_shop') NULL AFTER so_type"],
+  ['ims_sales_orders', 'native_checkout_id', 'CHAR(36) NULL AFTER sales_channel'],
   ['ims_sales_orders', 'xero_invoice_id',     'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_invoice_number', 'VARCHAR(100) NULL'],
   ['ims_sales_orders', 'xero_synced_at',      'DATETIME NULL'],
@@ -1141,6 +1167,8 @@ const INDEXES = [
   ['ims_sales_orders', 'idx_so_wholesale_account', 'INDEX `idx_so_wholesale_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
   ['wholesale_draft_orders', 'idx_wholesale_draft_account', 'INDEX `idx_wholesale_draft_account` (`business_id`, `wholesale_company_id`, `wholesale_location_id`, `wholesale_member_id`)'],
   ['ims_sales_orders', 'idx_so_staff_preview', 'INDEX `idx_so_staff_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
+  ['ims_sales_orders', 'idx_so_online_channel', 'INDEX `idx_so_online_channel` (`business_id`, `sales_channel`, `order_date`, `id`)'],
+  ['ims_sales_orders', 'uq_so_native_checkout', 'UNIQUE INDEX `uq_so_native_checkout` (`business_id`, `native_checkout_id`)'],
   ['wholesale_draft_orders', 'idx_wholesale_draft_preview', 'INDEX `idx_wholesale_draft_preview` (`business_id`, `is_staff_preview_test`, `staff_preview_session_id`)'],
   ['ims_cs_threads', 'idx_cs_thread_starred', 'INDEX `idx_cs_thread_starred` (`business_id`, `is_starred`, `last_message_at`)'],
   ['ims_contacts', 'idx_shopify_customer_id', 'UNIQUE INDEX `idx_shopify_customer_id` (`business_id`, `shopify_customer_id`)'],
@@ -1362,6 +1390,19 @@ async function migrateSchema(schema) {
   }
 
   try {
+    await conn.query(
+      `UPDATE \`${schema}\`.ims_sales_orders
+          SET sales_channel = 'shopify'
+        WHERE sales_channel IS NULL
+          AND so_type = 'online'
+          AND shopify_order_id IS NOT NULL
+          AND shopify_order_id <> ''`,
+    );
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_sales_orders sales channel backfill: ${e.message}`);
+  }
+
+  try {
     await ensureColumnCollationMatches(schema, 'wholesale_draft_orders', 'business_id', 'ims_contacts', 'business_id');
     await ensureForeignKey(schema, 'wholesale_draft_orders', 'fk_wholesale_draft_company', 'wholesale_company_id', 'ims_wholesale_companies');
     await ensureForeignKey(schema, 'wholesale_draft_orders', 'fk_wholesale_draft_location', 'wholesale_location_id', 'ims_wholesale_company_locations');
@@ -1385,6 +1426,7 @@ async function migrateSchema(schema) {
     );
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
+    await ensureEnumValues(schema, 'loyalty_transactions', 'channel', ['pos', 'shopify', 'native_shop', 'manual', 'migration']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);

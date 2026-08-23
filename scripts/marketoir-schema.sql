@@ -21,6 +21,113 @@ CREATE TABLE IF NOT EXISTS businesses (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------
+-- online sales channel and native shop control plane
+-- ---------------------------------------------------------
+CREATE TABLE IF NOT EXISTS business_online_channels (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  active_channel       ENUM('none','shopify','native_shop') NOT NULL DEFAULT 'none',
+  changed_by_user_id   INT NULL,
+  changed_by_name      VARCHAR(255) NULL,
+  changed_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_business_online_channels_active (active_channel, business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS online_shop_profiles (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  slug                 VARCHAR(80) NOT NULL,
+  display_name         VARCHAR(255) NOT NULL,
+  logo_url             VARCHAR(2048) NULL,
+  support_email        VARCHAR(320) NULL,
+  default_meta_title   VARCHAR(255) NULL,
+  default_meta_description VARCHAR(500) NULL,
+  is_active            TINYINT(1) NOT NULL DEFAULT 0,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_profiles_slug (slug),
+  INDEX idx_online_shop_profiles_active (is_active, slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS online_shop_layouts (
+  business_id                 VARCHAR(100) PRIMARY KEY,
+  schema_version              INT UNSIGNED NOT NULL DEFAULT 1,
+  draft_json                  JSON NULL,
+  published_json              JSON NULL,
+  draft_revision              INT UNSIGNED NOT NULL DEFAULT 0,
+  published_revision          INT UNSIGNED NOT NULL DEFAULT 0,
+  draft_updated_by_user_id    INT NULL,
+  draft_updated_by_name       VARCHAR(255) NULL,
+  draft_updated_at            DATETIME(3) NULL,
+  published_by_user_id        INT NULL,
+  published_by_name           VARCHAR(255) NULL,
+  published_at                DATETIME(3) NULL,
+  created_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS online_shop_assets (
+  asset_id                    CHAR(36) PRIMARY KEY,
+  business_id                 VARCHAR(100) NOT NULL,
+  stored_filename             VARCHAR(255) NOT NULL,
+  mime_type                   VARCHAR(100) NOT NULL,
+  byte_size                   BIGINT UNSIGNED NOT NULL,
+  original_name               VARCHAR(255) NOT NULL,
+  alt_text                    VARCHAR(500) NULL,
+  created_by_user_id          INT NULL,
+  created_by_name             VARCHAR(255) NULL,
+  is_active                   TINYINT(1) NOT NULL DEFAULT 1,
+  created_at                  DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_asset_file (business_id, stored_filename),
+  INDEX idx_online_shop_assets_active (business_id, is_active, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS online_shop_pages (
+  page_id                      CHAR(36) PRIMARY KEY,
+  business_id                  VARCHAR(100) NOT NULL,
+  slug                         VARCHAR(100) NOT NULL,
+  title                        VARCHAR(255) NOT NULL,
+  meta_title                   VARCHAR(255) NULL,
+  meta_description             VARCHAR(500) NULL,
+  navigation_location          ENUM('none','header','footer','both') NOT NULL DEFAULT 'none',
+  navigation_label             VARCHAR(100) NULL,
+  sort_order                   INT NOT NULL DEFAULT 0,
+  is_visible                   TINYINT(1) NOT NULL DEFAULT 0,
+  schema_version               INT UNSIGNED NOT NULL DEFAULT 1,
+  draft_json                   JSON NULL,
+  published_json               JSON NULL,
+  draft_revision               INT UNSIGNED NOT NULL DEFAULT 0,
+  published_revision           INT UNSIGNED NOT NULL DEFAULT 0,
+  draft_updated_by_user_id     INT NULL,
+  draft_updated_by_name        VARCHAR(255) NULL,
+  draft_updated_at             DATETIME(3) NULL,
+  published_by_user_id         INT NULL,
+  published_by_name            VARCHAR(255) NULL,
+  published_at                 DATETIME(3) NULL,
+  created_at                   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at                   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_page_slug (business_id, slug),
+  INDEX idx_online_shop_pages_navigation (business_id, is_visible, navigation_location, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS online_shop_otp_challenges (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  email                VARCHAR(320) NOT NULL,
+  contact_id           INT NULL,
+  challenge_token_hash CHAR(64) NOT NULL,
+  code_hash            CHAR(64) NOT NULL,
+  attempt_count        INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at           DATETIME(3) NOT NULL,
+  consumed_at          DATETIME(3) NULL,
+  verified_at          DATETIME(3) NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_online_shop_otp_token (challenge_token_hash),
+  INDEX idx_online_shop_otp_email_active (business_id, email, consumed_at, expires_at),
+  INDEX idx_online_shop_otp_expiry (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------
 -- wholesale supplier profiles (public-safe control plane)
 -- ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS wholesale_supplier_profiles (

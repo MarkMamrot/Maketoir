@@ -1,0 +1,110 @@
+/**
+ * Creates and verifies native online-shop control-plane tables in the main database.
+ * Dry-run: node scripts/setup-online-shop-main.mjs
+ * Apply:   node scripts/setup-online-shop-main.mjs --apply
+ */
+import 'dotenv/config';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import mysql from 'mysql2/promise';
+
+const apply = process.argv.includes('--apply');
+const database = process.env.MYSQL_DATABASE;
+if (!database) throw new Error('MYSQL_DATABASE is required.');
+
+const tableContracts = {
+  business_online_channels: {
+    columns: ['business_id', 'active_channel', 'changed_by_user_id', 'changed_by_name', 'changed_at', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY', 'idx_business_online_channels_active'],
+  },
+  online_shop_profiles: {
+    columns: ['business_id', 'slug', 'display_name', 'logo_url', 'support_email', 'default_meta_title', 'default_meta_description', 'is_active', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_profiles_slug', 'idx_online_shop_profiles_active'],
+  },
+  online_shop_layouts: {
+    columns: ['business_id', 'schema_version', 'draft_json', 'published_json', 'draft_revision', 'published_revision',
+      'draft_updated_by_user_id', 'draft_updated_by_name', 'draft_updated_at', 'published_by_user_id',
+      'published_by_name', 'published_at', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY'],
+  },
+  online_shop_assets: {
+    columns: ['asset_id', 'business_id', 'stored_filename', 'mime_type', 'byte_size', 'original_name', 'alt_text',
+      'created_by_user_id', 'created_by_name', 'is_active', 'created_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_asset_file', 'idx_online_shop_assets_active'],
+  },
+  online_shop_pages: {
+    columns: ['page_id', 'business_id', 'slug', 'title', 'meta_title', 'meta_description', 'navigation_location',
+      'navigation_label', 'sort_order', 'is_visible', 'schema_version', 'draft_json', 'published_json',
+      'draft_revision', 'published_revision', 'draft_updated_by_user_id', 'draft_updated_by_name', 'draft_updated_at',
+      'published_by_user_id', 'published_by_name', 'published_at', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_page_slug', 'idx_online_shop_pages_navigation'],
+  },
+  online_shop_otp_challenges: {
+    columns: ['id', 'business_id', 'email', 'contact_id', 'challenge_token_hash', 'code_hash', 'attempt_count',
+      'expires_at', 'consumed_at', 'verified_at', 'created_at'],
+    indexes: ['PRIMARY', 'uq_online_shop_otp_token', 'idx_online_shop_otp_email_active', 'idx_online_shop_otp_expiry'],
+  },
+};
+
+function extractDefinition(schema, table) {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = schema.match(expression);
+  if (!match) throw new Error(`Canonical definition not found for ${table}.`);
+  return match[0];
+}
+
+const schema = await fs.readFile(path.join(process.cwd(), 'scripts', 'marketoir-schema.sql'), 'utf8');
+const definitions = Object.fromEntries(Object.keys(tableContracts).map(table => [table, extractDefinition(schema, table)]));
+const connection = await mysql.createConnection({
+  host: process.env.MYSQL_HOST,
+  port: Number(process.env.MYSQL_PORT || 3306),
+  user: process.env.MYSQL_USER,
+  password: process.env.MYSQL_PASSWORD,
+  database,
+});
+
+try {
+  const tables = Object.keys(tableContracts);
+  const [existingRows] = await connection.query(
+    `SELECT TABLE_NAME FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+    [database, tables],
+  );
+  const existing = new Set(existingRows.map(row => row.TABLE_NAME));
+  const pending = tables.filter(table => !existing.has(table));
+  console.log(`Online shop main-schema plan for ${database}:`);
+  console.log(`  tables to create: ${pending.join(', ') || 'none'}`);
+
+  if (!apply) {
+    console.log('Dry run only. Re-run with --apply to make these changes.');
+    if (pending.length > 0) process.exitCode = 0;
+  } else {
+    for (const definition of Object.values(definitions)) await connection.query(definition);
+    console.log('Online shop main schema applied successfully.');
+  }
+
+  if (apply || pending.length === 0) {
+    const [columnRows] = await connection.query(
+      `SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+      [database, tables],
+    );
+    const [indexRows] = await connection.query(
+      `SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN (?)`,
+      [database, tables],
+    );
+    const columns = new Set(columnRows.map(row => `${row.TABLE_NAME}:${row.COLUMN_NAME}`));
+    const indexes = new Set(indexRows.map(row => `${row.TABLE_NAME}:${row.INDEX_NAME}`));
+    const missingColumns = Object.entries(tableContracts).flatMap(([table, contract]) =>
+      contract.columns.filter(column => !columns.has(`${table}:${column}`)).map(column => `${table}.${column}`));
+    const missingIndexes = Object.entries(tableContracts).flatMap(([table, contract]) =>
+      contract.indexes.filter(index => !indexes.has(`${table}:${index}`)).map(index => `${table}.${index}`));
+    if (missingColumns.length || missingIndexes.length) {
+      throw new Error(`Online shop schema verification failed: ${JSON.stringify({ missingColumns, missingIndexes })}`);
+    }
+    console.log(`Verified ${columns.size} columns and ${indexes.size} indexes across ${tables.length} tables.`);
+  }
+} finally {
+  await connection.end();
+}
