@@ -16,6 +16,15 @@ Railway (auto-deploy on push to `main`, no test gate other than CI below).
   it's more current and more targeted than the two files above for implementation details.
 - After finishing a non-trivial task, offer to update `project_memory.md` (chronological/
   deployment facts) and/or repo memory (topic gotchas) with anything newly learned.
+- **Assistant knowledge maintenance is mandatory for user-visible changes.**
+  [project_overview.md](../project_overview.md) contains an `Assistant-Safe Product Reference`
+  section that is compiled into the in-product Solvantis Assistant index on every build. Whenever
+  visible behaviour, navigation, calculations, permissions, supported workflows, or integration
+  behaviour changes, update the relevant subsection in the same task. Add a new subsection when
+  no suitable one exists. Write current user-facing facts only: no credentials, tenant IDs,
+  database/schema objects, source paths, incidents, deployment commands, test results, or roadmap
+  claims. `project_memory.md` remains the detailed developer/deployment log and must not be exposed
+  directly to end users.
 
 ## Hard rules (frequently violated in the past — do not skip)
 1. **Tenant safety.** Any code path touching IMS/POS tables must resolve the tenant schema

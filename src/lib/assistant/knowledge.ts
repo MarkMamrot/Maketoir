@@ -19,10 +19,29 @@ interface IndexedChunk {
   capability: string;
   screen: string;
   content: string;
+  sourcePriority?: number;
 }
 
+const TERM_ALIASES: Record<string, string[]> = {
+  po: ['purchase', 'order'],
+  pos: ['purchase', 'orders'],
+  orders: ['order'],
+  products: ['product'],
+  variants: ['variant'],
+  costs: ['cost'],
+  locations: ['location'],
+  receipts: ['receipt'],
+  users: ['user'],
+  wac: ['weighted', 'average', 'cost'],
+  cogs: ['cost', 'goods', 'sold'],
+  costing: ['cost'],
+  valuation: ['value', 'cost'],
+  inventory: ['stock'],
+};
+
 function terms(value: string): string[] {
-  return value.toLowerCase().match(/[a-z0-9]+/g)?.filter(term => term.length > 1) ?? [];
+  const raw = value.toLowerCase().match(/[a-z0-9]+/g)?.filter(term => term.length > 1) ?? [];
+  return Array.from(new Set(raw.flatMap(term => [term, ...(TERM_ALIASES[term] ?? [])])));
 }
 
 export function retrieveAssistantKnowledge(input: {
@@ -47,7 +66,7 @@ export function retrieveAssistantKnowledge(input: {
         || currentView.includes(chunk.screen.toLowerCase())
         || chunk.capability.toLowerCase() === currentView
       ) ? 4 : 0;
-      return { ...chunk, score: titleMatches * 5 + bodyMatches + viewBoost };
+      return { ...chunk, score: titleMatches * 5 + bodyMatches + viewBoost + Number(chunk.sourcePriority ?? 0) };
     })
     .filter(chunk => chunk.score > 0)
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))

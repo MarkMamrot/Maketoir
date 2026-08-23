@@ -23,6 +23,51 @@ describe('assistant knowledge retrieval', () => {
     }));
   });
 
+  it('returns the exact purchase-order navigation section', () => {
+    const [result] = retrieveAssistantKnowledge({
+      query: 'Where is the purchase order screen?',
+      audience: 'ims',
+    });
+    expect(result).toEqual(expect.objectContaining({
+      heading: 'IMS purchase orders',
+    }));
+    expect(result.content).toContain('Purchasing > Purchase Orders');
+    expect(result.title).toBe('Solvantis product reference');
+  });
+
+  it('returns actionable purchase-order creation guidance for PO synonyms', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Can I make a PO in Solvantis?',
+      audience: 'ims',
+    });
+    const creation = results.find(result => result.heading === 'IMS purchase orders');
+    expect(creation?.content).toContain('New Purchase Order');
+    expect(creation?.content).toContain('Advisor');
+  });
+
+  it('returns the organisation-wide weighted-average inventory cost method', () => {
+    const [result] = retrieveAssistantKnowledge({
+      query: 'What kind of inventory cost system does Solvantis use?',
+      audience: 'ims',
+    });
+    expect(result).toEqual(expect.objectContaining({
+      title: 'Solvantis product reference',
+      heading: 'IMS inventory costing and stock value',
+    }));
+    expect(result.content).toContain('organisation-wide weighted-average cost');
+    expect(result.content).toContain('not FIFO or LIFO');
+  });
+
+  it('recognizes WAC and COGS inventory terminology', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'Does WAC feed COGS and stock valuation?',
+      audience: 'ims',
+    });
+    const costing = results.find(result => result.heading === 'IMS inventory costing and stock value');
+    expect(costing?.content).toContain('fallback cost of goods sold');
+    expect(costing?.content).toContain('inventory valuation');
+  });
+
   it('keeps wholesale account ownership guidance within wholesale results', () => {
     const results = retrieveAssistantKnowledge({
       query: 'Can I see another company location order?',
