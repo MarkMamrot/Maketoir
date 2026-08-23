@@ -55,6 +55,19 @@ function normalizedMessages(value: unknown): ChatMessage[] {
   });
 }
 
+function currentAttribution(sourcePath: string) {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    sourcePath,
+    referrer: document.referrer || null,
+    utmSource: params.get('utm_source'),
+    utmMedium: params.get('utm_medium'),
+    utmCampaign: params.get('utm_campaign'),
+    utmTerm: params.get('utm_term'),
+    utmContent: params.get('utm_content'),
+  };
+}
+
 export function ProspectSalesAssistant({
   sourcePath,
   showHeroPrompt = false,
@@ -184,7 +197,7 @@ export function ProspectSalesAssistant({
       const response = await fetch('/api/public/sales-assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-        body: JSON.stringify({ message: content, prompt: content, history, conversationId, idempotencyKey, sourcePath }),
+        body: JSON.stringify({ message: content, conversationId, idempotencyKey, attribution: currentAttribution(sourcePath) }),
       });
       const data = await response.json().catch(() => ({})) as ChatResponse & { error?: string };
       if (!response.ok) throw new Error(data.error || 'The assistant could not answer just now.');

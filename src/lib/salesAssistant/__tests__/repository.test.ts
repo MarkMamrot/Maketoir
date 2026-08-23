@@ -60,6 +60,18 @@ describe('sales assistant repository', () => {
     expect(connection.execute.mock.calls.some(call => String(call[0]).includes('DELETE FROM prospect_messages'))).toBe(true);
   });
 
+  it('restores the latest non-deleted conversation for a browser session', async () => {
+    const { repository, dependencies } = fakeRepository();
+    vi.mocked(dependencies.query)
+      .mockResolvedValueOnce([{ id: 'latest-conversation' }])
+      .mockResolvedValueOnce([{ id: 'latest-conversation', status: 'active' }])
+      .mockResolvedValueOnce([{ id: 'message-id', role: 'assistant', content: 'Welcome back', created_at: '2026-08-23' }]);
+
+    await expect(repository.getLatestOwnedConversation({ sessionId: 'owner' }))
+      .resolves.toMatchObject({ conversationId: 'latest-conversation', messages: [{ content: 'Welcome back' }] });
+    expect(vi.mocked(dependencies.query).mock.calls[0][0]).toContain("status <> 'blocked'");
+  });
+
   it('rolls back when a conversation is not owned by the session', async () => {
     const { repository, calls } = fakeRepository(sql => sql.includes('UPDATE prospect_conversations')
       ? { affectedRows: 0, insertId: 0 }

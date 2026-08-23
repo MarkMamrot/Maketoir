@@ -48,7 +48,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (!connection) return NextResponse.json({ error: 'Integration offering could not be updated.' }, { status: 500 });
   try {
     await connection.beginTransaction();
-    const [rows]: any = await connection.execute('SELECT * FROM sales_integration_offerings WHERE id = ? LIMIT 1 FOR UPDATE', [id]);
+    const [resultRows] = await connection.execute('SELECT * FROM sales_integration_offerings WHERE id = ? LIMIT 1 FOR UPDATE', [id]);
+    const rows = resultRows as unknown as Array<Record<string, unknown>>;
     if (!rows[0]) {
       await connection.rollback();
       return NextResponse.json({ error: 'Offering not found.' }, { status: 404 });
@@ -73,9 +74,11 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     );
     await connection.commit();
     return NextResponse.json({ success: true, offering: after });
-  } catch (error: any) {
+  } catch (error: unknown) {
     await connection.rollback().catch(() => {});
-    if (error?.code === 'ER_DUP_ENTRY') return NextResponse.json({ error: 'An offering with this slug already exists.' }, { status: 409 });
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({ error: 'An offering with this slug already exists.' }, { status: 409 });
+    }
     await reportRuntimeIssue({
       source: 'admin', operation: 'update_integration_offering', title: 'Integration offering update failed', error,
       context: { offering_id: id, category: value.category, delivery_mode: value.deliveryMode },

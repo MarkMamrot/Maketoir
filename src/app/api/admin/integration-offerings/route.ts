@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import type { ResultSetHeader } from 'mysql2/promise';
 import { NextResponse } from 'next/server';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
   if (!connection) return NextResponse.json({ error: 'Integration offering could not be created.' }, { status: 500 });
   try {
     await connection.beginTransaction();
-    const [result]: any = await connection.execute(
+    const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO sales_integration_offerings
         (slug, name, category, delivery_mode, public_summary, example_providers_json,
          supported_workflows_json, qualification_questions_json, is_enabled, internal_notes)
@@ -108,9 +109,11 @@ export async function POST(request: Request) {
     );
     await connection.commit();
     return NextResponse.json({ success: true, offering: after }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     await connection.rollback().catch(() => {});
-    if (error?.code === 'ER_DUP_ENTRY') return NextResponse.json({ error: 'An offering with this slug already exists.' }, { status: 409 });
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ER_DUP_ENTRY') {
+      return NextResponse.json({ error: 'An offering with this slug already exists.' }, { status: 409 });
+    }
     await reportRuntimeIssue({
       source: 'admin', operation: 'create_integration_offering', title: 'Integration offering creation failed', error,
       context: { slug: value.slug, category: value.category, delivery_mode: value.deliveryMode },

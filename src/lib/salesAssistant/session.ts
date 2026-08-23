@@ -84,8 +84,8 @@ export function isSameOriginRequest(request: Request): boolean {
   }
 }
 
-export function networkFingerprint(request: Request, secret = process.env.SALES_ASSISTANT_HMAC_SECRET): string {
-  if (!secret || secret.length < 32) throw new Error('SALES_ASSISTANT_HMAC_SECRET must be at least 32 characters.');
+export function networkFingerprint(request: Request, secret = process.env.SALES_ASSISTANT_HMAC_SECRET || process.env.AUTH_SESSION_SECRET): string {
+  if (!secret || secret.length < 32) throw new Error('A sales-assistant HMAC secret of at least 32 characters is required.');
   const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
   const ip = forwarded || request.headers.get('x-real-ip')?.trim() || 'unknown';
   const userAgent = request.headers.get('user-agent')?.slice(0, 500) || 'unknown';

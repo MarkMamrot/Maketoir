@@ -8,13 +8,20 @@ const input: React.CSSProperties = { background: '#243147', border: '1px solid r
 const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 10, color: '#94a3b8', background: '#243147' };
 const td: React.CSSProperties = { padding: '9px 10px', fontSize: 12, borderTop: '1px solid rgba(255,255,255,.07)', verticalAlign: 'top' };
 
-function Table({ columns, rows }: { columns: Array<[string, string]>; rows: any[] }) {
+type InsightRow = Record<string, unknown>;
+interface ProspectInsightsResponse {
+  funnel: { totalConversations: number; totalLeads: number; conversionRate: number; leads: InsightRow[] };
+  abandonedConversations: InsightRow[]; highIntentConversations: InsightRow[]; topEventTypes: InsightRow[];
+  integrations: InsightRow[]; finalPromptClusters: InsightRow[]; demandInsights: InsightRow[];
+}
+
+function Table({ columns, rows }: { columns: Array<[string, string]>; rows: InsightRow[] }) {
   return <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 480 }}><thead><tr>{columns.map(([key, label]) => <th key={key} style={th}>{label}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={row.id || row.event_type || row.provider || row.cluster || `${row.status}-${index}`}>{columns.map(([key]) => <td key={key} style={td}>{key.includes('at') && row[key] ? new Date(row[key]).toLocaleString() : String(row[key] ?? '')}</td>)}</tr>)}</tbody></table>{!rows.length && <p style={{ color: '#94a3b8', fontSize: 12, padding: '0 10px' }}>No data in this period.</p>}</div>;
 }
 
 export default function ProspectInsightsView() {
   const [filters, setFilters] = useState({ from: '', to: '' });
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ProspectInsightsResponse | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {

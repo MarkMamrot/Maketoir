@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     ].join(', ');
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const [leads, countRows, statuses, integrations, sources] = await Promise.all([
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT pl.id, pl.conversation_id, pl.name, pl.company, pl.email, pl.phone,
                 pl.preferred_contact, pl.locations, pl.current_systems, pl.timeframe,
                 pl.source_path, pl.status, pl.created_at, pl.updated_at, ${optionalSelect},
@@ -92,14 +92,14 @@ export async function GET(request: Request) {
          LEFT JOIN prospect_conversations pc ON pc.id = pl.conversation_id ${where}`,
         params,
       ),
-      query<any>('SELECT status, COUNT(*) AS count FROM prospect_leads GROUP BY status'),
-      query<any>(
+      query<Record<string, unknown>>('SELECT status, COUNT(*) AS count FROM prospect_leads GROUP BY status'),
+      query<Record<string, unknown>>(
         `SELECT provider, COUNT(*) AS count FROM (
            SELECT NULLIF(TRIM(current_systems), '') AS provider FROM prospect_leads
            UNION ALL SELECT NULLIF(TRIM(provider_name), '') FROM sales_integration_events
          ) values_by_provider WHERE provider IS NOT NULL GROUP BY provider ORDER BY count DESC, provider LIMIT 100`,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT source, COUNT(*) AS count FROM (
            SELECT NULLIF(TRIM(source_path), '') AS source FROM prospect_leads
            UNION ALL SELECT NULLIF(TRIM(source_path), '') FROM prospect_conversations

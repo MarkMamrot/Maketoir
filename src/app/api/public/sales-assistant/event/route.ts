@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { salesAssistantRepository } from '@/lib/salesAssistant/repository';
 import { applyProspectCookie, enforcePublicRateLimits, publicErrorResponse, publicSession, readBoundedJson, requireSameOrigin } from '@/lib/salesAssistant/routeSupport';
 
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
     });
     return applyProspectCookie(NextResponse.json(result, { status: 201 }), session.cookie);
   } catch (error) {
-    return publicErrorResponse(error);
+    const response = publicErrorResponse(error);
+    if (response.status >= 500) await reportRuntimeIssue({
+      source: 'ProspectEventRoute', operation: 'record_event', title: 'Prospect event recording failed', error,
+      context: { endpoint: 'public_sales_event' },
+    }).catch(() => null);
+    return response;
   }
 }

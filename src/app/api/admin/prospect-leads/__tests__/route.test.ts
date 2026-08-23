@@ -32,4 +32,14 @@ describe('admin prospect leads route', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: expect.stringContaining('not available') });
   });
+
+  it('reports schema failures without including prospect search text', async () => {
+    mocks.query.mockRejectedValue(new Error('database unavailable'));
+    const response = await GET(new Request('http://localhost/api/admin/prospect-leads?search=person@example.com'));
+    expect(response.status).toBe(500);
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'list_prospect_leads', context: expect.objectContaining({ has_search: true }),
+    }));
+    expect(JSON.stringify(mocks.reportRuntimeIssue.mock.calls[0][0])).not.toContain('person@example.com');
+  });
 });

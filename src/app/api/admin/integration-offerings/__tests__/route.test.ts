@@ -32,10 +32,14 @@ describe('admin integration offerings route', () => {
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
-  it('does not return internal notes through the public repository contract', async () => {
-    const repositorySource = await import('@/lib/salesAssistant/repository');
-    expect(repositorySource.createSalesAssistantRepository).toBeTypeOf('function');
-    const response = await GET(new Request('http://localhost/api/admin/integration-offerings'));
-    expect(response.status).toBe(200);
+  it('reports list failures with safe filter context', async () => {
+    mocks.query.mockRejectedValue(new Error('database unavailable'));
+    const response = await GET(new Request('http://localhost/api/admin/integration-offerings?search=private-name'));
+    expect(response.status).toBe(500);
+    expect(mocks.reportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'list_integration_offerings',
+      context: expect.objectContaining({ has_search: true }),
+    }));
+    expect(JSON.stringify(mocks.reportRuntimeIssue.mock.calls[0][0])).not.toContain('private-name');
   });
 });

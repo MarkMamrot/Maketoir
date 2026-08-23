@@ -32,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       columns.has('notes') ? 'pl.notes' : 'NULL AS notes',
       columns.has('loss_reason') ? 'pl.loss_reason' : 'NULL AS loss_reason',
     ].join(', ');
-    const leads = await query<any>(
+    const leads = await query<Record<string, unknown>>(
       `SELECT pl.*, ${optionalSelect}, pc.status AS conversation_status, pc.source_path AS conversation_source_path,
               pc.attribution_json, pc.last_user_prompt, pc.message_count, pc.last_message_at
          FROM prospect_leads pl LEFT JOIN prospect_conversations pc ON pc.id = pl.conversation_id
@@ -42,12 +42,12 @@ export async function GET(_request: Request, { params }: { params: { id: string 
     const conversationId = leads[0].conversation_id;
     const [messages, promptRows, events] = await Promise.all([
       conversationId
-        ? query<any>('SELECT id, role, content, model_name, prompt_version, metadata_json, created_at FROM prospect_messages WHERE conversation_id = ? ORDER BY created_at, id', [conversationId])
+        ? query<Record<string, unknown>>('SELECT id, role, content, model_name, prompt_version, metadata_json, created_at FROM prospect_messages WHERE conversation_id = ? ORDER BY created_at, id', [conversationId])
         : Promise.resolve([]),
       conversationId
-        ? query<any>("SELECT id, content, created_at FROM prospect_messages WHERE conversation_id = ? AND role = 'user' ORDER BY created_at DESC, id DESC LIMIT 3", [conversationId])
+        ? query<Record<string, unknown>>("SELECT id, content, created_at FROM prospect_messages WHERE conversation_id = ? AND role = 'user' ORDER BY created_at DESC, id DESC LIMIT 3", [conversationId])
         : Promise.resolve([]),
-      query<any>('SELECT id, event_type, event_data_json, created_at FROM prospect_lead_events WHERE lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 200', [id]),
+      query<Record<string, unknown>>('SELECT id, event_type, event_data_json, created_at FROM prospect_lead_events WHERE lead_id = ? ORDER BY created_at DESC, id DESC LIMIT 200', [id]),
     ]);
     return NextResponse.json({
       success: true, lead: leads[0], conversation: { messages, finalUserPrompts: promptRows.reverse() }, events, capabilities,
@@ -103,7 +103,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
     try {
       await connection.beginTransaction();
       const selectColumns = updates.map(update => update.column).join(', ');
-      const [rows]: any = await connection.execute(`SELECT ${selectColumns} FROM prospect_leads WHERE id = ? LIMIT 1 FOR UPDATE`, [id]);
+      const [resultRows] = await connection.execute(`SELECT ${selectColumns} FROM prospect_leads WHERE id = ? LIMIT 1 FOR UPDATE`, [id]);
+      const rows = resultRows as unknown as Array<Record<string, unknown>>;
       if (!rows[0]) {
         await connection.rollback();
         return NextResponse.json({ error: 'Lead not found.' }, { status: 404 });

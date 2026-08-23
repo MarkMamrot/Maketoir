@@ -1528,7 +1528,7 @@ CREATE TABLE IF NOT EXISTS sales_integration_offerings (
 CREATE TABLE IF NOT EXISTS prospect_conversations (
   id                  CHAR(36) PRIMARY KEY,
   session_id_hash     CHAR(64) NOT NULL,
-  status              ENUM('active','converted','closed','blocked') NOT NULL DEFAULT 'active',
+  status              ENUM('active','converted','abandoned','closed','blocked') NOT NULL DEFAULT 'active',
   source_path         VARCHAR(500) NULL,
   attribution_json    JSON NULL,
   last_user_prompt    LONGTEXT NULL,
@@ -1604,11 +1604,17 @@ CREATE TABLE IF NOT EXISTS prospect_leads (
   timeframe           VARCHAR(100) NULL,
   source_path         VARCHAR(500) NULL,
   status              ENUM('new','contacting','qualified','demo_booked','won','lost','spam') NOT NULL DEFAULT 'new',
+  assigned_to         INT NULL,
+  notes               TEXT NULL,
+  loss_reason         TEXT NULL,
+  first_contacted_at  DATETIME(3) NULL,
+  followed_up_at      DATETIME(3) NULL,
   created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_prospect_lead_idempotency (idempotency_key),
   UNIQUE KEY uq_prospect_lead_conversation (conversation_id),
   INDEX idx_prospect_lead_status (status, created_at),
+  INDEX idx_prospect_lead_assignee (assigned_to, status, created_at),
   CONSTRAINT fk_prospect_lead_conversation FOREIGN KEY (conversation_id)
     REFERENCES prospect_conversations(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

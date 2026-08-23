@@ -30,12 +30,12 @@ export async function GET(request: Request) {
   const insightDates = dateClause('last_seen_at', from, to);
   try {
     const [conversationFunnel, leadFunnel, topEventTypes, integrations, abandoned, highIntent, demandInsights, finalPromptClusters] = await Promise.all([
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT status, COUNT(*) AS count FROM prospect_conversations ${conversationDates.sql} GROUP BY status`,
         conversationDates.params,
       ),
-      query<any>(`SELECT status, COUNT(*) AS count FROM prospect_leads ${leadDates.sql} GROUP BY status`, leadDates.params),
-      query<any>(
+      query<Record<string, unknown>>(`SELECT status, COUNT(*) AS count FROM prospect_leads ${leadDates.sql} GROUP BY status`, leadDates.params),
+      query<Record<string, unknown>>(
         `SELECT event_type, COUNT(*) AS count FROM (
            SELECT event_type, occurred_at AS event_at FROM prospect_events
            UNION ALL SELECT event_type, occurred_at FROM sales_integration_events
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
          GROUP BY event_type ORDER BY count DESC, event_type LIMIT 20`,
         eventDates.params,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT COALESCE(NULLIF(sie.provider_name, ''), sio.name, 'Unspecified') AS provider,
                 sio.id AS offering_id, sio.name AS offering_name, sio.category,
                 COUNT(*) AS event_count, COUNT(DISTINCT sie.conversation_id) AS conversation_count,
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
           ORDER BY event_count DESC, provider LIMIT 50`,
         integrationDates.params,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT pc.id, pc.source_path, pc.last_user_prompt, pc.message_count, pc.last_message_at, pc.updated_at
            FROM prospect_conversations pc
            LEFT JOIN prospect_leads pl ON pl.conversation_id = pc.id
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
           ORDER BY pc.updated_at DESC LIMIT 100`,
         conversationDates.params,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT pc.id, pc.status, pc.source_path, pc.last_user_prompt, pc.message_count, pc.last_message_at,
                 MAX(pm.created_at) AS intent_seen_at
            FROM prospect_conversations pc
@@ -77,14 +77,14 @@ export async function GET(request: Request) {
           GROUP BY pc.id ORDER BY intent_seen_at DESC LIMIT 100`,
         conversationDates.params,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT demand_type, requested_name, requested_provider, sample_prompt, occurrence_count,
                 conversation_count, first_seen_at, last_seen_at
            FROM prospect_demand_insights ${insightDates.sql}
           ORDER BY occurrence_count DESC, last_seen_at DESC LIMIT 100`,
         insightDates.params,
       ),
-      query<any>(
+      query<Record<string, unknown>>(
         `SELECT JSON_UNQUOTE(JSON_EXTRACT(pm.metadata_json, '$.intent')) AS intent,
                 COALESCE(
                   NULLIF(JSON_UNQUOTE(JSON_EXTRACT(pm.metadata_json, '$.requestedIntegration')), 'null'),
@@ -107,8 +107,8 @@ export async function GET(request: Request) {
         conversationDates.params,
       ),
     ]);
-    const totalConversations = conversationFunnel.reduce((total: number, row: any) => total + Number(row.count ?? 0), 0);
-    const totalLeads = leadFunnel.reduce((total: number, row: any) => total + Number(row.count ?? 0), 0);
+    const totalConversations = conversationFunnel.reduce((total, row) => total + Number(row.count ?? 0), 0);
+    const totalLeads = leadFunnel.reduce((total, row) => total + Number(row.count ?? 0), 0);
     return NextResponse.json({
       success: true,
       funnel: { totalConversations, totalLeads, conversionRate: totalConversations ? totalLeads / totalConversations : 0, conversations: conversationFunnel, leads: leadFunnel },

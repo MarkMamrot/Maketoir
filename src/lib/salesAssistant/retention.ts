@@ -45,7 +45,7 @@ export async function maintainProspectConversations(input: { idleHours?: number;
   const retentionMonths = Math.min(Math.max(Math.trunc(input.retentionMonths ?? 12), 1), 120);
   const closed = await execute(
     `UPDATE prospect_conversations c
-        SET c.status = 'closed', c.updated_at = UTC_TIMESTAMP(3)
+        SET c.status = 'abandoned', c.updated_at = UTC_TIMESTAMP(3)
       WHERE c.status = 'active' AND c.last_message_at < UTC_TIMESTAMP(3) - INTERVAL ? HOUR
         AND NOT EXISTS(SELECT 1 FROM prospect_leads l WHERE l.conversation_id = c.id)`,
     [idleHours],
@@ -94,14 +94,6 @@ export async function maintainProspectConversations(input: { idleHours?: number;
             WHERE id = ?`,
           [candidate.id],
         );
-        await connection.execute(
-          `UPDATE prospect_leads
-              SET name = 'Retained consent record', company = NULL, email = NULL, phone = NULL,
-                  locations = NULL, current_systems = NULL, timeframe = NULL, source_path = NULL,
-                  updated_at = UTC_TIMESTAMP(3)
-            WHERE conversation_id = ? AND created_at < UTC_TIMESTAMP(3) - INTERVAL ? MONTH`,
-          [candidate.id, retentionMonths],
-        );
         await connection.commit();
         deidentified += 1;
       } catch (error) {
@@ -112,9 +104,18 @@ export async function maintainProspectConversations(input: { idleHours?: number;
   } finally {
     connection.release();
   }
+  const leadContacts = await execute(
+    `UPDATE prospect_leads
+        SET name = 'Retained consent record', company = NULL, email = NULL, phone = NULL,
+            locations = NULL, current_systems = NULL, timeframe = NULL, source_path = NULL,
+            updated_at = UTC_TIMESTAMP(3)
+      WHERE created_at < UTC_TIMESTAMP(3) - INTERVAL ? MONTH
+        AND (email IS NOT NULL OR phone IS NOT NULL OR company IS NOT NULL OR name <> 'Retained consent record')`,
+    [retentionMonths],
+  );
   const rateLimits = await execute('DELETE FROM prospect_rate_limits WHERE expires_at < UTC_TIMESTAMP(3)');
   const alerts = await retryPendingProspectLeadAlerts();
-  return { abandoned: closed.affectedRows, deidentified, rateLimitsDeleted: rateLimits.affectedRows, alerts };
+  return { abandoned: closed.affectedRows, deidentified, leadContactsDeidentified: leadContacts.affectedRows, rateLimitsDeleted: rateLimits.affectedRows, alerts };
 }
 
 export async function runProspectConversationMaintenance(input: { idleHours?: number; retentionMonths?: number } = {}) {

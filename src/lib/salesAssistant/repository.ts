@@ -179,6 +179,18 @@ export function createSalesAssistantRepository(overrides: Partial<SalesAssistant
       };
     },
 
+    async getLatestOwnedConversation(input: { sessionId: string }) {
+      const sessionIdHash = hash(requiredText(input.sessionId, 'Session ID', 500));
+      const rows = await dependencies.query<ArrayRecord>(
+        `SELECT id FROM prospect_conversations
+          WHERE session_id_hash = ? AND status <> 'blocked'
+          ORDER BY updated_at DESC, id DESC LIMIT 1`,
+        [sessionIdHash],
+      );
+      if (!rows[0]) return null;
+      return this.getOwnedConversation({ conversationId: String(rows[0].id), sessionId: input.sessionId });
+    },
+
     async deleteOwnedConversation(input: { conversationId: string; sessionId: string }): Promise<boolean> {
       const conversationId = requiredText(input.conversationId, 'Conversation ID', 36);
       const sessionIdHash = hash(requiredText(input.sessionId, 'Session ID', 500));

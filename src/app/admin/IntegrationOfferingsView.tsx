@@ -78,7 +78,7 @@ export default function IntegrationOfferingsView() {
       <button type="button" onClick={() => void load()} title="Refresh offerings" style={{ ...button, background: '#334155' }}><RefreshCw size={15} /> Refresh</button>
       <button type="button" onClick={() => openEditor()} style={button}><Plus size={15} /> New offering</button>
     </div>
-    <div style={{ ...panel, display: 'grid', gridTemplateColumns: 'minmax(220px,2fr) repeat(2,minmax(170px,1fr))', gap: 10, marginBottom: 12 }}>
+    <div style={{ ...panel, display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 }}>
       <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name, slug, or summary" style={input} />
       <select value={category} onChange={event => setCategory(event.target.value)} style={input}><option value="">All categories</option>{categories.map(value => <option key={value}>{value}</option>)}</select>
       <select value={deliveryMode} onChange={event => setDeliveryMode(event.target.value)} style={input}><option value="">All delivery modes</option>{deliveryModes.map(value => <option key={value}>{value}</option>)}</select>

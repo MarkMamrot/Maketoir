@@ -266,7 +266,7 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
   const derived = form.name ? `readyedu_${form.name.replace(/[^a-zA-Z0-9]/g, '')}IMS` : '';
   const imsDbValue = form.imsDbEdited ? form.imsDbName : derived;
 
-  const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const set = <Key extends keyof typeof form>(key: Key, value: (typeof form)[Key]) => setForm(p => ({ ...p, [key]: value }));
   const toggle = (k: 'hasForesight' | 'hasIms' | 'hasPos') => setForm(p => ({ ...p, [k]: !p[k] }));
 
   const submit = async () => {
@@ -296,8 +296,8 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
         setErr(d.error ?? 'Onboarding failed.');
         setWorking(false);
       }
-    } catch (e: any) {
-      setErr(e?.message ?? 'Network error.');
+    } catch (error: unknown) {
+      setErr(error instanceof Error ? error.message : 'Network error.');
       setWorking(false);
     }
   };
@@ -555,14 +555,14 @@ function UsersView() {
         <div style={{ ...S.card, marginBottom: 20, maxWidth: 500 }}>
           <h3 style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--sv-text-main,#e2e8f0)' }}>Create User</h3>
           <form onSubmit={createUser}>
-            {[
+            {([
               { label: 'Email', field: 'email', type: 'email' },
               { label: 'Password', field: 'password', type: 'password' },
               { label: 'Full Name', field: 'name', type: 'text' },
-            ].map(f => (
+            ] as const).map(f => (
               <div key={f.field} style={{ marginBottom: 12 }}>
                 <label style={S.label}>{f.label}</label>
-                <input required type={f.type} value={(createForm as any)[f.field]} onChange={e => setCreateForm(p => ({ ...p, [f.field]: e.target.value }))} style={S.input} />
+                <input required type={f.type} value={createForm[f.field]} onChange={e => setCreateForm(p => ({ ...p, [f.field]: e.target.value }))} style={S.input} />
               </div>
             ))}
             <div style={{ marginBottom: 14 }}>
@@ -660,9 +660,10 @@ export default function AdminPage() {
       })
       .then(data => {
         if (!data) return;
-        setOpenIssueCount((data.summary ?? [])
-          .filter((row: any) => row.status !== 'fixed')
-          .reduce((total: number, row: any) => total + Number(row.count ?? 0), 0));
+        const summary = (data.summary ?? []) as Array<{ status: string; count: number | string }>;
+        setOpenIssueCount(summary
+          .filter(row => row.status !== 'fixed')
+          .reduce((total, row) => total + Number(row.count ?? 0), 0));
       })
       .catch(() => {});
   }, [checked, view]);
@@ -690,9 +691,9 @@ export default function AdminPage() {
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(224,82,82,.2)', color: '#fca5a5', fontWeight: 700 }}>SUPER ADMIN</span>
       </div>
 
-      <div style={S.body}>
+      <div className="super-admin-body" style={S.body}>
         {/* Sidebar */}
-        <div style={S.sidebar}>
+        <div className="super-admin-sidebar" style={S.sidebar}>
           <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--sv-text-dim,#64748b)', textTransform: 'uppercase', letterSpacing: .7, padding: '4px 12px', margin: '4px 0 8px' }}>Admin</p>
           {([
             { id: 'businesses', label: 'Businesses' },
@@ -708,7 +709,7 @@ export default function AdminPage() {
         </div>
 
         {/* Main */}
-        <div style={S.main}>
+        <div className="super-admin-main" style={S.main}>
           {view === 'businesses' && <BusinessesView />}
           {view === 'users'      && <UsersView />}
           {view === 'integration-offerings' && <IntegrationOfferingsView />}
@@ -718,6 +719,15 @@ export default function AdminPage() {
           {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>
       </div>
+      <style jsx global>{`
+        @media (max-width: 760px) {
+          .super-admin-body { flex-direction: column !important; overflow: visible !important; }
+          .super-admin-sidebar { width: auto !important; flex-direction: row !important; overflow-x: auto; border-right: 0 !important; border-bottom: 1px solid rgba(255,255,255,.1); }
+          .super-admin-sidebar > p { display: none !important; }
+          .super-admin-sidebar > button { width: auto !important; white-space: nowrap; }
+          .super-admin-main { padding: 12px !important; overflow: visible !important; }
+        }
+      `}</style>
     </div>
   );
 }

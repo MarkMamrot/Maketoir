@@ -13,6 +13,7 @@ describe('sales response normalization', () => {
   it('rejects procedural and internal detail leakage', () => {
     expect(() => normalizeSalesDecision({ answer: 'First, click the settings button and paste your API key.' }, new Set())).toThrow('procedural detail');
     expect(() => normalizeSalesDecision({ answer: 'Call /api/ims/products to inspect the tenant database.' }, new Set())).toThrow('procedural detail');
+    expect(() => normalizeSalesDecision({ answer: 'We can discuss that.', followUpQuestion: 'Can you navigate to the settings screen?' }, new Set())).toThrow('procedural detail');
   });
 });
 

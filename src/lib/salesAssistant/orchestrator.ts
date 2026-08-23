@@ -53,19 +53,24 @@ export function normalizeSalesDecision(value: unknown, allowedSourceIds: Readonl
   const decision = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
   const answer = cleanText(decision.answer, 1800);
   if (!answer) throw new Error('Sales assistant returned an empty answer.');
-  if (PROCEDURAL_PATTERNS.some(pattern => pattern.test(answer))) throw new Error('Sales assistant returned disallowed procedural detail.');
+  const followUpQuestion = cleanText(decision.followUpQuestion, 300);
+  const requestedIntegration = cleanText(decision.requestedIntegration, 120);
+  const requestedProvider = cleanText(decision.requestedProvider, 120);
+  const unmetNeed = cleanText(decision.unmetNeed, 300);
+  const structuredText = [answer, followUpQuestion, requestedIntegration, requestedProvider, unmetNeed].filter(Boolean).join(' ');
+  if (PROCEDURAL_PATTERNS.some(pattern => pattern.test(structuredText))) throw new Error('Sales assistant returned disallowed procedural detail.');
   const sourceIds = Array.isArray(decision.sourceIds)
     ? Array.from(new Set(decision.sourceIds.map(item => cleanText(item, 160)).filter((item): item is string => Boolean(item) && allowedSourceIds.has(item!)))).slice(0, 6)
     : [];
   return {
     answer,
     sourceIds,
-    followUpQuestion: cleanText(decision.followUpQuestion, 300),
+    followUpQuestion,
     fit: FITS.has(decision.fit as ProspectFit) ? decision.fit as ProspectFit : 'needs_discovery',
     intent: INTENTS.has(decision.intent as ProspectIntent) ? decision.intent as ProspectIntent : 'researching',
-    requestedIntegration: cleanText(decision.requestedIntegration, 120),
-    requestedProvider: cleanText(decision.requestedProvider, 120),
-    unmetNeed: cleanText(decision.unmetNeed, 300),
+    requestedIntegration,
+    requestedProvider,
+    unmetNeed,
     offerContact: decision.offerContact === true,
   };
 }
