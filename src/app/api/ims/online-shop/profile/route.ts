@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { OnlineShopAssetRepository } from '@/lib/onlineShop/onlineShopAsset';
+import { OnlineShopFulfilmentSettingsRepository } from '@/lib/onlineShop/onlineShopFulfilmentSettings';
 import { OnlineSalesChannelRepository, OnlineShopProfileRepository } from '@/lib/onlineShop/onlineShopProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
@@ -10,11 +12,15 @@ export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
   try {
-    const [profile, activeChannel] = await Promise.all([
+    const [profile, activeChannel, fulfilment] = await Promise.all([
       OnlineShopProfileRepository.getByBusinessId(auth.user.businessId),
       OnlineSalesChannelRepository.get(auth.user.businessId),
+      runImsForBusiness(auth.user.businessId, async () => ({
+        settings: await OnlineShopFulfilmentSettingsRepository.get(auth.user.businessId),
+        locations: await OnlineShopFulfilmentSettingsRepository.listLocations(auth.user.businessId),
+      })),
     ]);
-    return NextResponse.json({ success: true, profile, activeChannel });
+    return NextResponse.json({ success: true, profile, activeChannel, fulfilment });
   } catch (error) {
     await reportRuntimeIssue({ businessId: auth.user.businessId, source: 'online_shop_profile', operation: 'load', title: 'Online shop profile could not be loaded', error }).catch(() => {});
     return NextResponse.json({ success: false, error: 'Online shop settings could not be loaded.' }, { status: 500 });
@@ -39,10 +45,14 @@ export async function PUT(request: Request) {
       displayName: String(body?.displayName ?? ''), logoUrl: logoUrl || null, supportEmail: body?.supportEmail,
       defaultMetaTitle: body?.defaultMetaTitle, defaultMetaDescription: body?.defaultMetaDescription,
       isActive: existing?.isActive === true });
+    await runImsForBusiness(auth.user.businessId, () => OnlineShopFulfilmentSettingsRepository.save(auth.user.businessId, {
+      mode: body?.fulfilmentMode,
+      dispatchLocationId: body?.dispatchLocationId,
+    }));
     return NextResponse.json({ success: true, profile: await OnlineShopProfileRepository.getByBusinessId(auth.user.businessId) });
   } catch (error) {
     if (duplicate(error)) return NextResponse.json({ error: 'That online shop address is already in use.' }, { status: 409 });
-    if (error instanceof Error && /required|slug|reserved|email/i.test(error.message)) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error && /required|slug|reserved|email|fulfilment|dispatch location/i.test(error.message)) return NextResponse.json({ error: error.message }, { status: 400 });
     await reportRuntimeIssue({ businessId: auth.user.businessId, source: 'online_shop_profile', operation: 'save', title: 'Online shop profile update failed', error }).catch(() => {});
     return NextResponse.json({ success: false, error: 'Online shop settings could not be saved.' }, { status: 500 });
   }
