@@ -13,10 +13,12 @@ import type { OnlineSalesChannel } from '@/lib/storefront/channel';
 import type { StorefrontLayoutSection } from '@/lib/storefront/layout';
 import styles from './OnlineShopView.module.css';
 
-type Tab = 'profile' | 'products' | 'layout' | 'pages';
+type Tab = 'profile' | 'products' | 'shipping' | 'layout' | 'pages';
 interface PublicationProduct { product_id: string; name: string; brand: string | null; base_sku: string | null;
   shopify_product_id: string | null; slug: string | null; is_published: number; retail_variant_count: number | string }
 interface FulfilmentLocation { id: number; name: string; priority: number }
+interface ShippingRule { id: number; name: string; amountCents: number; freeOverCents: number | null; states: string[]; postcodes: string[]; sortOrder: number; isActive: boolean }
+interface PickupOption { locationId: number; label: string; instructions: string | null; sortOrder: number; isActive: boolean }
 const pageLabels: Record<OnlineShopLayoutPageId, string> = { home: 'Home', catalogue: 'Catalogue', collection: 'Collection',
   product: 'Product', cart: 'Cart', checkout: 'Checkout', login: 'Sign in', account: 'Account' };
 
@@ -74,6 +76,8 @@ export default function OnlineShopView() {
   const [profileForm, setProfileForm] = useState({ slug: '', displayName: '', supportEmail: '', defaultMetaTitle: '', defaultMetaDescription: '', logoUrl: '',
     fulfilmentMode: 'single_location', dispatchLocationId: '' });
   const [fulfilmentLocations, setFulfilmentLocations] = useState<FulfilmentLocation[]>([]);
+  const [shippingRules, setShippingRules] = useState<ShippingRule[]>([]); const [pickupOptions, setPickupOptions] = useState<PickupOption[]>([]);
+  const [shippingForm, setShippingForm] = useState({ name: '', amount: '', freeOver: '', states: '', postcodes: '' });
   const [layoutState, setLayoutState] = useState<OnlineShopLayoutEditorState | null>(null); const [layout, setLayout] = useState<OnlineShopLayoutDocument | null>(null);
   const [template, setTemplate] = useState<OnlineShopLayoutPageId>('home'); const [layoutDirty, setLayoutDirty] = useState(false);
   const [assets, setAssets] = useState<OnlineShopAsset[]>([]); const [pages, setPages] = useState<OnlineShopPageSummary[]>([]);
@@ -85,13 +89,15 @@ export default function OnlineShopView() {
   const load = async () => {
     setLoading(true); setError('');
     try {
-      const [profileBody, layoutBody, assetBody, pageBody, productBody] = await Promise.all([
+      const [profileBody, layoutBody, assetBody, pageBody, productBody, shippingBody] = await Promise.all([
         jsonRequest('/api/ims/online-shop/profile'), jsonRequest('/api/ims/online-shop/layout'),
-        jsonRequest('/api/ims/online-shop/assets'), jsonRequest('/api/ims/online-shop/pages'), jsonRequest('/api/ims/online-shop/products')]);
+        jsonRequest('/api/ims/online-shop/assets'), jsonRequest('/api/ims/online-shop/pages'), jsonRequest('/api/ims/online-shop/products'),
+        jsonRequest('/api/ims/online-shop/shipping')]);
       setProfile(profileBody.profile); setChannel(profileBody.activeChannel); setLayoutState(layoutBody.state); setLayout(layoutBody.state.draft);
       setAssets(assetBody.assets ?? []); setPages(pageBody.pages ?? []);
       setProducts(productBody.products ?? []);
       setFulfilmentLocations(profileBody.fulfilment?.locations ?? []);
+      setShippingRules(shippingBody.rules ?? []); setPickupOptions(shippingBody.pickups ?? []);
       const item = profileBody.profile; setProfileForm({ slug: item?.slug ?? '', displayName: item?.displayName ?? '', supportEmail: item?.supportEmail ?? '',
         defaultMetaTitle: item?.defaultMetaTitle ?? '', defaultMetaDescription: item?.defaultMetaDescription ?? '', logoUrl: item?.logoUrl ?? '',
         fulfilmentMode: profileBody.fulfilment?.settings?.mode ?? 'single_location',
@@ -106,6 +112,26 @@ export default function OnlineShopView() {
     const body = await jsonRequest('/api/ims/online-shop/profile', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileForm) });
     setProfile(body.profile); setMessage('Store settings saved.');
   }); };
+  const reloadShipping = async () => { const body = await jsonRequest('/api/ims/online-shop/shipping'); setShippingRules(body.rules ?? []); setPickupOptions(body.pickups ?? []); };
+  const saveShippingRule = (event: FormEvent) => { event.preventDefault(); void run('shipping-rule', async () => {
+    await jsonRequest('/api/ims/online-shop/shipping', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      name: shippingForm.name, amountCents: Math.round(Number(shippingForm.amount) * 100),
+      freeOverCents: shippingForm.freeOver ? Math.round(Number(shippingForm.freeOver) * 100) : null,
+      states: shippingForm.states.split(',').map(value => value.trim()).filter(Boolean),
+      postcodes: shippingForm.postcodes.split(',').map(value => value.trim()).filter(Boolean), sortOrder: shippingRules.length,
+    }) });
+    setShippingForm({ name: '', amount: '', freeOver: '', states: '', postcodes: '' }); await reloadShipping(); setMessage('Delivery rate saved.');
+  }); };
+  const deleteShippingRule = (id: number) => void run(`shipping-delete-${id}`, async () => {
+    await jsonRequest(`/api/ims/online-shop/shipping?id=${id}`, { method: 'DELETE' }); await reloadShipping(); setMessage('Delivery rate deleted.');
+  });
+  const setPickup = (location: FulfilmentLocation, isActive: boolean) => void run(`pickup-${location.id}`, async () => {
+    const current = pickupOptions.find(item => item.locationId === location.id);
+    await jsonRequest('/api/ims/online-shop/shipping', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      action: 'save_pickup', locationId: location.id, displayName: current?.label ?? location.name,
+      instructions: current?.instructions ?? '', sortOrder: current?.sortOrder ?? location.priority, isActive,
+    }) }); await reloadShipping(); setMessage(isActive ? 'Pickup location enabled.' : 'Pickup location disabled.');
+  });
   const layoutAction = (action: 'save_draft' | 'reset_draft' | 'publish') => void run(`layout-${action}`, async () => {
     if (!layoutState || !layout) return;
     const body = await jsonRequest('/api/ims/online-shop/layout', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -136,7 +162,7 @@ export default function OnlineShopView() {
   if (loading) return <div className={styles.loading}><Loader2 size={18} /> Loading online shop...</div>;
   return <div className={styles.workspace}>
     <header className={styles.header}><div><span>Sales channel</span><h1>Online Shop</h1></div><div className={styles.channel} data-active={channel === 'native_shop' || undefined}><Store size={16} /> {channel === 'native_shop' ? 'Native shop active' : channel === 'shopify' ? 'Shopify active' : 'No online channel active'}</div></header>
-    <nav className={styles.tabs}>{(['profile', 'products', 'layout', 'pages'] as Tab[]).map(item => <button key={item} data-active={tab === item || undefined} onClick={() => setTab(item)}>{item === 'profile' ? 'Store settings' : item === 'products' ? 'Products' : item === 'layout' ? 'Templates' : 'Pages'}</button>)}</nav>
+    <nav className={styles.tabs}>{(['profile', 'products', 'shipping', 'layout', 'pages'] as Tab[]).map(item => <button key={item} data-active={tab === item || undefined} onClick={() => setTab(item)}>{item === 'profile' ? 'Store settings' : item === 'products' ? 'Products' : item === 'shipping' ? 'Shipping' : item === 'layout' ? 'Templates' : 'Pages'}</button>)}</nav>
     {(error || message) && <div className={error ? styles.error : styles.message} role={error ? 'alert' : 'status'}>{error || message}</div>}
     {tab === 'profile' && <form className={styles.form} onSubmit={saveProfile}><div className={styles.formGrid}>
       <label>Store name<input required value={profileForm.displayName} onChange={event => setProfileForm({ ...profileForm, displayName: event.target.value })} /></label>
@@ -153,6 +179,15 @@ export default function OnlineShopView() {
       </select></label>}
     </div><div className={styles.actions}><label className={styles.uploadButton}><ImagePlus size={16} /> {working === 'upload' ? 'Uploading...' : 'Upload image'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) upload(file); event.target.value = ''; }} /></label><button className={styles.primary} disabled={Boolean(working)}><Save size={16} /> {working === 'profile' ? 'Saving...' : 'Save settings'}</button></div></form>}
     {tab === 'products' && <div className={styles.productsPanel}><div className={styles.productToolbar}><input placeholder="Search products" value={productQuery} onChange={event => setProductQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') loadProducts(); }} /><select value={productFilter} onChange={event => setProductFilter(event.target.value)}><option value="all">All products</option><option value="published">Published</option><option value="unpublished">Unpublished</option></select><button onClick={loadProducts}>Search</button></div><div className={styles.publicationList}>{products.map(product => <article key={product.product_id}><div><strong>{product.name}</strong><span>{[product.brand, product.base_sku].filter(Boolean).join(' · ') || 'No brand or base SKU'}{product.shopify_product_id ? ' · Shopify linked' : ''}</span></div><label>Store address<input value={product.slug ?? ''} disabled={product.is_published === 1} onChange={event => setProducts(current => current.map(item => item.product_id === product.product_id ? { ...item, slug: event.target.value } : item))} /></label><span className={styles.variantCount}>{Number(product.retail_variant_count)} retail {Number(product.retail_variant_count) === 1 ? 'variant' : 'variants'}</span><button className={product.is_published === 1 ? styles.unpublish : styles.publish} disabled={Boolean(working) || Number(product.retail_variant_count) < 1} onClick={() => updatePublication(product, product.is_published !== 1)}>{product.is_published === 1 ? 'Unpublish' : 'Publish'}</button></article>)}</div></div>}
+    {tab === 'shipping' && <div className={styles.form}><div className={styles.formGrid}><form className={styles.wide} onSubmit={saveShippingRule}>
+      <h2>Delivery rates</h2><div className={styles.formGrid}><label>Rate name<input required value={shippingForm.name} onChange={event => setShippingForm({ ...shippingForm, name: event.target.value })} /></label>
+      <label>Amount (AUD)<input required type="number" min="0" step="0.01" value={shippingForm.amount} onChange={event => setShippingForm({ ...shippingForm, amount: event.target.value })} /></label>
+      <label>Free over (AUD)<input type="number" min="0.01" step="0.01" value={shippingForm.freeOver} onChange={event => setShippingForm({ ...shippingForm, freeOver: event.target.value })} /></label>
+      <label>States<input placeholder="NSW, VIC" value={shippingForm.states} onChange={event => setShippingForm({ ...shippingForm, states: event.target.value })} /></label>
+      <label className={styles.wide}>Postcodes<input placeholder="2000, 3000-3207, 4*" value={shippingForm.postcodes} onChange={event => setShippingForm({ ...shippingForm, postcodes: event.target.value })} /></label></div>
+      <div className={styles.actions}><button className={styles.primary} disabled={Boolean(working)}><Plus size={16} /> Add delivery rate</button></div>
+      <div className={styles.publicationList}>{shippingRules.map(rule => <article key={rule.id}><div><strong>{rule.name}</strong><span>{new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(rule.amountCents / 100)}{rule.freeOverCents ? ` · free over ${new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(rule.freeOverCents / 100)}` : ''}</span></div><span>{[...rule.states, ...rule.postcodes].join(', ') || 'All Australia'}</span><button className={styles.unpublish} type="button" onClick={() => deleteShippingRule(rule.id)}>Delete</button></article>)}</div>
+      </form><section className={styles.wide}><h2>Click and collect</h2><div className={styles.publicationList}>{fulfilmentLocations.map(location => { const pickup = pickupOptions.find(item => item.locationId === location.id); return <article key={location.id}><div><strong>{pickup?.label ?? location.name}</strong><span>Online fulfilment location</span></div><label className={styles.checkbox}><input type="checkbox" checked={pickup?.isActive === true} onChange={event => setPickup(location, event.target.checked)} /> Available for pickup</label></article>; })}</div></section></div></div>}
     {tab === 'layout' && layout && layoutState && <div className={styles.editorLayout}><aside className={styles.templateNav}>{ONLINE_SHOP_LAYOUT_PAGE_IDS.map(id => <button data-active={template === id || undefined} key={id} onClick={() => setTemplate(id)}>{pageLabels[id]}</button>)}</aside><section className={styles.editorBody}><div className={styles.editorHeading}><div><span>Template</span><h2>{pageLabels[template]}</h2></div><div className={styles.actions}><button onClick={() => layoutAction('reset_draft')} disabled={Boolean(working)}><RotateCcw size={15} /> Reset</button><button onClick={() => layoutAction('save_draft')} disabled={!layoutDirty || Boolean(working)}><Save size={15} /> Save draft</button><button className={styles.primary} onClick={() => layoutAction('publish')} disabled={layoutDirty || Boolean(working)}><Send size={15} /> Publish</button></div></div><SectionComposer sections={layout.pages[template].sections} assets={assets}
       allowedTypes={(Object.keys(ONLINE_SHOP_LAYOUT_SECTION_REGISTRY) as OnlineShopLayoutSectionType[]).filter(type => ONLINE_SHOP_LAYOUT_SECTION_REGISTRY[type].allowedPages.includes(template))}
       requiredTypes={new Set((Object.keys(ONLINE_SHOP_LAYOUT_SECTION_REGISTRY) as OnlineShopLayoutSectionType[]).filter(type => ONLINE_SHOP_LAYOUT_SECTION_REGISTRY[type].requiredOn?.includes(template)))}
