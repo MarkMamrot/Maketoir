@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.","lastReviewed":"2026-08-24","owner":"retail"}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -29,6 +29,7 @@ Use this guide to change permitted POS presentation settings, use Training Mode,
 | Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |
 | Ask Solvantis | No | Assistant questions are not queued |
 | Complete a Training Mode sale | No | A separate training audit is recorded online; no live sale, stock, customer value, EOD, report, or accounting record is created |
+| Reprint a receipt from Reports | No | One print request is allowed from each receipt preview; close and reopen the receipt for a deliberate additional copy |
 
 ## Before you begin
 
@@ -71,6 +72,15 @@ Training Mode does not create a live sale or affect inventory, Reports, End of D
 5. Select the failed-sales retry action after correcting the connection or validation problem.
 6. Confirm each sale appears once in **Reports** before discarding any local entry.
 
+### Reprint an old receipt
+
+1. Open **Reports**, find the completed transaction, and select **Print**.
+2. In the browser print dialog, confirm **Copies** is `1` and the intended receipt printer is selected.
+3. Print once. The receipt preview prevents another request from that same normal-receipt view.
+4. To deliberately print another copy, close the preview, reopen the transaction's receipt, and print again.
+
+The browser controls its copy count and the Windows printer queue. Solvantis cannot override a saved multi-copy setting in Chrome or cancel duplicate jobs already held by the printer.
+
 ## Settings and recovery decisions
 
 | Situation | Safe action |
@@ -94,6 +104,7 @@ Training Mode does not create a live sale or affect inventory, Reports, End of D
 | Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |
 | A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |
 | Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |
+| One reprint produces several physical copies | Chrome has remembered a copy count above 1, or Windows/printer firmware duplicated one submitted job | Set **Copies** to `1`, cancel the printer queue, and restart Chrome and the printer before retrying one receipt |
 
 ## Worked examples
 

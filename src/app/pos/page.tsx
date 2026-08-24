@@ -4929,7 +4929,10 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
   const [emailStatus, setEmailStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [emailError,  setEmailError]  = useState('');
   const printBtnRef = useRef<HTMLButtonElement>(null);
-  const printGateRef = useRef(createReceiptPrintGate());
+  const normalPrintGateRef = useRef(createReceiptPrintGate());
+  const giftPrintGateRef = useRef(createReceiptPrintGate());
+  const [normalPrintRequested, setNormalPrintRequested] = useState(false);
+  const [giftPrintRequested, setGiftPrintRequested] = useState(false);
 
   useEffect(() => {
     printBtnRef.current?.focus();
@@ -4945,12 +4948,13 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
   }, [onClose]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePrint = () => {
-    if (!printGateRef.current.request(() => {
+    if (!normalPrintGateRef.current.request(() => {
+      setNormalPrintRequested(true);
       setPrintMode('normal');
       requestAnimationFrame(() => requestAnimationFrame(() => {
         window.addEventListener('afterprint', () => {
           setPrintMode('normal');
-          printGateRef.current.complete();
+          normalPrintGateRef.current.complete();
         }, { once: true });
         window.print();
       }));
@@ -4958,12 +4962,13 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
   };
 
   const handleGiftPrint = () => {
-    if (!printGateRef.current.request(() => {
+    if (!giftPrintGateRef.current.request(() => {
+      setGiftPrintRequested(true);
       setPrintMode('gift');
       requestAnimationFrame(() => requestAnimationFrame(() => {
         window.addEventListener('afterprint', () => {
           setPrintMode('normal');
-          printGateRef.current.complete();
+          giftPrintGateRef.current.complete();
         }, { once: true });
         window.print();
       }));
@@ -5141,7 +5146,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem', gap: '.75rem' }}>
-            <button ref={printBtnRef} onClick={handlePrint} style={{ ...primaryBtn, padding: '.6rem 1.5rem' }}>🖨 Print Receipt <span style={{ opacity: .45, fontSize: '.7rem' }}>Enter</span></button>
+            <button ref={printBtnRef} onClick={handlePrint} disabled={normalPrintRequested} style={{ ...primaryBtn, padding: '.6rem 1.5rem', opacity: normalPrintRequested ? .55 : 1, cursor: normalPrintRequested ? 'default' : 'pointer' }}>{normalPrintRequested ? '✓ Print requested' : <>🖨 Print Receipt <span style={{ opacity: .45, fontSize: '.7rem' }}>Enter</span></>}</button>
             <button onClick={onClose} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>New Sale <span style={{ opacity: .45, fontSize: '.7rem' }}>Esc</span></button>
           </div>
           {/* Email receipt */}
@@ -5205,7 +5210,7 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
             </div>
           </div>
           <div className='no-print' style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
-            <button onClick={handleGiftPrint} style={{ ...smallBtn, padding: '.6rem 1.5rem' }}>🎁 Print Gift Receipt</button>
+            <button onClick={handleGiftPrint} disabled={giftPrintRequested} style={{ ...smallBtn, padding: '.6rem 1.5rem', opacity: giftPrintRequested ? .55 : 1, cursor: giftPrintRequested ? 'default' : 'pointer' }}>{giftPrintRequested ? '✓ Gift receipt requested' : '🎁 Print Gift Receipt'}</button>
           </div>
         </div>
       </div>
