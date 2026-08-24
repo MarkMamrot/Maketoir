@@ -34,7 +34,8 @@ describe('GET /api/pos/store-credit', () => {
     expect(sql).toContain("type = 'retail_customer'");
     expect(sql).toContain('is_active = 1');
     expect(sql).toContain('name LIKE ?');
-    expect(params).toEqual(Array(6).fill('%0412%'));
+    expect(sql).toContain("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', '')");
+    expect(params).toEqual(Array(7).fill('%0412%'));
     expect(await response.json()).toEqual({
       contacts: [{ id: 7, name: 'Acme Retail', email: null, phone: '0412 345 678', store_credit: 12.5 }],
     });

@@ -21,17 +21,20 @@ export async function GET(req: Request) {
   if (q.length < 2) return NextResponse.json({ contacts: [] });
 
   const like = `%${q}%`;
+  const phoneDigits = q.replace(/\D/g, '');
+  const normalizedPhoneLike = phoneDigits.length >= 2 ? `%${phoneDigits}%` : '__no_phone_match__';
   const rows = await imsQuery(
     `SELECT id, name, first_name, last_name, email, phone, store_credit
      FROM ims_contacts
      WHERE (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?
             OR name LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)
        AND type = 'retail_customer'
        AND is_active = 1
        AND deleted_at IS NULL
      ORDER BY CASE WHEN store_credit > 0 THEN 0 ELSE 1 END, last_name, first_name
      LIMIT 10`,
-    [like, like, like, like, like, like],
+    [like, like, like, like, normalizedPhoneLike, like, like],
   );
   return NextResponse.json({
     contacts: rows.map((r: any) => ({
