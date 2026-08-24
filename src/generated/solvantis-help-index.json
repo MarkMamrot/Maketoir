@@ -670,12 +670,12 @@
         {
           "id": "ims-contacts-crm:2",
           "heading": "Main operations",
-          "content": "- Search before creating a contact so one person or company is not duplicated.\n- Maintain names, contact details, company details, and contact type in Contacts.\n- Open a customer profile to review activity and follow its source links.\n- Use CRM tasks, segments, and pipeline for follow-up and sales development."
+          "content": "- Search before creating a contact so one person or company is not duplicated.\n- Maintain names, contact details, company details, and contact type in Contacts.\n- Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.\n- Open a customer profile to review activity and follow its source links.\n- Use CRM tasks, segments, and pipeline for follow-up and sales development."
         },
         {
           "id": "ims-contacts-crm:3",
           "heading": "Choose the right contact area",
-          "content": "| Need | Use | What happens |\n|---|---|---|\n| Add or correct contact details | **Contacts** | The maintained contact record changes |\n| Review purchases, credits, loyalty, or follow-ups | **CRM > Contacts** | A combined profile and timeline opens |\n| Organise follow-up work | **CRM > Tasks** | Tasks can be assigned, completed, or cancelled |\n| Group customers from current data | **CRM > Segments** | Membership recalculates when viewed or refreshed |\n| Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |"
+          "content": "| Need | Use | What happens |\n|---|---|---|\n| Add or correct contact details | **Contacts** | The maintained contact record changes |\n| Review purchases, credits, loyalty, or follow-ups | **CRM > Contacts** | A combined profile and timeline opens |\n| Organise follow-up work | **CRM > Tasks** | Tasks can be assigned, completed, or cancelled |\n| Group customers from current data | **CRM > Segments** | Membership recalculates when viewed or refreshed |\n| Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |\n\nWhen adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. The form closes without saving only when you choose **Cancel** or press Escape."
         },
         {
           "id": "ims-contacts-crm:4",
@@ -1275,7 +1275,7 @@
         {
           "id": "ims-product-setup-variants:2",
           "heading": "Main operations",
-          "content": "- Create one product for the item customers recognise.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+          "content": "- Create one product for the item customers recognise.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
         },
         {
           "id": "ims-product-setup-variants:3",
@@ -1294,21 +1294,26 @@
         },
         {
           "id": "ims-product-setup-variants:6",
+          "heading": "Import products",
+          "content": "Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV."
+        },
+        {
+          "id": "ims-product-setup-variants:7",
           "heading": "Variant setup matrix",
           "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Active | Product and variant | Inactive records should not be used for new work |"
         },
         {
-          "id": "ims-product-setup-variants:7",
+          "id": "ims-product-setup-variants:8",
           "heading": "Non-stock decision guide",
           "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named service-style product | Do not receive or count it as a physical unit |\n| Repair labour | Separate service-style product | Keep it out of stocktakes unless a physical item is also supplied |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
         },
         {
-          "id": "ims-product-setup-variants:8",
+          "id": "ims-product-setup-variants:9",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
         },
         {
-          "id": "ims-product-setup-variants:9",
+          "id": "ims-product-setup-variants:10",
           "heading": "Worked examples",
           "content": "### Create a shirt with size and colour variants\n\nCreate **Harbour Linen Shirt** with Product SKU **HLS**. Add Size values **S, M, L** and Colour values **Navy, White**, then generate six variants. Assign SKUs such as **HLS-S-NAVY** and **HLS-M-WHITE**. Set the shelf price to $110 including GST and the supplier cost to $42 tax-exclusive for each applicable row.\n\n### Set up gift wrapping\n\nCreate **Gift Wrapping Service** with one default variant and a tax-inclusive selling price of $8.80, which contains $0.80 GST. Classify it clearly for staff, but do not receive ten units on a PO or include it in a physical stocktake merely because Product Type says “Service”."
         }
@@ -2208,12 +2213,12 @@
         {
           "id": "ims-location-stock-operations:3",
           "heading": "Locations",
-          "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there."
+          "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.\n\nOpen a location's register controls to add or reactivate the tills that POS devices can use. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there."
         },
         {
           "id": "ims-location-stock-operations:4",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Destination stock is missing | The transfer was sent but not received | Open **Receive Transfers** at the destination |\n| A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |\n| A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |\n| One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |"
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Destination stock is missing | The transfer was sent but not received | Open **Receive Transfers** at the destination |\n| A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |\n| A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |\n| One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |\n| POS says no active registers exist | No usable till is configured for the selected location | Open **Locations**, select the location, and choose **Add Register** |"
         },
         {
           "id": "ims-location-stock-operations:5",
@@ -2562,7 +2567,7 @@
         {
           "id": "pos-register-device-login:5",
           "heading": "Step-by-step",
-          "content": "### Set up the device\n\n1. On **POS - Device Setup**, enter the location code supplied by a manager. If you are already signed in as an Admin, select the branch instead.\n2. Select **Next** and choose an active **Register / Till**.\n3. Select **Set Up Device**.\n4. Check the branch and register names shown on the login screen.\n\n### Sign in and open the register\n\n1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.\n2. If **Register Left Open** appears, choose **Continue Session** only when work genuinely belongs to that same session. Otherwise select **Close Register (Enter Counts)**.\n3. Open **Register**, select **Open Register**, and count the opening cash by denomination.\n4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.\n5. Return to POS and confirm the Charge action is available."
+          "content": "### Set up the device\n\n1. On **POS - Device Setup**, enter the location code supplied by a manager. If you are already signed in as an Admin, select the branch instead.\n2. Select **Next** and choose an active **Register / Till**.\n3. Select **Set Up Device**.\n4. Check the branch and register names shown on the login screen.\n\nIf the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.\n\n### Sign in and open the register\n\n1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.\n2. If **Register Left Open** appears, choose **Continue Session** only when work genuinely belongs to that same session. Otherwise select **Close Register (Enter Counts)**.\n3. Open **Register**, select **Open Register**, and count the opening cash by denomination.\n4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.\n5. Return to POS and confirm the Charge action is available."
         },
         {
           "id": "pos-register-device-login:6",
@@ -2572,7 +2577,7 @@
         {
           "id": "pos-register-device-login:7",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |\n| No registers are listed | The branch has no active register | Ask a manager to add or reactivate the register before setup |\n| Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |\n| Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |\n| A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |"
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |\n| No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |\n| Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |\n| Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |\n| A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |"
         },
         {
           "id": "pos-register-device-login:8",
@@ -2705,7 +2710,7 @@
         {
           "id": "pos-selling-payments-manager-approval:3",
           "heading": "At a glance",
-          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |"
+          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside the location avatars, away from Charge and payment controls |"
         },
         {
           "id": "pos-selling-payments-manager-approval:4",
@@ -3095,7 +3100,7 @@
         {
           "id": "setup-team-access-security:2",
           "heading": "Main operations",
-          "content": "- Confirm the selected business and email address.\n- Choose User unless the person needs full access and invitation rights.\n- Send one invitation and check the result.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file."
+          "content": "- Confirm the selected business and email address.\n- Choose User unless the person needs full access and invitation rights.\n- Send one invitation and check the result.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file."
         },
         {
           "id": "setup-team-access-security:3",
@@ -3110,7 +3115,7 @@
         {
           "id": "setup-team-access-security:5",
           "heading": "Step-by-step",
-          "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. Select **Send Invite Email** once.\n6. Read the success or error message before trying again.\n7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.\n8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely."
+          "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. Select **Send Invite Email** once.\n6. Read the success or error message before trying again.\n7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.\n8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving."
         },
         {
           "id": "setup-team-access-security:6",

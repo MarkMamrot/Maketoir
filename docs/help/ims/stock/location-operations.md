@@ -16,7 +16,9 @@ Use this page to choose the physical-stock workflow that matches what happened i
 
 ## Locations
 
-Locations identify the branches used by stock, POS, transfers, tracking, and reports. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there.
+Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.
+
+Open a location's register controls to add or reactivate the tills that POS devices can use. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there.
 
 ## Troubleshooting
 
@@ -26,6 +28,7 @@ Locations identify the branches used by stock, POS, transfers, tracking, and rep
 | A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |
 | A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |
 | One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |
+| POS says no active registers exist | No usable till is configured for the selected location | Open **Locations**, select the location, and choose **Add Register** |
 
 ## Worked examples
 

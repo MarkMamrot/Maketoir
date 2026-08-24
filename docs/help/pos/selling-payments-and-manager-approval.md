@@ -24,6 +24,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
 | Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |
+| Today's Mission | Shows the location's current sales progress beside the location avatars, away from Charge and payment controls |
 
 ## Before you begin
 

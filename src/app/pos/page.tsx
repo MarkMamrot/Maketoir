@@ -222,7 +222,13 @@ function DeviceSetup({ onSetup }: { onSetup: (cfg: DeviceConfig) => void }) {
                 {registers.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
             ) : (
-              <p style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.5rem', border: '1px solid var(--sv-etch)', borderRadius: 6 }}>No registers found for this location. Ask your manager to add one in IMS.</p>
+              <div style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', padding: '.75rem', border: '1px solid var(--sv-etch)', borderRadius: 6, lineHeight: 1.5 }}>
+                <div style={{ color: 'var(--sv-text-main)', fontWeight: 700, marginBottom: '.35rem' }}>This location has no active registers.</div>
+                A register must be added before this device can be set up. Open IMS Locations, select this location, then choose Add Register.
+                <a href="/ims#locations" style={{ ...primaryBtn, display: 'block', marginTop: '.75rem', textAlign: 'center', textDecoration: 'none', boxSizing: 'border-box' }}>
+                  Open Locations in IMS
+                </a>
+              </div>
             )}
             {error && <p style={{ color: 'var(--sv-red)', fontSize: '.85rem', marginBottom: '1rem' }}>{error}</p>}
             <div style={{ display: 'flex', gap: '.5rem' }}>
@@ -2713,19 +2719,20 @@ function MainPos({
       )}
 
       {/* ── Avatar Leaderboard Bar + Chat ───────────────────────────────────── */}
-      <PosAvatarBar
-        myLocationId={session.location_id}
-        myAvatar={posSettings.avatar}
-        userName={session.full_name}
-        saleRefreshTick={saleRefreshTick}
-        morningGreetingTick={morningGreetingTick}
-        cartLeft={cartLeft}
-      />
-      <SalesTargetTracker
-        myLocationId={session.location_id}
-        saleRefreshTick={saleRefreshTick}
-        cartLeft={cartLeft}
-      />
+      <div style={{ position: 'fixed', bottom: 12, ...(cartLeft ? { right: 12 } : { left: 12 }), zIndex: 600, display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 'calc(100vw - 24px)' }}>
+        <PosAvatarBar
+          myLocationId={session.location_id}
+          myAvatar={posSettings.avatar}
+          userName={session.full_name}
+          saleRefreshTick={saleRefreshTick}
+          morningGreetingTick={morningGreetingTick}
+          cartLeft={cartLeft}
+        />
+        <SalesTargetTracker
+          myLocationId={session.location_id}
+          saleRefreshTick={saleRefreshTick}
+        />
+      </div>
       </div>
     </div>
   );
@@ -3193,7 +3200,7 @@ function PosAvatarBar({
   const chatAlign = cartLeft ? 'flex-end' : 'flex-start';
 
   return (
-    <div style={{ position: 'fixed', bottom: 12, ...(cartLeft ? { right: 12 } : { left: 12 }), zIndex: 600, display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
 
       {/* ── Avatar circles ───────────────────────────────────────────────────── */}
       {leaderboard.map(loc => {
@@ -3413,8 +3420,8 @@ function getTargetMotivation(pct: number, remaining: number): string {
 }
 
 function SalesTargetTracker({
-  myLocationId, saleRefreshTick, cartLeft,
-}: { myLocationId: number; saleRefreshTick: number; cartLeft: boolean }) {
+  myLocationId, saleRefreshTick,
+}: { myLocationId: number; saleRefreshTick: number }) {
   const [target, setTarget]       = useState<number | null>(null);
   const [todaySales, setTodaySales] = useState(0);
 
@@ -3451,9 +3458,7 @@ function SalesTargetTracker({
 
   return (
     <div style={{
-      position: 'fixed', bottom: 12,
-      ...(cartLeft ? { left: 12 } : { right: 12 }),
-      zIndex: 600, pointerEvents: 'none',
+      flex: '0 0 auto', pointerEvents: 'none',
     }}>
       <div style={{
         width: 230,

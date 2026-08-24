@@ -34,6 +34,17 @@ export default function AdminUsersPage() {
   const [editForm, setEditForm] = useState({ tier: '', name: '' });
   const [message, setMessage] = useState('');
 
+  useEffect(() => {
+    if (!showCreateModal && !editingUser) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setShowCreateModal(false);
+      setEditingUser(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showCreateModal, editingUser]);
+
   // Fetch current user and check tier
   useEffect(() => {
     const checkAccess = async () => {
@@ -373,8 +384,8 @@ export default function AdminUsersPage() {
 
       {/* Create User Modal */}
       {showCreateModal && (
-        <div className="modal" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal">
+          <div className="modal-content">
             <h2>Create New User</h2>
             <form onSubmit={handleCreateUser}>
               <div className="form-group">
@@ -444,8 +455,8 @@ export default function AdminUsersPage() {
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="modal" onClick={() => setEditingUser(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal">
+          <div className="modal-content">
             <h2>Edit User: {editingUser.email}</h2>
             <div className="form-group">
               <label>Name</label>

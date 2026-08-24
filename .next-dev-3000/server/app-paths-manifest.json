@@ -1,8 +1,7 @@
 {
-  "/login/page": "app/login/page.js",
-  "/wholesale/[slug]/page": "app/wholesale/[slug]/page.js",
-  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
   "/page": "app/page.js",
-  "/api/public/sales-assistant/conversation/route": "app/api/public/sales-assistant/conversation/route.js",
+  "/wholesale/[slug]/page": "app/wholesale/[slug]/page.js",
+  "/login/page": "app/login/page.js",
+  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
   "/ims/page": "app/ims/page.js"
 }

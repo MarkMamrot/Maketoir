@@ -49,6 +49,16 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS ims_brands (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL DEFAULT '',
+    name VARCHAR(255) NOT NULL,
+    website_url VARCHAR(500) DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_ims_brand_per_tenant (business_id, name),
+    INDEX idx_ims_brand_business (business_id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_crm_interactions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(100) NOT NULL, contact_id INT NOT NULL,
     interaction_type VARCHAR(32) NOT NULL DEFAULT 'note', body MEDIUMTEXT NOT NULL, occurred_at DATETIME NULL,
@@ -964,6 +974,9 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_brands', 'business_id', "VARCHAR(100) NOT NULL DEFAULT '' AFTER id"],
+  ['ims_brands', 'website_url', 'VARCHAR(500) NULL AFTER name'],
+  ['ims_brands', 'updated_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at'],
   ['ims_online_shop_checkouts', 'fulfilment_mode', "VARCHAR(32) NOT NULL DEFAULT 'single_location' AFTER status"],
   ['ims_online_shop_value_reservations', 'reward_id', 'INT NULL AFTER value_type'],
   ['ims_online_shop_value_reservations', 'loyalty_redemption_id', 'BIGINT NULL AFTER reward_id'],
@@ -1168,6 +1181,8 @@ const COLUMNS = [
 ];
 
 const INDEXES = [
+  ['ims_brands', 'uq_ims_brand_per_tenant', 'UNIQUE INDEX `uq_ims_brand_per_tenant` (`business_id`, `name`)'],
+  ['ims_brands', 'idx_ims_brand_business', 'INDEX `idx_ims_brand_business` (`business_id`)'],
   ['ims_purchase_orders', 'idx_po_backorder_queue', 'INDEX `idx_po_backorder_queue` (`business_id`, `status`, `supplier_id`, `created_at`)'],
   ['ims_purchase_orders', 'uq_po_replacement_source', 'UNIQUE INDEX `uq_po_replacement_source` (`business_id`, `replacement_of_po_id`)'],
   ['ims_sales_orders', 'idx_so_backorder_queue', 'INDEX `idx_so_backorder_queue` (`business_id`, `status`, `customer_id`, `created_at`)'],
@@ -1315,7 +1330,7 @@ async function ensureNativeCheckoutIndex(schema) {
   await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
 }
 
-async function migrateSchema(schema) {
+async function migrateSchema(schema, businessId) {
   for (const ddl of TABLE_DDLS) {
     try {
       await conn.query(`USE \`${schema}\``);
@@ -1396,6 +1411,17 @@ async function migrateSchema(schema) {
     }
   }
 
+  if (businessId) {
+    try {
+      await conn.query(
+        `UPDATE \`${schema}\`.ims_brands SET business_id = ? WHERE business_id = ''`,
+        [businessId],
+      );
+    } catch (e) {
+      console.error(`  ✗ ${schema}.ims_brands business backfill: ${e.message}`);
+    }
+  }
+
   try {
     await conn.query(
       `UPDATE \`${schema}\`.ims_po_shortfall_resolutions
@@ -1419,6 +1445,20 @@ async function migrateSchema(schema) {
     } catch (e) {
       console.error(`  ✗ ${schema}.${table}.${indexName}: ${e.message}`);
     }
+  }
+
+  try {
+    const [legacyBrandIndexes] = await conn.query(
+      `SELECT 1 FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ims_brands' AND INDEX_NAME = 'uq_brand_name'
+        LIMIT 1`,
+      [schema],
+    );
+    if (legacyBrandIndexes.length) {
+      await conn.query(`ALTER TABLE \`${schema}\`.ims_brands DROP INDEX uq_brand_name`);
+    }
+  } catch (e) {
+    console.error(`  ✗ ${schema}.ims_brands legacy index cleanup: ${e.message}`);
   }
 
   try {
@@ -1778,13 +1818,18 @@ async function verifyWholesaleSavedListsSchema(schema) {
 
 try {
   const schemas = new Set();
+  const businessIdsBySchema = new Map();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
   const mainDb = process.env.MYSQL_DATABASE;
   if (mainDb) {
     const [rows] = await conn.query(
-      `SELECT ims_db_name FROM \`${mainDb}\`.businesses WHERE ims_db_name IS NOT NULL AND deleted_at IS NULL`,
+      `SELECT business_id, ims_db_name FROM \`${mainDb}\`.businesses WHERE ims_db_name IS NOT NULL AND deleted_at IS NULL`,
     );
-    for (const r of rows) if (r.ims_db_name) schemas.add(r.ims_db_name);
+    for (const r of rows) {
+      if (!r.ims_db_name) continue;
+      schemas.add(r.ims_db_name);
+      businessIdsBySchema.set(r.ims_db_name, r.business_id);
+    }
   }
   const requestedSchema = process.argv.find(argument => argument.startsWith('--schema='))?.slice('--schema='.length);
   if (requestedSchema && !schemas.has(requestedSchema)) {
@@ -1793,7 +1838,7 @@ try {
   const selectedSchemas = requestedSchema ? [requestedSchema] : [...schemas];
   console.log(`Schemas: ${selectedSchemas.join(', ')}`);
   for (const schema of selectedSchemas) {
-    await migrateSchema(schema);
+    await migrateSchema(schema, businessIdsBySchema.get(schema));
     await verifyBackorderMergeSchema(schema);
     await verifyStockAvailabilitySchema(schema);
     await verifyOutstandingResolutionSchema(schema);

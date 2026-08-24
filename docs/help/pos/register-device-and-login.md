@@ -41,6 +41,8 @@ Use this guide to bind a POS device to the correct branch and register, sign in 
 3. Select **Set Up Device**.
 4. Check the branch and register names shown on the login screen.
 
+If the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.
+
 ### Sign in and open the register
 
 1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.
@@ -64,7 +66,7 @@ Use this guide to bind a POS device to the correct branch and register, sign in 
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |
-| No registers are listed | The branch has no active register | Ask a manager to add or reactivate the register before setup |
+| No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |
 | Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |
 | Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |
 | A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |

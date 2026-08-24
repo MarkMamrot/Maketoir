@@ -10,6 +10,7 @@ Use Team to invite a colleague as a User or Admin, then let them complete their 
 - Confirm the selected business and email address.
 - Choose User unless the person needs full access and invitation rights.
 - Send one invitation and check the result.
+- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.
 - Keep passwords, authenticator codes, and recovery codes private.
 - Export business data only when authorised to handle the file.
 
@@ -39,6 +40,8 @@ Use Team to invite a colleague as a User or Admin, then let them complete their 
 6. Read the success or error message before trying again.
 7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.
 8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
+
+The user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.
 
 ## Role and security decisions
 

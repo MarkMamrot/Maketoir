@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileDown, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
+import { ClipboardCopy, FileDown, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
@@ -459,6 +459,14 @@ function parseStyleStr(s: string): Record<string, string> {
 function Modal({ title, onClose, children, wide, wider, width }: {
   title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; wider?: boolean; width?: number;
 }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 40, paddingBottom: 40, background: 'rgba(0,0,0,.6)', overflowY: 'auto' }}>
       <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: width ?? (wider ? 1120 : wide ? 860 : 560), maxWidth: '97vw', padding: 28, position: 'relative' }}>
@@ -1819,6 +1827,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_CONTACT });
+  const [displayNameEdited, setDisplayNameEdited] = useState(false);
   const [saving, setSaving] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const [selectedContacts, setSelectedContacts] = useState<Set<number>>(new Set());
@@ -1919,8 +1928,8 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
     if (isCrmMode) void loadCrmWorkspace();
   }, [isCrmMode, loadCrmWorkspace]);
 
-  const openNew = () => { setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
-  const openEdit = (c: any) => { setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
+  const openNew = () => { setDisplayNameEdited(false); setForm({ ...BLANK_CONTACT }); setModal({ open: true, edit: null }); };
+  const openEdit = (c: any) => { setDisplayNameEdited(true); setForm({ ...BLANK_CONTACT, ...c }); setModal({ open: true, edit: c }); };
   const closeModal = () => setModal({ open: false, edit: null });
 
   const runInBatches = async <T,>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) => {
@@ -2003,8 +2012,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
       const url  = modal.edit ? `/api/ims/contacts/${modal.edit.id}` : '/api/ims/contacts';
       const method = modal.edit ? 'PUT' : 'POST';
       const f = form as any;
-      // Auto-fill name from first+last if blank
-      const displayName = f.name || [f.first_name, f.last_name].filter(Boolean).join(' ') || f.company || 'Unnamed';
+      const displayName = f.name || f.company || [f.first_name, f.last_name].filter(Boolean).join(' ') || 'Unnamed';
       const payload: any = {
         ...form,
         name: displayName,
@@ -2045,6 +2053,16 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
   };
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm(p => ({ ...p, [k]: e.target.value }));
+  const setContactIdentityField = (key: 'first_name' | 'last_name' | 'company') => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setForm(previous => {
+      const next = { ...previous, [key]: value };
+      if (displayNameEdited) return next;
+      const company = String(next.company ?? '').trim();
+      const personName = [next.first_name, next.last_name].map(part => String(part ?? '').trim()).filter(Boolean).join(' ');
+      return { ...next, name: company || personName };
+    });
+  };
   const wholesaleBrandSelection = (() => {
     const raw = (form as any).wholesale_allowed_brands_json;
     if (raw == null || raw === '') return null;
@@ -2403,12 +2421,22 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
             </Row2>
 
             <Row2>
-              <Field label="First Name"><input value={f.first_name ?? ''} onChange={sf('first_name')} style={inputStyle} /></Field>
-              <Field label="Last Name"><input value={f.last_name ?? ''} onChange={sf('last_name')} style={inputStyle} /></Field>
+              <Field label="First Name"><input value={f.first_name ?? ''} onChange={setContactIdentityField('first_name')} style={inputStyle} /></Field>
+              <Field label="Last Name"><input value={f.last_name ?? ''} onChange={setContactIdentityField('last_name')} style={inputStyle} /></Field>
             </Row2>
             <Row2>
-              <Field label="Display Name *"><input required value={form.name} onChange={sf('name')} placeholder="Auto-filled from First + Last" style={inputStyle} /></Field>
-              <Field label="Company"><input value={form.company} onChange={sf('company')} style={inputStyle} /></Field>
+              <Field label="Display Name *"><input required value={form.name} onChange={event => {
+                const value = event.target.value;
+                const isManualName = Boolean(value.trim());
+                setDisplayNameEdited(isManualName);
+                setForm(previous => ({
+                  ...previous,
+                  name: isManualName
+                    ? value
+                    : String(previous.company ?? '').trim() || [previous.first_name, previous.last_name].map(part => String(part ?? '').trim()).filter(Boolean).join(' '),
+                }));
+              }} placeholder="Auto-filled from Company or contact name" style={inputStyle} /></Field>
+              <Field label="Company"><input value={form.company} onChange={setContactIdentityField('company')} style={inputStyle} /></Field>
             </Row2>
             <Row2>
               <Field label="Customer Code"><input value={f.customer_code ?? ''} onChange={sf('customer_code')} style={inputStyle} /></Field>
@@ -2534,7 +2562,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
               <ContactGiftCardsSection shopifyCustomerId={f.shopify_customer_id} />
             )}
 
-            <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} />
+            <FormActions onCancel={closeModal} saving={saving} isEdit={!!modal.edit} createLabel="Save" />
           </form>
         </Modal>
       )}
@@ -3108,7 +3136,7 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
               </div>
               <p style={{ margin: '5px 0 0', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>Whole dollar amounts. Leave blank = no target shown in POS for that day.</p>
             </Field>
-            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} />
+            <FormActions onCancel={() => setModal({ open: false, edit: null })} saving={saving} isEdit={!!modal.edit} createLabel="Save" />
           </form>
         </Modal>
       )}
@@ -3428,6 +3456,7 @@ function ImportProductsModal({
   const [supplierResolutions, setSupplierResolutions] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [headersCopied, setHeadersCopied] = useState(false);
 
   // Per-location Zone/Bin/Min Qty/Reorder Qty columns are appended to the template headers.
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
@@ -3489,6 +3518,16 @@ function ImportProductsModal({
       return lines.length <= 1 ? line : prev;
     });
   }, [templateHeaders]);
+
+  const copyTemplateHeaders = async () => {
+    try {
+      await navigator.clipboard.writeText(templateHeaders.join('\t'));
+      setHeadersCopied(true);
+      window.setTimeout(() => setHeadersCopied(false), 1800);
+    } catch {
+      alert('Could not copy the CSV titles. Select the first row and copy it manually.');
+    }
+  };
 
   const normStr = (s: string) => (s || '').trim().toLowerCase();
 
@@ -3847,9 +3886,14 @@ function ImportProductsModal({
         {/* Stage: paste */}
         {stage === 'paste' && (
           <>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-              The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here.
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <p style={{ margin: 0, flex: '1 1 420px', fontSize: 13, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
+                The field headers are pre-filled below. <strong style={{ color: 'var(--sv-text-main)' }}>Copy them into Excel or Google Sheets</strong>, fill your data in the rows below the headers, then paste everything back here.
+              </p>
+              <button type="button" onClick={copyTemplateHeaders} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ClipboardCopy size={14} aria-hidden="true" /> {headersCopied ? 'Copied' : 'Copy CSV titles'}
+              </button>
+            </div>
             <div style={{ margin: '4px 0 8px', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--sv-text-main)' }}>Key columns:</strong><br />
               <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
@@ -14679,11 +14723,11 @@ function RowActions({ onEdit, onDelete, isAdvisor = false }: { onEdit: () => voi
   );
 }
 
-function FormActions({ onCancel, saving, isEdit, extraActions, submitTestId }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; testId?: string; onClick: (e: React.MouseEvent) => void }[]; submitTestId?: string }) {
+function FormActions({ onCancel, saving, isEdit, extraActions, submitTestId, createLabel = 'Create Draft' }: { onCancel: () => void; saving: boolean; isEdit: boolean; extraActions?: { label: string; testId?: string; onClick: (e: React.MouseEvent) => void }[]; submitTestId?: string; createLabel?: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
       <button type="button" onClick={onCancel} style={btnStyle('ghost')}>Cancel</button>
-      <button data-testid={submitTestId} type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : 'Create Draft'}</button>
+      <button data-testid={submitTestId} type="submit" disabled={saving} style={btnStyle(extraActions?.length ? 'ghost' : 'action')}>{saving ? 'Saving…' : isEdit ? 'Update' : createLabel}</button>
       {extraActions?.map((a, i) => (
         <button key={i} data-testid={a.testId} type="button" disabled={saving} onClick={a.onClick} style={btnStyle('action')}>{a.label}</button>
       ))}

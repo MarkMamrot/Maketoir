@@ -11,6 +11,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Add a default variant for a single-option item, or generate variants from Size, Colour or Style.
 - Give each variant a unique SKU and, where used, a unique barcode.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
+- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
 
 ## At a glance
@@ -47,6 +48,10 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 8. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
 9. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 10. Select **Save All**, then reopen the product and check representative variants.
+
+## Import products
+
+Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV.
 
 ## Variant setup matrix
 

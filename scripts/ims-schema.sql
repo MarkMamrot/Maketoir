@@ -64,6 +64,18 @@ CREATE TABLE IF NOT EXISTS ims_contacts (
   INDEX idx_customer_code (business_id, customer_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Product brands ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS ims_brands (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  name        VARCHAR(255) NOT NULL,
+  website_url VARCHAR(500) DEFAULT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ims_brand_per_tenant (business_id, name),
+  INDEX idx_ims_brand_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Wholesale company accounts ─────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_wholesale_companies (
   id INT AUTO_INCREMENT PRIMARY KEY,
