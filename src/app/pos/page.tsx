@@ -1545,17 +1545,25 @@ function MainPos({
 
   // Debounced contact search for store credit lookup
   useEffect(() => {
-    if (contactSearch.length < 2) { setContactResults([]); return; }
+    if (contactSearch.trim().length < 2) {
+      setContactResults([]);
+      setContactSearching(false);
+      return;
+    }
     setContactSearching(true);
+    let active = true;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch)}`);
+        const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch.trim())}`);
         const data = await res.json();
-        setContactResults(Array.isArray(data.contacts) ? data.contacts : []);
-      } catch { setContactResults([]); }
-      finally { setContactSearching(false); }
-    }, 300);
-    return () => clearTimeout(timer);
+        if (active) setContactResults(Array.isArray(data.contacts) ? data.contacts : []);
+      } catch {
+        if (active) setContactResults([]);
+      } finally {
+        if (active) setContactSearching(false);
+      }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
   }, [contactSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2423,8 +2431,29 @@ function MainPos({
           {customerOpen && (
             <div style={{ padding: '0 .75rem .4rem' }}>
               <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem' }}>
-                <input placeholder='Customer name' value={customerName} onChange={e => setCustomerName(e.target.value)} style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
-                <input placeholder='Phone' value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }} />
+                <input
+                  placeholder='Customer name'
+                  value={customerName}
+                  autoComplete='off'
+                  onChange={e => {
+                    setCustomerName(e.target.value);
+                    setLinkedContact(null);
+                    setContactSearch(e.target.value);
+                  }}
+                  style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }}
+                />
+                <input
+                  placeholder='Phone'
+                  value={customerPhone}
+                  inputMode='tel'
+                  autoComplete='off'
+                  onChange={e => {
+                    setCustomerPhone(e.target.value);
+                    setLinkedContact(null);
+                    setContactSearch(e.target.value);
+                  }}
+                  style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }}
+                />
               </div>
               {/* Contact/store-credit lookup */}
               {linkedContact ? (
@@ -2476,20 +2505,18 @@ function MainPos({
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>
-                  <input
-                    placeholder='Link customer for store credit…'
-                    title='Link a customer to redeem existing store credit or issue store credit from a completed POS return credit note.'
-                    value={contactSearch}
-                    onChange={e => setContactSearch(e.target.value)}
-                    style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.78rem', boxSizing: 'border-box' }}
-                  />
-                  {contactSearching && <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>…</span>}
-                  {contactResults.length > 0 && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.3)', marginTop: 2 }}>
+                  {(contactSearching || contactResults.length > 0 || contactSearch.trim().length >= 2) && (
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.3)', overflow: 'hidden' }}>
+                      {contactSearching && contactResults.length === 0 && (
+                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>Searching retail customers…</div>
+                      )}
+                      {!contactSearching && contactResults.length === 0 && (
+                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>No retail customers found.</div>
+                      )}
                       {contactResults.map(c => (
                         <button
                           key={c.id}
-                          onClick={() => { setLinkedContact(c); setCustomerName(prev => prev || c.name); setCustomerPhone(prev => prev || (c.phone ?? '')); setContactSearch(''); setContactResults([]); }}
+                          onClick={() => { setLinkedContact(c); setCustomerName(c.name); setCustomerPhone(c.phone ?? ''); setContactSearch(''); setContactResults([]); }}
                           style={{ display: 'block', width: '100%', padding: '.4rem .6rem', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', borderBottom: '1px solid var(--sv-etch)' }}
                         >
                           <span style={{ fontWeight: 600 }}>{c.name}</span>

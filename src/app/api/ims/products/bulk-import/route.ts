@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsProductsRepo, ImsVariantsRepo, ImsBrandsRepo, ImsContactsRepo, ImsStockRepo } from '@/lib/ims/ImsRepository';
+import { deriveVariantSku } from '@/lib/ims/importSku';
 
 
 export interface BulkImportRow {
@@ -21,7 +22,7 @@ export interface BulkImportRow {
   is_stock_item?: number;
   is_online?: number;
   // Variant-level
-  sku?: string;
+  sku?: string; // Server-derived from base_sku and option values.
   barcode?: string;
   cost_aud?: number | null;
   price_rrp?: number | null;
@@ -59,6 +60,17 @@ export async function POST(req: Request) {
   }
 
   const { rows, autoCreateBrands = [], autoCreateSuppliers = [] } = body;
+
+  for (const row of rows) {
+    if (row.action === 'error') continue;
+    row.sku = deriveVariantSku(row.base_sku, [row.option1_value, row.option2_value, row.option3_value]);
+    if (!row.sku) {
+      return NextResponse.json(
+        { success: false, error: `Product_SKU is required for ${row.product_name || 'every imported product'}.` },
+        { status: 400 },
+      );
+    }
+  }
 
   // Ensure ims_stock has zone/bin columns before any per-location writes.
   const anyLocationStock = rows.some(r => Array.isArray(r.location_stock) && r.location_stock.length > 0);

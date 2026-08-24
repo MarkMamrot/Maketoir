@@ -22,19 +22,21 @@ export async function GET(req: Request) {
 
   const like = `%${q}%`;
   const rows = await imsQuery(
-    `SELECT id, first_name, last_name, email, phone, store_credit
+    `SELECT id, name, first_name, last_name, email, phone, store_credit
      FROM ims_contacts
      WHERE (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?
-            OR CONCAT(first_name, ' ', last_name) LIKE ?)
+            OR name LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)
+       AND type = 'retail_customer'
+       AND is_active = 1
        AND deleted_at IS NULL
      ORDER BY CASE WHEN store_credit > 0 THEN 0 ELSE 1 END, last_name, first_name
      LIMIT 10`,
-    [like, like, like, like, like],
+    [like, like, like, like, like, like],
   );
   return NextResponse.json({
     contacts: rows.map((r: any) => ({
       id:           r.id,
-      name:         `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim(),
+      name:         String(r.name ?? '').trim() || `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim(),
       email:        r.email ?? null,
       phone:        r.phone ?? null,
       store_credit: Number(r.store_credit ?? 0),

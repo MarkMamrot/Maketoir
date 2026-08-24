@@ -9,7 +9,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 
 - Search, scan, or browse for the correct product variant.
 - Adjust quantities, prices, item discounts, or the order discount before payment.
-- Link a customer when using store credit or loyalty.
+- Find and link an active retail customer by name or phone when using store credit or loyalty.
 - Park an unfinished cart on this device and resume it later.
 - Add more than one tender when the customer splits payment.
 - Ask a manager to authorise an action only when POS displays the manager PIN prompt.
@@ -41,7 +41,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 1. Scan a barcode or search by product name, SKU, or barcode.
 2. Add the correct variant and set the quantity.
 3. Apply any permitted line discount, price change, or order discount before payment.
-4. Link the customer if the sale uses store credit or a loyalty reward.
+4. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.
 5. Check the tax-inclusive total and the **GST (incl.)** amount.
 6. Choose **Charge** and choose a payment method.
 7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
@@ -76,6 +76,7 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |
 | Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |
 | Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |
+| Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |
 | A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |
 | A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |
 

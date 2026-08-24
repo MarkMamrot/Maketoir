@@ -1295,7 +1295,7 @@
         {
           "id": "ims-product-setup-variants:6",
           "heading": "Import products",
-          "content": "Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV."
+          "content": "Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV.\n\nEvery imported row requires **Product_SKU**. A default or single variant uses Product_SKU as its SKU. When option values are present, Solvantis derives the variant SKU by appending Option1, Option2 and Option3 values in order, with spaces removed. For example, Product_SKU **HLS** with Size **M** and Colour **Navy** becomes **HLS-M-Navy**. Product Import does not accept a separate variant SKU override.\n\nBefore reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import."
         },
         {
           "id": "ims-product-setup-variants:7",
@@ -1310,7 +1310,7 @@
         {
           "id": "ims-product-setup-variants:9",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
+          "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
         },
         {
           "id": "ims-product-setup-variants:10",
@@ -2705,7 +2705,7 @@
         {
           "id": "pos-selling-payments-manager-approval:2",
           "heading": "Main operations",
-          "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Link a customer when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
+          "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find and link an active retail customer by name or phone when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
         },
         {
           "id": "pos-selling-payments-manager-approval:3",
@@ -2720,7 +2720,7 @@
         {
           "id": "pos-selling-payments-manager-approval:5",
           "heading": "Step-by-step",
-          "content": "1. Scan a barcode or search by product name, SKU, or barcode.\n2. Add the correct variant and set the quantity.\n3. Apply any permitted line discount, price change, or order discount before payment.\n4. Link the customer if the sale uses store credit or a loyalty reward.\n5. Check the tax-inclusive total and the **GST (incl.)** amount.\n6. Choose **Charge** and choose a payment method.\n7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n8. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required."
+          "content": "1. Scan a barcode or search by product name, SKU, or barcode.\n2. Add the correct variant and set the quantity.\n3. Apply any permitted line discount, price change, or order discount before payment.\n4. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.\n5. Check the tax-inclusive total and the **GST (incl.)** amount.\n6. Choose **Charge** and choose a payment method.\n7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n8. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required."
         },
         {
           "id": "pos-selling-payments-manager-approval:6",
@@ -2735,7 +2735,7 @@
         {
           "id": "pos-selling-payments-manager-approval:8",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
         },
         {
           "id": "pos-selling-payments-manager-approval:9",

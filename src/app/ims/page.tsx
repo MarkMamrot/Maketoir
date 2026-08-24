@@ -13,6 +13,7 @@ import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
 import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeLabelPrinter';
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
+import { deriveVariantSku } from '@/lib/ims/importSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
@@ -3410,7 +3411,7 @@ function ImportLineItemsModal({
 const IMPORT_FX_COST_HEADERS = ['Cost_USD', 'Cost_EUR', 'Cost_GBP', 'Cost_THB', 'Cost_CNY', 'Cost_JPY'] as const;
 
 const IMPORT_BASE_HEADERS = [
-  'Product_Name','Product_SKU','SKU','Barcode','Description','Brand','Supplier','Product_Type',
+  'Product_Name','Product_SKU','Barcode','Description','Brand','Supplier','Product_Type',
   'Category','Subcategory','Website_Title','Allow_Indent_Wholesale_Orders','Tags','Online','Pack_Size',
   'Option1_Name','Option1_Value','Option2_Name','Option2_Value','Option3_Name','Option3_Value',
   'RRP','price_wholesale','Cost_AUD','Cost_USD','Cost_EUR','Cost_GBP','Cost_THB','Cost_CNY','Cost_JPY','Weight_KG',
@@ -3612,12 +3613,15 @@ function ImportProductsModal({
       }
 
       const product_name = raw['product_name'] || '';
-      const sku = raw['sku'] || '';
+      const sku = deriveVariantSku(product_sku, [raw['option1_value'], raw['option2_value'], raw['option3_value']]);
       const brand = raw['brand'] || '';
       const supplier = raw['supplier'] || '';
 
-      if (!product_name && !sku) {
-        return { raw, product_name, sku, action: 'error' as const, errorMsg: 'Missing Product_Name and SKU' };
+      if (!product_sku) {
+        return { raw, product_name, sku, action: 'error' as const, errorMsg: 'Missing Product_SKU' };
+      }
+      if (!product_name) {
+        return { raw, product_name, sku, action: 'error' as const, errorMsg: 'Missing Product_Name' };
       }
 
       if (brand && !brandNames.has(normStr(brand))) foundUnknownBrands.add(brand.trim());
@@ -3629,7 +3633,7 @@ function ImportProductsModal({
       let changedFields: string[] = [];
 
       const resolved = resolveImportMatch({
-        sku: raw['sku'] ?? '',
+        sku,
         barcode: raw['barcode'] ?? '',
         product_sku: raw['product_sku'] ?? '',
         product_name: raw['product_name'] ?? '',
@@ -3643,7 +3647,7 @@ function ImportProductsModal({
       existing_product_id = resolved.existing_product_id;
 
       if (action === 'update' && existing_variant_id) {
-        const match = variantBySkuMap.get(normStr(raw['sku'] || '')) || Array.from(variantBySkuMap.values()).find(({ variant }) => variant.variant_id === existing_variant_id);
+        const match = variantBySkuMap.get(normStr(sku)) || Array.from(variantBySkuMap.values()).find(({ variant }) => variant.variant_id === existing_variant_id);
         if (match) {
           const v = match.variant;
           const p = match.product;
@@ -3666,7 +3670,7 @@ function ImportProductsModal({
       }
 
       return { raw, product_name, sku, action, existing_variant_id, existing_product_id, changedFields };
-    }).filter(r => r.product_name || r.sku || r.action === 'error');
+    }).filter(r => r.product_name || r.raw['product_sku'] || r.action === 'error');
 
     // Post-pass: when multiple rows share the same product_sku and all would create a
     // new product (product doesn't exist in DB yet), keep only the first as new_product
@@ -3791,16 +3795,7 @@ function ImportProductsModal({
         website_title: websiteTitle || undefined,
         allow_indent_wholesale: allowIndentWholesale,
         is_online: raw['online'] != null && raw['online'] !== '' ? (raw['online'] === '1' || raw['online'].toLowerCase() === 'yes' ? 1 : 0) : undefined,
-        sku: (() => {
-          // If SKU is provided, use it directly
-          if (raw['sku']) return raw['sku'];
-          // Auto-generate from Product_SKU + option values (same logic as the Edit Product modal)
-          const baseSku = (raw['product_sku'] || '').trim();
-          if (!baseSku) return undefined;
-          const suffix = [raw['option1_value'], raw['option2_value'], raw['option3_value']]
-            .filter(Boolean).join('-').replace(/\s+/g, '');
-          return suffix ? `${baseSku}-${suffix}` : baseSku;
-        })(),
+        sku: deriveVariantSku(raw['product_sku'], [raw['option1_value'], raw['option2_value'], raw['option3_value']]),
         barcode: raw['barcode'] || undefined,
         cost_aud: numOrNull(raw['cost_aud']),
         price_rrp: numOrNull(raw['rrp']),
@@ -3896,9 +3891,8 @@ function ImportProductsModal({
             </div>
             <div style={{ margin: '4px 0 8px', padding: '10px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
               <strong style={{ color: 'var(--sv-text-main)' }}>Key columns:</strong><br />
-              <strong>Product_SKU</strong> — The product-level identifier that groups variants under the same product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Rows sharing the same <em>Product_SKU</em> will be added as variants of one product. For a single-variant product, <em>Product_SKU</em> and <em>SKU</em> are typically identical.<br />
-              <strong>SKU</strong> — Optional. The individual variant SKU. If left blank, it is auto-generated from <em>Product_SKU</em> + option values (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S</code>). A matching SKU updates that variant; a new SKU creates one.<br />
-              <strong>Product_Name</strong> — Used as a fallback grouping key if <em>Product_SKU</em> is blank.{' '}
+              <strong>Product_SKU</strong> — Required. It groups variants under the same product and becomes the SKU for a single-variant product (e.g. <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK</code>). Variant SKUs are generated from Product_SKU and option values in order, such as <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>MT-RCAK-S-Navy</code>.{' '}
+              <strong>Product_Name</strong> — Required on the first row for each Product_SKU; later rows in that group inherit it.{' '}
               <strong>Category</strong> / <strong>Subcategory</strong> and <strong>Website_Title</strong> are product-level fields. <strong>Allow_Indent_Wholesale_Orders</strong> accepts Yes/No or 1/0.{' '}
               <br /><strong>{showZoneBin ? 'Zone, Bin, Min Qty and Reorder Qty' : 'Min Qty and Reorder Qty'}</strong>{' — '}per location columns saved against each location’s stock. The default warehouse location appears first.
               <br /><strong>Variant Options</strong>{' — '}Use <em>Option1_Name</em> / <em>Option1_Value</em> to define what makes each row a distinct variant. For example, set <em>Option1_Name</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>Size</code> and <em>Option1_Value</em> to <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>S</code>, <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>M</code>, or <code style={{ fontFamily: 'monospace', background: 'var(--sv-bg-0)', padding: '1px 4px', borderRadius: 3 }}>L</code> on successive rows that all share the same <em>Product_SKU</em>. Use Option2 / Option3 for additional dimensions such as Colour.
@@ -5875,8 +5869,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       const newRows = combos.map(([v1, v2, v3]) => {
         const existing = base.find(r => r.option1_value === v1 && r.option2_value === v2 && r.option3_value === v3 && !r._delete);
         if (existing) return existing;
-        const suffix = [v1, v2, v3].filter(Boolean).join('-').replace(/\s+/g, '');
-        return { ...blankRow(), option1_value: v1, option2_value: v2, option3_value: v3, sku: suffix ? `${baseSku}-${suffix}` : baseSku };
+        return { ...blankRow(), option1_value: v1, option2_value: v2, option3_value: v3, sku: deriveVariantSku(baseSku, [v1, v2, v3]) };
       });
       return newRows;
     });

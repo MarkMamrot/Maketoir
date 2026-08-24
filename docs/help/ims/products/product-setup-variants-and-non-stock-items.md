@@ -53,6 +53,10 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 
 Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV.
 
+Every imported row requires **Product_SKU**. A default or single variant uses Product_SKU as its SKU. When option values are present, Solvantis derives the variant SKU by appending Option1, Option2 and Option3 values in order, with spaces removed. For example, Product_SKU **HLS** with Size **M** and Colour **Navy** becomes **HLS-M-Navy**. Product Import does not accept a separate variant SKU override.
+
+Before reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import.
+
 ## Variant setup matrix
 
 | Field | Product or variant? | Practical rule |
@@ -79,6 +83,7 @@ Open **Import Products** and review the accepted CSV titles before preparing the
 | Symptom | Likely cause | Action |
 |---|---|---|
 | Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |
+| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |
 | Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |
 | Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |
 | A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |
