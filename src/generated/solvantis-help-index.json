@@ -2107,6 +2107,86 @@
       ]
     },
     {
+      "id": "ims-business-operations-pos-settings",
+      "title": "Business Operations and POS Settings",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-workspaces",
+      "relatedTopics": [
+        "ims-location-stock-operations",
+        "setup-connections",
+        "ims-online-shop",
+        "pos-register-device-login"
+      ],
+      "contexts": [
+        "dashboard",
+        "locations",
+        "pos-sales"
+      ],
+      "contextSections": {
+        "dashboard": "Step-by-step",
+        "locations": "Manage POS registers",
+        "pos-sales": "Manage POS registers"
+      },
+      "order": 90,
+      "summary": "Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.",
+      "lastReviewed": "2026-08-24",
+      "owner": "setup",
+      "filename": "docs/help/ims/settings/business-operations-and-pos.md",
+      "sections": [
+        {
+          "id": "ims-business-operations-pos-settings:1",
+          "heading": "Business Operations and POS Settings",
+          "content": "Use IMS Settings to choose the workflows the business uses and to maintain the registers available at each location."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:2",
+          "heading": "Main operations",
+          "content": "- Complete business setup in the recommended dependency order.\n- Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.\n- Choose Shopify or the native Solvantis Online Store when online selling is enabled.\n- Add, rename, activate, or set the default float for POS registers without changing location details."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:3",
+          "heading": "At a glance",
+          "content": "| Need | Open | Result |\n|---|---|---|\n| Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |\n| Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |\n| Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |"
+        },
+        {
+          "id": "ims-business-operations-pos-settings:4",
+          "heading": "Before you begin",
+          "content": "- Select the intended business.\n- Confirm the locations that will trade through POS.\n- Gather the brand names and active suppliers needed by the product catalogue.\n- Decide whether online sales will use Shopify or the native Solvantis Online Store."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:5",
+          "heading": "Step-by-step",
+          "content": "The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.\n\n1. Complete Business identity, Operations, Tax settings, and Integrations.\n2. Add additional users and locations.\n3. Add brands.\n4. Add supplier contacts.\n5. Import products.\n6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.\n\nEach action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:6",
+          "heading": "Configure Business Operations",
+          "content": "Open **Settings > General**. Business Operations is grouped by purpose:\n\n| Group | Settings | Effect |\n|---|---|---|\n| Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |\n| Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |\n| Sales channels and integrations | Wholesale sales, Online shop, Accounting software | Enables the relevant portal, store, connection, and mapping workflows |\n\nUse each switch to enable or disable the capability, then select **Save Settings**. These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.\n\nWhen **Online shop** is enabled, choose one of these supported paths:\n\n- **Solvantis Online Store** for the native hosted storefront.\n- **Shopify** for Shopify product, inventory, customer, and order synchronisation.\n\nComplete activation or connection in the owning Integration workspace after saving the choice."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:7",
+          "heading": "Manage POS registers",
+          "content": "1. Open **Settings > Point of Sale**.\n2. Expand **Registers**.\n3. Find the location in the read-only location table and select **Manage registers**.\n4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.\n5. Configure any payment terminal separately under **Card Terminals**.\n\nLocation names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.\n\n> **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions."
+        },
+        {
+          "id": "ims-business-operations-pos-settings:8",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A supplier is missing during product setup | The supplier step was skipped or the contact is not an active Supplier | Open Contacts, create or update the supplier, then return to Products |\n| A brand is missing during product import | The brand has not been created | Open Brands, add it, then retry the product workflow |\n| A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |\n| Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |"
+        },
+        {
+          "id": "ims-business-operations-pos-settings:9",
+          "heading": "Worked examples",
+          "content": "### Prepare a new shop for POS\n\nCreate the location first, then open **Settings > Point of Sale > Registers**. Select the new location, add **Front Till** with its normal opening float, and leave it active. The POS device can then be assigned to that location and register without changing any location address or stock settings."
+        }
+      ]
+    },
+    {
       "id": "ims-branch-transfers",
       "title": "Branch Transfers",
       "audiences": [
@@ -2213,12 +2293,12 @@
         {
           "id": "ims-location-stock-operations:3",
           "heading": "Locations",
-          "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.\n\nOpen a location's register controls to add or reactivate the tills that POS devices can use. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there."
+          "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.\n\nOpen a location's register controls to add or reactivate the tills that POS devices can use. The same register controls are available in **Settings > Point of Sale > Registers**, where location details remain read-only. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there."
         },
         {
           "id": "ims-location-stock-operations:4",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Destination stock is missing | The transfer was sent but not received | Open **Receive Transfers** at the destination |\n| A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |\n| A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |\n| One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |\n| POS says no active registers exist | No usable till is configured for the selected location | Open **Locations**, select the location, and choose **Add Register** |"
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Destination stock is missing | The transfer was sent but not received | Open **Receive Transfers** at the destination |\n| A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |\n| A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |\n| One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |\n| POS says no active registers exist | No usable till is configured for the selected location | Open **Settings > Point of Sale > Registers**, select the location, and add or reactivate a register |"
         },
         {
           "id": "ims-location-stock-operations:5",
@@ -2959,12 +3039,12 @@
         {
           "id": "setup-connections:3",
           "heading": "Choose a Setup area",
-          "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts, brand details, or interface appearance | Business, Brand Profile, or Appearance | Reviewed information or a saved visual preference |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
+          "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts, brand details, or interface appearance | Business, Brand Profile, or Appearance | Reviewed information or a saved visual preference |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
         },
         {
           "id": "setup-connections:4",
           "heading": "Connection readiness",
-          "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post."
+          "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post."
         },
         {
           "id": "setup-connections:5",

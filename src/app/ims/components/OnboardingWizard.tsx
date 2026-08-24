@@ -50,6 +50,16 @@ const ACTION_COPY: Record<string, { heading: string; body: string; action: strin
     body: 'Create each shop, warehouse, or fulfilment location that holds stock or processes sales.',
     action: 'Open locations',
   },
+  brands: {
+    heading: 'Add your brands',
+    body: 'Create the brands used to organise products, control wholesale access, and support product research.',
+    action: 'Open brands',
+  },
+  suppliers: {
+    heading: 'Add your suppliers',
+    body: 'Create supplier contacts before products so catalogue items and purchase orders can link to the right supplier.',
+    action: 'Open suppliers',
+  },
   products: {
     heading: 'Build your product catalogue',
     body: 'Import products from your inventory source or add the catalogue you will manage in Solvantis.',
@@ -237,12 +247,15 @@ export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onF
       <>
         <header><div className="ob-eyebrow">Step 4</div><h2>Integrations</h2><p>Tell Solvantis which systems you plan to connect. You can complete the actual connection now or return later.</p></header>
         <div className="ob-question-list">
-          <Field label="Connect an online shop?" help="Choose Yes to configure Shopify product, inventory, and online-order synchronisation.">
+          <Field label="Connect an online shop?" help="Choose Yes to use the Solvantis Online Store or connect an external commerce platform.">
             <YesNo value={draft.connect_online_shop ?? 'no'} onChange={value => onFieldChange('connect_online_shop', value)} />
           </Field>
           {draft.connect_online_shop === 'yes' && (
-            <Field label="Online shop platform" help="Shopify is currently supported. More commerce platforms can be added later.">
-              <select style={{ ...inputStyle, maxWidth: 280 }} value={draft.online_shop_platform ?? 'shopify'} onChange={event => onFieldChange('online_shop_platform', event.target.value)}><option value="shopify">Shopify</option></select>
+            <Field label="Online shop platform" help="Choose the native Solvantis storefront or Shopify synchronisation.">
+              <select style={{ ...inputStyle, maxWidth: 280 }} value={draft.online_shop_platform ?? 'shopify'} onChange={event => onFieldChange('online_shop_platform', event.target.value)}>
+                <option value="solvantis">Solvantis Online Store</option>
+                <option value="shopify">Shopify</option>
+              </select>
             </Field>
           )}
           <Field label="Connect accounting software?" help="Choose Yes to configure accounting document and payment synchronisation with Xero.">

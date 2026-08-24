@@ -40,6 +40,8 @@ describe('GET /api/onboarding', () => {
     expect(body.counts).toEqual({
       users: 1,
       locations: 0,
+      brands: 0,
+      suppliers: 0,
       products: 0,
       salesOrders: 0,
       purchaseOrders: 0,
@@ -175,7 +177,7 @@ describe('GET /api/onboarding', () => {
   it('reports complete when every step is manually completed', async () => {
     const completedSteps = [
       'business_profile', 'operations', 'tax', 'integrations', 'users', 'locations',
-      'products', 'sales_orders', 'purchase_orders', 'opening_stock', 'pos_ready',
+      'brands', 'suppliers', 'products', 'sales_orders', 'purchase_orders', 'opening_stock', 'pos_ready',
     ];
     mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
       sql.includes('SELECT `key`, value')

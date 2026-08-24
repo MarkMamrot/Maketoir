@@ -716,6 +716,8 @@ const IMS_ONBOARDING_ACTIONS: Record<string, ImsOnboardingAction> = {
   accounting:       { type: 'nav',      view: 'xero',                label: 'Open Xero' },
   users:            { type: 'settings', section: 'users',            label: 'Add Users' },
   locations:        { type: 'nav',      view: 'locations',           label: 'Add Locations' },
+  brands:           { type: 'nav',      view: 'brands',              label: 'Add Brands' },
+  suppliers:        { type: 'nav',      view: 'contacts',            label: 'Add Suppliers' },
   products:         { type: 'nav',      view: 'products',            label: 'Import Products' },
   sales_orders:     { type: 'nav',      view: 'sales-orders',        label: 'Import Sales Orders' },
   purchase_orders:  { type: 'nav',      view: 'purchase-orders',     label: 'Import Purchase Orders' },
@@ -1135,6 +1137,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                   <div title="The e-commerce platform your online store runs on.">
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Online shop platform</div>
                     <select value={onboardingDraft.online_shop_platform ?? 'shopify'} onChange={e => setOnboardingField('online_shop_platform', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                      <option value="solvantis">Solvantis Online Store</option>
                       <option value="shopify">Shopify</option>
                       <option disabled>WooCommerce — coming soon</option>
                       <option disabled>BigCommerce — coming soon</option>
@@ -25568,6 +25571,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [profileOpen, setProfileOpen]       = useState(false);
   const [taxOpen, setTaxOpen]               = useState(false);
   const [ordersOpen, setOrdersOpen]         = useState(false);
+  const [registersOpen, setRegistersOpen]   = useState(false);
+  const [registersFor, setRegistersFor]     = useState<{ id: number; name: string } | null>(null);
   const [posDisplayOpen, setPosDisplayOpen]  = useState(false);
   const [setupOpen, setSetupOpen]           = useState(false);
   const [bfFrom, setBfFrom]                 = useState('');
@@ -25639,7 +25644,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   const [posConfigOpen, setPosConfigOpen]   = useState(false);
   const [onlinePickOpen, setOnlinePickOpen] = useState(false);
-  const [pickLocations, setPickLocations]   = useState<{ id: number; name: string; has_online?: number }[]>([]);
+  const [pickLocations, setPickLocations]   = useState<{ id: number; name: string; code?: string; city?: string; state?: string; is_active?: number; has_online?: number }[]>([]);
   const [cardTermOpen, setCardTermOpen]     = useState(false);
   const [cardTermRegs, setCardTermRegs]     = useState<any[]>([]);
   const [cardTermLoading, setCardTermLoading] = useState(false);
@@ -25739,6 +25744,20 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       <span>{label}</span><span style={{ fontSize: 16 }}>{open ? '▲' : '▼'}</span>
     </div>
   );
+  const OperationToggle = ({ setting, label, description, defaultValue = 'no' }: { setting: string; label: string; description: string; defaultValue?: 'yes' | 'no' }) => {
+    const enabled = (taxDraft[setting] ?? defaultValue) === 'yes';
+    return (
+      <div style={{ minHeight: 58, padding: '11px 0', display: 'flex', alignItems: 'center', gap: 18, borderBottom: '1px solid var(--sv-etch)' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>{label}</div>
+          <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>{description}</div>
+        </div>
+        <button type="button" role="switch" aria-checked={enabled} onClick={() => setTaxDraft(previous => ({ ...previous, [setting]: enabled ? 'no' : 'yes' }))} title={`${enabled ? 'Disable' : 'Enable'} ${label}`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: enabled ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+          <span style={{ position: 'absolute', top: 3, left: enabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+        </button>
+      </div>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -26171,98 +26190,48 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
             {/* Business Operations */}
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
-              <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Business Operations</h3>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Business Operations</h3>
+              <p style={{ margin: '0 0 18px', color: 'var(--sv-text-dim)', fontSize: 12.5, lineHeight: 1.55 }}>Enable only the workflows this business uses. Changes take effect after Save Settings.</p>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Does your business operate multiple locations?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>e.g. multiple retail shops, or a shop and a warehouse</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.use_multiple_locations ?? 'yes') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_multiple_locations: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
-              </div>
+              <section style={{ marginBottom: 22 }}>
+                <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Locations and catalogue</h4>
+                <OperationToggle setting="use_multiple_locations" defaultValue="yes" label="Multiple locations" description="Use separate shops, warehouses, stock balances, and branch transfers." />
+                <OperationToggle setting="use_zones_bins" label="Zones and bins" description="Track the physical shelf or storage position of stock inside each location." />
+                <OperationToggle setting="use_categories" label="Product categories" description="Use category and subcategory browsing and reporting in the product catalogue." />
+              </section>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Does your business sell wholesale?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables the Wholesale Portal and per-customer brand access controls.</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.sells_wholesale ?? 'yes') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, sells_wholesale: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
-              </div>
+              <section style={{ marginBottom: 22 }}>
+                <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Purchasing</h4>
+                <OperationToggle setting="use_foreign_currencies" defaultValue="yes" label="Foreign currencies" description="Show currency and exchange-rate fields on purchase orders and products." />
+              </section>
 
-              <div style={{ marginBottom: 4 }}>
-                <label style={labelStyle}>Does your business organise stock in Zones and Bins?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Zones and Bins let you assign a physical location (e.g. Aisle A, Shelf 3) to each product in a warehouse or stockroom</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.use_zones_bins ?? 'no') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_zones_bins: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Does your business organise products into Categories and Subcategories?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Category and Subcategory can always be imported; enable this for category-based browsing and reporting.</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.use_categories ?? 'no') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_categories: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 4 }}>
-                <label style={labelStyle}>Does your business buy in foreign currencies?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Shows currency selection on Purchase Orders and foreign currency cost fields (USD, EUR, GBP, etc.) on products.</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content' }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.use_foreign_currencies ?? 'yes') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, use_foreign_currencies: opt }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle}>Connect an Online Shop?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables onboarding and sync prompts for online sales channels.</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content', marginBottom: taxDraft.connect_online_shop === 'yes' ? 10 : 0 }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.connect_online_shop ?? 'no') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, connect_online_shop: opt, online_shop_platform: opt === 'yes' ? (p.online_shop_platform || 'shopify') : p.online_shop_platform }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
+              <section>
+                <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Sales channels and integrations</h4>
+                <OperationToggle setting="sells_wholesale" defaultValue="yes" label="Wholesale sales" description="Enable the Wholesale Portal and customer-specific brand access." />
+                <OperationToggle setting="connect_online_shop" label="Online shop" description="Use the Solvantis Online Store or connect an external commerce platform." />
                 {taxDraft.connect_online_shop === 'yes' && (
-                  <select value={taxDraft.online_shop_platform ?? 'shopify'} onChange={e => setTaxDraft(p => ({ ...p, online_shop_platform: e.target.value }))} style={{ ...inputStyle, width: 260 }}>
-                    <option value="shopify">Shopify</option>
-                    <option disabled>WooCommerce - coming soon</option>
-                    <option disabled>BigCommerce - coming soon</option>
-                    <option disabled>Adobe Commerce - coming soon</option>
-                  </select>
+                  <div style={{ padding: '10px 0 14px 18px', borderBottom: '1px solid var(--sv-etch)' }}>
+                    <label style={labelStyle}>Online shop platform</label>
+                    <select value={taxDraft.online_shop_platform ?? 'shopify'} onChange={e => setTaxDraft(p => ({ ...p, online_shop_platform: e.target.value }))} style={{ ...inputStyle, width: 280 }}>
+                      <option value="solvantis">Solvantis Online Store</option>
+                      <option value="shopify">Shopify</option>
+                      <option disabled>WooCommerce - coming soon</option>
+                      <option disabled>BigCommerce - coming soon</option>
+                      <option disabled>Adobe Commerce - coming soon</option>
+                    </select>
+                  </div>
                 )}
-              </div>
-
-              <div style={{ marginBottom: 4 }}>
-                <label style={labelStyle}>Connect accounting software?</label>
-                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--sv-text-dim)' }}>Enables onboarding and mapping prompts for accounting integrations.</p>
-                <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--sv-etch)', width: 'fit-content', marginBottom: taxDraft.connect_accounting_software === 'yes' ? 10 : 0 }}>
-                  {(['yes', 'no'] as const).map(opt => {
-                    const isOpt = (taxDraft.connect_accounting_software ?? 'no') === opt;
-                    return <button key={opt} type="button" onClick={() => setTaxDraft(p => ({ ...p, connect_accounting_software: opt, accounting_software: opt === 'yes' ? (p.accounting_software || 'xero') : p.accounting_software }))} style={{ padding: '7px 22px', fontSize: 13, fontWeight: isOpt ? 600 : 400, background: isOpt ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: isOpt ? '#fff' : 'var(--sv-text-dim)', border: 'none', cursor: 'pointer' }}>{opt === 'yes' ? 'Yes' : 'No'}</button>;
-                  })}
-                </div>
+                <OperationToggle setting="connect_accounting_software" label="Accounting software" description="Enable accounting connection and mapping prompts." />
                 {taxDraft.connect_accounting_software === 'yes' && (
-                  <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => setTaxDraft(p => ({ ...p, accounting_software: e.target.value }))} style={{ ...inputStyle, width: 260 }}>
-                    <option value="xero">Xero</option>
-                    <option disabled>QuickBooks - coming soon</option>
-                  </select>
+                  <div style={{ padding: '10px 0 0 18px' }}>
+                    <label style={labelStyle}>Accounting platform</label>
+                    <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => setTaxDraft(p => ({ ...p, accounting_software: e.target.value }))} style={{ ...inputStyle, width: 280 }}>
+                      <option value="xero">Xero</option>
+                      <option disabled>QuickBooks - coming soon</option>
+                    </select>
+                  </div>
                 )}
-              </div>
+              </section>
             </div>
 
             {/* Tax Settings */}
@@ -26310,6 +26279,39 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ display: active === 'pos' ? undefined : 'none' }}>
 
           <h2 style={{ margin: '0 0 14px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Point of Sale Settings</h2>
+
+          {/* ── Registers ── */}
+          <div style={{ marginBottom: 8 }}>
+            <CollHeader label="Registers" open={registersOpen} toggle={() => setRegistersOpen(open => !open)} />
+            {registersOpen && (
+              <div style={{ border: '1px solid var(--sv-etch)', borderTop: 'none', borderRadius: '0 0 8px 8px', padding: 16 }}>
+                <p style={{ margin: '0 0 14px', color: 'var(--sv-text-dim)', fontSize: 12.5, lineHeight: 1.55 }}>Add, rename, activate, or set the default float for each location&apos;s registers. Location details are read-only here.</p>
+                <div style={{ overflowX: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+                  <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--sv-bg-2)' }}>
+                        {['Location', 'Code', 'Area', ''].map(heading => <th key={heading} style={{ padding: '9px 12px', textAlign: 'left', color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>{heading}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pickLocations.map(location => (
+                        <tr key={location.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
+                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>{location.name}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{location.code || '—'}</td>
+                          <td style={{ padding: '9px 12px', color: 'var(--sv-text-dim)', fontSize: 13 }}>{[location.city, location.state].filter(Boolean).join(', ') || '—'}</td>
+                          <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                            <button type="button" onClick={() => setRegistersFor(current => current?.id === location.id ? null : { id: location.id, name: location.name })} style={btnStyle('ghost', 'xs')}>{registersFor?.id === location.id ? 'Hide registers' : 'Manage registers'}</button>
+                          </td>
+                        </tr>
+                      ))}
+                      {pickLocations.length === 0 && <tr><td colSpan={4} style={{ padding: 14, color: 'var(--sv-text-dim)', fontSize: 13 }}>No locations are available. Add a location before creating registers.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                {registersFor && <LocationRegistersPanel locationId={registersFor.id} locationName={registersFor.name} onClose={() => setRegistersFor(null)} />}
+              </div>
+            )}
+          </div>
 
           {/* ── Orders / Payment Types ── */}
           <div style={{ marginBottom: 8 }}>

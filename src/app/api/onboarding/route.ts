@@ -13,6 +13,8 @@ const ONBOARDING_STEP_IDS = [
   'integrations',
   'users',
   'locations',
+  'brands',
+  'suppliers',
   'products',
   'sales_orders',
   'purchase_orders',
@@ -94,6 +96,8 @@ export async function GET() {
       Promise.all([
         countMain('SELECT COUNT(*) AS c FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_locations WHERE business_id = ? AND is_active = 1', [businessId]),
+        countIms('SELECT COUNT(*) AS c FROM ims_brands WHERE business_id = ?', [businessId]),
+        countIms("SELECT COUNT(*) AS c FROM ims_contacts WHERE business_id = ? AND type IN ('supplier', 'both') AND is_active = 1 AND deleted_at IS NULL", [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_products WHERE business_id = ? AND is_active = 1', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_sales_orders WHERE business_id = ?', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_purchase_orders WHERE business_id = ?', [businessId]),
@@ -107,7 +111,7 @@ export async function GET() {
     if (!settings.business_abn && businessInfo?.abn) settings.business_abn = businessInfo.abn;
 
     const completed = normalizeCompleted(settings[PROGRESS_KEY]);
-    const [userCount, locationCount, productCount, salesOrderCount, purchaseOrderCount, stockCount] = counts;
+    const [userCount, locationCount, brandCount, supplierCount, productCount, salesOrderCount, purchaseOrderCount, stockCount] = counts;
 
     const steps = [
     { id: 'business_profile', title: 'Business identity' },
@@ -116,6 +120,8 @@ export async function GET() {
     { id: 'integrations', title: 'Integrations' },
     { id: 'users', title: 'Add additional users' },
     { id: 'locations', title: 'Add locations' },
+    { id: 'brands', title: 'Add brands' },
+    { id: 'suppliers', title: 'Add suppliers' },
     { id: 'products', title: 'Import products' },
     { id: 'sales_orders', title: 'Import sales orders' },
     { id: 'purchase_orders', title: 'Import purchase orders' },
@@ -126,7 +132,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       settings,
-      counts: { users: userCount, locations: locationCount, products: productCount, salesOrders: salesOrderCount, purchaseOrders: purchaseOrderCount, stockRows: stockCount },
+      counts: { users: userCount, locations: locationCount, brands: brandCount, suppliers: supplierCount, products: productCount, salesOrders: salesOrderCount, purchaseOrders: purchaseOrderCount, stockRows: stockCount },
       completedSteps: Array.from(completed),
       steps,
       complete: steps.every(s => s.completed),

@@ -1,0 +1,87 @@
+---
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login"],"contexts":["dashboard","locations","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-08-24","owner":"setup"}
+---
+# Business Operations and POS Settings
+
+Use IMS Settings to choose the workflows the business uses and to maintain the registers available at each location.
+
+## Main operations
+
+- Complete business setup in the recommended dependency order.
+- Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.
+- Choose Shopify or the native Solvantis Online Store when online selling is enabled.
+- Add, rename, activate, or set the default float for POS registers without changing location details.
+
+## At a glance
+
+| Need | Open | Result |
+|---|---|---|
+| Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |
+| Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |
+| Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |
+
+## Before you begin
+
+- Select the intended business.
+- Confirm the locations that will trade through POS.
+- Gather the brand names and active suppliers needed by the product catalogue.
+- Decide whether online sales will use Shopify or the native Solvantis Online Store.
+
+## Step-by-step
+
+The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.
+
+1. Complete Business identity, Operations, Tax settings, and Integrations.
+2. Add additional users and locations.
+3. Add brands.
+4. Add supplier contacts.
+5. Import products.
+6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.
+
+Each action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step.
+
+## Configure Business Operations
+
+Open **Settings > General**. Business Operations is grouped by purpose:
+
+| Group | Settings | Effect |
+|---|---|---|
+| Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |
+| Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
+| Sales channels and integrations | Wholesale sales, Online shop, Accounting software | Enables the relevant portal, store, connection, and mapping workflows |
+
+Use each switch to enable or disable the capability, then select **Save Settings**. These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+
+When **Online shop** is enabled, choose one of these supported paths:
+
+- **Solvantis Online Store** for the native hosted storefront.
+- **Shopify** for Shopify product, inventory, customer, and order synchronisation.
+
+Complete activation or connection in the owning Integration workspace after saving the choice.
+
+## Manage POS registers
+
+1. Open **Settings > Point of Sale**.
+2. Expand **Registers**.
+3. Find the location in the read-only location table and select **Manage registers**.
+4. Add a register with a name and default float, or rename, change the float, deactivate, or reactivate an existing register.
+5. Configure any payment terminal separately under **Card Terminals**.
+
+Location names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.
+
+> **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions.
+
+## Troubleshooting
+
+| Symptom | Likely cause | What to do |
+|---|---|---|
+| A supplier is missing during product setup | The supplier step was skipped or the contact is not an active Supplier | Open Contacts, create or update the supplier, then return to Products |
+| A brand is missing during product import | The brand has not been created | Open Brands, add it, then retry the product workflow |
+| A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |
+| Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |
+
+## Worked examples
+
+### Prepare a new shop for POS
+
+Create the location first, then open **Settings > Point of Sale > Registers**. Select the new location, add **Front Till** with its normal opening float, and leave it active. The POS device can then be assigned to that location and register without changing any location address or stock settings.

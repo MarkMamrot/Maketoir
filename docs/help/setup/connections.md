@@ -21,6 +21,7 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Invite a colleague or choose a role | Team | An invitation for User or Admin access |
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
 | Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |
+| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |
 | Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
@@ -30,6 +31,7 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Connection | Purpose | Connected means | Still check before real work |
 | --- | --- | --- | --- |
 | Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |
+| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |
 | Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |
 | Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |
 | Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |
