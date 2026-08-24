@@ -39,6 +39,12 @@
       "static/chunks/main-app.js",
       "static/css/app/ims/page.css",
       "static/chunks/app/ims/page.js"
+    ],
+    "/pos/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/pos/page.css",
+      "static/chunks/app/pos/page.js"
     ]
   }
 }
