@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronRight, Minus, X } from 'lucide-react';
 
-type PlanId = 'basic' | 'growth' | 'enterprise';
+type PlanId = 'starter' | 'core' | 'scale' | 'enterprise';
 type ComparisonValue = boolean | string;
 
 type ComparisonFeature = {
@@ -25,6 +25,7 @@ export type PricingPlan = {
   audience: string;
   price: string;
   priceSuffix?: string;
+  secondaryPrice?: string;
   pricingNote: string;
   featured?: boolean;
   summaryFeatures: string[];
@@ -32,65 +33,91 @@ export type PricingPlan = {
 
 export const pricingPlans: PricingPlan[] = [
   {
-    id: 'basic',
-    name: 'Basic',
-    audience: 'A complete retail foundation for smaller teams',
-    price: '$60',
+    id: 'starter',
+    name: 'Starter',
+    audience: 'Complete in-store and online retail for smaller merchants',
+    price: 'From $59',
     priceSuffix: '/month',
-    pricingNote: 'One monthly price for up to 3 locations',
+    secondaryPrice: '$99/month without Connected Payments',
+    pricingNote: 'With eligible Connected Payments volume. Excludes GST.',
     summaryFeatures: [
-      '1-3 locations and up to 5 users',
-      'Core inventory, sales and purchasing',
-      'Point of Sale and loyalty',
-      'AI workflow automation',
-      'Shopify and Xero integrations',
-      'Free data migration',
+      '1 location, 1 register and 3 users',
+      'POS, inventory, purchasing and CRM',
+      'Native online shop included',
+      'AI Automation with pay-as-you-go credits',
+      '1 standard integration',
+      'Self onboarding and email support',
     ],
   },
   {
-    id: 'growth',
-    name: 'Growth',
-    audience: 'Advanced control for growing multi-location retailers',
-    price: '$200',
-    priceSuffix: '/month base',
-    pricingNote: '+ $50/month for each additional location',
+    id: 'core',
+    name: 'Core',
+    audience: 'Complete retail, online and wholesale operations',
+    price: '$349',
+    priceSuffix: '/month',
+    pricingNote: '12-month agreement, billed monthly. Excludes GST.',
     featured: true,
     summaryFeatures: [
-      '2-10 locations and up to 50 users',
-      'Advanced inventory and backordering',
-      'Point of Sale, loyalty and CRM',
-      'AI workflow automation',
-      'Advanced planning and analytics',
-      'Wholesale portal integration',
+      '3 locations, 5 registers and 15 users',
+      'Complete operational feature set',
+      'Native online shop and wholesale portal',
+      'AI Automation with preferred credit rates',
+      '3 standard integrations',
+      'Self onboarding and local helpdesk',
+    ],
+  },
+  {
+    id: 'scale',
+    name: 'Scale',
+    audience: 'The same complete platform at greater operating scale',
+    price: '$749',
+    priceSuffix: '/month',
+    pricingNote: '12-month agreement, billed monthly. Excludes GST.',
+    summaryFeatures: [
+      '10 locations, 20 registers and 50 users',
+      'Complete Core operational feature set',
+      'Native online shop, wholesale and 3PL',
+      'Volume-preferred AI credit rates',
+      '8 standard integrations',
+      'White Glove onboarding and priority support',
     ],
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
-    audience: 'Tailored operations for large chains and retail groups',
-    price: 'Custom',
-    pricingNote: '10+ locations with commercial terms built around your group',
+    audience: 'Dedicated infrastructure and governed customisation',
+    price: 'From $1,999',
+    priceSuffix: '/month',
+    pricingNote: 'Annual scoped contract. Excludes GST.',
     summaryFeatures: [
-      'Everything in Growth',
-      '10+ locations and unlimited users',
-      'Priority 24/7 support',
-      'Free migration and training',
-      'Custom 3PL and platform integrations',
-      'Dedicated account manager',
+      'Contracted capacity and bulk AI rates',
+      'Native online shop, wholesale and 3PL',
+      'Dedicated app and database instances',
+      '100 governed customisation hours per year',
+      'White Glove onboarding',
+      'Dedicated account lead and SLA',
     ],
   },
 ];
 
-const includedForAll = { basic: true, growth: true, enterprise: true } as const;
-const growthAndEnterprise = { basic: false, growth: true, enterprise: true } as const;
-const enterpriseOnly = { basic: false, growth: false, enterprise: true } as const;
+const includedForAll = { starter: true, core: true, scale: true, enterprise: true } as const;
+const coreAndAbove = { starter: false, core: true, scale: true, enterprise: true } as const;
+const scaleAndAbove = { starter: false, core: false, scale: true, enterprise: true } as const;
+const enterpriseOnly = { starter: false, core: false, scale: false, enterprise: true } as const;
 
 export const pricingComparisonSections: ComparisonSection[] = [
   {
     title: 'Plan capacity',
     features: [
-      { label: 'Retail locations', values: { basic: '1-3', growth: '2-10', enterprise: '10+' } },
-      { label: 'Team users', values: { basic: 'Up to 5', growth: 'Up to 50', enterprise: 'Unlimited' } },
+      { label: 'Retail locations included', values: { starter: '1', core: '3', scale: '10', enterprise: 'Contracted' } },
+      { label: 'Registers included', values: { starter: '1', core: '5', scale: '20', enterprise: 'Contracted' } },
+      { label: 'Team users included', values: { starter: '3', core: '15', scale: '50', enterprise: 'Contracted' } },
+      { label: 'Standard integrations included', values: { starter: '1', core: '3', scale: '8', enterprise: 'Contracted' } },
+      {
+        label: 'Indicative annual order allowance',
+        note: 'A commercial fair-use allowance; sales are not automatically interrupted.',
+        values: { starter: '3,000', core: '25,000', scale: '120,000', enterprise: 'Contracted' },
+      },
     ],
   },
   {
@@ -102,8 +129,8 @@ export const pricingComparisonSections: ComparisonSection[] = [
       { label: 'Stocktakes and discrepancy tracking', values: includedForAll },
       { label: 'Branch transfers and guided receiving', values: includedForAll },
       { label: 'Stock availability and allocation tools', values: includedForAll },
-      { label: 'Backordering workflows', values: growthAndEnterprise },
-      { label: 'Multi-currency purchasing and costing', values: growthAndEnterprise },
+      { label: 'Backordering workflows', values: includedForAll },
+      { label: 'Multi-currency purchasing and costing', values: includedForAll },
     ],
   },
   {
@@ -114,11 +141,11 @@ export const pricingComparisonSections: ComparisonSection[] = [
       { label: 'Partial receiving and fulfilment', values: includedForAll },
       { label: 'Customer and supplier credit notes', values: includedForAll },
       { label: 'Customer and supplier contact records', values: includedForAll },
-      { label: 'CRM tools, store credit and customer price tiers', values: growthAndEnterprise },
+      { label: 'CRM tools, store credit and customer price tiers', values: includedForAll },
       {
         label: 'Wholesale portal integration',
         note: 'Use the Solvantis wholesale ordering portal or integrate with an external wholesale portal.',
-        values: growthAndEnterprise,
+        values: coreAndAbove,
       },
     ],
   },
@@ -144,17 +171,22 @@ export const pricingComparisonSections: ComparisonSection[] = [
       {
         label: 'AI-assisted business planning',
         note: 'Build plans using live product sales, inventory, inbound orders, business strategy and brand context.',
-        values: growthAndEnterprise,
+        values: includedForAll,
       },
       {
         label: 'Versioned plans and scenario development',
         note: 'Develop, review and revise structured plans with traceable evidence and decision history.',
-        values: growthAndEnterprise,
+        values: includedForAll,
       },
       {
         label: 'Campaign and business experiment planning',
         note: 'Define objectives, comparison groups, success measures and operational guardrails before launch.',
-        values: growthAndEnterprise,
+        values: includedForAll,
+      },
+      {
+        label: 'AI credit pricing',
+        note: 'Generative and agentic actions consume separately purchased credits.',
+        values: { starter: 'Standard rate', core: 'Preferred rate', scale: 'Volume rate', enterprise: 'Contracted bulk rate' },
       },
     ],
   },
@@ -166,10 +198,10 @@ export const pricingComparisonSections: ComparisonSection[] = [
       { label: 'Inventory valuation and product margin reports', values: includedForAll },
       { label: 'POS register, price change and cash banking reports', values: includedForAll },
       { label: 'Stock availability reporting', values: includedForAll },
-      { label: 'Order Planner', href: '/ims#order-planner', values: growthAndEnterprise },
-      { label: 'Stock Turnover Analysis', href: '/dashboard#stock-turnover', values: growthAndEnterprise },
-      { label: 'Space Analysis', href: '/dashboard#space-analysis', values: growthAndEnterprise },
-      { label: 'Advanced analytics and forecasting', values: growthAndEnterprise },
+      { label: 'Order Planner', href: '/ims#order-planner', values: includedForAll },
+      { label: 'Stock Turnover Analysis', href: '/dashboard#stock-turnover', values: includedForAll },
+      { label: 'Space Analysis', href: '/dashboard#space-analysis', values: includedForAll },
+      { label: 'Advanced analytics and forecasting', values: includedForAll },
     ],
   },
   {
@@ -180,25 +212,32 @@ export const pricingComparisonSections: ComparisonSection[] = [
     ],
   },
   {
-    title: 'Enterprise marketing intelligence',
+    title: 'Channels and logistics',
     features: [
-      { label: 'Paid media performance analysis', note: 'Analyse Google and Meta performance against authoritative commerce results.', values: enterpriseOnly },
-      { label: 'AI marketing recommendations and approval workflow', values: enterpriseOnly },
-      { label: 'Campaign measurement and outcome tracking', values: enterpriseOnly },
-      { label: 'Klaviyo lifecycle coverage analysis', values: enterpriseOnly },
-      { label: 'Creative performance review and governed briefs', values: enterpriseOnly },
-      { label: 'Daily operational and weekly marketing digests', values: enterpriseOnly },
+      { label: 'Native online shop', values: includedForAll },
+      { label: 'Custom online-shop domain', values: coreAndAbove },
+      { label: 'Wholesale ordering portal', values: coreAndAbove },
+      {
+        label: '3PL workflows',
+        note: 'Supported standard workflows are included; provider-specific connector work and third-party fees may be quoted separately.',
+        values: scaleAndAbove,
+      },
     ],
   },
   {
     title: 'Implementation and support',
     features: [
-      { label: 'Data migration', values: { basic: 'Included', growth: 'Included', enterprise: 'Included + training' } },
-      { label: 'Support', values: { basic: 'Local phone + email', growth: 'Priority phone', enterprise: 'Priority 24/7' } },
+      { label: 'Onboarding', values: { starter: 'Self onboarding', core: 'Self onboarding', scale: 'White Glove', enterprise: 'White Glove' } },
+      { label: 'Data migration assistance', values: { starter: 'Templates', core: 'Templates', scale: 'Guided validation', enterprise: 'Scoped migration' } },
+      { label: 'Support', values: { starter: 'Email', core: 'Local helpdesk', scale: 'Priority local', enterprise: 'Dedicated + SLA' } },
       { label: 'Dedicated account manager', values: enterpriseOnly },
       { label: 'Service-level agreement', values: enterpriseOnly },
-      { label: 'Custom platform integrations', values: enterpriseOnly },
-      { label: 'Custom 3PL integration', note: 'Tailored integration with your third-party logistics provider.', values: enterpriseOnly },
+      { label: 'Dedicated app and database instances', values: enterpriseOnly },
+      {
+        label: 'Annual customisation allowance',
+        note: 'Scheduled and governed under the Enterprise agreement.',
+        values: { starter: false, core: false, scale: false, enterprise: '100 hours' },
+      },
     ],
   },
 ];
@@ -250,7 +289,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
 
   return (
     <>
-      <div className="grid grid-cols-1 items-stretch gap-6 md:grid-cols-3">
+      <div className="grid grid-cols-1 items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
         {pricingPlans.map((plan) => {
           const isEnterprise = plan.id === 'enterprise';
 
@@ -285,6 +324,9 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
               <p className={`mt-2 min-h-10 text-xs leading-relaxed ${isEnterprise ? 'text-slate-400' : 'text-slate-500'}`}>
                 {plan.pricingNote}
               </p>
+              {plan.secondaryPrice && (
+                <p className="mt-1 text-sm font-semibold text-slate-700">{plan.secondaryPrice}</p>
+              )}
 
               <ul className="mt-6 flex-1 space-y-3 border-t border-slate-200/20 pt-6">
                 {plan.summaryFeatures.map((feature) => (
@@ -381,7 +423,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
                             ) : feature.label}
                           </p>
                           {feature.note && <p className="mt-1 text-xs leading-relaxed text-slate-500">{feature.note}</p>}
-                          <div className="mt-3 grid grid-cols-3 gap-1.5">
+                          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                             {pricingPlans.map((plan) => (
                               <div key={plan.id} className={`rounded-md p-2 text-center ${selectedPlan.id === plan.id ? 'bg-blue-50 ring-1 ring-blue-200' : 'bg-slate-50'}`}>
                                 <p className={`mb-1.5 text-[10px] font-black uppercase tracking-wide ${selectedPlan.id === plan.id ? 'text-blue-700' : 'text-slate-500'}`}>
@@ -418,7 +460,7 @@ export default function PricingPlanCards({ onContactSales }: PricingPlanCardsPro
                   {pricingComparisonSections.map((section) => (
                     <Fragment key={section.title}>
                       <tr>
-                        <th colSpan={4} className="border-y border-slate-200 bg-slate-100 px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-700 md:px-8">
+                        <th colSpan={5} className="border-y border-slate-200 bg-slate-100 px-6 py-3 text-left text-xs font-black uppercase tracking-wider text-slate-700 md:px-8">
                           {section.title}
                         </th>
                       </tr>

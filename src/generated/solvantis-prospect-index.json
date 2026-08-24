@@ -4,7 +4,7 @@
     {
       "id": "prospect-integrations",
       "title": "Integration Approach",
-      "summary": "Solvantis has native capabilities for Xero accounting, Shopify commerce, Cin7 inventory, and connected Google and Meta marketing analysis. Exact workflows depend on the selected plan, connected service and agreed operating design. Other providers, including 3PL and external platforms, are assessed during discovery and are scoped and quoted rather than guaranteed.",
+      "summary": "Solvantis has native capabilities for Xero accounting, Shopify commerce, Cin7 inventory, and connected Google and Meta marketing analysis. Scale and Enterprise include supported standard 3PL workflows. Provider-specific connector development, third-party fees and unusually complex warehouse processes are assessed during discovery and may be separately scoped and quoted.",
       "capabilities": [
         "integrations",
         "accounting",
@@ -18,7 +18,7 @@
     {
       "id": "prospect-onboarding-support",
       "title": "Onboarding and Support",
-      "summary": "Data migration is included across current plans. Basic includes local phone and email support, Growth includes priority phone support, and Enterprise includes migration and training, priority 24/7 support, a dedicated account manager and service-level terms. Implementation scope is agreed against each retailer's locations, data and integration needs.",
+      "summary": "Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Core adds a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.",
       "capabilities": [
         "onboarding",
         "implementation",
@@ -29,7 +29,7 @@
     {
       "id": "prospect-pricing-offer",
       "title": "Plans, Pricing and Current Offer",
-      "summary": "Basic is $60 per month for up to 3 locations and 5 users. Growth is $200 per month base, plus $50 per month for each additional location, for 2-10 locations and up to 50 users. Enterprise has custom terms for 10+ locations. The current public offer provides 3 months on a chosen plan for a one-time $1 payment, with no card required upfront, no lock-in and normal billing after the offer unless cancelled.",
+      "summary": "Starter is advertised from $59 per month with eligible Connected Payments volume, or $99 per month without Connected Payments. Core is $349 per month, Scale is $749 per month and Enterprise starts from $1,999 per month. Prices are AUD excluding GST. AI Automation is available on every plan and generative or agentic actions use separately purchased credits. The current introductory offer provides Starter for 3 months for a one-time $1 payment, followed by normal Starter pricing unless cancelled.",
       "capabilities": [
         "pricing"
       ],

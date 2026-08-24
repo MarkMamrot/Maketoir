@@ -593,14 +593,14 @@ export default function Landing() {
           <div className="text-center mb-12">
             <Eyebrow>Pricing</Eyebrow>
             <h2 className="text-4xl font-black text-slate-900 tracking-tight">Simple, transparent pricing</h2>
-            <p className="text-slate-500 mt-3 text-base">No hidden fees. Scale as you grow.</p>
+            <p className="text-slate-500 mt-3 text-base">One complete retail platform, priced by the capacity and support you need.</p>
           </div>
 
           {/* Promo callout */}
           <div className="bg-blue-600 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 mb-10 shadow-lg shadow-blue-100">
             <div>
-              <p className="font-black text-lg">🎉 Limited Time: 3 months for $1</p>
-              <p className="text-blue-100 text-sm mt-0.5">Try Solvantis risk-free. No lock-in contract. Cancel anytime.</p>
+              <p className="font-black text-lg">Starter: 3 months for $1</p>
+              <p className="text-blue-100 text-sm mt-0.5">Self onboard and start selling in store and online. Normal Starter pricing applies after the offer.</p>
             </div>
             <Link href="/register" className="flex-shrink-0 bg-white text-blue-600 hover:bg-blue-50 font-bold px-6 py-2.5 rounded-xl transition text-sm shadow">
               Claim Offer

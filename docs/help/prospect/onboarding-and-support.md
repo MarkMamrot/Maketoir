@@ -1,11 +1,13 @@
 ---
-{"id":"prospect-onboarding-support","title":"Onboarding and Support","audiences":["prospect"],"product":"prospect","summary":"Data migration is included across current plans. Basic includes local phone and email support, Growth includes priority phone support, and Enterprise includes migration and training, priority 24/7 support, a dedicated account manager and service-level terms. Implementation scope is agreed against each retailer's locations, data and integration needs.","capabilityTags":["onboarding","implementation","support"],"lastReviewed":"2026-08-23","owner":"sales"}
+{"id":"prospect-onboarding-support","title":"Onboarding and Support","audiences":["prospect"],"product":"prospect","summary":"Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding within an agreed scope. Starter includes email support, Core adds a local business-hours helpdesk, Scale includes priority local support, and Enterprise includes a dedicated account lead and contracted service levels.","capabilityTags":["onboarding","implementation","support"],"lastReviewed":"2026-08-24","owner":"sales"}
 ---
 # Onboarding and Support
 
-Onboarding is shaped around the retailer's locations, product and stock information, team needs, selling channels and agreed integrations. Included migration helps establish the operating foundation, while Enterprise includes training for larger or more tailored rollouts.
+Starter and Core use self onboarding through guided setup, import templates, Help and support documentation. Scheduled migration, configuration or training assistance can be separately scoped.
 
-Support varies by plan. Basic includes local phone and email support, Growth includes priority phone support, and Enterprise includes priority 24/7 support, a dedicated account manager and service-level terms.
+Scale and Enterprise include White Glove onboarding within an agreed scope. This can cover discovery, configuration, data-migration validation, integration setup, rollout planning, administrator and team training, go-live coordination and post-launch handover. Complex data repair, provider-specific connector development, third-party fees and extended on-site work may be separately quoted.
+
+Support varies by plan. Starter includes email support. Core includes a local business-hours helpdesk. Scale includes priority local support and a named implementation lead. Enterprise includes a dedicated account lead and contracted service levels; after-hours or 24-hour coverage applies only when included in the Enterprise agreement.
 
 ## Sales Assistant and Contact
 

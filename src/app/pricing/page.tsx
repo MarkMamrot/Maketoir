@@ -9,27 +9,35 @@ import Nav from '../_nav';
 const faqs = [
   {
     q: 'What is included in the "3 months for $1" offer?',
-    a: 'You get full access to your chosen plan for 3 months for a one-time $1 payment. No credit card required upfront, no lock-in. After 3 months, normal billing applies — you can cancel any time before.',
+    a: 'The offer applies to Starter self onboarding. You receive Starter access for 3 months for a one-time $1 payment. Normal Starter pricing applies after the offer unless you cancel beforehand.',
   },
   {
     q: 'Can I switch plans as my business grows?',
     a: 'Absolutely. You can upgrade or downgrade your plan at any time. Changes take effect at the start of your next billing cycle. There are no penalties for switching.',
   },
   {
-    q: 'Does the Growth plan price increase per location I add?',
-    a: 'Yes. Growth has a $200 monthly base, then adds $50 per month for each additional location. Every Growth location receives the same advanced inventory, automation, CRM, analytics, Shopify, and Xero features.',
+    q: 'What is the difference between Core and Scale?',
+    a: 'Core and Scale share the same complete operational feature set. Scale includes more locations, registers, users, integrations and order capacity, plus 3PL workflows, White Glove onboarding, priority support and better AI credit rates.',
   },
   {
-    q: 'What does "free data migration" include?',
-    a: 'Our team will migrate your existing product catalogue, customer data, and historical stock records from your current system. This typically takes 2–5 business days depending on data volume.',
+    q: 'How does onboarding work?',
+    a: 'Starter and Core use self onboarding with guided setup, import templates and Help. Scale and Enterprise include White Glove onboarding with discovery, migration validation, integration setup, training, rollout planning and go-live coordination within the agreed scope.',
   },
   {
     q: 'Does the POS work offline?',
     a: 'Yes. Solvantis POS is designed to operate fully offline. All transactions are queued locally and automatically synced when your connection is restored.',
   },
   {
-    q: 'Are there setup fees or contracts?',
-    a: 'No setup fees and no lock-in contracts. All plans are billed monthly. Enterprise plans are negotiated annually but remain flexible.',
+    q: 'How are AI Automation tools charged?',
+    a: 'AI Automation is available on every plan. Generative and agentic actions use separately purchased AI credits. Core receives preferred rates, Scale receives volume-preferred rates and Enterprise receives contracted bulk rates. Standard reports and non-generative calculations do not use credits.',
+  },
+  {
+    q: 'Are there contracts?',
+    a: 'Starter is monthly. Core and Scale use 12-month agreements billed monthly. Enterprise is an annual scoped contract. All public prices exclude GST.',
+  },
+  {
+    q: 'What is included with Enterprise?',
+    a: 'Enterprise starts from $1,999 per month and includes dedicated app and database instances, White Glove onboarding, contracted capacity, bulk AI credit rates, an SLA and 100 governed customisation hours per contract year. Complex infrastructure, integrations, 3PL requirements or accelerated delivery may increase the quote.',
   },
 ];
 
@@ -44,8 +52,8 @@ export default function PricingPage() {
       <section className="bg-slate-50 border-b border-slate-200 py-16 text-center px-6">
         <p className="text-xs uppercase tracking-widest font-semibold text-blue-600 mb-3">Pricing</p>
         <h1 className="text-5xl font-black text-slate-900 tracking-tight mb-4">Simple, transparent pricing</h1>
-        <p className="text-slate-500 text-lg max-w-lg mx-auto">
-          No hidden fees. Scale up — or down — as your business changes.
+        <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+          Start with a complete retail platform, then scale capacity, support and AI Automation as your business grows.
         </p>
       </section>
 
@@ -53,7 +61,7 @@ export default function PricingPage() {
       <div className="bg-blue-600 py-4 px-6">
         <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-white text-sm font-medium text-center sm:text-left">
-            🎉 <strong>Limited Offer:</strong> Try Solvantis free for 3 months — just $1. No lock-in, no credit card required.
+            <strong>Starter offer:</strong> Self onboard for $1 for your first 3 months. Normal Starter pricing applies after the offer.
           </p>
           <Link href="/register" className="flex-shrink-0 bg-white text-blue-600 hover:bg-blue-50 font-semibold text-sm px-5 py-2 rounded-lg transition shadow-sm">
             Claim Offer →
