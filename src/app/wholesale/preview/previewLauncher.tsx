@@ -41,7 +41,7 @@ export default function PreviewLauncher() {
         <div><h1 style={{ fontSize: 20, margin: 0, letterSpacing: 0 }}>Preview wholesale portal</h1><p style={{ margin: '4px 0 0', color: '#64707d', fontSize: 14 }}>{supplier}</p></div>
       </header>
       <div style={{ padding: 28 }}>
-        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>The Layout Editor opens automatically with test checkout enabled. Test orders are clearly marked, silent IMS Drafts that cannot be confirmed. The session expires after 30 minutes.</p>
+        <p style={{ margin: '0 0 20px', fontSize: 14, lineHeight: 1.55, color: '#52606d' }}>The portal opens in preview mode with test checkout enabled. Select Edit layout when you need the Layout Editor. Test orders are clearly marked, silent IMS Drafts that cannot be confirmed. The session expires after 30 minutes.</p>
         {loading ? <p>Loading approved buyers...</p> : targets.length > 0 ? <>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 8 }} htmlFor="preview-target">Buyer and buying location</label>
           <select id="preview-target" value={selection} onChange={event => setSelection(event.target.value)} style={{ width: '100%', padding: '11px 12px', border: '1px solid #aeb8c2', borderRadius: 5, background: '#fff', fontSize: 14 }}>

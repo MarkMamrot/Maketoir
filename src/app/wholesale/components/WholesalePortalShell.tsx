@@ -99,7 +99,7 @@ export function WholesalePortalShell({
   const canTestCheckout = session.preview?.mode === 'ims_draft_test';
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(view === 'help');
-  const [layoutEditorOpen, setLayoutEditorOpen] = useState(isPreview);
+  const [layoutEditorOpen, setLayoutEditorOpen] = useState(false);
   const [layoutEditorDirty, setLayoutEditorDirty] = useState(false);
   const [layoutViewport, setLayoutViewport] = useState<'desktop' | 'mobile'>('desktop');
   const [layoutEditorPage, setLayoutEditorPage] = useState<WholesaleLayoutPageId>('home');

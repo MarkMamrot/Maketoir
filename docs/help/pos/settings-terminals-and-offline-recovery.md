@@ -3,11 +3,12 @@
 ---
 # Settings, Terminals, and Offline Recovery
 
-Use this guide to change permitted POS presentation settings, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure.
+Use this guide to change permitted POS presentation settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure.
 
 ## Main operations
 
 - Open POS Settings with a permitted staff role.
+- Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
 - Continue supported ordinary sales from cached products while offline.
 - Inspect queued and failed sales, retry them, and confirm they reached Reports.
@@ -27,6 +28,7 @@ Use this guide to change permitted POS presentation settings, operate a paired Z
 | Petty cash | No | The register entry and receipt upload require an open online session |
 | Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |
 | Ask Solvantis | No | Assistant questions are not queued |
+| Complete a Training Mode sale | No | A separate training audit is recorded online; no live sale, stock, customer value, EOD, report, or accounting record is created |
 
 ## Before you begin
 
@@ -39,6 +41,17 @@ Use this guide to change permitted POS presentation settings, operate a paired Z
 > **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue.
 
 ## Step-by-step
+
+### Practise with Training Mode
+
+1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.
+2. Open **Misc** and switch on **Training Mode**. The setting applies only to the current browser and register.
+3. Confirm the amber **TRAINING MODE** marker remains visible in the POS header.
+4. Build an ordinary positive-quantity sale and use a simulated configured tender. Training Mode does not contact a live card terminal.
+5. Complete the sale and print the receipt. The receipt is marked **TRAINING** and must not be given as proof of a real payment.
+6. Return to **POS Settings > Misc** and switch Training Mode off before serving customers.
+
+Training Mode does not create a live sale or affect inventory, Reports, End of Day, Xero, loyalty, gift cards, or store credit. Returns, laybys, loyalty rewards, gift cards, store credit, and offline completion are unavailable while it is active.
 
 ### Pair or recover Zeller
 
@@ -76,6 +89,7 @@ Use this guide to change permitted POS presentation settings, operate a paired Z
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | POS Settings cannot be opened | The signed-in tier does not have settings access | Ask a POS Manager, Standard User, Admin, or SuperAdmin |
+| Training sale cannot complete | The device is offline or the cart uses a restricted workflow | Reconnect and use an ordinary sale without returns, laybys, rewards, gift cards, or store credit |
 | Terminal payment cannot start | Pairing, terminal availability, or internet is missing | Check the exact terminal message, then pair or reconnect |
 | Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |
 | A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |

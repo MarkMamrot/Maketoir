@@ -8,6 +8,7 @@ import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
 import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
+import { imsExecute } from '@/services/IMSMySQLService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -93,6 +94,67 @@ export async function POST(req: Request) {
     if (!businessId) return NextResponse.json({ error: 'Business context is required.' }, { status: 400 });
     const locationId = Number(body.location_id ?? session.location_id);
     if (!Number.isFinite(locationId)) return NextResponse.json({ error: 'POS location is required.' }, { status: 400 });
+
+    if (body.is_training === true) {
+      const items = Array.isArray(body.items) ? body.items : [];
+      const payments = Array.isArray(body.payments) ? body.payments : [];
+      const localId = String(body.local_id ?? '').trim();
+      const hasCustomerValue = body.loyalty_reward_id != null
+        || body.return_of_sale_id != null
+        || items.some((item: any) => Boolean(item?.is_gift_card) || Number(item?.qty ?? 0) <= 0)
+        || payments.some((payment: any) => /gift card|store credit/i.test(String(payment?.payment_method ?? '')));
+      if (!localId || items.length === 0 || items.length > 200 || payments.length > 20) {
+        return NextResponse.json({ error: 'Training sale details are incomplete or exceed supported limits.' }, { status: 400 });
+      }
+      if ((body.sale_type ?? 'sale') !== 'sale' || (body.status ?? 'completed') !== 'completed' || hasCustomerValue) {
+        return NextResponse.json({ error: 'Training Mode supports ordinary simulated sales only.' }, { status: 400 });
+      }
+
+      const safeItems = items.map((item: any) => ({
+        variant_id: item?.variant_id ?? null,
+        code: item?.code ?? null,
+        name: String(item?.name ?? '').slice(0, 500),
+        qty: Number(item?.qty ?? 0),
+        unit_price: Number(item?.unit_price ?? 0),
+        original_price: item?.original_price == null ? null : Number(item.original_price),
+        discount_type: item?.discount_type ?? 'none',
+        discount_value: Number(item?.discount_value ?? 0),
+        discount_amount: Number(item?.discount_amount ?? 0),
+        tax_rate: Number(item?.tax_rate ?? 10),
+        line_total: Number(item?.line_total ?? 0),
+      }));
+      const safePayments = payments.map((payment: any) => ({
+        payment_method: String(payment?.payment_method ?? '').slice(0, 100),
+        amount: Number(payment?.amount ?? 0),
+      }));
+      const result = await imsExecute(
+        `INSERT INTO pos_training_sales
+           (business_id, local_id, location_id, register_id, cashier_id, cashier_name,
+            sale_type, customer_name, customer_phone, subtotal, discount_total, tax_total,
+            total, cash_rounding, notes, items_json, payments_json)
+         VALUES (?, ?, ?, ?, ?, ?, 'sale', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+        [
+          businessId,
+          localId,
+          locationId,
+          body.register_id ?? session.register_id ?? null,
+          body.cashier_id || session.pos_user_id || null,
+          session.full_name || session.username || null,
+          body.customer_name ?? null,
+          body.customer_phone ?? null,
+          Number(body.subtotal ?? 0),
+          Number(body.discount_total ?? 0),
+          Number(body.tax_total ?? 0),
+          Number(body.total ?? 0),
+          Number(body.cash_rounding ?? 0),
+          body.notes == null ? null : String(body.notes).slice(0, 5000),
+          JSON.stringify(safeItems),
+          JSON.stringify(safePayments),
+        ],
+      );
+      return NextResponse.json({ success: true, training: true, training_id: Number((result as any).insertId) });
+    }
 
     const isStoreCreditReturn = (body.sale_type ?? 'sale') === 'return'
       && (body.payments ?? []).some((payment: any) => payment.payment_method === 'Store Credit (Issue)');

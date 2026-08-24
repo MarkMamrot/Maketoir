@@ -49,6 +49,29 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  `CREATE TABLE IF NOT EXISTS pos_training_sales (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    local_id VARCHAR(100) NOT NULL,
+    location_id INT NOT NULL,
+    register_id INT NULL,
+    cashier_id INT NULL,
+    cashier_name VARCHAR(255) NULL,
+    sale_type ENUM('sale','return') NOT NULL DEFAULT 'sale',
+    customer_name VARCHAR(255) NULL,
+    customer_phone VARCHAR(50) NULL,
+    subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+    discount_total DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tax_total DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total DECIMAL(12,2) NOT NULL DEFAULT 0,
+    cash_rounding DECIMAL(10,2) NOT NULL DEFAULT 0,
+    notes TEXT NULL,
+    items_json JSON NOT NULL,
+    payments_json JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_pos_training_local (business_id, local_id),
+    INDEX idx_pos_training_location (business_id, location_id, created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS ims_brands (
     id INT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL DEFAULT '',

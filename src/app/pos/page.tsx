@@ -914,6 +914,7 @@ function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<strin
 function PosSettingsModal({
   locationId, initialSettings, onSave, onCancel, onPreview,
   activeRegister, zellerEnabled, onZellerToggle,
+  trainingMode, onTrainingModeChange,
 }: {
   locationId:      number;
   initialSettings: PosLocationSettings;
@@ -923,8 +924,10 @@ function PosSettingsModal({
   activeRegister?: any;
   zellerEnabled?:  boolean;
   onZellerToggle?: (enabled: boolean) => void;
+  trainingMode: boolean;
+  onTrainingModeChange: (enabled: boolean) => void;
 }) {
-  const [tab, setTab] = useState<'receipt' | 'appearance' | 'avatar' | 'terminal'>('receipt');
+  const [tab, setTab] = useState<'receipt' | 'appearance' | 'avatar' | 'terminal' | 'misc'>('receipt');
   const [receiptFooter,      setReceiptFooter]      = useState(initialSettings.receiptFooter);
   const [giftReceiptMessage, setGiftReceiptMessage] = useState(initialSettings.giftReceiptMessage);
   const [theme,              setTheme]              = useState(initialSettings.theme || 'classic');
@@ -1014,9 +1017,26 @@ function PosSettingsModal({
           {activeRegister?.card_terminal_provider === 'zeller' && (
             <button style={tabBtn(tab === 'terminal')} onClick={() => setTab('terminal')}>💳 Terminal</button>
           )}
+          <button style={tabBtn(tab === 'misc')} onClick={() => setTab('misc')}>Misc</button>
         </div>
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
+          {tab === 'misc' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: `1px solid ${trainingMode ? '#f59e0b' : 'var(--sv-etch)'}` }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={trainingMode} onChange={event => onTrainingModeChange(event.target.checked)} style={{ width: 18, height: 18, accentColor: '#d97706' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Training Mode</div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Applies to this POS device only. Training sales can print receipts but do not affect inventory, reports, EOD, accounting, loyalty, gift cards, or store credit.</div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ fontSize: 12, color: '#92400e', padding: '10px 12px', background: '#fffbeb', borderRadius: 8, border: '1px solid #fbbf24' }}>
+                Training Mode requires an internet connection and supports ordinary simulated sales only. Returns, laybys, gift cards, store credit, loyalty rewards, and live terminal charges are unavailable.
+              </div>
+            </div>
+          )}
           {tab === 'terminal' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)' }}>
@@ -1391,6 +1411,10 @@ function MainPos({
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
   const [posSettings, setPosSettings] = useState<PosLocationSettings>(DEFAULT_POS_SETTINGS);
   const [posTheme, setPosTheme] = useState<Record<string, string>>({});
+  const trainingModeStorageKey = `pos_training_mode_${session.location_id}_${session.register_id ?? 'none'}`;
+  const [trainingMode, setTrainingMode] = useState(() => {
+    try { return localStorage.getItem(trainingModeStorageKey) === '1'; } catch { return false; }
+  });
   // Card terminal session-level toggle (staff can override admin config for this session)
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
@@ -1883,6 +1907,16 @@ function MainPos({
     submittingRef.current = true;
     setSaleSubmitError(null);
     try {
+      if (trainingMode) {
+        if (!navigator.onLine) {
+          setSaleSubmitError('Training Mode requires an internet connection so the training audit can be recorded.');
+          return;
+        }
+        if (isLayby || linkedReturnSaleId != null || cart.some(item => item.qty < 0 || item.is_gift_card) || selectedReward || payments.some(payment => /gift card|store credit/i.test(payment.method))) {
+          setSaleSubmitError('Training Mode supports ordinary simulated sales only. Remove returns, laybys, rewards, gift cards, and store credit.');
+          return;
+        }
+      }
       if (selectedReward && !totals.loyalty_reward_valid) {
         setSaleSubmitError('The selected loyalty reward is no longer valid for this cart.');
         return;
@@ -1902,6 +1936,7 @@ function MainPos({
       const db_discount_total = discount_total + order_disc_amount + totals.loyalty_discount_amount;
 
       const payload = {
+        is_training:   trainingMode,
         local_id:       localId,
         register_id:    session.register_id ?? null,
         location_id:    session.location_id,
@@ -1931,7 +1966,7 @@ function MainPos({
           });
           const data = await res.json();
           if (res.ok) {
-            serverId = data.id;
+            serverId = trainingMode ? data.training_id : data.id;
             if (Array.isArray(data.stockWarnings) && data.stockWarnings.length > 0) {
               const names = data.stockWarnings
                 .map((warning: { itemName?: unknown }) => typeof warning.itemName === 'string' ? warning.itemName : '')
@@ -1942,11 +1977,15 @@ function MainPos({
               );
             }
           }
-          else if (selectedReward || linkedReturnSaleId != null) {
+          else if (trainingMode || selectedReward || linkedReturnSaleId != null) {
             setSaleSubmitError(data.error || (linkedReturnSaleId != null ? 'The linked return could not be completed.' : 'Loyalty redemption could not be completed.'));
             return;
           } else addToOfflineQueue(payload);
         } else {
+          if (trainingMode) {
+            setSaleSubmitError('Training Mode requires an internet connection so the training audit can be recorded.');
+            return;
+          }
           if (selectedReward) {
             setSaleSubmitError('Loyalty rewards can only be redeemed while online.');
             return;
@@ -1954,7 +1993,7 @@ function MainPos({
           addToOfflineQueue(payload);
         }
       } catch {
-        if (selectedReward || linkedReturnSaleId != null) {
+        if (trainingMode || selectedReward || linkedReturnSaleId != null) {
           setSaleSubmitError(linkedReturnSaleId != null ? 'The linked return could not reach the server. Try again while online.' : 'Loyalty redemption could not reach the server. Try completing the sale again.');
           return;
         }
@@ -1991,6 +2030,7 @@ function MainPos({
 
       const completedSale: CompletedSale = {
         id:            serverId,
+        is_training:   trainingMode,
         local_id:      localId,
         location_name: session.location_name,
         cashier_name:  session.full_name,
@@ -2009,7 +2049,7 @@ function MainPos({
 
       // lastSale is lifted to PosPage — notify parent instead
       onSaleCompleted(completedSale);
-      setSaleRefreshTick(t => t + 1);
+      if (!trainingMode) setSaleRefreshTick(t => t + 1);
       clearCart();
       setShowPayment(false);
       onReceipt(completedSale);
@@ -2063,6 +2103,9 @@ function MainPos({
           <span style={{ fontWeight: 500, color: 'var(--sv-text-dim)', fontSize: '.72rem', letterSpacing: .2, lineHeight: 1.2, opacity: .85 }}>{session.location_name}</span>
         </div>
         <div style={{ flex: 1 }} />
+        {trainingMode && (
+          <div role="status" style={{ padding: '.25rem .65rem', borderRadius: 6, background: '#f59e0b', color: '#451a03', fontSize: '.74rem', fontWeight: 900, letterSpacing: .5 }}>TRAINING MODE</div>
+        )}
         {/* Online / Offline badge */}
         <span style={{ display: 'flex', alignItems: 'center', gap: '.3rem', padding: '.15rem .5rem', borderRadius: 99, background: isOnline ? 'rgba(74,222,128,.12)' : 'rgba(248,113,113,.12)', border: `1px solid ${isOnline ? 'rgba(74,222,128,.3)' : 'rgba(248,113,113,.3)'}`, fontSize: '.73rem', fontWeight: 600, color: isOnline ? 'var(--pos-online-color, #4ade80)' : '#f87171', flexShrink: 0 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOnline ? 'var(--pos-online-color, #4ade80)' : '#f87171', flexShrink: 0 }} />
@@ -2249,8 +2292,9 @@ function MainPos({
                       {syncing ? 'Syncing…' : syncMsg ?? 'Sync'}
                     </button>
                     {/* Layby toggle */}
-                    <button onClick={() => { setIsLayby(v => !v); setMoreMenuOpen(false); }}
-                      style={btnStyle({ color: isLayby ? mAmb : mText, background: isLayby ? 'rgba(245,158,11,.1)' : 'none' })}
+                    <button onClick={() => { if (!trainingMode) setIsLayby(v => !v); setMoreMenuOpen(false); }} disabled={trainingMode}
+                      title={trainingMode ? 'Laybys are unavailable in Training Mode' : undefined}
+                      style={btnStyle({ color: isLayby ? mAmb : mText, background: isLayby ? 'rgba(245,158,11,.1)' : 'none', opacity: trainingMode ? .45 : 1, cursor: trainingMode ? 'not-allowed' : 'pointer' })}
                       onMouseEnter={e => (e.currentTarget.style.background = isLayby ? 'rgba(245,158,11,.18)' : mHov)}
                       onMouseLeave={e => (e.currentTarget.style.background = isLayby ? 'rgba(245,158,11,.1)' : 'none')}
                     >
@@ -2481,6 +2525,7 @@ function MainPos({
                                 && cart.length > 0
                                 && cart.every(item => item.qty > 0)
                                 && !isLayby
+                                && !trainingMode
                                 && isOnline;
                               return (
                                 <div key={reward.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '.5rem', paddingTop: '.25rem' }}>
@@ -2489,7 +2534,7 @@ function MainPos({
                                   <button
                                     onClick={() => { setSelectedReward(selected ? null : reward); setSaleSubmitError(null); loyaltySaleLocalIdRef.current = null; }}
                                     disabled={!selected && !canRedeem}
-                                    title={!isOnline ? 'Loyalty redemption requires an online connection.' : !canRedeem ? 'The customer needs enough points and eligible merchandise to use this reward.' : undefined}
+                                    title={trainingMode ? 'Loyalty rewards are unavailable in Training Mode.' : !isOnline ? 'Loyalty redemption requires an online connection.' : !canRedeem ? 'The customer needs enough points and eligible merchandise to use this reward.' : undefined}
                                     style={{ padding: '2px 7px', borderRadius: 5, border: `1px solid ${selected ? 'var(--sv-red)' : 'var(--sv-mint)'}`, background: 'transparent', color: selected ? 'var(--sv-red)' : canRedeem ? 'var(--sv-mint)' : 'var(--sv-text-muted)', cursor: selected || canRedeem ? 'pointer' : 'not-allowed', fontSize: '.7rem', fontWeight: 700 }}
                                   >
                                     {selected ? 'Remove' : 'Use'}
@@ -2596,12 +2641,12 @@ function MainPos({
             <div style={{ display: 'flex', gap: '.5rem', marginTop: '.75rem', flexDirection: 'column' }}>
               <div style={{ display: 'flex', gap: '.5rem' }}>
                 <button onClick={clearCart} style={{ ...smallBtn, flex: 1, padding: '.55rem', fontSize: '.85rem', background: 'transparent', border: '1px solid rgba(248,113,113,.5)', color: '#ef4444', opacity: !cart.length ? 0.65 : 1 }} disabled={!cart.length}>Clear Cart</button>
-                <button onClick={() => setGcIssueOpen(true)} style={{ ...smallBtn, padding: '.55rem .75rem', fontSize: '.85rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }} title='Sell a gift card'>🎁 Gift Card</button>
+                <button onClick={() => setGcIssueOpen(true)} disabled={trainingMode} style={{ ...smallBtn, padding: '.55rem .75rem', fontSize: '.85rem', background: 'transparent', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', whiteSpace: 'nowrap', opacity: trainingMode ? .45 : 1 }} title={trainingMode ? 'Gift cards are unavailable in Training Mode' : 'Sell a gift card'}>🎁 Gift Card</button>
               </div>
               <button
-                onClick={() => { if (!mustOpenRegister) setShowPayment(true); }}
-                disabled={!cart.length || mustOpenRegister}
-                style={{ width: '100%', padding: '1rem .5rem', background: cart.length && !mustOpenRegister ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && !mustOpenRegister ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && !mustOpenRegister ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && !mustOpenRegister ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
+                onClick={() => { if (!mustOpenRegister || trainingMode) setShowPayment(true); }}
+                disabled={!cart.length || (mustOpenRegister && !trainingMode)}
+                style={{ width: '100%', padding: '1rem .5rem', background: cart.length && (!mustOpenRegister || trainingMode) ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-bg-2)', border: `2px solid ${cart.length && (!mustOpenRegister || trainingMode) ? 'var(--pos-charge-btn-bg, var(--sv-action))' : 'var(--sv-etch)'}`, borderRadius: 10, color: cart.length && (!mustOpenRegister || trainingMode) ? '#fff' : 'var(--sv-text-muted)', cursor: cart.length && (!mustOpenRegister || trainingMode) ? 'pointer' : 'not-allowed', fontWeight: 900, lineHeight: 1.15, transition: 'opacity .15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.1rem' }}
               >
                 <span style={{ fontSize: '1rem', letterSpacing: .5, textTransform: 'uppercase' }}>{isLayby ? 'Layby' : totals.total < 0 ? 'Refund' : 'Charge'}</span>
                 <span style={{ fontSize: '2.6rem', letterSpacing: -1, fontWeight: 900 }}>{totals.total < 0 ? '−' : ''}${fmt(Math.abs(totals.total))}</span>
@@ -2616,17 +2661,17 @@ function MainPos({
           total={totals.total}
           methods={[
             ...paymentMethods,
-            'Gift Card',
-            ...(linkedContact && linkedContact.store_credit > 0 ? ['Store Credit'] : []),
-            ...(totals.total < 0 ? [
+            ...(!trainingMode ? ['Gift Card'] : []),
+            ...(!trainingMode && linkedContact && linkedContact.store_credit > 0 ? ['Store Credit'] : []),
+            ...(!trainingMode && totals.total < 0 ? [
               'Gift Card (Issue)',
               ...(linkedContact ? ['Store Credit (Issue)'] : []),
             ] : []),
           ]}
-          isLayby={isLayby}
+          isLayby={trainingMode ? false : isLayby}
           onComplete={completeSale}
           onCancel={() => setShowPayment(false)}
-          zellerEnabled={zellerTerminalEnabled}
+          zellerEnabled={trainingMode ? false : zellerTerminalEnabled}
           cardTerminalMethods={(() => { try { return JSON.parse(activeRegister?.card_terminal_methods || '[]'); } catch { return []; } })()}
           linkedContact={linkedContact}
           submitError={saleSubmitError}
@@ -2702,6 +2747,16 @@ function MainPos({
           activeRegister={activeRegister}
           zellerEnabled={zellerTerminalEnabled}
           onZellerToggle={setZellerTerminalEnabled}
+          trainingMode={trainingMode}
+          onTrainingModeChange={enabled => {
+            setTrainingMode(enabled);
+            try { localStorage.setItem(trainingModeStorageKey, enabled ? '1' : '0'); } catch {}
+            if (enabled) {
+              setIsLayby(false);
+              setSelectedReward(null);
+              setSaleSubmitError(null);
+            }
+          }}
           onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
           onCancel={() => { setPosTheme(computeThemeVars(posSettings)); setPosSettingsOpen(false); }}
           onPreview={vars => setPosTheme(vars)}
@@ -4991,6 +5046,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
         <div>
           <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Receipt</div>
           <div className='pos-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
+            {sale.is_training && (
+              <div style={{ marginBottom: '1rem', padding: '.6rem', border: '4px solid #dc2626', color: '#dc2626', fontSize: '2rem', lineHeight: 1, fontWeight: 900, textAlign: 'center', letterSpacing: 2 }}>TRAINING</div>
+            )}
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               {printSettings?.receipt_logo_url && (
                 <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />
@@ -5112,6 +5170,9 @@ function ReceiptScreen({ sale, onClose, printSettings, changeDue = 0 }: { sale: 
         <div>
           <div className='no-print' style={{ textAlign: 'center', marginBottom: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-dim)', fontFamily: 'system-ui,sans-serif', fontWeight: 600, letterSpacing: .6, textTransform: 'uppercase' }}>Gift Receipt</div>
           <div className='pos-gift-receipt-wrapper' style={{ background: '#fff', color: '#000', width: 300, padding: '1.5rem', borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,.4)', fontFamily: 'monospace' }}>
+            {sale.is_training && (
+              <div style={{ marginBottom: '1rem', padding: '.6rem', border: '4px solid #dc2626', color: '#dc2626', fontSize: '2rem', lineHeight: 1, fontWeight: 900, textAlign: 'center', letterSpacing: 2 }}>TRAINING</div>
+            )}
             <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
               {printSettings?.receipt_logo_url && (
                 <img src={printSettings.receipt_logo_url} alt="" style={{ maxWidth: 180, maxHeight: 80, objectFit: 'contain', marginBottom: '.5rem', display: 'block', marginLeft: 'auto', marginRight: 'auto' }} />

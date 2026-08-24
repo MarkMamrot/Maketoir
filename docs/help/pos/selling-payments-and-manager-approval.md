@@ -25,6 +25,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
 | Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |
 | Today's Mission | Shows the location's current sales progress beside the location avatars, away from Charge and payment controls |
+| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |
 
 ## Before you begin
 
@@ -46,6 +47,8 @@ Use this guide to build and complete an ordinary sale, including verified split 
 6. Choose **Charge** and choose a payment method.
 7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
 8. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
+
+When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
 
 ## Park and resume a sale
 

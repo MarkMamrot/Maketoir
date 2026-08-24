@@ -99,7 +99,6 @@ const NAV = [
   ]},
   { id: '__sales',         label: 'Sales',            section: 'sales', children: [
     { id: 'sales-orders',     label: 'Sales Orders' },
-    { id: 'wholesale-applications', label: 'Wholesale Applications' },
     { id: 'customer-backorders', label: 'Customer Backorders' },
     { id: 'stock-availability', label: 'Stock Allocation' },
     { id: 'credit-notes',     label: 'Customer Credit Notes' },
@@ -629,7 +628,8 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
-        const isChildActive = hasChildren && (item as any).children.some((child: any) => child.id === active);
+        const isChildActive = hasChildren && ((item as any).children.some((child: any) => child.id === active)
+          || (item.id === '__sales' && active === 'wholesale-applications'));
         const isMainActive = isActive || isChildActive;
 
         // Expanded mode
@@ -662,7 +662,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             </button>
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
-                {(item as any).children.filter((child: any) => child.id !== 'wholesale-applications' || showWholesale).map((child: any) => (
+                {(item as any).children.map((child: any) => (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -681,8 +681,14 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
                 {item.id === '__sales' && showWholesalePreview && (
                   <a href="/wholesale/preview" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
                     style={{ padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center', color: '#475569', fontSize: 13, fontWeight: 500, textDecoration: 'none' }}>
-                    <span style={{ flex: 1 }}>Preview wholesale portal</span><span aria-hidden="true">↗</span>
+                    <span style={{ flex: 1 }}>Preview Wholesale Portal</span><span aria-hidden="true">↗</span>
                   </a>
+                )}
+                {item.id === '__sales' && showWholesale && (
+                  <button data-testid="ims-nav-wholesale-applications" onClick={() => { openOnlySection(item.id); onSelect('wholesale-applications'); }}
+                    style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 12px 7px 18px', display: 'flex', alignItems: 'center', color: active === 'wholesale-applications' ? '#0f172a' : '#475569', backgroundColor: active === 'wholesale-applications' ? '#e8edf1' : 'transparent', fontSize: 13, fontWeight: active === 'wholesale-applications' ? 700 : 500, textAlign: 'left', borderLeft: '3px solid transparent' }}>
+                    Wholesale Applications
+                  </button>
                 )}
               </div>
             )}

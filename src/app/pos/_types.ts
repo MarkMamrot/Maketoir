@@ -75,6 +75,7 @@ export interface ParkedSale {
 
 export interface CompletedSale {
   id:            number | null;
+  is_training?:  boolean;
   local_id:      string;
   location_name: string;
   cashier_name:  string;

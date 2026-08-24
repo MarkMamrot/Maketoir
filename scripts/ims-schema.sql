@@ -1634,6 +1634,33 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   UNIQUE INDEX uq_ps_credit_note (business_id, credit_note_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── POS Training Sales ───────────────────────────────────────
+-- Isolated receipt/audit snapshots. These rows never participate in stock,
+-- customer-value, EOD, reporting, or accounting ledgers.
+CREATE TABLE IF NOT EXISTS pos_training_sales (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  local_id          VARCHAR(100) NOT NULL,
+  location_id       INT NOT NULL,
+  register_id       INT NULL,
+  cashier_id        INT NULL,
+  cashier_name      VARCHAR(255) NULL,
+  sale_type         ENUM('sale','return') NOT NULL DEFAULT 'sale',
+  customer_name     VARCHAR(255) NULL,
+  customer_phone    VARCHAR(50) NULL,
+  subtotal          DECIMAL(12,2) NOT NULL DEFAULT 0,
+  discount_total    DECIMAL(12,2) NOT NULL DEFAULT 0,
+  tax_total         DECIMAL(12,2) NOT NULL DEFAULT 0,
+  total             DECIMAL(12,2) NOT NULL DEFAULT 0,
+  cash_rounding     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  notes             TEXT NULL,
+  items_json        JSON NOT NULL,
+  payments_json     JSON NOT NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_pos_training_local (business_id, local_id),
+  INDEX idx_pos_training_location (business_id, location_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── POS Sale Items ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,

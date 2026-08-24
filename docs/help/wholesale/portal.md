@@ -27,6 +27,12 @@ Use **Help** for the supplier's support email or existing account-manager contac
 
 Ask Solvantis can explain products and workflows using read-only information limited to the signed-in buyer, company, assigned location, approved catalogue, and owned orders. It cannot submit or alter an order.
 
+## Staff preview
+
+Authorised IMS staff can open **Sales > Preview Wholesale Portal** in a new tab. The portal starts as a customer-facing preview with the Layout Editor closed. Select **Edit layout** only when layout changes are needed.
+
+**Wholesale Applications** appears directly below **Preview Wholesale Portal** in the IMS Sales menu, keeping account review separate from the preview itself. Preview checkout remains a test workflow and does not create a confirmable live order.
+
 ## Daily buying checklist
 
 - [ ] Confirm the company and buying location in the portal header.

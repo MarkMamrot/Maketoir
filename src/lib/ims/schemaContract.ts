@@ -67,6 +67,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_registers',
   'pos_register_sessions',
   'pos_sales',
+  'pos_training_sales',
   'pos_sale_items',
   'pos_payments',
   'pos_petty_cash_transactions',
@@ -108,6 +109,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
+  pos_training_sales: ['business_id', 'local_id', 'location_id', 'items_json', 'payments_json', 'created_at'],
   ims_locations: [
     'phone',
     'pos_pin',
@@ -200,6 +202,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
   ims_brands: ['uq_ims_brand_per_tenant', 'idx_ims_brand_business'],
+  pos_training_sales: ['uq_pos_training_local', 'idx_pos_training_location'],
   ims_crm_interactions: ['idx_crm_interaction_timeline'],
   ims_crm_tasks: ['idx_crm_task_contact', 'idx_crm_task_assignee'],
   ims_crm_tags: ['uq_crm_tag_name', 'idx_crm_tag_lookup'],
