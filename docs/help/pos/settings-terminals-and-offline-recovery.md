@@ -1,13 +1,14 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.","lastReviewed":"2026-08-24","owner":"retail"}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.","lastReviewed":"2026-08-25","owner":"retail"}
 ---
 # Settings, Terminals, and Offline Recovery
 
-Use this guide to change permitted POS presentation settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure.
+Use this guide to change permitted POS presentation and device settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure.
 
 ## Main operations
 
 - Open POS Settings with a permitted staff role.
+- Choose whether this device shows in-stock products by default and place its cart on the left or right.
 - Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
 - Continue supported ordinary sales from cached products while offline.
@@ -42,6 +43,16 @@ Use this guide to change permitted POS presentation settings, use Training Mode,
 > **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue.
 
 ## Step-by-step
+
+### Set the catalogue and cart defaults
+
+1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.
+2. Open **Misc**.
+3. Turn **Default to In Stock** on to hide unavailable products in the normal catalogue, or off to show all products by default.
+4. Choose **Left side** or **Right side** under **Cart position**.
+5. Close POS Settings when finished. Both choices apply immediately and are remembered by this POS device.
+
+The **In Stock** button beside search remains available during selling. Selecting it changes the current filter and the remembered default for this device.
 
 ### Practise with Training Mode
 

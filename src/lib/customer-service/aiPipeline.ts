@@ -63,7 +63,8 @@ async function classifyPendingThreads(
        FROM ims_cs_threads t
        JOIN ims_cs_messages m ON m.business_id = t.business_id AND m.gmail_message_id = t.latest_message_id
       WHERE t.business_id = ? AND m.direction = 'inbound'
-        AND (t.classifier_version IS NULL OR t.classifier_version <> ?)
+        AND (t.classifier_version IS NULL OR t.classifier_version <> ?
+          OR t.classified_message_id IS NULL OR t.classified_message_id <> m.id)
       ORDER BY t.last_message_at DESC LIMIT ${MAX_THREADS_PER_RUN}`,
     [businessId, CLASSIFIER_VERSION],
   );
@@ -95,10 +96,11 @@ ${JSON.stringify(pending.map(item => ({
     await imsExecute(
       `UPDATE ims_cs_threads SET category = ?, enquiry_subtype = ?, classification_confidence = ?,
          classification_reason = ?, urgency = ?, sentiment = ?, classifier_model_id = ?,
-         classifier_version = ?, classified_at = UTC_TIMESTAMP()
+         classifier_version = ?, classified_message_id = ?, classified_at = UTC_TIMESTAMP()
         WHERE business_id = ? AND id = ?`,
       [classification.category, classification.subtype, classification.confidence, classification.reason,
-        classification.urgency, classification.sentiment, modelId, CLASSIFIER_VERSION, businessId, thread.id],
+        classification.urgency, classification.sentiment, modelId, CLASSIFIER_VERSION,
+        thread.db_message_id, businessId, thread.id],
     );
     if (classification.category === 'customer_enquiry') customerThreads.push(thread);
   }

@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"Dashboard > Website and Customer Service","product":"foresight","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-08-23","owner":"commerce"}
+{"id":"foresight-content-production-customer-service","title":"Content Production and Customer Service","audiences":["ims"],"capability":"navigation","screen":"Dashboard > Website and Customer Service","product":"foresight","format":"task","parentId":"foresight-content-service","contexts":["website","pending-online","product-description-template","bulk-edit-listings","customer-service","cs-inbox","cs-compose","cs-templates"],"contextSections":{"website":"Step-by-step","pending-online":"Review content before use","product-description-template":"Prepare reliable inputs","bulk-edit-listings":"Review content before use","customer-service":"Customer-service replies","cs-inbox":"Customer-service replies","cs-compose":"Customer-service replies","cs-templates":"Customer-service replies"},"relatedTopics":["foresight-content-service","setup-business-brand-appearance","setup-integration-readiness-troubleshooting"],"order":31,"summary":"Prepare product content and customer replies, then check every customer-facing detail before use.","lastReviewed":"2026-08-25","owner":"commerce"}
 ---
 # Content Production and Customer Service
 
@@ -58,11 +58,21 @@ Use content and service tools to prepare drafts that a person checks before publ
 
 ## Customer-service replies
 
+The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.
+
+AI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. Starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Use **Load more** when the loaded count is lower than the total.
+
 1. Open the Inbox item or Compose.
-2. Confirm the customer and related order.
-3. Read the full source message before using a template or draft.
-4. Correct factual claims, tone, recipients, links, and promised actions.
-5. Send only when the available send action and all details are correct.
+2. Confirm the customer, subject, and related order.
+3. Read the chronological conversation before using a template or draft.
+4. Check **Other conversations with this customer** when earlier subjects may contain useful context.
+5. Correct factual claims, tone, recipients, links, and promised actions.
+6. Select **Send reply** once and wait for its status to change.
+7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message.
+
+> **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.
+
+Cached conversation history is kept until the retention setting is changed. A 90, 180, or 365-day limit removes only inactive cached conversations from Solvantis; it does not delete mail from Gmail.
 
 | Input | Human decision | Output | External change |
 | --- | --- | --- | --- |
@@ -75,7 +85,11 @@ Use content and service tools to prepare drafts that a person checks before publ
 | Draft contains a wrong fact | Source product, profile, or policy is wrong or missing | Correct the source, then create a fresh draft |
 | Bulk action is unavailable | Required fields, selection, role, or connection is missing | Read the page status and complete the missing item |
 | Reply lacks order context | The wrong customer or order is selected | Reopen the source item and verify identifiers shown to staff |
-| Send or publish fails | Access expired or the destination rejected the action | Check status before retrying; do not repeat blindly |
+| A promotional or automated email is not near the top | AI prioritised likely customer enquiries first | Use All categories, search, or the category filter; the message is not removed by its AI category |
+| Only the first set of conversations is visible | More matching conversations are available than currently loaded | Select Load more and check the loaded and total counts |
+| A previous customer subject is missing from the open thread | Gmail keeps different subjects as separate conversations | Check Other conversations with this customer |
+| Reply shows Confirming send | Gmail may have accepted the message but confirmation is incomplete | Do not resend; refresh after processing or ask an administrator to check delivery status |
+| Send or publish fails | Access expired or the destination definitively rejected the action | Read the displayed status before retrying; do not repeat blindly |
 
 ## Worked examples
 

@@ -15,6 +15,7 @@ interface CsSettingsRow {
   run_times_json: string;
   automation_mode: string;
   lookback_days: number;
+  retention_mode: string;
   retention_days: number;
   light_model_id: string;
   capable_model_id: string;
@@ -63,7 +64,8 @@ export async function getCustomerServiceSettings(businessId: string): Promise<Cs
     runTimes: normalizeRunTimes(parseStringArray(row?.run_times_json, ['10:00', '16:00'])),
     mode: isCsAutomationMode(row?.automation_mode) ? row.automation_mode : 'draft',
     lookbackDays: Math.max(1, Math.min(90, Number(row?.lookback_days ?? 7))),
-    retentionDays: 90,
+    retentionMode: row?.retention_mode === 'limited' ? 'limited' : 'keep_all',
+    retentionDays: [90, 180, 365].includes(Number(row?.retention_days)) ? Number(row.retention_days) : 90,
     lightModelId: row?.light_model_id || 'gemini-2.5-flash',
     capableModelId: row?.capable_model_id || 'gemini-2.5-pro',
     enabledTools: parseStringArray(row?.enabled_tools_json, [...CS_BUSINESS_TOOL_NAMES])
@@ -89,13 +91,14 @@ export async function saveCustomerServiceSettings(businessId: string, input: Par
   await imsExecute(
     `INSERT INTO ims_cs_settings
       (business_id, enabled, timezone_override, run_times_json, automation_mode,
-       lookback_days, retention_days, light_model_id, capable_model_id,
+       lookback_days, retention_mode, retention_days, light_model_id, capable_model_id,
        enabled_tools_json, guidelines, helper_emails_json, learning_enabled)
-     VALUES (?, ?, ?, ?, ?, ?, 90, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        enabled = VALUES(enabled), timezone_override = VALUES(timezone_override),
        run_times_json = VALUES(run_times_json), automation_mode = VALUES(automation_mode),
-       lookback_days = VALUES(lookback_days), retention_days = 90,
+      lookback_days = VALUES(lookback_days), retention_mode = VALUES(retention_mode),
+      retention_days = VALUES(retention_days),
        light_model_id = VALUES(light_model_id), capable_model_id = VALUES(capable_model_id),
        enabled_tools_json = VALUES(enabled_tools_json), guidelines = VALUES(guidelines),
        helper_emails_json = VALUES(helper_emails_json), learning_enabled = VALUES(learning_enabled)`,
@@ -106,6 +109,8 @@ export async function saveCustomerServiceSettings(businessId: string, input: Par
       JSON.stringify(normalizeRunTimes(input.runTimes ?? current.runTimes)),
       isCsAutomationMode(input.mode) ? input.mode : current.mode,
       Math.max(1, Math.min(90, Number(input.lookbackDays ?? current.lookbackDays))),
+      input.retentionMode === 'limited' ? 'limited' : input.retentionMode === 'keep_all' ? 'keep_all' : current.retentionMode,
+      [90, 180, 365].includes(Number(input.retentionDays)) ? Number(input.retentionDays) : current.retentionDays,
       String(input.lightModelId ?? current.lightModelId).slice(0, 150),
       String(input.capableModelId ?? current.capableModelId).slice(0, 150),
       JSON.stringify(enabledTools),
@@ -258,7 +263,9 @@ export async function listCustomerServiceThreads(businessId: string, input: {
             ORDER BY d2.id DESC LIMIT 1
          )
         WHERE ${where}
-        ORDER BY t.is_starred DESC, COALESCE(t.starred_at, t.last_message_at) DESC, t.last_message_at DESC
+        ORDER BY t.is_starred DESC,
+          CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END,
+          t.last_message_at DESC
         LIMIT ${pageSize} OFFSET ${offset}`,
       params,
     );
@@ -266,7 +273,7 @@ export async function listCustomerServiceThreads(businessId: string, input: {
     if (!isMissingStarColumnError(error)) throw error;
     rows = await imsQuery<any>(
       `${baseSelect}
-       ORDER BY t.last_message_at DESC
+      ORDER BY CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END, t.last_message_at DESC
        LIMIT ${pageSize} OFFSET ${offset}`,
       params,
     );
@@ -278,7 +285,7 @@ export async function listCustomerServiceThreads(businessId: string, input: {
 export async function getCustomerServiceThread(businessId: string, threadId: number): Promise<any | null> {
   const threads = await imsQuery<any>('SELECT * FROM ims_cs_threads WHERE business_id = ? AND id = ? LIMIT 1', [businessId, threadId]);
   if (!threads[0]) return null;
-  const [messages, drafts, events] = await Promise.all([
+  const [messages, drafts, events, otherConversations] = await Promise.all([
     imsQuery<any>(
       `SELECT id, gmail_message_id, direction, from_address, to_json, cc_json, subject,
               body_plain, attachment_metadata_json, gmail_labels_json, is_read, is_draft, is_sent, message_at
@@ -298,8 +305,15 @@ export async function getCustomerServiceThread(businessId: string, threadId: num
         WHERE business_id = ? AND thread_id = ? ORDER BY created_at DESC LIMIT 30`,
       [businessId, threadId],
     ),
+    threads[0].customer_email ? imsQuery<any>(
+      `SELECT id, subject, category, workflow_status, last_message_at, unread_count
+         FROM ims_cs_threads
+        WHERE business_id = ? AND LOWER(customer_email) = LOWER(?) AND id <> ?
+        ORDER BY last_message_at DESC LIMIT 10`,
+      [businessId, threads[0].customer_email, threadId],
+    ) : Promise.resolve([]),
   ]);
-  return { thread: threads[0], messages, drafts, events };
+  return { thread: threads[0], messages, drafts, events, otherConversations };
 }
 
 export async function updateCustomerServiceThread(businessId: string, threadId: number, input: {

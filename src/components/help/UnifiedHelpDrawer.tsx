@@ -29,6 +29,7 @@ export function UnifiedHelpDrawer({
   escalationEndpoint,
   assistantDisabled = false,
   assistantDisabledLabel,
+  showFloatingTrigger = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,6 +40,7 @@ export function UnifiedHelpDrawer({
   escalationEndpoint: string;
   assistantDisabled?: boolean;
   assistantDisabledLabel?: string;
+  showFloatingTrigger?: boolean;
 }) {
   const contextual = useMemo(
     () => resolveHelpContext({ audience, product, context: currentContext }),
@@ -110,7 +112,7 @@ export function UnifiedHelpDrawer({
 
   return (
     <>
-      {!open && (
+      {showFloatingTrigger && !open && (
         <button
           className={styles.floatingTrigger}
           onClick={() => { setMode('ask'); onOpenChange(true); }}

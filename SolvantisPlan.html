@@ -211,40 +211,50 @@
     }
 
     @media print {
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: A4 landscape; margin: 9mm; }
       * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-      html, body { width: auto; }
+      html, body { width: auto; background: white; }
       .wrap { width: 100%; max-width: none; }
       .nav { position: absolute; }
-      .hero { min-height: 277mm; break-after: page; page-break-after: always; }
-      .hero-content { width: 68%; padding-top: 48mm; }
-      section { padding: 10mm 0; break-inside: auto; page-break-inside: auto; }
-      .section-head { grid-template-columns: 1fr .8fr; gap: 12mm; margin-bottom: 8mm; break-after: avoid; page-break-after: avoid; }
-      .summary { break-inside: avoid; page-break-inside: avoid; }
-      .summary-grid { grid-template-columns: 1.3fr .7fr; transform: none; box-shadow: none; border: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
-      .summary-main, .summary-aside { padding: 8mm; }
+      .nav-note { display: block; }
+      .hero { min-height: 192mm; break-after: page; page-break-after: always; }
+      .hero-media { inset: 0 0 0 48%; }
+      .hero-media::after { background: linear-gradient(90deg, var(--navy) 0%, rgba(12,23,43,.72) 28%, rgba(12,23,43,.08) 100%); }
+      .hero-content { width: 65%; padding: 42mm 0 22mm; }
+      .hero-stats { grid-template-columns: repeat(3, 1fr); }
+      .hero-stat { padding: 5mm 5mm 0 0; border-bottom: 0; }
+      section { padding: 15mm 0; break-inside: auto; page-break-inside: auto; }
+      .section-head { grid-template-columns: 1fr .8fr; gap: 15mm; margin-bottom: 10mm; break-after: avoid; page-break-after: avoid; }
+      .section-head > p { padding-left: 7mm; }
+      .summary { padding: 0; break-inside: avoid; page-break-inside: avoid; }
+      .summary-grid { grid-template-columns: 1.3fr .7fr; transform: translateY(-10mm); box-shadow: 0 6mm 14mm rgba(12,23,43,.14); border: 0; break-inside: avoid; page-break-inside: avoid; }
+      .summary-main { padding: 11mm 13mm; }
+      .summary-aside { padding: 10mm; }
       .trajectory { break-before: page; page-break-before: always; }
-      .chart-grid { grid-template-columns: 1fr 1fr; gap: 5mm; break-inside: avoid; page-break-inside: avoid; }
-      .chart { padding: 5mm; break-inside: avoid; page-break-inside: avoid; }
-      .bars { height: 66mm; gap: 3mm; }
+      .chart-grid { grid-template-columns: 1fr 1fr; gap: 7mm; break-inside: avoid; page-break-inside: avoid; }
+      .chart { padding: 8mm; break-inside: avoid; page-break-inside: avoid; }
+      .bars { height: 76mm; gap: 5mm; }
       .timeline { break-before: page; page-break-before: always; }
       .phases { grid-template-columns: repeat(3, 1fr); break-inside: avoid; page-break-inside: avoid; }
       .phase { break-inside: avoid; page-break-inside: avoid; }
-      .commitment { margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
+      .commitment { margin-top: 10mm; break-inside: avoid; page-break-inside: avoid; }
       .capabilities { break-before: page; page-break-before: always; }
       .capability-grid { grid-template-columns: repeat(4, 1fr); break-inside: avoid; page-break-inside: avoid; }
-      .capability { min-height: 0; padding: 5mm; break-inside: avoid; page-break-inside: avoid; }
+      .capability { min-height: 44mm; padding: 6mm; break-inside: avoid; page-break-inside: avoid; }
       .capability:last-child { grid-column: span 2; }
-      .capability-icon { margin-bottom: 5mm; }
+      .capability-icon { margin-bottom: 6mm; }
       .website-cta, .website-cta-inner, .market-grid, .market-point, .closing, .closing-inner { break-inside: avoid; page-break-inside: avoid; }
       .website-cta-inner { flex-direction: row; align-items: center; }
       .market { break-inside: avoid; page-break-inside: avoid; }
       .founder { break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }
-      .founder-grid { grid-template-columns: .78fr 1.22fr; gap: 10mm; break-inside: avoid; page-break-inside: avoid; }
+      .founder-grid { grid-template-columns: .78fr 1.22fr; gap: 15mm; break-inside: avoid; page-break-inside: avoid; }
       .founder-photo, .story-copy, .quote { break-inside: avoid; page-break-inside: avoid; }
-      .founder-photo img { max-height: 190mm; box-shadow: 3mm 3mm 0 var(--gold); }
-      .closing { break-before: page; page-break-before: always; }
+      .founder-photo img { max-height: 145mm; box-shadow: 4mm 4mm 0 var(--gold); }
+      .closing { break-before: auto; page-break-before: auto; }
       .closing-inner { grid-template-columns: 1.2fr .8fr; }
+      .closing-metrics { grid-template-columns: 1fr 1fr; }
+      .closing-metric + .closing-metric { border-top: 0; border-left: 1px solid rgba(255,255,255,.35); }
+      .footer-inner { flex-direction: row; }
       footer { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
@@ -258,7 +268,7 @@
       </div>
     </nav>
     <div class="hero-media" aria-hidden="true">
-      <img src="public/landing/top-banner-current-poster.jpg" alt="">
+      <img src="public/login/LoginBackdrop.jpg" alt="">
     </div>
     <div class="wrap">
       <div class="hero-content">
@@ -392,7 +402,7 @@
         <div class="market-copy">
           <p class="eyebrow">Initial target market</p>
           <h2 id="market-title">Built to win in gift retail and wholesale.</h2>
-          <p>Solvantis is an independent business, separate from Monsterthreads. Its launch advantage comes from founder Mark Mamrot's personal relationships and credibility, developed while building Monsterthreads as both a gift distributor and a multi-store retailer.</p>
+          <p>While Solvantis is an independent business, separate from Monsterthreads, its launch advantage comes from founder Mark Mamrot's personal relationships and industry credibility, developed while building Monsterthreads as both a gift distributor and a multi-store retailer.</p>
           <div class="market-points">
             <div class="market-point"><b>01</b><span><strong>Direct market access.</strong> More than 1,000 existing contacts provide a substantial base for founder-led outreach and qualified leads.</span></div>
             <div class="market-point"><b>02</b><span><strong>Founder-market credibility.</strong> Prospects know the team has operated the same retail and wholesale workflows Solvantis is designed to improve.</span></div>

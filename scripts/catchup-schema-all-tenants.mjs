@@ -513,6 +513,7 @@ const TABLE_DDLS = [
     run_times_json TEXT NOT NULL,
     automation_mode ENUM('draft','send') NOT NULL DEFAULT 'draft',
     lookback_days INT NOT NULL DEFAULT 7,
+    retention_mode ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all',
     retention_days INT NOT NULL DEFAULT 90,
     light_model_id VARCHAR(150) NOT NULL DEFAULT 'gemini-2.5-flash',
     capable_model_id VARCHAR(150) NOT NULL DEFAULT 'gemini-2.5-pro',
@@ -555,6 +556,7 @@ const TABLE_DDLS = [
     assigned_user_id INT NULL,
     classifier_model_id VARCHAR(150) NULL,
     classifier_version VARCHAR(50) NULL,
+    classified_message_id BIGINT NULL,
     classified_at DATETIME NULL,
     last_message_at DATETIME NOT NULL,
     last_gmail_sync_at DATETIME NOT NULL,
@@ -1023,8 +1025,10 @@ const COLUMNS = [
   ['ims_po_receive_operations', 'request_json', 'JSON NULL AFTER status'],
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
+  ['ims_cs_settings', 'retention_mode', "ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all' AFTER lookback_days"],
   ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_cs_threads', 'starred_at', 'DATETIME NULL'],
+  ['ims_cs_threads', 'classified_message_id', 'BIGINT NULL AFTER classifier_version'],
   // ── ims_product_images ───────────────────────────────────────────────────
   // Additive column for tenants where the table already existed (created by
   // the older add-product-images.mjs / _create-product-images-table.mjs

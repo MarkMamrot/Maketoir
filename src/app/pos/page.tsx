@@ -915,6 +915,8 @@ function PosSettingsModal({
   locationId, initialSettings, onSave, onCancel, onPreview,
   activeRegister, zellerEnabled, onZellerToggle,
   trainingMode, onTrainingModeChange,
+  inStockOnly, onInStockOnlyChange,
+  cartLeft, onCartLeftChange,
 }: {
   locationId:      number;
   initialSettings: PosLocationSettings;
@@ -926,6 +928,10 @@ function PosSettingsModal({
   onZellerToggle?: (enabled: boolean) => void;
   trainingMode: boolean;
   onTrainingModeChange: (enabled: boolean) => void;
+  inStockOnly: boolean;
+  onInStockOnlyChange: (enabled: boolean) => void;
+  cartLeft: boolean;
+  onCartLeftChange: (left: boolean) => void;
 }) {
   const [tab, setTab] = useState<'receipt' | 'appearance' | 'avatar' | 'terminal' | 'misc'>('receipt');
   const [receiptFooter,      setReceiptFooter]      = useState(initialSettings.receiptFooter);
@@ -1023,6 +1029,23 @@ function PosSettingsModal({
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
           {tab === 'misc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={inStockOnly} onChange={event => onInStockOnlyChange(event.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Default to In Stock</div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Show available products by default on this device. The In Stock button beside search can still change this at any time.</div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Cart position</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 3, borderRadius: 7, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }} role="group" aria-label="Cart position">
+                  <button type="button" onClick={() => onCartLeftChange(true)} aria-pressed={cartLeft} style={{ minHeight: 34, border: 0, borderRadius: 5, background: cartLeft ? 'var(--sv-action)' : 'transparent', color: cartLeft ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Left side</button>
+                  <button type="button" onClick={() => onCartLeftChange(false)} aria-pressed={!cartLeft} style={{ minHeight: 34, border: 0, borderRadius: 5, background: !cartLeft ? 'var(--sv-action)' : 'transparent', color: !cartLeft ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Right side</button>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 7, lineHeight: 1.45 }}>Sets the cart side for this POS device.</div>
+              </div>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: `1px solid ${trainingMode ? '#f59e0b' : 'var(--sv-etch)'}` }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                   <input type="checkbox" checked={trainingMode} onChange={event => onTrainingModeChange(event.target.checked)} style={{ width: 18, height: 18, accentColor: '#d97706' }} />
@@ -1399,6 +1422,7 @@ function MainPos({
   const [failedCount, setFailedCount] = useState(() => loadFailedQueue().length);
   const [queueInspectOpen, setQueueInspectOpen] = useState(false);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
+  const [inStockOnly, setInStockOnly] = useState(() => { try { const value = localStorage.getItem('pos_in_stock_only'); return value === null ? true : value === '1'; } catch { return true; } });
   // undefined = still fetching, null = no open session, object = session is open
   const [regSession, setRegSession] = useState<any>(session.register_id ? undefined : null);
   const submittingRef = useRef(false);
@@ -1406,6 +1430,8 @@ function MainPos({
   // Tracks whether we entered the EOD screen from the RegisterGate "Close Properly" path.
   const eodFromGateRef = useRef(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [teamChatOpen, setTeamChatOpen] = useState(false);
+  const [teamChatUnread, setTeamChatUnread] = useState(0);
   const [posSettingsOpen, setPosSettingsOpen] = useState(false);
   const [pettyCashOpen, setPettyCashOpen] = useState(false);
   const [cashDrawerLoading, setCashDrawerLoading] = useState(false);
@@ -2215,8 +2241,24 @@ function MainPos({
           <span aria-hidden="true" style={{ fontSize: 16, fontWeight: 800, lineHeight: 1 }}>$↓</span>
         </button>
         <button
-          onClick={() => setHelpOpen(true)}
-          title="Help"
+          onClick={() => { setHelpOpen(false); setTeamChatOpen(true); }}
+          title="Team Chat"
+          aria-label={teamChatUnread > 0 ? `Open Team Chat, ${teamChatUnread} unread` : 'Open Team Chat'}
+          style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0, position: 'relative' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4z"/></svg>
+          {teamChatUnread > 0 && (
+            <span aria-hidden="true" style={{ position: 'absolute', top: -4, right: -5, minWidth: 16, height: 16, padding: '0 4px', display: 'grid', placeItems: 'center', borderRadius: 8, background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, lineHeight: 1 }}>
+              {teamChatUnread > 99 ? '99+' : teamChatUnread}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => { setTeamChatOpen(false); setHelpOpen(true); }}
+          title="Help and Ask Solvantis"
+          aria-label="Open Help and Ask Solvantis"
           style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--sv-text-dim)', transition: 'background .15s', flexShrink: 0 }}
           onMouseEnter={e => (e.currentTarget.style.background = 'var(--pos-btn-bg)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -2301,15 +2343,6 @@ function MainPos({
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                       {isLayby ? 'Layby: ON' : 'Layby: Off'}
                     </button>
-                    {/* Cart side */}
-                    <button onClick={() => { setCartLeft(v => { const next = !v; try { localStorage.setItem('pos_cart_left', next ? '1' : '0'); } catch {} return next; }); setMoreMenuOpen(false); }}
-                      style={btnStyle()}
-                      onMouseEnter={e => (e.currentTarget.style.background = mHov)}
-                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                    >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{cartLeft ? <><polyline points="15 18 9 12 15 6"/><line x1="21" y1="12" x2="9" y2="12"/></> : <><polyline points="9 18 15 12 9 6"/><line x1="3" y1="12" x2="15" y2="12"/></>}</svg>
-                      {cartLeft ? 'Cart: Left side' : 'Cart: Right side'}
-                    </button>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
                     {/* Register */}
                     <button onClick={() => { setEodInitialMode(regSession?.status === 'open' ? 'eod' : 'open'); setScreen('eod'); setMoreMenuOpen(false); }}
@@ -2317,7 +2350,7 @@ function MainPos({
                       onMouseEnter={e => (e.currentTarget.style.background = mHov)}
                       onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                     >
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="2" y="4" width="20" height="11" rx="2"/><path d="M2 15h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2z"/><line x1="9" y1="19" x2="15" y2="19"/></svg>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3.5h6V7H9z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="15" y2="16"/></svg>
                       Register
                     </button>
                     {/* Reports */}
@@ -2432,7 +2465,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2739,6 +2772,7 @@ function MainPos({
         escalationEndpoint="/api/pos/assistant/escalate"
         assistantDisabled={!isOnline || offlineMode}
         assistantDisabledLabel="Assistant needs an internet connection"
+        showFloatingTrigger={false}
       />
       {posSettingsOpen && (
         <PosSettingsModal
@@ -2757,6 +2791,10 @@ function MainPos({
               setSaleSubmitError(null);
             }
           }}
+          inStockOnly={inStockOnly}
+          onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }}
+          cartLeft={cartLeft}
+          onCartLeftChange={left => { setCartLeft(left); try { localStorage.setItem('pos_cart_left', left ? '1' : '0'); } catch {} }}
           onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
           onCancel={() => { setPosTheme(computeThemeVars(posSettings)); setPosSettingsOpen(false); }}
           onPreview={vars => setPosTheme(vars)}
@@ -2802,14 +2840,26 @@ function MainPos({
 
       {/* ── Avatar Leaderboard Bar + Chat ───────────────────────────────────── */}
       <div style={{ position: 'fixed', bottom: 12, ...(cartLeft ? { right: 12 } : { left: 12 }), zIndex: 600, display: 'flex', gap: 10, alignItems: 'flex-end', maxWidth: 'calc(100vw - 24px)' }}>
-        <PosAvatarBar
-          myLocationId={session.location_id}
-          myAvatar={posSettings.avatar}
-          userName={session.full_name}
-          saleRefreshTick={saleRefreshTick}
-          morningGreetingTick={morningGreetingTick}
-          cartLeft={cartLeft}
-        />
+        <section
+          aria-label="Team Communications"
+          style={{ width: 'fit-content', maxWidth: '100%', padding: '8px 10px 9px', border: '1px solid color-mix(in srgb, var(--sv-action) 35%, var(--sv-etch))', borderRadius: 8, background: 'color-mix(in srgb, var(--sv-bg-1) 94%, transparent)', boxShadow: '0 6px 20px rgba(15,23,42,.14)', backdropFilter: 'blur(8px)' }}
+        >
+          <div style={{ marginBottom: 7, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-strong)', fontSize: 10, fontWeight: 800, lineHeight: 1, textTransform: 'uppercase' }}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sv-action)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--sv-action) 14%, transparent)' }} />
+            Team Communications
+          </div>
+          <PosAvatarBar
+            myLocationId={session.location_id}
+            myAvatar={posSettings.avatar}
+            userName={session.full_name}
+            saleRefreshTick={saleRefreshTick}
+            morningGreetingTick={morningGreetingTick}
+            cartLeft={cartLeft}
+            chatOpen={teamChatOpen}
+            onChatOpenChange={setTeamChatOpen}
+            onUnreadChange={setTeamChatUnread}
+          />
+        </section>
         <SalesTargetTracker
           myLocationId={session.location_id}
           saleRefreshTick={saleRefreshTick}
@@ -2960,7 +3010,7 @@ const MORNING_GREETINGS = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosAvatarBar({
-  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick, cartLeft,
+  myLocationId, myAvatar, userName, saleRefreshTick, morningGreetingTick, cartLeft, chatOpen, onChatOpenChange, onUnreadChange,
 }: {
   myLocationId: number;
   myAvatar: string;
@@ -2968,6 +3018,9 @@ function PosAvatarBar({
   saleRefreshTick: number;
   morningGreetingTick: number;
   cartLeft: boolean;
+  chatOpen: boolean;
+  onChatOpenChange: (open: boolean) => void;
+  onUnreadChange: (unread: number) => void;
 }) {
   // ── Leaderboard state ────────────────────────────────────────────────────────
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
@@ -2980,7 +3033,6 @@ function PosAvatarBar({
   const morningIdxRef   = useRef(0);
 
   // ── Chat state ───────────────────────────────────────────────────────────────
-  const [chatOpen,  setChatOpen]  = useState(false);
   const [messages,  setMessages]  = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatFiles, setChatFiles] = useState<File[]>([]);
@@ -3096,7 +3148,7 @@ function PosAvatarBar({
   }
 
   async function openDm(partnerId: number) {
-    setChatOpen(false);
+    onChatOpenChange(false);
     setDmOpen(partnerId);
     setDmInput('');
     setDmFiles([]);
@@ -3260,10 +3312,13 @@ function PosAvatarBar({
   useEffect(() => {
     chatOpenRef.current = chatOpen;
     if (chatOpen) {
+      setDmOpen(null);
       if (messages.length > 0) { saveLastRead(Math.max(...messages.map(m => m.id))); setUnread(0); }
       setTimeout(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; }, 80);
     }
   }, [chatOpen, messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { onUnreadChange(unread); }, [unread, onUnreadChange]);
 
   useEffect(() => {
     if (dmOpen !== null) {
@@ -3427,13 +3482,13 @@ function PosAvatarBar({
         );
       })()}
 
-      {/* ── Group chat panel / toggle (rightmost, beside avatars) ───────────── */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
-        {chatOpen ? (
+      {/* ── Group chat panel ────────────────────────────────────────────────── */}
+      {chatOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: chatAlign, pointerEvents: 'auto' }}>
           <div style={{ width: 460, height: 440, minWidth: 360, minHeight: 340, maxWidth: '80vw', maxHeight: '80vh', resize: 'both', background: panelBg, border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,.7)', overflow: 'hidden', marginBottom: 4, display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,.1)', gap: 8 }}>
               <span style={{ fontSize: 13, flex: 1, fontWeight: 700, color: 'rgba(255,255,255,.9)' }}>💬 Team Chat (All Locations)</span>
-              <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
+              <button onClick={() => onChatOpenChange(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.5)', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 0 }}>✕</button>
             </div>
             <div ref={listRef} style={{ flex: 1, minHeight: 180, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {messages.length === 0 && <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 12, textAlign: 'center', marginTop: 40 }}>No messages yet. Say hi! 👋</div>}
@@ -3462,26 +3517,8 @@ function PosAvatarBar({
               <button onClick={sendMessage} disabled={sending || (!chatInput.trim() && chatFiles.length === 0)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{sending ? '…' : '→'}</button>
             </div>
           </div>
-        ) : (
-          /* Minimised chat circle — aligns with avatar circles */
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-            <button
-              onClick={() => { setChatOpen(true); setDmOpen(null); }}
-              style={{ width: 40, height: 40, borderRadius: '50%', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, boxShadow: '0 1px 4px rgba(0,0,0,.2)', position: 'relative' }}
-            >
-              💬
-              {unread > 0 && (
-                <span style={{ position: 'absolute', top: -4, right: -4, background: '#ef4444', color: '#fff', borderRadius: 10, padding: '1px 5px', fontSize: 9, fontWeight: 800, lineHeight: 1.4 }}>{unread}</span>
-              )}
-            </button>
-            {/* Two-line label block mirrors the avatar name+amount structure so circles align */}
-            <div style={{ textAlign: 'center', background: 'var(--sv-bg-0)', borderRadius: 6, padding: '2px 5px', marginTop: 2 }}>
-              <div style={{ fontSize: 9.5, fontWeight: 600, color: 'var(--sv-text-main)' }}>Team Chat</div>
-              <div style={{ fontSize: 9, color: 'var(--sv-text-dim)', marginTop: 1 }}>{unread > 0 ? `${unread} new` : '·'}</div>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3744,10 +3781,9 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false, inStockOnly, onInStockOnlyChange }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean; inStockOnly: boolean; onInStockOnlyChange: (enabled: boolean) => void }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
-  const [inStockOnly, setInStockOnly]   = useState(() => { try { const v = localStorage.getItem('pos_in_stock_only'); return v === null ? true : v === '1'; } catch { return true; } });
 const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
 
   // Pinned variant IDs from the "Specific Products" setting
@@ -4076,7 +4112,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         </div>
         {/* In-stock only toggle */}
         <button
-          onClick={() => setInStockOnly(v => { const next = !v; try { localStorage.setItem('pos_in_stock_only', next ? '1' : '0'); } catch {} return next; })}
+          onClick={() => onInStockOnlyChange(!inStockOnly)}
           title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
@@ -4218,9 +4254,10 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem', lineHeight: 1, padding: '0 0 0 4px', flexShrink: 0 }}
+                  style={{ width: 21, height: 21, padding: 0, display: 'grid', placeItems: 'center', background: 'transparent', border: '1.5px solid var(--sv-action)', borderRadius: '50%', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.78rem', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}
                   title="Product info & stock by location"
-                >ℹ️</button>
+                  aria-label="Product info and stock by location"
+                >i</button>
               </div>
               {/* Variant options (size/colour) under price */}
               {optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>{optionsStr}</div>}

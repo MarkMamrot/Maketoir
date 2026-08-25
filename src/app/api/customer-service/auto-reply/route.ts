@@ -313,7 +313,7 @@ async function runAutoReply(databaseId: string, force = false): Promise<{ proces
   if (!meRes.ok) throw new Error(`Gmail profile error: ${meData?.error?.message || meRes.status}`);
   const meEmail = String(meData.emailAddress || '').toLowerCase();
 
-  const listRes = await fetch(`${GMAIL_API}/messages?maxResults=500&q=${encodeURIComponent(`in:inbox category:primary newer_than:${days}d`)}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+  const listRes = await fetch(`${GMAIL_API}/messages?maxResults=500&q=${encodeURIComponent(`in:inbox newer_than:${days}d -in:spam -in:trash`)}`, { headers: { Authorization: `Bearer ${accessToken}` } });
   const listData = await listRes.json();
   const messageList: { id: string; threadId: string }[] = listData.messages || [];
   if (!messageList.length) return { processed: 0, drafted: 0, sent: 0, forwarded: 0, skipped: 'Inbox empty' };

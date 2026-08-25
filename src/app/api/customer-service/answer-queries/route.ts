@@ -398,8 +398,7 @@ export async function POST(req: Request) {
 
   const meEmail = String(profile.emailAddress || '').toLowerCase();
 
-  // Search only the Primary inbox tab (excludes Updates, Promotions, Social etc.)
-  const inboxQuery = `in:inbox category:primary newer_than:${days}d`;
+  const inboxQuery = `in:inbox newer_than:${days}d -in:spam -in:trash`;
   const listRes = await fetch(`${GMAIL_API}/messages?maxResults=500&q=${encodeURIComponent(inboxQuery)}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

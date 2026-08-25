@@ -8,7 +8,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
 }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: vi.fn() }));
 
-import { listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
+import { getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
 
 describe('customer-service inbox repository', () => {
   beforeEach(() => {
@@ -51,7 +51,15 @@ describe('customer-service inbox repository', () => {
     await listCustomerServiceThreads('biz-1', {});
     const [sql] = mockImsQuery.mock.calls[1];
     expect(sql).toContain('ORDER BY t.is_starred DESC');
-    expect(sql).toContain('COALESCE(t.starred_at, t.last_message_at) DESC');
+    expect(sql).toContain("CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END");
+    expect(sql).toContain('t.last_message_at DESC');
+  });
+
+  it('does not add a category predicate to the default all-mail view', async () => {
+    await listCustomerServiceThreads('biz-1', {});
+    const [sql, params] = mockImsQuery.mock.calls[1];
+    expect(sql).not.toContain('t.category = ?');
+    expect(params).toEqual(['biz-1']);
   });
 
   it('supports toggling thread star state', async () => {
@@ -61,5 +69,24 @@ describe('customer-service inbox repository', () => {
     expect(updateSql).toContain('is_starred = ?');
     expect(updateSql).toContain('starred_at = ?');
     expect(updateParams[0]).toBe(1);
+  });
+
+  it('loads bounded other conversations for the same customer within the tenant', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ id: 12, customer_email: 'Customer@Example.com' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const result = await getCustomerServiceThread('biz-1', 12);
+
+    expect(result?.otherConversations).toEqual([]);
+    const [sql, params] = mockImsQuery.mock.calls[4];
+    expect(sql).toContain('LOWER(customer_email) = LOWER(?)');
+    expect(sql).toContain('id <> ?');
+    expect(sql).toContain('LIMIT 10');
+    expect(params).toEqual(['biz-1', 'Customer@Example.com', 12]);
   });
 });

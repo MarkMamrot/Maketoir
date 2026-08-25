@@ -192,7 +192,7 @@ export async function getGmailAccess(businessId: string): Promise<{ accessToken:
   return { accessToken: data.access_token, mailboxEmail: String(profile.emailAddress || '').toLowerCase() };
 }
 
-export async function fetchRecentGmailThreads(accessToken: string, days: number, maximum = 200): Promise<NormalizedGmailThread[]> {
+export async function fetchRecentGmailThreads(accessToken: string, days: number, maximum?: number): Promise<NormalizedGmailThread[]> {
   const threadIds = new Set<string>();
   let pageToken = '';
   const query = `in:inbox newer_than:${Math.max(1, Math.min(90, days))}d -in:spam -in:trash`;
@@ -202,12 +202,12 @@ export async function fetchRecentGmailThreads(accessToken: string, days: number,
     const page = await gmailFetch<{ messages?: Array<{ threadId: string }>; nextPageToken?: string }>(accessToken, `/messages?${params}`);
     for (const message of page.messages || []) {
       if (message.threadId) threadIds.add(message.threadId);
-      if (threadIds.size >= maximum) break;
+      if (maximum && threadIds.size >= maximum) break;
     }
-    pageToken = threadIds.size < maximum ? page.nextPageToken || '' : '';
+    pageToken = !maximum || threadIds.size < maximum ? page.nextPageToken || '' : '';
   } while (pageToken);
 
-  const ids = [...threadIds];
+  const ids = maximum ? [...threadIds].slice(0, maximum) : [...threadIds];
   const threads: NormalizedGmailThread[] = [];
   for (let index = 0; index < ids.length; index += 10) {
     const batch = await Promise.all(ids.slice(index, index + 10).map(id =>
@@ -237,6 +237,7 @@ function buildReplyRaw(input: {
   body: string;
   replyToMessageId?: string | null;
   references?: string | null;
+  messageIdHeader?: string | null;
 }): string {
   const headers = [
     `To: ${input.to.replace(/[\r\n]/g, '')}`,
@@ -244,6 +245,7 @@ function buildReplyRaw(input: {
     'Content-Type: text/plain; charset="UTF-8"',
     'MIME-Version: 1.0',
   ];
+  if (input.messageIdHeader) headers.push(`Message-ID: ${input.messageIdHeader.replace(/[\r\n]/g, '')}`);
   if (input.replyToMessageId) headers.push(`In-Reply-To: ${input.replyToMessageId.replace(/[\r\n]/g, '')}`);
   if (input.references) headers.push(`References: ${input.references.replace(/[\r\n]/g, '')}`);
   return toBase64Url(`${headers.join('\r\n')}\r\n\r\n${input.body}\r\n`);
@@ -257,6 +259,7 @@ export async function saveGmailReplyDraft(accessToken: string, input: {
   body: string;
   replyToMessageId?: string | null;
   references?: string | null;
+  messageIdHeader?: string | null;
 }): Promise<{ draftId: string; messageId: string }> {
   const path = input.gmailDraftId ? `/drafts/${encodeURIComponent(input.gmailDraftId)}` : '/drafts';
   const result = await gmailFetch<any>(accessToken, path, {
@@ -285,4 +288,20 @@ export async function sendGmailReply(accessToken: string, input: {
     body: JSON.stringify({ threadId: input.gmailThreadId, raw: buildReplyRaw(input) }),
   });
   return { messageId: String(result.id || '') };
+}
+
+export async function sendExistingGmailDraft(accessToken: string, draftId: string): Promise<{ messageId: string }> {
+  const result = await gmailFetch<any>(accessToken, '/drafts/send', {
+    method: 'POST',
+    body: JSON.stringify({ id: draftId }),
+  });
+  return { messageId: String(result.id || '') };
+}
+
+export function isDefinitiveGmailSendFailure(error: unknown): boolean {
+  return error instanceof GmailApiError
+    && error.status >= 400
+    && error.status < 500
+    && error.status !== 408
+    && error.status !== 429;
 }

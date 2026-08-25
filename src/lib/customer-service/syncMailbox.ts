@@ -18,6 +18,11 @@ async function upsertThread(businessId: string, mailboxEmail: string, thread: No
     const labels = Array.from(new Set(thread.messages.flatMap(message => message.labels)));
     const unreadCount = thread.messages.filter(message => message.labels.includes('UNREAD')).length;
     const participants = Array.from(new Set(thread.messages.flatMap(message => [message.from, ...message.to, ...message.cc]).filter(Boolean)));
+    const [existingThreads] = await connection.query<any[]>(
+      'SELECT latest_message_id FROM ims_cs_threads WHERE business_id = ? AND gmail_thread_id = ? LIMIT 1',
+      [businessId, thread.gmailThreadId],
+    );
+    const previousLatestMessageId = existingThreads[0]?.latest_message_id || null;
 
     const [contacts] = await connection.query<any[]>(
       'SELECT id FROM ims_contacts WHERE business_id = ? AND LOWER(email) = ? LIMIT 1',
@@ -63,6 +68,12 @@ async function upsertThread(businessId: string, mailboxEmail: string, thread: No
           JSON.stringify(message.to), JSON.stringify(message.cc), message.subject, message.messageIdHeader || null,
           message.referencesHeader || null, message.bodyPlain, JSON.stringify(message.attachments), JSON.stringify(message.labels),
           message.labels.includes('UNREAD') ? 0 : 1, direction === 'draft' ? 1 : 0, direction === 'outbound' ? 1 : 0, message.messageAt],
+      );
+    }
+    if (previousLatestMessageId && previousLatestMessageId !== latest.gmailMessageId && extractEmail(latest.from) !== mailboxEmail) {
+      await connection.query(
+        "UPDATE ims_cs_threads SET workflow_status = 'open' WHERE business_id = ? AND id = ?",
+        [businessId, threadId],
       );
     }
     await connection.commit();

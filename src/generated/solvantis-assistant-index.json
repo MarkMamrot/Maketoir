@@ -130,7 +130,7 @@
       ],
       "order": 31,
       "summary": "Prepare product content and customer replies, then check every customer-facing detail before use.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "commerce",
       "filename": "docs/help/foresight/content-production-and-customer-service.md"
     },
@@ -1207,7 +1207,7 @@
       },
       "order": 10,
       "summary": "Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "retail",
       "filename": "docs/help/pos/selling-payments-and-manager-approval.md"
     },
@@ -1235,7 +1235,7 @@
       ],
       "order": 50,
       "summary": "Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.",
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "owner": "retail",
       "filename": "docs/help/pos/settings-terminals-and-offline-recovery.md"
     },
@@ -2050,7 +2050,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "Use content and service tools to prepare drafts that a person checks before publishing or sending."
     },
     {
@@ -2075,7 +2075,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "- Keep business, brand, product, and policy information current.\n- Choose the correct product and field template.\n- Review generated descriptions, titles, tags, and candidate images.\n- Check customer, order, recipients, tone, and claims before sending a reply.\n- Keep existing content or images until a replacement is approved."
     },
     {
@@ -2100,7 +2100,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product data, reviewed brand information, templates, customer message, and order context | Is the draft accurate, suitable, and ready to use? | Product-content or customer-reply draft | Only the separate send or publish action changes what a customer sees |"
     },
     {
@@ -2125,7 +2125,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "- Confirm the correct product, customer, and business.\n- Check Brand Profile, shipping, returns, and other customer-facing facts.\n- Select the intended template and channel.\n- Confirm any connected service required by the workflow is ready.\n\n> **Important:** Generated text and images can be wrong. Check product facts, price, availability, policy wording, claims, spelling, links, recipients, and tone before use."
     },
     {
@@ -2150,7 +2150,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "1. Open **Website Content Studio** or the relevant pending or bulk listing view.\n2. Select the product and check its source data.\n3. Choose the intended field template and inputs.\n4. Generate a draft or edit the existing proposal.\n5. Compare every product fact and policy statement with the source information.\n6. Review candidate images separately and keep existing images until a replacement is approved.\n7. Approve only the fields ready for the next supported publication step.\n8. Check the destination after publication rather than assuming it succeeded."
     },
     {
@@ -2175,7 +2175,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Input | Check | Why it matters |\n| --- | --- | --- |\n| Product record | Name, variant, features, material, price, and availability | Prevents claims about the wrong item |\n| Brand Profile | Voice, audience, positioning, and approved claims | Keeps wording consistent |\n| Product description template | Required fields and channel purpose | Gives drafts a repeatable structure |\n| Business policies | Shipping, returns, and contact details | Prevents outdated customer promises |"
     },
     {
@@ -2200,7 +2200,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Item | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Generated title, description, or tags | Accept, edit, or leave unchanged | Reviewed field proposal | Not until published |\n| Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |\n| Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |"
     },
     {
@@ -2225,8 +2225,8 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open the Inbox item or Compose.\n2. Confirm the customer and related order.\n3. Read the full source message before using a template or draft.\n4. Correct factual claims, tone, recipients, links, and promised actions.\n5. Send only when the available send action and all details are correct.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Customer message, order context, template, and draft | Is this accurate and safe to send to these recipients? | Reviewed reply | Yes, when sent successfully |"
+      "lastReviewed": "2026-08-25",
+      "content": "The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.\n\nAI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. Starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Use **Load more** when the loaded count is lower than the total.\n\n1. Open the Inbox item or Compose.\n2. Confirm the customer, subject, and related order.\n3. Read the chronological conversation before using a template or draft.\n4. Check **Other conversations with this customer** when earlier subjects may contain useful context.\n5. Correct factual claims, tone, recipients, links, and promised actions.\n6. Select **Send reply** once and wait for its status to change.\n7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message.\n\n> **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.\n\nCached conversation history is kept until the retention setting is changed. A 90, 180, or 365-day limit removes only inactive cached conversations from Solvantis; it does not delete mail from Gmail.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Customer message, order context, template, and draft | Is this accurate and safe to send to these recipients? | Reviewed reply | Yes, when sent successfully |"
     },
     {
       "id": "foresight-content-production-customer-service:9",
@@ -2250,8 +2250,8 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Draft contains a wrong fact | Source product, profile, or policy is wrong or missing | Correct the source, then create a fresh draft |\n| Bulk action is unavailable | Required fields, selection, role, or connection is missing | Read the page status and complete the missing item |\n| Reply lacks order context | The wrong customer or order is selected | Reopen the source item and verify identifiers shown to staff |\n| Send or publish fails | Access expired or the destination rejected the action | Check status before retrying; do not repeat blindly |"
+      "lastReviewed": "2026-08-25",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Draft contains a wrong fact | Source product, profile, or policy is wrong or missing | Correct the source, then create a fresh draft |\n| Bulk action is unavailable | Required fields, selection, role, or connection is missing | Read the page status and complete the missing item |\n| Reply lacks order context | The wrong customer or order is selected | Reopen the source item and verify identifiers shown to staff |\n| A promotional or automated email is not near the top | AI prioritised likely customer enquiries first | Use All categories, search, or the category filter; the message is not removed by its AI category |\n| Only the first set of conversations is visible | More matching conversations are available than currently loaded | Select Load more and check the loaded and total counts |\n| A previous customer subject is missing from the open thread | Gmail keeps different subjects as separate conversations | Check Other conversations with this customer |\n| Reply shows Confirming send | Gmail may have accepted the message but confirmation is incomplete | Do not resend; refresh after processing or ask an administrator to check delivery status |\n| Send or publish fails | Access expired or the destination definitively rejected the action | Read the displayed status before retrying; do not repeat blindly |"
     },
     {
       "id": "foresight-content-production-customer-service:10",
@@ -2275,7 +2275,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "### Prepare a boot listing\n\nSelect the exact boot variant, check its leather, colour, size range, tax-inclusive price, and current images, then use the approved description template. Remove any unsupported waterproof claim and approve only the reviewed fields.\n\n### Reply about a delayed order\n\nOpen the customer message and linked order. Confirm what has shipped and what remains outstanding. Edit the draft to give only the timing shown by the order information, check the recipient, and send once."
     },
     {
@@ -7635,7 +7635,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "Use this guide to build and complete an ordinary sale, including verified split payments and protected follow-up actions."
     },
     {
@@ -7655,7 +7655,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find and link an active retail customer by name or phone when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
     },
     {
@@ -7675,8 +7675,8 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside the location avatars, away from Charge and payment controls |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |"
+      "lastReviewed": "2026-08-25",
+      "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch avatars; open Team Chat from the top toolbar, or select another branch avatar to send that branch a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |"
     },
     {
       "id": "pos-selling-payments-manager-approval:4",
@@ -7695,7 +7695,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "- [ ] Confirm the header shows the correct location and register.\n- [ ] Confirm the register is open.\n- [ ] Check the online and queue indicators.\n- [ ] Identify the exact size, colour, or other variant before adding it.\n- [ ] Link the customer before selecting store credit or loyalty.\n\n> **Note:** There is no documented discount percentage that automatically triggers manager approval. Apply the business's discount policy, and use the manager PIN whenever POS explicitly asks for it."
     },
     {
@@ -7715,7 +7715,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "1. Scan a barcode or search by product name, SKU, or barcode.\n2. Add the correct variant and set the quantity.\n3. Apply any permitted line discount, price change, or order discount before payment.\n4. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.\n5. Check the tax-inclusive total and the **GST (incl.)** amount.\n6. Choose **Charge** and choose a payment method.\n7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n8. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading."
     },
     {
@@ -7735,7 +7735,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "1. With products in the cart, choose **Park current sale**.\n2. Enter a useful label, such as the customer's name, or accept the time-based label.\n3. Open **Parked Sales** from the POS menu.\n4. Choose the saved cart to retrieve it. Retrieval removes that entry from Parked Sales.\n5. Recheck the cart, customer, price, stock, and payment before charging.\n\nParked carts are stored on that browser. They are not completed sales and do not reduce stock until checkout finishes."
     },
     {
@@ -7755,7 +7755,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Action | Manager PIN behaviour |\n|---|---|\n| Edit a transaction from the current open register session | Required |\n| Delete or void a transaction from the current open register session | Required |\n| Send a branch transfer when POS transfer access is set to Manager | Required |\n| Ordinary cart discount or price edit | Follow local policy; POS does not document a universal approval threshold |\n| Change POS appearance or terminal settings | Available only to POS Manager, Standard User, Admin, or SuperAdmin roles |\n\n> **Warning:** A manager should enter their own location manager PIN at the prompt. Do not disclose it to the cashier or leave it written at the till."
     },
     {
@@ -7775,7 +7775,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
     },
     {
@@ -7795,7 +7795,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "### Split a $149.95 sale between gift card and card\n\nVerify the customer's gift card and add $50.00 as the first payment. **Remaining** becomes $99.95. Choose Card and add $99.95. POS completes the sale only after the two payment lines total $149.95, and the receipt records both tenders.\n\n### Read GST correctly\n\nA jacket is displayed at $110.00. That price already includes $10.00 GST. The customer pays $110.00, not $121.00."
     },
     {
@@ -7815,7 +7815,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures."
     },
     {
@@ -7836,8 +7836,8 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
-      "content": "Use this guide to change permitted POS presentation settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure."
+      "lastReviewed": "2026-08-25",
+      "content": "Use this guide to change permitted POS presentation and device settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure."
     },
     {
       "id": "pos-settings-terminals-offline-recovery:2",
@@ -7857,8 +7857,8 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
-      "content": "- Open POS Settings with a permitted staff role.\n- Turn Training Mode on or off for the current POS device.\n- Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.\n- Continue supported ordinary sales from cached products while offline.\n- Inspect queued and failed sales, retry them, and confirm they reached Reports.\n- Stop online-only workflows until connectivity returns."
+      "lastReviewed": "2026-08-25",
+      "content": "- Open POS Settings with a permitted staff role.\n- Choose whether this device shows in-stock products by default and place its cart on the left or right.\n- Turn Training Mode on or off for the current POS device.\n- Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.\n- Continue supported ordinary sales from cached products while offline.\n- Inspect queued and failed sales, retry them, and confirm they reached Reports.\n- Stop online-only workflows until connectivity returns."
     },
     {
       "id": "pos-settings-terminals-offline-recovery:3",
@@ -7878,7 +7878,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "| Workflow | Works offline? | What happens |\n|---|---|---|\n| Browse cached products and build a cart | Yes | Cached names, prices, and stock are shown; stale data is flagged |\n| Complete an ordinary sale with a manual tender | Yes | The sale is saved in this device's queue for later upload |\n| Park or resume a cart on this device | Yes | The cart remains in this browser only |\n| Linked return | No | The original sale and credit-note flow require the server |\n| Loyalty balance or reward | No | Current balance and redemption must be validated online |\n| Gift-card verification or store-credit lookup | No | Current value cannot be safely confirmed offline |\n| Zeller terminal payment | No | The browser and terminal both need working internet |\n| Petty cash | No | The register entry and receipt upload require an open online session |\n| Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |\n| Ask Solvantis | No | Assistant questions are not queued |\n| Complete a Training Mode sale | No | A separate training audit is recorded online; no live sale, stock, customer value, EOD, report, or accounting record is created |\n| Reprint a receipt from Reports | No | One print request is allowed from each receipt preview; close and reopen the receipt for a deliberate additional copy |"
     },
     {
@@ -7899,7 +7899,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "- [ ] Confirm this browser has previously signed in and cached products before relying on offline mode.\n- [ ] Check whether the product-cache warning says prices may be out of date.\n- [ ] Know which card methods are configured to route to Zeller.\n- [ ] Keep the browser and device storage intact until every queued sale is resolved.\n- [ ] Use **Discard** only when a queued sale definitely never happened or was already recorded another way.\n\n> **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue."
     },
     {
@@ -7920,8 +7920,8 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
-      "content": "### Practise with Training Mode\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Open **Misc** and switch on **Training Mode**. The setting applies only to the current browser and register.\n3. Confirm the amber **TRAINING MODE** marker remains visible in the POS header.\n4. Build an ordinary positive-quantity sale and use a simulated configured tender. Training Mode does not contact a live card terminal.\n5. Complete the sale and print the receipt. The receipt is marked **TRAINING** and must not be given as proof of a real payment.\n6. Return to **POS Settings > Misc** and switch Training Mode off before serving customers.\n\nTraining Mode does not create a live sale or affect inventory, Reports, End of Day, Xero, loyalty, gift cards, or store credit. Returns, laybys, loyalty rewards, gift cards, store credit, and offline completion are unavailable while it is active.\n\n### Pair or recover Zeller\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Confirm the active register is configured for Zeller.\n3. Select **Pair / Re-pair Terminal** and sign in to the correct Zeller account.\n4. Select the terminal and complete pairing. Pairing persists across sessions.\n5. Leave **Terminal active this session** on when configured card methods should route to Zeller.\n6. At payment, wait for terminal approval. Use **manual entry instead** only when the business has separately completed or authorised the payment.\n\n### Recover queued sales\n\n1. Keep the same browser open and restore connectivity.\n2. If POS says queued sales have no open register session, open the register first so recent sales can link to it. If you upload without doing so, End of Day expected totals may omit them.\n3. Select **Sync** and wait for the queued count to fall.\n4. Open the queue panel to inspect anything still queued or marked Failed.\n5. Select the failed-sales retry action after correcting the connection or validation problem.\n6. Confirm each sale appears once in **Reports** before discarding any local entry.\n\n### Reprint an old receipt\n\n1. Open **Reports**, find the completed transaction, and select **Print**.\n2. In the browser print dialog, confirm **Copies** is `1` and the intended receipt printer is selected.\n3. Print once. The receipt preview prevents another request from that same normal-receipt view.\n4. To deliberately print another copy, close the preview, reopen the transaction's receipt, and print again.\n\nThe browser controls its copy count and the Windows printer queue. Solvantis cannot override a saved multi-copy setting in Chrome or cancel duplicate jobs already held by the printer."
+      "lastReviewed": "2026-08-25",
+      "content": "### Set the catalogue and cart defaults\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Open **Misc**.\n3. Turn **Default to In Stock** on to hide unavailable products in the normal catalogue, or off to show all products by default.\n4. Choose **Left side** or **Right side** under **Cart position**.\n5. Close POS Settings when finished. Both choices apply immediately and are remembered by this POS device.\n\nThe **In Stock** button beside search remains available during selling. Selecting it changes the current filter and the remembered default for this device.\n\n### Practise with Training Mode\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Open **Misc** and switch on **Training Mode**. The setting applies only to the current browser and register.\n3. Confirm the amber **TRAINING MODE** marker remains visible in the POS header.\n4. Build an ordinary positive-quantity sale and use a simulated configured tender. Training Mode does not contact a live card terminal.\n5. Complete the sale and print the receipt. The receipt is marked **TRAINING** and must not be given as proof of a real payment.\n6. Return to **POS Settings > Misc** and switch Training Mode off before serving customers.\n\nTraining Mode does not create a live sale or affect inventory, Reports, End of Day, Xero, loyalty, gift cards, or store credit. Returns, laybys, loyalty rewards, gift cards, store credit, and offline completion are unavailable while it is active.\n\n### Pair or recover Zeller\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Confirm the active register is configured for Zeller.\n3. Select **Pair / Re-pair Terminal** and sign in to the correct Zeller account.\n4. Select the terminal and complete pairing. Pairing persists across sessions.\n5. Leave **Terminal active this session** on when configured card methods should route to Zeller.\n6. At payment, wait for terminal approval. Use **manual entry instead** only when the business has separately completed or authorised the payment.\n\n### Recover queued sales\n\n1. Keep the same browser open and restore connectivity.\n2. If POS says queued sales have no open register session, open the register first so recent sales can link to it. If you upload without doing so, End of Day expected totals may omit them.\n3. Select **Sync** and wait for the queued count to fall.\n4. Open the queue panel to inspect anything still queued or marked Failed.\n5. Select the failed-sales retry action after correcting the connection or validation problem.\n6. Confirm each sale appears once in **Reports** before discarding any local entry.\n\n### Reprint an old receipt\n\n1. Open **Reports**, find the completed transaction, and select **Print**.\n2. In the browser print dialog, confirm **Copies** is `1` and the intended receipt printer is selected.\n3. Print once. The receipt preview prevents another request from that same normal-receipt view.\n4. To deliberately print another copy, close the preview, reopen the transaction's receipt, and print again.\n\nThe browser controls its copy count and the Windows printer queue. Solvantis cannot override a saved multi-copy setting in Chrome or cancel duplicate jobs already held by the printer."
     },
     {
       "id": "pos-settings-terminals-offline-recovery:6",
@@ -7941,7 +7941,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "| Situation | Safe action |\n|---|---|\n| Zeller says Setup Required | Open Settings and pair the terminal |\n| Zeller terminal is paired but unavailable | Check power, internet, and Integrated Payments mode on the terminal |\n| Payment completed outside the integration | Use manual entry only after independently confirming the approved payment |\n| Product cache is stale | Verify prices with the customer and sync as soon as possible |\n| A queued sale reaches repeated failures | Inspect its error, correct the cause, then retry from the failed queue |\n| You are unsure whether a queued sale happened | Check the payment evidence and Reports; do not discard or duplicate it |\n\n> **Note:** Zeller connects through its cloud service. The POS device and terminal both require internet access; being on the same local network is not the deciding factor."
     },
     {
@@ -7962,7 +7962,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| POS Settings cannot be opened | The signed-in tier does not have settings access | Ask a POS Manager, Standard User, Admin, or SuperAdmin |\n| Training sale cannot complete | The device is offline or the cart uses a restricted workflow | Reconnect and use an ordinary sale without returns, laybys, rewards, gift cards, or store credit |\n| Terminal payment cannot start | Pairing, terminal availability, or internet is missing | Check the exact terminal message, then pair or reconnect |\n| Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |\n| A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |\n| Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |\n| One reprint produces several physical copies | Chrome has remembered a copy count above 1, or Windows/printer firmware duplicated one submitted job | Set **Copies** to `1`, cancel the printer queue, and restart Chrome and the printer before retrying one receipt |"
     },
     {
@@ -7983,7 +7983,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "### Recover three sales after an outage\n\nThe shop takes three ordinary manual-card sales while offline. When the connection returns, POS warns that the register is not open. Staff open the register, let the three queued sales upload, and confirm all three appear once in Reports. They then complete End of Day using the updated expected amount."
     },
     {
@@ -8004,7 +8004,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-24",
+      "lastReviewed": "2026-08-25",
       "content": "See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Xero** for reconciliation."
     },
     {

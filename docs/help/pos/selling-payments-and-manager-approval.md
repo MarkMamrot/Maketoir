@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-25","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -24,7 +24,9 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
 | Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |
-| Today's Mission | Shows the location's current sales progress beside the location avatars, away from Charge and payment controls |
+| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |
+| Team Communications | Contains the available branch avatars; open Team Chat from the top toolbar, or select another branch avatar to send that branch a direct message |
+| Help and Ask Solvantis | Open both from the Help button in the top toolbar |
 | Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |
 
 ## Before you begin

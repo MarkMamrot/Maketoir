@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { processCustomerServiceInbox } from './aiPipeline';
 import { sendCustomerServiceReply } from './replyActions';
 import { getCustomerServiceSettings } from './repository';
@@ -71,7 +71,9 @@ export async function runScheduledCustomerService(businessId: string, force = fa
 
     await curateCustomerServiceLearnings(businessId);
 
-    await cleanupCustomerServiceRetention(businessId, settings.retentionDays);
+    if (settings.retentionMode === 'limited') {
+      await cleanupCustomerServiceRetention(businessId, settings.retentionDays);
+    }
     await imsExecute(
       `UPDATE ims_cs_processing_runs SET status = ?, counts_json = ?, completed_at = UTC_TIMESTAMP(), duration_ms = ?
         WHERE business_id = ? AND id = ?`,
@@ -100,20 +102,50 @@ export async function runScheduledCustomerService(businessId: string, force = fa
 }
 
 export async function cleanupCustomerServiceRetention(businessId: string, retentionDays = 90): Promise<void> {
-  const days = Math.max(1, Math.min(90, retentionDays));
-  await imsExecute(
-    `DELETE FROM ims_cs_messages WHERE business_id = ?
-      AND message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
-    [businessId, days],
-  );
-  await imsExecute(
-    `DELETE t FROM ims_cs_threads t
-      LEFT JOIN ims_cs_messages m ON m.business_id = t.business_id AND m.thread_id = t.id
-      WHERE t.business_id = ? AND m.id IS NULL AND t.last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
-    [businessId, days],
-  );
-  await imsExecute(
-    'DELETE FROM ims_cs_learning_evidence WHERE business_id = ? AND expires_at IS NOT NULL AND expires_at < UTC_TIMESTAMP()',
-    [businessId],
-  );
+  const days = [90, 180, 365].includes(Number(retentionDays)) ? Number(retentionDays) : 90;
+  const connection = await getIMSPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const params = [businessId, days];
+    await connection.execute(
+      `DELETE r FROM ims_cs_draft_revisions r
+        JOIN ims_cs_drafts d ON d.business_id = r.business_id AND d.id = r.draft_id
+        JOIN ims_cs_threads t ON t.business_id = d.business_id AND t.id = d.thread_id
+       WHERE t.business_id = ? AND t.last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
+      params,
+    );
+    await connection.execute(
+      `DELETE d FROM ims_cs_drafts d
+        JOIN ims_cs_threads t ON t.business_id = d.business_id AND t.id = d.thread_id
+       WHERE t.business_id = ? AND t.last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
+      params,
+    );
+    await connection.execute(
+      `DELETE e FROM ims_cs_events e
+        JOIN ims_cs_threads t ON t.business_id = e.business_id AND t.id = e.thread_id
+       WHERE t.business_id = ? AND t.last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
+      params,
+    );
+    await connection.execute(
+      `DELETE m FROM ims_cs_messages m
+        JOIN ims_cs_threads t ON t.business_id = m.business_id AND t.id = m.thread_id
+       WHERE t.business_id = ? AND t.last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
+      params,
+    );
+    await connection.execute(
+      `DELETE FROM ims_cs_threads WHERE business_id = ?
+        AND last_message_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL ? DAY)`,
+      params,
+    );
+    await connection.execute(
+      'DELETE FROM ims_cs_learning_evidence WHERE business_id = ? AND expires_at IS NOT NULL AND expires_at < UTC_TIMESTAMP()',
+      [businessId],
+    );
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }

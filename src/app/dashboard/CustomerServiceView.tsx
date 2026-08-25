@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type ViewTab = 'inbox' | 'settings' | 'learnings';
 type ThreadSummary = {
@@ -18,10 +18,11 @@ type ThreadDetail = {
   messages: Array<{ id: number; direction: string; from_address: string; body_plain: string; message_at: string; attachment_metadata_json: string }>;
   drafts: Draft[];
   events: Array<{ event_type: string; actor_type: string; created_at: string }>;
+  otherConversations: Array<{ id: number; subject: string; category: string | null; workflow_status: string; last_message_at: string; unread_count: number }>;
 };
 type Settings = {
   enabled: boolean; timezone: string; runTimes: string[]; mode: 'draft' | 'send'; lookbackDays: number;
-  retentionDays: number; lightModelId: string; capableModelId: string; enabledTools: string[];
+  retentionMode: 'keep_all' | 'limited'; retentionDays: number; lightModelId: string; capableModelId: string; enabledTools: string[];
   guidelines: string; helperEmails: string[]; learningEnabled: boolean; lastRunAt: string | null; lastError: string | null;
 };
 type KnowledgeDocument = { documentKey: 'style' | 'knowledge'; filename: string; markdown: string; version: number; updatedAt: string };
@@ -105,6 +106,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   const [tab, setTab] = useState<ViewTab>('inbox');
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [total, setTotal] = useState(0);
+  const [loadedPage, setLoadedPage] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<ThreadDetail | null>(null);
   const [query, setQuery] = useState('');
@@ -115,24 +117,28 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   const [busyAction, setBusyAction] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const replyActionPending = useRef(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [models, setModels] = useState<Array<{ id: string; name: string }>>([]);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [candidates, setCandidates] = useState<LearningCandidate[]>([]);
 
-  async function loadThreads(preferredId?: number | null) {
+  async function loadThreads(preferredId?: number | null, page = 1, append = false) {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ q: query, category, unread: String(unreadOnly), pageSize: '50' });
+      const params = new URLSearchParams({ q: query, category, unread: String(unreadOnly), page: String(page), pageSize: '50' });
       const response = await fetch(`/api/customer-service/inbox/threads?${params}`);
       const data = await parseResponseJson(response);
       if (!response.ok) throw new Error(data.error || 'Failed to load inbox');
-      const rows: ThreadSummary[] = [...(data.rows || [])].sort((left, right) =>
+      const pageRows: ThreadSummary[] = [...(data.rows || [])].sort((left, right) =>
         Number(right.is_starred || 0) - Number(left.is_starred || 0)
-        || toTime(right.starred_at) - toTime(left.starred_at)
+        || Number(right.category === 'customer_enquiry') - Number(left.category === 'customer_enquiry')
         || toTime(right.last_message_at) - toTime(left.last_message_at),
       );
-      setThreads(rows); setTotal(data.total || 0);
+      const rows = append
+        ? [...threads, ...pageRows.filter(row => !threads.some(thread => thread.id === row.id))]
+        : pageRows;
+      setThreads(rows); setTotal(data.total || 0); setLoadedPage(page);
       setSelectedId(current => {
         if (preferredId !== undefined) {
           if (preferredId === null) return rows[0]?.id ?? null;
@@ -231,14 +237,23 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     return draft.id;
   }
   async function replyAction(action: 'gmail-draft' | 'send') {
+    if (replyActionPending.current) return;
+    replyActionPending.current = true;
     setBusyAction(action); setError('');
     try {
       const draftId = await saveDraft(); if (!draftId) throw new Error('No draft is available');
       const response = await fetch(`/api/customer-service/inbox/drafts/${draftId}/${action}`, { method: 'POST' });
       const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Reply action failed');
-      setNotice(action === 'send' ? 'Reply sent.' : 'Draft saved to Gmail.');
+      setNotice(action === 'send'
+        ? data.status === 'confirming'
+          ? 'Gmail delivery is being confirmed. Do not send this reply again.'
+          : 'Reply sent.'
+        : 'Draft saved to Gmail.');
       if (selectedId) await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
-    } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
+    } catch (cause: any) { setError(cause.message); } finally {
+      replyActionPending.current = false;
+      setBusyAction('');
+    }
   }
   async function saveSettings() {
     if (!settings) return;
@@ -273,7 +288,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   const activeDraft = detail?.drafts[0];
   return <div className="h-[calc(100vh-7rem)] min-h-[640px] flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
     <header className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center gap-3 bg-gray-50">
-      <div className="mr-auto"><h1 className="text-lg font-bold text-gray-900">Customer Service</h1><p className="text-xs text-gray-500">{total} cached conversations, retained for 90 days</p></div>
+      <div className="mr-auto"><h1 className="text-lg font-bold text-gray-900">Customer Service</h1><p className="text-xs text-gray-500">{total} cached conversations, {settings?.retentionMode === 'limited' ? `retained for ${settings.retentionDays} days` : 'history kept until you change retention'}</p></div>
       <nav className="flex border border-gray-300 rounded-md overflow-hidden bg-white">{(['inbox', 'settings', 'learnings'] as ViewTab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`px-3 py-1.5 text-xs font-semibold capitalize ${tab === item ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>{item}</button>)}</nav>
     </header>
     {(error || notice) && <div className={`px-4 py-2 text-sm border-b ${error ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{error || notice}</div>}
@@ -285,6 +300,8 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         <label className="flex items-center gap-2 px-2 text-xs text-gray-600"><input type="checkbox" checked={unreadOnly} onChange={e => setUnreadOnly(e.target.checked)} /> Unread only</label>
         <input type="number" min={1} max={90} value={days} onChange={e => setDays(Math.max(1, Math.min(90, Number(e.target.value))))} className="w-16 border border-gray-300 rounded-md px-2 py-2 text-sm" title="Lookback days" />
         <button onClick={runInbox} disabled={!!busyAction} className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">{busyAction === 'sync' ? 'Working...' : 'Get Emails'}</button>
+        <span className="text-xs text-gray-500">{threads.length} of {total}</span>
+        {threads.length < total && <button onClick={() => loadThreads(selectedId, loadedPage + 1, true)} disabled={loading || !!busyAction} className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-semibold disabled:opacity-50">{loading ? 'Loading...' : 'Load more'}</button>}
       </div>
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-r border-gray-200 overflow-y-auto">{loading && <p className="p-4 text-sm text-gray-500">Loading inbox...</p>}{!loading && !threads.length && <p className="p-6 text-sm text-gray-500">No matching emails. Use Get Emails to synchronize Gmail.</p>}{threads.map(thread => <button key={thread.id} onClick={() => setSelectedId(thread.id)} className={`w-full text-left px-4 py-3 border-b border-gray-100 ${selectedId === thread.id ? 'bg-blue-50' : 'hover:bg-gray-50'} ${thread.unread_count ? 'font-semibold' : ''}`}>
@@ -293,8 +310,9 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         </button>)}</aside>
         <main className="min-w-0 overflow-y-auto bg-gray-50">{!detail && <div className="h-full grid place-items-center text-sm text-gray-400">Select a conversation</div>}{detail && <div className="max-w-4xl mx-auto">
           <div className="sticky top-0 z-10 px-5 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center gap-2"><div className="mr-auto min-w-0"><h2 className="font-bold text-gray-900 truncate">{detail.thread.subject}</h2><p className="text-xs text-gray-500">{detail.thread.customer_email}</p></div><select value={detail.thread.category || ''} onChange={e => patchThread({ category: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-xs"><option value="">Unclassified</option><option value="customer_enquiry">Customer enquiry</option><option value="junk">Junk</option><option value="other">Other</option></select><button onClick={toggleStar} disabled={busyAction === 'star'} className={`px-2 py-1.5 border rounded text-xs font-semibold ${detail.thread.is_starred ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-700'} disabled:opacity-50`}>{detail.thread.is_starred ? '★ Starred' : '☆ Star'}</button><button onClick={() => mailboxAction(detail.thread.unread_count ? 'read' : 'unread')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">{detail.thread.unread_count ? 'Mark read' : 'Mark unread'}</button><button onClick={() => mailboxAction('archive')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">Archive</button></div>
-          <div className="p-5 space-y-3">{[...detail.messages].sort((left, right) => toTime(right.message_at) - toTime(left.message_at)).map(message => <article key={message.id} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><div className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800 break-words">{renderEmailBodyWithHyperlinks(message.body_plain)}</div>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}</article>)}
-          {activeDraft && <section className="border border-blue-300 bg-white rounded-md overflow-hidden"><div className="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center gap-2"><h3 className="font-bold text-sm text-blue-900">AI reply draft</h3><span className="text-xs text-blue-700">{activeDraft.confidence !== null ? `${Math.round(Number(activeDraft.confidence) * 100)}% confidence` : ''}</span><span className="ml-auto text-xs text-blue-700">{activeDraft.status}</span></div>{(activeDraft.needs_information || activeDraft.escalation_reason) && <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">{activeDraft.escalation_reason || 'The AI needs more information before this can be answered reliably.'}</div>}<textarea value={activeDraft.current_body} onChange={e => updateDraftBody(e.target.value)} rows={12} className="w-full p-4 text-sm leading-6 resize-y outline-none" />{parseJson<any[]>(activeDraft.tool_provenance_json, []).length > 0 && <details className="px-4 py-2 border-t border-gray-100 text-xs text-gray-600"><summary className="cursor-pointer font-semibold">Business data used</summary><pre className="mt-2 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(parseJson(activeDraft.tool_provenance_json, []), null, 2)}</pre></details>}{activeDraft.last_error && <p className="px-4 py-2 text-xs text-red-700 bg-red-50">{activeDraft.last_error}</p>}<div className="px-4 py-3 border-t border-gray-200 flex flex-wrap justify-end gap-2"><button onClick={() => saveDraft()} disabled={!!busyAction} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold">Save edit</button><button onClick={() => replyAction('gmail-draft')} disabled={!!busyAction} className="px-3 py-2 bg-gray-700 text-white rounded text-sm font-semibold">Save to Gmail Drafts</button><button onClick={() => replyAction('send')} disabled={!!busyAction || activeDraft.status === 'sent'} className="px-3 py-2 bg-emerald-600 text-white rounded text-sm font-semibold">Send reply</button></div></section>}
+          {detail.otherConversations?.length > 0 && <section className="px-5 py-3 bg-white border-b border-gray-200"><h3 className="text-xs font-bold uppercase text-gray-500">Other conversations with this customer</h3><div className="mt-2 flex gap-2 overflow-x-auto pb-1">{detail.otherConversations.map(conversation => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className="min-w-52 max-w-72 text-left border border-gray-200 bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded"><span className="block text-xs font-semibold text-gray-800 truncate">{conversation.subject || '(No subject)'}</span><span className="block mt-1 text-[11px] text-gray-500">{new Date(conversation.last_message_at).toLocaleDateString()} · {(conversation.category || 'unclassified').replace('_', ' ')}</span></button>)}</div></section>}
+          <div className="p-5 space-y-3">{[...detail.messages].sort((left, right) => toTime(left.message_at) - toTime(right.message_at)).map(message => <article key={message.id} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><div className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800 break-words">{renderEmailBodyWithHyperlinks(message.body_plain)}</div>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}</article>)}
+          {activeDraft && <section className="border border-blue-300 bg-white rounded-md overflow-hidden"><div className="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center gap-2"><h3 className="font-bold text-sm text-blue-900">AI reply draft</h3><span className="text-xs text-blue-700">{activeDraft.confidence !== null ? `${Math.round(Number(activeDraft.confidence) * 100)}% confidence` : ''}</span><span className="ml-auto text-xs text-blue-700">{activeDraft.status}</span></div>{(activeDraft.needs_information || activeDraft.escalation_reason) && <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">{activeDraft.escalation_reason || 'The AI needs more information before this can be answered reliably.'}</div>}<textarea value={activeDraft.current_body} onChange={e => updateDraftBody(e.target.value)} disabled={['sending', 'sent'].includes(activeDraft.status)} rows={12} className="w-full p-4 text-sm leading-6 resize-y outline-none disabled:bg-gray-50 disabled:text-gray-600" />{parseJson<any[]>(activeDraft.tool_provenance_json, []).length > 0 && <details className="px-4 py-2 border-t border-gray-100 text-xs text-gray-600"><summary className="cursor-pointer font-semibold">Business data used</summary><pre className="mt-2 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(parseJson(activeDraft.tool_provenance_json, []), null, 2)}</pre></details>}{activeDraft.last_error && <p className={`px-4 py-2 text-xs ${activeDraft.status === 'sending' ? 'text-amber-800 bg-amber-50' : 'text-red-700 bg-red-50'}`}>{activeDraft.last_error}</p>}<div className="px-4 py-3 border-t border-gray-200 flex flex-wrap justify-end gap-2"><button onClick={() => saveDraft()} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold disabled:bg-gray-100 disabled:text-gray-400">Save edit</button><button onClick={() => replyAction('gmail-draft')} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className="px-3 py-2 bg-gray-700 text-white rounded text-sm font-semibold disabled:bg-gray-300">Save to Gmail Drafts</button><button onClick={() => replyAction('send')} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className={`px-3 py-2 text-white rounded text-sm font-semibold ${activeDraft.status === 'sent' ? 'bg-gray-400' : activeDraft.status === 'sending' ? 'bg-amber-500' : 'bg-emerald-600 disabled:bg-gray-400'}`}>{busyAction === 'send' ? 'Sending...' : activeDraft.status === 'sent' ? 'Sent' : activeDraft.status === 'sending' ? 'Confirming send...' : 'Send reply'}</button></div></section>}
           {!activeDraft && detail.thread.category === 'customer_enquiry' && <p className="p-4 border border-amber-200 bg-amber-50 text-sm text-amber-800 rounded-md">No draft is available yet. Get Emails runs AI processing for unprocessed enquiries.</p>}</div>
         </div>}</main>
       </div>
@@ -302,6 +320,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
 
     {tab === 'settings' && settings && <div className="flex-1 overflow-y-auto p-5 bg-gray-50"><div className="max-w-4xl mx-auto space-y-6">
       <section><h2 className="text-base font-bold text-gray-900">Automation</h2><div className="mt-3 grid sm:grid-cols-2 gap-4"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.enabled} onChange={e => setSettings({ ...settings, enabled: e.target.checked })} /> Scheduled inbox processing enabled</label><label className="text-sm">Timezone<input value={settings.timezone} onChange={e => setSettings({ ...settings, timezone: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" /></label><label className="text-sm">Run times (comma separated)<input value={settings.runTimes.join(', ')} onChange={e => setSettings({ ...settings, runTimes: e.target.value.split(',').map(item => item.trim()) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" /></label><label className="text-sm">Automation mode<select value={settings.mode} onChange={e => setSettings({ ...settings, mode: e.target.value as 'draft' | 'send' })} className={`mt-1 w-full border rounded px-3 py-2 ${settings.mode === 'send' ? 'border-red-400 bg-red-50 text-red-800' : 'border-gray-300'}`}><option value="draft">Create drafts for review</option><option value="send">Send automatically</option></select></label></div>{settings.lastRunAt && <p className="text-xs text-gray-500 mt-3">Last run: {new Date(settings.lastRunAt).toLocaleString()}</p>}{settings.lastError && <p className="text-xs text-red-700 mt-2">Last error: {settings.lastError}</p>}</section>
+      <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Conversation history</h2><label className="mt-3 block max-w-sm text-sm">Cached history retention<select value={settings.retentionMode === 'keep_all' ? 'keep_all' : String(settings.retentionDays)} onChange={e => setSettings({ ...settings, retentionMode: e.target.value === 'keep_all' ? 'keep_all' : 'limited', retentionDays: e.target.value === 'keep_all' ? settings.retentionDays : Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value="keep_all">Keep all synced history</option><option value="90">Keep 90 days</option><option value="180">Keep 180 days</option><option value="365">Keep 365 days</option></select></label><p className="mt-2 text-xs text-gray-500">Limited retention removes only Solvantis's cached copy of inactive conversations. It does not delete Gmail mail.</p></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">AI models</h2><div className="mt-3 grid sm:grid-cols-2 gap-4"><label className="text-sm">Light classification model<select value={settings.lightModelId} onChange={e => setSettings({ ...settings, lightModelId: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value={settings.lightModelId}>{settings.lightModelId}</option>{models.filter(m => m.id !== settings.lightModelId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label><label className="text-sm">Capable reply model<select value={settings.capableModelId} onChange={e => setSettings({ ...settings, capableModelId: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value={settings.capableModelId}>{settings.capableModelId}</option>{models.filter(m => m.id !== settings.capableModelId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label></div></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Read-only business data tools</h2><div className="mt-3 grid sm:grid-cols-2 gap-2">{Object.entries(TOOL_LABELS).map(([name, label]) => <label key={name} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.enabledTools.includes(name)} onChange={e => setSettings({ ...settings, enabledTools: e.target.checked ? [...settings.enabledTools, name] : settings.enabledTools.filter(tool => tool !== name) })} /> {label}</label>)}</div><p className="text-xs text-gray-500 mt-2">These tools reuse live IMS Products, Stock Levels, Locations, Contacts and Sales Orders. They cannot write data or expose costs and internal notes.</p></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Reply guidelines</h2><textarea value={settings.guidelines} onChange={e => setSettings({ ...settings, guidelines: e.target.value })} rows={8} className="mt-3 w-full border border-gray-300 rounded p-3 text-sm" /><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.learningEnabled} onChange={e => setSettings({ ...settings, learningEnabled: e.target.checked })} /> Learn from edited responses</label></section>
