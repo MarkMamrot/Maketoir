@@ -22,6 +22,7 @@ import {
   createContactCrmInteraction,
   createContactCrmTask,
   getContactCrmWorkspace,
+  normalizeContactCrmInteractionBrief,
   updateContactCrmTask,
 } from '../contactCrmService';
 
@@ -31,6 +32,12 @@ describe('contact CRM service', () => {
     mockContactGet.mockResolvedValue({ id: 42, business_id: 'business-1', name: 'Customer', type: 'b2b_customer' });
     mockImsQuery.mockResolvedValue([]);
     mockImsExecute.mockResolvedValue({ insertId: 7, affectedRows: 1 });
+  });
+
+  it('normalizes the persistent interaction brief', () => {
+    expect(normalizeContactCrmInteractionBrief('  Prefers calls after 3pm.  ')).toBe('Prefers calls after 3pm.');
+    expect(normalizeContactCrmInteractionBrief('   ')).toBeNull();
+    expect(() => normalizeContactCrmInteractionBrief('x'.repeat(4001))).toThrow(ContactCrmValidationError);
   });
 
   it('fences the contact by business before writing', async () => {

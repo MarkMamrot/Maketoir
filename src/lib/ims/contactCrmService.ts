@@ -51,6 +51,10 @@ function cleanOptional(value: unknown, max: number): string | null {
   return cleaned;
 }
 
+export function normalizeContactCrmInteractionBrief(value: unknown): string | null {
+  return cleanOptional(value, 4000);
+}
+
 function cleanDate(value: unknown): string | null {
   if (value === null || value === undefined || value === '') return null;
   const cleaned = String(value);
@@ -124,6 +128,16 @@ export async function getContactCrmProfile(businessId: string, contactId: number
     },
     tags,
   };
+}
+
+export async function updateContactCrmInteractionBrief(businessId: string, contactId: number, value: unknown) {
+  await requireContact(businessId, contactId);
+  const notes = normalizeContactCrmInteractionBrief(value);
+  await imsExecute(
+    'UPDATE ims_contacts SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND business_id = ?',
+    [notes, contactId, businessId],
+  );
+  return notes;
 }
 
 export async function getContactCrmTimeline(
