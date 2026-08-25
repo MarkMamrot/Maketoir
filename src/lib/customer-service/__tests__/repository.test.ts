@@ -8,7 +8,7 @@ vi.mock('@/services/IMSMySQLService', () => ({
 }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: vi.fn() }));
 
-import { getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
+import { createCustomerServiceManualDraft, getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
 
 describe('customer-service inbox repository', () => {
   beforeEach(() => {
@@ -88,5 +88,35 @@ describe('customer-service inbox repository', () => {
     expect(sql).toContain('id <> ?');
     expect(sql).toContain('LIMIT 10');
     expect(params).toEqual(['biz-1', 'Customer@Example.com', 12]);
+  });
+
+  it('creates a forward draft for a validated explicit recipient', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery.mockResolvedValueOnce([{ customer_email: 'customer@example.com' }]).mockResolvedValueOnce([{ id: 73 }]);
+
+    await expect(createCustomerServiceManualDraft({
+      businessId: 'biz-1', threadId: 12, targetMessageId: 44, composeType: 'forward',
+      recipientEmail: 'Manager@Example.com', subject: 'Fwd: Order update', body: 'For your information',
+      operationKey: 'manual-operation-12345', userId: 7,
+    })).resolves.toEqual({ draftId: 73 });
+
+    const [targetSql, targetParams] = mockImsQuery.mock.calls[0];
+    expect(targetSql).toContain('m.business_id = ? AND m.thread_id = ? AND m.id = ?');
+    expect(targetParams).toEqual(['biz-1', 12, 44]);
+    const [insertSql, insertParams] = mockImsExecute.mock.calls[0];
+    expect(insertSql).toContain('compose_type, recipient_email');
+    expect(insertParams).toContain('manager@example.com');
+  });
+
+  it('rejects a forward without a valid recipient before creating a draft', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery.mockResolvedValueOnce([{ customer_email: 'customer@example.com' }]);
+
+    await expect(createCustomerServiceManualDraft({
+      businessId: 'biz-1', threadId: 12, targetMessageId: 44, composeType: 'forward',
+      recipientEmail: 'not-an-email', subject: 'Fwd: Order update', body: 'For your information',
+      operationKey: 'manual-operation-12345', userId: 7,
+    })).rejects.toThrow('Enter a valid forwarding email address');
+    expect(mockImsExecute).not.toHaveBeenCalled();
   });
 });

@@ -10,15 +10,19 @@ type ThreadSummary = {
   urgency: string; workflow_status: string; is_starred: number; starred_at: string | null; last_message_at: string; draft_status: string | null;
 };
 type Draft = {
-  id: number; target_message_id: number; version: number; status: string; subject: string; current_body: string; confidence: number | null;
+  id: number; target_message_id: number; compose_type: string; recipient_email: string | null; version: number; status: string; subject: string; current_body: string; confidence: number | null;
   needs_information: number; escalation_reason: string | null; tool_provenance_json: string; last_error: string | null;
 };
 type ThreadDetail = {
   thread: ThreadSummary;
-  messages: Array<{ id: number; direction: string; from_address: string; body_plain: string; message_at: string; attachment_metadata_json: string }>;
+  messages: Array<{ id: number; direction: string; from_address: string; subject: string; body_plain: string; message_at: string; attachment_metadata_json: string }>;
   drafts: Draft[];
   events: Array<{ event_type: string; actor_type: string; created_at: string }>;
   otherConversations: Array<{ id: number; subject: string; category: string | null; workflow_status: string; last_message_at: string; unread_count: number }>;
+};
+type ManualComposer = {
+  composeType: 'manual_reply' | 'forward'; targetMessageId: number; recipientEmail: string;
+  subject: string; body: string; operationKey: string;
 };
 type Settings = {
   enabled: boolean; timezone: string; runTimes: string[]; mode: 'draft' | 'send'; lookbackDays: number;
@@ -117,8 +121,11 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   const [busyAction, setBusyAction] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [manualComposer, setManualComposer] = useState<ManualComposer | null>(null);
   const replyActionPending = useRef(false);
   const conversationScrollRef = useRef<HTMLElement | null>(null);
+  const conversationHeaderRef = useRef<HTMLDivElement | null>(null);
+  const latestMessageRef = useRef<HTMLElement | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [models, setModels] = useState<Array<{ id: string; name: string }>>([]);
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -170,13 +177,19 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   }
 
   useEffect(() => { loadThreads(); loadSettings(); loadKnowledge(); loadCandidates(); }, []);
-  useEffect(() => { if (selectedId) loadDetail(selectedId); else setDetail(null); }, [selectedId]);
+  useEffect(() => { setManualComposer(null); if (selectedId) loadDetail(selectedId); else setDetail(null); }, [selectedId]);
   useEffect(() => { const timer = setTimeout(() => loadThreads(), 250); return () => clearTimeout(timer); }, [query, category, unreadOnly]);
   useEffect(() => {
     if (!detail) return;
     const frame = requestAnimationFrame(() => {
       const container = conversationScrollRef.current;
-      if (container) container.scrollTop = container.scrollHeight;
+      const message = latestMessageRef.current;
+      if (container && message) {
+        const headerHeight = conversationHeaderRef.current?.offsetHeight ?? 0;
+        container.scrollTop += message.getBoundingClientRect().top
+          - container.getBoundingClientRect().top
+          - headerHeight;
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [detail?.thread.id, detail?.messages.length, detail?.drafts[0]?.id]);
@@ -236,13 +249,14 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
   function updateDraftBody(body: string) {
-    setDetail(previous => previous ? { ...previous, drafts: previous.drafts.map((draft, index) => index === 0 ? { ...draft, current_body: body } : draft) } : previous);
+    if (!activeDraft) return;
+    setDetail(previous => previous ? { ...previous, drafts: previous.drafts.map(draft => draft.id === activeDraft.id ? { ...draft, current_body: body } : draft) } : previous);
   }
   async function saveDraft(): Promise<number | null> {
-    const draft = detail?.drafts[0]; if (!draft) return null;
+    const draft = activeDraft; if (!draft) return null;
     const response = await fetch(`/api/customer-service/inbox/drafts/${draft.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version: draft.version, body: draft.current_body }) });
     const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Draft save failed');
-    setDetail(previous => previous ? { ...previous, drafts: previous.drafts.map((item, index) => index === 0 ? { ...item, version: data.version } : item) } : previous);
+    setDetail(previous => previous ? { ...previous, drafts: previous.drafts.map(item => item.id === draft.id ? { ...item, version: data.version } : item) } : previous);
     return draft.id;
   }
   async function replyAction(action: 'gmail-draft' | 'send') {
@@ -260,6 +274,51 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         : 'Draft saved to Gmail.');
       if (selectedId) await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
     } catch (cause: any) { setError(cause.message); } finally {
+      replyActionPending.current = false;
+      setBusyAction('');
+    }
+  }
+  function startManualCompose(message: ThreadDetail['messages'][number], composeType: 'manual_reply' | 'forward') {
+    const prefix = composeType === 'forward' ? 'Fwd:' : 'Re:';
+    const subject = new RegExp(`^${prefix}`, 'i').test(message.subject || detail?.thread.subject || '')
+      ? (message.subject || detail?.thread.subject || '')
+      : `${prefix} ${message.subject || detail?.thread.subject || ''}`;
+    const forwardedBody = composeType === 'forward'
+      ? `\n\n---------- Forwarded message ----------\nFrom: ${message.from_address}\nDate: ${new Date(message.message_at).toLocaleString()}\nSubject: ${message.subject || detail?.thread.subject || ''}\n\n${message.body_plain}`
+      : '';
+    setManualComposer({
+      composeType,
+      targetMessageId: message.id,
+      recipientEmail: composeType === 'forward' ? '' : detail?.thread.customer_email || '',
+      subject,
+      body: forwardedBody,
+      operationKey: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    });
+  }
+  async function sendManualMessage() {
+    if (!selectedId || !manualComposer || replyActionPending.current) return;
+    replyActionPending.current = true;
+    setBusyAction('manual-send'); setError(''); setNotice('');
+    try {
+      const response = await fetch(`/api/customer-service/inbox/threads/${selectedId}/compose`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(manualComposer),
+      });
+      const data = await parseResponseJson(response);
+      if (!response.ok) throw new Error(data.error || 'Message could not be sent');
+      setNotice(data.status === 'confirming'
+        ? 'Gmail delivery is being confirmed. Do not send this message again.'
+        : manualComposer.composeType === 'forward' ? 'Message forwarded.' : 'Reply sent.');
+      setManualComposer(null);
+      await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
+    } catch (cause: any) {
+      setError(cause.message);
+      setManualComposer(previous => previous ? {
+        ...previous,
+        operationKey: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      } : previous);
+    } finally {
       replyActionPending.current = false;
       setBusyAction('');
     }
@@ -295,9 +354,9 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   }
 
   const latestMessage = detail?.messages[detail.messages.length - 1];
-  const activeDraft = latestMessage?.direction === 'inbound'
-    ? detail?.drafts.find(draft => draft.target_message_id === latestMessage.id)
-    : detail?.drafts[0];
+  const activeDraft = !manualComposer && latestMessage?.direction === 'inbound'
+    ? detail?.drafts.find(draft => draft.target_message_id === latestMessage.id && draft.status !== 'sent')
+    : undefined;
   return <div className="h-[calc(100vh-7rem)] min-h-[640px] flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
     <header className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center gap-3 bg-gray-50">
       <div className="mr-auto"><h1 className="text-lg font-bold text-gray-900">Customer Service</h1><p className="text-xs text-gray-500">{total} cached conversations, {settings?.retentionMode === 'limited' ? `retained for ${settings.retentionDays} days` : 'history kept until you change retention'}</p></div>
@@ -321,11 +380,11 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
           <div className="flex items-center gap-1.5 mt-2"><span className={`px-1.5 py-0.5 border rounded text-[10px] font-medium ${categoryStyle(thread.category)}`}>{(thread.category || 'unclassified').replace('_', ' ')}</span>{thread.enquiry_subtype && <span className="text-[10px] text-gray-500">{thread.enquiry_subtype.replace('_', ' ')}</span>}{['high', 'urgent'].includes(thread.urgency) && <span className="text-[10px] text-red-600">{thread.urgency}</span>}{thread.draft_status && <span className="ml-auto text-[10px] text-blue-600">{thread.draft_status}</span>}</div>
         </button>)}</aside>
         <main ref={conversationScrollRef} className="min-w-0 overflow-y-auto bg-gray-50">{!detail && <div className="h-full grid place-items-center text-sm text-gray-400">Select a conversation</div>}{detail && <div className="max-w-4xl mx-auto">
-          <div className="sticky top-0 z-10 px-5 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center gap-2"><div className="mr-auto min-w-0"><h2 className="font-bold text-gray-900 truncate">{detail.thread.subject}</h2><p className="text-xs text-gray-500">{detail.thread.customer_email}</p></div><select value={detail.thread.category || ''} onChange={e => patchThread({ category: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-xs"><option value="">Unclassified</option><option value="customer_enquiry">Customer enquiry</option><option value="junk">Junk</option><option value="other">Other</option></select><button onClick={toggleStar} disabled={busyAction === 'star'} className={`px-2 py-1.5 border rounded text-xs font-semibold ${detail.thread.is_starred ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-700'} disabled:opacity-50`}>{detail.thread.is_starred ? '★ Starred' : '☆ Star'}</button><button onClick={() => mailboxAction(detail.thread.unread_count ? 'read' : 'unread')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">{detail.thread.unread_count ? 'Mark read' : 'Mark unread'}</button><button onClick={() => mailboxAction('archive')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">Archive</button></div>
+          <div ref={conversationHeaderRef} className="sticky top-0 z-10 px-5 py-3 bg-white border-b border-gray-200 flex flex-wrap items-center gap-2"><div className="mr-auto min-w-0"><h2 className="font-bold text-gray-900 truncate">{detail.thread.subject}</h2><p className="text-xs text-gray-500">{detail.thread.customer_email}</p></div><select value={detail.thread.category || ''} onChange={e => patchThread({ category: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-xs"><option value="">Unclassified</option><option value="customer_enquiry">Customer enquiry</option><option value="junk">Junk</option><option value="other">Other</option></select><button onClick={toggleStar} disabled={busyAction === 'star'} className={`px-2 py-1.5 border rounded text-xs font-semibold ${detail.thread.is_starred ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-gray-300 text-gray-700'} disabled:opacity-50`}>{detail.thread.is_starred ? '★ Starred' : '☆ Star'}</button><button onClick={() => mailboxAction(detail.thread.unread_count ? 'read' : 'unread')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">{detail.thread.unread_count ? 'Mark read' : 'Mark unread'}</button><button onClick={() => mailboxAction('archive')} disabled={!!busyAction} className="px-2 py-1.5 border border-gray-300 rounded text-xs">Archive</button></div>
           {detail.otherConversations?.length > 0 && <section className="px-5 py-3 bg-white border-b border-gray-200"><h3 className="text-xs font-bold uppercase text-gray-500">Other conversations with this customer</h3><div className="mt-2 flex gap-2 overflow-x-auto pb-1">{detail.otherConversations.map(conversation => <button key={conversation.id} onClick={() => setSelectedId(conversation.id)} className="min-w-52 max-w-72 text-left border border-gray-200 bg-gray-50 hover:bg-blue-50 px-3 py-2 rounded"><span className="block text-xs font-semibold text-gray-800 truncate">{conversation.subject || '(No subject)'}</span><span className="block mt-1 text-[11px] text-gray-500">{new Date(conversation.last_message_at).toLocaleDateString()} · {(conversation.category || 'unclassified').replace('_', ' ')}</span></button>)}</div></section>}
-          <div className="p-5 space-y-3">{[...detail.messages].sort((left, right) => toTime(left.message_at) - toTime(right.message_at)).map(message => <article key={message.id} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><div className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800 break-words">{renderEmailBodyWithHyperlinks(message.body_plain)}</div>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}</article>)}
+          <div className="p-5 space-y-3">{[...detail.messages].sort((left, right) => toTime(left.message_at) - toTime(right.message_at)).map(message => <div key={message.id} className="space-y-2"><article ref={message.id === latestMessage?.id ? latestMessageRef : undefined} className={`border rounded-md p-4 ${message.direction === 'inbound' ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200 ml-4'}`}><div className="flex justify-between gap-3 text-xs text-gray-500 mb-3"><span className="truncate">{message.from_address}</span><time className="shrink-0">{new Date(message.message_at).toLocaleString()}</time></div><div className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800 break-words">{renderEmailBodyWithHyperlinks(message.body_plain)}</div>{parseJson<any[]>(message.attachment_metadata_json, []).length > 0 && <p className="mt-3 text-xs text-gray-500">{parseJson<any[]>(message.attachment_metadata_json, []).length} attachment(s), content not processed by AI</p>}<div className="mt-4 pt-3 border-t border-gray-100 flex justify-end gap-2"><button onClick={() => startManualCompose(message, 'manual_reply')} disabled={!!busyAction} className="px-2.5 py-1.5 border border-gray-300 bg-white text-gray-700 rounded text-xs font-semibold disabled:opacity-50">Reply</button><button onClick={() => startManualCompose(message, 'forward')} disabled={!!busyAction} className="px-2.5 py-1.5 border border-gray-300 bg-white text-gray-700 rounded text-xs font-semibold disabled:opacity-50">Forward</button></div></article>{manualComposer?.targetMessageId === message.id && <section className="border border-blue-300 bg-white rounded-md overflow-hidden"><div className="px-4 py-3 bg-blue-50 border-b border-blue-200"><h3 className="font-bold text-sm text-blue-900">{manualComposer.composeType === 'forward' ? 'Forward email' : 'Reply'}</h3></div><div className="p-4 space-y-3">{manualComposer.composeType === 'forward' ? <label className="block text-xs font-semibold text-gray-600">To<input type="email" value={manualComposer.recipientEmail} onChange={event => setManualComposer({ ...manualComposer, recipientEmail: event.target.value })} autoFocus className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm font-normal" /></label> : <p className="text-xs text-gray-600">To: <span className="font-semibold">{manualComposer.recipientEmail}</span></p>}<label className="block text-xs font-semibold text-gray-600">Subject<input value={manualComposer.subject} onChange={event => setManualComposer({ ...manualComposer, subject: event.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm font-normal" /></label><textarea value={manualComposer.body} onChange={event => setManualComposer({ ...manualComposer, body: event.target.value })} autoFocus={manualComposer.composeType === 'manual_reply'} rows={10} className="w-full border border-gray-300 rounded p-3 text-sm leading-6 resize-y outline-none focus:border-blue-500" /></div><div className="px-4 py-3 border-t border-gray-200 flex justify-end gap-2"><button onClick={() => setManualComposer(null)} disabled={busyAction === 'manual-send'} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold text-gray-600 disabled:opacity-50">Cancel</button><button onClick={sendManualMessage} disabled={busyAction === 'manual-send' || !manualComposer.recipientEmail.trim() || !manualComposer.subject.trim() || !manualComposer.body.trim()} className="px-3 py-2 bg-blue-600 text-white rounded text-sm font-semibold disabled:bg-gray-300">{busyAction === 'manual-send' ? 'Sending...' : manualComposer.composeType === 'forward' ? 'Send forward' : 'Send reply'}</button></div></section>}</div>)}
           {activeDraft && <section className="border border-blue-300 bg-white rounded-md overflow-hidden"><div className="px-4 py-3 bg-blue-50 border-b border-blue-200 flex items-center gap-2"><h3 className="font-bold text-sm text-blue-900">AI reply draft</h3><span className="text-xs text-blue-700">{activeDraft.confidence !== null ? `${Math.round(Number(activeDraft.confidence) * 100)}% confidence` : ''}</span><span className="ml-auto text-xs text-blue-700">{activeDraft.status}</span></div>{(activeDraft.needs_information || activeDraft.escalation_reason) && <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">{activeDraft.escalation_reason || 'The AI needs more information before this can be answered reliably.'}</div>}<textarea value={activeDraft.current_body} onChange={e => updateDraftBody(e.target.value)} disabled={['sending', 'sent'].includes(activeDraft.status)} rows={12} className="w-full p-4 text-sm leading-6 resize-y outline-none disabled:bg-gray-50 disabled:text-gray-600" />{parseJson<any[]>(activeDraft.tool_provenance_json, []).length > 0 && <details className="px-4 py-2 border-t border-gray-100 text-xs text-gray-600"><summary className="cursor-pointer font-semibold">Business data used</summary><pre className="mt-2 whitespace-pre-wrap overflow-auto max-h-48">{JSON.stringify(parseJson(activeDraft.tool_provenance_json, []), null, 2)}</pre></details>}{activeDraft.last_error && <p className={`px-4 py-2 text-xs ${activeDraft.status === 'sending' ? 'text-amber-800 bg-amber-50' : 'text-red-700 bg-red-50'}`}>{activeDraft.last_error}</p>}<div className="px-4 py-3 border-t border-gray-200 flex flex-wrap justify-end gap-2"><button onClick={() => updateDraftBody('')} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status) || !activeDraft.current_body} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold text-gray-600 disabled:bg-gray-100 disabled:text-gray-400">Clear</button><button onClick={() => saveDraft()} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className="px-3 py-2 border border-gray-300 rounded text-sm font-semibold disabled:bg-gray-100 disabled:text-gray-400">Save edit</button><button onClick={() => replyAction('gmail-draft')} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className="px-3 py-2 bg-gray-700 text-white rounded text-sm font-semibold disabled:bg-gray-300">Save to Gmail Drafts</button><button onClick={() => replyAction('send')} disabled={!!busyAction || ['sending', 'sent'].includes(activeDraft.status)} className={`px-3 py-2 text-white rounded text-sm font-semibold ${activeDraft.status === 'sent' ? 'bg-gray-400' : activeDraft.status === 'sending' ? 'bg-amber-500' : 'bg-emerald-600 disabled:bg-gray-400'}`}>{busyAction === 'send' ? 'Sending...' : activeDraft.status === 'sent' ? 'Sent' : activeDraft.status === 'sending' ? 'Confirming send...' : 'Send reply'}</button></div></section>}
-          {!activeDraft && detail.thread.category === 'customer_enquiry' && <p className="p-4 border border-amber-200 bg-amber-50 text-sm text-amber-800 rounded-md">No draft is available yet. Get Emails runs AI processing for unprocessed enquiries.</p>}</div>
+          {!manualComposer && !activeDraft && latestMessage?.direction === 'inbound' && detail.thread.category === 'customer_enquiry' && <p className="p-4 border border-amber-200 bg-amber-50 text-sm text-amber-800 rounded-md">No draft is available yet. Get Emails runs AI processing for unprocessed enquiries.</p>}</div>
         </div>}</main>
       </div>
     </>}

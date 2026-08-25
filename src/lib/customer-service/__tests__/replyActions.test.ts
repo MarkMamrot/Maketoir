@@ -55,6 +55,8 @@ const reply = {
   ai_generated_body: 'Initial suggestion',
   current_body: 'The reviewed reply',
   operation_key: 'operation-key',
+  compose_type: 'ai_reply',
+  recipient_email: null,
   gmail_draft_id: null,
   gmail_thread_id: 'gmail-thread-12',
   customer_email: 'customer@example.com',
@@ -69,7 +71,7 @@ describe('customer-service reply sending', () => {
     mockImsExecute.mockResolvedValue({ affectedRows: 1 });
     mockGetGmailAccess.mockResolvedValue({ accessToken: 'access', mailboxEmail: 'shop@example.com' });
     mockSaveGmailReplyDraft.mockResolvedValue({ draftId: 'gmail-draft-1', messageId: 'draft-message-1' });
-    mockSendExistingGmailDraft.mockResolvedValue({ messageId: 'sent-message-1' });
+    mockSendExistingGmailDraft.mockResolvedValue({ messageId: 'sent-message-1', threadId: 'gmail-thread-12' });
     mockConnection.execute.mockResolvedValue([{ affectedRows: 1 }]);
     mockRecordDraftEditLearning.mockResolvedValue(undefined);
     mockReportRuntimeIssue.mockResolvedValue(null);
@@ -87,6 +89,32 @@ describe('customer-service reply sending', () => {
     expect(mockConnection.beginTransaction).toHaveBeenCalledOnce();
     expect(mockConnection.commit).toHaveBeenCalledOnce();
     expect(mockConnection.execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_cs_messages'))).toBe(true);
+  });
+
+  it('sends a forward to its explicit recipient without reply threading headers', async () => {
+    mockImsQuery.mockResolvedValue([{
+      ...reply,
+      compose_type: 'forward',
+      recipient_email: 'manager@example.com',
+      subject: 'Fwd: Order update',
+    }]);
+    mockSendExistingGmailDraft.mockResolvedValue({ messageId: 'forward-message-1', threadId: 'forward-thread-1' });
+
+    await expect(sendCustomerServiceReply('biz-1', 41, 7)).resolves.toEqual({
+      alreadySent: false,
+      messageId: 'forward-message-1',
+      status: 'sent',
+    });
+
+    expect(mockSaveGmailReplyDraft).toHaveBeenCalledWith('access', expect.objectContaining({
+      gmailThreadId: null,
+      to: 'manager@example.com',
+      replyToMessageId: null,
+      references: null,
+    }));
+    expect(mockRecordDraftEditLearning).not.toHaveBeenCalled();
+    expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
+      String(sql).includes('INSERT INTO ims_cs_events') && Array.isArray(params) && params[3] === 'message_forwarded')).toBe(true);
   });
 
   it('keeps an ambiguous provider outcome blocked for confirmation', async () => {

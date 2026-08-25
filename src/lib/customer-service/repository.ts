@@ -293,7 +293,7 @@ export async function getCustomerServiceThread(businessId: string, threadId: num
       [businessId, threadId],
     ),
     imsQuery<any>(
-      `SELECT id, target_message_id, version, status, subject, ai_generated_body, current_body,
+      `SELECT id, target_message_id, compose_type, recipient_email, version, status, subject, ai_generated_body, current_body,
               gmail_draft_id, gmail_sent_message_id, model_id, confidence, needs_information,
               escalation_reason, tool_provenance_json, edited_at, sent_at, last_error, updated_at
          FROM ims_cs_drafts WHERE business_id = ? AND thread_id = ? AND status <> 'superseded'
@@ -385,4 +385,53 @@ export async function updateCustomerServiceDraft(input: {
     [input.businessId, input.draftId, nextVersion, body, input.userId],
   );
   return { version: nextVersion };
+}
+
+export async function createCustomerServiceManualDraft(input: {
+  businessId: string;
+  threadId: number;
+  targetMessageId: number;
+  composeType: 'manual_reply' | 'forward';
+  recipientEmail?: string;
+  subject: string;
+  body: string;
+  operationKey: string;
+  userId: number;
+}): Promise<{ draftId: number }> {
+  const operationKey = input.operationKey.trim();
+  if (!/^[A-Za-z0-9_-]{16,191}$/.test(operationKey)) throw new Error('Invalid compose operation key');
+  const subject = input.subject.replace(/[\r\n]/g, ' ').trim().slice(0, 500);
+  const body = input.body.trim().slice(0, 50000);
+  if (!subject) throw new Error('Subject is required');
+  if (!body) throw new Error('Message body cannot be empty');
+
+  const targets = await imsQuery<{ customer_email: string | null }>(
+    `SELECT t.customer_email
+       FROM ims_cs_messages m
+       JOIN ims_cs_threads t ON t.id = m.thread_id AND t.business_id = m.business_id
+      WHERE m.business_id = ? AND m.thread_id = ? AND m.id = ? LIMIT 1`,
+    [input.businessId, input.threadId, input.targetMessageId],
+  );
+  if (!targets[0]) throw new Error('Selected email was not found in this conversation');
+  const recipientEmail = (input.composeType === 'forward' ? input.recipientEmail : targets[0].customer_email || '')
+    .trim().toLowerCase().slice(0, 500);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+    throw new Error(input.composeType === 'forward' ? 'Enter a valid forwarding email address' : 'Customer recipient is missing');
+  }
+
+  await imsExecute(
+    `INSERT IGNORE INTO ims_cs_drafts
+      (business_id, thread_id, target_message_id, operation_key, compose_type, recipient_email,
+       status, subject, ai_generated_body, current_body, model_id, prompt_version,
+       tool_provenance_json, editor_user_id, edited_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'editing', ?, '', ?, 'manual', 'manual-v1', '[]', ?, UTC_TIMESTAMP())`,
+    [input.businessId, input.threadId, input.targetMessageId, operationKey, input.composeType,
+      recipientEmail, subject, body, input.userId],
+  );
+  const drafts = await imsQuery<{ id: number }>(
+    'SELECT id FROM ims_cs_drafts WHERE business_id = ? AND operation_key = ? LIMIT 1',
+    [input.businessId, operationKey],
+  );
+  if (!drafts[0]) throw new Error('Manual draft could not be created');
+  return { draftId: Number(drafts[0].id) };
 }

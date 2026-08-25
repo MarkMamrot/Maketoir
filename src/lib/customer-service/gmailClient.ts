@@ -253,7 +253,7 @@ function buildReplyRaw(input: {
 
 export async function saveGmailReplyDraft(accessToken: string, input: {
   gmailDraftId?: string | null;
-  gmailThreadId: string;
+  gmailThreadId?: string | null;
   to: string;
   subject: string;
   body: string;
@@ -267,7 +267,7 @@ export async function saveGmailReplyDraft(accessToken: string, input: {
     body: JSON.stringify({
       id: input.gmailDraftId || undefined,
       message: {
-        threadId: input.gmailThreadId,
+        ...(input.gmailThreadId ? { threadId: input.gmailThreadId } : {}),
         raw: buildReplyRaw(input),
       },
     }),
@@ -290,12 +290,12 @@ export async function sendGmailReply(accessToken: string, input: {
   return { messageId: String(result.id || '') };
 }
 
-export async function sendExistingGmailDraft(accessToken: string, draftId: string): Promise<{ messageId: string }> {
+export async function sendExistingGmailDraft(accessToken: string, draftId: string): Promise<{ messageId: string; threadId: string }> {
   const result = await gmailFetch<any>(accessToken, '/drafts/send', {
     method: 'POST',
     body: JSON.stringify({ id: draftId }),
   });
-  return { messageId: String(result.id || '') };
+  return { messageId: String(result.id || ''), threadId: String(result.threadId || '') };
 }
 
 export function isDefinitiveGmailSendFailure(error: unknown): boolean {

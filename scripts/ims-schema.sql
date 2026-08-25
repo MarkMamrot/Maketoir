@@ -519,6 +519,8 @@ CREATE TABLE IF NOT EXISTS ims_cs_drafts (
   thread_id            BIGINT NOT NULL,
   target_message_id    BIGINT NOT NULL,
   operation_key        VARCHAR(191) NOT NULL,
+  compose_type         ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply',
+  recipient_email      VARCHAR(500) NULL,
   version              INT NOT NULL DEFAULT 1,
   status               ENUM('generated','editing','gmail_draft','sending','sent','failed','superseded') NOT NULL DEFAULT 'generated',
   subject              VARCHAR(500) NOT NULL DEFAULT '',

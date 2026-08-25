@@ -601,6 +601,8 @@ const TABLE_DDLS = [
     thread_id BIGINT NOT NULL,
     target_message_id BIGINT NOT NULL,
     operation_key VARCHAR(191) NOT NULL,
+    compose_type ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply',
+    recipient_email VARCHAR(500) NULL,
     version INT NOT NULL DEFAULT 1,
     status ENUM('generated','editing','gmail_draft','sending','sent','failed','superseded') NOT NULL DEFAULT 'generated',
     subject VARCHAR(500) NOT NULL DEFAULT '',
@@ -1029,6 +1031,8 @@ const COLUMNS = [
   ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_cs_threads', 'starred_at', 'DATETIME NULL'],
   ['ims_cs_threads', 'classified_message_id', 'BIGINT NULL AFTER classifier_version'],
+  ['ims_cs_drafts', 'compose_type', "ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply' AFTER operation_key"],
+  ['ims_cs_drafts', 'recipient_email', 'VARCHAR(500) NULL AFTER compose_type'],
   // ── ims_product_images ───────────────────────────────────────────────────
   // Additive column for tenants where the table already existed (created by
   // the older add-product-images.mjs / _create-product-images-table.mjs

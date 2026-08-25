@@ -17,6 +17,8 @@ interface ReplyRow {
   ai_generated_body: string;
   current_body: string;
   operation_key: string;
+  compose_type: 'ai_reply' | 'manual_reply' | 'forward';
+  recipient_email: string | null;
   gmail_draft_id: string | null;
   gmail_thread_id: string;
   customer_email: string;
@@ -27,7 +29,8 @@ interface ReplyRow {
 async function loadReply(businessId: string, draftId: number): Promise<ReplyRow> {
   const rows = await imsQuery<ReplyRow>(
         `SELECT d.id, d.thread_id, d.version, d.status, d.subject, d.ai_generated_body,
-          d.current_body, d.operation_key, d.gmail_draft_id, t.gmail_thread_id, t.customer_email,
+          d.current_body, d.operation_key, d.compose_type, d.recipient_email, d.gmail_draft_id,
+          t.gmail_thread_id, t.customer_email,
             m.message_id_header, m.references_header
        FROM ims_cs_drafts d
        JOIN ims_cs_threads t ON t.id = d.thread_id AND t.business_id = d.business_id
@@ -36,7 +39,7 @@ async function loadReply(businessId: string, draftId: number): Promise<ReplyRow>
     [businessId, draftId],
   );
   if (!rows[0]) throw new Error('Draft not found');
-  if (!rows[0].customer_email) throw new Error('Customer recipient is missing');
+  if (!(rows[0].recipient_email || rows[0].customer_email)) throw new Error('Recipient is missing');
   return rows[0];
 }
 
@@ -46,12 +49,12 @@ export async function saveReplyToGmailDraft(businessId: string, draftId: number)
   const { accessToken } = await getGmailAccess(businessId);
   const result = await saveGmailReplyDraft(accessToken, {
     gmailDraftId: draft.gmail_draft_id,
-    gmailThreadId: draft.gmail_thread_id,
-    to: draft.customer_email,
+    gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
+    to: draft.recipient_email || draft.customer_email,
     subject: draft.subject,
     body: draft.current_body,
-    replyToMessageId: draft.message_id_header,
-    references: draft.references_header,
+    replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
+    references: draft.compose_type === 'forward' ? null : draft.references_header,
   });
   await imsExecute(
     `UPDATE ims_cs_drafts SET gmail_draft_id = ?, status = 'gmail_draft', last_error = NULL
@@ -82,12 +85,12 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
     const stableMessageId = `<cs-${draft.operation_key}@solvantis.local>`;
     const providerDraft = await saveGmailReplyDraft(accessToken, {
       gmailDraftId: draft.gmail_draft_id,
-      gmailThreadId: draft.gmail_thread_id,
-      to: draft.customer_email,
+      gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
+      to: draft.recipient_email || draft.customer_email,
       subject: draft.subject,
       body: draft.current_body,
-      replyToMessageId: draft.message_id_header,
-      references: draft.references_header,
+      replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
+      references: draft.compose_type === 'forward' ? null : draft.references_header,
       messageIdHeader: stableMessageId,
     });
     providerDraftId = providerDraft.draftId;
@@ -97,6 +100,7 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
     );
     const sent = await sendExistingGmailDraft(accessToken, providerDraftId);
     providerMessageId = sent.messageId;
+    const providerThreadId = sent.threadId || draft.gmail_thread_id;
 
     const connection = await getIMSPool().getConnection();
     try {
@@ -114,9 +118,9 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
          VALUES (?, ?, ?, ?, 'outbound', ?, ?, '[]', ?, ?, ?, ?, NULL, '[]', '["SENT"]', 1, 0, 1, UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE direction = 'outbound', is_draft = 0, is_sent = 1,
            gmail_labels_json = '["SENT"]', body_plain = VALUES(body_plain), updated_at = CURRENT_TIMESTAMP`,
-        [businessId, draft.thread_id, providerMessageId, draft.gmail_thread_id, mailboxEmail,
-          JSON.stringify([draft.customer_email]), draft.subject, stableMessageId,
-          draft.references_header, draft.current_body],
+        [businessId, draft.thread_id, providerMessageId, providerThreadId, mailboxEmail,
+          JSON.stringify([draft.recipient_email || draft.customer_email]), draft.subject, stableMessageId,
+          draft.compose_type === 'forward' ? null : draft.references_header, draft.current_body],
       );
       await connection.execute(
         `UPDATE ims_cs_threads SET workflow_status = 'sent', latest_message_id = ?,
@@ -128,8 +132,9 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
       );
       await connection.execute(
         `INSERT INTO ims_cs_events (business_id, thread_id, draft_id, event_type, actor_type, actor_id, details_json)
-         VALUES (?, ?, ?, 'reply_sent', ?, ?, ?)`,
-        [businessId, draft.thread_id, draftId, userId ? 'user' : 'system', userId ? String(userId) : null,
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [businessId, draft.thread_id, draftId, draft.compose_type === 'forward' ? 'message_forwarded' : 'reply_sent',
+          userId ? 'user' : 'system', userId ? String(userId) : null,
           JSON.stringify({ gmailMessageId: providerMessageId })],
       );
       await connection.commit();
@@ -140,18 +145,20 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
       connection.release();
     }
 
-    try {
-      await recordDraftEditLearning({ businessId, draftId, originalBody: draft.ai_generated_body, finalBody: draft.current_body });
-    } catch (error) {
-      await reportRuntimeIssue({
-        businessId,
-        source: 'CustomerServiceReply',
-        operation: 'record_reply_learning',
-        severity: 'warning',
-        title: 'Sent customer reply learning could not be recorded',
-        error,
-        reference: { type: 'customer_service_draft', id: draftId },
-      });
+    if (draft.compose_type === 'ai_reply') {
+      try {
+        await recordDraftEditLearning({ businessId, draftId, originalBody: draft.ai_generated_body, finalBody: draft.current_body });
+      } catch (error) {
+        await reportRuntimeIssue({
+          businessId,
+          source: 'CustomerServiceReply',
+          operation: 'record_reply_learning',
+          severity: 'warning',
+          title: 'Sent customer reply learning could not be recorded',
+          error,
+          reference: { type: 'customer_service_draft', id: draftId },
+        });
+      }
     }
     return { alreadySent: false, messageId: providerMessageId, status: 'sent' };
   } catch (error: any) {
