@@ -17,7 +17,7 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
       'report-cash-banking', 'report-stock-availability', 'xero', 'shopify', 'online-shop',
     ],
   },
-  { audience: 'pos', product: 'pos', ids: ['pos', 'eod', 'reports', 'parked', 'receive-transfers', 'branch-transfer'] },
+  { audience: 'pos', product: 'pos', ids: ['pos', 'daybook', 'eod', 'reports', 'parked', 'receive-transfers', 'branch-transfer'] },
   { audience: 'wholesale', product: 'wholesale', ids: ['home', 'catalogue', 'lists', 'orders', 'account', 'help'] },
   {
     audience: 'ims',

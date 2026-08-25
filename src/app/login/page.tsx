@@ -7,7 +7,6 @@ import { SolvantisMark } from '@/components/SolvantisMark';
 
 const DESTINATIONS = [
   { key: 'ims',       label: 'IMS',       desc: 'Inventory Management',  path: '/ims',       icon: '📦' },
-  { key: 'foresight', label: 'Foresight',  desc: 'Analytics & Marketing', path: '/dashboard', icon: '📊' },
   { key: 'pos',       label: 'POS',        desc: 'Point of Sale',         path: '/pos',       icon: '🛒' },
 ];
 
@@ -92,7 +91,7 @@ function LoginForm() {
         {/* Destination selector */}
         <div className="mb-5">
           <label className="text-xs font-bold text-gray-600 uppercase block mb-2">Sign in to</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {DESTINATIONS.map(d => (
               <button key={d.key} type="button" onClick={() => setDestination(d.key)}
                 className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all text-sm font-semibold

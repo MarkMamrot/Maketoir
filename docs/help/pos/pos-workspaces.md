@@ -12,6 +12,7 @@ Use this overview to choose the POS guide for the job in front of you.
 | Set up a device, select its branch and register, or sign in | Register, Device, and Login |
 | Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |
 | Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |
+| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |
 | Send stock or receive an incoming transfer | POS Branch Transfers |
 | Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |
 | Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |

@@ -29,6 +29,21 @@ const ONLINE_SHOP_TABLES = [
   'ims_online_shop_refunds',
 ];
 
+const DAYBOOK_TABLES = [
+  'pos_daybook_staff_identities',
+  'pos_daybook_task_templates',
+  'pos_daybook_task_instances',
+  'pos_daybook_task_signoffs',
+  'pos_daybook_communications',
+  'pos_daybook_communication_targets',
+  'pos_daybook_communication_reads',
+  'pos_daybook_records',
+  'pos_daybook_record_events',
+  'pos_daybook_references',
+  'pos_daybook_product_guides',
+  'pos_daybook_import_runs',
+];
+
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
@@ -38,6 +53,12 @@ const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
     .replace(/^\s*CONSTRAINT (?:fk_online_shop_product|fk_online_checkout_item_variant|fk_online_stock_reservation_variant)\b[^\n]*,?\r?\n/gm, '')
     .replace(/,\s*(\) ENGINE=)/, '\n$1')
     .replace(/;$/, '');
+});
+const DAYBOOK_TABLE_DDLS = DAYBOOK_TABLES.map(table => {
+  const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`);
+  const match = canonicalImsSchema.match(expression);
+  if (!match) throw new Error(`Canonical IMS definition not found for ${table}.`);
+  return match[0].replace(/;$/, '');
 });
 
 const conn = await mysql.createConnection({
@@ -49,6 +70,7 @@ const conn = await mysql.createConnection({
 });
 
 const TABLE_DDLS = [
+  ...DAYBOOK_TABLE_DDLS,
   `CREATE TABLE IF NOT EXISTS pos_training_sales (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,

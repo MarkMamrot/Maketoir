@@ -1668,6 +1668,208 @@ CREATE TABLE IF NOT EXISTS pos_training_sales (
   INDEX idx_pos_training_location (business_id, location_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Store Daybook ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pos_daybook_staff_identities (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NOT NULL,
+  name            VARCHAR(120) NOT NULL,
+  initials        VARCHAR(8) NOT NULL,
+  is_active       TINYINT(1) NOT NULL DEFAULT 1,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_staff (business_id, location_id, initials),
+  INDEX idx_daybook_staff_active (business_id, location_id, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_task_templates (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NOT NULL,
+  phase           ENUM('opening','during_day','closing') NOT NULL,
+  title           VARCHAR(255) NOT NULL,
+  instructions    TEXT NULL,
+  recurrence      ENUM('daily','weekly','once') NOT NULL DEFAULT 'daily',
+  weekday         TINYINT NULL,
+  scheduled_date  DATE NULL,
+  effective_from  DATE NULL,
+  effective_to    DATE NULL,
+  sort_order      INT NOT NULL DEFAULT 0,
+  is_active       TINYINT(1) NOT NULL DEFAULT 1,
+  created_by_id   INT NULL,
+  created_by_name VARCHAR(255) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_daybook_templates (business_id, location_id, is_active, phase, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_task_instances (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NOT NULL,
+  task_date       DATE NOT NULL,
+  template_id     BIGINT NOT NULL,
+  title_snapshot  VARCHAR(255) NOT NULL,
+  instructions_snapshot TEXT NULL,
+  phase           ENUM('opening','during_day','closing') NOT NULL,
+  status          ENUM('open','completed') NOT NULL DEFAULT 'open',
+  completed_at    DATETIME NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_task_instance (business_id, location_id, task_date, template_id),
+  INDEX idx_daybook_tasks_date (business_id, location_id, task_date, phase, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_task_signoffs (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  instance_id       BIGINT NOT NULL,
+  action            ENUM('completed','reopened') NOT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  actor_tier        VARCHAR(50) NOT NULL,
+  reason            VARCHAR(500) NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_daybook_signoffs (business_id, instance_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_communications (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  title           VARCHAR(255) NOT NULL,
+  message         MEDIUMTEXT NOT NULL,
+  priority        ENUM('normal','important','urgent') NOT NULL DEFAULT 'normal',
+  is_pinned       TINYINT(1) NOT NULL DEFAULT 0,
+  published_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at      DATETIME NULL,
+  archived_at     DATETIME NULL,
+  author_user_id  INT NULL,
+  author_name     VARCHAR(255) NOT NULL,
+  import_key      VARCHAR(191) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_communication_import (business_id, import_key),
+  INDEX idx_daybook_communications (business_id, archived_at, published_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_communication_targets (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  communication_id BIGINT NOT NULL,
+  location_id       INT NOT NULL,
+  UNIQUE KEY uq_daybook_communication_target (business_id, communication_id, location_id),
+  INDEX idx_daybook_target_location (business_id, location_id, communication_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_communication_reads (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  communication_id BIGINT NOT NULL,
+  location_id       INT NOT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  read_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_read (business_id, communication_id, location_id, staff_initials),
+  INDEX idx_daybook_reads (business_id, communication_id, read_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_records (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  location_id       INT NOT NULL,
+  record_type       ENUM('customer_request','store_need','stock_discrepancy','incident') NOT NULL,
+  status            VARCHAR(32) NOT NULL DEFAULT 'open',
+  occurred_on       DATE NULL,
+  title             VARCHAR(255) NOT NULL,
+  details_json      JSON NOT NULL,
+  source_location_id INT NULL,
+  destination_location_id INT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  import_key        VARCHAR(191) NULL,
+  resolved_at       DATETIME NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_record_import (business_id, import_key),
+  INDEX idx_daybook_records (business_id, location_id, record_type, status, created_at),
+  INDEX idx_daybook_warehouse (business_id, destination_location_id, record_type, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_record_events (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  record_id         BIGINT NOT NULL,
+  from_status       VARCHAR(32) NULL,
+  to_status         VARCHAR(32) NOT NULL,
+  note              TEXT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  actor_tier        VARCHAR(50) NOT NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_daybook_record_events (business_id, record_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_references (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NULL,
+  category        VARCHAR(50) NOT NULL,
+  title           VARCHAR(255) NOT NULL,
+  content         TEXT NOT NULL,
+  link_url        VARCHAR(1000) NULL,
+  sort_order      INT NOT NULL DEFAULT 0,
+  is_active       TINYINT(1) NOT NULL DEFAULT 1,
+  import_key      VARCHAR(191) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_reference_import (business_id, import_key),
+  INDEX idx_daybook_references (business_id, location_id, category, is_active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_product_guides (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NULL,
+  variant_id      VARCHAR(36) NULL,
+  sku             VARCHAR(100) NULL,
+  product_name    VARCHAR(500) NOT NULL,
+  category        VARCHAR(120) NULL,
+  shelf_location  VARCHAR(255) NULL,
+  box_location    VARCHAR(255) NULL,
+  guidance        TEXT NULL,
+  image_url       VARCHAR(1000) NULL,
+  image_alt       VARCHAR(255) NULL,
+  status          VARCHAR(50) NOT NULL DEFAULT 'active',
+  sort_order      INT NOT NULL DEFAULT 0,
+  import_key      VARCHAR(191) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_guide_import (business_id, import_key),
+  INDEX idx_daybook_guides (business_id, location_id, category, status, product_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS pos_daybook_import_runs (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  location_id     INT NOT NULL,
+  source_name     VARCHAR(255) NOT NULL,
+  source_checksum CHAR(64) NOT NULL,
+  result_json     JSON NOT NULL,
+  imported_by     VARCHAR(255) NOT NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_daybook_import_run (business_id, location_id, source_checksum)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── POS Sale Items ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,

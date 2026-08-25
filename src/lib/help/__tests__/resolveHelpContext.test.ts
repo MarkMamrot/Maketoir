@@ -23,6 +23,13 @@ describe('resolveHelpContext', () => {
     }));
   });
 
+  it('opens Store Daybook help from the Daybook screen', () => {
+    expect(resolveHelpContext({ audience: 'pos', product: 'pos', context: 'daybook' })).toEqual(expect.objectContaining({
+      exact: true,
+      topic: expect.objectContaining({ id: 'pos-store-daybook' }),
+    }));
+  });
+
   it('never returns IMS-only topics to wholesale users', () => {
     expect(listHelpTopics('wholesale').every(topic => topic.audiences.includes('wholesale'))).toBe(true);
     expect(resolveHelpContext({ audience: 'wholesale', product: 'ims', context: 'purchase-orders' })).toBeNull();

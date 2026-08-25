@@ -10,6 +10,7 @@ import { calculatePosEligibleSpend } from '@/lib/loyalty/calculations';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
+import { PosStoreDaybook } from './components/daybook/PosStoreDaybook';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
   loadProductsCache, saveProductsCache, mergeProductsDelta,
@@ -1354,7 +1355,7 @@ function PettyCashModal({ registerSessionId, onSaved, onCancel }: {
 
 // ─── Main POS Layout ──────────────────────────────────────────────────────────
 
-type MainScreen = 'pos' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
+type MainScreen = 'pos' | 'daybook' | 'eod' | 'reports' | 'parked' | 'receive-transfers' | 'branch-transfer';
 
 function MainPos({
   deviceConfig, session, products, paymentMethods, defaultView,
@@ -2087,6 +2088,7 @@ function MainPos({
 
   if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'branch-transfer') return <PosBranchTransferScreen session={session} btAccess={btAccess} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
+  if (screen === 'daybook') return <PosStoreDaybook session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened). Also drain the offline
@@ -2342,6 +2344,15 @@ function MainPos({
                     >
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                       {isLayby ? 'Layby: ON' : 'Layby: Off'}
+                    </button>
+                    <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
+                    <button onClick={() => { setScreen('daybook'); setMoreMenuOpen(false); }}
+                      style={btnStyle({ color: '#f6c55b', fontWeight: 750 })}
+                      onMouseEnter={e => (e.currentTarget.style.background = mHov)}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                      Store Daybook
                     </button>
                     <div style={{ height: 1, background: mDiv, margin: '4px 0' }} />
                     {/* Register */}
