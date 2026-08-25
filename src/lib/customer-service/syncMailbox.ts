@@ -70,6 +70,34 @@ async function upsertThread(businessId: string, mailboxEmail: string, thread: No
           message.labels.includes('UNREAD') ? 0 : 1, direction === 'draft' ? 1 : 0, direction === 'outbound' ? 1 : 0, message.messageAt],
       );
     }
+    const [confirmedDrafts] = await connection.query<any[]>(
+      `SELECT d.id, m.gmail_message_id
+         FROM ims_cs_drafts d
+         JOIN ims_cs_messages m ON m.business_id = d.business_id AND m.thread_id = d.thread_id
+          AND m.message_id_header = CONCAT('<cs-', d.operation_key, '@solvantis.local>')
+        WHERE d.business_id = ? AND d.thread_id = ? AND d.status = 'sending' AND m.direction = 'outbound'
+        FOR UPDATE`,
+      [businessId, threadId],
+    );
+    for (const confirmed of confirmedDrafts) {
+      await connection.query(
+        `UPDATE ims_cs_drafts SET status = 'sent', gmail_sent_message_id = ?,
+           sent_at = COALESCE(sent_at, UTC_TIMESTAMP()), last_error = NULL
+          WHERE business_id = ? AND id = ? AND status = 'sending'`,
+        [confirmed.gmail_message_id, businessId, confirmed.id],
+      );
+      await connection.query(
+        `INSERT INTO ims_cs_events (business_id, thread_id, draft_id, event_type, actor_type, details_json)
+         VALUES (?, ?, ?, 'reply_send_reconciled', 'gmail', ?)`,
+        [businessId, threadId, confirmed.id, JSON.stringify({ gmailMessageId: confirmed.gmail_message_id })],
+      );
+    }
+    if (confirmedDrafts.length) {
+      await connection.query(
+        "UPDATE ims_cs_threads SET workflow_status = 'sent' WHERE business_id = ? AND id = ?",
+        [businessId, threadId],
+      );
+    }
     if (previousLatestMessageId && previousLatestMessageId !== latest.gmailMessageId && extractEmail(latest.from) !== mailboxEmail) {
       await connection.query(
         "UPDATE ims_cs_threads SET workflow_status = 'open' WHERE business_id = ? AND id = ?",

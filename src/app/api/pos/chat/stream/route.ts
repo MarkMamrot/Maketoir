@@ -9,14 +9,14 @@ export const maxDuration = 30; // seconds — Vercel/Railway limit for streaming
 // SSE long-poll: holds connection up to ~25s, sends new messages as they arrive.
 // Client reconnects automatically (EventSource).
 export async function GET(req: Request) {
-  const identity = await resolveChatIdentity();
+  const url = new URL(req.url);
+  const identity = await resolveChatIdentity(url.searchParams.get('surface') === 'ims' ? 'ims' : 'auto');
   if (!identity) return new Response('No active chat location is configured', { status: 403 });
   // The SSE poll runs in detached timer callbacks — resolve the tenant schema
   // up front and pass it explicitly to every query.
   const imsDb = await getImsDbNameStrict(identity.businessId);
   if (!imsDb) return new Response('Unauthorised', { status: 401 });
 
-  const url = new URL(req.url);
   let since = parseInt(url.searchParams.get('since') ?? '0', 10) || 0;
   const myLocId = identity.locationId;
 

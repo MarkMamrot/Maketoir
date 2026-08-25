@@ -10,8 +10,8 @@ export type ChatIdentity = {
   source: 'pos' | 'ims';
 };
 
-export async function resolveChatIdentity(): Promise<ChatIdentity | null> {
-  const session = await getImsSession(['pos_session', 'marketoir_session']);
+export async function resolveChatIdentity(surface: 'auto' | 'ims' = 'auto'): Promise<ChatIdentity | null> {
+  const session = await getImsSession(surface === 'ims' ? ['marketoir_session'] : ['pos_session', 'marketoir_session']);
   if (!session?.businessId) return null;
 
   const rawSession = session as typeof session & {
@@ -21,7 +21,7 @@ export async function resolveChatIdentity(): Promise<ChatIdentity | null> {
     username?: string;
     avatar?: string;
   };
-  const sessionLocationId = Number(rawSession.location_id ?? 0);
+  const sessionLocationId = surface === 'ims' ? 0 : Number(rawSession.location_id ?? 0);
 
   const locations = sessionLocationId > 0
     ? await imsQuery<{ id: number; name: string }>(

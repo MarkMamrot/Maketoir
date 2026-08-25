@@ -60,8 +60,8 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
 
   const loadMessages = async (currentIdentity?: ChatIdentity) => {
     const [groupResponse, inboxResponse] = await Promise.all([
-      fetch('/api/pos/chat?type=group'),
-      fetch('/api/pos/chat?type=inbox'),
+      fetch('/api/pos/chat?type=group&surface=ims'),
+      fetch('/api/pos/chat?type=inbox&surface=ims'),
     ]);
     const groupData = await groupResponse.json();
     const inboxData = await inboxResponse.json();
@@ -89,7 +89,7 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch('/api/pos/chat?type=meta');
+        const response = await fetch('/api/pos/chat?type=meta&surface=ims');
         const data = await response.json();
         if (!response.ok) throw new Error(data.error ?? 'Warehouse chat is not configured.');
         if (cancelled) return;
@@ -98,7 +98,7 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
         await loadMessages(data.identity);
         if (cancelled) return;
         const since = Math.max(0, ...Array.from(seenRef.current));
-        eventSource = new EventSource(`/api/pos/chat/stream?since=${since}`);
+        eventSource = new EventSource(`/api/pos/chat/stream?since=${since}&surface=ims`);
         eventSource.onmessage = event => {
           try {
             const incoming: ChatMessage[] = JSON.parse(event.data).messages ?? [];
@@ -149,7 +149,7 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
       const response = await fetch('/api/pos/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, to_location_id: selected === 'group' ? null : selected }),
+        body: JSON.stringify({ message, to_location_id: selected === 'group' ? null : selected, surface: 'ims' }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Message failed.');
@@ -194,7 +194,7 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
               <div style={{ marginBottom: 3, color: 'var(--sv-text-dim)', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{message.location_name} · {message.user_name} · {messageTime(message.created_at)}</div>
               <div style={{ padding: '8px 10px', borderRadius: mine ? '10px 10px 2px 10px' : '10px 10px 10px 2px', background: mine ? '#dcefeb' : 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                 {message.message}
-                {message.attachments?.map(file => <a key={file.id} href={`/api/pos/chat/attachments/${file.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 5, color: 'var(--sv-action)', fontSize: 11 }}>{file.original_name}</a>)}
+                {message.attachments?.map(file => <a key={file.id} href={`/api/pos/chat/attachments/${file.id}?surface=ims`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 5, color: 'var(--sv-action)', fontSize: 11 }}>{file.original_name}</a>)}
               </div>
             </div>;
           })}

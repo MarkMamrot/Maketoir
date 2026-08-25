@@ -5,8 +5,8 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { resolveChatIdentity } from '../../_identity';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const identity = await resolveChatIdentity();
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const identity = await resolveChatIdentity(new URL(req.url).searchParams.get('surface') === 'ims' ? 'ims' : 'auto');
   if (!identity) return new Response('No active chat location is configured', { status: 403 });
   const attachmentId = Number(params.id);
   if (!attachmentId) return new Response('Invalid attachment', { status: 400 });

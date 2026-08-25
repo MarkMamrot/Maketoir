@@ -27,12 +27,12 @@ async function ensureDmColumn() {
 //   ?type=group (default) — last 3 days of group messages
 //   ?type=dm&to=<location_id> — DMs between my location and that location
 export async function GET(req: Request) {
-  const identity = await resolveChatIdentity();
+  const url  = new URL(req.url);
+  const identity = await resolveChatIdentity(url.searchParams.get('surface') === 'ims' ? 'ims' : 'auto');
   if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
 
   await ensureDmColumn();
 
-  const url  = new URL(req.url);
   const type = url.searchParams.get('type') ?? 'group';
   const toId = parseInt(url.searchParams.get('to') ?? '0', 10);
   const myId = identity.locationId;
@@ -113,15 +113,14 @@ export async function GET(req: Request) {
 // POST /api/pos/chat — send a group message or DM
 // Body: { message, avatar, to_location_id? }
 export async function POST(req: Request) {
-  const identity = await resolveChatIdentity();
-  if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
-
-  await ensureDmColumn();
-
   let body: any;
   try { body = await req.json(); } catch {
     return NextResponse.json({ error: 'Invalid JSON.' }, { status: 400 });
   }
+  const identity = await resolveChatIdentity(body.surface === 'ims' ? 'ims' : 'auto');
+  if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
+
+  await ensureDmColumn();
 
   const message      = String(body.message ?? '').trim().slice(0, 500);
   if (!message) return NextResponse.json({ error: 'Message required.' }, { status: 400 });
