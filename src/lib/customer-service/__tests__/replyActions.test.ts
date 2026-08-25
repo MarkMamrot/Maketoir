@@ -146,7 +146,8 @@ describe('customer-service reply sending', () => {
       references: null,
     }));
     expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
-      String(sql).includes('SET gmail_thread_id = ?') && Array.isArray(params) && params[0] === 'new-thread-1')).toBe(true);
+      String(sql).includes("CASE WHEN ? = 'new_message'") && Array.isArray(params)
+        && params[0] === 'new_message' && params[1] === 'new-thread-1')).toBe(true);
     expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
       String(sql).includes('INSERT INTO ims_cs_events') && Array.isArray(params) && params[3] === 'message_composed')).toBe(true);
   });

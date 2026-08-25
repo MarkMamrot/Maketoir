@@ -145,12 +145,13 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
           startsNewThread ? null : draft.references_header, draft.current_body],
       );
       await connection.execute(
-        `UPDATE ims_cs_threads SET gmail_thread_id = ?, workflow_status = 'sent', latest_message_id = ?,
+          `UPDATE ims_cs_threads SET gmail_thread_id = CASE WHEN ? = 'new_message' THEN ? ELSE gmail_thread_id END,
+            workflow_status = 'sent', latest_message_id = ?,
            snippet = ?, message_count = (
              SELECT COUNT(*) FROM ims_cs_messages m WHERE m.business_id = ? AND m.thread_id = ?
            ), last_message_at = UTC_TIMESTAMP(), last_gmail_sync_at = UTC_TIMESTAMP()
           WHERE business_id = ? AND id = ?`,
-        [providerThreadId, providerMessageId, draft.current_body.slice(0, 1000), businessId, draft.thread_id, businessId, draft.thread_id],
+        [draft.compose_type, providerThreadId, providerMessageId, draft.current_body.slice(0, 1000), businessId, draft.thread_id, businessId, draft.thread_id],
       );
       await connection.execute(
         `INSERT INTO ims_cs_events (business_id, thread_id, draft_id, event_type, actor_type, actor_id, details_json)
