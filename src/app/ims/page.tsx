@@ -20,6 +20,7 @@ import { selectProductResearchVariant } from '@/lib/website/productResearchRules
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   type XeroDocumentAction,
@@ -544,6 +545,22 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
     return next;
   });
 
+  const itemContainsActiveView = (item: typeof NAV[number]) => {
+    const aliases = [
+      ...(item.id === '__sales' ? ['wholesale-applications'] : []),
+      ...(item.id === '__contacts' ? ['contact-profile'] : []),
+      ...(item.id === 'reports' && active.startsWith('report-') ? [active] : []),
+    ];
+    return isSidebarSectionActive(item, active, aliases);
+  };
+
+  const selectCollapsedItem = (item: typeof NAV[number]) => {
+    const action = getCollapsedSidebarAction(item);
+    setCollapsed(false);
+    if (action.openSection) openOnlySection(action.openSection);
+    if (action.navigateTo) onSelect(action.navigateTo as ImsView);
+  };
+
   const ICONS: Record<string, string> = {
     dashboard:          'M3 12l2-2m0 0l7-7 7 7m-14 0v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9m-14 0h14',
     __products:         'M20 7H4a1 1 0 00-1 1v10a1 1 0 001 1h16a1 1 0 001-1V8a1 1 0 00-1-1zM16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2',
@@ -600,37 +617,20 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
         </button>
       </div>
 
-      {/* Nav items — collapsed: curated 6-icon list */}
-      {collapsed && (() => {
-        const COLLAPSED_ICONS: { icon: string; label: string; navigate: ImsView; activeFor: string[]; hidden?: boolean }[] = [
-          { icon: '__products',       label: 'Products',         navigate: 'products',         activeFor: ['products','stock','brands','bulk-edit'] },
-          { icon: '__sales',           label: 'Sales',            navigate: 'sales-orders',     activeFor: ['sales-orders','wholesale-applications','customer-backorders','stock-availability','credit-notes','pos-sales','online-sales'] },
-          { icon: '__purchasing',      label: 'Purchasing',       navigate: 'purchase-orders',  activeFor: ['purchase-orders','order-planner','supplier-backorders','supplier-credit-notes'] },
-          { icon: 'branch-transfers', label: 'Branch Transfers', navigate: 'branch-transfers', activeFor: ['branch-transfers'], hidden: !showLocations },
-          { icon: '__contacts',       label: 'Contacts',         navigate: 'contacts',         activeFor: ['contacts', 'crm', 'contact-profile'] },
-          { icon: '__integrations',   label: 'Integrations',     navigate: 'online-shop',      activeFor: ['xero','shopify','online-shop'] },
-        ];
-        return COLLAPSED_ICONS.filter(entry => !entry.hidden).map(entry => (
-          <button key={entry.icon} data-testid={`ims-nav-${entry.navigate}`} onClick={() => onSelect(entry.navigate)} title={entry.label}
-            style={collapsedItemStyle(entry.activeFor.includes(active))}>
-            <NavIcon id={entry.icon} />
+      {/* Collapsed navigation mirrors the same top-level items as expanded navigation. */}
+      {collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => (
+          <button key={item.id} data-testid={`ims-nav-${item.id}`} onClick={() => selectCollapsedItem(item)} title={`${item.label} — expand sidebar`}
+            style={collapsedItemStyle(itemContainsActiveView(item))}>
+            <NavIcon id={item.id} />
           </button>
-        ));
-      })()}
-      {collapsed && showWholesalePreview && (
-        <button onClick={() => window.open('/wholesale/preview', '_blank', 'noopener,noreferrer')} title="Preview wholesale portal" aria-label="Preview wholesale portal" style={collapsedItemStyle(false)}>
-          <NavIcon id="__sales" />
-        </button>
-      )}
+      ))}
 
       {/* Nav items — expanded */}
       {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
         const hasChildren = 'children' in item && (item as any).children?.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
-        const isChildActive = hasChildren && ((item as any).children.some((child: any) => child.id === active)
-          || (item.id === '__sales' && active === 'wholesale-applications'));
-        const isMainActive = isActive || isChildActive;
+        const isMainActive = itemContainsActiveView(item);
 
         // Expanded mode
         return (

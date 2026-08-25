@@ -19,6 +19,7 @@ import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
 
 // ── Nav structure ────────────────────────────────────────────────────────────
 type NavChild = { id: string; label: string };
@@ -147,16 +148,30 @@ function Sidebar({
     return { ...p, [id]: false };
   });
 
-  const renderItem = (item: NavItem) => (
-    <div key={item.id}>
+  const openOnly = (id: string) => setExpanded(current => {
+    const next: Record<string, boolean> = {};
+    for (const key of Object.keys(current)) next[key] = key === id;
+    next[id] = true;
+    return next;
+  });
+
+  const renderItem = (item: NavItem) => {
+    const isActiveSection = isSidebarSectionActive(item, active);
+    return <div key={item.id}>
       <button
         onClick={() => {
-          if (item.children.length > 0 && !collapsed) toggle(item.id);
+          if (collapsed) {
+            const action = getCollapsedSidebarAction(item);
+            setCollapsed(false);
+            if (action.openSection) openOnly(action.openSection);
+            if (action.navigateTo) onSelect(action.navigateTo);
+          } else if (item.children.length > 0) toggle(item.id);
           else onSelect(item.id);
         }}
-        title={collapsed ? item.label : undefined}
+        title={collapsed ? `${item.label} — expand sidebar` : undefined}
+        aria-expanded={item.children.length > 0 ? (!collapsed && Boolean(expanded[item.id])) : undefined}
         className={`solv-nav-item w-full flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-2 ${collapsed ? 'px-0' : 'px-3'} py-2 rounded-lg text-sm transition-colors
-          ${active === item.id && item.children.length === 0
+          ${isActiveSection
             ? 'bg-blue-50 text-blue-700 font-semibold'
             : 'text-gray-700 hover:bg-gray-100 font-semibold'}`}
         style={collapsed ? { height: 36, marginBottom: 4 } : {}}
@@ -186,8 +201,8 @@ function Sidebar({
           )}
         </div>
       )}
-    </div>
-  );
+    </div>;
+  };
 
   return (
     <aside style={{ width: collapsed ? 52 : 224, flexShrink: 0, transition: 'width .2s ease' }} className="flex flex-col solvantis-sidebar overflow-hidden border-r border-gray-200 bg-white">
