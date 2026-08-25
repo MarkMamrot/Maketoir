@@ -69,7 +69,9 @@ AI marks messages as customer enquiries, junk, other, or unclassified. These cat
 5. Correct factual claims, tone, recipients, links, and promised actions.
 6. Select **Send reply** once and wait for its status to change.
 7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message. Clear the suggestion to start again, edit it in place, or send the reviewed reply.
-8. Use **Reply** on any email to send more information to the customer, or **Forward** to enter another recipient and send that email with its original details. After a message is sent, its completed AI draft panel is removed while the message remains in the conversation.
+8. Each email shows its From, To, Cc, and sent time. Use **Reply** for the sender, **Reply all** for the sender and the other original recipients, or **Forward** for a new recipient. Check and edit the To and Cc fields before sending. Forwarded content includes the original From, To, Cc, date, and subject. After a message is sent, its completed AI draft panel is removed while the message remains in the conversation.
+9. For unwanted mail, use **Report spam** and confirm. Gmail moves the conversation to Spam, takes it out of the Inbox, and uses the report as a spam signal. This does not guarantee that Gmail will block every future message from the sender.
+10. When a sender provides a standard secure unsubscribe link, use **Unsubscribe** to open the sender's page in a new tab and complete its confirmation. Solvantis does not use links found only in the email body and does not submit unsubscribe requests automatically.
 
 > **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.
 
@@ -90,6 +92,7 @@ Cached conversation history is kept until the retention setting is changed. A 90
 | Only the first set of conversations is visible | More matching conversations are available than currently loaded | Select Load more and check the loaded and total counts |
 | A previous customer subject is missing from the open thread | Gmail keeps different subjects as separate conversations | Check Other conversations with this customer |
 | Reply shows Confirming send | Gmail may have accepted the message but confirmation is incomplete | Do not resend; refresh after processing or ask an administrator to check delivery status |
+| Unsubscribe is not shown | The email did not publish a standard secure HTTPS unsubscribe method, or it has not been refreshed since this feature was enabled | Refresh emails; if the action is still absent, use Report spam or manage the sender in Gmail |
 | Send or publish fails | Access expired or the destination definitively rejected the action | Read the displayed status before retrying; do not repeat blindly |
 
 ## Worked examples

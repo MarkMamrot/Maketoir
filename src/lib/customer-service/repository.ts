@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { CS_BUSINESS_TOOL_NAMES } from './businessDataTools';
@@ -296,10 +297,10 @@ export async function listCustomerServiceThreads(businessId: string, input: {
 export async function getCustomerServiceThread(businessId: string, threadId: number): Promise<any | null> {
   const threads = await imsQuery<any>('SELECT * FROM ims_cs_threads WHERE business_id = ? AND id = ? LIMIT 1', [businessId, threadId]);
   if (!threads[0]) return null;
-  const [messages, drafts, events, otherConversations] = await Promise.all([
+  const [messages, drafts, events, otherConversations, connection] = await Promise.all([
     imsQuery<any>(
       `SELECT id, gmail_message_id, direction, from_address, to_json, cc_json, subject,
-              body_plain, attachment_metadata_json, gmail_labels_json, is_read, is_draft, is_sent, message_at
+              body_plain, unsubscribe_url, attachment_metadata_json, gmail_labels_json, is_read, is_draft, is_sent, message_at
          FROM ims_cs_messages WHERE business_id = ? AND thread_id = ? ORDER BY message_at, id`,
       [businessId, threadId],
     ),
@@ -323,8 +324,9 @@ export async function getCustomerServiceThread(businessId: string, threadId: num
         ORDER BY last_message_at DESC LIMIT 10`,
       [businessId, threads[0].customer_email, threadId],
     ) : Promise.resolve([]),
+    ConnectionsRepository.get(businessId).catch(() => null),
   ]);
-  return { thread: threads[0], messages, drafts, events, otherConversations };
+  return { thread: threads[0], messages, drafts, events, otherConversations, mailboxEmail: connection?.gmail_email || null };
 }
 
 export async function updateCustomerServiceThread(businessId: string, threadId: number, input: {
@@ -404,6 +406,7 @@ export async function createCustomerServiceManualDraft(input: {
   targetMessageId: number;
   composeType: 'manual_reply' | 'forward';
   recipientEmail?: string;
+  ccRecipients?: string | string[];
   subject: string;
   body: string;
   operationKey: string;
@@ -424,20 +427,28 @@ export async function createCustomerServiceManualDraft(input: {
     [input.businessId, input.threadId, input.targetMessageId],
   );
   if (!targets[0]) throw new Error('Selected email was not found in this conversation');
-  const recipientEmail = (input.composeType === 'forward' ? input.recipientEmail : targets[0].customer_email || '')
+  const recipientEmail = (input.recipientEmail || targets[0].customer_email || '')
     .trim().toLowerCase().slice(0, 500);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
     throw new Error(input.composeType === 'forward' ? 'Enter a valid forwarding email address' : 'Customer recipient is missing');
   }
+  const connection = await ConnectionsRepository.get(input.businessId).catch(() => null);
+  const mailboxEmail = String(connection?.gmail_email || '').trim().toLowerCase();
+  const rawCc = Array.isArray(input.ccRecipients) ? input.ccRecipients : String(input.ccRecipients || '').split(/[;,]/);
+  const ccRecipients = Array.from(new Set(rawCc
+    .map(value => String(value).trim().toLowerCase())
+    .filter(value => value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    .filter(value => value !== recipientEmail && value !== mailboxEmail)))
+    .slice(0, 20);
 
   await imsExecute(
     `INSERT IGNORE INTO ims_cs_drafts
-      (business_id, thread_id, target_message_id, operation_key, compose_type, recipient_email,
+      (business_id, thread_id, target_message_id, operation_key, compose_type, recipient_email, cc_recipients_json,
        status, subject, ai_generated_body, current_body, model_id, prompt_version,
        tool_provenance_json, editor_user_id, edited_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'editing', ?, '', ?, 'manual', 'manual-v1', '[]', ?, UTC_TIMESTAMP())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'editing', ?, '', ?, 'manual', 'manual-v1', '[]', ?, UTC_TIMESTAMP())`,
     [input.businessId, input.threadId, input.targetMessageId, operationKey, input.composeType,
-      recipientEmail, subject, body, input.userId],
+      recipientEmail, JSON.stringify(ccRecipients), subject, body, input.userId],
   );
   const drafts = await imsQuery<{ id: number }>(
     'SELECT id FROM ims_cs_drafts WHERE business_id = ? AND operation_key = ? LIMIT 1',

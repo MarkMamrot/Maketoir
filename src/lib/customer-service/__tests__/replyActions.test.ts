@@ -57,6 +57,7 @@ const reply = {
   operation_key: 'operation-key',
   compose_type: 'ai_reply',
   recipient_email: null,
+  cc_recipients_json: null,
   gmail_draft_id: null,
   gmail_thread_id: 'gmail-thread-12',
   customer_email: 'customer@example.com',
@@ -96,6 +97,7 @@ describe('customer-service reply sending', () => {
       ...reply,
       compose_type: 'forward',
       recipient_email: 'manager@example.com',
+      cc_recipients_json: '["team@example.com"]',
       subject: 'Fwd: Order update',
     }]);
     mockSendExistingGmailDraft.mockResolvedValue({ messageId: 'forward-message-1', threadId: 'forward-thread-1' });
@@ -109,10 +111,13 @@ describe('customer-service reply sending', () => {
     expect(mockSaveGmailReplyDraft).toHaveBeenCalledWith('access', expect.objectContaining({
       gmailThreadId: null,
       to: 'manager@example.com',
+      cc: ['team@example.com'],
       replyToMessageId: null,
       references: null,
     }));
     expect(mockRecordDraftEditLearning).not.toHaveBeenCalled();
+    const messageInsert = mockConnection.execute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO ims_cs_messages'));
+    expect(messageInsert?.[1]).toContain('["team@example.com"]');
     expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
       String(sql).includes('INSERT INTO ims_cs_events') && Array.isArray(params) && params[3] === 'message_forwarded')).toBe(true);
   });

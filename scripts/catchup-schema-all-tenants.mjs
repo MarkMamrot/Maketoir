@@ -581,6 +581,7 @@ const TABLE_DDLS = [
     subject VARCHAR(500) NOT NULL DEFAULT '',
     message_id_header VARCHAR(1000) NULL,
     references_header TEXT NULL,
+    unsubscribe_url VARCHAR(2000) NULL,
     body_plain MEDIUMTEXT NULL,
     body_html MEDIUMTEXT NULL,
     attachment_metadata_json MEDIUMTEXT NOT NULL,
@@ -603,6 +604,7 @@ const TABLE_DDLS = [
     operation_key VARCHAR(191) NOT NULL,
     compose_type ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply',
     recipient_email VARCHAR(500) NULL,
+    cc_recipients_json TEXT NULL,
     version INT NOT NULL DEFAULT 1,
     status ENUM('generated','editing','gmail_draft','sending','sent','failed','superseded') NOT NULL DEFAULT 'generated',
     subject VARCHAR(500) NOT NULL DEFAULT '',
@@ -1033,6 +1035,8 @@ const COLUMNS = [
   ['ims_cs_threads', 'classified_message_id', 'BIGINT NULL AFTER classifier_version'],
   ['ims_cs_drafts', 'compose_type', "ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply' AFTER operation_key"],
   ['ims_cs_drafts', 'recipient_email', 'VARCHAR(500) NULL AFTER compose_type'],
+  ['ims_cs_drafts', 'cc_recipients_json', 'TEXT NULL AFTER recipient_email'],
+  ['ims_cs_messages', 'unsubscribe_url', 'VARCHAR(2000) NULL AFTER references_header'],
   // ── ims_product_images ───────────────────────────────────────────────────
   // Additive column for tenants where the table already existed (created by
   // the older add-product-images.mjs / _create-product-images-table.mjs

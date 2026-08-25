@@ -42,6 +42,7 @@ describe('customer-service mailbox sync', () => {
         subject: 'Re: Order update',
         messageIdHeader: '<cs-operation-key@solvantis.local>',
         referencesHeader: '<inbound@example.com>',
+        unsubscribeUrl: null,
         bodyPlain: 'The reviewed reply',
         labels: ['SENT'],
         attachments: [],
@@ -63,5 +64,23 @@ describe('customer-service mailbox sync', () => {
     expect(mockConnection.query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'sent', gmail_sent_message_id = ?"))).toBe(true);
     expect(mockConnection.query.mock.calls.some(([sql]) => String(sql).includes("'reply_send_reconciled'"))).toBe(true);
     expect(mockConnection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('persists standard unsubscribe metadata with synced messages', async () => {
+    mockFetchRecentGmailThreads.mockResolvedValueOnce([{
+      gmailThreadId: 'gmail-thread-12', historyId: 'history-2', snippet: 'Newsletter',
+      messages: [{
+        gmailMessageId: 'newsletter-1', gmailThreadId: 'gmail-thread-12', from: 'news@example.com',
+        to: ['shop@example.com'], cc: [], subject: 'Newsletter', messageIdHeader: '<newsletter@example.com>',
+        referencesHeader: '', unsubscribeUrl: 'https://example.com/unsubscribe', bodyPlain: 'News',
+        labels: ['INBOX'], attachments: [], messageAt: '2026-08-25 01:00:00',
+      }],
+    }]);
+
+    await syncCustomerServiceMailbox('biz-1');
+
+    const insertCall = mockConnection.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO ims_cs_messages'));
+    expect(insertCall?.[0]).toContain('unsubscribe_url');
+    expect(insertCall?.[1]).toContain('https://example.com/unsubscribe');
   });
 });

@@ -1,18 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockImsQuery, mockImsExecute } = vi.hoisted(() => ({ mockImsQuery: vi.fn(), mockImsExecute: vi.fn() }));
+const { mockGetConnection, mockImsQuery, mockImsExecute } = vi.hoisted(() => ({
+  mockGetConnection: vi.fn(), mockImsQuery: vi.fn(), mockImsExecute: vi.fn(),
+}));
 
 vi.mock('@/services/IMSMySQLService', () => ({
   imsExecute: mockImsExecute,
   imsQuery: mockImsQuery,
 }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: vi.fn() }));
+vi.mock('@/lib/db/ConnectionsRepository', () => ({
+  ConnectionsRepository: { get: mockGetConnection },
+}));
 
 import { createCustomerServiceManualDraft, getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
 
 describe('customer-service inbox repository', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetConnection.mockResolvedValue({ gmail_email: 'shop@example.com' });
     mockImsExecute.mockResolvedValue({ affectedRows: 1 });
     mockImsQuery.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
   });
@@ -108,7 +114,8 @@ describe('customer-service inbox repository', () => {
 
     await expect(createCustomerServiceManualDraft({
       businessId: 'biz-1', threadId: 12, targetMessageId: 44, composeType: 'forward',
-      recipientEmail: 'Manager@Example.com', subject: 'Fwd: Order update', body: 'For your information',
+      recipientEmail: 'Manager@Example.com', ccRecipients: 'team@example.com, shop@example.com, TEAM@example.com',
+      subject: 'Fwd: Order update', body: 'For your information',
       operationKey: 'manual-operation-12345', userId: 7,
     })).resolves.toEqual({ draftId: 73 });
 
@@ -118,6 +125,7 @@ describe('customer-service inbox repository', () => {
     const [insertSql, insertParams] = mockImsExecute.mock.calls[0];
     expect(insertSql).toContain('compose_type, recipient_email');
     expect(insertParams).toContain('manager@example.com');
+    expect(insertParams).toContain('["team@example.com"]');
   });
 
   it('rejects a forward without a valid recipient before creating a draft', async () => {

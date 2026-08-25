@@ -20,6 +20,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       targetMessageId,
       composeType,
       recipientEmail: String(input.recipientEmail || ''),
+      ccRecipients: String(input.ccRecipients || ''),
       subject: String(input.subject || ''),
       body: String(input.body || ''),
       operationKey: String(input.operationKey || ''),

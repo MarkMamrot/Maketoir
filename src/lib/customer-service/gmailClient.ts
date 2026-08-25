@@ -32,6 +32,7 @@ export interface NormalizedGmailMessage {
   subject: string;
   messageIdHeader: string;
   referencesHeader: string;
+  unsubscribeUrl: string | null;
   bodyPlain: string;
   labels: string[];
   attachments: GmailAttachmentMetadata[];
@@ -52,6 +53,16 @@ function decodeBase64Url(input: string): string {
 
 function header(headers: any[] | undefined, name: string): string {
   return headers?.find(item => String(item?.name || '').toLowerCase() === name.toLowerCase())?.value || '';
+}
+
+export function extractHttpsUnsubscribeUrl(value: string): string | null {
+  for (const match of value.matchAll(/<([^>]+)>/g)) {
+    try {
+      const url = new URL(match[1].trim());
+      if (url.protocol === 'https:') return url.toString().slice(0, 2000);
+    } catch { /* ignore malformed or unsupported unsubscribe targets */ }
+  }
+  return null;
 }
 
 function splitAddresses(value: string): string[] {
@@ -120,6 +131,7 @@ function normalizeMessage(message: any): NormalizedGmailMessage {
     subject: header(headers, 'Subject') || '(No subject)',
     messageIdHeader: header(headers, 'Message-ID'),
     referencesHeader: header(headers, 'References') || header(headers, 'In-Reply-To'),
+    unsubscribeUrl: extractHttpsUnsubscribeUrl(header(headers, 'List-Unsubscribe')),
     bodyPlain,
     labels: Array.isArray(message.labelIds) ? message.labelIds : [],
     attachments: content.attachments,
@@ -227,12 +239,22 @@ export async function modifyGmailMessageLabels(accessToken: string, messageId: s
   });
 }
 
+export async function modifyGmailThreadLabels(accessToken: string, threadId: string, input: {
+  addLabelIds?: string[];
+  removeLabelIds?: string[];
+}): Promise<void> {
+  await gmailFetch(accessToken, `/threads/${encodeURIComponent(threadId)}/modify`, {
+    method: 'POST', body: JSON.stringify(input),
+  });
+}
+
 function toBase64Url(input: string): string {
   return Buffer.from(input, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
 function buildReplyRaw(input: {
   to: string;
+  cc?: string[];
   subject: string;
   body: string;
   replyToMessageId?: string | null;
@@ -241,6 +263,7 @@ function buildReplyRaw(input: {
 }): string {
   const headers = [
     `To: ${input.to.replace(/[\r\n]/g, '')}`,
+    ...(input.cc?.length ? [`Cc: ${input.cc.map(value => value.replace(/[\r\n]/g, '')).join(', ')}`] : []),
     `Subject: ${input.subject.replace(/[\r\n]/g, '')}`,
     'Content-Type: text/plain; charset="UTF-8"',
     'MIME-Version: 1.0',
@@ -255,6 +278,7 @@ export async function saveGmailReplyDraft(accessToken: string, input: {
   gmailDraftId?: string | null;
   gmailThreadId?: string | null;
   to: string;
+  cc?: string[];
   subject: string;
   body: string;
   replyToMessageId?: string | null;

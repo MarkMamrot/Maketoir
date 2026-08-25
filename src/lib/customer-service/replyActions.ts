@@ -19,6 +19,7 @@ interface ReplyRow {
   operation_key: string;
   compose_type: 'ai_reply' | 'manual_reply' | 'forward';
   recipient_email: string | null;
+  cc_recipients_json: string | null;
   gmail_draft_id: string | null;
   gmail_thread_id: string;
   customer_email: string;
@@ -29,7 +30,7 @@ interface ReplyRow {
 async function loadReply(businessId: string, draftId: number): Promise<ReplyRow> {
   const rows = await imsQuery<ReplyRow>(
         `SELECT d.id, d.thread_id, d.version, d.status, d.subject, d.ai_generated_body,
-          d.current_body, d.operation_key, d.compose_type, d.recipient_email, d.gmail_draft_id,
+          d.current_body, d.operation_key, d.compose_type, d.recipient_email, d.cc_recipients_json, d.gmail_draft_id,
           t.gmail_thread_id, t.customer_email,
             m.message_id_header, m.references_header
        FROM ims_cs_drafts d
@@ -43,14 +44,31 @@ async function loadReply(businessId: string, draftId: number): Promise<ReplyRow>
   return rows[0];
 }
 
+function getCcRecipients(draft: ReplyRow): string[] {
+  try {
+    const parsed = JSON.parse(draft.cc_recipients_json || '[]');
+    return Array.isArray(parsed)
+      ? Array.from(new Set(parsed
+        .filter((value): value is string => typeof value === 'string')
+        .map(value => value.trim().toLowerCase())
+        .filter(value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))))
+        .slice(0, 20)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function saveReplyToGmailDraft(businessId: string, draftId: number): Promise<{ gmailDraftId: string }> {
   const draft = await loadReply(businessId, draftId);
+  const ccRecipients = getCcRecipients(draft);
   if (draft.status === 'sent' || draft.status === 'sending') throw new Error('Sent drafts cannot be changed');
   const { accessToken } = await getGmailAccess(businessId);
   const result = await saveGmailReplyDraft(accessToken, {
     gmailDraftId: draft.gmail_draft_id,
     gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
     to: draft.recipient_email || draft.customer_email,
+    cc: ccRecipients,
     subject: draft.subject,
     body: draft.current_body,
     replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
@@ -70,6 +88,7 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
   status: 'sent' | 'confirming';
 }> {
   const draft = await loadReply(businessId, draftId);
+  const ccRecipients = getCcRecipients(draft);
   if (draft.status === 'sent') return { alreadySent: true, messageId: undefined, status: 'sent' };
   const claim = await imsExecute(
     `UPDATE ims_cs_drafts SET status = 'sending', last_error = NULL
@@ -87,6 +106,7 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
       gmailDraftId: draft.gmail_draft_id,
       gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
       to: draft.recipient_email || draft.customer_email,
+      cc: ccRecipients,
       subject: draft.subject,
       body: draft.current_body,
       replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
@@ -115,11 +135,11 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
           (business_id, thread_id, gmail_message_id, gmail_thread_id, direction, from_address,
            to_json, cc_json, subject, message_id_header, references_header, body_plain,
            body_html, attachment_metadata_json, gmail_labels_json, is_read, is_draft, is_sent, message_at)
-         VALUES (?, ?, ?, ?, 'outbound', ?, ?, '[]', ?, ?, ?, ?, NULL, '[]', '["SENT"]', 1, 0, 1, UTC_TIMESTAMP())
+         VALUES (?, ?, ?, ?, 'outbound', ?, ?, ?, ?, ?, ?, ?, NULL, '[]', '["SENT"]', 1, 0, 1, UTC_TIMESTAMP())
          ON DUPLICATE KEY UPDATE direction = 'outbound', is_draft = 0, is_sent = 1,
            gmail_labels_json = '["SENT"]', body_plain = VALUES(body_plain), updated_at = CURRENT_TIMESTAMP`,
         [businessId, draft.thread_id, providerMessageId, providerThreadId, mailboxEmail,
-          JSON.stringify([draft.recipient_email || draft.customer_email]), draft.subject, stableMessageId,
+          JSON.stringify([draft.recipient_email || draft.customer_email]), JSON.stringify(ccRecipients), draft.subject, stableMessageId,
           draft.compose_type === 'forward' ? null : draft.references_header, draft.current_body],
       );
       await connection.execute(

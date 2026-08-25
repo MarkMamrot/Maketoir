@@ -56,17 +56,18 @@ async function upsertThread(businessId: string, mailboxEmail: string, thread: No
       await connection.query(
         `INSERT INTO ims_cs_messages
           (business_id, thread_id, gmail_message_id, gmail_thread_id, direction, from_address,
-           to_json, cc_json, subject, message_id_header, references_header, body_plain,
+           to_json, cc_json, subject, message_id_header, references_header, unsubscribe_url, body_plain,
            body_html, attachment_metadata_json, gmail_labels_json, is_read, is_draft, is_sent, message_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE thread_id = VALUES(thread_id), direction = VALUES(direction),
            from_address = VALUES(from_address), to_json = VALUES(to_json), cc_json = VALUES(cc_json),
-           subject = VALUES(subject), body_plain = VALUES(body_plain),
+           subject = VALUES(subject), unsubscribe_url = VALUES(unsubscribe_url), body_plain = VALUES(body_plain),
            attachment_metadata_json = VALUES(attachment_metadata_json), gmail_labels_json = VALUES(gmail_labels_json),
            is_read = VALUES(is_read), is_draft = VALUES(is_draft), is_sent = VALUES(is_sent), message_at = VALUES(message_at)`,
         [businessId, threadId, message.gmailMessageId, thread.gmailThreadId, direction, message.from,
           JSON.stringify(message.to), JSON.stringify(message.cc), message.subject, message.messageIdHeader || null,
-          message.referencesHeader || null, message.bodyPlain, JSON.stringify(message.attachments), JSON.stringify(message.labels),
+          message.referencesHeader || null, message.unsubscribeUrl, message.bodyPlain,
+          JSON.stringify(message.attachments), JSON.stringify(message.labels),
           message.labels.includes('UNREAD') ? 0 : 1, direction === 'draft' ? 1 : 0, direction === 'outbound' ? 1 : 0, message.messageAt],
       );
     }
