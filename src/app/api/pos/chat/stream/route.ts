@@ -1,34 +1,24 @@
-import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
-import { getImsSession } from '@/lib/auth/imsSession';
 import { getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
+import { resolveChatIdentity } from '../_identity';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30; // seconds — Vercel/Railway limit for streaming
-
-function getSession() {
-  const pos = cookies().get('pos_session')?.value;
-  const adm = cookies().get('marketoir_session')?.value;
-  if (pos) try { return JSON.parse(pos); } catch {}
-  if (adm) try { return JSON.parse(adm); } catch {}
-  return null;
-}
 
 // GET /api/pos/chat/stream?since=<lastMessageId>
 // SSE long-poll: holds connection up to ~25s, sends new messages as they arrive.
 // Client reconnects automatically (EventSource).
 export async function GET(req: Request) {
-  const session = getSession();
-  if (!session) return new Response('Unauthorised', { status: 401 });
-  await getImsSession(['pos_session', 'marketoir_session']);
+  const identity = await resolveChatIdentity();
+  if (!identity) return new Response('No active chat location is configured', { status: 403 });
   // The SSE poll runs in detached timer callbacks — resolve the tenant schema
   // up front and pass it explicitly to every query.
-  const imsDb = session.businessId ? await getImsDbNameStrict(String(session.businessId)) : undefined;
+  const imsDb = await getImsDbNameStrict(identity.businessId);
   if (!imsDb) return new Response('Unauthorised', { status: 401 });
 
   const url = new URL(req.url);
   let since = parseInt(url.searchParams.get('since') ?? '0', 10) || 0;
-  const myLocId = parseInt(String(session.location_id ?? 0), 10);
+  const myLocId = identity.locationId;
 
   const encoder = new TextEncoder();
 

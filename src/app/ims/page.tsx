@@ -21250,6 +21250,7 @@ export default function ImsPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [helpModeRequest, setHelpModeRequest] = useState<{ key: number; mode: 'help' | 'ask' | 'team' }>();
   const [helpSection, setHelpSection] = useState<SettingsSection>('general');
   const [syncing, setSyncing] = useState(false);
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
@@ -21550,7 +21551,7 @@ export default function ImsPage() {
             </span>
           )}
           <button
-            onClick={() => { setHelpSection(sectionFromView(view)); setHelpOpen(true); }}
+            onClick={() => { setHelpSection(sectionFromView(view)); setHelpModeRequest({ key: Date.now(), mode: 'help' }); setHelpOpen(true); }}
             title="Help"
             style={{ background: 'none', border: 'none', borderRadius: 6, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'rgba(255,255,255,.72)', transition: 'background .15s' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,.06)')}
@@ -21874,6 +21875,8 @@ export default function ImsPage() {
         currentContext={view}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
+        teamChatEnabled
+        modeRequest={helpModeRequest}
       />
       <SettingsModal
         isOpen={settingsOpen}

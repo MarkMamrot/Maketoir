@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.","lastReviewed":"2026-08-23","owner":"operations"}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.","lastReviewed":"2026-08-25","owner":"operations"}
 ---
 # IMS Workspaces
 
@@ -10,6 +10,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - Use the Dashboard to spot work that needs attention.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
+- Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
 
 ## Choose a workspace
@@ -30,6 +31,10 @@ Dashboard cards, CRM profiles, and reports help you find and understand activity
 
 Ask Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.
 
+Select the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.
+
+Team Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.
+
 > **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.
 
 ## Troubleshooting
@@ -40,6 +45,7 @@ Ask Solvantis can use the current screen and supported read-only lookups to expl
 | An action is unavailable | Your access and the record's current status | Use the action offered on the source record |
 | A total needs explaining | The detailed report or source links | Trace representative transactions |
 | Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |
+| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |
 
 ## Worked examples
 

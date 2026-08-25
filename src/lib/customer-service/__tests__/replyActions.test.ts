@@ -102,6 +102,16 @@ describe('customer-service reply sending', () => {
     expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'confirm_reply_delivery' }));
   });
 
+  it('marks a failure before creating the provider draft as safely retryable', async () => {
+    mockSaveGmailReplyDraft.mockRejectedValue(new Error('Gmail is not connected'));
+
+    await expect(sendCustomerServiceReply('biz-1', 41, 7)).rejects.toThrow('Gmail is not connected');
+
+    expect(mockSendExistingGmailDraft).not.toHaveBeenCalled();
+    expect(mockImsExecute.mock.calls.some(([sql]) => String(sql).includes("status = 'failed'"))).toBe(true);
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'send_reply_rejected' }));
+  });
+
   it('marks an explicit Gmail validation rejection as failed before delivery', async () => {
     mockSendExistingGmailDraft.mockRejectedValue(new GmailApiError('Invalid recipient', 400));
 

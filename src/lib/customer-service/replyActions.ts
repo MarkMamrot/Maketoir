@@ -155,7 +155,7 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
     }
     return { alreadySent: false, messageId: providerMessageId, status: 'sent' };
   } catch (error: any) {
-    const definitiveFailure = !providerMessageId && isDefinitiveGmailSendFailure(error);
+    const definitiveFailure = !providerDraftId || (!providerMessageId && isDefinitiveGmailSendFailure(error));
     if (definitiveFailure) {
       await imsExecute(
         "UPDATE ims_cs_drafts SET status = 'failed', last_error = ? WHERE business_id = ? AND id = ? AND status = 'sending'",

@@ -2848,17 +2848,19 @@ function MainPos({
             <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sv-action)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--sv-action) 14%, transparent)' }} />
             Team Communications
           </div>
-          <PosAvatarBar
-            myLocationId={session.location_id}
-            myAvatar={posSettings.avatar}
-            userName={session.full_name}
-            saleRefreshTick={saleRefreshTick}
-            morningGreetingTick={morningGreetingTick}
-            cartLeft={cartLeft}
-            chatOpen={teamChatOpen}
-            onChatOpenChange={setTeamChatOpen}
-            onUnreadChange={setTeamChatUnread}
-          />
+          <div style={{ paddingTop: 16 }}>
+            <PosAvatarBar
+              myLocationId={session.location_id}
+              myAvatar={posSettings.avatar}
+              userName={session.full_name}
+              saleRefreshTick={saleRefreshTick}
+              morningGreetingTick={morningGreetingTick}
+              cartLeft={cartLeft}
+              chatOpen={teamChatOpen}
+              onChatOpenChange={setTeamChatOpen}
+              onUnreadChange={setTeamChatUnread}
+            />
+          </div>
         </section>
         <SalesTargetTracker
           myLocationId={session.location_id}

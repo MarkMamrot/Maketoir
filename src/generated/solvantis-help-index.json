@@ -776,7 +776,7 @@
       },
       "order": 1,
       "summary": "Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "operations",
       "filename": "docs/help/ims/ims-workspaces.md",
       "sections": [
@@ -788,7 +788,7 @@
         {
           "id": "ims-workspaces:2",
           "heading": "Main operations",
-          "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
+          "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
         },
         {
           "id": "ims-workspaces:3",
@@ -798,12 +798,12 @@
         {
           "id": "ims-workspaces:4",
           "heading": "How summaries work",
-          "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
+          "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
         },
         {
           "id": "ims-workspaces:5",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |"
+          "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |"
         },
         {
           "id": "ims-workspaces:6",
@@ -2790,7 +2790,7 @@
         {
           "id": "pos-selling-payments-manager-approval:3",
           "heading": "At a glance",
-          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch avatars; open Team Chat from the top toolbar, or select another branch avatar to send that branch a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |"
+          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch and Warehouse avatars; open Team Chat from the top toolbar, or select an avatar to send that location a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |"
         },
         {
           "id": "pos-selling-payments-manager-approval:4",

@@ -1,12 +1,11 @@
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { resolveChatIdentity } from '../_identity';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES_PER_MESSAGE = 3;
@@ -17,24 +16,13 @@ const ALLOWED_TYPES = new Map([
   ['image/webp', '.webp'],
 ]);
 
-function readSession(): any | null {
-  for (const name of ['pos_session', 'marketoir_session']) {
-    const raw = cookies().get(name)?.value;
-    if (!raw) continue;
-    try { return JSON.parse(raw); } catch {}
-  }
-  return null;
-}
-
 function uploadDirectory(businessId: string, messageId: number): string {
   return path.join(process.env.UPLOAD_BASE_PATH ?? './uploads', businessId, 'POSChat', String(messageId));
 }
 
 export async function POST(req: Request) {
-  const rawSession = readSession();
-  if (!rawSession) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  const session = await getImsSession(['pos_session', 'marketoir_session']);
-  if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const identity = await resolveChatIdentity();
+  if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
 
   let messageId = 0;
   let storedPath = '';
@@ -50,8 +38,7 @@ export async function POST(req: Request) {
       [messageId],
     );
     if (!messageRows.length) return NextResponse.json({ error: 'Message not found.' }, { status: 404 });
-    const locationId = Number(rawSession.location_id ?? 0);
-    if (locationId && Number(messageRows[0].location_id) !== locationId) {
+    if (Number(messageRows[0].location_id) !== identity.locationId) {
       return NextResponse.json({ error: 'Only the message sender can add attachments.' }, { status: 403 });
     }
     const countRows = await imsQuery<{ count: number }>(
@@ -71,7 +58,7 @@ export async function POST(req: Request) {
     }
 
     const storedName = `${crypto.randomUUID()}${expectedExtension}`;
-    const directory = uploadDirectory(session.businessId, messageId);
+    const directory = uploadDirectory(identity.businessId, messageId);
     await fs.mkdir(directory, { recursive: true });
     storedPath = path.join(directory, storedName);
     await fs.writeFile(storedPath, Buffer.from(await file.arrayBuffer()), { flag: 'wx' });
@@ -84,7 +71,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, attachment: { id: result.insertId, message_id: messageId, original_name: originalName, mime_type: file.type, file_size: file.size } });
   } catch (error: any) {
     if (storedPath) await fs.unlink(storedPath).catch(() => {});
-    await reportRuntimeIssue({ businessId: session.businessId, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });
+    await reportRuntimeIssue({ businessId: identity.businessId, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });
     return NextResponse.json({ error: error.message ?? 'Attachment upload failed.' }, { status: 500 });
   }
 }

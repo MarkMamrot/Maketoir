@@ -61,8 +61,9 @@ export async function runScheduledCustomerService(businessId: string, force = fa
       );
       for (const draft of drafts) {
         try {
-          await sendCustomerServiceReply(businessId, draft.id);
-          result.sent++;
+          const sendResult = await sendCustomerServiceReply(businessId, draft.id);
+          if (sendResult.status === 'sent') result.sent++;
+          else result.failed++;
         } catch {
           result.failed++;
         }
