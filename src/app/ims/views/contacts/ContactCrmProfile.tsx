@@ -118,7 +118,9 @@ export function ContactCrmProfile({
     ]);
     setProfile(profilePayload.data);
     if (!isRetailCrmType(profilePayload.data?.contact?.type)) {
-      setCategories(current => current.filter(category => category !== 'sale' && category !== 'loyalty'));
+      setCategories(current => current.some(category => category === 'sale' || category === 'loyalty')
+        ? current.filter(category => category !== 'sale' && category !== 'loyalty')
+        : current);
     }
     setTasks(tasksPayload.data ?? []);
     setTagSuggestions(tagsPayload.data?.suggestions ?? []);

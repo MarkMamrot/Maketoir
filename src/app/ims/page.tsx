@@ -2045,6 +2045,10 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
       };
       if (modal.edit) delete payload.store_credit;
       const result = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!modal.edit && (form.type === 'lead' || form.type === 'retail_customer')) {
+        setTypeFilter(form.type);
+        setPage(1);
+      }
       load(); closeModal();
       const sync = result.shopifySync;
       if (sync?.success) {

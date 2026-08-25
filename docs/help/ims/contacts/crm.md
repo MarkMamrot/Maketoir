@@ -23,7 +23,7 @@ Contacts holds maintained customer, supplier, and lead details. CRM adds relatio
 | Group customers from current data | **CRM > Segments** | Membership recalculates when viewed or refreshed |
 | Track a possible sale | **CRM > Pipeline** | The opportunity moves through open, won, or lost stages |
 
-When adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. The form closes without saving only when you choose **Cancel** or press Escape.
+When adding a contact, **Display Name** fills from Company first. If Company is blank, it uses First Name and Last Name. You can type a different display name; clearing that override resumes the automatic value. Select **Save** to create the contact. After saving a lead or retail customer, Contacts switches to that contact type so the new record is visible. The form closes without saving only when you choose **Cancel** or press Escape.
 
 ## Customer profiles
 
