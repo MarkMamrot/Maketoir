@@ -53,7 +53,7 @@ describe('customer-service mailbox sync', () => {
       if (sql.includes('SELECT latest_message_id FROM ims_cs_threads')) return [[{ latest_message_id: 'inbound-message-1' }], []];
       if (sql.includes('SELECT id FROM ims_contacts')) return [[], []];
       if (sql.includes('SELECT id FROM ims_cs_threads')) return [[{ id: 12 }], []];
-      if (sql.includes('SELECT d.id, m.gmail_message_id')) return [[{ id: 41, gmail_message_id: 'sent-message-1' }], []];
+      if (sql.includes('SELECT d.id, d.thread_id AS draft_thread_id')) return [[{ id: 41, draft_thread_id: 12, compose_type: 'ai_reply', gmail_message_id: 'sent-message-1' }], []];
       return [{ affectedRows: 1 }, []];
     });
   });
@@ -82,5 +82,24 @@ describe('customer-service mailbox sync', () => {
     const insertCall = mockConnection.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO ims_cs_messages'));
     expect(insertCall?.[0]).toContain('unsubscribe_url');
     expect(insertCall?.[1]).toContain('https://example.com/unsubscribe');
+  });
+
+  it('moves a confirmed new-message draft to Gmail thread and removes its pending shell', async () => {
+    mockConnection.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT latest_message_id FROM ims_cs_threads')) return [[], []];
+      if (sql.includes('SELECT id FROM ims_contacts')) return [[], []];
+      if (sql.includes('SELECT id FROM ims_cs_threads')) return [[{ id: 12 }], []];
+      if (sql.includes('SELECT d.id, d.thread_id AS draft_thread_id')) {
+        return [[{ id: 41, draft_thread_id: 99, compose_type: 'new_message', gmail_message_id: 'sent-message-1' }], []];
+      }
+      return [{ affectedRows: 1 }, []];
+    });
+
+    await syncCustomerServiceMailbox('biz-1');
+
+    expect(mockConnection.query.mock.calls.some(([sql, params]) =>
+      String(sql).includes("compose_type = 'new_message'") && Array.isArray(params) && params[1] === 12)).toBe(true);
+    expect(mockConnection.query.mock.calls.some(([sql, params]) =>
+      String(sql).includes('DELETE FROM ims_cs_threads') && Array.isArray(params) && params[1] === 99)).toBe(true);
   });
 });

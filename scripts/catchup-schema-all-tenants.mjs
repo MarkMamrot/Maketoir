@@ -513,6 +513,7 @@ const TABLE_DDLS = [
     run_times_json TEXT NOT NULL,
     automation_mode ENUM('draft','send') NOT NULL DEFAULT 'draft',
     lookback_days INT NOT NULL DEFAULT 7,
+    unread_first TINYINT(1) NOT NULL DEFAULT 0,
     retention_mode ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all',
     retention_days INT NOT NULL DEFAULT 90,
     light_model_id VARCHAR(150) NOT NULL DEFAULT 'gemini-2.5-flash',
@@ -600,9 +601,9 @@ const TABLE_DDLS = [
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
     thread_id BIGINT NOT NULL,
-    target_message_id BIGINT NOT NULL,
+    target_message_id BIGINT NULL,
     operation_key VARCHAR(191) NOT NULL,
-    compose_type ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply',
+    compose_type ENUM('ai_reply','manual_reply','forward','new_message') NOT NULL DEFAULT 'ai_reply',
     recipient_email VARCHAR(500) NULL,
     cc_recipients_json TEXT NULL,
     version INT NOT NULL DEFAULT 1,
@@ -1030,10 +1031,12 @@ const COLUMNS = [
   ['ims_products', 'is_stock_item', 'TINYINT(1) NOT NULL DEFAULT 1'],
   ['ims_cs_learning_evidence', 'processed_at', 'DATETIME NULL'],
   ['ims_cs_settings', 'retention_mode', "ENUM('keep_all','limited') NOT NULL DEFAULT 'keep_all' AFTER lookback_days"],
+  ['ims_cs_settings', 'unread_first', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER lookback_days'],
+  ['ims_cs_drafts', 'target_message_id', 'BIGINT NULL'],
   ['ims_cs_threads', 'is_starred', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ims_cs_threads', 'starred_at', 'DATETIME NULL'],
   ['ims_cs_threads', 'classified_message_id', 'BIGINT NULL AFTER classifier_version'],
-  ['ims_cs_drafts', 'compose_type', "ENUM('ai_reply','manual_reply','forward') NOT NULL DEFAULT 'ai_reply' AFTER operation_key"],
+  ['ims_cs_drafts', 'compose_type', "ENUM('ai_reply','manual_reply','forward','new_message') NOT NULL DEFAULT 'ai_reply' AFTER operation_key"],
   ['ims_cs_drafts', 'recipient_email', 'VARCHAR(500) NULL AFTER compose_type'],
   ['ims_cs_drafts', 'cc_recipients_json', 'TEXT NULL AFTER recipient_email'],
   ['ims_cs_messages', 'unsubscribe_url', 'VARCHAR(2000) NULL AFTER references_header'],
@@ -1272,6 +1275,20 @@ async function ensureEnumValues(schema, table, column, requiredValues) {
 
   await conn.query(
     `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ENUM(${enumSql}) ${nullSql}${defaultSql}`,
+  );
+}
+
+async function ensureNullableColumn(schema, table, column, definition) {
+  const [rows] = await conn.query(
+    `SELECT IS_NULLABLE
+       FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+      LIMIT 1`,
+    [schema, table, column],
+  );
+  if (!rows[0] || rows[0].IS_NULLABLE === 'YES') return;
+  await conn.query(
+    `ALTER TABLE \`${schema}\`.\`${table}\` MODIFY COLUMN \`${column}\` ${definition}`,
   );
 }
 
@@ -1540,6 +1557,8 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_credit_notes', 'tax_treatment', ['ex_tax', 'inc_tax', 'no_tax']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'movement_type', ['cn_returned', 'scn_returned', 'cn_return_reversed', 'scn_return_reversed', 'stocktake_reverted']);
     await ensureEnumValues(schema, 'ims_stock_movements', 'reference_type', ['credit_note', 'supplier_credit_note']);
+    await ensureEnumValues(schema, 'ims_cs_drafts', 'compose_type', ['ai_reply', 'manual_reply', 'forward', 'new_message']);
+    await ensureNullableColumn(schema, 'ims_cs_drafts', 'target_message_id', 'BIGINT NULL');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_accounts', 'balance_points', 'INT NOT NULL DEFAULT 0');
     await ensureSignedLoyaltyBalance(schema, 'loyalty_transactions', 'balance_after', 'INT NOT NULL');
     await ensureColumnCollationMatches(schema, 'ims_po_shortfall_resolutions', 'business_id', 'ims_purchase_orders', 'business_id');

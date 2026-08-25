@@ -60,9 +60,11 @@ Use content and service tools to prepare drafts that a person checks before publ
 
 The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.
 
-AI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. Starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. **Refresh emails** synchronises Gmail and shows when the Inbox was last refreshed. The loaded count appears only when more conversations are available; select **Load more** to retrieve them. Set the 7, 14, 30, 60, or 90-day **Email refresh window** under Settings.
+AI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. By default, starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Enable **Put all unread emails at the top** under Settings to show unread conversations newest to oldest, followed by read conversations newest to oldest. **Refresh emails** synchronises Gmail and shows when the Inbox was last refreshed. The loaded count appears only when more conversations are available; select **Load more** to retrieve them. Set the 7, 14, 30, 60, or 90-day **Email refresh window** under Settings.
 
-1. Open the Inbox item or Compose.
+Use **Compose email** to start a new conversation. In To, enter an email address directly or type at least two characters of a contact's name or email, then choose the matching IMS contact. Check the selected address, add optional Cc recipients, enter a subject and message, then send once. The sent email appears as a new Inbox conversation.
+
+1. Open the Inbox item, or select **Compose email** for a new conversation.
 2. Confirm the customer, subject, and related order.
 3. Read the chronological conversation before using a template or draft. Opening a conversation aligns the top of the latest email directly below the subject bar.
 4. Check **Other conversations with this customer** when earlier subjects may contain useful context.

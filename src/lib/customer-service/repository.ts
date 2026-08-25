@@ -16,6 +16,7 @@ interface CsSettingsRow {
   run_times_json: string;
   automation_mode: string;
   lookback_days: number;
+  unread_first: number;
   retention_mode: string;
   retention_days: number;
   light_model_id: string;
@@ -65,6 +66,7 @@ export async function getCustomerServiceSettings(businessId: string): Promise<Cs
     runTimes: normalizeRunTimes(parseStringArray(row?.run_times_json, ['10:00', '16:00'])),
     mode: isCsAutomationMode(row?.automation_mode) ? row.automation_mode : 'draft',
     lookbackDays: Math.max(1, Math.min(90, Number(row?.lookback_days ?? 7))),
+    unreadFirst: !!row?.unread_first,
     retentionMode: row?.retention_mode === 'limited' ? 'limited' : 'keep_all',
     retentionDays: [90, 180, 365].includes(Number(row?.retention_days)) ? Number(row.retention_days) : 90,
     lightModelId: row?.light_model_id || 'gemini-2.5-flash',
@@ -92,13 +94,13 @@ export async function saveCustomerServiceSettings(businessId: string, input: Par
   await imsExecute(
     `INSERT INTO ims_cs_settings
       (business_id, enabled, timezone_override, run_times_json, automation_mode,
-       lookback_days, retention_mode, retention_days, light_model_id, capable_model_id,
+       lookback_days, unread_first, retention_mode, retention_days, light_model_id, capable_model_id,
        enabled_tools_json, guidelines, helper_emails_json, learning_enabled)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        enabled = VALUES(enabled), timezone_override = VALUES(timezone_override),
        run_times_json = VALUES(run_times_json), automation_mode = VALUES(automation_mode),
-      lookback_days = VALUES(lookback_days), retention_mode = VALUES(retention_mode),
+      lookback_days = VALUES(lookback_days), unread_first = VALUES(unread_first), retention_mode = VALUES(retention_mode),
       retention_days = VALUES(retention_days),
        light_model_id = VALUES(light_model_id), capable_model_id = VALUES(capable_model_id),
        enabled_tools_json = VALUES(enabled_tools_json), guidelines = VALUES(guidelines),
@@ -110,6 +112,7 @@ export async function saveCustomerServiceSettings(businessId: string, input: Par
       JSON.stringify(normalizeRunTimes(input.runTimes ?? current.runTimes)),
       isCsAutomationMode(input.mode) ? input.mode : current.mode,
       Math.max(1, Math.min(90, Number(input.lookbackDays ?? current.lookbackDays))),
+      input.unreadFirst ?? current.unreadFirst ? 1 : 0,
       input.retentionMode === 'limited' ? 'limited' : input.retentionMode === 'keep_all' ? 'keep_all' : current.retentionMode,
       [90, 180, 365].includes(Number(input.retentionDays)) ? Number(input.retentionDays) : current.retentionDays,
       String(input.lightModelId ?? current.lightModelId).slice(0, 150),
@@ -234,12 +237,16 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   if (input.unread) conditions.push('t.unread_count > 0');
 
   const where = conditions.join(' AND ');
-  const countRows = await imsQuery<{ total: number; refreshed_at: string | null }>(
+  const countRows = await imsQuery<{ total: number; refreshed_at: string | null; unread_first: number }>(
     `SELECT COUNT(*) AS total,
-       (SELECT MAX(last_gmail_sync_at) FROM ims_cs_threads WHERE business_id = ?) AS refreshed_at
+       (SELECT MAX(last_gmail_sync_at) FROM ims_cs_threads WHERE business_id = ?) AS refreshed_at,
+       COALESCE((SELECT unread_first FROM ims_cs_settings WHERE business_id = ?), 0) AS unread_first
        FROM ims_cs_threads t WHERE ${where}`,
-    [businessId, ...params],
+    [businessId, businessId, ...params],
   );
+  const ordering = countRows[0]?.unread_first
+    ? 'CASE WHEN t.unread_count > 0 THEN 0 ELSE 1 END, t.last_message_at DESC'
+    : "t.is_starred DESC, CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END, t.last_message_at DESC";
   const baseSelect = `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
             t.message_count, t.unread_count, t.category, t.enquiry_subtype,
             t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
@@ -269,17 +276,18 @@ export async function listCustomerServiceThreads(businessId: string, input: {
             ORDER BY d2.id DESC LIMIT 1
          )
         WHERE ${where}
-        ORDER BY t.is_starred DESC,
-          CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END,
-          t.last_message_at DESC
+        ORDER BY ${ordering}
         LIMIT ${pageSize} OFFSET ${offset}`,
       params,
     );
   } catch (error) {
     if (!isMissingStarColumnError(error)) throw error;
+    const fallbackOrdering = countRows[0]?.unread_first
+      ? 'CASE WHEN t.unread_count > 0 THEN 0 ELSE 1 END, t.last_message_at DESC'
+      : "CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END, t.last_message_at DESC";
     rows = await imsQuery<any>(
       `${baseSelect}
-      ORDER BY CASE WHEN t.category = 'customer_enquiry' THEN 0 ELSE 1 END, t.last_message_at DESC
+      ORDER BY ${fallbackOrdering}
        LIMIT ${pageSize} OFFSET ${offset}`,
       params,
     );
@@ -456,4 +464,77 @@ export async function createCustomerServiceManualDraft(input: {
   );
   if (!drafts[0]) throw new Error('Manual draft could not be created');
   return { draftId: Number(drafts[0].id) };
+}
+
+export async function createCustomerServiceNewMessageDraft(input: {
+  businessId: string;
+  contactId?: number | null;
+  recipientEmail: string;
+  ccRecipients?: string | string[];
+  subject: string;
+  body: string;
+  operationKey: string;
+  userId: number;
+}): Promise<{ draftId: number; threadId: number }> {
+  const operationKey = input.operationKey.trim();
+  if (!/^[A-Za-z0-9_-]{16,191}$/.test(operationKey)) throw new Error('Invalid compose operation key');
+  const recipientEmail = input.recipientEmail.trim().toLowerCase().slice(0, 500);
+  const subject = input.subject.replace(/[\r\n]/g, ' ').trim().slice(0, 500);
+  const body = input.body.trim().slice(0, 50000);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) throw new Error('Enter a valid recipient email address');
+  if (!subject) throw new Error('Subject is required');
+  if (!body) throw new Error('Message body cannot be empty');
+
+  const connection = await ConnectionsRepository.get(input.businessId).catch(() => null);
+  const mailboxEmail = String(connection?.gmail_email || '').trim().toLowerCase();
+  if (recipientEmail === mailboxEmail) throw new Error('The recipient cannot be the connected mailbox');
+  const rawCc = Array.isArray(input.ccRecipients) ? input.ccRecipients : String(input.ccRecipients || '').split(/[;,]/);
+  const ccRecipients = Array.from(new Set(rawCc
+    .map(value => String(value).trim().toLowerCase())
+    .filter(value => value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    .filter(value => value !== recipientEmail && value !== mailboxEmail)))
+    .slice(0, 20);
+
+  let contactId: number | null = null;
+  if (Number.isInteger(input.contactId) && Number(input.contactId) > 0) {
+    const contacts = await imsQuery<{ id: number }>(
+      `SELECT id FROM ims_contacts
+        WHERE business_id = ? AND id = ? AND LOWER(email) = ?
+          AND is_active = 1 AND deleted_at IS NULL LIMIT 1`,
+      [input.businessId, input.contactId, recipientEmail],
+    );
+    contactId = contacts[0] ? Number(contacts[0].id) : null;
+  }
+
+  const pendingGmailThreadId = `pending-compose-${operationKey}`;
+  await imsExecute(
+    `INSERT IGNORE INTO ims_cs_threads
+      (business_id, gmail_thread_id, customer_id, customer_email, subject, snippet,
+       participants_json, gmail_labels_json, message_count, unread_count, workflow_status,
+       last_message_at, last_gmail_sync_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, '[]', 0, 0, 'drafted', UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+    [input.businessId, pendingGmailThreadId, contactId, recipientEmail, subject, body.slice(0, 1000),
+      JSON.stringify([recipientEmail])],
+  );
+  const threads = await imsQuery<{ id: number }>(
+    'SELECT id FROM ims_cs_threads WHERE business_id = ? AND gmail_thread_id = ? LIMIT 1',
+    [input.businessId, pendingGmailThreadId],
+  );
+  if (!threads[0]) throw new Error('New conversation could not be created');
+  const threadId = Number(threads[0].id);
+
+  await imsExecute(
+    `INSERT IGNORE INTO ims_cs_drafts
+      (business_id, thread_id, target_message_id, operation_key, compose_type, recipient_email, cc_recipients_json,
+       status, subject, ai_generated_body, current_body, model_id, prompt_version,
+       tool_provenance_json, editor_user_id, edited_at)
+     VALUES (?, ?, NULL, ?, 'new_message', ?, ?, 'editing', ?, '', ?, 'manual', 'manual-v1', '[]', ?, UTC_TIMESTAMP())`,
+    [input.businessId, threadId, operationKey, recipientEmail, JSON.stringify(ccRecipients), subject, body, input.userId],
+  );
+  const drafts = await imsQuery<{ id: number; thread_id: number }>(
+    'SELECT id, thread_id FROM ims_cs_drafts WHERE business_id = ? AND operation_key = ? LIMIT 1',
+    [input.businessId, operationKey],
+  );
+  if (!drafts[0]) throw new Error('New message draft could not be created');
+  return { draftId: Number(drafts[0].id), threadId: Number(drafts[0].thread_id) };
 }

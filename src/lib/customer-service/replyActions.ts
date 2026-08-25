@@ -17,7 +17,7 @@ interface ReplyRow {
   ai_generated_body: string;
   current_body: string;
   operation_key: string;
-  compose_type: 'ai_reply' | 'manual_reply' | 'forward';
+  compose_type: 'ai_reply' | 'manual_reply' | 'forward' | 'new_message';
   recipient_email: string | null;
   cc_recipients_json: string | null;
   gmail_draft_id: string | null;
@@ -35,7 +35,7 @@ async function loadReply(businessId: string, draftId: number): Promise<ReplyRow>
             m.message_id_header, m.references_header
        FROM ims_cs_drafts d
        JOIN ims_cs_threads t ON t.id = d.thread_id AND t.business_id = d.business_id
-       JOIN ims_cs_messages m ON m.id = d.target_message_id AND m.business_id = d.business_id
+      LEFT JOIN ims_cs_messages m ON m.id = d.target_message_id AND m.business_id = d.business_id
       WHERE d.business_id = ? AND d.id = ? LIMIT 1`,
     [businessId, draftId],
   );
@@ -62,17 +62,18 @@ function getCcRecipients(draft: ReplyRow): string[] {
 export async function saveReplyToGmailDraft(businessId: string, draftId: number): Promise<{ gmailDraftId: string }> {
   const draft = await loadReply(businessId, draftId);
   const ccRecipients = getCcRecipients(draft);
+  const startsNewThread = draft.compose_type === 'forward' || draft.compose_type === 'new_message';
   if (draft.status === 'sent' || draft.status === 'sending') throw new Error('Sent drafts cannot be changed');
   const { accessToken } = await getGmailAccess(businessId);
   const result = await saveGmailReplyDraft(accessToken, {
     gmailDraftId: draft.gmail_draft_id,
-    gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
+    gmailThreadId: startsNewThread ? null : draft.gmail_thread_id,
     to: draft.recipient_email || draft.customer_email,
     cc: ccRecipients,
     subject: draft.subject,
     body: draft.current_body,
-    replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
-    references: draft.compose_type === 'forward' ? null : draft.references_header,
+    replyToMessageId: startsNewThread ? null : draft.message_id_header,
+    references: startsNewThread ? null : draft.references_header,
   });
   await imsExecute(
     `UPDATE ims_cs_drafts SET gmail_draft_id = ?, status = 'gmail_draft', last_error = NULL
@@ -89,6 +90,7 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
 }> {
   const draft = await loadReply(businessId, draftId);
   const ccRecipients = getCcRecipients(draft);
+  const startsNewThread = draft.compose_type === 'forward' || draft.compose_type === 'new_message';
   if (draft.status === 'sent') return { alreadySent: true, messageId: undefined, status: 'sent' };
   const claim = await imsExecute(
     `UPDATE ims_cs_drafts SET status = 'sending', last_error = NULL
@@ -104,13 +106,13 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
     const stableMessageId = `<cs-${draft.operation_key}@solvantis.local>`;
     const providerDraft = await saveGmailReplyDraft(accessToken, {
       gmailDraftId: draft.gmail_draft_id,
-      gmailThreadId: draft.compose_type === 'forward' ? null : draft.gmail_thread_id,
+      gmailThreadId: startsNewThread ? null : draft.gmail_thread_id,
       to: draft.recipient_email || draft.customer_email,
       cc: ccRecipients,
       subject: draft.subject,
       body: draft.current_body,
-      replyToMessageId: draft.compose_type === 'forward' ? null : draft.message_id_header,
-      references: draft.compose_type === 'forward' ? null : draft.references_header,
+      replyToMessageId: startsNewThread ? null : draft.message_id_header,
+      references: startsNewThread ? null : draft.references_header,
       messageIdHeader: stableMessageId,
     });
     providerDraftId = providerDraft.draftId;
@@ -140,20 +142,20 @@ export async function sendCustomerServiceReply(businessId: string, draftId: numb
            gmail_labels_json = '["SENT"]', body_plain = VALUES(body_plain), updated_at = CURRENT_TIMESTAMP`,
         [businessId, draft.thread_id, providerMessageId, providerThreadId, mailboxEmail,
           JSON.stringify([draft.recipient_email || draft.customer_email]), JSON.stringify(ccRecipients), draft.subject, stableMessageId,
-          draft.compose_type === 'forward' ? null : draft.references_header, draft.current_body],
+          startsNewThread ? null : draft.references_header, draft.current_body],
       );
       await connection.execute(
-        `UPDATE ims_cs_threads SET workflow_status = 'sent', latest_message_id = ?,
+        `UPDATE ims_cs_threads SET gmail_thread_id = ?, workflow_status = 'sent', latest_message_id = ?,
            snippet = ?, message_count = (
              SELECT COUNT(*) FROM ims_cs_messages m WHERE m.business_id = ? AND m.thread_id = ?
            ), last_message_at = UTC_TIMESTAMP(), last_gmail_sync_at = UTC_TIMESTAMP()
           WHERE business_id = ? AND id = ?`,
-        [providerMessageId, draft.current_body.slice(0, 1000), businessId, draft.thread_id, businessId, draft.thread_id],
+        [providerThreadId, providerMessageId, draft.current_body.slice(0, 1000), businessId, draft.thread_id, businessId, draft.thread_id],
       );
       await connection.execute(
         `INSERT INTO ims_cs_events (business_id, thread_id, draft_id, event_type, actor_type, actor_id, details_json)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [businessId, draft.thread_id, draftId, draft.compose_type === 'forward' ? 'message_forwarded' : 'reply_sent',
+        [businessId, draft.thread_id, draftId, draft.compose_type === 'forward' ? 'message_forwarded' : draft.compose_type === 'new_message' ? 'message_composed' : 'reply_sent',
           userId ? 'user' : 'system', userId ? String(userId) : null,
           JSON.stringify({ gmailMessageId: providerMessageId })],
       );

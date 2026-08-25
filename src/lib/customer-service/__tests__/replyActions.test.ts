@@ -122,6 +122,35 @@ describe('customer-service reply sending', () => {
       String(sql).includes('INSERT INTO ims_cs_events') && Array.isArray(params) && params[3] === 'message_forwarded')).toBe(true);
   });
 
+  it('starts a new Gmail conversation without reply threading headers', async () => {
+    mockImsQuery.mockResolvedValue([{
+      ...reply,
+      compose_type: 'new_message',
+      recipient_email: 'new.customer@example.com',
+      gmail_thread_id: 'pending-compose-operation-key',
+      message_id_header: null,
+      references_header: null,
+    }]);
+    mockSendExistingGmailDraft.mockResolvedValue({ messageId: 'new-message-1', threadId: 'new-thread-1' });
+
+    await expect(sendCustomerServiceReply('biz-1', 41, 7)).resolves.toEqual({
+      alreadySent: false,
+      messageId: 'new-message-1',
+      status: 'sent',
+    });
+
+    expect(mockSaveGmailReplyDraft).toHaveBeenCalledWith('access', expect.objectContaining({
+      gmailThreadId: null,
+      to: 'new.customer@example.com',
+      replyToMessageId: null,
+      references: null,
+    }));
+    expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
+      String(sql).includes('SET gmail_thread_id = ?') && Array.isArray(params) && params[0] === 'new-thread-1')).toBe(true);
+    expect(mockConnection.execute.mock.calls.some(([sql, params]) =>
+      String(sql).includes('INSERT INTO ims_cs_events') && Array.isArray(params) && params[3] === 'message_composed')).toBe(true);
+  });
+
   it('keeps an ambiguous provider outcome blocked for confirmation', async () => {
     mockSendExistingGmailDraft.mockRejectedValue(new Error('Connection reset'));
 

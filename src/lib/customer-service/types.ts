@@ -24,6 +24,7 @@ export interface CsSettings {
   runTimes: string[];
   mode: CsAutomationMode;
   lookbackDays: number;
+  unreadFirst: boolean;
   retentionMode: 'keep_all' | 'limited';
   retentionDays: number;
   lightModelId: string;

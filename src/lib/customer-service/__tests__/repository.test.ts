@@ -13,7 +13,7 @@ vi.mock('@/lib/db/ConnectionsRepository', () => ({
   ConnectionsRepository: { get: mockGetConnection },
 }));
 
-import { createCustomerServiceManualDraft, getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
+import { createCustomerServiceManualDraft, createCustomerServiceNewMessageDraft, getCustomerServiceThread, listCustomerServiceThreads, updateCustomerServiceThread } from '../repository';
 
 describe('customer-service inbox repository', () => {
   beforeEach(() => {
@@ -30,7 +30,7 @@ describe('customer-service inbox repository', () => {
     expect(sql).toContain('LIMIT 30 OFFSET 60');
     expect(sql).not.toMatch(/LIMIT \?|OFFSET \?/);
     expect(params).toEqual(['biz-1']);
-    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1']);
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1', 'biz-1']);
   });
 
   it('falls back to safe pagination when values are not finite', async () => {
@@ -62,6 +62,17 @@ describe('customer-service inbox repository', () => {
     expect(sql).toContain('t.last_message_at DESC');
   });
 
+  it('groups unread threads first and sorts each group newest-first when enabled', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery.mockResolvedValueOnce([{ total: 4, unread_first: 1 }]).mockResolvedValueOnce([]);
+
+    await listCustomerServiceThreads('biz-1', {});
+
+    const [sql] = mockImsQuery.mock.calls[1];
+    expect(sql).toContain('CASE WHEN t.unread_count > 0 THEN 0 ELSE 1 END, t.last_message_at DESC');
+    expect(sql).not.toContain('ORDER BY t.is_starred DESC');
+  });
+
   it('does not add a category predicate to the default all-mail view', async () => {
     await listCustomerServiceThreads('biz-1', {});
     const [sql, params] = mockImsQuery.mock.calls[1];
@@ -77,7 +88,7 @@ describe('customer-service inbox repository', () => {
 
     expect(result.refreshedAt).toBe('2026-08-25 08:27:48');
     expect(mockImsQuery.mock.calls[0][0]).toContain('MAX(last_gmail_sync_at)');
-    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1']);
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1', 'biz-1']);
   });
 
   it('supports toggling thread star state', async () => {
@@ -138,5 +149,27 @@ describe('customer-service inbox repository', () => {
       operationKey: 'manual-operation-12345', userId: 7,
     })).rejects.toThrow('Enter a valid forwarding email address');
     expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('creates a durable new-conversation draft keyed to one compose operation', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ id: 28 }])
+      .mockResolvedValueOnce([{ id: 91 }])
+      .mockResolvedValueOnce([{ id: 73, thread_id: 91 }]);
+
+    await expect(createCustomerServiceNewMessageDraft({
+      businessId: 'biz-1', contactId: 28, recipientEmail: 'Customer@Example.com',
+      ccRecipients: 'team@example.com, shop@example.com, TEAM@example.com',
+      subject: 'Your order', body: 'Here is the update.',
+      operationKey: 'compose-operation-12345', userId: 7,
+    })).resolves.toEqual({ draftId: 73, threadId: 91 });
+
+    expect(mockImsQuery.mock.calls[0][0]).toContain('FROM ims_contacts');
+    expect(mockImsExecute.mock.calls[0][0]).toContain('INSERT IGNORE INTO ims_cs_threads');
+    expect(mockImsExecute.mock.calls[0][1]).toContain('pending-compose-compose-operation-12345');
+    expect(mockImsExecute.mock.calls[1][0]).toContain("'new_message'");
+    expect(mockImsExecute.mock.calls[1][1]).toContain('["team@example.com"]');
+    expect(mockImsQuery.mock.calls[2][0]).toContain('operation_key = ?');
   });
 });

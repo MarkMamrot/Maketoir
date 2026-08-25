@@ -25,8 +25,13 @@ type ManualComposer = {
   composeType: 'manual_reply' | 'reply_all' | 'forward'; targetMessageId: number; recipientEmail: string;
   ccRecipients: string; subject: string; body: string; operationKey: string;
 };
+type ContactOption = { id: number; name: string; email: string };
+type NewMessageComposer = {
+  contactId: number | null; recipientInput: string; ccRecipients: string; subject: string; body: string; operationKey: string;
+};
 type Settings = {
   enabled: boolean; timezone: string; runTimes: string[]; mode: 'draft' | 'send'; lookbackDays: number;
+  unreadFirst: boolean;
   retentionMode: 'keep_all' | 'limited'; retentionDays: number; lightModelId: string; capableModelId: string; enabledTools: string[];
   guidelines: string; helperEmails: string[]; learningEnabled: boolean; lastRunAt: string | null; lastError: string | null;
 };
@@ -137,6 +142,9 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [manualComposer, setManualComposer] = useState<ManualComposer | null>(null);
+  const [newMessageComposer, setNewMessageComposer] = useState<NewMessageComposer | null>(null);
+  const [contactResults, setContactResults] = useState<ContactOption[]>([]);
+  const [contactSearching, setContactSearching] = useState(false);
   const replyActionPending = useRef(false);
   const conversationScrollRef = useRef<HTMLElement | null>(null);
   const conversationHeaderRef = useRef<HTMLDivElement | null>(null);
@@ -153,11 +161,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       const response = await fetch(`/api/customer-service/inbox/threads?${params}`);
       const data = await parseResponseJson(response);
       if (!response.ok) throw new Error(data.error || 'Failed to load inbox');
-      const pageRows: ThreadSummary[] = [...(data.rows || [])].sort((left, right) =>
-        Number(right.is_starred || 0) - Number(left.is_starred || 0)
-        || Number(right.category === 'customer_enquiry') - Number(left.category === 'customer_enquiry')
-        || toTime(right.last_message_at) - toTime(left.last_message_at),
-      );
+      const pageRows: ThreadSummary[] = data.rows || [];
       const rows = append
         ? [...threads, ...pageRows.filter(row => !threads.some(thread => thread.id === row.id))]
         : pageRows;
@@ -195,6 +199,28 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
   useEffect(() => { setManualComposer(null); if (selectedId) loadDetail(selectedId); else setDetail(null); }, [selectedId]);
   useEffect(() => { const timer = setTimeout(() => loadThreads(), 250); return () => clearTimeout(timer); }, [query, category, unreadOnly]);
   useEffect(() => {
+    const search = newMessageComposer?.recipientInput.trim() || '';
+    if (!newMessageComposer || newMessageComposer.contactId || search.length < 2) {
+      setContactResults([]);
+      setContactSearching(false);
+      return;
+    }
+    let active = true;
+    setContactSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/customer-service/contacts?q=${encodeURIComponent(search)}`);
+        const data = await parseResponseJson(response);
+        if (active) setContactResults(response.ok && Array.isArray(data.contacts) ? data.contacts : []);
+      } catch {
+        if (active) setContactResults([]);
+      } finally {
+        if (active) setContactSearching(false);
+      }
+    }, 250);
+    return () => { active = false; clearTimeout(timer); };
+  }, [newMessageComposer?.recipientInput, newMessageComposer?.contactId]);
+  useEffect(() => {
     if (!detail) return;
     const frame = requestAnimationFrame(() => {
       const container = conversationScrollRef.current;
@@ -222,6 +248,46 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       setNotice(`Loaded ${sync.threads} threads and ${sync.messages} messages. Classified ${processed.classified}; drafted ${processed.drafted}.`);
       await loadThreads();
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
+  }
+  function startNewMessage() {
+    setNewMessageComposer({
+      contactId: null,
+      recipientInput: '',
+      ccRecipients: '',
+      subject: '',
+      body: '',
+      operationKey: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    });
+    setContactResults([]);
+    setError('');
+    setNotice('');
+  }
+  async function sendNewMessage() {
+    if (!newMessageComposer || replyActionPending.current) return;
+    const recipientEmail = extractEmailAddress(newMessageComposer.recipientInput);
+    if (!recipientEmail) { setError('Enter or select a valid recipient email address.'); return; }
+    replyActionPending.current = true;
+    setBusyAction('new-message-send'); setError(''); setNotice('');
+    try {
+      const response = await fetch('/api/customer-service/inbox/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newMessageComposer, recipientEmail }),
+      });
+      const data = await parseResponseJson(response);
+      if (!response.ok) throw new Error(data.error || 'Message could not be sent');
+      setNewMessageComposer(null);
+      setContactResults([]);
+      setNotice(data.status === 'confirming'
+        ? 'Gmail delivery is being confirmed. Do not send this message again.'
+        : 'Email sent.');
+      await loadThreads(Number(data.threadId) || null);
+    } catch (cause: any) {
+      setError(cause.message);
+    } finally {
+      replyActionPending.current = false;
+      setBusyAction('');
+    }
   }
   async function patchThreadById(threadId: number, input: Record<string, string>) {
     const response = await fetch(`/api/customer-service/inbox/threads/${threadId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
@@ -360,6 +426,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       const response = await fetch('/api/customer-service/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings) });
       const data = await parseResponseJson(response); if (!response.ok) throw new Error(data.error || 'Settings save failed');
       setSettings(data.settings); setNotice('Customer service settings saved.');
+      await loadThreads(selectedId);
     } catch (cause: any) { setError(cause.message); } finally { setBusyAction(''); }
   }
   async function saveDocument(document: KnowledgeDocument) {
@@ -393,6 +460,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       <nav className="flex border border-gray-300 rounded-md overflow-hidden bg-white">{(['inbox', 'settings', 'learnings'] as ViewTab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`px-3 py-1.5 text-xs font-semibold capitalize ${tab === item ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>{item}</button>)}</nav>
     </header>
     {(error || notice) && <div className={`px-4 py-2 text-sm border-b ${error ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>{error || notice}</div>}
+    {newMessageComposer && <div className="fixed inset-0 z-50 bg-black/40 p-4 grid place-items-center" role="dialog" aria-modal="true" aria-labelledby="compose-email-title"><section className="w-full max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-xl"><header className="px-5 py-4 border-b border-gray-200 flex items-center gap-3"><h2 id="compose-email-title" className="text-base font-bold text-gray-900">Compose email</h2><button type="button" onClick={() => setNewMessageComposer(null)} disabled={!!busyAction} aria-label="Close compose email" title="Close" className="ml-auto text-2xl leading-none text-gray-500 hover:text-gray-900 disabled:opacity-50">×</button></header><div className="p-5 space-y-4"><label className="relative block text-sm font-semibold text-gray-700">To<input autoFocus value={newMessageComposer.recipientInput} onChange={e => setNewMessageComposer({ ...newMessageComposer, recipientInput: e.target.value, contactId: null })} placeholder="Enter an email or search IMS contacts" autoComplete="off" className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 font-normal" />{(contactSearching || contactResults.length > 0) && <div className="absolute left-0 right-0 top-full mt-1 z-10 border border-gray-300 bg-white rounded-md shadow-lg overflow-hidden">{contactSearching && <p className="px-3 py-2 text-xs font-normal text-gray-500">Searching contacts...</p>}{!contactSearching && contactResults.map(contact => <button type="button" key={contact.id} onClick={() => { setNewMessageComposer({ ...newMessageComposer, contactId: contact.id, recipientInput: `${contact.name ? `${contact.name} ` : ''}<${contact.email}>` }); setContactResults([]); }} className="w-full px-3 py-2 text-left hover:bg-blue-50"><span className="block text-sm font-semibold text-gray-800">{contact.name || contact.email}</span>{contact.name && <span className="block text-xs font-normal text-gray-500">{contact.email}</span>}</button>)}</div>}</label><label className="block text-sm font-semibold text-gray-700">Cc <span className="font-normal text-gray-400">(optional)</span><input value={newMessageComposer.ccRecipients} onChange={e => setNewMessageComposer({ ...newMessageComposer, ccRecipients: e.target.value })} placeholder="Separate addresses with commas" className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 font-normal" /></label><label className="block text-sm font-semibold text-gray-700">Subject<input value={newMessageComposer.subject} onChange={e => setNewMessageComposer({ ...newMessageComposer, subject: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 font-normal" /></label><label className="block text-sm font-semibold text-gray-700">Message<textarea value={newMessageComposer.body} onChange={e => setNewMessageComposer({ ...newMessageComposer, body: e.target.value })} rows={12} className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 font-normal leading-6 resize-y" /></label></div><footer className="px-5 py-4 border-t border-gray-200 flex justify-end gap-2"><button type="button" onClick={() => setNewMessageComposer(null)} disabled={!!busyAction} className="px-3 py-2 border border-gray-300 rounded-md text-sm font-semibold text-gray-700 disabled:opacity-50">Cancel</button><button type="button" onClick={sendNewMessage} disabled={!!busyAction} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">{busyAction === 'new-message-send' ? 'Sending...' : 'Send'}</button></footer></section></div>}
 
     {tab === 'inbox' && <>
       <div className="px-4 py-2 border-b border-gray-200 flex flex-wrap items-center gap-2">
@@ -400,7 +468,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
         <select value={category} onChange={e => setCategory(e.target.value)} className="border border-gray-300 rounded-md px-2 py-2 text-sm"><option value="">All categories</option><option value="customer_enquiry">Customer enquiries</option><option value="junk">Junk</option><option value="other">Other</option><option value="unclassified">Unclassified</option></select>
         <label className="flex items-center gap-2 px-2 text-xs text-gray-600"><input type="checkbox" checked={unreadOnly} onChange={e => setUnreadOnly(e.target.checked)} /> Unread only</label>
         {threads.length < total && <><span className="text-xs text-gray-500">{threads.length} of {total} loaded</span><button onClick={() => loadThreads(selectedId, loadedPage + 1, true)} disabled={loading || !!busyAction} className="px-3 py-2 border border-gray-300 text-gray-700 rounded-md text-sm font-semibold disabled:opacity-50">{loading ? 'Loading...' : 'Load more'}</button></>}
-        <div className="ml-auto flex items-center gap-3"><span className="text-xs text-gray-500 whitespace-nowrap">{refreshedAt ? `Last refreshed ${formatRefreshTime(refreshedAt)}` : 'Not refreshed yet'}</span><button onClick={runInbox} disabled={!!busyAction} className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">{busyAction === 'sync' ? 'Refreshing...' : 'Refresh emails'}</button></div>
+        <div className="ml-auto flex items-center gap-3"><button onClick={startNewMessage} disabled={!!busyAction} className="px-3 py-2 border border-blue-600 bg-white text-blue-700 rounded-md text-sm font-semibold disabled:opacity-50">Compose email</button><span className="text-xs text-gray-500 whitespace-nowrap">{refreshedAt ? `Last refreshed ${formatRefreshTime(refreshedAt)}` : 'Not refreshed yet'}</span><button onClick={runInbox} disabled={!!busyAction} className="px-3 py-2 bg-blue-600 text-white rounded-md text-sm font-semibold disabled:opacity-50">{busyAction === 'sync' ? 'Refreshing...' : 'Refresh emails'}</button></div>
       </div>
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-r border-gray-200 overflow-y-auto">{loading && <p className="p-4 text-sm text-gray-500">Loading inbox...</p>}{!loading && !threads.length && <p className="p-6 text-sm text-gray-500">No matching emails. Refresh emails to synchronize Gmail.</p>}{threads.map(thread => <button key={thread.id} onClick={() => setSelectedId(thread.id)} className={`w-full text-left px-4 py-3 border-b border-gray-100 ${selectedId === thread.id ? 'bg-blue-50' : 'hover:bg-gray-50'} ${thread.unread_count ? 'font-semibold' : ''}`}>
@@ -419,7 +487,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
 
     {tab === 'settings' && settings && <div className="flex-1 overflow-y-auto p-5 bg-gray-50"><div className="max-w-4xl mx-auto space-y-6">
       <section><h2 className="text-base font-bold text-gray-900">Automation</h2><div className="mt-3 grid sm:grid-cols-2 gap-4"><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.enabled} onChange={e => setSettings({ ...settings, enabled: e.target.checked })} /> Scheduled inbox processing enabled</label><label className="text-sm">Timezone<input value={settings.timezone} onChange={e => setSettings({ ...settings, timezone: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" /></label><label className="text-sm">Run times (comma separated)<input value={settings.runTimes.join(', ')} onChange={e => setSettings({ ...settings, runTimes: e.target.value.split(',').map(item => item.trim()) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2" /></label><label className="text-sm">Automation mode<select value={settings.mode} onChange={e => setSettings({ ...settings, mode: e.target.value as 'draft' | 'send' })} className={`mt-1 w-full border rounded px-3 py-2 ${settings.mode === 'send' ? 'border-red-400 bg-red-50 text-red-800' : 'border-gray-300'}`}><option value="draft">Create drafts for review</option><option value="send">Send automatically</option></select></label><label className="text-sm">Email refresh window<select value={settings.lookbackDays} onChange={e => setSettings({ ...settings, lookbackDays: Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value={7}>Last 7 days</option><option value={14}>Last 14 days</option><option value={30}>Last 30 days</option><option value={60}>Last 60 days</option><option value={90}>Last 90 days</option></select></label></div>{settings.lastRunAt && <p className="text-xs text-gray-500 mt-3">Last automation run: {new Date(settings.lastRunAt).toLocaleString()}</p>}{settings.lastError && <p className="text-xs text-red-700 mt-2">Last error: {settings.lastError}</p>}</section>
-      <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Conversation history</h2><label className="mt-3 block max-w-sm text-sm">Cached history retention<select value={settings.retentionMode === 'keep_all' ? 'keep_all' : String(settings.retentionDays)} onChange={e => setSettings({ ...settings, retentionMode: e.target.value === 'keep_all' ? 'keep_all' : 'limited', retentionDays: e.target.value === 'keep_all' ? settings.retentionDays : Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value="keep_all">Keep all synced history</option><option value="90">Keep 90 days</option><option value="180">Keep 180 days</option><option value="365">Keep 365 days</option></select></label><p className="mt-2 text-xs text-gray-500">Limited retention removes only Solvantis's cached copy of inactive conversations. It does not delete Gmail mail.</p></section>
+      <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Inbox and conversation history</h2><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.unreadFirst} onChange={e => setSettings({ ...settings, unreadFirst: e.target.checked })} /> Put all unread emails at the top</label><p className="mt-1 text-xs text-gray-500">Unread conversations are sorted newest to oldest, followed by read conversations newest to oldest.</p><label className="mt-4 block max-w-sm text-sm">Cached history retention<select value={settings.retentionMode === 'keep_all' ? 'keep_all' : String(settings.retentionDays)} onChange={e => setSettings({ ...settings, retentionMode: e.target.value === 'keep_all' ? 'keep_all' : 'limited', retentionDays: e.target.value === 'keep_all' ? settings.retentionDays : Number(e.target.value) })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value="keep_all">Keep all synced history</option><option value="90">Keep 90 days</option><option value="180">Keep 180 days</option><option value="365">Keep 365 days</option></select></label><p className="mt-2 text-xs text-gray-500">Limited retention removes only Solvantis's cached copy of inactive conversations. It does not delete Gmail mail.</p></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">AI models</h2><div className="mt-3 grid sm:grid-cols-2 gap-4"><label className="text-sm">Light classification model<select value={settings.lightModelId} onChange={e => setSettings({ ...settings, lightModelId: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value={settings.lightModelId}>{settings.lightModelId}</option>{models.filter(m => m.id !== settings.lightModelId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label><label className="text-sm">Capable reply model<select value={settings.capableModelId} onChange={e => setSettings({ ...settings, capableModelId: e.target.value })} className="mt-1 w-full border border-gray-300 rounded px-3 py-2"><option value={settings.capableModelId}>{settings.capableModelId}</option>{models.filter(m => m.id !== settings.capableModelId).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label></div></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Read-only business data tools</h2><div className="mt-3 grid sm:grid-cols-2 gap-2">{Object.entries(TOOL_LABELS).map(([name, label]) => <label key={name} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.enabledTools.includes(name)} onChange={e => setSettings({ ...settings, enabledTools: e.target.checked ? [...settings.enabledTools, name] : settings.enabledTools.filter(tool => tool !== name) })} /> {label}</label>)}</div><p className="text-xs text-gray-500 mt-2">These tools reuse live IMS Products, Stock Levels, Locations, Contacts and Sales Orders. They cannot write data or expose costs and internal notes.</p></section>
       <section className="border-t border-gray-200 pt-5"><h2 className="text-base font-bold text-gray-900">Reply guidelines</h2><textarea value={settings.guidelines} onChange={e => setSettings({ ...settings, guidelines: e.target.value })} rows={8} className="mt-3 w-full border border-gray-300 rounded p-3 text-sm" /><label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={settings.learningEnabled} onChange={e => setSettings({ ...settings, learningEnabled: e.target.checked })} /> Learn from edited responses</label></section>
