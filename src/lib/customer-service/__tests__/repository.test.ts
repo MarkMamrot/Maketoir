@@ -24,6 +24,7 @@ describe('customer-service inbox repository', () => {
     expect(sql).toContain('LIMIT 30 OFFSET 60');
     expect(sql).not.toMatch(/LIMIT \?|OFFSET \?/);
     expect(params).toEqual(['biz-1']);
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1']);
   });
 
   it('falls back to safe pagination when values are not finite', async () => {
@@ -60,6 +61,17 @@ describe('customer-service inbox repository', () => {
     const [sql, params] = mockImsQuery.mock.calls[1];
     expect(sql).not.toContain('t.category = ?');
     expect(params).toEqual(['biz-1']);
+  });
+
+  it('returns the latest tenant Gmail refresh time independently of pagination', async () => {
+    mockImsQuery.mockReset();
+    mockImsQuery.mockResolvedValueOnce([{ total: 25, refreshed_at: '2026-08-25 08:27:48' }]).mockResolvedValueOnce([]);
+
+    const result = await listCustomerServiceThreads('biz-1', {});
+
+    expect(result.refreshedAt).toBe('2026-08-25 08:27:48');
+    expect(mockImsQuery.mock.calls[0][0]).toContain('MAX(last_gmail_sync_at)');
+    expect(mockImsQuery.mock.calls[0][1]).toEqual(['biz-1', 'biz-1']);
   });
 
   it('supports toggling thread star state', async () => {

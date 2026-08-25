@@ -60,7 +60,7 @@ Use content and service tools to prepare drafts that a person checks before publ
 
 The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.
 
-AI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. Starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Use **Load more** when the loaded count is lower than the total.
+AI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. Starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. **Refresh emails** synchronises Gmail and shows when the Inbox was last refreshed. The loaded count appears only when more conversations are available; select **Load more** to retrieve them. Set the 7, 14, 30, 60, or 90-day **Email refresh window** under Settings.
 
 1. Open the Inbox item or Compose.
 2. Confirm the customer, subject, and related order.

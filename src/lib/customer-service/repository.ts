@@ -205,7 +205,7 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   category?: string;
   status?: string;
   unread?: boolean;
-}): Promise<{ rows: any[]; total: number; page: number; pageSize: number }> {
+}): Promise<{ rows: any[]; total: number; page: number; pageSize: number; refreshedAt: string | null }> {
   const requestedPage = Number(input.page);
   const requestedPageSize = Number(input.pageSize);
   const page = Number.isFinite(requestedPage) ? Math.max(1, Math.trunc(requestedPage)) : 1;
@@ -233,7 +233,12 @@ export async function listCustomerServiceThreads(businessId: string, input: {
   if (input.unread) conditions.push('t.unread_count > 0');
 
   const where = conditions.join(' AND ');
-  const countRows = await imsQuery<{ total: number }>(`SELECT COUNT(*) AS total FROM ims_cs_threads t WHERE ${where}`, params);
+  const countRows = await imsQuery<{ total: number; refreshed_at: string | null }>(
+    `SELECT COUNT(*) AS total,
+       (SELECT MAX(last_gmail_sync_at) FROM ims_cs_threads WHERE business_id = ?) AS refreshed_at
+       FROM ims_cs_threads t WHERE ${where}`,
+    [businessId, ...params],
+  );
   const baseSelect = `SELECT t.id, t.gmail_thread_id, t.customer_id, t.customer_email, t.subject, t.snippet,
             t.message_count, t.unread_count, t.category, t.enquiry_subtype,
             t.classification_confidence, t.urgency, t.sentiment, t.workflow_status,
@@ -279,7 +284,13 @@ export async function listCustomerServiceThreads(businessId: string, input: {
     );
     rows = rows.map(row => ({ ...row, is_starred: 0, starred_at: null }));
   }
-  return { rows, total: Number(countRows[0]?.total ?? 0), page, pageSize };
+  return {
+    rows,
+    total: Number(countRows[0]?.total ?? 0),
+    page,
+    pageSize,
+    refreshedAt: countRows[0]?.refreshed_at ?? null,
+  };
 }
 
 export async function getCustomerServiceThread(businessId: string, threadId: number): Promise<any | null> {

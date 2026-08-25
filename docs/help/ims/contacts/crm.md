@@ -10,7 +10,7 @@ Contacts holds maintained customer, supplier, and lead details. CRM adds relatio
 - Search before creating a contact so one person or company is not duplicated.
 - Maintain names, contact details, company details, and contact type in Contacts.
 - Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.
-- Keep essential conversation context in **Before every interaction** at the top of each CRM profile.
+- Keep important information in the **Contact summary** pinned at the top of each CRM profile.
 - Open a customer profile to review activity and follow its source links.
 - Use CRM tasks, segments, and pipeline for follow-up and sales development.
 
@@ -30,9 +30,9 @@ When adding a contact, **Display Name** fills from Company first. If Company is 
 
 A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.
 
-The **Before every interaction** note stays at the top of the profile so staff see it before reviewing activity or starting a conversation. Use **Edit**, record only durable context that should guide every interaction, then select **Save**. Examples include a preferred contact time, communication preference, accessibility requirement, or a standing instruction that must be confirmed. Clearing and saving removes the note. Advisor accounts can read the note but cannot change it.
+The **Contact summary** is a pinned note for important information staff should know about the contact. Use **Edit** to record details such as contact preferences, accessibility requirements, or standing instructions, then select **Save**. Clearing and saving removes the note. Advisor accounts can read the summary but cannot change it.
 
-Use a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the interaction brief into a running activity log.
+Use a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the contact summary into a running activity log.
 
 | Information | Where it comes from | Where to correct it |
 |---|---|---|
@@ -42,7 +42,7 @@ Use a dated CRM interaction for what happened in one call, meeting, or message. 
 | Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |
 | Loyalty points | Loyalty activity | The supported loyalty or return workflow |
 | Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |
-| Standing context to remember before every contact | **Before every interaction** note | The customer profile |
+| Important information about the contact | **Contact summary** | The customer profile |
 | Follow-up commitment | CRM task | The task queue or customer profile |
 | Potential sale and forecast value | CRM opportunity | The Pipeline |
 
