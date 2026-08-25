@@ -1,5 +1,5 @@
 ---
-{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-08-23","owner":"customer"}
+{"id":"ims-contacts-crm","title":"Contacts and CRM","audiences":["ims"],"capability":"navigation","screen":"Contacts","product":"ims","format":"overview","parentId":"ims-contacts","contexts":["contacts","contact-profile"],"contextSections":{"contacts":"Choose the right contact area","contact-profile":"Customer profiles"},"relatedTopics":["ims-crm-workflows","ims-customer-orders"],"order":40,"summary":"Maintain contact details and use CRM profiles without replacing source transactions.","lastReviewed":"2026-08-25","owner":"customer"}
 ---
 # Contacts and CRM
 
@@ -10,6 +10,7 @@ Contacts holds maintained customer, supplier, and lead details. CRM adds relatio
 - Search before creating a contact so one person or company is not duplicated.
 - Maintain names, contact details, company details, and contact type in Contacts.
 - Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.
+- Keep essential conversation context in **Before every interaction** at the top of each CRM profile.
 - Open a customer profile to review activity and follow its source links.
 - Use CRM tasks, segments, and pipeline for follow-up and sales development.
 
@@ -29,6 +30,10 @@ When adding a contact, **Display Name** fills from Company first. If Company is 
 
 A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.
 
+The **Before every interaction** note stays at the top of the profile so staff see it before reviewing activity or starting a conversation. Use **Edit**, record only durable context that should guide every interaction, then select **Save**. Examples include a preferred contact time, communication preference, accessibility requirement, or a standing instruction that must be confirmed. Clearing and saving removes the note. Advisor accounts can read the note but cannot change it.
+
+Use a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the interaction brief into a running activity log.
+
 | Information | Where it comes from | Where to correct it |
 |---|---|---|
 | Name, company, email, phone, address, contact type | Contact record | **Contacts** |
@@ -37,6 +42,7 @@ A profile combines contact details with supported POS sales, Sales Orders, credi
 | Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |
 | Loyalty points | Loyalty activity | The supported loyalty or return workflow |
 | Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |
+| Standing context to remember before every contact | **Before every interaction** note | The customer profile |
 | Follow-up commitment | CRM task | The task queue or customer profile |
 | Potential sale and forecast value | CRM opportunity | The Pipeline |
 

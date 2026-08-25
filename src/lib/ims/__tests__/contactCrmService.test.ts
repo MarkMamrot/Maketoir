@@ -23,6 +23,7 @@ import {
   createContactCrmTask,
   getContactCrmWorkspace,
   normalizeContactCrmInteractionBrief,
+  updateContactCrmInteractionBrief,
   updateContactCrmTask,
 } from '../contactCrmService';
 
@@ -38,6 +39,17 @@ describe('contact CRM service', () => {
     expect(normalizeContactCrmInteractionBrief('  Prefers calls after 3pm.  ')).toBe('Prefers calls after 3pm.');
     expect(normalizeContactCrmInteractionBrief('   ')).toBeNull();
     expect(() => normalizeContactCrmInteractionBrief('x'.repeat(4001))).toThrow(ContactCrmValidationError);
+  });
+
+  it('updates the interaction brief within the verified business contact', async () => {
+    await expect(updateContactCrmInteractionBrief('business-1', 42, '  Confirm delivery timing.  '))
+      .resolves.toBe('Confirm delivery timing.');
+
+    expect(mockContactGet).toHaveBeenCalledWith(42, 'business-1');
+    expect(mockImsExecute).toHaveBeenCalledWith(
+      'UPDATE ims_contacts SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND business_id = ?',
+      ['Confirm delivery timing.', 42, 'business-1'],
+    );
   });
 
   it('fences the contact by business before writing', async () => {

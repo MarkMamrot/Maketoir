@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Check, ClipboardList, Mail, Pencil, Phone, Plus, Tag, X } from 'lucide-react';
+import { ArrowLeft, Check, ClipboardList, Mail, Pencil, Phone, Plus, StickyNote, Tag, X } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { isRetailCrmType } from '@/lib/ims/contactCrmAccess';
@@ -105,6 +105,8 @@ export function ContactCrmProfile({
   const [busy, setBusy] = useState(false);
   const [interactionType, setInteractionType] = useState('note');
   const [interactionBody, setInteractionBody] = useState('');
+  const [interactionBrief, setInteractionBrief] = useState('');
+  const [editingInteractionBrief, setEditingInteractionBrief] = useState(false);
   const [tagName, setTagName] = useState('');
   const [taskDraft, setTaskDraft] = useState({ title: '', description: '', dueDate: '', priority: 'normal', assignedUserId: '' });
   const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
@@ -117,6 +119,7 @@ export function ContactCrmProfile({
       apiJson('/api/ims/contacts/assignees'),
     ]);
     setProfile(profilePayload.data);
+    setInteractionBrief(profilePayload.data?.contact?.notes ?? '');
     if (!isRetailCrmType(profilePayload.data?.contact?.type)) {
       setCategories(current => current.some(category => category === 'sale' || category === 'loyalty')
         ? current.filter(category => category !== 'sale' && category !== 'loyalty')
@@ -153,6 +156,24 @@ export function ContactCrmProfile({
 
   const refreshAfterWrite = async () => {
     await Promise.all([loadProfile(), loadActivity()]);
+  };
+
+  const saveInteractionBrief = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const payload = await apiJson(`/api/ims/contacts/${contactId}/crm`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interactionBrief }),
+      });
+      const savedBrief = payload.data?.interactionBrief ?? '';
+      setInteractionBrief(savedBrief);
+      setProfile(current => current ? { ...current, contact: { ...current.contact, notes: savedBrief } } : current);
+      setEditingInteractionBrief(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Interaction brief could not be saved.');
+    } finally { setBusy(false); }
   };
 
   const submitInteraction = async (event: React.FormEvent) => {
@@ -295,6 +316,35 @@ export function ContactCrmProfile({
           )}
         </div>
       </header>
+
+      <section aria-labelledby="interaction-brief-heading" style={{ border: '1px solid color-mix(in srgb, #d6a928 58%, var(--sv-etch))', borderRadius: 7, background: 'color-mix(in srgb, #f6d96b 18%, var(--sv-bg-1))', padding: '13px 15px', boxShadow: 'inset 4px 0 0 #d6a928' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+          <StickyNote size={18} style={{ marginTop: 1, color: '#b48608', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+              <h2 id="interaction-brief-heading" style={{ margin: 0, fontSize: 14, color: 'var(--sv-text-strong)' }}>Before every interaction</h2>
+              <span style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>Important context for every conversation with this contact</span>
+              {!isAdvisor && !editingInteractionBrief && <button type="button" onClick={() => setEditingInteractionBrief(true)} title="Edit interaction brief" style={{ ...commandStyle, minHeight: 27, marginLeft: 'auto', padding: '3px 7px', background: 'transparent' }}><Pencil size={13} /> Edit</button>}
+            </div>
+            {editingInteractionBrief ? (
+              <form onSubmit={saveInteractionBrief} style={{ marginTop: 9 }}>
+                <textarea autoFocus value={interactionBrief} onChange={event => setInteractionBrief(event.target.value)} maxLength={4000} rows={4} placeholder="For example: prefers email after 3pm, confirm delivery timing before quoting, never call the mobile number." style={{ ...inputStyle, minHeight: 92, resize: 'vertical', background: 'color-mix(in srgb, #f6d96b 9%, var(--sv-bg-0))' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 7 }}>
+                  <span style={{ fontSize: 10, color: 'var(--sv-text-dim)' }}>{interactionBrief.length.toLocaleString()} / 4,000</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" disabled={busy} onClick={() => { setInteractionBrief(contact.notes ?? ''); setEditingInteractionBrief(false); }} style={commandStyle}>Cancel</button>
+                    <button disabled={busy} style={{ ...commandStyle, background: 'var(--sv-action)', color: '#fff' }}><Check size={14} /> Save</button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <div style={{ marginTop: 7, color: interactionBrief ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                {interactionBrief || (isAdvisor ? 'No interaction brief has been recorded.' : 'No interaction brief yet. Select Edit to add what staff should remember before speaking with this contact.')}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {error && <div role="alert" style={{ padding: '9px 12px', borderLeft: '3px solid var(--sv-red)', background: 'var(--sv-red-tint)', color: 'var(--sv-red)', fontSize: 12 }}>{error}</div>}
 

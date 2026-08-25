@@ -658,7 +658,7 @@
       ],
       "order": 40,
       "summary": "Maintain contact details and use CRM profiles without replacing source transactions.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "customer",
       "filename": "docs/help/ims/contacts/crm.md",
       "sections": [
@@ -670,7 +670,7 @@
         {
           "id": "ims-contacts-crm:2",
           "heading": "Main operations",
-          "content": "- Search before creating a contact so one person or company is not duplicated.\n- Maintain names, contact details, company details, and contact type in Contacts.\n- Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.\n- Open a customer profile to review activity and follow its source links.\n- Use CRM tasks, segments, and pipeline for follow-up and sales development."
+          "content": "- Search before creating a contact so one person or company is not duplicated.\n- Maintain names, contact details, company details, and contact type in Contacts.\n- Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.\n- Keep essential conversation context in **Before every interaction** at the top of each CRM profile.\n- Open a customer profile to review activity and follow its source links.\n- Use CRM tasks, segments, and pipeline for follow-up and sales development."
         },
         {
           "id": "ims-contacts-crm:3",
@@ -680,7 +680,7 @@
         {
           "id": "ims-contacts-crm:4",
           "heading": "Customer profiles",
-          "content": "A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.\n\n| Information | Where it comes from | Where to correct it |\n|---|---|---|\n| Name, company, email, phone, address, contact type | Contact record | **Contacts** |\n| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |\n| Customer order and fulfilment | Sales Order | The linked Sales Order |\n| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |\n| Loyalty points | Loyalty activity | The supported loyalty or return workflow |\n| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |\n| Follow-up commitment | CRM task | The task queue or customer profile |\n| Potential sale and forecast value | CRM opportunity | The Pipeline |\n\n> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent."
+          "content": "A profile combines contact details with supported POS sales, Sales Orders, credit notes, store-credit activity, loyalty activity, interactions, and tasks. Filters change what is shown; they do not change the source records.\n\nThe **Before every interaction** note stays at the top of the profile so staff see it before reviewing activity or starting a conversation. Use **Edit**, record only durable context that should guide every interaction, then select **Save**. Examples include a preferred contact time, communication preference, accessibility requirement, or a standing instruction that must be confirmed. Clearing and saving removes the note. Advisor accounts can read the note but cannot change it.\n\nUse a dated CRM interaction for what happened in one call, meeting, or message. Do not turn the interaction brief into a running activity log.\n\n| Information | Where it comes from | Where to correct it |\n|---|---|---|\n| Name, company, email, phone, address, contact type | Contact record | **Contacts** |\n| POS purchase or return | Completed POS transaction | POS return or linked customer credit note workflow |\n| Customer order and fulfilment | Sales Order | The linked Sales Order |\n| Return or customer credit | Customer credit note and its balance activity | The linked Customer Credit Note |\n| Loyalty points | Loyalty activity | The supported loyalty or return workflow |\n| Call, meeting, note, or other contact | Manual CRM interaction | The customer profile |\n| Standing context to remember before every contact | **Before every interaction** note | The customer profile |\n| Follow-up commitment | CRM task | The task queue or customer profile |\n| Potential sale and forecast value | CRM opportunity | The Pipeline |\n\n> **Note:** CRM summaries bring information together. Correct a sale, order, return, credit, or loyalty event at its source so every view stays consistent."
         },
         {
           "id": "ims-contacts-crm:5",
