@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Solvantis merchant services growth plan and projected payment volume, 2026-2028.">
+  <title>Solvantis | Merchant Services Growth Plan</title>
+  <link rel="icon" href="public/brand/solvantis-favicon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      --ink: #101d35;
+      --navy: #0c172b;
+      --blue: #1768e5;
+      --blue-dark: #0e4eb7;
+      --cyan: #28c3d4;
+      --mint: #74d6b2;
+      --gold: #f3b941;
+      --rose: #e46d78;
+      --paper: #ffffff;
+      --mist: #f2f5f9;
+      --line: #dce3ec;
+      --muted: #5b687c;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Aptos", "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    img { display: block; max-width: 100%; }
+    a { color: inherit; }
+    .wrap { width: min(calc(100% - 40px), var(--max)); margin-inline: auto; }
+
+    .nav {
+      position: absolute;
+      z-index: 3;
+      inset: 0 0 auto;
+      padding: 24px 0;
+      color: white;
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .logo { width: 176px; height: auto; }
+    .nav-note { color: #b8c5d9; font-size: 13px; font-weight: 700; text-transform: uppercase; }
+
+    .hero {
+      position: relative;
+      min-height: 760px;
+      color: white;
+      background: var(--navy);
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+      background-size: 64px 64px;
+      mask-image: linear-gradient(to right, black, transparent 82%);
+    }
+    .hero-media { position: absolute; inset: 0 0 0 48%; }
+    .hero-media img { width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: .63; }
+    .hero-media::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--navy) 0%, rgba(12,23,43,.72) 28%, rgba(12,23,43,.08) 100%); }
+    .hero-content { position: relative; z-index: 2; width: min(690px, 65%); padding: 160px 0 100px; }
+    .eyebrow { margin: 0 0 14px; color: var(--blue); font-size: 12px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .hero .eyebrow { color: #73ddeb; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 24px; max-width: 680px; font-size: clamp(48px, 6vw, 76px); line-height: 1.02; letter-spacing: 0; }
+    h1 span { color: #5cd1e3; }
+    .lead { max-width: 640px; color: #d7e0ed; font-size: 20px; line-height: 1.6; }
+    .hero-stats { display: grid; grid-template-columns: repeat(3, 1fr); max-width: 650px; margin-top: 44px; border-top: 1px solid rgba(255,255,255,.18); }
+    .hero-stat { padding: 22px 22px 0 0; }
+    .hero-stat strong { display: block; color: white; font-size: 25px; line-height: 1.2; }
+    .hero-stat span { display: block; margin-top: 6px; color: #9dacc1; font-size: 12px; line-height: 1.4; }
+
+    section { padding: 94px 0; }
+    .section-head { display: grid; grid-template-columns: 1fr .8fr; align-items: end; gap: 70px; margin-bottom: 48px; }
+    .section-head h2, .story-copy h2 { margin-bottom: 0; font-size: clamp(34px, 4.2vw, 52px); line-height: 1.08; letter-spacing: 0; }
+    .section-head > p { margin: 0; padding-left: 28px; border-left: 3px solid var(--cyan); color: var(--muted); }
+
+    .summary { padding: 0; background: var(--paper); }
+    .summary-grid { position: relative; z-index: 2; display: grid; grid-template-columns: 1.3fr .7fr; transform: translateY(-45px); box-shadow: 0 22px 55px rgba(12,23,43,.14); }
+    .summary-main { padding: 48px 54px; background: white; }
+    .summary-main h2 { margin-bottom: 16px; font-size: 32px; line-height: 1.15; }
+    .summary-main p { margin: 0; color: var(--muted); font-size: 17px; }
+    .summary-aside { padding: 44px; color: white; background: var(--blue); }
+    .summary-aside strong { display: block; margin-bottom: 8px; font-size: 44px; line-height: 1; }
+    .summary-aside span { display: block; color: #dce9ff; font-size: 14px; }
+
+    .trajectory { background: var(--mist); }
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .chart { min-width: 0; padding: 34px; border: 1px solid var(--line); background: white; }
+    .chart-kicker { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .chart h3 { margin: 3px 0 28px; font-size: 25px; line-height: 1.2; }
+    .bars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 20px; height: 295px; padding: 28px 8px 0; border-bottom: 1px solid #cbd5e2; background: repeating-linear-gradient(to top, transparent 0, transparent 58px, #e9edf3 59px); }
+    .bar-item { display: flex; height: 100%; flex-direction: column; justify-content: flex-end; text-align: center; }
+    .bar-value { margin-bottom: 8px; color: var(--ink); font-size: clamp(18px, 2vw, 27px); font-weight: 850; line-height: 1; }
+    .bar { width: min(76px, 72%); min-height: 10px; margin: 0 auto; background: linear-gradient(to top, var(--blue-dark), var(--cyan)); border-radius: 3px 3px 0 0; }
+    .chart.turnover .bar { background: linear-gradient(to top, #078768, var(--mint)); }
+    .bar-year { margin-top: 10px; color: var(--muted); font-size: 13px; font-weight: 800; }
+    .chart-note { margin: 24px 0 0; color: var(--muted); font-size: 12px; }
+    .projection-note { margin: 22px 0 0; color: #6d7888; font-size: 12px; }
+
+    .timeline { background: var(--navy); color: white; }
+    .timeline .section-head > p { color: #aebbd0; }
+    .timeline .eyebrow { color: var(--cyan); }
+    .phases { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgba(255,255,255,.2); }
+    .phase { position: relative; padding: 42px 36px 12px 0; }
+    .phase::before { content: ""; position: absolute; top: -7px; left: 0; width: 13px; height: 13px; background: var(--cyan); border-radius: 50%; }
+    .phase + .phase { padding-left: 28px; border-left: 1px solid rgba(255,255,255,.12); }
+    .phase + .phase::before { left: 28px; }
+    .phase time { color: #66d4e4; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    .phase h3 { margin: 8px 0 12px; font-size: 23px; }
+    .phase p { color: #aebbd0; font-size: 14px; }
+    .commitment { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; margin-top: 55px; padding: 30px 34px; border: 1px solid rgba(243,185,65,.4); background: rgba(243,185,65,.08); }
+    .commitment strong { color: var(--gold); font-size: 38px; line-height: 1; }
+    .commitment p { margin: 0; color: #d9e0eb; }
+
+    .capabilities { background: white; }
+    .capability-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+    .capability { min-height: 245px; padding: 30px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .capability-icon { display: grid; width: 42px; height: 42px; margin-bottom: 32px; place-items: center; color: white; background: var(--blue); font-size: 17px; font-weight: 850; }
+    .capability:nth-child(2) .capability-icon, .capability:nth-child(6) .capability-icon { background: #0b9274; }
+    .capability:nth-child(3) .capability-icon { color: var(--ink); background: var(--gold); }
+    .capability:nth-child(4) .capability-icon { background: var(--rose); }
+    .capability:last-child { grid-column: span 2; }
+    .capability h3 { margin-bottom: 9px; font-size: 20px; }
+    .capability p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .website-cta { padding: 54px 0; color: white; background: var(--blue); }
+    .website-cta-inner { display: flex; align-items: center; justify-content: space-between; gap: 36px; }
+    .website-cta p { margin: 0; color: white; font-size: 17px; }
+    .website-link { display: inline-flex; flex: none; align-items: center; min-height: 48px; padding: 0 22px; border: 1px solid white; color: var(--blue); background: white; font-size: 13px; font-weight: 800; text-decoration: none; text-transform: uppercase; }
+    .website-link:hover { color: var(--blue-dark); background: #eef5ff; }
+
+    .market { background: var(--paper); }
+    .market-grid { max-width: 900px; }
+    .market-copy h2 { margin-bottom: 24px; font-size: clamp(34px, 4vw, 50px); line-height: 1.08; }
+    .market-copy > p { color: var(--muted); font-size: 17px; }
+    .market-points { display: grid; gap: 0; margin-top: 30px; border-top: 1px solid var(--line); }
+    .market-point { display: grid; grid-template-columns: 34px 1fr; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+    .market-point b { color: var(--blue); }
+    .market-point span { font-size: 14px; }
+
+    .founder { background: var(--mist); }
+    .founder-grid { display: grid; grid-template-columns: .78fr 1.22fr; gap: 72px; align-items: center; }
+    .founder-photo { position: relative; }
+    .founder-photo img { width: 100%; max-height: 660px; object-fit: contain; background: #1d2428; box-shadow: 18px 18px 0 var(--gold); }
+    .founder-caption { margin: 34px 0 0; color: var(--muted); font-size: 12px; }
+    .story-copy h2 { margin-bottom: 24px; }
+    .story-copy p { color: var(--muted); font-size: 16px; }
+    .quote { margin: 30px 0; padding: 24px 0 24px 28px; border-left: 4px solid var(--blue); color: var(--ink); font-size: 22px; font-weight: 750; line-height: 1.4; }
+
+    .closing { padding: 75px 0; color: white; background: var(--blue); }
+    .closing-inner { display: grid; grid-template-columns: 1.2fr .8fr; gap: 60px; align-items: center; }
+    .closing h2 { margin-bottom: 12px; font-size: clamp(34px, 4vw, 52px); line-height: 1.08; }
+    .closing p { margin: 0; color: #dbe9ff; }
+    .closing-metrics { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid rgba(255,255,255,.35); }
+    .closing-metric { padding: 24px; }
+    .closing-metric + .closing-metric { border-left: 1px solid rgba(255,255,255,.35); }
+    .closing-metric strong { display: block; font-size: 30px; line-height: 1.1; }
+    .closing-metric span { color: #dbe9ff; font-size: 12px; }
+    footer { padding: 34px 0; color: #9eacc0; background: #07101f; font-size: 12px; }
+    .footer-inner { display: flex; justify-content: space-between; gap: 30px; }
+
+    @media (max-width: 900px) {
+      .hero { min-height: auto; }
+      .hero-media { inset: 0; }
+      .hero-media::after { background: linear-gradient(90deg, rgba(12,23,43,.98), rgba(12,23,43,.72)); }
+      .hero-content { width: 100%; padding: 145px 0 85px; }
+      .summary-grid, .section-head, .founder-grid, .closing-inner { grid-template-columns: 1fr; }
+      .section-head { gap: 22px; }
+      .section-head > p { padding-left: 18px; }
+      .chart-grid { grid-template-columns: 1fr; }
+      .capability-grid { grid-template-columns: repeat(2, 1fr); }
+      .website-cta-inner { align-items: flex-start; flex-direction: column; }
+      .founder-photo { max-width: 560px; }
+    }
+
+    @media (max-width: 620px) {
+      .wrap { width: min(calc(100% - 28px), var(--max)); }
+      .logo { width: 145px; }
+      .nav-note { display: none; }
+      h1 { font-size: 43px; }
+      .lead { font-size: 17px; }
+      .hero-stats { grid-template-columns: 1fr; }
+      .hero-stat { padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+      section { padding: 72px 0; }
+      .summary-grid { transform: none; }
+      .summary-main, .summary-aside { padding: 34px 28px; }
+      .chart { padding: 26px 18px; }
+      .bars { gap: 8px; height: 245px; }
+      .bar { width: 60%; }
+      .phases { grid-template-columns: 1fr; border-top: 0; border-left: 1px solid rgba(255,255,255,.2); }
+      .phase, .phase + .phase { padding: 0 0 36px 28px; border-left: 0; }
+      .phase::before, .phase + .phase::before { top: 5px; left: -7px; }
+      .commitment { grid-template-columns: 1fr; }
+      .capability-grid { grid-template-columns: 1fr; }
+      .capability:last-child { grid-column: span 1; }
+      .capability { min-height: auto; }
+      .founder-photo img { box-shadow: 10px 10px 0 var(--gold); }
+      .closing-metrics { grid-template-columns: 1fr; }
+      .closing-metric + .closing-metric { border-left: 0; border-top: 1px solid rgba(255,255,255,.35); }
+      .footer-inner { flex-direction: column; }
+    }
+
+    @media print {
+      @page { size: A4 portrait; margin: 10mm; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      html, body { width: auto; }
+      .wrap { width: 100%; max-width: none; }
+      .nav { position: absolute; }
+      .hero { min-height: 277mm; break-after: page; page-break-after: always; }
+      .hero-content { width: 68%; padding-top: 48mm; }
+      section { padding: 10mm 0; break-inside: auto; page-break-inside: auto; }
+      .section-head { grid-template-columns: 1fr .8fr; gap: 12mm; margin-bottom: 8mm; break-after: avoid; page-break-after: avoid; }
+      .summary { break-inside: avoid; page-break-inside: avoid; }
+      .summary-grid { grid-template-columns: 1.3fr .7fr; transform: none; box-shadow: none; border: 1px solid var(--line); break-inside: avoid; page-break-inside: avoid; }
+      .summary-main, .summary-aside { padding: 8mm; }
+      .trajectory { break-before: page; page-break-before: always; }
+      .chart-grid { grid-template-columns: 1fr 1fr; gap: 5mm; break-inside: avoid; page-break-inside: avoid; }
+      .chart { padding: 5mm; break-inside: avoid; page-break-inside: avoid; }
+      .bars { height: 66mm; gap: 3mm; }
+      .timeline { break-before: page; page-break-before: always; }
+      .phases { grid-template-columns: repeat(3, 1fr); break-inside: avoid; page-break-inside: avoid; }
+      .phase { break-inside: avoid; page-break-inside: avoid; }
+      .commitment { margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
+      .capabilities { break-before: page; page-break-before: always; }
+      .capability-grid { grid-template-columns: repeat(4, 1fr); break-inside: avoid; page-break-inside: avoid; }
+      .capability { min-height: 0; padding: 5mm; break-inside: avoid; page-break-inside: avoid; }
+      .capability:last-child { grid-column: span 2; }
+      .capability-icon { margin-bottom: 5mm; }
+      .website-cta, .website-cta-inner, .market-grid, .market-point, .closing, .closing-inner { break-inside: avoid; page-break-inside: avoid; }
+      .website-cta-inner { flex-direction: row; align-items: center; }
+      .market { break-inside: avoid; page-break-inside: avoid; }
+      .founder { break-before: page; page-break-before: always; break-inside: avoid; page-break-inside: avoid; }
+      .founder-grid { grid-template-columns: .78fr 1.22fr; gap: 10mm; break-inside: avoid; page-break-inside: avoid; }
+      .founder-photo, .story-copy, .quote { break-inside: avoid; page-break-inside: avoid; }
+      .founder-photo img { max-height: 190mm; box-shadow: 3mm 3mm 0 var(--gold); }
+      .closing { break-before: page; page-break-before: always; }
+      .closing-inner { grid-template-columns: 1.2fr .8fr; }
+      footer { break-inside: avoid; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <div class="wrap nav-inner">
+        <img class="logo" src="public/brand/solvantis-logo-reversed.svg" alt="Solvantis">
+        <span class="nav-note">Prepared for merchant services partners</span>
+      </div>
+    </nav>
+    <div class="hero-media" aria-hidden="true">
+      <img src="public/landing/top-banner-current-poster.jpg" alt="">
+    </div>
+    <div class="wrap">
+      <div class="hero-content">
+        <p class="eyebrow">Merchant services growth plan · 2026–2028</p>
+        <h1>The operating system for <span>modern commerce.</span></h1>
+        <p class="lead">Solvantis unifies point of sale, advanced inventory, accounting, wholesale, ecommerce, automation, reporting and creative tools for ambitious retailers and wholesalers.</p>
+        <div class="hero-stats" aria-label="2028 projections">
+          <div class="hero-stat"><strong>500</strong><span>projected tenants by end 2028</span></div>
+          <div class="hero-stat"><strong>$400M</strong><span>projected annualised merchant turnover</span></div>
+          <div class="hero-stat"><strong>20+ years</strong><span>founder retail and wholesale experience</span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-labelledby="summary-title">
+      <div class="wrap summary-grid">
+        <div class="summary-main">
+          <p class="eyebrow">Executive summary</p>
+          <h2 id="summary-title">A deliberate launch into a proven market.</h2>
+          <p>Solvantis is in limited release for extended real-world testing, with a controlled soft launch underway. A full public launch and materially increased advertising budget are planned for January 2027. Initial acquisition will focus on Australian gift retailers and wholesalers, where the team has deep operating knowledge, established credibility and a ready network of more than 1,000 industry contacts.</p>
+        </div>
+        <aside class="summary-aside">
+          <strong>1,000+</strong>
+          <span>Established gift industry contacts underpin founder-led outreach, warm introductions and an immediately relevant lead network.</span>
+        </aside>
+      </div>
+    </section>
+
+    <section class="trajectory" aria-labelledby="trajectory-title">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Growth trajectory</p>
+            <h2 id="trajectory-title">Measured adoption. Significant processing scale.</h2>
+          </div>
+          <p>The projections pair a focused industry launch with a high-value customer base. Merchant turnover is the annualised gross sales turnover expected to flow through participating Solvantis tenants at each year end.</p>
+        </div>
+
+        <div class="chart-grid">
+          <article class="chart" aria-labelledby="tenant-chart-title">
+            <span class="chart-kicker">Projected platform adoption</span>
+            <h3 id="tenant-chart-title">Tenants at year end</h3>
+            <div class="bars" role="img" aria-label="Projected tenants: 25 in 2026, 200 in 2027 and 500 in 2028">
+              <div class="bar-item"><span class="bar-value">25</span><span class="bar" style="height: 5%"></span><span class="bar-year">2026</span></div>
+              <div class="bar-item"><span class="bar-value">200</span><span class="bar" style="height: 40%"></span><span class="bar-year">2027</span></div>
+              <div class="bar-item"><span class="bar-value">500</span><span class="bar" style="height: 100%"></span><span class="bar-year">2028</span></div>
+            </div>
+            <p class="chart-note">20× projected tenant growth from end 2026 to end 2028.</p>
+          </article>
+
+          <article class="chart turnover" aria-labelledby="turnover-chart-title">
+            <span class="chart-kicker">Projected merchant processing opportunity</span>
+            <h3 id="turnover-chart-title">Annualised merchant turnover</h3>
+            <div class="bars" role="img" aria-label="Projected annualised merchant turnover: 20 million dollars in 2026, 150 million in 2027 and 400 million in 2028">
+              <div class="bar-item"><span class="bar-value">$20M</span><span class="bar" style="height: 5%"></span><span class="bar-year">2026</span></div>
+              <div class="bar-item"><span class="bar-value">$150M</span><span class="bar" style="height: 37.5%"></span><span class="bar-year">2027</span></div>
+              <div class="bar-item"><span class="bar-value">$400M</span><span class="bar" style="height: 100%"></span><span class="bar-year">2028</span></div>
+            </div>
+            <p class="chart-note">Projected annualised turnover, in Australian dollars, at each year end.</p>
+          </article>
+        </div>
+        <p class="projection-note">These figures are forward-looking management projections, not guarantees. Actual results may vary with customer conversion, implementation timing, product readiness and market conditions.</p>
+      </div>
+    </section>
+
+    <section class="timeline" aria-labelledby="timeline-title">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Go-to-market plan</p>
+            <h2 id="timeline-title">Controlled now. Public from January 2027.</h2>
+          </div>
+          <p>Solvantis is prioritising product stability and operational learning before scaling acquisition. The release sequence is designed to support sustainable merchant onboarding and service quality.</p>
+        </div>
+        <div class="phases">
+          <article class="phase">
+            <time>Now · 2026</time>
+            <h3>Limited release</h3>
+            <p>Extended testing with a controlled customer group. Validate critical POS, inventory, accounting and ecommerce workflows in live trading environments.</p>
+          </article>
+          <article class="phase">
+            <time>January 2027</time>
+            <h3>Full public launch</h3>
+            <p>Open broader self-service and assisted acquisition, supported by a ramped-up advertising budget and direct outreach into established industry networks.</p>
+          </article>
+          <article class="phase">
+            <time>2027–2028</time>
+            <h3>Market expansion</h3>
+            <p>Use Mark's personal relationships and credibility across the gift industry to deepen adoption among retailers and wholesalers, then reach adjacent retail categories and larger multi-site groups.</p>
+          </article>
+        </div>
+        <div class="commitment">
+          <strong>$30M</strong>
+          <p><b>Major distributor implementation planned for March/April 2027.</b> This existing commitment represents approximately $30 million in annual turnover and provides a substantial anchor customer following public launch.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="capabilities" aria-labelledby="capabilities-title">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Product advantage</p>
+            <h2 id="capabilities-title">One connected commerce platform.</h2>
+          </div>
+          <p>The product is designed around the workflows that generate and reconcile merchant activity, connecting customer transactions with stock, accounting, fulfilment and channel operations.</p>
+        </div>
+        <div class="capability-grid">
+          <article class="capability"><div class="capability-icon">01</div><h3>Advanced inventory</h3><p>Multi-location stock, variants, purchase and sales orders, transfers, fulfilment, stocktakes, forecasting and margin visibility.</p></article>
+          <article class="capability"><div class="capability-icon">02</div><h3>Industry-leading POS interface</h3><p>A fast, intuitive interface supports reliable checkout, customer service and everyday store operations across single and multi-site retailers.</p></article>
+          <article class="capability"><div class="capability-icon">03</div><h3>Comprehensive accounting integration</h3><p>Advanced Xero workflows reduce duplicate entry and connect sales, payments, reconciliation and operational records.</p></article>
+          <article class="capability"><div class="capability-icon">04</div><h3>Automation &amp; reporting</h3><p>Automated operational tasks, live performance dashboards and decision-ready reports help teams act faster with less administration.</p></article>
+          <article class="capability"><div class="capability-icon">05</div><h3>Wholesale portal</h3><p>A native B2B ordering experience connects wholesale customers directly with catalogue, account and order workflows.</p></article>
+          <article class="capability"><div class="capability-icon">06</div><h3>Native online shop</h3><p>Integrated ecommerce supports a direct consumer channel while keeping catalogue, inventory, orders and customer value connected.</p></article>
+          <article class="capability"><div class="capability-icon">07</div><h3>Creative tools</h3><p>AI-assisted product content and campaign imagery help merchants prepare consistent, channel-ready catalogue assets efficiently.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="website-cta" aria-label="Detailed Solvantis operating insights">
+      <div class="wrap website-cta-inner">
+        <p>For detailed operating insights, platform capabilities and current product information, visit Solvantis online.</p>
+        <a class="website-link" href="https://solvantis.com.au/">Explore SOLVANTIS.COM.AU</a>
+      </div>
+    </section>
+
+    <section class="market" aria-labelledby="market-title">
+      <div class="wrap market-grid">
+        <div class="market-copy">
+          <p class="eyebrow">Initial target market</p>
+          <h2 id="market-title">Built to win in gift retail and wholesale.</h2>
+          <p>Solvantis is an independent business, separate from Monsterthreads. Its launch advantage comes from founder Mark Mamrot's personal relationships and credibility, developed while building Monsterthreads as both a gift distributor and a multi-store retailer.</p>
+          <div class="market-points">
+            <div class="market-point"><b>01</b><span><strong>Direct market access.</strong> More than 1,000 existing contacts provide a substantial base for founder-led outreach and qualified leads.</span></div>
+            <div class="market-point"><b>02</b><span><strong>Founder-market credibility.</strong> Prospects know the team has operated the same retail and wholesale workflows Solvantis is designed to improve.</span></div>
+            <div class="market-point"><b>03</b><span><strong>High-value merchants.</strong> The target market includes independent retailers, multi-store groups and national distributors with meaningful payment volume.</span></div>
+            <div class="market-point"><b>04</b><span><strong>Clear expansion path.</strong> A proven gift-industry implementation model can extend into adjacent specialist retail and wholesale categories.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="founder" aria-labelledby="founder-title">
+      <div class="wrap founder-grid">
+        <figure class="founder-photo">
+          <img src="images/solvantisplan/IMG_0957.JPG" alt="Mark Mamrot and Charintorn Pongpaet featured on the cover of Giftwrap magazine">
+          <figcaption class="founder-caption">Mark Mamrot and his business and life partner, Charintorn Pongpaet, on the cover of <i>Giftwrap</i>, the Australian Gift &amp; Homewares Association magazine, 2013.</figcaption>
+        </figure>
+        <div class="story-copy">
+          <p class="eyebrow">Founder experience</p>
+          <h2 id="founder-title">Twenty years of lessons from the shop floor to the warehouse.</h2>
+          <p>Mark Mamrot founded Monsterthreads with his business and life partner, Charintorn Pongpaet, in 2004 while studying at UNSW. Its idea was “art for every day”: putting favourite artworks on the things people use, including T-shirts, homewares and accessories.</p>
+          <p>Monsterthreads grew into a leading gift destination spanning both retail and wholesale. Immediately before COVID, the business operated ten stores, giving Mark direct experience across buying, inventory, stores, staffing, customer service, ecommerce, wholesale and distribution.</p>
+          <blockquote class="quote">Solvantis turns more than 20 years of practical retail and wholesale experience into a platform that understands how traders actually work.</blockquote>
+          <p>That experience shapes the product: connected workflows, less repeated administration, clearer information and tools designed to save operators time. Solvantis is not software looking for a retail use case; it is the operating platform Mark wanted while building and running a complex commerce business.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <div class="wrap closing-inner">
+        <div>
+          <p class="eyebrow" style="color:#dbe9ff">Merchant services opportunity</p>
+          <h2 id="closing-title">A credible path to $400M in annualised merchant turnover.</h2>
+          <p>Solvantis combines a controlled release strategy, differentiated commerce technology, a defined target market and Mark's established personal industry network into a scalable merchant acquisition plan.</p>
+        </div>
+        <div class="closing-metrics">
+          <div class="closing-metric"><strong>500</strong><span>projected tenants · end 2028</span></div>
+          <div class="closing-metric"><strong>$400M</strong><span>projected annualised merchant TO · end 2028</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <span>Solvantis · The operating system for modern commerce</span>
+    </div>
+  </footer>
+</body>
+</html>
