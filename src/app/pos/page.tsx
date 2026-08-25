@@ -3135,6 +3135,23 @@ function PosAvatarBar({
     if (direct) setDmFiles(selected); else setChatFiles(selected);
   }
 
+  function pasteChatScreenshots(event: React.ClipboardEvent<HTMLInputElement>, direct = false) {
+    const screenshots = Array.from(event.clipboardData.items)
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (!screenshots.length) return;
+    event.preventDefault();
+    const setFiles = direct ? setDmFiles : setChatFiles;
+    setFiles(current => {
+      const availableSlots = Math.max(0, 3 - current.length);
+      if (!availableSlots) { alert('A message can include up to 3 attachments.'); return current; }
+      const accepted = screenshots.filter(file => file.size <= 10 * 1024 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)).slice(0, availableSlots);
+      if (accepted.length !== screenshots.length) alert('Screenshots must be JPG, PNG or WebP files no larger than 10 MB each, with up to 3 attachments per message.');
+      return [...current, ...accepted];
+    });
+  }
+
   async function sendMessage() {
     if ((!chatInput.trim() && chatFiles.length === 0) || sending) return;
     setSending(true);
@@ -3476,7 +3493,7 @@ function PosAvatarBar({
               <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {dmFiles.length > 0 && <div style={{ width: '100%', fontSize: 10, color: 'rgba(255,255,255,.6)' }}>{dmFiles.map(file => file.name).join(' · ')}</div>}
                 <label title="Attach files" style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', cursor: 'pointer', color: '#fff' }}>📎<input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={e => { selectChatFiles(e.target.files, true); e.target.value = ''; }} style={{ display: 'none' }} /></label>
-                <input value={dmInput} onChange={e => setDmInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDm(); } }} placeholder={`Message ${partnerName}…`} maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
+                <input value={dmInput} onChange={e => setDmInput(e.target.value)} onPaste={event => pasteChatScreenshots(event, true)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDm(); } }} placeholder={`Message ${partnerName}…`} maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
                 <button onClick={sendDm} disabled={dmSending || (!dmInput.trim() && dmFiles.length === 0)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#10b981', color: '#fff', fontWeight: 700, fontSize: 12, cursor: dmSending ? 'not-allowed' : 'pointer', opacity: dmSending ? 0.5 : 1 }}>{dmSending ? '…' : '→'}</button>
               </div>
             </div>
@@ -3515,7 +3532,7 @@ function PosAvatarBar({
             <div style={{ padding: '8px 10px', borderTop: '1px solid rgba(255,255,255,.1)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {chatFiles.length > 0 && <div style={{ width: '100%', fontSize: 10, color: 'rgba(255,255,255,.6)' }}>{chatFiles.map(file => file.name).join(' · ')}</div>}
               <label title="Attach files" style={{ padding: '6px 9px', borderRadius: 8, border: '1px solid rgba(255,255,255,.15)', cursor: 'pointer', color: '#fff' }}>📎<input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.pdf" onChange={e => { selectChatFiles(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} /></label>
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Message the team…" maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onPaste={event => pasteChatScreenshots(event)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }} placeholder="Message the team…" maxLength={500} style={{ flex: 1, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8, padding: '6px 10px', color: 'rgba(255,255,255,.9)', fontSize: 12, outline: 'none' }} />
               <button onClick={sendMessage} disabled={sending || (!chatInput.trim() && chatFiles.length === 0)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700, fontSize: 12, cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.5 : 1 }}>{sending ? '…' : '→'}</button>
             </div>
           </div>

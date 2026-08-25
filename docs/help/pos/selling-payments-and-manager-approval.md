@@ -29,6 +29,8 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Help and Ask Solvantis | Open both from the Help button in the top toolbar |
 | Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |
 
+Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each.
+
 ## Before you begin
 
 - [ ] Confirm the header shows the correct location and register.

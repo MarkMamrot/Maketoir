@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, MessageCircle, Users } from 'lucide-react';
+import { ArrowUp, Image, MessageCircle, Users, X } from 'lucide-react';
 
 type ChatIdentity = { locationId: number; locationName: string; userName: string; avatar: string };
 type ChatLocation = { id: number; name: string; avatar: string };
@@ -36,6 +36,7 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
   const [selected, setSelected] = useState<'group' | number>('group');
   const [unread, setUnread] = useState<Record<number, number>>({});
   const [draft, setDraft] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -135,25 +136,58 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
     requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; });
   }, [selected, active, directMessages.length, groupMessages.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => { setFiles([]); }, [selected]);
+
   const visibleMessages = selected === 'group'
     ? groupMessages
     : directMessages.filter(message => identity && threadPartner(message, identity.locationId) === selected);
   const selectedLocation = typeof selected === 'number' ? locations.find(location => location.id === selected) : null;
 
+  const pasteScreenshots = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const screenshots = Array.from(event.clipboardData.items)
+      .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (!screenshots.length) return;
+    event.preventDefault();
+    setFiles(current => {
+      const availableSlots = Math.max(0, 3 - current.length);
+      if (!availableSlots) { setError('A message can include up to 3 screenshots.'); return current; }
+      const accepted = screenshots.filter(file => file.size <= 10 * 1024 * 1024 && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)).slice(0, availableSlots);
+      if (accepted.length !== screenshots.length) setError('Screenshots must be JPG, PNG or WebP files no larger than 10 MB each, with up to 3 per message.');
+      else setError('');
+      return [...current, ...accepted];
+    });
+  };
+
+  const uploadFiles = async (messageId: number) => {
+    for (const file of files) {
+      const form = new FormData();
+      form.set('message_id', String(messageId));
+      form.set('file', file);
+      form.set('surface', 'ims');
+      const response = await fetch('/api/pos/chat/attachments', { method: 'POST', body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? `Failed to upload ${file.name}`);
+    }
+  };
+
   const send = async () => {
     const message = draft.trim();
-    if (!message || sending) return;
+    if ((!message && files.length === 0) || sending) return;
     setSending(true);
     setError('');
     try {
       const response = await fetch('/api/pos/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, to_location_id: selected === 'group' ? null : selected, surface: 'ims' }),
+        body: JSON.stringify({ message: message || 'Screenshot', to_location_id: selected === 'group' ? null : selected, surface: 'ims' }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? 'Message failed.');
+      await uploadFiles(Number(data.id));
       setDraft('');
+      setFiles([]);
       await loadMessages();
     } catch (sendError: any) {
       setError(sendError.message ?? 'Message failed.');
@@ -194,14 +228,19 @@ export function WarehouseTeamChat({ active, onUnreadChange }: { active: boolean;
               <div style={{ marginBottom: 3, color: 'var(--sv-text-dim)', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{message.location_name} · {message.user_name} · {messageTime(message.created_at)}</div>
               <div style={{ padding: '8px 10px', borderRadius: mine ? '10px 10px 2px 10px' : '10px 10px 10px 2px', background: mine ? '#dcefeb' : 'var(--sv-bg-0)', border: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontSize: 13, lineHeight: 1.45, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                 {message.message}
-                {message.attachments?.map(file => <a key={file.id} href={`/api/pos/chat/attachments/${file.id}?surface=ims`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 5, color: 'var(--sv-action)', fontSize: 11 }}>{file.original_name}</a>)}
+                {message.attachments?.map(file => file.mime_type.startsWith('image/')
+                  ? <a key={file.id} href={`/api/pos/chat/attachments/${file.id}?surface=ims`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 7 }}><img src={`/api/pos/chat/attachments/${file.id}?surface=ims`} alt={file.original_name} style={{ display: 'block', maxWidth: '100%', maxHeight: 220, borderRadius: 5 }} /></a>
+                  : <a key={file.id} href={`/api/pos/chat/attachments/${file.id}?surface=ims`} target="_blank" rel="noreferrer" style={{ display: 'block', marginTop: 5, color: 'var(--sv-action)', fontSize: 11 }}>{file.original_name}</a>)}
               </div>
             </div>;
           })}
         </div>
-        <form onSubmit={event => { event.preventDefault(); send(); }} style={{ padding: 10, display: 'flex', alignItems: 'flex-end', gap: 7, borderTop: '1px solid var(--sv-etch)' }}>
-          <textarea value={draft} onChange={event => setDraft(event.target.value.slice(0, 500))} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} rows={1} placeholder={selected === 'group' ? 'Message all locations' : `Message ${selectedLocation?.name ?? 'location'}`} style={{ minHeight: 38, maxHeight: 96, flex: 1, resize: 'vertical', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '9px 10px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', font: 'inherit', fontSize: 13, outline: 0 }} />
-          <button type="submit" disabled={!draft.trim() || sending} aria-label="Send message" title="Send message" style={{ width: 38, height: 38, display: 'grid', placeItems: 'center', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', cursor: draft.trim() && !sending ? 'pointer' : 'default', opacity: draft.trim() && !sending ? 1 : .45 }}><ArrowUp size={18} /></button>
+        <form onSubmit={event => { event.preventDefault(); send(); }} style={{ padding: 10, display: 'flex', alignItems: 'flex-end', gap: 7, flexWrap: 'wrap', borderTop: '1px solid var(--sv-etch)' }}>
+          {files.length > 0 && <div style={{ width: '100%', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {files.map((file, index) => <span key={`${file.name}-${file.size}-${index}`} style={{ maxWidth: 210, minHeight: 28, padding: '4px 6px 4px 8px', display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid var(--sv-etch)', borderRadius: 5, background: 'var(--sv-bg-0)', color: 'var(--sv-text-dim)', fontSize: 11 }}><Image size={13} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name || `Screenshot ${index + 1}`}</span><button type="button" onClick={() => setFiles(current => current.filter((_, fileIndex) => fileIndex !== index))} aria-label={`Remove ${file.name || `screenshot ${index + 1}`}`} title="Remove screenshot" style={{ width: 20, height: 20, padding: 0, display: 'grid', placeItems: 'center', border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}><X size={13} /></button></span>)}
+          </div>}
+          <textarea value={draft} onChange={event => setDraft(event.target.value.slice(0, 500))} onPaste={pasteScreenshots} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); } }} rows={1} placeholder={selected === 'group' ? 'Message all locations or paste a screenshot' : `Message ${selectedLocation?.name ?? 'location'} or paste a screenshot`} style={{ minHeight: 38, maxHeight: 96, flex: 1, resize: 'vertical', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '9px 10px', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', font: 'inherit', fontSize: 13, outline: 0 }} />
+          <button type="submit" disabled={(!draft.trim() && files.length === 0) || sending} aria-label="Send message" title="Send message" style={{ width: 38, height: 38, display: 'grid', placeItems: 'center', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', cursor: (draft.trim() || files.length > 0) && !sending ? 'pointer' : 'default', opacity: (draft.trim() || files.length > 0) && !sending ? 1 : .45 }}><ArrowUp size={18} /></button>
         </form>
         {error && <div style={{ padding: '0 10px 8px', color: 'var(--sv-red)', fontSize: 11 }}>{error}</div>}
       </section>

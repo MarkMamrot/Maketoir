@@ -21,13 +21,14 @@ function uploadDirectory(businessId: string, messageId: number): string {
 }
 
 export async function POST(req: Request) {
-  const identity = await resolveChatIdentity();
-  if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
-
   let messageId = 0;
   let storedPath = '';
+  let businessId = '';
   try {
     const form = await req.formData();
+    const identity = await resolveChatIdentity(form.get('surface') === 'ims' ? 'ims' : 'auto');
+    if (!identity) return NextResponse.json({ error: 'No active chat location is configured.' }, { status: 403 });
+    businessId = identity.businessId;
     messageId = Number(form.get('message_id'));
     const file = form.get('file');
     if (!messageId || !(file instanceof File)) {
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     const storedName = `${crypto.randomUUID()}${expectedExtension}`;
-    const directory = uploadDirectory(identity.businessId, messageId);
+    const directory = uploadDirectory(businessId, messageId);
     await fs.mkdir(directory, { recursive: true });
     storedPath = path.join(directory, storedName);
     await fs.writeFile(storedPath, Buffer.from(await file.arrayBuffer()), { flag: 'wx' });
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, attachment: { id: result.insertId, message_id: messageId, original_name: originalName, mime_type: file.type, file_size: file.size } });
   } catch (error: any) {
     if (storedPath) await fs.unlink(storedPath).catch(() => {});
-    await reportRuntimeIssue({ businessId: identity.businessId, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });
+    await reportRuntimeIssue({ businessId: businessId || undefined, source: 'pos.chat', operation: 'upload-attachment', title: 'POS chat attachment upload failed', error, context: { messageId } });
     return NextResponse.json({ error: error.message ?? 'Attachment upload failed.' }, { status: 500 });
   }
 }

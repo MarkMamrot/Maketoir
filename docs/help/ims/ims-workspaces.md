@@ -33,6 +33,8 @@ Ask Solvantis can use the current screen and supported read-only lookups to expl
 
 Select the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.
 
+Paste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.
+
 Team Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.
 
 > **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.
