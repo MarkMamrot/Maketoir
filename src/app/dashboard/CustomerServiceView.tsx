@@ -314,10 +314,6 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
       await Promise.all([loadDetail(selectedId), loadThreads(selectedId)]);
     } catch (cause: any) {
       setError(cause.message);
-      setManualComposer(previous => previous ? {
-        ...previous,
-        operationKey: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      } : previous);
     } finally {
       replyActionPending.current = false;
       setBusyAction('');
