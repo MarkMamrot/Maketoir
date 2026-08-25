@@ -1,6 +1,6 @@
 export interface SidebarNavigationItem {
   id: string;
-  children?: readonly Array<{ id: string }>;
+  children?: readonly { id: string }[];
 }
 
 export function isSidebarSectionActive(
