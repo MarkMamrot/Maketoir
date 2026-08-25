@@ -1877,6 +1877,17 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
     };
     (async () => {
       try {
+        if (isCrmMode) {
+          const [b2bRows, retailRows, leadRows] = await Promise.all([
+            fetchContacts('type=b2b_customer'),
+            fetchContacts('type=retail_customer'),
+            fetchContacts('type=lead'),
+          ]);
+          setContacts(mergeById(b2bRows, [...retailRows, ...leadRows]));
+          setLoading(false);
+          return;
+        }
+
         const [supplierRows, b2bRows] = await Promise.all([
           fetchContacts('type=supplier'),
           fetchContacts('type=b2b_customer'),
@@ -1901,7 +1912,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
         setLoading(false);
       }
     })();
-  }, []);
+  }, [isCrmMode]);
 
   useEffect(() => { load(); }, [load]);
 
