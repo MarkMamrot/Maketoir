@@ -355,7 +355,7 @@ export function CustomerServiceView({ databaseId: _databaseId }: { databaseId: s
 
   const latestMessage = detail?.messages[detail.messages.length - 1];
   const activeDraft = !manualComposer && latestMessage?.direction === 'inbound'
-    ? detail?.drafts.find(draft => draft.target_message_id === latestMessage.id && draft.status !== 'sent')
+    ? detail?.drafts.find(draft => draft.target_message_id === latestMessage.id && draft.compose_type === 'ai_reply' && draft.status !== 'sent')
     : undefined;
   return <div className="h-[calc(100vh-7rem)] min-h-[640px] flex flex-col bg-white border border-gray-200 rounded-lg overflow-hidden">
     <header className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center gap-3 bg-gray-50">
