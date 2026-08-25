@@ -75,4 +75,53 @@ describe('customer-service AI result normalization', () => {
     expect(updateSql).toContain('classified_message_id = ?');
     expect(updateParams).toContain(202);
   });
+
+  it('generates a fresh draft targeted to the latest inbound customer reply', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([{
+        id: 12,
+        gmail_thread_id: 'thread-12',
+        latest_message_id: 'gmail-message-2',
+        subject: 'Re: Order update',
+        customer_email: 'customer@example.com',
+        from_address: 'customer@example.com',
+        body_plain: 'Thanks. When will it arrive?',
+        db_message_id: 202,
+      }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { direction: 'inbound', from_address: 'customer@example.com', subject: 'Order update', body_plain: 'Where is it?', message_at: '2026-08-24 01:00:00' },
+        { direction: 'outbound', from_address: 'shop@example.com', subject: 'Re: Order update', body_plain: 'It has shipped.', message_at: '2026-08-24 02:00:00' },
+        { direction: 'inbound', from_address: 'customer@example.com', subject: 'Re: Order update', body_plain: 'Thanks. When will it arrive?', message_at: '2026-08-25 01:00:00' },
+      ])
+      .mockResolvedValueOnce([{ id: 52 }]);
+    mockGenerateContent
+      .mockResolvedValueOnce({
+        text: JSON.stringify({ items: [{
+          threadId: 12,
+          category: 'customer_enquiry',
+          subtype: 'shipping',
+          confidence: 0.9,
+          urgency: 'normal',
+          sentiment: 'neutral',
+          reason: 'Customer asks a follow-up shipping question.',
+        }] }),
+      })
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          draftResponse: 'Thanks for checking. Your order is on the way.',
+          confidence: 0.8,
+          needsInformation: false,
+          escalationReason: '',
+        }),
+      });
+    mockImsExecute.mockResolvedValue({ affectedRows: 1 });
+
+    await expect(processCustomerServiceInbox('biz-1')).resolves.toEqual({ classified: 1, drafted: 1 });
+
+    const insertCall = mockImsExecute.mock.calls.find(([sql]) => String(sql).includes('INSERT IGNORE INTO ims_cs_drafts'));
+    expect(insertCall).toBeDefined();
+    expect(insertCall?.[1][2]).toBe(202);
+    expect(mockGenerateContent.mock.calls[1][0].contents).toContain('Thanks. When will it arrive?');
+  });
 });

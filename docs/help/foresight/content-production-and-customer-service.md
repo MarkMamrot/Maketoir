@@ -64,11 +64,11 @@ AI marks messages as customer enquiries, junk, other, or unclassified. These cat
 
 1. Open the Inbox item or Compose.
 2. Confirm the customer, subject, and related order.
-3. Read the chronological conversation before using a template or draft.
+3. Read the chronological conversation before using a template or draft. Opening a conversation moves to its latest message and current reply area.
 4. Check **Other conversations with this customer** when earlier subjects may contain useful context.
 5. Correct factual claims, tone, recipients, links, and promised actions.
 6. Select **Send reply** once and wait for its status to change.
-7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message.
+7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message. Clear the suggestion to start again, edit it in place, or send the reviewed reply.
 
 > **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.
 
