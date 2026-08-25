@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-workspaces","title":"Foresight and Dashboard","audiences":["ims"],"capability":"navigation","screen":"Foresight","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Foresight workspace and understand what each area can change.","lastReviewed":"2026-08-23","owner":"foresight"}
+{"id":"foresight-workspaces","title":"Foresight and Dashboard","audiences":["ims"],"capability":"navigation","screen":"Foresight","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Foresight workspace and understand what each area can change.","lastReviewed":"2026-08-25","owner":"foresight"}
 ---
 # Foresight and Dashboard
 
@@ -8,6 +8,7 @@ Use this page to choose the right workspace before you start reviewing data, pla
 ## Main operations
 
 - Check Dashboard for a summary, then open the detailed view behind a figure.
+- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Ask AI Helper for an explanation or a starting point without treating its reply as approval.
 - Use Business Intelligence to check business facts, source freshness, and inventory signals.
 - Use Planning and Review to move a recommendation through a recorded human decision.

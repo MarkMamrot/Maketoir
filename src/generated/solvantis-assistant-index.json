@@ -278,7 +278,7 @@
       ],
       "order": 1,
       "summary": "Find the right Foresight workspace and understand what each area can change.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "foresight",
       "filename": "docs/help/foresight/workspaces.md"
     },
@@ -2940,7 +2940,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "Use this page to choose the right workspace before you start reviewing data, planning work, or preparing customer-facing content."
     },
     {
@@ -2959,8 +2959,8 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review."
+      "lastReviewed": "2026-08-25",
+      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review."
     },
     {
       "id": "foresight-workspaces:3",
@@ -2978,7 +2978,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | Website or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened."
     },
     {
@@ -2997,7 +2997,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "Dashboard brings important figures and recent activity together. Use it to spot something worth investigating, then open the detailed report or workspace before making a decision.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Available reporting and activity | Which result needs investigation | A summary and links to detail | None |"
     },
     {
@@ -3016,7 +3016,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "AI Helper can explain information available to its workflow and help you form the next question. Its conversation does not accept a plan, send content, publish a listing, or change an advertising account.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Your question and the business information available to the helper | Whether the answer is useful and what to inspect next | A written answer | None |"
     },
     {
@@ -3035,7 +3035,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Area | Typical next step | Where the result is checked |\n| --- | --- | --- |\n| Business Intelligence | Confirm dates, source freshness, and the underlying records | The detailed analysis or source screen |\n| Planning and Review | Submit the exact plan or item for a human decision | Planning Workspace or Recommendation Inbox |\n| Experiments | Accept a design, record or perform the launch, then review the result | Recommendation Inbox |\n| Content and Service | Check accuracy, audience, tone, and recipients | Website, Brand Assets, or Customer Service |"
     },
     {
@@ -3054,7 +3054,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A figure looks old | Its source has not refreshed or the date range differs | Check the source status and date range before refreshing once |\n| A suggestion looks like completed work | You are viewing a draft or review stage | Check the status and open the page that records implementation or sending |\n| An action is unavailable | The item is at the wrong stage or your role cannot perform it | Read the status, complete the earlier step, or ask an administrator |\n| A retry gives the same error | A connection or required field still needs attention | Stop repeated retries and inspect the specific connection or validation message |"
     },
     {
@@ -3073,7 +3073,7 @@
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "content": "### Investigate a sales concern\n\nDashboard shows online sales below the previous period. Open the detailed view, use the same dates for both periods, and check whether source data is current. The dashboard result starts the investigation; it does not decide that a campaign or product caused the change.\n\n### Move from a question to a decision\n\nAsk AI Helper why winter jackets may be moving slowly. Use the reply to open the relevant inventory and sales views. If a marketing idea follows, create or open a Planning Workspace thread and submit the exact plan for review rather than treating the chat reply as approval."
     },
     {
@@ -3350,7 +3350,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-25",
-      "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
+      "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
     },
     {
       "id": "ims-workspaces:3",

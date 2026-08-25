@@ -587,7 +587,7 @@
       ],
       "order": 1,
       "summary": "Find the right Foresight workspace and understand what each area can change.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-25",
       "owner": "foresight",
       "filename": "docs/help/foresight/workspaces.md",
       "sections": [
@@ -599,7 +599,7 @@
         {
           "id": "foresight-workspaces:2",
           "heading": "Main operations",
-          "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review."
+          "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review."
         },
         {
           "id": "foresight-workspaces:3",
@@ -788,7 +788,7 @@
         {
           "id": "ims-workspaces:2",
           "heading": "Main operations",
-          "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
+          "content": "- Use the Dashboard to spot work that needs attention.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
         },
         {
           "id": "ims-workspaces:3",

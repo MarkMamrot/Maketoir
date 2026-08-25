@@ -9,6 +9,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 
 - Use the Dashboard to spot work that needs attention.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
+- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
