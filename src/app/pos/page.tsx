@@ -3809,12 +3809,118 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
   );
 }
 
+function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]; onClose: () => void }) {
+  const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number }[]; error?: string }>>({});
+  const [loading, setLoading] = useState(true);
+  const productName = variants[0]?.name.split(' — ')[0] ?? 'Product';
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(variants.map(async variant => {
+      try {
+        const response = await fetch(`/api/pos/stock?variant_id=${encodeURIComponent(variant.variant_id)}`);
+        const data = await response.json();
+        if (!data.success) return [variant.variant_id, { rows: [], error: data.error ?? 'Failed to load stock.' }] as const;
+        return [variant.variant_id, {
+          rows: (data.data ?? []).map((row: any) => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0) })),
+        }] as const;
+      } catch (error: any) {
+        return [variant.variant_id, { rows: [], error: error.message }] as const;
+      }
+    })).then(entries => {
+      if (!cancelled) setStockByVariant(Object.fromEntries(entries));
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [variants]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.25rem', width: 720, maxWidth: '96vw', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: '1rem' }}>
+          <div>
+            <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Variants and Stock by Location</div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--sv-text-strong)', marginTop: 2 }}>{productName}</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+        {loading && <div style={{ textAlign: 'center', color: 'var(--sv-text-dim)', padding: '1.5rem 0' }}>Loading…</div>}
+        {!loading && variants.map(variant => {
+          const detail = stockByVariant[variant.variant_id];
+          const option = variant.name.includes(' — ') ? variant.name.split(' — ').slice(1).join(' — ') : variant.code ?? 'Default variant';
+          return (
+            <section key={variant.variant_id} style={{ padding: '.8rem 0', borderTop: '1px solid var(--sv-etch)' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 8 }}>
+                <strong style={{ color: 'var(--sv-text-strong)', fontSize: '.9rem' }}>{option}</strong>
+                {variant.code && <span style={{ color: 'var(--sv-mint)', fontFamily: 'monospace', fontSize: '.72rem' }}>{variant.code}</span>}
+                {variant.barcode && <span style={{ color: 'var(--sv-text-dim)', fontFamily: 'monospace', fontSize: '.72rem' }}>{variant.barcode}</span>}
+              </div>
+              {detail?.error ? <div style={{ color: 'var(--sv-red)', fontSize: '.8rem' }}>{detail.error}</div> : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 7 }}>
+                  {(detail?.rows ?? []).map(row => (
+                    <div key={row.location_name} style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, padding: '8px 10px' }}>
+                      <div style={{ fontSize: '.68rem', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{row.location_name}</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: row.qty_on_hand === 0 ? 'var(--sv-text-dim)' : 'var(--sv-text-strong)', marginTop: 2 }}>{row.qty_on_hand}</div>
+                    </div>
+                  ))}
+                  {(detail?.rows ?? []).length === 0 && <div style={{ color: 'var(--sv-text-dim)', fontSize: '.8rem' }}>No stock records found.</div>}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PosVariantPicker({ variants, onSelect, onInfo, onClose }: { variants: CachedProduct[]; onSelect: (variant: CachedProduct) => void; onInfo: () => void; onClose: () => void }) {
+  const productName = variants[0]?.name.split(' — ')[0] ?? 'Product';
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 190, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={`Choose a variant of ${productName}`} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, padding: '1.15rem', width: 520, maxWidth: '95vw', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,.5)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: '.85rem' }}>
+          <div>
+            <div style={{ fontSize: '.7rem', color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Choose Variant</div>
+            <div style={{ fontSize: '1rem', color: 'var(--sv-text-strong)', fontWeight: 700, marginTop: 2 }}>{productName}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={onInfo} title="All variants and stock by location" aria-label="All variants and stock by location" style={{ width: 24, height: 24, padding: 0, borderRadius: '50%', border: '1.5px solid var(--sv-action)', background: 'transparent', color: 'var(--sv-action)', fontWeight: 800, cursor: 'pointer' }}>i</button>
+            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gap: 7 }}>
+          {variants.map(variant => {
+            const option = variant.name.includes(' — ') ? variant.name.split(' — ').slice(1).join(' — ') : variant.code ?? 'Default variant';
+            return (
+              <button key={variant.variant_id} onClick={() => onSelect(variant)} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto auto', gap: 10, alignItems: 'center', width: '100%', padding: '.7rem .8rem', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 7, color: 'var(--sv-text-main)', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontWeight: 700, fontSize: '.86rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{option}</span>
+                  {variant.code && <span style={{ display: 'block', color: 'var(--sv-text-dim)', fontSize: '.7rem', marginTop: 2 }}>{variant.code}</span>}
+                </span>
+                <span style={{ color: (variant.available ?? variant.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: '.75rem', fontWeight: 700 }}>{(variant.available ?? variant.soh) > 0 ? `${variant.available ?? variant.soh} avail.` : 'OOS'}</span>
+                <span style={{ color: 'var(--sv-action)', fontWeight: 800 }}>${fmt(variant.price)}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
 function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false, inStockOnly, onInStockOnlyChange }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean; inStockOnly: boolean; onInStockOnlyChange: (enabled: boolean) => void }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
-const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
+  const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
+  const [productStockModal, setProductStockModal] = useState<CachedProduct[] | null>(null);
+  const [variantPicker, setVariantPicker] = useState<CachedProduct[] | null>(null);
+  const [productViewMode, setProductViewMode] = useState<'variants' | 'products'>(() => {
+    try { return localStorage.getItem('pos_product_view_mode') === 'products' ? 'products' : 'variants'; } catch { return 'variants'; }
+  });
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -3826,6 +3932,26 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [recentIds, setRecentIds]       = useState<string[]>(() => loadRecentIds());
+
+  const variantsByProduct = useMemo(() => {
+    const grouped = new Map<string, CachedProduct[]>();
+    for (const product of products) {
+      const variants = grouped.get(product.product_id);
+      if (variants) variants.push(product);
+      else grouped.set(product.product_id, [product]);
+    }
+    return grouped;
+  }, [products]);
+
+  const groupProducts = useCallback((list: CachedProduct[]) => {
+    if (productViewMode === 'variants') return list;
+    const seen = new Set<string>();
+    return list.filter(product => {
+      if (seen.has(product.product_id)) return false;
+      seen.add(product.product_id);
+      return true;
+    });
+  }, [productViewMode]);
 
   const inputRef      = useRef<HTMLInputElement>(null);
   const scanRef       = useRef<HTMLInputElement>(null);
@@ -3891,6 +4017,17 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     requestAnimationFrame(() => scanRef.current?.focus());
   }, [onAdd]);
 
+  const handleProductSelect = useCallback((product: CachedProduct) => {
+    const variants = variantsByProduct.get(product.product_id) ?? [product];
+    if (productViewMode === 'products' && variants.length > 1) {
+      setVariantPicker(variants);
+      setDropdownOpen(false);
+      setHighlightIdx(-1);
+      return;
+    }
+    handleAdd(product);
+  }, [handleAdd, productViewMode, variantsByProduct]);
+
   const brands = useMemo(() => {
     const set = new Set<string>();
     products.forEach(p => { if (p.brand) set.add(p.brand); });
@@ -3940,8 +4077,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
       const bPhrase = (searchIndex.get(b.variant_id) ?? '').includes(q) ? 0 : 1;
       return aPhrase - bPhrase;
     });
-    return matches.slice(0, 8);
-  }, [sortedProducts, brand, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    return groupProducts(matches).slice(0, 8);
+  }, [sortedProducts, brand, deferredSearch, searchIndex, groupProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
@@ -3959,8 +4096,8 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
       const words = q.trim().split(/\s+/).filter(Boolean);
       list = list.filter(p => matchWords(p.variant_id, words));
     }
-    return list;
-  }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, searchIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    return groupProducts(list);
+  }, [sortedProducts, brand, inStockOnly, pinnedIds, deferredMode, deferredSearch, searchIndex, groupProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep the responsive card layout, but virtualize by row so a large "all
   // products" catalogue only mounts the cards near the viewport. This bounds
@@ -4024,7 +4161,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         // Add highlighted dropdown item if one is selected
         const hi = highlightRef.current;
         const items = dropItemsRef.current;
-        if (hi >= 0 && items[hi]) { handleAdd(items[hi]); return; }
+        if (hi >= 0 && items[hi]) { handleProductSelect(items[hi]); return; }
         // Otherwise enter search-results grid mode
         if (searchRef.current.trim()) {
           setMode('search');
@@ -4049,7 +4186,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [products, handleAdd]);
+  }, [products, handleAdd, handleProductSelect]);
 
   // Shared handler for both scan paths — plays error beep and shows a timed toast.
   function triggerScanNotFound(code: string) {
@@ -4114,7 +4251,7 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                 <div
                   key={p.variant_id}
                   onMouseDown={() => { clearTimeout(blurTimer.current); }}
-                  onClick={() => { if (window.getSelection()?.toString()) return; handleAdd(p); }}
+                  onClick={() => { if (window.getSelection()?.toString()) return; handleProductSelect(p); }}
                   onMouseEnter={() => setHighlightIdx(i)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer', background: i === highlightIdx ? 'var(--sv-bg-2)' : 'transparent', borderBottom: i < dropdownItems.length - 1 ? '1px solid var(--sv-etch)' : 'none' }}
                 >
@@ -4146,6 +4283,17 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
           title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
+          <div role="group" aria-label="Product search display" style={{ display: 'flex', flexShrink: 0, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+            {(['variants', 'products'] as const).map(view => (
+              <button
+                key={view}
+                onClick={() => { setProductViewMode(view); setVariantPicker(null); try { localStorage.setItem('pos_product_view_mode', view); } catch {} }}
+                aria-pressed={productViewMode === view}
+                title={view === 'variants' ? 'Show each variant separately' : 'Show one tile per product, then choose a variant'}
+                style={{ padding: '5px 8px', border: 'none', borderLeft: view === 'products' ? '1px solid var(--sv-etch)' : 'none', background: productViewMode === view ? 'var(--sv-bg-2)' : 'transparent', color: productViewMode === view ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 11, fontWeight: 700, lineHeight: 1 }}
+              >{view === 'variants' ? 'Variants' : 'Products'}</button>
+            ))}
+          </div>
           {/* Search button */}
           <button
             onClick={() => { if (search.trim()) { setMode('search'); setDropdownOpen(false); setHighlightIdx(-1); inputRef.current?.focus(); } }}
@@ -4243,10 +4391,18 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
           const isRecent = mode === 'browse' && recentIds.includes(p.variant_id);
           const dashIdx  = p.name.indexOf(' — ');
           const optionsStr = dashIdx !== -1 ? p.name.slice(dashIdx + 3) : '';
+          const productVariants = variantsByProduct.get(p.product_id) ?? [p];
+          const isGroupedProduct = productViewMode === 'products' && productVariants.length > 1;
+          const productAvailable = productVariants.reduce((sum, variant) => sum + (variant.available ?? variant.soh), 0);
+          const productSoh = productVariants.reduce((sum, variant) => sum + variant.soh, 0);
+          const productAvailableAll = productVariants.reduce((sum, variant) => sum + (variant.available_all ?? variant.soh_all), 0);
+          const prices = productVariants.map(variant => variant.price);
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
           return (
             <button
               key={p.variant_id}
-              onClick={() => { if (window.getSelection()?.toString()) return; handleAdd(p); }}
+              onClick={() => { if (window.getSelection()?.toString()) return; handleProductSelect(p); }}
               style={{
                 background: 'var(--sv-bg-2)',
                 border: `1px solid ${isRecent ? 'rgba(37,99,235,.35)' : 'var(--sv-etch)'}`,
@@ -4280,27 +4436,29 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
                   {p.original_price != null && (
                     <span style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', textDecoration: 'line-through', lineHeight: 1, marginBottom: '1px' }}>${fmt(p.original_price)}</span>
                   )}
-                  <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>${fmt(p.price)}</span>
+                  <span style={{ fontWeight: 800, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '1.05rem' }}>{isGroupedProduct && minPrice !== maxPrice ? `$${fmt(minPrice)}–$${fmt(maxPrice)}` : `$${fmt(p.price)}`}</span>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
+                  onClick={e => { e.stopPropagation(); if (isGroupedProduct) setProductStockModal(productVariants); else setStockModal({ variantId: p.variant_id, productName: p.name, imageUrl: p.image_url ?? undefined, barcode: p.barcode ?? undefined, sku: p.code ?? undefined }); }}
                   style={{ width: 21, height: 21, padding: 0, display: 'grid', placeItems: 'center', background: 'transparent', border: '1.5px solid var(--sv-action)', borderRadius: '50%', color: 'var(--sv-action)', cursor: 'pointer', fontSize: '.78rem', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}
                   title="Product info & stock by location"
                   aria-label="Product info and stock by location"
                 >i</button>
               </div>
               {/* Variant options (size/colour) under price */}
-              {optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>{optionsStr}</div>}
+              {isGroupedProduct
+                ? <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', marginTop: '2px' }}>{productVariants.length} variants</div>
+                : optionsStr && <div style={{ fontSize: '.75rem', fontWeight: 600, color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>{optionsStr}</div>}
                 </div>{/* end right col */}
               </div>{/* end top flex row */}
               {/* Product name — full width, single line */}
-              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem', userSelect: 'text' }}>{p.name}</div>
+              <div style={{ fontSize: '.88rem', fontWeight: 700, lineHeight: 1.25, color: 'var(--sv-text-strong)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '.2rem', userSelect: 'text' }}>{isGroupedProduct ? p.name.split(' — ')[0] : p.name}</div>
               {/* Stock info — compact single line */}
               <div style={{ fontSize: '.72rem', color: 'var(--sv-text-dim)', display: 'flex', gap: '.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Avail: {p.available ?? p.soh}</span>
-                <span>· SOH: {p.soh}</span>
-                {((p.available_all ?? p.soh_all) - (p.available ?? p.soh)) > 0 && (
-                  <span>· Other: {(p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</span>
+                <span style={{ color: (isGroupedProduct ? productAvailable : (p.available ?? p.soh)) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', fontWeight: 600 }}>Avail: {isGroupedProduct ? productAvailable : (p.available ?? p.soh)}</span>
+                <span>· SOH: {isGroupedProduct ? productSoh : p.soh}</span>
+                {((isGroupedProduct ? productAvailableAll - productAvailable : (p.available_all ?? p.soh_all) - (p.available ?? p.soh))) > 0 && (
+                  <span>· Other: {isGroupedProduct ? productAvailableAll - productAvailable : (p.available_all ?? p.soh_all) - (p.available ?? p.soh)}</span>
                 )}
               </div>
               {/* SKU — moved to bottom */}
@@ -4330,6 +4488,15 @@ const [stockModal, setStockModal]     = useState<{ variantId: string; productNam
         onClose={() => setStockModal(null)}
       />
     )}
+    {variantPicker && (
+      <PosVariantPicker
+        variants={variantPicker}
+        onSelect={variant => { setVariantPicker(null); handleAdd(variant); }}
+        onInfo={() => { setProductStockModal(variantPicker); setVariantPicker(null); }}
+        onClose={() => { setVariantPicker(null); requestAnimationFrame(() => scanRef.current?.focus()); }}
+      />
+    )}
+    {productStockModal && <PosProductStockModal variants={productStockModal} onClose={() => { setProductStockModal(null); requestAnimationFrame(() => scanRef.current?.focus()); }} />}
   </div>
   );
 }
