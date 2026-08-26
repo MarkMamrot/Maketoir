@@ -6,6 +6,10 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import {
+  findUniqueUnusedShopifyGiftCard,
+  isShopifyGiftCardCodeTakenError,
+} from '@/lib/pos/giftCardShopifyReconciliation';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -143,8 +147,9 @@ export async function POST(req: Request) {
   let currency                   = 'AUD';
 
   if (gcMode === 'combined') {
+    let shopify: ShopifyService | null = null;
     try {
-      const shopify = await getShopify(session.businessId);
+      shopify = await getShopify(session.businessId);
       if (shopify) {
         const gc = await shopify.createGiftCard({
           initial_value: amt,
@@ -157,16 +162,34 @@ export async function POST(req: Request) {
         currency    = gc.currency ?? 'AUD';
       }
     } catch (e: any) {
-      console.error('[POS gift-card] Shopify create failed:', e.message);
-      await reportRuntimeIssue({
-        businessId: session.businessId,
-        source: 'shopify',
-        operation: 'gift_card_pos_issue',
-        title: 'POS could not create Shopify gift card',
-        error: e,
-        context: { pos_sale_id: pos_sale_id ?? null, amount: amt },
-        reference: pos_sale_id ? { type: 'pos_sale', id: pos_sale_id } : undefined,
-      });
+      let recovered = false;
+      if (shopify && inputCode && isShopifyGiftCardCodeTakenError(e)) {
+        try {
+          const candidates = await shopify.findGiftCardsByLastChars(inputCode.slice(-4));
+          const existing = findUniqueUnusedShopifyGiftCard(candidates, inputCode, amt);
+          if (existing) {
+            shopifyGcId = existing.id;
+            expiresOn = existing.expires_on ?? null;
+            currency = existing.currency ?? 'AUD';
+            recovered = true;
+          }
+        } catch {
+          // Preserve the original duplicate-code failure as the operational evidence.
+        }
+      }
+
+      if (!recovered) {
+        console.error('[POS gift-card] Shopify create failed:', e.message);
+        await reportRuntimeIssue({
+          businessId: session.businessId,
+          source: 'shopify',
+          operation: 'gift_card_pos_issue',
+          title: 'POS could not create Shopify gift card',
+          error: e,
+          context: { pos_sale_id: pos_sale_id ?? null, amount: amt },
+          reference: pos_sale_id ? { type: 'pos_sale', id: pos_sale_id } : undefined,
+        });
+      }
     }
   }
 
