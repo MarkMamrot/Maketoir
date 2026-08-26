@@ -9317,7 +9317,7 @@ export default function DashboardPage() {
                 {activeSettingView === 'connections' && (
                   <ConnectionsTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
                 )}
-                {activeSettingView === 'marketing-settings' && (
+                {marketingEnabled && activeSettingView === 'marketing-settings' && (
                   <MarketingSettingsView databaseId={databaseId} />
                 )}
                 {activeSettingView === 'data-source' && (
