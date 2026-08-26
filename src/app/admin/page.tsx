@@ -8,6 +8,7 @@ import ProspectInsightsView from './ProspectInsightsView';
 import ProspectLeadsView from './ProspectLeadsView';
 import RuntimeIssuesView from './RuntimeIssuesView';
 import WorkflowFindingsView from './WorkflowFindingsView';
+import BusinessFeaturesView from './BusinessFeaturesView';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -22,7 +23,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'runtime-issues' | 'workflow-findings';
+type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'runtime-issues' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -698,6 +699,7 @@ export default function AdminPage() {
           {([
             { id: 'businesses', label: 'Businesses' },
             { id: 'users',      label: 'Users' },
+            { id: 'features', label: 'Feature Rollouts' },
             { id: 'integration-offerings', label: 'Integration Offerings' },
             { id: 'prospect-leads', label: 'Prospect Leads' },
             { id: 'prospect-insights', label: 'Prospect Insights' },
@@ -712,6 +714,7 @@ export default function AdminPage() {
         <div className="super-admin-main" style={S.main}>
           {view === 'businesses' && <BusinessesView />}
           {view === 'users'      && <UsersView />}
+          {view === 'features' && <BusinessFeaturesView />}
           {view === 'integration-offerings' && <IntegrationOfferingsView />}
           {view === 'prospect-leads' && <ProspectLeadsView />}
           {view === 'prospect-insights' && <ProspectInsightsView />}

@@ -14,6 +14,8 @@ Use this page to choose the right workspace before you start reviewing data, pla
 - Use Planning and Review to move a recommendation through a recorded human decision.
 - Use Content and Service to prepare assets, product content, and customer replies for review.
 
+Some developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Foresight menu.
+
 ## Choose a workspace
 
 | You need to | Open | What you get | Does opening it change anything outside Solvantis? |
@@ -58,6 +60,7 @@ AI Helper can explain information available to its workflow and help you form th
 | A figure looks old | Its source has not refreshed or the date range differs | Check the source status and date range before refreshing once |
 | A suggestion looks like completed work | You are viewing a draft or review stage | Check the status and open the page that records implementation or sending |
 | An action is unavailable | The item is at the wrong stage or your role cannot perform it | Read the status, complete the earlier step, or ask an administrator |
+| A whole workspace is missing from the menu | It has not been enabled for the active business | Ask a SuperAdmin to review **Feature Rollouts**; reloading applies an approved change |
 | A retry gives the same error | A connection or required field still needs attention | Stop repeated retries and inspect the specific connection or validation message |
 
 ## Worked examples

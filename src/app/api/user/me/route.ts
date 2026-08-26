@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
+import { emptyBusinessFeatureFlags, getBusinessFeatureFlags } from '@/lib/businessFeatures';
 
 export async function GET() {
   try {
@@ -12,6 +13,7 @@ export async function GET() {
 
     // Look up has_foresight from the businesses table (not stored in the cookie)
     let hasForesight = false;
+    let features = emptyBusinessFeatureFlags();
     const businessId = user.businessId ?? '';
     if (businessId) {
       const rows = await query<{ has_foresight: number }>(
@@ -19,6 +21,7 @@ export async function GET() {
         [businessId],
       ).catch(() => []);
       hasForesight = !!(rows[0]?.has_foresight);
+      features = await getBusinessFeatureFlags(businessId).catch(() => emptyBusinessFeatureFlags());
     }
 
     return NextResponse.json({
@@ -28,6 +31,7 @@ export async function GET() {
       tier:         user.tier       ?? 'StandardUser',
       businessId,
       hasForesight,
+      features,
     });
   } catch {
     return NextResponse.json({ error: 'Invalid session.' }, { status: 400 });

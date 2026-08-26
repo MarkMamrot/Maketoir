@@ -20,6 +20,18 @@ CREATE TABLE IF NOT EXISTS businesses (
   updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS business_feature_flags (
+  business_id        VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  feature_key        VARCHAR(100) NOT NULL,
+  enabled            TINYINT(1) NOT NULL DEFAULT 0,
+  changed_by_user_id INT NULL,
+  changed_by_name    VARCHAR(255) NULL,
+  changed_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, feature_key),
+  INDEX idx_business_feature_enabled (feature_key, enabled, business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- online sales channel and native shop control plane
 -- ---------------------------------------------------------

@@ -113,6 +113,8 @@ const DASHBOARD_VIEW_IDS = new Set<string>([
   ...NAV.flatMap(item => item.children.map(child => child.id)),
 ]);
 
+const MARKETING_VIEW_IDS = new Set(['marketing', 'sync-ads', 'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit', 'marketing-settings']);
+
 function parseDashboardViewFromHash(hash: string): string | null {
   const decoded = dashboardHashView(hash);
   if (!decoded) return null;
@@ -123,9 +125,11 @@ function parseDashboardViewFromHash(hash: string): string | null {
 function Sidebar({
   active,
   onSelect,
+  marketingEnabled,
 }: {
   active: string;
   onSelect: (id: string) => void;
+  marketingEnabled: boolean;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     inventory: false, marketing: false, website: false, 'ai-helper': false, 'business-intelligence': false, 'brand-assets': false, settings: false,
@@ -221,7 +225,7 @@ function Sidebar({
       </div>
 
       <nav className="solv-nav flex-1 space-y-0.5 px-2 font-nav overflow-y-auto overflow-x-hidden">
-        {NAV.map(item => renderItem(item))}
+        {NAV.filter(item => item.id !== 'marketing' || marketingEnabled).map(item => renderItem(item))}
       </nav>
     </aside>
   );
@@ -9039,6 +9043,8 @@ export default function DashboardPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeSettingView, setActiveSettingView] = useState('appearance');
+  const [marketingEnabled, setMarketingEnabled] = useState(false);
+  const [featuresLoaded, setFeaturesLoaded] = useState(false);
 
   useEffect(() => {
     const fromHash = parseDashboardViewFromHash(window.location.hash);
@@ -9063,6 +9069,13 @@ export default function DashboardPage() {
     }
   }, [activeView, hashReady]);
 
+  useEffect(() => {
+    if (!featuresLoaded || marketingEnabled || !MARKETING_VIEW_IDS.has(activeView)) return;
+    setActiveView('home');
+    setActiveSettingView('appearance');
+    setSettingsOpen(false);
+  }, [activeView, featuresLoaded, marketingEnabled]);
+
   // Load first business and current user on mount; redirect to /login if session expired
   useEffect(() => {
     fetch('/api/user/businesses')
@@ -9083,8 +9096,12 @@ export default function DashboardPage() {
         if (r.status === 401) { window.location.href = '/login'; return null; }
         return r.json();
       })
-      .then(d => { if (d?.name) { setUserName(d.name); setUserTier(d.tier ?? ''); } })
-      .catch(() => {});
+      .then(d => {
+        if (d?.name) { setUserName(d.name); setUserTier(d.tier ?? ''); }
+        setMarketingEnabled(Boolean(d?.features?.['foresight.marketing']));
+        setFeaturesLoaded(true);
+      })
+      .catch(() => setFeaturesLoaded(true));
   }, []);
 
   const titles: Record<string, string> = {
@@ -9199,7 +9216,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <Sidebar active={activeView} onSelect={setActiveView} />
+        <Sidebar active={activeView} onSelect={setActiveView} marketingEnabled={marketingEnabled} />
 
         {/* Content */}
         <main className="flex-1 p-6 overflow-y-auto">
@@ -9215,7 +9232,7 @@ export default function DashboardPage() {
           {activeView === 'business-info' && (
             <BusinessInfoTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
           )}
-          {(activeView === 'sync-data' || activeView === 'inventory-sync' || activeView === 'sync-ads' || activeView === 'website-products') && (
+          {(activeView === 'sync-data' || activeView === 'inventory-sync' || (activeView === 'sync-ads' && marketingEnabled) || activeView === 'website-products') && (
             <SyncDataView
               databaseId={databaseId}
               initialSection={
@@ -9232,11 +9249,11 @@ export default function DashboardPage() {
           {activeView === 'stock-turnover' && <StockTurnoverView databaseId={databaseId} />}
           {activeView === 'inactive-candidates' && <InactiveCandidatesView databaseId={databaseId} />}
           {activeView === 'lost-candidates' && <LostCandidatesView databaseId={databaseId} />}
-          {activeView === 'marketing-assistant' && <MarketingAssistantView databaseId={databaseId} />}
-          {activeView === 'planning-workspace' && <ForesightPlannerWorkspace userTier={userTier} />}
-          {activeView === 'marketing-recommendations' && <MarketingRecommendationsView userTier={userTier} />}
-          {activeView === 'creative-review' && <CreativeReviewView userTier={userTier} />}
-          {activeView === 'campaign-audit' && <CampaignAuditView databaseId={databaseId} />}
+          {marketingEnabled && activeView === 'marketing-assistant' && <MarketingAssistantView databaseId={databaseId} />}
+          {marketingEnabled && activeView === 'planning-workspace' && <ForesightPlannerWorkspace userTier={userTier} />}
+          {marketingEnabled && activeView === 'marketing-recommendations' && <MarketingRecommendationsView userTier={userTier} />}
+          {marketingEnabled && activeView === 'creative-review' && <CreativeReviewView userTier={userTier} />}
+          {marketingEnabled && activeView === 'campaign-audit' && <CampaignAuditView databaseId={databaseId} />}
           {activeView === 'product-description-template' && <WebContentTemplatesView databaseId={databaseId} />}
           {activeView === 'bulk-edit-listings' && <BulkEditListingsView databaseId={databaseId} />}
           {activeView === 'cs-inbox' && <CustomerServiceView databaseId={databaseId} />}
@@ -9283,7 +9300,7 @@ export default function DashboardPage() {
             <div className="flex flex-1 min-h-0">
               {/* Settings Sidebar */}
               <div className="w-64 border-r border-gray-200 bg-gray-50 p-4 space-y-1 overflow-y-auto shrink-0">
-                {SETTINGS_NAV.children.map(tab => (
+                {SETTINGS_NAV.children.filter(tab => tab.id !== 'marketing-settings' || marketingEnabled).map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveSettingView(tab.id)}
