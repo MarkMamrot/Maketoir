@@ -131,28 +131,30 @@ await runImsForBusiness(businessId, async () => {
     }
 
     async function importTask(task: ImportedTask) {
+      const taskTitle = task.title.slice(0, 255);
+      const taskInstructions = task.title.length > 255 ? task.title : null;
       const [found] = await connection.execute(
         `SELECT id FROM pos_daybook_task_templates
          WHERE business_id = ? AND location_id = ? AND phase = ? AND title = ? AND recurrence = ? AND weekday <=> ? LIMIT 1`,
-        [businessId, location.id, task.phase, task.title, task.recurrence, task.weekday ?? null],
+        [businessId, location.id, task.phase, taskTitle, task.recurrence, task.weekday ?? null],
       ) as any;
       let templateId = Number(found[0]?.id ?? 0);
       if (!templateId) {
         const [result] = await connection.execute(
           `INSERT INTO pos_daybook_task_templates
-             (business_id, location_id, phase, title, recurrence, weekday, created_by_name)
-           VALUES (?, ?, ?, ?, ?, ?, 'Newtown spreadsheet import')`,
-          [businessId, location.id, task.phase, task.title, task.recurrence, task.weekday ?? null],
+             (business_id, location_id, phase, title, instructions, recurrence, weekday, created_by_name)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'Newtown spreadsheet import')`,
+          [businessId, location.id, task.phase, taskTitle, taskInstructions, task.recurrence, task.weekday ?? null],
         ) as any;
         templateId = Number(result.insertId);
       }
       for (const signoff of task.signoffs) {
         const [instanceResult] = await connection.execute(
           `INSERT INTO pos_daybook_task_instances
-             (business_id, location_id, task_date, template_id, title_snapshot, phase, status, completed_at)
-           VALUES (?, ?, ?, ?, ?, ?, 'completed', CONCAT(?, ' 12:00:00'))
+             (business_id, location_id, task_date, template_id, title_snapshot, instructions_snapshot, phase, status, completed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', CONCAT(?, ' 12:00:00'))
            ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
-          [businessId, location.id, signoff.date, templateId, task.title, task.phase, signoff.date],
+          [businessId, location.id, signoff.date, templateId, taskTitle, taskInstructions, task.phase, signoff.date],
         ) as any;
         const instanceId = Number(instanceResult.insertId);
         const identityId = await ensureStaff(signoff.initials);
@@ -246,7 +248,9 @@ await runImsForBusiness(businessId, async () => {
 });
 }
 
-main().catch(error => {
+main().then(() => {
+  process.exit(0);
+}).catch(error => {
   console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
+  process.exit(1);
 });

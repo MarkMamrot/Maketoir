@@ -1855,7 +1855,7 @@ CREATE TABLE IF NOT EXISTS pos_daybook_product_guides (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_daybook_guide_import (business_id, import_key),
-  INDEX idx_daybook_guides (business_id, location_id, category, status, product_name)
+  INDEX idx_daybook_guides (business_id, location_id, category, status, product_name(120))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS pos_daybook_import_runs (
