@@ -75,7 +75,7 @@ function shortTime(value?: string) {
 
 function taskDateLabel(value: string) {
   const date = new Date(`${value}T00:00:00`);
-  return { weekday: date.toLocaleDateString([], { weekday: 'short' }), day: date.toLocaleDateString([], { day: 'numeric', month: 'short' }) };
+  return { weekday: date.toLocaleDateString([], { weekday: 'long' }), day: date.toLocaleDateString([], { day: 'numeric', month: 'short' }) };
 }
 
 function defaultTaskPhase(tasks: Task[]): TaskPhase {
@@ -348,18 +348,20 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
     <div className={styles.checklistHeading}><div><span>{selected.short}</span><h2>{selected.title}</h2></div><b>{completed}/{currentTasks.length} complete today</b></div>
     <div className={styles.checklistScroll} tabIndex={0} aria-label={`${selected.title} seven-day sign-off history`}>
       <table className={styles.checklistTable}>
-        <thead><tr><th scope="col">Task</th>{workspace.taskDates.map(taskDate => {
+        <thead><tr><th scope="col">Task</th>{workspace.taskDates.map((taskDate, dayIndex) => {
           const label = taskDateLabel(taskDate);
-          return <th scope="col" className={taskDate === workspace.date ? styles.currentDate : ''} key={taskDate}><span>{label.weekday}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
+          return <th scope="col" className={`${styles[`dayTone${dayIndex}`]} ${taskDate === workspace.date ? styles.currentDate : ''}`} key={taskDate}><span>{label.weekday}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
         })}</tr></thead>
         <tbody>{[...rows.values()].map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{workspace.taskDates.map(taskDate => {
+          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{workspace.taskDates.map((taskDate, dayIndex) => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
-            if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;
-            if (isCurrent && currentTask) return <td className={`${styles.currentDate} ${entry.status === 'completed' ? styles.signedCell : styles.openCell}`} key={taskDate}><button disabled={saving || (entry.status === 'completed' && !workspace.permissions.manager)} onClick={() => void onSign(currentTask)} title={entry.status === 'completed' ? `Signed by ${entry.staff_name || 'staff'}${workspace.permissions.manager ? '. Select to reopen.' : ''}` : 'Select to sign off'}>{entry.status === 'completed' ? <><Check size={17} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></> : <><span className={styles.openMarker} />Sign off</>}</button></td>;
-            return <td className={entry.status === 'completed' ? styles.signedCell : styles.missedCell} key={taskDate}>{entry.status === 'completed' ? <div title={`Signed by ${entry.staff_name || 'staff'} · ${shortTime(entry.signed_at)}`}><Check size={16} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></div> : <div title="Not signed"><span className={styles.missedMarker} /><small>Not signed</small></div>}</td>;
+            const dayClass = styles[`dayTone${dayIndex}`];
+            const dayBadge = <span className={styles.cellDayLabel}>{taskDateLabel(taskDate).weekday.slice(0, 3)}</span>;
+            if (!entry) return <td className={`${dayClass} ${styles.notScheduled}`} key={taskDate}>{dayBadge}<span aria-label="Not scheduled">—</span></td>;
+            if (isCurrent && currentTask) return <td className={`${dayClass} ${styles.currentDate} ${entry.status === 'completed' ? styles.signedCell : styles.openCell}`} key={taskDate}>{dayBadge}<button disabled={saving || (entry.status === 'completed' && !workspace.permissions.manager)} onClick={() => void onSign(currentTask)} title={entry.status === 'completed' ? `Signed by ${entry.staff_name || 'staff'}${workspace.permissions.manager ? '. Select to reopen.' : ''}` : 'Select to sign off'}>{entry.status === 'completed' ? <><Check size={17} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></> : <><span className={styles.openMarker} />Sign off</>}</button></td>;
+            return <td className={`${dayClass} ${entry.status === 'completed' ? styles.signedCell : styles.missedCell}`} key={taskDate}>{dayBadge}{entry.status === 'completed' ? <div title={`Signed by ${entry.staff_name || 'staff'} · ${shortTime(entry.signed_at)}`}><Check size={16} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></div> : <div title="Not signed"><span className={styles.missedMarker} /><small>Not signed</small></div>}</td>;
           })}</tr>;
         })}</tbody>
       </table>

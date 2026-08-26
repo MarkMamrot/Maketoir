@@ -43,9 +43,9 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 ### Complete today's work
 
-1. Open **Today** and use **Open the store**, **Keep the day moving**, or **Close with confidence** across the top.
-2. Review the seven dated columns. The final highlighted column is the selected day; the preceding columns show its previous six days.
-3. Read each row across to see signed initials, a task that was not signed, or a day when that task was not scheduled.
+1. Open **Today** and use the clearly separated **Open the store**, **Keep the day moving**, or **Close with confidence** panels across the top.
+2. Review the seven pastel-coloured columns. Each column and task cell shows its weekday; the final outlined column is the selected day and the preceding columns show its previous six days.
+3. Follow one weekday colour down the table, or read each task row across, to see signed initials, a task that was not signed, or a day when that task was not scheduled.
 4. In the highlighted current-day column, select **Sign off** only after the work is complete.
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
