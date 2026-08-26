@@ -29,10 +29,16 @@ export function parseCsv(text: string): string[][] {
 
 const SECRET_PATTERNS = [
   /\bpassword\s*[:=-]?\s*\S+/gi,
+  /\b(?:pw|pass)\s*[:=-]?\s*\S+/gi,
   /\bpin(?:\s+number)?\s*[:=-]?\s*\d+/gi,
+  /\b(?:solvantis|eftpos|deposit|pos)[^\n,]{0,30}\bpin\s*[:=-]?\s*\d+/gi,
   /\b(pos|register|location)\s+(id|key|code)\s*[:=-]?\s*\S+/gi,
+  /\blocation\s*[:=-]\s*\S+/gi,
+  /\buser(?:name| name)\s*[:=-]?\s*\S+/gi,
   /\bnetwork\s+(name|password)\s*[:=-]?\s*\S+/gi,
 ];
+
+const SENSITIVE_ROW_PATTERN = /\b(password|\bpw\b|\bpass\b|\bpin\b|login|username|location code|bank details?|\bbsb\b|account number|account name|deposit card|router|wi-?fi|modem|zeller|shopify|loyalty dog)\b/i;
 
 export function sanitizeImportedText(value: string): { text: string; redactions: number } {
   let text = value;
@@ -176,4 +182,181 @@ export function parseSafeReferences(text: string): { references: ImportedReferen
 
 export function sourceChecksum(files: { name: string; text: string }[]): string {
   return crypto.createHash('sha256').update(files.sort((a, b) => a.name.localeCompare(b.name)).map(file => `${file.name}\0${file.text}`).join('\0')).digest('hex');
+}
+
+function normalizedHeader(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function findHeader(rows: string[][], required: string[]) {
+  return rows.findIndex(row => required.every(term => row.some(cell => normalizedHeader(cell).includes(term))));
+}
+
+function branchKey(branch: string, section: string, ...parts: unknown[]) {
+  return key(`${branch.toLowerCase()}-${section}`, ...parts);
+}
+
+export function parseBranchStartEndTasks(text: string): { tasks: ImportedTask[]; redactions: number } {
+  const rows = parseCsv(text);
+  const tasks: ImportedTask[] = [];
+  let phase: ImportedTask['phase'] = 'opening';
+  let currentDate: string | null = null;
+  let redactions = 0;
+  for (const row of rows) {
+    const joined = row.join(' ');
+    if (/\b(?:closing|end of day)\b/i.test(joined)) phase = 'closing';
+    else if (/\b(?:opening|start of day)\b/i.test(joined)) phase = 'opening';
+    const rowDate = row.map(cell => parseDaybookDate(cell)).find(Boolean) ?? null;
+    if (rowDate) currentDate = rowDate;
+    const rawTitle = (row[1] ?? '').trim();
+    if (!rawTitle || /^\d+(?:\.\d+)?$/.test(rawTitle) || /^(opening|closing|start of day|end of day|staff name|date|allocate|closing time|all done|store needs|retail)$/i.test(rawTitle)) continue;
+    if (!currentDate || (!/^\d+/.test(row[0] ?? '') && !row[2]?.trim())) continue;
+    const clean = sanitizeImportedText(rawTitle);
+    redactions += clean.redactions;
+    if (!clean.text || /^\[secure details removed\]$/i.test(clean.text)) continue;
+    const staffInitials = initials(row[2] ?? '');
+    tasks.push({ phase, title: clean.text, recurrence: 'daily', signoffs: staffInitials ? [{ date: currentDate, initials: staffInitials }] : [] });
+  }
+  return { tasks, redactions };
+}
+
+export function parseBranchDailyTasks(text: string): ImportedTask[] {
+  const rows = parseCsv(text);
+  const weekdays: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+  const tasks: ImportedTask[] = [];
+  let weekday = 1;
+  let currentDate: string | null = null;
+  for (const row of rows) {
+    const dayCell = row.slice(0, 2).map(cell => normalizedHeader(cell)).find(cell => Object.keys(weekdays).some(day => cell.includes(day)));
+    const day = dayCell && Object.keys(weekdays).find(name => dayCell.includes(name));
+    if (day) { weekday = weekdays[day]; currentDate = null; }
+    const rowDate = parseDaybookDate(row[2] ?? '');
+    if (rowDate) currentDate = rowDate;
+    const rawTitle = (row[1] ?? '').trim();
+    if (!rawTitle || Object.keys(weekdays).some(name => normalizedHeader(rawTitle).includes(name)) || /^(daily jobs|date|start of day|end of day)$/i.test(rawTitle)) continue;
+    const clean = sanitizeImportedText(rawTitle).text;
+    if (!clean) continue;
+    const staffInitials = initials(row[3] ?? '');
+    tasks.push({ phase: 'during_day', title: clean, recurrence: 'weekly', weekday, signoffs: currentDate && staffInitials ? [{ date: currentDate, initials: staffInitials }] : [] });
+  }
+  return tasks;
+}
+
+export function parseBranchCommunications(text: string, branch: string): { records: ImportedCommunication[]; skippedBefore2026: number; redactions: number } {
+  const rows = parseCsv(text);
+  let headerIndex = findHeader(rows, ['date', 'message']);
+  if (headerIndex < 0) headerIndex = rows.findIndex(row => row.some(cell => /communication book|notices/i.test(cell)));
+  if (headerIndex < 0) return { records: [], skippedBefore2026: 0, redactions: 0 };
+  const header = rows[headerIndex];
+  const messageIndex = Math.max(1, header.findIndex(cell => normalizedHeader(cell).includes('message') || /communication book|notices/i.test(cell)));
+  const names = header.slice(messageIndex + 1).map(value => value.trim());
+  const records: ImportedCommunication[] = [];
+  let skippedBefore2026 = 0;
+  let redactions = 0;
+  for (const row of rows.slice(headerIndex + 1)) {
+    const date = parseDaybookDate(row[0] ?? '');
+    const message = (row[messageIndex] ?? '').trim();
+    if (date && message) {
+      if (!shouldImportNewtownCommunication(date)) { skippedBefore2026 += 1; continue; }
+      const clean = sanitizeImportedText(message); redactions += clean.redactions;
+      records.push({ date, message: clean.text, reads: row.slice(messageIndex + 1).map((value, index) => ({ name: names[index] || initials(value), initials: initials(value) })).filter(read => read.initials), importKey: branchKey(branch, 'comms', date, clean.text) });
+    } else if (message && records.length) {
+      const clean = sanitizeImportedText(message); redactions += clean.redactions;
+      records[records.length - 1].message += `\n${clean.text}`;
+    }
+  }
+  return { records, skippedBefore2026, redactions };
+}
+
+export function parseBranchCustomerRequests(text: string, branch: string): ImportedRecord[] {
+  const rows = parseCsv(text);
+  const headerIndex = findHeader(rows, ['date']);
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map(normalizedHeader);
+  const column = (...terms: string[]) => headers.findIndex(header => terms.some(term => header.includes(term)));
+  const nameIndex = column('customer name', 'cust name');
+  const phoneIndex = column('phone'); const emailIndex = column('email'); const itemIndex = column('item name', 'item');
+  const skuIndex = column('sku'); const quantityIndex = column('qty'); const transferIndex = column('transfer id');
+  const staffIndex = column('staff'); const outcomeIndex = column('called'); const notesIndex = column('comments', 'notes');
+  return rows.slice(headerIndex + 1).flatMap(row => {
+    const date = parseDaybookDate(row[0] ?? ''); const customer = (row[nameIndex] ?? '').trim();
+    if (!date || !customer) return [];
+    const item = (row[itemIndex] ?? '').trim(); const title = `${customer} - ${item || 'Customer request'}`.slice(0, 255);
+    return [{ type: 'customer_request' as const, date, title, details: { customer_name: customer, contact_details: [row[phoneIndex], row[emailIndex]].filter(Boolean).join(' · '), item, sku: row[skuIndex], quantity: row[quantityIndex], transfer_id: row[transferIndex], notes: row[notesIndex], contact_outcome: row[outcomeIndex] }, staffInitials: initials(row[staffIndex] ?? '') || 'IMP', importKey: branchKey(branch, 'request', date, title) }];
+  });
+}
+
+export function parseBranchDiscrepancies(text: string, branch: string): ImportedRecord[] {
+  const rows = parseCsv(text);
+  const headerIndex = rows.findIndex(row => row.some(cell => normalizedHeader(cell).includes('actual qty') || normalizedHeader(cell).includes('actual quantity'))
+    && row.some(cell => normalizedHeader(cell).includes('cin7') || normalizedHeader(cell).includes('cin 7')));
+  if (headerIndex < 0) return [];
+  const headers = rows[headerIndex].map(normalizedHeader);
+  const column = (...terms: string[]) => headers.findIndex(header => terms.some(term => header.includes(term)));
+  const skuIndex = column('sku', 'item code'); const itemIndex = column('product name', 'item description', 'name');
+  const systemIndex = column('cin 7 quantity', 'qty in cin7'); const physicalIndex = column('actual quantity', 'actual qty');
+  const staffIndex = column('staff'); const noteIndex = column('note'); const fixedDateIndex = column('date fixed'); const fixedByIndex = column('fixed by');
+  let inheritedDate: string | null = null;
+  return rows.slice(headerIndex + 1).flatMap(row => {
+    inheritedDate = parseDaybookDate(row[0] ?? '') || inheritedDate;
+    const sku = (row[skuIndex] ?? '').trim(); const item = (row[itemIndex] ?? '').trim();
+    if (!sku && !item) return [];
+    const system = Number(row[systemIndex]); const physical = Number(row[physicalIndex]);
+    if (!Number.isFinite(system) || !Number.isFinite(physical)) return [];
+    const title = (item || sku).slice(0, 255);
+    return [{ type: 'stock_discrepancy' as const, date: inheritedDate, title, details: { sku, item, system_quantity: system, physical_quantity: physical, variance: physical - system, notes: row[noteIndex], date_fixed: row[fixedDateIndex], fixed_by: row[fixedByIndex] }, staffInitials: initials(row[staffIndex] ?? '') || 'IMP', importKey: branchKey(branch, 'discrepancy', inheritedDate, sku, title) }];
+  });
+}
+
+export function parseBranchStoreNeeds(text: string, branch: string): ImportedRecord[] {
+  const rows = parseCsv(text);
+  const headerIndex = findHeader(rows, ['date']);
+  if (headerIndex < 0) return [];
+  const header = rows[headerIndex].map(normalizedHeader);
+  const dateIndexes = header.map((value, index) => value === 'date' ? index : -1).filter(index => index >= 0);
+  const output: ImportedRecord[] = [];
+  for (const row of rows.slice(headerIndex + 1)) {
+    const leftDate = parseDaybookDate(row[dateIndexes[0]] ?? '');
+    const leftItem = (row[dateIndexes[0] + 1] ?? '').trim();
+    if (leftDate && leftItem) output.push({ type: 'store_need', date: leftDate, title: leftItem.slice(0, 255), details: { item: leftItem, store_notes: row[dateIndexes[0] + 2], warehouse_notes: row[dateIndexes[0] + 3], request_kind: 'consumable' }, staffInitials: 'IMP', importKey: branchKey(branch, 'need', leftDate, leftItem) });
+    const rightStart = dateIndexes[dateIndexes.length - 1]; const rightDate = parseDaybookDate(row[rightStart] ?? '');
+    const sku = (row[rightStart + 1] ?? '').trim(); const item = (row[rightStart + 2] ?? '').trim();
+    if (rightDate && (sku || item)) output.push({ type: 'store_need', date: rightDate, title: (item || sku).slice(0, 255), details: { sku, item, quantity: row[rightStart + 3], store_notes: row[rightStart + 4], warehouse_notes: row[rightStart + 5], request_kind: 'stock' }, staffInitials: 'IMP', importKey: branchKey(branch, 'need', rightDate, sku, item) });
+  }
+  return output;
+}
+
+export function parseBranchSafeReferences(text: string, branch: string): { references: ImportedReference[]; rejectedRows: number } {
+  const references: ImportedReference[] = [];
+  let rejectedRows = 0;
+  for (const row of parseCsv(text)) {
+    const joined = row.filter(Boolean).join(' · ');
+    if (!joined) continue;
+    if (SENSITIVE_ROW_PATTERN.test(joined)) { rejectedRows += 1; continue; }
+    for (let index = 0; index < row.length; index += 4) {
+      const group = row.slice(index, index + 4).map(value => value.trim()).filter(Boolean);
+      if (group.length < 2) continue;
+      const title = group[0].replace(/\s*-\s*$/, '').trim();
+      const content = group.slice(1).join(' · ');
+      if (!title || !content || /^(owners? & managers?|staff contact|mt stores|nsw|melbourne)$/i.test(title)) continue;
+      references.push({ category: /security|police|management/i.test(title) ? 'Store contacts' : 'Contacts', title: title.slice(0, 255), content, importKey: branchKey(branch, 'reference', title, content) });
+    }
+  }
+  return { references: [...new Map(references.map(item => [item.importKey, item])).values()], rejectedRows };
+}
+
+export function parseStorageMap(text: string, branch: string): ImportedGuide[] {
+  const guides: ImportedGuide[] = [];
+  let regions: { index: number; name: string }[] = [];
+  for (const row of parseCsv(text)) {
+    const headings = row.map((cell, index) => ({ index, name: cell.replace(/\s+/g, ' ').trim() })).filter(item => item.name && item.name === item.name.toUpperCase() && /[A-Z]{3}/.test(item.name));
+    if (headings.length) { regions = headings; continue; }
+    for (const [index, raw] of row.entries()) {
+      const productName = raw.replace(/\s+/g, ' ').trim();
+      if (!productName || /^(latest update|staff)\s*:/i.test(productName)) continue;
+      const region = [...regions].reverse().find(item => item.index <= index)?.name ?? 'Store storage';
+      guides.push({ sku: '', productName: productName.slice(0, 500), category: 'Storage map', shelf: region.slice(0, 255), status: 'active', importKey: branchKey(branch, 'storage', region, productName) });
+    }
+  }
+  return [...new Map(guides.map(item => [item.importKey, item])).values()];
 }

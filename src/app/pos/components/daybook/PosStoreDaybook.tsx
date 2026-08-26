@@ -20,7 +20,8 @@ type Editable = { background_color?: ColourKey | null; can_edit: boolean };
 type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[] };
 type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null };
 type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null };
-type GuideRow = Editable & { id: number; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
+type GuideRow = Editable & { id: number; variant_id?: string | null; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
+type GuideProduct = { variant_id: string; product_id: string; product_name: string; option_label?: string | null; sku?: string | null; image_url?: string | null; image_alt?: string | null };
 type Location = { id: number; name: string };
 type Workspace = {
   date: string;
@@ -282,7 +283,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
             <SearchBox value={query} onChange={setQuery} placeholder="Search product, SKU, shelf or box" />
             <div className={styles.guideGrid}>{workspace?.guides.filter(item => `${item.product_name} ${item.sku} ${item.category} ${item.shelf_location} ${item.box_location}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={`${styles.guide} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}>
               <div className={styles.guideImage}>{item.image_url ? <img src={item.image_url} alt={item.image_alt || item.product_name} /> : <><PackageOpen size={28} /><span>Photo coming soon</span></>}</div>
-              <div><span>{item.category || 'Product'}{item.sku ? ` · ${item.sku}` : ''}</span><div className={styles.cardHeading}><h3>{item.product_name}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('guide', { _id: item.id, product_name: item.product_name, sku: item.sku, category: item.category, shelf_location: item.shelf_location, box_location: item.box_location, guidance: item.guidance, image_url: item.image_url, image_alt: item.image_alt, background_color: item.background_color })} aria-label={`Edit ${item.product_name}`}><Pencil size={16} /></button>}</div><dl><dt>Shelf</dt><dd>{item.shelf_location || 'To be mapped'}</dd><dt>Box</dt><dd>{item.box_location || 'To be mapped'}</dd></dl>{item.guidance && <p>{item.guidance}</p>}</div>
+              <div><span>{item.category || 'Product'}{item.sku ? ` · ${item.sku}` : ''}</span><div className={styles.cardHeading}><h3>{item.product_name}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('guide', { _id: item.id, variant_id: item.variant_id, product_name: item.product_name, sku: item.sku, category: item.category, shelf_location: item.shelf_location, box_location: item.box_location, guidance: item.guidance, image_url: item.image_url, image_alt: item.image_alt, background_color: item.background_color })} aria-label={`Edit ${item.product_name}`}><Pencil size={16} /></button>}</div><dl><dt>Shelf</dt><dd>{item.shelf_location || 'To be mapped'}</dd><dt>Box</dt><dd>{item.box_location || 'To be mapped'}</dd></dl>{item.guidance && <p>{item.guidance}</p>}</div>
             </article>)}</div>
           </section>
         )}
@@ -428,10 +429,41 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     {type === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
     {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
     {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
-    {type === 'guide' && <><div className={styles.formRow}><Field label="Product name" value={form.product_name} onChange={value => setForm({ ...form, product_name: value })} /><Field label="SKU" value={form.sku} onChange={value => setForm({ ...form, sku: value })} /></div><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /><Field label="Photo URL (optional)" type="url" value={form.image_url} onChange={value => setForm({ ...form, image_url: value })} /></>}
+    {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
     <button className={styles.primary} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button>
   </form></>;
+}
+
+function GuideProductPicker({ form, setForm }: { form: Record<string, string>; setForm: (form: Record<string, string>) => void }) {
+  const [search, setSearch] = useState(form.product_name || '');
+  const [products, setProducts] = useState<GuideProduct[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/pos/daybook?view=products&q=${encodeURIComponent(search.trim())}`, { cache: 'no-store', signal: controller.signal });
+        const result = await response.json();
+        if (response.ok) setProducts(result.products ?? []);
+      } catch (caught) {
+        if (!(caught instanceof DOMException && caught.name === 'AbortError')) setProducts([]);
+      } finally { if (!controller.signal.aborted) setLoading(false); }
+    }, 220);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [search]);
+
+  function choose(product: GuideProduct) {
+    const displayName = `${product.product_name}${product.option_label ? ` - ${product.option_label}` : ''}`;
+    setSearch(displayName);
+    setForm({ ...form, variant_id: product.variant_id, product_name: displayName, sku: product.sku || '', image_url: product.image_url || '', image_alt: product.image_alt || displayName });
+  }
+
+  return <div className={styles.productPicker}><label className={styles.field}><span>Product</span><div className={styles.productSearch}><Search size={17} /><input value={search} onChange={event => { setSearch(event.target.value); setForm({ ...form, variant_id: '' }); }} placeholder="Search product name, SKU or barcode" /></div></label>
+    {form.variant_id ? <div className={styles.selectedProduct}>{form.image_url ? <img src={form.image_url} alt={form.image_alt || form.product_name} /> : <div className={styles.productPlaceholder}><PackageOpen size={24} /></div>}<div><strong>{form.product_name}</strong><span>{form.sku || 'No SKU'}</span></div><Check size={18} /></div> : <div className={styles.productResults}>{loading && <small>Searching products…</small>}{!loading && products.map(product => <button type="button" onClick={() => choose(product)} key={product.variant_id}>{product.image_url ? <img src={product.image_url} alt="" /> : <span className={styles.productPlaceholder}><PackageOpen size={18} /></span>}<span><b>{product.product_name}{product.option_label ? ` - ${product.option_label}` : ''}</b><small>{product.sku || 'No SKU'}</small></span></button>)}{!loading && products.length === 0 && <small>No matching active products.</small>}</div>}
+  </div>;
 }
 
 function DaybookSettings({ policy, saving, perform }: { policy: Workspace['permissions']['editPolicy']; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {

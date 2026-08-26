@@ -69,6 +69,53 @@ async function validateLocation(businessId: string, locationId: number): Promise
   return Boolean(rows[0]);
 }
 
+type DaybookGuideProduct = {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  option_label: string | null;
+  sku: string | null;
+  image_url: string | null;
+  image_alt: string | null;
+};
+
+async function findGuideProducts(businessId: string, search: string, limit = 24): Promise<DaybookGuideProduct[]> {
+  const like = `%${search.trim()}%`;
+  return imsQuery<DaybookGuideProduct>(
+    `SELECT v.variant_id, p.product_id, p.name AS product_name, v.sku,
+            NULLIF(TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', NULLIF(v.option1_value, ''), NULLIF(v.option2_value, ''), NULLIF(v.option3_value, ''))), '') AS option_label,
+            image.url AS image_url, image.alt_text AS image_alt
+     FROM ims_product_variants v
+     JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+     LEFT JOIN ims_product_images image ON image.id = (
+       SELECT candidate.id FROM ims_product_images candidate
+       WHERE candidate.product_id = p.product_id ORDER BY candidate.is_primary DESC, candidate.sort_order, candidate.id LIMIT 1
+     )
+     WHERE p.is_active = 1 AND v.is_active = 1
+       AND (? = '' OR p.name LIKE ? OR v.sku LIKE ? OR v.barcode LIKE ?)
+     ORDER BY p.name, v.sku LIMIT ${limit}`,
+    [businessId, search.trim(), like, like, like],
+  );
+}
+
+async function resolveGuideProduct(businessId: string, variantId: string): Promise<DaybookGuideProduct | null> {
+  if (!variantId) return null;
+  const products = await imsQuery<DaybookGuideProduct>(
+    `SELECT v.variant_id, p.product_id, p.name AS product_name, v.sku,
+            NULLIF(TRIM(BOTH ' / ' FROM CONCAT_WS(' / ', NULLIF(v.option1_value, ''), NULLIF(v.option2_value, ''), NULLIF(v.option3_value, ''))), '') AS option_label,
+            image.url AS image_url, image.alt_text AS image_alt
+     FROM ims_product_variants v
+     JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
+     LEFT JOIN ims_product_images image ON image.id = (
+       SELECT candidate.id FROM ims_product_images candidate
+       WHERE candidate.product_id = p.product_id ORDER BY candidate.is_primary DESC, candidate.sort_order, candidate.id LIMIT 1
+     )
+     WHERE v.variant_id = ? AND p.is_active = 1 AND v.is_active = 1 LIMIT 1`,
+    [businessId, variantId],
+  );
+  return products[0] ?? null;
+}
+
 async function getEditPolicy(businessId: string): Promise<DaybookEditPolicy> {
   const rows = await imsQuery<{ value: string }>(
     "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'pos_daybook_edit_policy' LIMIT 1",
@@ -116,6 +163,22 @@ export async function GET(request: Request) {
   const context = await resolveContext();
   if (!context) return error('An active POS location is required.', 401);
   const url = new URL(request.url);
+  if (url.searchParams.get('view') === 'products') {
+    const search = String(url.searchParams.get('q') ?? '').trim().slice(0, 120);
+    try {
+      return NextResponse.json({ products: await findGuideProducts(context.businessId, search) });
+    } catch (caught) {
+      await reportRuntimeIssue({
+        businessId: context.businessId,
+        source: 'pos/daybook',
+        operation: 'search_guide_products',
+        title: 'Store Daybook product search failed',
+        error: caught,
+        context: { locationId: context.locationId },
+      });
+      return error('Products could not be loaded.', 500);
+    }
+  }
   const taskDate = parseDaybookDate(url.searchParams.get('date') ?? new Date().toISOString().slice(0, 10));
   const staffInitials = String(url.searchParams.get('initials') ?? '').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8);
   if (!taskDate) return error('A valid date is required.');
@@ -427,16 +490,17 @@ export async function POST(request: Request) {
       const guide = rows[0];
       if (!guide) return error('Product guide not found.', 404);
       if (!mayEdit(context, staff, await getEditPolicy(context.businessId), guide)) return error('You do not have permission to edit this item.', 403);
-      const productName = String(body.product_name ?? '').trim().slice(0, 500);
-      if (!productName) return error('Product name is required.');
+      const product = await resolveGuideProduct(context.businessId, String(body.variant_id ?? ''));
+      if (!product) return error('Choose an active product from the product list.');
+      const productName = `${product.product_name}${product.option_label ? ` - ${product.option_label}` : ''}`.slice(0, 500);
       await imsExecute(
-        `UPDATE pos_daybook_product_guides SET sku = ?, product_name = ?, category = ?, shelf_location = ?,
+        `UPDATE pos_daybook_product_guides SET variant_id = ?, sku = ?, product_name = ?, category = ?, shelf_location = ?,
            box_location = ?, guidance = ?, image_url = ?, image_alt = ?, background_color = ?
          WHERE id = ? AND business_id = ?`,
-        [String(body.sku ?? '').trim() || null, productName, String(body.category ?? '').trim() || null,
+        [product.variant_id, product.sku, productName, String(body.category ?? '').trim() || null,
           String(body.shelf_location ?? '').trim() || null, String(body.box_location ?? '').trim() || null,
-          String(body.guidance ?? '').trim() || null, String(body.image_url ?? '').trim() || null,
-          String(body.image_alt ?? '').trim() || null, normalizeDaybookColour(body.background_color), guideId, context.businessId],
+          String(body.guidance ?? '').trim() || null, product.image_url,
+          product.image_alt || productName, normalizeDaybookColour(body.background_color), guideId, context.businessId],
       );
       return NextResponse.json({ success: true });
     }
@@ -612,17 +676,20 @@ export async function POST(request: Request) {
     }
 
     if (action === 'save_guide') {
+      const product = await resolveGuideProduct(context.businessId, String(body.variant_id ?? ''));
+      if (!product) return error('Choose an active product from the product list.');
+      const productName = `${product.product_name}${product.option_label ? ` - ${product.option_label}` : ''}`.slice(0, 500);
       await imsExecute(
         `INSERT INTO pos_daybook_product_guides
-           (business_id, location_id, sku, product_name, category, shelf_location, box_location, guidance,
+            (business_id, location_id, variant_id, sku, product_name, category, shelf_location, box_location, guidance,
             image_url, image_alt, status, background_color, author_user_id, author_name,
             author_staff_identity_id, author_staff_name, author_staff_initials)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [context.businessId, body.all_locations ? null : context.locationId, String(body.sku ?? '').trim() || null,
-          String(body.product_name ?? '').trim().slice(0, 500), String(body.category ?? '').trim() || null,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [context.businessId, body.all_locations ? null : context.locationId, product.variant_id, product.sku,
+          productName, String(body.category ?? '').trim() || null,
           String(body.shelf_location ?? '').trim() || null, String(body.box_location ?? '').trim() || null,
-          String(body.guidance ?? '').trim() || null, String(body.image_url ?? '').trim() || null,
-          String(body.image_alt ?? '').trim() || null, String(body.status ?? 'active').slice(0, 50),
+          String(body.guidance ?? '').trim() || null, product.image_url,
+          product.image_alt || productName, String(body.status ?? 'active').slice(0, 50),
           normalizeDaybookColour(body.background_color), context.actorUserId, context.actorName,
           staff.id, staff.name, staff.initials],
       );
