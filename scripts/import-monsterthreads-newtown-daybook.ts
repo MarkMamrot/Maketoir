@@ -77,7 +77,7 @@ const summary = {
 };
 if (parseOnly) {
   console.log(JSON.stringify({ mode: 'parse-only', ...summary }, null, 2));
-  return;
+  process.exit(0);
 }
 
 function staffName(initials: string) {

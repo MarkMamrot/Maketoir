@@ -13,6 +13,7 @@ import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 const MANAGER_TIERS = new Set(['PosManager', 'StandardUser', 'Admin', 'SuperAdmin']);
 const RECORD_TYPES = new Set(['customer_request', 'store_need', 'stock_discrepancy', 'incident']);
+const SENSITIVE_REFERENCE_PATTERN = /\b(password|passcode|pin|secret|api[ _-]?key|access[ _-]?key|location code|register key)\b/i;
 
 type DaybookContext = {
   businessId: string;
@@ -122,8 +123,9 @@ export async function GET(request: Request) {
       imsQuery(
         `SELECT * FROM pos_daybook_records
          WHERE business_id = ? AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?)
+           AND (record_type <> 'incident' OR ? = 1)
          ORDER BY created_at DESC LIMIT 500`,
-        [context.businessId, context.locationId, context.locationId, context.locationId],
+        [context.businessId, context.locationId, context.locationId, context.locationId, context.isManager ? 1 : 0],
       ),
       imsQuery(
         `SELECT * FROM pos_daybook_references
@@ -276,6 +278,11 @@ export async function POST(request: Request) {
       const record = rows[0];
       if (!record || ![record.location_id, record.source_location_id, record.destination_location_id].includes(context.locationId)) return error('Record not found.', 404);
       const toStatus = String(body.status ?? '');
+      if (record.record_type === 'store_need') {
+        const warehouseStages = ['approved', 'packed', 'sent'];
+        if (warehouseStages.includes(toStatus) && context.locationId !== Number(record.destination_location_id)) return error('The destination warehouse must complete that stage.', 403);
+        if (toStatus === 'received' && context.locationId !== Number(record.source_location_id)) return error('The requesting store must confirm receipt.', 403);
+      }
       const allowed = record.record_type === 'store_need'
         ? canTransitionNeed(record.status as DaybookNeedStatus, toStatus as DaybookNeedStatus)
         : record.record_type === 'customer_request'
@@ -305,11 +312,13 @@ export async function POST(request: Request) {
     if (action === 'create_task') {
       const recurrence = ['daily', 'weekly', 'once'].includes(String(body.recurrence)) ? String(body.recurrence) : 'daily';
       const phase = ['opening', 'during_day', 'closing'].includes(String(body.phase)) ? String(body.phase) : 'during_day';
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      if (!title) return error('A task title is required.');
       await imsExecute(
         `INSERT INTO pos_daybook_task_templates
            (business_id, location_id, phase, title, instructions, recurrence, weekday, scheduled_date, sort_order, created_by_id, created_by_name)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [context.businessId, context.locationId, phase, String(body.title ?? '').trim().slice(0, 255),
+        [context.businessId, context.locationId, phase, title,
           String(body.instructions ?? '').trim() || null, recurrence, recurrence === 'weekly' ? Number(body.weekday) : null,
           recurrence === 'once' ? parseDaybookDate(String(body.scheduled_date ?? '')) : null,
           Number(body.sort_order ?? 0), context.actorUserId, context.actorName],
@@ -340,6 +349,8 @@ export async function POST(request: Request) {
     }
 
     if (action === 'save_reference') {
+      const referenceText = `${String(body.title ?? '')} ${String(body.content ?? '')}`;
+      if (SENSITIVE_REFERENCE_PATTERN.test(referenceText)) return error('Passwords, PINs, keys, secrets, and location codes cannot be stored in Daybook.', 422);
       await imsExecute(
         `INSERT INTO pos_daybook_references (business_id, location_id, category, title, content, link_url, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,

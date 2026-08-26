@@ -7,6 +7,7 @@ import {
   Truck, UserRoundCheck, X,
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
+import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import styles from './PosStoreDaybook.module.css';
 
 type Staff = { id?: number | null; name: string; initials: string };
@@ -68,6 +69,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<Record<string, string>>({});
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const identityKey = `pos_daybook_staff_${session.location_id}_${date}`;
 
@@ -153,6 +155,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
           <button className={styles.identityButton} onClick={() => setIdentityOpen(true)}>
             <UserRoundCheck size={17} /> {staff ? `${staff.name} (${staff.initials})` : 'Choose staff'}
           </button>
+          <button className={styles.iconButton} onClick={() => setHelpOpen(true)} aria-label="Open Store Daybook help"><BookOpen size={18} /></button>
         </div>
       </header>
 
@@ -245,6 +248,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
         <button className={styles.primary} disabled={saving || !identityName.trim()} onClick={() => saveIdentity()}>Continue as this staff member</button>
         <small>Account audit: {session.full_name}</small>
       </div></div>}
+      <UnifiedHelpDrawer open={helpOpen} onOpenChange={setHelpOpen} audience="pos" product="pos" currentContext="daybook" chatEndpoint="/api/pos/assistant/chat" escalationEndpoint="/api/pos/assistant/escalate" showFloatingTrigger={false} />
     </div>
   );
 }
