@@ -53,6 +53,8 @@ Use a linked return from POS Reports so the original quantities, refund value, s
 
 Gift cards and store credit are not interchangeable. A gift card is code-based value. Store credit belongs to a linked customer and should only be issued through the completed credit-note flow.
 
+When Shopify gift cards are connected, a supplied code may already represent a card created in Shopify. If Shopify reports that the code already exists, Solvantis links it only when there is one enabled, unused Shopify card with matching ending characters, currency and value. An ambiguous or value-mismatched card remains unlinked and is sent for operational review.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | What to do |
