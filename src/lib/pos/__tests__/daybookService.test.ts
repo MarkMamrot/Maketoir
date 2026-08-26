@@ -3,6 +3,7 @@ import {
   calculateStockVariance,
   canTransitionDiscrepancy,
   canTransitionNeed,
+  getDaybookDateRange,
   normalizeStaffIdentity,
   parseDaybookDate,
   shouldImportNewtownCommunication,
@@ -25,6 +26,14 @@ describe('Store Daybook rules', () => {
     expect(parseDaybookDate('24.08.26')).toBe('2026-08-24');
     expect(parseDaybookDate('2026-08-24')).toBe('2026-08-24');
     expect(parseDaybookDate('31.02.26')).toBeNull();
+  });
+
+  it('builds an inclusive seven-day checklist window across calendar boundaries', () => {
+    expect(getDaybookDateRange('2026-01-03', 7)).toEqual([
+      '2025-12-28', '2025-12-29', '2025-12-30', '2025-12-31',
+      '2026-01-01', '2026-01-02', '2026-01-03',
+    ]);
+    expect(getDaybookDateRange('invalid', 7)).toEqual([]);
   });
 
   it('imports Newtown communications only from the start of 2026', () => {

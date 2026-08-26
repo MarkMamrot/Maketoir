@@ -11,7 +11,9 @@ import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import styles from './PosStoreDaybook.module.css';
 
 type Staff = { id?: number | null; name: string; initials: string };
-type Task = { id: number; template_id: number; phase: 'opening' | 'during_day' | 'closing'; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
+type TaskPhase = 'opening' | 'during_day' | 'closing';
+type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
+type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; phase: TaskPhase; status: string; staff_name?: string; staff_initials?: string; signed_at?: string };
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
@@ -25,6 +27,8 @@ type Workspace = {
   location: Location;
   permissions: { manager: boolean; editPolicy: 'author_only' | 'managers' | 'anyone' };
   tasks: Task[];
+  taskDates: string[];
+  taskHistory: TaskHistory[];
   communications: Communication[];
   records: RecordRow[];
   references: ReferenceRow[];
@@ -68,6 +72,21 @@ function shortTime(value?: string) {
   return new Date(value.replace(' ', 'T') + (value.includes('Z') ? '' : 'Z')).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+function taskDateLabel(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  return { weekday: date.toLocaleDateString([], { weekday: 'short' }), day: date.toLocaleDateString([], { day: 'numeric', month: 'short' }) };
+}
+
+function defaultTaskPhase(tasks: Task[]): TaskPhase {
+  const complete = (phase: TaskPhase) => {
+    const phaseTasks = tasks.filter(task => task.phase === phase);
+    return phaseTasks.length === 0 || phaseTasks.every(task => task.status === 'completed');
+  };
+  if (!complete('opening')) return 'opening';
+  if (!complete('during_day')) return 'during_day';
+  return 'closing';
+}
+
 export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBack: () => void }) {
   const [date, setDate] = useState(todayLocal);
   const [active, setActive] = useState<string>('today');
@@ -82,6 +101,8 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<Record<string, string>>({});
   const [editor, setEditor] = useState<EditorType | null>(null);
+  const [taskPhase, setTaskPhase] = useState<TaskPhase>('opening');
+  const [taskPhaseDate, setTaskPhaseDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
 
   const identityKey = `pos_daybook_staff_${session.location_id}_${date}`;
@@ -108,6 +129,13 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   }
 
   useEffect(() => { void load(); }, [date]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (workspace && workspace.date !== taskPhaseDate) {
+      setTaskPhase(defaultTaskPhase(workspace.tasks));
+      setTaskPhaseDate(workspace.date);
+    }
+  }, [workspace, taskPhaseDate]);
 
   async function post(action: string, payload: Record<string, unknown> = {}, requireStaff = true) {
     if (requireStaff && !staff) { setIdentityOpen(true); throw new Error('Choose your staff identity first.'); }
@@ -153,6 +181,17 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   function openEditor(type: EditorType, values: Record<string, unknown> = {}) {
     setForm(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value == null ? '' : String(value)])));
     setEditor(type);
+  }
+
+  async function signChecklistTask(task: Task) {
+    const reopening = task.status === 'completed';
+    await perform('sign_task', { instance_id: task.id, signoff_action: reopening ? 'reopened' : 'completed', reason: reopening ? 'Manager reopened from Daybook' : '' });
+    if (reopening) return;
+    const remaining = workspace?.tasks.filter(item => item.phase === task.phase && item.id !== task.id && item.status !== 'completed') ?? [];
+    if (remaining.length === 0) {
+      if (task.phase === 'opening') setTaskPhase('during_day');
+      if (task.phase === 'during_day') setTaskPhase('closing');
+    }
   }
 
   const records = workspace?.records.filter(record => record.record_type === active) ?? [];
@@ -202,22 +241,15 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
         {loading && <div className={styles.loading}>Opening the Daybook…</div>}
 
         {!loading && active === 'today' && (
-          <><Title title="Today's checklist" subtitle="Opening, daily and closing work for this store." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('task')}><Plus size={17} /> Add new task</button> : undefined} />
-          <div className={styles.taskColumns}>
-            {([['opening', 'Open the store', '#e9684b'], ['during_day', 'Keep the day moving', '#159a91'], ['closing', 'Close with confidence', '#d99b23']] as const).map(([phase, label, colour]) => {
-              const tasks = workspace?.tasks.filter(task => task.phase === phase) ?? [];
-              return <section className={styles.taskSection} key={phase} style={{ '--accent': colour } as React.CSSProperties}>
-                <div className={styles.sectionHeading}><div><span>{phase === 'opening' ? 'START' : phase === 'closing' ? 'END' : 'TODAY'}</span><h2>{label}</h2></div><b>{tasks.filter(task => task.status === 'completed').length}/{tasks.length}</b></div>
-                {tasks.length === 0 && <p className={styles.empty}>No tasks are scheduled for this section.</p>}
-                {tasks.map(task => <article className={task.status === 'completed' ? styles.taskDone : styles.task} key={task.id}>
-                  <button disabled={saving} onClick={() => perform('sign_task', { instance_id: task.id, signoff_action: task.status === 'completed' ? 'reopened' : 'completed', reason: task.status === 'completed' ? 'Manager reopened from Daybook' : '' })} aria-label={`${task.status === 'completed' ? 'Reopen' : 'Complete'} ${task.title_snapshot}`}>
-                    {task.status === 'completed' && <Check size={18} />}
-                  </button>
-                  <div><div className={styles.cardHeading}><h3>{task.title_snapshot}</h3>{task.can_edit && <button className={styles.editButton} onClick={() => openEditor('task', { _id: task.template_id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })} aria-label={`Edit ${task.title_snapshot}`}><Pencil size={15} /></button>}</div>{task.instructions_snapshot && <p>{task.instructions_snapshot}</p>}{task.status === 'completed' && <small>Signed by {task.last_staff_name} ({task.last_staff_initials}) · {shortTime(task.signed_at)}</small>}</div>
-                </article>)}
-              </section>;
-            })}
-          </div></>
+          <ChecklistView
+            workspace={workspace}
+            phase={taskPhase}
+            onPhaseChange={setTaskPhase}
+            saving={saving}
+            onSign={signChecklistTask}
+            onEdit={task => openEditor('task', { _id: task.template_id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })}
+            onAdd={workspace?.permissions.manager ? () => openEditor('task', { phase: taskPhase }) : undefined}
+          />
         )}
 
         {!loading && active === 'communications' && (
@@ -276,6 +308,64 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
       <UnifiedHelpDrawer open={helpOpen} onOpenChange={setHelpOpen} audience="pos" product="pos" currentContext="daybook" chatEndpoint="/api/pos/assistant/chat" escalationEndpoint="/api/pos/assistant/escalate" showFloatingTrigger={false} />
     </div>
   );
+}
+
+function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onAdd }: {
+  workspace: Workspace | null;
+  phase: TaskPhase;
+  onPhaseChange: (phase: TaskPhase) => void;
+  saving: boolean;
+  onSign: (task: Task) => Promise<void>;
+  onEdit: (task: Task) => void;
+  onAdd?: () => void;
+}) {
+  if (!workspace) return null;
+  const phaseMeta: { id: TaskPhase; short: string; title: string }[] = [
+    { id: 'opening', short: 'OPEN', title: 'Open the store' },
+    { id: 'during_day', short: 'TODAY', title: 'Keep the day moving' },
+    { id: 'closing', short: 'CLOSE', title: 'Close with confidence' },
+  ];
+  const currentTasks = workspace.tasks.filter(task => task.phase === phase);
+  const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
+  const rows = new Map<number, { templateId: number; title: string }>();
+  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot });
+  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot });
+  const completed = currentTasks.filter(task => task.status === 'completed').length;
+  const selected = phaseMeta.find(item => item.id === phase) ?? phaseMeta[0];
+
+  return <section className={styles.checklistSection}>
+    <Title title="Today's checklist" subtitle="Seven days of sign-offs, with today's work ready to complete." action={onAdd ? <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new task</button> : undefined} />
+    <div className={styles.phaseSelector} role="tablist" aria-label="Checklist phase">
+      {phaseMeta.map(item => {
+        const tasks = workspace.tasks.filter(task => task.phase === item.id);
+        const done = tasks.filter(task => task.status === 'completed').length;
+        return <button role="tab" aria-selected={phase === item.id} className={phase === item.id ? styles.activePhase : ''} onClick={() => onPhaseChange(item.id)} key={item.id}>
+          <span>{item.short}</span><strong>{item.title}</strong><small>{done}/{tasks.length} today</small>
+        </button>;
+      })}
+    </div>
+    <div className={styles.checklistHeading}><div><span>{selected.short}</span><h2>{selected.title}</h2></div><b>{completed}/{currentTasks.length} complete today</b></div>
+    <div className={styles.checklistScroll} tabIndex={0} aria-label={`${selected.title} seven-day sign-off history`}>
+      <table className={styles.checklistTable}>
+        <thead><tr><th scope="col">Task</th>{workspace.taskDates.map(taskDate => {
+          const label = taskDateLabel(taskDate);
+          return <th scope="col" className={taskDate === workspace.date ? styles.currentDate : ''} key={taskDate}><span>{label.weekday}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
+        })}</tr></thead>
+        <tbody>{[...rows.values()].map(row => {
+          const currentTask = currentTasks.find(task => task.template_id === row.templateId);
+          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{workspace.taskDates.map(taskDate => {
+            const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
+            const isCurrent = taskDate === workspace.date;
+            if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;
+            if (isCurrent && currentTask) return <td className={`${styles.currentDate} ${entry.status === 'completed' ? styles.signedCell : styles.openCell}`} key={taskDate}><button disabled={saving || (entry.status === 'completed' && !workspace.permissions.manager)} onClick={() => void onSign(currentTask)} title={entry.status === 'completed' ? `Signed by ${entry.staff_name || 'staff'}${workspace.permissions.manager ? '. Select to reopen.' : ''}` : 'Select to sign off'}>{entry.status === 'completed' ? <><Check size={17} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></> : <><span className={styles.openMarker} />Sign off</>}</button></td>;
+            return <td className={entry.status === 'completed' ? styles.signedCell : styles.missedCell} key={taskDate}>{entry.status === 'completed' ? <div title={`Signed by ${entry.staff_name || 'staff'} · ${shortTime(entry.signed_at)}`}><Check size={16} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></div> : <div title="Not signed"><span className={styles.missedMarker} /><small>Not signed</small></div>}</td>;
+          })}</tr>;
+        })}</tbody>
+      </table>
+      {rows.size === 0 && <p className={styles.empty}>No tasks were scheduled in this section during the last seven days.</p>}
+    </div>
+    <div className={styles.checklistLegend}><span><i className={styles.legendSigned}><Check size={12} /></i> Signed</span><span><i className={styles.legendMissed} /> Not signed</span><span><i className={styles.legendBlank}>—</i> Not scheduled</span></div>
+  </section>;
 }
 
 function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }

@@ -6,6 +6,7 @@ import {
   canTransitionDiscrepancy,
   canTransitionNeed,
   canTransitionRequest,
+  getDaybookDateRange,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
   normalizeStaffIdentity,
@@ -120,8 +121,9 @@ export async function GET(request: Request) {
   if (!taskDate) return error('A valid date is required.');
 
   try {
-    await materializeTasks(context, taskDate);
-    const [rawTasks, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
+    const taskDates = getDaybookDateRange(taskDate, 7);
+    await Promise.all(taskDates.map(date => materializeTasks(context, date)));
+    const [rawTasks, taskHistory, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
                 s.actor_name AS last_actor_name, s.created_at AS signed_at,
@@ -136,6 +138,18 @@ export async function GET(request: Request) {
          WHERE i.business_id = ? AND i.location_id = ? AND i.task_date = ?
          ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.id`,
         [context.businessId, context.locationId, taskDate],
+      ),
+      imsQuery(
+        `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status,
+                s.staff_name, s.staff_initials, s.created_at AS signed_at
+         FROM pos_daybook_task_instances i
+         LEFT JOIN pos_daybook_task_signoffs s ON s.id = (
+           SELECT s2.id FROM pos_daybook_task_signoffs s2
+           WHERE s2.business_id = i.business_id AND s2.instance_id = i.id ORDER BY s2.id DESC LIMIT 1
+         )
+         WHERE i.business_id = ? AND i.location_id = ? AND i.task_date BETWEEN ? AND ?
+         ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.template_id, i.task_date`,
+        [context.businessId, context.locationId, taskDates[0], taskDate],
       ),
       imsQuery(
         `SELECT c.*,
@@ -222,6 +236,8 @@ export async function GET(request: Request) {
       location: { id: context.locationId, name: context.locationName },
       permissions: { manager: context.isManager, editPolicy },
       tasks,
+      taskDates,
+      taskHistory,
       communications,
       records,
       references,

@@ -58,6 +58,18 @@ export function parseDaybookDate(value: string): string | null {
   return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
+export function getDaybookDateRange(endDate: string, days: number): string[] {
+  const parsed = parseDaybookDate(endDate);
+  if (!parsed || !Number.isInteger(days) || days < 1) return [];
+  const [year, month, day] = parsed.split('-').map(Number);
+  const end = new Date(Date.UTC(year, month - 1, day));
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date(end);
+    date.setUTCDate(end.getUTCDate() - (days - 1 - index));
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 export function shouldImportNewtownCommunication(value: string): boolean {
   const date = parseDaybookDate(value);
   return date !== null && date >= NEWTOWN_COMMUNICATIONS_START_DATE;

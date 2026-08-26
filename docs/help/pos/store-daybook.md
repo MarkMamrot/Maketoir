@@ -21,7 +21,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 | Section | Use it for | Completion |
 |---|---|---|
-| Today | Opening, daily, weekly and closing tasks | Staff name, initials, signed-in account and time are retained |
+| Today | Opening, daily, weekly and closing tasks with a seven-day sign-off view | Staff name, initials, signed-in account and time are retained |
 | Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |
 | Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |
 | Store needs | Consumables or stock needed from a warehouse | Requested, approved, packed, sent and received |
@@ -43,11 +43,15 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 ### Complete today's work
 
-1. Open **Today** and review the opening, throughout-the-day and closing groups.
-2. Expand any detailed instruction before doing the task.
-3. Select the task checkbox only after the work is complete.
-4. Check that your name, initials and completion time appear under the task.
-5. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
+1. Open **Today** and use **Open the store**, **Keep the day moving**, or **Close with confidence** across the top.
+2. Review the seven dated columns. The final highlighted column is the selected day; the preceding columns show its previous six days.
+3. Read each row across to see signed initials, a task that was not signed, or a day when that task was not scheduled.
+4. In the highlighted current-day column, select **Sign off** only after the work is complete.
+5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
+6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
+7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
+
+> **Note:** The seven-day table follows the date selected in the Daybook header. This makes it possible to review an earlier day and the six days leading up to it.
 
 ### Read a communication
 
@@ -104,6 +108,7 @@ Status changes and incident visibility still follow their separate operational p
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | A task expected today is missing | Its recurrence, weekday or effective date does not include today | Ask a manager to review the task schedule |
+| A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
 | The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
