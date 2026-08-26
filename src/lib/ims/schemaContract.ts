@@ -80,6 +80,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_daybook_references',
   'pos_daybook_product_guides',
   'pos_daybook_import_runs',
+  'pos_daybook_content_events',
   'pos_sale_items',
   'pos_payments',
   'pos_petty_cash_transactions',
@@ -129,6 +130,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   pos_daybook_records: ['business_id', 'location_id', 'record_type', 'status', 'details_json', 'staff_name', 'staff_initials', 'actor_name', 'background_color'],
   pos_daybook_references: ['background_color', 'author_user_id', 'author_staff_identity_id', 'author_staff_initials'],
   pos_daybook_product_guides: ['background_color', 'author_user_id', 'author_staff_identity_id', 'author_staff_initials'],
+  pos_daybook_content_events: ['business_id', 'location_id', 'item_type', 'item_id', 'action', 'staff_identity_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'actor_tier', 'created_at'],
   ims_locations: [
     'phone',
     'pos_pin',

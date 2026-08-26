@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   AlertTriangle, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
   Megaphone, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
-  Truck, UserRoundCheck, Users, X,
+  Trash2, Truck, UserRoundCheck, Users, X,
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
@@ -404,6 +404,7 @@ function StatusActions({ record, saving, manager, perform }: { record: RecordRow
 }
 
 function EditorForm({ type, form, setForm, locations, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const recordFields: Record<string, string[]> = {
     customer_request: ['customer_name', 'contact_details', 'item', 'notes'], store_need: ['item', 'quantity', 'unit', 'store_notes'],
     stock_discrepancy: ['sku', 'item', 'size', 'system_quantity', 'physical_quantity', 'notes'],
@@ -424,6 +425,10 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     const ids = { template_id: form._id, communication_id: form._id, reference_id: form._id, guide_id: form._id };
     await perform(action, { ...form, ...ids, background_color: form.background_color || null, location_ids: form.location_ids ? form.location_ids.split(',').map(Number) : [] });
   }
+  async function deleteItem() {
+    const itemType = type === 'task' || type === 'communication' || type === 'reference' || type === 'guide' ? type : 'record';
+    await perform('delete_item', { item_type: itemType, item_id: Number(form._id) });
+  }
   return <><h2 id="editor-title">{editing ? 'Edit' : 'Add new'} {heading}</h2><form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
     {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
     {type === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
@@ -431,7 +436,8 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
-    <button className={styles.primary} disabled={saving || (type === 'guide' && !form.variant_id)}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button>
+    {editing && confirmDelete && <div className={styles.deleteConfirmation} role="alert"><div><strong>Delete this {heading}?</strong><span>It will leave the active Daybook. Existing audit history is retained.</span></div><button type="button" onClick={() => setConfirmDelete(false)} disabled={saving}>Cancel</button><button type="button" className={styles.confirmDeleteButton} onClick={() => void deleteItem()} disabled={saving}>{saving ? 'Deleting…' : 'Delete item'}</button></div>}
+    <div className={styles.editorActions}>{editing && <button type="button" className={styles.deleteButton} onClick={() => setConfirmDelete(true)} disabled={saving || confirmDelete}><Trash2 size={17} /> Delete</button>}<button className={styles.primary} disabled={saving || confirmDelete || (type === 'guide' && !form.variant_id)}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button></div>
   </form></>;
 }
 

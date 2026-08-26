@@ -87,6 +87,8 @@ Some imported storage-map entries may initially contain a shelf or storage descr
 
 When an item can be edited under the current policy, select its pencil button to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
 
+To remove an item, open its edit popup and select **Delete**. Review the warning and select **Delete item** to confirm. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
+
 Managers open **Settings** and choose one tenant-wide editing policy:
 
 | Policy | Who can revise an existing item |
@@ -116,6 +118,7 @@ Status changes and incident visibility still follow their separate operational p
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
 | The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
+| The Delete button is missing | Delete is available only from an item's permitted edit popup | Ask an allowed editor or manager to open the item with its pencil button |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |

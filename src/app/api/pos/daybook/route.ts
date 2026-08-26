@@ -204,9 +204,10 @@ export async function GET(request: Request) {
         [context.businessId, context.locationId, taskDate],
       ),
       imsQuery(
-        `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status,
+        `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status, t.is_active,
                 s.staff_name, s.staff_initials, s.created_at AS signed_at
          FROM pos_daybook_task_instances i
+         JOIN pos_daybook_task_templates t ON t.business_id = i.business_id AND t.id = i.template_id
          LEFT JOIN pos_daybook_task_signoffs s ON s.id = (
            SELECT s2.id FROM pos_daybook_task_signoffs s2
            WHERE s2.business_id = i.business_id AND s2.instance_id = i.id ORDER BY s2.id DESC LIMIT 1
@@ -281,7 +282,7 @@ export async function GET(request: Request) {
     }));
     const tasks = rawTasks.map(item => ({
       ...item,
-      can_edit: mayEdit(context, selectedStaff, editPolicy, {
+      can_edit: Boolean(item.is_active) && mayEdit(context, selectedStaff, editPolicy, {
         author_user_id: item.created_by_id,
         author_staff_identity_id: item.created_by_staff_identity_id,
         author_staff_initials: item.created_by_staff_initials,
