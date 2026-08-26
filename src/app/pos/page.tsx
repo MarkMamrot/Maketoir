@@ -3810,6 +3810,7 @@ function PosStockModal({ variantId, productName, imageUrl, barcode, sku, onClose
 }
 
 function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]; onClose: () => void }) {
+  type StockApiRow = { location_id?: number | string; location_name?: string; qty_on_hand?: number | string };
   const [stockByVariant, setStockByVariant] = useState<Record<string, { rows: { location_name: string; qty_on_hand: number }[]; error?: string }>>({});
   const [loading, setLoading] = useState(true);
   const productName = variants[0]?.name.split(' — ')[0] ?? 'Product';
@@ -3822,10 +3823,10 @@ function PosProductStockModal({ variants, onClose }: { variants: CachedProduct[]
         const data = await response.json();
         if (!data.success) return [variant.variant_id, { rows: [], error: data.error ?? 'Failed to load stock.' }] as const;
         return [variant.variant_id, {
-          rows: (data.data ?? []).map((row: any) => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0) })),
+          rows: ((data.data ?? []) as StockApiRow[]).map(row => ({ location_name: row.location_name ?? `Loc ${row.location_id}`, qty_on_hand: Number(row.qty_on_hand ?? 0) })),
         }] as const;
-      } catch (error: any) {
-        return [variant.variant_id, { rows: [], error: error.message }] as const;
+      } catch (error: unknown) {
+        return [variant.variant_id, { rows: [], error: error instanceof Error ? error.message : 'Failed to load stock.' }] as const;
       }
     })).then(entries => {
       if (!cancelled) setStockByVariant(Object.fromEntries(entries));
