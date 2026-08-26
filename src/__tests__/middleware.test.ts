@@ -86,6 +86,17 @@ describe('online shop custom-domain middleware', () => {
     vi.stubEnv('APP_URL', 'https://solvantis.com.au');
   });
 
+  it('treats the www host as the main Solvantis platform', async () => {
+    const resolveDomain = vi.fn();
+    vi.stubGlobal('fetch', resolveDomain);
+    const response = await middleware(new NextRequest('https://www.solvantis.com.au/', {
+      headers: { host: 'www.solvantis.com.au' },
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-middleware-rewrite')).toBeNull();
+    expect(resolveDomain).not.toHaveBeenCalled();
+  });
+
   it('rewrites a verified custom host into the existing storefront route', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ slug: 'shop-one' }), {
       status: 200, headers: { 'Content-Type': 'application/json' },

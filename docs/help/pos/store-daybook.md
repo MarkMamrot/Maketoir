@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-end-of-day-xero","pos-branch-transfers"],"contexts":["daybook","store-daybook"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-08-26","owner":"retail"}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-end-of-day-xero","pos-branch-transfers"],"contexts":["daybook","store-daybook"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-08-27","owner":"retail"}
 ---
 # Store Daybook
 
@@ -21,7 +21,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 | Section | Use it for | Completion |
 |---|---|---|
-| Today | Opening, daily, weekly and closing tasks with a seven-day sign-off view | Staff name, initials, signed-in account and time are retained |
+| Today | Opening, daily, weekly and closing tasks grouped by their scheduled day, with compact seven-day sign-off history | Staff name, initials, signed-in account and time are retained |
 | Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |
 | Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |
 | Store needs | Consumables or stock needed from a warehouse | Requested, approved, packed, sent and received |
@@ -44,8 +44,8 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 ### Complete today's work
 
 1. Open **Today** and use the clearly separated **Open the store**, **Keep the day moving**, or **Close with confidence** panels across the top.
-2. Review the seven pastel-coloured columns. Each column and task cell shows its weekday; the final outlined column is the selected day and the preceding columns show its previous six days.
-3. Follow one weekday colour down the table, or read each task row across, to see signed initials, a task that was not signed, or a day when that task was not scheduled.
+2. Read tasks in the **Every day** or weekday group where they are scheduled. Weekly daytime work appears together under Monday, Tuesday and the other relevant weekdays.
+3. Use the compact date headings and read across a task row to see signed initials, a task that was not signed, or a day when that task was not scheduled. Weekday names appear in the date headings and schedule group headings rather than repeating in every sign-off cell.
 4. In the highlighted current-day column, select **Sign off** only after the work is complete.
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.

@@ -35,7 +35,8 @@ function requestHostname(req: NextRequest): string {
 }
 
 function isPlatformHostname(hostname: string): boolean {
-  return !hostname || hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'solvantis.com.au'
+  return !hostname || hostname === 'localhost' || hostname === '127.0.0.1'
+    || hostname === 'solvantis.com.au' || hostname === 'www.solvantis.com.au'
     || hostname.endsWith('.solvantis.com.au') || hostname.endsWith('.railway.app') || hostname.endsWith('.vercel.app');
 }
 

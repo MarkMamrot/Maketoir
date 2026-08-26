@@ -21,22 +21,6 @@
 .phaseSelector button:hover{background:#fff}
 .phaseSelector button.activePhase{position:relative;z-index:1;border:0;outline:3px solid #173735;outline-offset:-3px;background:#fff;box-shadow:0 3px 9px rgba(23,55,53,.14)}
 .phaseSelector button.activePhase>span{color:#fff}
-.checklistTable td{position:relative;padding-top:20px;box-shadow:inset 4px 0 var(--day-accent)}
-.checklistTable thead th:not(:first-child){box-shadow:inset 4px 0 var(--day-accent);background:var(--day-bg)}
-.checklistTable td.dayTone0,.checklistTable td.dayTone1,.checklistTable td.dayTone2,.checklistTable td.dayTone3,.checklistTable td.dayTone4,.checklistTable td.dayTone5,.checklistTable td.dayTone6{background:var(--day-bg)}
-.dayTone0{--day-bg:#fff4f0;--day-accent:#e8a18f}
-.dayTone1{--day-bg:#f3f8e9;--day-accent:#acc878}
-.dayTone2{--day-bg:#edf8f5;--day-accent:#7fc4b6}
-.dayTone3{--day-bg:#eef5fb;--day-accent:#82b4d5}
-.dayTone4{--day-bg:#f4f0fa;--day-accent:#aa92cc}
-.dayTone5{--day-bg:#fff8e7;--day-accent:#dfbd68}
-.dayTone6{--day-bg:#fbeff4;--day-accent:#d898b2}
-.checklistTable td.signedCell{background:color-mix(in srgb,var(--day-bg) 58%,#dff4ec)}
-.checklistTable td.missedCell{background:color-mix(in srgb,var(--day-bg) 58%,#ffe6e1)}
-.checklistTable td.notScheduled{background:color-mix(in srgb,var(--day-bg) 72%,#f5f3ed)}
-.checklistTable td.currentDate{outline:2px solid #b98724;outline-offset:-2px}
-.cellDayLabel{position:absolute;top:4px;left:7px;padding:1px 4px;border-radius:3px;background:rgba(255,255,255,.78);color:#45514f;font-size:9px;font-weight:900;line-height:1.4;text-transform:uppercase}
-
 @media(max-width:760px){.phaseSelector button{padding:9px 7px}.phaseSelector button>span{justify-self:center;min-width:48px}.phaseSelector button>strong{font-size:15px}}
 
 .checklistSection{display:grid;gap:18px}.phaseSelector{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:5px;background:#e8e5dc;border:1px solid #d5d1c7;border-radius:7px}.phaseSelector button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:9px;min-height:58px;padding:9px 12px;border:2px solid transparent;border-radius:5px;background:transparent;color:#4b5754;text-align:left;cursor:pointer}.phaseSelector button>span{font-size:10px;font-weight:800;color:#66716e}.phaseSelector button>strong{font-family:Georgia,serif;font-size:16px;letter-spacing:0}.phaseSelector button>small{font-size:11px;white-space:nowrap}.phaseSelector button.activePhase{border-color:#173735;background:#fff;color:#173735;box-shadow:0 2px 7px rgba(23,55,53,.1)}.phaseSelector button.activePhase>span{color:#dd654d}.checklistHeading{display:flex;align-items:end;justify-content:space-between;gap:14px}.checklistHeading>div>span{font-size:10px;font-weight:800;color:#dd654d}.checklistHeading h2{margin:2px 0 0;font-family:Georgia,serif;font-size:24px;letter-spacing:0}.checklistHeading>b{font-size:13px;color:#53605d}.checklistScroll{max-width:100%;overflow-x:auto;border:1px solid #d7d3c9;border-radius:7px;background:#fff;outline:none}.checklistScroll:focus-visible{box-shadow:0 0 0 3px rgba(21,154,145,.25)}.checklistTable{width:100%;min-width:950px;border-collapse:separate;border-spacing:0;table-layout:fixed}.checklistTable th,.checklistTable td{border-right:1px solid #e3e0d8;border-bottom:1px solid #e3e0d8}.checklistTable tr:last-child th,.checklistTable tr:last-child td{border-bottom:0}.checklistTable th:last-child,.checklistTable td:last-child{border-right:0}.checklistTable thead th{height:62px;padding:8px 5px;background:#f1efe9;color:#53605d;text-align:center}.checklistTable thead th:first-child{position:sticky;left:0;z-index:3;width:32%;padding:10px 16px;background:#173735;color:#fff;text-align:left}.checklistTable thead th:not(:first-child){width:9.714%}.checklistTable thead span,.checklistTable thead strong,.checklistTable thead small{display:block}.checklistTable thead span{font-size:10px;text-transform:uppercase}.checklistTable thead strong{margin-top:2px;font-size:13px}.checklistTable thead small{margin-top:2px;color:#b94e3a;font-size:9px;font-weight:800;text-transform:uppercase}.checklistTable tbody th{position:sticky;left:0;z-index:2;padding:12px 10px 12px 16px;background:#fff;text-align:left}.checklistTable tbody th>div:first-child{display:grid;gap:4px}.checklistTable tbody th>div:first-child>small{overflow:hidden;color:#697572;font-size:11px;font-weight:400;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}.checklistTable tbody th>.editButton{position:absolute;right:8px;top:50%;transform:translateY(-50%)}.checklistTable tbody th:has(>.editButton)>div:first-child{padding-right:38px}.checklistTable td{height:70px;padding:5px;text-align:center;vertical-align:middle}.checklistTable .currentDate{background:#fff9e8}.signedCell{background:#edf8f4}.missedCell{background:#fff1ee}.notScheduled{background:#faf9f6;color:#aaa}.signedCell>div,.missedCell>div,.signedCell>button,.openCell>button{display:grid;place-items:center;gap:2px;width:100%;height:100%;min-height:58px;border:0;background:transparent;color:#245e55}.signedCell b{font-size:12px}.signedCell small,.missedCell small{display:block;max-width:88px;overflow:hidden;font-size:9px;text-overflow:ellipsis;white-space:nowrap}.signedCell>button,.openCell>button{border-radius:5px;cursor:pointer}.signedCell>button:not(:disabled):hover,.openCell>button:hover{background:rgba(21,154,145,.1)}.signedCell>button:disabled{cursor:default}.openCell>button{color:#8a551e;font-size:11px;font-weight:700}.openMarker,.missedMarker{display:block;width:9px;height:9px;border-radius:50%}.openMarker{background:#edae3a}.missedMarker{background:#df654e}.checklistLegend{display:flex;align-items:center;flex-wrap:wrap;gap:16px;color:#64706d;font-size:11px}.checklistLegend>span{display:flex;align-items:center;gap:5px}.checklistLegend i{display:grid;place-items:center;width:18px;height:18px;border-radius:4px;font-style:normal}.legendSigned{background:#dff1eb;color:#245e55}.legendMissed{background:#df654e}.legendBlank{background:#efeee9;color:#888}
@@ -44,3 +28,40 @@
 @media(max-width:760px){.phaseSelector button{grid-template-columns:1fr;gap:2px;text-align:center}.phaseSelector button>small{white-space:normal}.checklistHeading{align-items:flex-start;flex-direction:column}.checklistTable{min-width:820px}.checklistTable thead th:first-child{width:240px}.checklistTable thead th:not(:first-child){width:82px}}
 
 .productPicker{display:grid;gap:8px}.productSearch{display:flex;align-items:center;gap:8px;border:1px solid #cfcac0;border-radius:6px;background:#fff;padding:0 10px}.productSearch:focus-within{border-color:#159a91;box-shadow:0 0 0 3px rgba(21,154,145,.14)}.productSearch input{width:100%;height:42px;border:0;outline:0;background:transparent}.productResults{display:grid;max-height:260px;overflow-y:auto;border:1px solid #d8d4ca;border-radius:6px;background:#fff}.productResults>small{padding:16px;color:#65716e;text-align:center}.productResults button{display:grid;grid-template-columns:46px 1fr;align-items:center;gap:10px;min-height:58px;padding:6px 10px;border:0;border-bottom:1px solid #ece9e2;background:#fff;color:#253331;text-align:left;cursor:pointer}.productResults button:last-of-type{border-bottom:0}.productResults button:hover,.productResults button:focus-visible{background:#edf8f5}.productResults img,.selectedProduct img,.productPlaceholder{width:44px;height:44px;border-radius:5px;object-fit:cover}.productPlaceholder{display:grid;place-items:center;background:#ecebe6;color:#7b8582}.productResults button>span:last-child{display:grid;gap:3px;min-width:0}.productResults b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.productResults small,.selectedProduct span{color:#697572;font-size:11px}.selectedProduct{display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:12px;padding:10px;border:2px solid #159a91;border-radius:7px;background:#edf8f5;color:#173735}.selectedProduct img,.selectedProduct>.productPlaceholder{width:64px;height:64px}.selectedProduct>div:nth-child(2){display:grid;gap:4px;min-width:0}.selectedProduct strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Checklist schedules read across the page: broad task copy, compact sign-offs, horizontal day groups. */
+.phaseSelector{gap:6px;padding:6px;background:#ddd9cf;border:0}
+.phaseSelector button{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 12px;border:1px solid transparent;border-radius:5px;background:#f5f3ed;text-align:left}
+.phaseSelector button:last-child{border-right:1px solid transparent}
+.phaseSelector button.activePhase{border:1px solid #173735;outline:2px solid #173735;outline-offset:-2px;background:#fff;box-shadow:0 2px 7px rgba(23,55,53,.12)}
+.phaseSelector button>.phaseBadge{display:grid;place-items:center;flex:0 0 auto;min-width:52px;min-height:28px;padding:3px 8px;border-radius:4px;color:#fff;font-size:10px;font-weight:900}
+.phaseSelector button>.phaseCopy{display:grid;gap:3px;min-width:0;padding:0;border-radius:0;background:transparent;color:inherit}
+.phaseSelector button>.phaseCopy strong{font-family:Georgia,serif;font-size:16px;line-height:1.15;letter-spacing:0}
+.phaseSelector button>.phaseCopy small{color:#596562;font-size:11px;font-weight:700;white-space:normal}
+.checklistTable{min-width:960px}
+.checklistTable col.taskColumn{width:58%}
+.checklistTable col.signoffColumn{width:6%}
+.checklistTable thead th:first-child{width:auto;padding-left:18px}
+.checklistTable thead th:not(:first-child){width:auto;background:#f1efe9;box-shadow:none}
+.checklistTable thead th.currentDate{background:#fff3d7;box-shadow:inset 0 -3px #b98724}
+.checklistTable td{position:relative;padding:10px 5px;box-shadow:none}
+.checklistTable td.currentDate{outline:2px solid #b98724;outline-offset:-2px}
+.scheduleGroup{--schedule-bg:#f3f1eb;--schedule-accent:#65716e}
+.scheduleGroup.scheduleTone0{--schedule-bg:#f3f1eb;--schedule-accent:#65716e}
+.scheduleGroup.scheduleTone1{--schedule-bg:#fff0eb;--schedule-accent:#cf604b}
+.scheduleGroup.scheduleTone2{--schedule-bg:#edf6df;--schedule-accent:#71943e}
+.scheduleGroup.scheduleTone3{--schedule-bg:#e7f5f1;--schedule-accent:#287d72}
+.scheduleGroup.scheduleTone4{--schedule-bg:#e9f2f8;--schedule-accent:#477f9f}
+.scheduleGroup.scheduleTone5{--schedule-bg:#f1ecf7;--schedule-accent:#795b9e}
+.scheduleGroup.scheduleTone6{--schedule-bg:#fff4d9;--schedule-accent:#a97b18}
+.scheduleGroup.scheduleTone7{--schedule-bg:#f9e9ef;--schedule-accent:#a95072}
+.checklistTable .scheduleHeading th{position:static;width:auto;height:auto;padding:7px 14px;border-right:0;border-bottom:1px solid color-mix(in srgb,var(--schedule-accent) 35%,#d7d3c9);background:var(--schedule-bg);color:var(--schedule-accent);text-align:left}
+.scheduleHeading th span{font-size:12px;font-weight:900;text-transform:uppercase}
+.scheduleHeading th small{margin-left:9px;color:#596562;font-size:11px;font-weight:700;text-transform:none}
+.scheduleGroup tr:not(.scheduleHeading)>th[scope="row"]{border-left:5px solid var(--schedule-accent);background:color-mix(in srgb,var(--schedule-bg) 68%,#fff)}
+.scheduleGroup tr:not(.scheduleHeading)>td.notScheduled{background:color-mix(in srgb,var(--schedule-bg) 34%,#f5f3ed)}
+.scheduleGroup tr:not(.scheduleHeading)>td.signedCell{background:#e3f3ec}
+.scheduleGroup tr:not(.scheduleHeading)>td.missedCell{background:#fbe8e4}
+.scheduleGroup tr:not(.scheduleHeading)>td.openCell{background:#fff8df}
+
+@media(max-width:760px){.phaseSelector{grid-template-columns:1fr}.phaseSelector button{min-height:54px}.checklistTable{min-width:900px}.checklistTable col.taskColumn{width:54%}.checklistTable col.signoffColumn{width:6.57%}.checklistTable thead th:first-child{width:auto}.checklistTable thead th:not(:first-child){width:auto}}

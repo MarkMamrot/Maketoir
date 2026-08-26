@@ -205,6 +205,7 @@ export async function GET(request: Request) {
       ),
       imsQuery(
         `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status, t.is_active,
+          t.recurrence, t.weekday, t.scheduled_date,
                 s.staff_name, s.staff_initials, s.created_at AS signed_at
          FROM pos_daybook_task_instances i
          JOIN pos_daybook_task_templates t ON t.business_id = i.business_id AND t.id = i.template_id

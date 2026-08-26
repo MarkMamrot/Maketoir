@@ -13,7 +13,7 @@ import styles from './PosStoreDaybook.module.css';
 type Staff = { id?: number | null; name: string; initials: string };
 type TaskPhase = 'opening' | 'during_day' | 'closing';
 type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
-type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; phase: TaskPhase; status: string; staff_name?: string; staff_initials?: string; signed_at?: string };
+type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; staff_name?: string; staff_initials?: string; signed_at?: string };
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
@@ -76,6 +76,14 @@ function shortTime(value?: string) {
 function taskDateLabel(value: string) {
   const date = new Date(`${value}T00:00:00`);
   return { weekday: date.toLocaleDateString([], { weekday: 'long' }), day: date.toLocaleDateString([], { day: 'numeric', month: 'short' }) };
+}
+
+const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function taskSchedule(recurrence: string, weekday?: number | null, scheduledDate?: string | null) {
+  if (recurrence === 'weekly' && weekday != null) return { key: `weekday-${weekday}`, label: weekdayNames[weekday], order: weekday || 7 };
+  if (recurrence === 'once' && scheduledDate) return { key: `date-${scheduledDate}`, label: taskDateLabel(scheduledDate).weekday, order: 8 };
+  return { key: 'daily', label: 'Every day', order: 0 };
 }
 
 function defaultTaskPhase(tasks: Task[]): TaskPhase {
@@ -328,42 +336,51 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   ];
   const currentTasks = workspace.tasks.filter(task => task.phase === phase);
   const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
-  const rows = new Map<number, { templateId: number; title: string }>();
-  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot });
-  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot });
+  const rows = new Map<number, { templateId: number; title: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null }>();
+  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date });
+  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date });
+  const scheduleGroups = new Map<string, { label: string; order: number; rows: typeof rows extends Map<number, infer Row> ? Row[] : never }>();
+  for (const row of rows.values()) {
+    const schedule = taskSchedule(row.recurrence, row.weekday, row.scheduledDate);
+    const group = scheduleGroups.get(schedule.key) ?? { label: schedule.label, order: schedule.order, rows: [] };
+    group.rows.push(row);
+    scheduleGroups.set(schedule.key, group);
+  }
+  const groupedRows = [...scheduleGroups.entries()].sort(([, left], [, right]) => left.order - right.order);
   const completed = currentTasks.filter(task => task.status === 'completed').length;
   const selected = phaseMeta.find(item => item.id === phase) ?? phaseMeta[0];
 
   return <section className={styles.checklistSection}>
-    <Title title="Today's checklist" subtitle="Seven days of sign-offs, with today's work ready to complete." action={onAdd ? <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new task</button> : undefined} />
+    <Title title="Today's checklist" subtitle="Tasks are grouped by when they are scheduled, with seven days of compact sign-off history." action={onAdd ? <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new task</button> : undefined} />
     <div className={styles.phaseSelector} role="tablist" aria-label="Checklist phase">
       {phaseMeta.map(item => {
         const tasks = workspace.tasks.filter(task => task.phase === item.id);
         const done = tasks.filter(task => task.status === 'completed').length;
         return <button role="tab" aria-selected={phase === item.id} className={phase === item.id ? styles.activePhase : ''} onClick={() => onPhaseChange(item.id)} key={item.id}>
-          <span>{item.short}</span><strong>{item.title}</strong><small>{done}/{tasks.length} today</small>
+          <span className={styles.phaseBadge}>{item.short}</span><span className={styles.phaseCopy}><strong>{item.title}</strong><small>{done}/{tasks.length} today</small></span>
         </button>;
       })}
     </div>
     <div className={styles.checklistHeading}><div><span>{selected.short}</span><h2>{selected.title}</h2></div><b>{completed}/{currentTasks.length} complete today</b></div>
     <div className={styles.checklistScroll} tabIndex={0} aria-label={`${selected.title} seven-day sign-off history`}>
       <table className={styles.checklistTable}>
+        <colgroup><col className={styles.taskColumn} />{workspace.taskDates.map(taskDate => <col className={styles.signoffColumn} key={taskDate} />)}</colgroup>
         <thead><tr><th scope="col">Task</th>{workspace.taskDates.map((taskDate, dayIndex) => {
           const label = taskDateLabel(taskDate);
-          return <th scope="col" className={`${styles[`dayTone${dayIndex}`]} ${taskDate === workspace.date ? styles.currentDate : ''}`} key={taskDate}><span>{label.weekday}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
+          return <th scope="col" className={taskDate === workspace.date ? styles.currentDate : ''} key={taskDate}><span>{label.weekday.slice(0, 3)}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
         })}</tr></thead>
-        <tbody>{[...rows.values()].map(row => {
+        {groupedRows.map(([groupKey, group]) => <tbody className={`${styles.scheduleGroup} ${styles[`scheduleTone${group.order <= 7 ? group.order : 0}`]}`} key={groupKey}>
+          <tr className={styles.scheduleHeading}><th colSpan={workspace.taskDates.length + 1} scope="rowgroup"><span>{group.label}</span><small>{group.rows.length} {group.rows.length === 1 ? 'task' : 'tasks'}</small></th></tr>
+          {group.rows.map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
           return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{workspace.taskDates.map((taskDate, dayIndex) => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
-            const dayClass = styles[`dayTone${dayIndex}`];
-            const dayBadge = <span className={styles.cellDayLabel}>{taskDateLabel(taskDate).weekday.slice(0, 3)}</span>;
-            if (!entry) return <td className={`${dayClass} ${styles.notScheduled}`} key={taskDate}>{dayBadge}<span aria-label="Not scheduled">—</span></td>;
-            if (isCurrent && currentTask) return <td className={`${dayClass} ${styles.currentDate} ${entry.status === 'completed' ? styles.signedCell : styles.openCell}`} key={taskDate}>{dayBadge}<button disabled={saving || (entry.status === 'completed' && !workspace.permissions.manager)} onClick={() => void onSign(currentTask)} title={entry.status === 'completed' ? `Signed by ${entry.staff_name || 'staff'}${workspace.permissions.manager ? '. Select to reopen.' : ''}` : 'Select to sign off'}>{entry.status === 'completed' ? <><Check size={17} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></> : <><span className={styles.openMarker} />Sign off</>}</button></td>;
-            return <td className={`${dayClass} ${entry.status === 'completed' ? styles.signedCell : styles.missedCell}`} key={taskDate}>{dayBadge}{entry.status === 'completed' ? <div title={`Signed by ${entry.staff_name || 'staff'} · ${shortTime(entry.signed_at)}`}><Check size={16} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></div> : <div title="Not signed"><span className={styles.missedMarker} /><small>Not signed</small></div>}</td>;
+            if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;
+            if (isCurrent && currentTask) return <td className={`${styles.currentDate} ${entry.status === 'completed' ? styles.signedCell : styles.openCell}`} key={taskDate}><button disabled={saving || (entry.status === 'completed' && !workspace.permissions.manager)} onClick={() => void onSign(currentTask)} title={entry.status === 'completed' ? `Signed by ${entry.staff_name || 'staff'}${workspace.permissions.manager ? '. Select to reopen.' : ''}` : 'Select to sign off'}>{entry.status === 'completed' ? <><Check size={17} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></> : <><span className={styles.openMarker} />Sign off</>}</button></td>;
+            return <td className={entry.status === 'completed' ? styles.signedCell : styles.missedCell} key={taskDate}>{entry.status === 'completed' ? <div title={`Signed by ${entry.staff_name || 'staff'} · ${shortTime(entry.signed_at)}`}><Check size={16} /><b>{entry.staff_initials}</b><small>{entry.staff_name}</small></div> : <div title="Not signed"><span className={styles.missedMarker} /><small>Not signed</small></div>}</td>;
           })}</tr>;
-        })}</tbody>
+        })}</tbody>)}
       </table>
       {rows.size === 0 && <p className={styles.empty}>No tasks were scheduled in this section during the last seven days.</p>}
     </div>
