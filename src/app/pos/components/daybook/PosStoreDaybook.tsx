@@ -3,24 +3,27 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
-  Megaphone, PackageOpen, Plus, Search, Settings2, ShoppingBag, Sparkles,
-  Truck, UserRoundCheck, X,
+  Megaphone, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
+  Truck, UserRoundCheck, Users, X,
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import styles from './PosStoreDaybook.module.css';
 
 type Staff = { id?: number | null; name: string; initials: string };
-type Task = { id: number; phase: 'opening' | 'during_day' | 'closing'; title_snapshot: string; instructions_snapshot?: string; status: string; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
-type Communication = { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number };
-type RecordRow = { id: number; record_type: string; status: string; title: string; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null };
-type ReferenceRow = { id: number; category: string; title: string; content: string; link_url?: string | null };
-type GuideRow = { id: number; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
+type Task = { id: number; template_id: number; phase: 'opening' | 'during_day' | 'closing'; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
+type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
+type Reader = { name: string; initials: string; read_at: string };
+type Editable = { background_color?: ColourKey | null; can_edit: boolean };
+type Communication = Editable & { id: number; title: string; message: string; priority: string; is_pinned: number; published_at: string; read_count: number; my_read: number; readers: Reader[] };
+type RecordRow = Editable & { id: number; record_type: string; status: string; title: string; occurred_on?: string | null; details_json: Record<string, unknown> | string; created_at: string; staff_name: string; staff_initials: string; destination_location_id?: number | null };
+type ReferenceRow = Editable & { id: number; category: string; title: string; content: string; link_url?: string | null };
+type GuideRow = Editable & { id: number; sku?: string | null; product_name: string; category?: string | null; shelf_location?: string | null; box_location?: string | null; guidance?: string | null; image_url?: string | null; image_alt?: string | null; status: string };
 type Location = { id: number; name: string };
 type Workspace = {
   date: string;
   location: Location;
-  permissions: { manager: boolean };
+  permissions: { manager: boolean; editPolicy: 'author_only' | 'managers' | 'anyone' };
   tasks: Task[];
   communications: Communication[];
   records: RecordRow[];
@@ -40,6 +43,15 @@ const sections = [
   ['references', 'References', BookOpen],
   ['guides', 'Product guide', Box],
 ] as const;
+
+type EditorType = 'task' | 'communication' | 'reference' | 'guide' | 'customer_request' | 'store_need' | 'stock_discrepancy' | 'incident';
+
+const colours: { key: ColourKey; label: string }[] = [
+  { key: 'pastel_rose', label: 'Rose' }, { key: 'pastel_peach', label: 'Peach' },
+  { key: 'pastel_mint', label: 'Mint' }, { key: 'pastel_sky', label: 'Sky' },
+  { key: 'fluoro_yellow', label: 'Highlighter yellow' }, { key: 'fluoro_lime', label: 'Highlighter lime' },
+  { key: 'fluoro_pink', label: 'Highlighter pink' },
+];
 
 function todayLocal() {
   const now = new Date();
@@ -69,6 +81,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [form, setForm] = useState<Record<string, string>>({});
+  const [editor, setEditor] = useState<EditorType | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const identityKey = `pos_daybook_staff_${session.location_id}_${date}`;
@@ -134,7 +147,12 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   }
 
   async function perform(action: string, payload: Record<string, unknown> = {}) {
-    try { await post(action, payload); setForm({}); await load(); } catch {}
+    try { await post(action, payload); setForm({}); setEditor(null); await load(); } catch {}
+  }
+
+  function openEditor(type: EditorType, values: Record<string, unknown> = {}) {
+    setForm(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value == null ? '' : String(value)])));
+    setEditor(type);
   }
 
   const records = workspace?.records.filter(record => record.record_type === active) ?? [];
@@ -175,7 +193,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
           </button>
         ))}
         {workspace?.permissions.manager && (
-          <button className={active === 'manager' ? styles.activeTab : ''} onClick={() => setActive('manager')}><Settings2 size={17} /><span>Manage</span></button>
+          <button className={active === 'settings' ? styles.activeTab : ''} onClick={() => setActive('settings')}><Settings2 size={17} /><span>Settings</span></button>
         )}
       </nav>
 
@@ -184,6 +202,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
         {loading && <div className={styles.loading}>Opening the Daybook…</div>}
 
         {!loading && active === 'today' && (
+          <><Title title="Today's checklist" subtitle="Opening, daily and closing work for this store." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('task')}><Plus size={17} /> Add new task</button> : undefined} />
           <div className={styles.taskColumns}>
             {([['opening', 'Open the store', '#e9684b'], ['during_day', 'Keep the day moving', '#159a91'], ['closing', 'Close with confidence', '#d99b23']] as const).map(([phase, label, colour]) => {
               const tasks = workspace?.tasks.filter(task => task.phase === phase) ?? [];
@@ -194,49 +213,55 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
                   <button disabled={saving} onClick={() => perform('sign_task', { instance_id: task.id, signoff_action: task.status === 'completed' ? 'reopened' : 'completed', reason: task.status === 'completed' ? 'Manager reopened from Daybook' : '' })} aria-label={`${task.status === 'completed' ? 'Reopen' : 'Complete'} ${task.title_snapshot}`}>
                     {task.status === 'completed' && <Check size={18} />}
                   </button>
-                  <div><h3>{task.title_snapshot}</h3>{task.instructions_snapshot && <p>{task.instructions_snapshot}</p>}{task.status === 'completed' && <small>Signed by {task.last_staff_name} ({task.last_staff_initials}) · {shortTime(task.signed_at)}</small>}</div>
+                  <div><div className={styles.cardHeading}><h3>{task.title_snapshot}</h3>{task.can_edit && <button className={styles.editButton} onClick={() => openEditor('task', { _id: task.template_id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })} aria-label={`Edit ${task.title_snapshot}`}><Pencil size={15} /></button>}</div>{task.instructions_snapshot && <p>{task.instructions_snapshot}</p>}{task.status === 'completed' && <small>Signed by {task.last_staff_name} ({task.last_staff_initials}) · {shortTime(task.signed_at)}</small>}</div>
                 </article>)}
               </section>;
             })}
-          </div>
+          </div></>
         )}
 
         {!loading && active === 'communications' && (
           <section className={styles.contentSection}>
-            <Title title="Store communications" subtitle="Latest first. Open each notice and acknowledge it under your staff identity." />
-            <div className={styles.feed}>{workspace?.communications.map(item => <article className={`${styles.notice} ${item.priority !== 'normal' ? styles.noticeImportant : ''}`} key={item.id}>
+            <Title title="Store communications" subtitle="Latest first. Acknowledgments are visible to the whole store." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('communication', { location_ids: workspace.location.id })}><Plus size={17} /> Add new</button> : undefined} />
+            <div className={styles.feed}>{workspace?.communications.map(item => <article className={`${styles.notice} ${item.priority !== 'normal' ? styles.noticeImportant : ''} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}>
               <div className={styles.noticeMeta}><span>{item.priority}</span><time>{shortTime(item.published_at)}</time></div>
-              <h3>{item.title}</h3><p>{item.message}</p>
+              <div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('communication', { _id: item.id, title: item.title, message: item.message, priority: item.priority, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div><p>{item.message}</p>
+              <div className={styles.readers}><Users size={15} />{item.readers.length ? item.readers.map(reader => <span key={reader.initials} title={`${reader.name} · ${shortTime(reader.read_at)}`}><b>{reader.initials}</b>{reader.name}</span>) : <small>No acknowledgments yet</small>}</div>
               <footer><small>{item.read_count} acknowledgment{Number(item.read_count) === 1 ? '' : 's'}</small><button disabled={saving || Boolean(Number(item.my_read))} onClick={() => perform('read_communication', { communication_id: item.id })}>{Number(item.my_read) ? <><Check size={16} /> Read</> : 'Mark as read'}</button></footer>
             </article>)}</div>
           </section>
         )}
 
         {!loading && ['customer_request', 'store_need', 'stock_discrepancy', 'incident'].includes(active) && (
-          <RecordSection type={active} records={records} locations={workspace?.locations ?? []} form={form} setForm={setForm} saving={saving} perform={perform} manager={Boolean(workspace?.permissions.manager)} />
+          <RecordSection type={active} records={records} saving={saving} perform={perform} manager={Boolean(workspace?.permissions.manager)} onAdd={() => openEditor(active as EditorType)} onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, background_color: record.background_color, ...detailsOf(record) })} />
         )}
 
         {!loading && active === 'references' && (
           <section className={styles.contentSection}>
-            <Title title="Reference desk" subtitle="Contacts, guides and troubleshooting without hunting through old tabs." />
+            <Title title="Reference desk" subtitle="Contacts, guides and troubleshooting without hunting through old tabs." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('reference')}><Plus size={17} /> Add new</button> : undefined} />
             <SearchBox value={query} onChange={setQuery} placeholder="Search references" />
-            <div className={styles.referenceGrid}>{workspace?.references.filter(item => `${item.title} ${item.content} ${item.category}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={styles.reference} key={item.id}><span>{item.category}</span><h3>{item.title}</h3><p>{item.content}</p>{item.link_url && <a href={item.link_url} target="_blank" rel="noreferrer">Open resource</a>}</article>)}</div>
+            <div className={styles.referenceGrid}>{workspace?.references.filter(item => `${item.title} ${item.content} ${item.category}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={`${styles.reference} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}><span>{item.category}</span><div className={styles.cardHeading}><h3>{item.title}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('reference', { _id: item.id, category: item.category, title: item.title, content: item.content, link_url: item.link_url, background_color: item.background_color })} aria-label={`Edit ${item.title}`}><Pencil size={16} /></button>}</div><p>{item.content}</p>{item.link_url && <a href={item.link_url} target="_blank" rel="noreferrer">Open resource</a>}</article>)}</div>
           </section>
         )}
 
         {!loading && active === 'guides' && (
           <section className={styles.contentSection}>
-            <Title title="Product guide" subtitle="Find products, display positions and storage boxes at a glance." />
+            <Title title="Product guide" subtitle="Find products, display positions and storage boxes at a glance." action={workspace?.permissions.manager ? <button className={styles.addButton} onClick={() => openEditor('guide')}><Plus size={17} /> Add new</button> : undefined} />
             <SearchBox value={query} onChange={setQuery} placeholder="Search product, SKU, shelf or box" />
-            <div className={styles.guideGrid}>{workspace?.guides.filter(item => `${item.product_name} ${item.sku} ${item.category} ${item.shelf_location} ${item.box_location}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={styles.guide} key={item.id}>
+            <div className={styles.guideGrid}>{workspace?.guides.filter(item => `${item.product_name} ${item.sku} ${item.category} ${item.shelf_location} ${item.box_location}`.toLowerCase().includes(query.toLowerCase())).map(item => <article className={`${styles.guide} ${item.background_color ? styles[item.background_color] : ''}`} key={item.id}>
               <div className={styles.guideImage}>{item.image_url ? <img src={item.image_url} alt={item.image_alt || item.product_name} /> : <><PackageOpen size={28} /><span>Photo coming soon</span></>}</div>
-              <div><span>{item.category || 'Product'}{item.sku ? ` · ${item.sku}` : ''}</span><h3>{item.product_name}</h3><dl><dt>Shelf</dt><dd>{item.shelf_location || 'To be mapped'}</dd><dt>Box</dt><dd>{item.box_location || 'To be mapped'}</dd></dl>{item.guidance && <p>{item.guidance}</p>}</div>
+              <div><span>{item.category || 'Product'}{item.sku ? ` · ${item.sku}` : ''}</span><div className={styles.cardHeading}><h3>{item.product_name}</h3>{item.can_edit && <button className={styles.editButton} onClick={() => openEditor('guide', { _id: item.id, product_name: item.product_name, sku: item.sku, category: item.category, shelf_location: item.shelf_location, box_location: item.box_location, guidance: item.guidance, image_url: item.image_url, image_alt: item.image_alt, background_color: item.background_color })} aria-label={`Edit ${item.product_name}`}><Pencil size={16} /></button>}</div><dl><dt>Shelf</dt><dd>{item.shelf_location || 'To be mapped'}</dd><dt>Box</dt><dd>{item.box_location || 'To be mapped'}</dd></dl>{item.guidance && <p>{item.guidance}</p>}</div>
             </article>)}</div>
           </section>
         )}
 
-        {!loading && active === 'manager' && workspace?.permissions.manager && <ManagerTools form={form} setForm={setForm} locations={workspace.locations} saving={saving} perform={perform} />}
+        {!loading && active === 'settings' && workspace?.permissions.manager && <DaybookSettings policy={workspace.permissions.editPolicy} saving={saving} perform={perform} />}
       </main>
+
+      {editor && workspace && <div className={styles.modalBackdrop} role="presentation"><div className={styles.editorModal} role="dialog" aria-modal="true" aria-labelledby="editor-title">
+        <button className={styles.modalClose} onClick={() => { setEditor(null); setForm({}); }} aria-label="Close"><X /></button>
+        <EditorForm type={editor} form={form} setForm={setForm} locations={workspace.locations} saving={saving} perform={perform} />
+      </div></div>}
 
       {identityOpen && <div className={styles.modalBackdrop} role="presentation"><div className={styles.identityModal} role="dialog" aria-modal="true" aria-labelledby="identity-title">
         <button className={styles.modalClose} onClick={() => staff && setIdentityOpen(false)} aria-label="Close"><X /></button>
@@ -253,48 +278,27 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   );
 }
 
-function Title({ title, subtitle }: { title: string; subtitle: string }) { return <div className={styles.title}><h2>{title}</h2><p>{subtitle}</p></div>; }
+function Title({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) { return <div className={styles.title}><div><h2>{title}</h2><p>{subtitle}</p></div>{action}</div>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <label className={styles.search}><Search size={17} /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /></label>; }
 
 function Field({ label, value, onChange, type = 'text', placeholder = '' }: { label: string; value?: string; onChange: (value: string) => void; type?: string; placeholder?: string }) {
   return <label className={styles.field}><span>{label}</span>{type === 'textarea' ? <textarea value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <input type={type} value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} />}</label>;
 }
 
-function RecordSection({ type, records, locations, form, setForm, saving, perform, manager }: { type: string; records: RecordRow[]; locations: Location[]; form: Record<string, string>; setForm: (form: Record<string, string>) => void; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void>; manager: boolean }) {
+function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit }: { type: string; records: RecordRow[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void>; manager: boolean; onAdd: () => void; onEdit: (record: RecordRow) => void }) {
   const meta: Record<string, [string, string]> = {
     customer_request: ['Customer requests', 'Record sold-out products and follow up without losing the customer thread.'],
     store_need: ['Store needs', 'Ask the warehouse for consumables or stock, then follow it through dispatch.'],
     stock_discrepancy: ['Stock discrepancies', 'Capture what the system says and what you found for a manager stocktake.'],
     incident: ['Incident reports', 'Record the facts carefully and sign the report before submitting it.'],
   };
-  const detailFields: Record<string, string[]> = {
-    customer_request: ['customer_name', 'contact_details', 'item', 'notes'],
-    store_need: ['item', 'quantity', 'unit', 'store_notes'],
-    stock_discrepancy: ['sku', 'item', 'size', 'system_quantity', 'physical_quantity', 'notes'],
-    incident: ['time', 'staff_present', 'event_description', 'loss_or_damage', 'emergency_services', 'instigator_description', 'management_notified'],
-  };
   const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
-  const title = type === 'incident' ? 'Incident report' : form.item || form.customer_name || '';
-  async function submit() {
-    const details = Object.fromEntries(detailFields[type].map(key => [key, form[key] || '']));
-    await perform('create_record', { record_type: type, title, occurred_on: form.occurred_on || todayLocal(), destination_location_id: form.destination_location_id || null, details });
-  }
   return <section className={styles.contentSection}>
-    <Title title={meta[type][0]} subtitle={meta[type][1]} />
-    <div className={styles.split}>
-      <form className={styles.entryForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
-        <h3><Plus size={18} /> New {meta[type][0].toLowerCase().replace(/s$/, '')}</h3>
-        <Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />
-        {detailFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}
-        {type === 'store_need' && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}
-        {type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Do not include unnecessary personal information.</div>}
-        <button className={styles.primary} disabled={saving || !title.trim()}>{type === 'incident' ? 'Sign and submit report' : 'Add to Daybook'}</button>
-      </form>
+    <Title title={meta[type][0]} subtitle={meta[type][1]} action={<button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button>} />
       <div className={styles.recordList}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{records.map(record => {
         const details = detailsOf(record);
-        return <article className={styles.record} key={record.id}><div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div><h3>{record.title}</h3><p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p><small>Logged by {record.staff_name} ({record.staff_initials})</small><StatusActions record={record} saving={saving} manager={manager} perform={perform} /></article>;
+        return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}><div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div><div className={styles.cardHeading}><h3>{record.title}</h3>{record.can_edit && <button className={styles.editButton} onClick={() => onEdit(record)} aria-label={`Edit ${record.title}`}><Pencil size={16} /></button>}</div><p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p><small>Logged by {record.staff_name} ({record.staff_initials})</small><StatusActions record={record} saving={saving} manager={manager} perform={perform} /></article>;
       })}</div>
-    </div>
   </section>;
 }
 
@@ -308,16 +312,48 @@ function StatusActions({ record, saving, manager, perform }: { record: RecordRow
   return next[record.record_type]?.length ? <div className={styles.statusActions}>{next[record.record_type].map(status => <button disabled={saving} key={status} onClick={() => perform('transition_record', { record_id: record.id, status })}>{status.replaceAll('_', ' ')}</button>)}</div> : null;
 }
 
-function ManagerTools({ form, setForm, locations, saving, perform }: { form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
-  const [tool, setTool] = useState('task');
-  return <section className={styles.contentSection}><Title title="Manage Store Daybook" subtitle="Publish content and shape the recurring work for this location." />
-    <div className={styles.toolTabs}>{[['task', 'Task'], ['communication', 'Communication'], ['reference', 'Reference'], ['guide', 'Product guide']].map(([id, label]) => <button className={tool === id ? styles.selectedTool : ''} onClick={() => { setTool(id); setForm({}); }} key={id}>{label}</button>)}</div>
-    <form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void perform(tool === 'task' ? 'create_task' : tool === 'communication' ? 'create_communication' : tool === 'reference' ? 'save_reference' : 'save_guide', tool === 'communication' ? { ...form, location_ids: form.location_ids ? form.location_ids.split(',').map(Number) : [] } : form); }}>
-      {tool === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
-      {tool === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label><div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div></>}
-      {tool === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
-      {tool === 'guide' && <><div className={styles.formRow}><Field label="Product name" value={form.product_name} onChange={value => setForm({ ...form, product_name: value })} /><Field label="SKU" value={form.sku} onChange={value => setForm({ ...form, sku: value })} /></div><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /><Field label="Photo URL (optional)" type="url" value={form.image_url} onChange={value => setForm({ ...form, image_url: value })} /></>}
-      <button className={styles.primary} disabled={saving}>{saving ? 'Saving…' : `Add ${tool}`}</button>
-    </form>
-  </section>;
+function EditorForm({ type, form, setForm, locations, saving, perform }: { type: EditorType; form: Record<string, string>; setForm: (form: Record<string, string>) => void; locations: Location[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+  const recordFields: Record<string, string[]> = {
+    customer_request: ['customer_name', 'contact_details', 'item', 'notes'], store_need: ['item', 'quantity', 'unit', 'store_notes'],
+    stock_discrepancy: ['sku', 'item', 'size', 'system_quantity', 'physical_quantity', 'notes'],
+    incident: ['time', 'staff_present', 'event_description', 'loss_or_damage', 'emergency_services', 'instigator_description', 'management_notified'],
+  };
+  const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
+  const isRecord = Boolean(recordFields[type]);
+  const editing = Boolean(form._id);
+  const heading = { task: 'task', communication: 'communication', reference: 'reference', guide: 'product guide', customer_request: 'customer request', store_need: 'store need', stock_discrepancy: 'stock discrepancy', incident: 'incident report' }[type];
+  async function submit() {
+    if (isRecord) {
+      const details = Object.fromEntries(recordFields[type].map(key => [key, form[key] || '']));
+      const title = type === 'incident' ? 'Incident report' : form.item || form.customer_name || '';
+      await perform(editing ? 'update_record' : 'create_record', { record_id: form._id, record_type: type, title, occurred_on: form.occurred_on || todayLocal(), destination_location_id: form.destination_location_id || null, background_color: form.background_color || null, details });
+      return;
+    }
+    const action = type === 'task' ? (editing ? 'update_task' : 'create_task') : type === 'communication' ? (editing ? 'update_communication' : 'create_communication') : type === 'reference' ? (editing ? 'update_reference' : 'save_reference') : editing ? 'update_guide' : 'save_guide';
+    const ids = { template_id: form._id, communication_id: form._id, reference_id: form._id, guide_id: form._id };
+    await perform(action, { ...form, ...ids, background_color: form.background_color || null, location_ids: form.location_ids ? form.location_ids.split(',').map(Number) : [] });
+  }
+  return <><h2 id="editor-title">{editing ? 'Edit' : 'Add new'} {heading}</h2><form className={styles.managerForm} onSubmit={event => { event.preventDefault(); void submit(); }}>
+    {isRecord && <><Field label={type === 'incident' ? 'Day and date' : 'Date'} type="date" value={form.occurred_on || todayLocal()} onChange={value => setForm({ ...form, occurred_on: value })} />{recordFields[type].map(key => <Field key={key} label={labels[key]} type={['notes', 'store_notes', 'event_description', 'instigator_description'].includes(key) ? 'textarea' : ['system_quantity', 'physical_quantity', 'quantity'].includes(key) ? 'number' : 'text'} value={form[key]} onChange={value => setForm({ ...form, [key]: value })} />)}{type === 'store_need' && !editing && <label className={styles.field}><span>Send to</span><select value={form.destination_location_id || ''} onChange={event => setForm({ ...form, destination_location_id: event.target.value })}><option value="">Select warehouse</option>{locations.map(location => <option value={location.id} key={location.id}>{location.name}</option>)}</select></label>}{type === 'incident' && <div className={styles.privacyNote}>Incident details are restricted to managers after submission. Include only necessary personal information.</div>}</>}
+    {type === 'task' && <><Field label="Task title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Instructions" type="textarea" value={form.instructions} onChange={value => setForm({ ...form, instructions: value })} /><div className={styles.formRow}><label className={styles.field}><span>Phase</span><select value={form.phase || 'during_day'} onChange={event => setForm({ ...form, phase: event.target.value })}><option value="opening">Opening</option><option value="during_day">Throughout day</option><option value="closing">Closing</option></select></label><label className={styles.field}><span>Repeats</span><select value={form.recurrence || 'daily'} onChange={event => setForm({ ...form, recurrence: event.target.value })}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="once">One date</option></select></label></div>{form.recurrence === 'weekly' && <label className={styles.field}><span>Weekday</span><select value={form.weekday || '1'} onChange={event => setForm({ ...form, weekday: event.target.value })}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select></label>}{form.recurrence === 'once' && <Field label="Scheduled date" type="date" value={form.scheduled_date} onChange={value => setForm({ ...form, scheduled_date: value })} />}</>}
+    {type === 'communication' && <><Field label="Headline" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Message" type="textarea" value={form.message} onChange={value => setForm({ ...form, message: value })} /><label className={styles.field}><span>Priority</span><select value={form.priority || 'normal'} onChange={event => setForm({ ...form, priority: event.target.value })}><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></label>{!editing && <div className={styles.locationChecks}>{locations.map(location => <label key={location.id}><input type="checkbox" checked={(form.location_ids || '').split(',').includes(String(location.id))} onChange={event => { const ids = new Set((form.location_ids || '').split(',').filter(Boolean)); event.target.checked ? ids.add(String(location.id)) : ids.delete(String(location.id)); setForm({ ...form, location_ids: [...ids].join(',') }); }} />{location.name}</label>)}</div>}</>}
+    {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
+    {type === 'guide' && <><div className={styles.formRow}><Field label="Product name" value={form.product_name} onChange={value => setForm({ ...form, product_name: value })} /><Field label="SKU" value={form.sku} onChange={value => setForm({ ...form, sku: value })} /></div><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /><Field label="Photo URL (optional)" type="url" value={form.image_url} onChange={value => setForm({ ...form, image_url: value })} /></>}
+    {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
+    <button className={styles.primary} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button>
+  </form></>;
+}
+
+function DaybookSettings({ policy, saving, perform }: { policy: Workspace['permissions']['editPolicy']; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void> }) {
+  const [value, setValue] = useState(policy);
+  useEffect(() => setValue(policy), [policy]);
+  return <section className={styles.contentSection}><Title title="Daybook settings" subtitle="Choose who can revise existing Daybook content across all stores." /><div className={styles.settingsPanel}><h3>Who can edit existing items?</h3><div className={styles.policyOptions}>{[
+    ['author_only', 'Original author only', 'The creating account or staff identity. Managers can maintain imported items with no recorded author.'],
+    ['managers', 'Managers only', 'Managers can edit all items, including imported content.'],
+    ['anyone', 'Any staff member', 'Anyone with Daybook access can edit existing items.'],
+  ].map(([id, label, description]) => <label className={value === id ? styles.selectedPolicy : ''} key={id}><input type="radio" name="edit-policy" value={id} checked={value === id} onChange={() => setValue(id as Workspace['permissions']['editPolicy'])} /><span><b>{label}</b><small>{description}</small></span></label>)}</div><button className={styles.primary} disabled={saving || value === policy} onClick={() => perform('save_settings', { edit_policy: value })}>Save settings</button></div></section>;
+}
+
+function ColourPicker({ value, onChange }: { value?: string; onChange: (value: string) => void }) {
+  return <fieldset className={styles.colourPicker}><legend>Card colour</legend><button type="button" className={!value ? styles.selectedSwatch : ''} onClick={() => onChange('')}><i className={styles.noColour} />Default</button>{colours.map(colour => <button type="button" className={value === colour.key ? styles.selectedSwatch : ''} onClick={() => onChange(colour.key)} key={colour.key}><i className={styles[colour.key]} />{colour.label}</button>)}</fieldset>;
 }

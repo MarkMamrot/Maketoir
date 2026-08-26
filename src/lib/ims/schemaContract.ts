@@ -124,7 +124,11 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   pos_training_sales: ['business_id', 'local_id', 'location_id', 'items_json', 'payments_json', 'created_at'],
   pos_daybook_task_signoffs: ['business_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'actor_tier', 'created_at'],
   pos_daybook_communication_reads: ['business_id', 'location_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'read_at'],
-  pos_daybook_records: ['business_id', 'location_id', 'record_type', 'status', 'details_json', 'staff_name', 'staff_initials', 'actor_name'],
+  pos_daybook_task_templates: ['created_by_id', 'created_by_staff_identity_id', 'created_by_staff_initials'],
+  pos_daybook_communications: ['author_user_id', 'author_staff_identity_id', 'author_staff_initials', 'background_color'],
+  pos_daybook_records: ['business_id', 'location_id', 'record_type', 'status', 'details_json', 'staff_name', 'staff_initials', 'actor_name', 'background_color'],
+  pos_daybook_references: ['background_color', 'author_user_id', 'author_staff_identity_id', 'author_staff_initials'],
+  pos_daybook_product_guides: ['background_color', 'author_user_id', 'author_staff_identity_id', 'author_staff_initials'],
   ims_locations: [
     'phone',
     'pos_pin',

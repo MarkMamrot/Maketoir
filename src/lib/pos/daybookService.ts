@@ -4,7 +4,10 @@ import type {
   DaybookRequestStatus,
   DaybookStaffIdentity,
   DaybookTaskRecurrence,
+  DaybookColourKey,
+  DaybookEditPolicy,
 } from './daybookTypes';
+import { DAYBOOK_COLOUR_KEYS, DAYBOOK_EDIT_POLICIES } from './daybookTypes';
 
 export const NEWTOWN_COMMUNICATIONS_START_DATE = '2026-01-01';
 
@@ -86,4 +89,35 @@ export function canTransitionNeed(from: DaybookNeedStatus, to: DaybookNeedStatus
 
 export function canTransitionDiscrepancy(from: DaybookDiscrepancyStatus, to: DaybookDiscrepancyStatus): boolean {
   return DISCREPANCY_TRANSITIONS[from].includes(to);
+}
+
+export function normalizeDaybookColour(value: unknown): DaybookColourKey | null {
+  const key = String(value ?? '');
+  return DAYBOOK_COLOUR_KEYS.includes(key as DaybookColourKey) ? key as DaybookColourKey : null;
+}
+
+export function normalizeDaybookEditPolicy(value: unknown): DaybookEditPolicy {
+  const policy = String(value ?? '');
+  return DAYBOOK_EDIT_POLICIES.includes(policy as DaybookEditPolicy) ? policy as DaybookEditPolicy : 'managers';
+}
+
+export function canEditDaybookItem(input: {
+  policy: DaybookEditPolicy;
+  isManager: boolean;
+  actorUserId: number | null;
+  staffIdentityId: number | null;
+  staffInitials: string;
+  authorUserId: number | null;
+  authorStaffIdentityId: number | null;
+  authorStaffInitials: string;
+}): boolean {
+  if (input.policy === 'anyone') return true;
+  if (input.policy === 'managers') return input.isManager;
+  const hasRecordedAuthor = input.authorUserId !== null
+    || input.authorStaffIdentityId !== null
+    || Boolean(input.authorStaffInitials);
+  if (!hasRecordedAuthor && input.isManager) return true;
+  return (input.actorUserId !== null && input.actorUserId === input.authorUserId)
+    || (input.staffIdentityId !== null && input.staffIdentityId === input.authorStaffIdentityId)
+    || (Boolean(input.staffInitials) && input.staffInitials.toUpperCase() === input.authorStaffInitials.toUpperCase());
 }

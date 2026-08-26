@@ -7,6 +7,9 @@ import {
   parseDaybookDate,
   shouldImportNewtownCommunication,
   taskOccursOnDate,
+  canEditDaybookItem,
+  normalizeDaybookColour,
+  normalizeDaybookEditPolicy,
 } from '../daybookService';
 
 describe('Store Daybook rules', () => {
@@ -42,5 +45,20 @@ describe('Store Daybook rules', () => {
     expect(canTransitionNeed('requested', 'sent')).toBe(false);
     expect(canTransitionDiscrepancy('open', 'stocktake_planned')).toBe(true);
     expect(canTransitionDiscrepancy('closed', 'open')).toBe(false);
+  });
+
+  it('allows only controlled Daybook colours', () => {
+    expect(normalizeDaybookColour('pastel_mint')).toBe('pastel_mint');
+    expect(normalizeDaybookColour('#000000')).toBeNull();
+    expect(normalizeDaybookColour('fluoro_orange')).toBeNull();
+  });
+
+  it('normalizes edit policy and respects shared-login staff authorship', () => {
+    expect(normalizeDaybookEditPolicy('anyone')).toBe('anyone');
+    expect(normalizeDaybookEditPolicy('invalid')).toBe('managers');
+    expect(canEditDaybookItem({ policy: 'managers', isManager: true, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 9, authorStaffIdentityId: 8, authorStaffInitials: 'LM' })).toBe(true);
+    expect(canEditDaybookItem({ policy: 'author_only', isManager: false, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 9, authorStaffIdentityId: 2, authorStaffInitials: 'HG' })).toBe(true);
+    expect(canEditDaybookItem({ policy: 'author_only', isManager: true, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: 9, authorStaffIdentityId: 8, authorStaffInitials: 'LM' })).toBe(false);
+    expect(canEditDaybookItem({ policy: 'author_only', isManager: true, actorUserId: 1, staffIdentityId: 2, staffInitials: 'HG', authorUserId: null, authorStaffIdentityId: null, authorStaffInitials: '' })).toBe(true);
   });
 });

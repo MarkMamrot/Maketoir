@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
+  canEditDaybookItem,
   canTransitionDiscrepancy,
   canTransitionNeed,
   canTransitionRequest,
+  normalizeDaybookColour,
+  normalizeDaybookEditPolicy,
   normalizeStaffIdentity,
   parseDaybookDate,
 } from '@/lib/pos/daybookService';
-import type { DaybookDiscrepancyStatus, DaybookNeedStatus, DaybookRequestStatus } from '@/lib/pos/daybookTypes';
+import type { DaybookDiscrepancyStatus, DaybookEditPolicy, DaybookNeedStatus, DaybookRequestStatus, DaybookStaffIdentity } from '@/lib/pos/daybookTypes';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 const MANAGER_TIERS = new Set(['PosManager', 'StandardUser', 'Admin', 'SuperAdmin']);
@@ -65,6 +68,31 @@ async function validateLocation(businessId: string, locationId: number): Promise
   return Boolean(rows[0]);
 }
 
+async function getEditPolicy(businessId: string): Promise<DaybookEditPolicy> {
+  const rows = await imsQuery<{ value: string }>(
+    "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'pos_daybook_edit_policy' LIMIT 1",
+    [businessId],
+  );
+  return normalizeDaybookEditPolicy(rows[0]?.value);
+}
+
+function mayEdit(context: DaybookContext, staff: DaybookStaffIdentity, policy: DaybookEditPolicy, item: {
+  author_user_id?: number | null;
+  author_staff_identity_id?: number | null;
+  author_staff_initials?: string | null;
+}) {
+  return canEditDaybookItem({
+    policy,
+    isManager: context.isManager,
+    actorUserId: context.actorUserId,
+    staffIdentityId: staff.id ?? null,
+    staffInitials: staff.initials,
+    authorUserId: Number(item.author_user_id ?? 0) || null,
+    authorStaffIdentityId: Number(item.author_staff_identity_id ?? 0) || null,
+    authorStaffInitials: String(item.author_staff_initials ?? ''),
+  });
+}
+
 async function materializeTasks(context: DaybookContext, taskDate: string) {
   await imsExecute(
     `INSERT IGNORE INTO pos_daybook_task_instances
@@ -93,11 +121,14 @@ export async function GET(request: Request) {
 
   try {
     await materializeTasks(context, taskDate);
-    const [tasks, communications, records, references, guides, staff, locations] = await Promise.all([
+    const [rawTasks, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
-                s.actor_name AS last_actor_name, s.created_at AS signed_at
+                s.actor_name AS last_actor_name, s.created_at AS signed_at,
+                t.recurrence, t.weekday, t.scheduled_date, t.instructions,
+                t.created_by_id, t.created_by_staff_identity_id, t.created_by_staff_initials
          FROM pos_daybook_task_instances i
+         JOIN pos_daybook_task_templates t ON t.business_id = i.business_id AND t.id = i.template_id
          LEFT JOIN pos_daybook_task_signoffs s ON s.id = (
            SELECT s2.id FROM pos_daybook_task_signoffs s2
            WHERE s2.business_id = i.business_id AND s2.instance_id = i.id ORDER BY s2.id DESC LIMIT 1
@@ -145,11 +176,51 @@ export async function GET(request: Request) {
         [context.businessId, context.locationId],
       ),
       imsQuery('SELECT id, name, has_wholesale FROM ims_locations WHERE business_id = ? AND is_active = 1 ORDER BY name', [context.businessId]),
+      imsQuery<{ communication_id: number; staff_name: string; staff_initials: string; read_at: string }>(
+        `SELECT DISTINCT r.communication_id, r.staff_name, r.staff_initials, r.read_at
+         FROM pos_daybook_communication_reads r
+         JOIN pos_daybook_communication_targets t ON t.business_id = r.business_id AND t.communication_id = r.communication_id
+         WHERE r.business_id = ? AND t.location_id = ? ORDER BY r.read_at`,
+        [context.businessId, context.locationId],
+      ),
+      getEditPolicy(context.businessId),
     ]);
+    const selectedStaff: DaybookStaffIdentity = { id: null, name: '', initials: staffInitials };
+    const readersByCommunication = new Map<number, { name: string; initials: string; read_at: string }[]>();
+    for (const read of communicationReads) {
+      const readers = readersByCommunication.get(Number(read.communication_id)) ?? [];
+      if (!readers.some(reader => reader.initials === read.staff_initials)) {
+        readers.push({ name: read.staff_name, initials: read.staff_initials, read_at: read.read_at });
+      }
+      readersByCommunication.set(Number(read.communication_id), readers);
+    }
+    const communications = rawCommunications.map(item => ({
+      ...item,
+      readers: readersByCommunication.get(Number(item.id)) ?? [],
+      can_edit: mayEdit(context, selectedStaff, editPolicy, item),
+    }));
+    const tasks = rawTasks.map(item => ({
+      ...item,
+      can_edit: mayEdit(context, selectedStaff, editPolicy, {
+        author_user_id: item.created_by_id,
+        author_staff_identity_id: item.created_by_staff_identity_id,
+        author_staff_initials: item.created_by_staff_initials,
+      }),
+    }));
+    const records = rawRecords.map(item => ({
+      ...item,
+      can_edit: (item.record_type !== 'incident' || context.isManager) && mayEdit(context, selectedStaff, editPolicy, {
+        author_user_id: item.actor_user_id,
+        author_staff_identity_id: item.staff_identity_id,
+        author_staff_initials: item.staff_initials,
+      }),
+    }));
+    const references = rawReferences.map(item => ({ ...item, can_edit: mayEdit(context, selectedStaff, editPolicy, item) }));
+    const guides = rawGuides.map(item => ({ ...item, can_edit: mayEdit(context, selectedStaff, editPolicy, item) }));
     return NextResponse.json({
       date: taskDate,
       location: { id: context.locationId, name: context.locationName },
-      permissions: { manager: context.isManager },
+      permissions: { manager: context.isManager, editPolicy },
       tasks,
       communications,
       records,
@@ -259,13 +330,160 @@ export async function POST(request: Request) {
         `INSERT INTO pos_daybook_records
            (business_id, location_id, record_type, status, occurred_on, title, details_json,
             source_location_id, destination_location_id, staff_identity_id, staff_name, staff_initials,
-            actor_user_id, actor_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            actor_user_id, actor_name, background_color)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, context.locationId, recordType, recordType === 'store_need' ? 'requested' : 'open',
           parseDaybookDate(String(body.occurred_on ?? '')), title, JSON.stringify(details), context.locationId,
-          destinationLocationId, staff.id, staff.name, staff.initials, context.actorUserId, context.actorName],
+           destinationLocationId, staff.id, staff.name, staff.initials, context.actorUserId, context.actorName,
+           normalizeDaybookColour(body.background_color)],
       );
       return NextResponse.json({ success: true, id: result.insertId });
+    }
+
+    if (action === 'update_record') {
+      const recordId = Number(body.record_id ?? 0);
+      const rows = await imsQuery<{
+        id: number; record_type: string; actor_user_id: number | null; staff_identity_id: number | null; staff_initials: string;
+      }>(
+        `SELECT id, record_type, actor_user_id, staff_identity_id, staff_initials FROM pos_daybook_records
+         WHERE id = ? AND business_id = ? AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?) LIMIT 1`,
+        [recordId, context.businessId, context.locationId, context.locationId, context.locationId],
+      );
+      const record = rows[0];
+      if (!record || (record.record_type === 'incident' && !context.isManager)) return error('Record not found.', 404);
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), {
+        author_user_id: record.actor_user_id,
+        author_staff_identity_id: record.staff_identity_id,
+        author_staff_initials: record.staff_initials,
+      })) return error('You do not have permission to edit this item.', 403);
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      if (!title) return error('A title is required.');
+      const details = jsonDetails(body.details);
+      if (record.record_type === 'stock_discrepancy') {
+        const system = Number(details.system_quantity);
+        const physical = Number(details.physical_quantity);
+        if (Number.isFinite(system) && Number.isFinite(physical)) details.variance = physical - system;
+      }
+      await imsExecute(
+        `UPDATE pos_daybook_records SET title = ?, occurred_on = ?, details_json = ?, background_color = ?
+         WHERE id = ? AND business_id = ?`,
+        [title, parseDaybookDate(String(body.occurred_on ?? '')), JSON.stringify(details),
+          normalizeDaybookColour(body.background_color), recordId, context.businessId],
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_communication') {
+      const communicationId = Number(body.communication_id ?? 0);
+      const rows = await imsQuery<{
+        id: number; author_user_id: number | null; author_staff_identity_id: number | null; author_staff_initials: string | null;
+      }>(
+        `SELECT c.id, c.author_user_id, c.author_staff_identity_id, c.author_staff_initials
+         FROM pos_daybook_communications c
+         JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
+         WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? LIMIT 1`,
+        [communicationId, context.businessId, context.locationId],
+      );
+      const communication = rows[0];
+      if (!communication) return error('Communication not found.', 404);
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), communication)) return error('You do not have permission to edit this item.', 403);
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      const message = String(body.message ?? '').trim();
+      if (!title || !message) return error('Title and message are required.');
+      await imsExecute(
+        `UPDATE pos_daybook_communications SET title = ?, message = ?, priority = ?, background_color = ?
+         WHERE id = ? AND business_id = ?`,
+        [title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : 'normal',
+          normalizeDaybookColour(body.background_color), communicationId, context.businessId],
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_guide') {
+      const guideId = Number(body.guide_id ?? 0);
+      const rows = await imsQuery<{
+        id: number; author_user_id: number | null; author_staff_identity_id: number | null; author_staff_initials: string | null;
+      }>(
+        `SELECT id, author_user_id, author_staff_identity_id, author_staff_initials FROM pos_daybook_product_guides
+         WHERE id = ? AND business_id = ? AND (location_id IS NULL OR location_id = ?) LIMIT 1`,
+        [guideId, context.businessId, context.locationId],
+      );
+      const guide = rows[0];
+      if (!guide) return error('Product guide not found.', 404);
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), guide)) return error('You do not have permission to edit this item.', 403);
+      const productName = String(body.product_name ?? '').trim().slice(0, 500);
+      if (!productName) return error('Product name is required.');
+      await imsExecute(
+        `UPDATE pos_daybook_product_guides SET sku = ?, product_name = ?, category = ?, shelf_location = ?,
+           box_location = ?, guidance = ?, image_url = ?, image_alt = ?, background_color = ?
+         WHERE id = ? AND business_id = ?`,
+        [String(body.sku ?? '').trim() || null, productName, String(body.category ?? '').trim() || null,
+          String(body.shelf_location ?? '').trim() || null, String(body.box_location ?? '').trim() || null,
+          String(body.guidance ?? '').trim() || null, String(body.image_url ?? '').trim() || null,
+          String(body.image_alt ?? '').trim() || null, normalizeDaybookColour(body.background_color), guideId, context.businessId],
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_reference') {
+      const referenceId = Number(body.reference_id ?? 0);
+      const rows = await imsQuery<{
+        id: number; author_user_id: number | null; author_staff_identity_id: number | null; author_staff_initials: string | null;
+      }>(
+        `SELECT id, author_user_id, author_staff_identity_id, author_staff_initials FROM pos_daybook_references
+         WHERE id = ? AND business_id = ? AND is_active = 1 AND (location_id IS NULL OR location_id = ?) LIMIT 1`,
+        [referenceId, context.businessId, context.locationId],
+      );
+      const reference = rows[0];
+      if (!reference) return error('Reference not found.', 404);
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), reference)) return error('You do not have permission to edit this item.', 403);
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      const content = String(body.content ?? '').trim();
+      if (!title || !content) return error('Title and information are required.');
+      if (SENSITIVE_REFERENCE_PATTERN.test(`${title} ${content}`)) return error('Passwords, PINs, keys, secrets, and location codes cannot be stored in Daybook.', 422);
+      await imsExecute(
+        `UPDATE pos_daybook_references SET category = ?, title = ?, content = ?, link_url = ?, background_color = ?
+         WHERE id = ? AND business_id = ?`,
+        [String(body.category ?? 'General').slice(0, 50), title, content, String(body.link_url ?? '').trim() || null,
+          normalizeDaybookColour(body.background_color), referenceId, context.businessId],
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_task') {
+      const templateId = Number(body.template_id ?? 0);
+      const rows = await imsQuery<{
+        id: number; created_by_id: number | null; created_by_staff_identity_id: number | null; created_by_staff_initials: string | null;
+      }>(
+        `SELECT id, created_by_id, created_by_staff_identity_id, created_by_staff_initials
+         FROM pos_daybook_task_templates WHERE id = ? AND business_id = ? AND location_id = ? LIMIT 1`,
+        [templateId, context.businessId, context.locationId],
+      );
+      const template = rows[0];
+      if (!template) return error('Task not found.', 404);
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), {
+        author_user_id: template.created_by_id,
+        author_staff_identity_id: template.created_by_staff_identity_id,
+        author_staff_initials: template.created_by_staff_initials,
+      })) return error('You do not have permission to edit this item.', 403);
+      const recurrence = ['daily', 'weekly', 'once'].includes(String(body.recurrence)) ? String(body.recurrence) : 'daily';
+      const phase = ['opening', 'during_day', 'closing'].includes(String(body.phase)) ? String(body.phase) : 'during_day';
+      const title = String(body.title ?? '').trim().slice(0, 255);
+      if (!title) return error('A task title is required.');
+      const instructions = String(body.instructions ?? '').trim() || null;
+      await imsExecute(
+        `UPDATE pos_daybook_task_templates SET phase = ?, title = ?, instructions = ?, recurrence = ?, weekday = ?, scheduled_date = ?
+         WHERE id = ? AND business_id = ? AND location_id = ?`,
+        [phase, title, instructions, recurrence, recurrence === 'weekly' ? Number(body.weekday) : null,
+          recurrence === 'once' ? parseDaybookDate(String(body.scheduled_date ?? '')) : null,
+          templateId, context.businessId, context.locationId],
+      );
+      await imsExecute(
+        `UPDATE pos_daybook_task_instances SET phase = ?, title_snapshot = ?, instructions_snapshot = ?
+         WHERE business_id = ? AND location_id = ? AND template_id = ? AND status = 'open'`,
+        [phase, title, instructions, context.businessId, context.locationId, templateId],
+      );
+      return NextResponse.json({ success: true });
     }
 
     if (action === 'transition_record') {
@@ -309,6 +527,16 @@ export async function POST(request: Request) {
 
     if (!context.isManager) return error('Manager access is required.', 403);
 
+    if (action === 'save_settings') {
+      const editPolicy = normalizeDaybookEditPolicy(body.edit_policy);
+      await imsExecute(
+        `INSERT INTO ims_settings (business_id, \`key\`, value) VALUES (?, 'pos_daybook_edit_policy', ?)
+         ON DUPLICATE KEY UPDATE value = VALUES(value)`,
+        [context.businessId, editPolicy],
+      );
+      return NextResponse.json({ success: true, editPolicy });
+    }
+
     if (action === 'create_task') {
       const recurrence = ['daily', 'weekly', 'once'].includes(String(body.recurrence)) ? String(body.recurrence) : 'daily';
       const phase = ['opening', 'during_day', 'closing'].includes(String(body.phase)) ? String(body.phase) : 'during_day';
@@ -316,12 +544,13 @@ export async function POST(request: Request) {
       if (!title) return error('A task title is required.');
       await imsExecute(
         `INSERT INTO pos_daybook_task_templates
-           (business_id, location_id, phase, title, instructions, recurrence, weekday, scheduled_date, sort_order, created_by_id, created_by_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (business_id, location_id, phase, title, instructions, recurrence, weekday, scheduled_date,
+            sort_order, created_by_id, created_by_name, created_by_staff_identity_id, created_by_staff_name, created_by_staff_initials)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, context.locationId, phase, title,
           String(body.instructions ?? '').trim() || null, recurrence, recurrence === 'weekly' ? Number(body.weekday) : null,
           recurrence === 'once' ? parseDaybookDate(String(body.scheduled_date ?? '')) : null,
-          Number(body.sort_order ?? 0), context.actorUserId, context.actorName],
+          Number(body.sort_order ?? 0), context.actorUserId, context.actorName, staff.id, staff.name, staff.initials],
       );
       return NextResponse.json({ success: true });
     }
@@ -334,10 +563,12 @@ export async function POST(request: Request) {
       for (const targetId of targetIds) if (!(await validateLocation(context.businessId, targetId))) return error('A target location was not found.');
       const result = await imsExecute(
         `INSERT INTO pos_daybook_communications
-           (business_id, title, message, priority, is_pinned, author_user_id, author_name)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (business_id, title, message, priority, is_pinned, author_user_id, author_name,
+            author_staff_identity_id, author_staff_name, author_staff_initials, background_color)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, title, message, ['normal', 'important', 'urgent'].includes(String(body.priority)) ? body.priority : 'normal',
-          body.is_pinned ? 1 : 0, context.actorUserId, context.actorName],
+          body.is_pinned ? 1 : 0, context.actorUserId, context.actorName, staff.id, staff.name, staff.initials,
+          normalizeDaybookColour(body.background_color)],
       );
       for (const targetId of targetIds) {
         await imsExecute(
@@ -352,11 +583,14 @@ export async function POST(request: Request) {
       const referenceText = `${String(body.title ?? '')} ${String(body.content ?? '')}`;
       if (SENSITIVE_REFERENCE_PATTERN.test(referenceText)) return error('Passwords, PINs, keys, secrets, and location codes cannot be stored in Daybook.', 422);
       await imsExecute(
-        `INSERT INTO pos_daybook_references (business_id, location_id, category, title, content, link_url, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO pos_daybook_references
+           (business_id, location_id, category, title, content, link_url, sort_order, background_color,
+            author_user_id, author_name, author_staff_identity_id, author_staff_name, author_staff_initials)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, body.all_locations ? null : context.locationId, String(body.category ?? 'General').slice(0, 50),
           String(body.title ?? '').trim().slice(0, 255), String(body.content ?? '').trim(), String(body.link_url ?? '').trim() || null,
-          Number(body.sort_order ?? 0)],
+          Number(body.sort_order ?? 0), normalizeDaybookColour(body.background_color), context.actorUserId, context.actorName,
+          staff.id, staff.name, staff.initials],
       );
       return NextResponse.json({ success: true });
     }
@@ -364,13 +598,17 @@ export async function POST(request: Request) {
     if (action === 'save_guide') {
       await imsExecute(
         `INSERT INTO pos_daybook_product_guides
-           (business_id, location_id, sku, product_name, category, shelf_location, box_location, guidance, image_url, image_alt, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (business_id, location_id, sku, product_name, category, shelf_location, box_location, guidance,
+            image_url, image_alt, status, background_color, author_user_id, author_name,
+            author_staff_identity_id, author_staff_name, author_staff_initials)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [context.businessId, body.all_locations ? null : context.locationId, String(body.sku ?? '').trim() || null,
           String(body.product_name ?? '').trim().slice(0, 500), String(body.category ?? '').trim() || null,
           String(body.shelf_location ?? '').trim() || null, String(body.box_location ?? '').trim() || null,
           String(body.guidance ?? '').trim() || null, String(body.image_url ?? '').trim() || null,
-          String(body.image_alt ?? '').trim() || null, String(body.status ?? 'active').slice(0, 50)],
+          String(body.image_alt ?? '').trim() || null, String(body.status ?? 'active').slice(0, 50),
+          normalizeDaybookColour(body.background_color), context.actorUserId, context.actorName,
+          staff.id, staff.name, staff.initials],
       );
       return NextResponse.json({ success: true });
     }

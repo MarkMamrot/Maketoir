@@ -10,10 +10,12 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 - Choose the staff member using Daybook for the current day.
 - Complete and sign opening, throughout-the-day, weekly and closing tasks.
 - Read and acknowledge store communications.
+- See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
 - Follow warehouse requests through packing, sending and receipt.
 - Search approved reference information and product storage guidance.
-- Let managers schedule tasks and publish store content.
+- Add new items from the tab where they belong and choose an optional card colour.
+- Let managers schedule tasks, publish store content and control who may edit existing items.
 
 ## At a glance
 
@@ -50,15 +52,17 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 ### Read a communication
 
 1. Open **Comms**. Important and urgent notices are visually highlighted, with the newest notices first.
-2. Read the full notice and select **Mark as read**.
-3. Confirm the notice now displays **Read**. Another staff member using the same register must acknowledge it under their own Daybook identity.
+2. Review the names and initials below the notice to see who has already acknowledged it.
+3. Read the full notice and select **Mark as read**.
+4. Confirm your name and initials appear. Another staff member using the same register must acknowledge it under their own Daybook identity.
 
 ### Add operational follow-up
 
 1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.
-2. Complete the displayed fields and enter concise, factual notes.
-3. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
-4. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
+2. Select **Add new** at the top of the tab.
+3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours.
+4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
+5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
 > **Warning:** A stock discrepancy is a manager stocktake queue, not a stock adjustment. Do not assume recording or closing it changes stock on hand.
 
@@ -69,9 +73,21 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 3. Include only personal details needed to identify and follow up the incident.
 4. Select **Sign and submit report**. Managers control later review and closure.
 
-### Manage Daybook content
+### Add and edit Daybook content
 
-Managers open **Manage** to add daily, weekly or one-date tasks; publish communications to selected stores; and maintain references and product guidance. Deactivate or archive obsolete content instead of rewriting completed history.
+Managers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.
+
+When an item can be edited under the current policy, select its pencil button to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
+
+Managers open **Settings** and choose one tenant-wide editing policy:
+
+| Policy | Who can revise an existing item |
+|---|---|
+| Original author only | The signed-in account or selected staff identity recorded when the item was created; managers can maintain imported items with no recorded author |
+| Managers only | POS managers and administrators; this is the default and permits maintenance of imported content |
+| Any staff member | Any staff member with access to Store Daybook |
+
+Status changes and incident visibility still follow their separate operational permissions. Editing changes descriptive content; it does not rewrite sign-off or acknowledgment history.
 
 ## Privacy and access
 
@@ -90,6 +106,7 @@ Managers open **Manage** to add daily, weekly or one-date tasks; publish communi
 | A task expected today is missing | Its recurrence, weekday or effective date does not include today | Ask a manager to review the task schedule |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
+| The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo or box location is blank | The guide has not yet been enriched | Use the known shelf details and ask a manager to add the missing guidance |

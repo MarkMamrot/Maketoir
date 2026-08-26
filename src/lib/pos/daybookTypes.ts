@@ -32,3 +32,17 @@ export interface DaybookActorAudit {
   staffName: string;
   staffInitials: string;
 }
+
+export const DAYBOOK_EDIT_POLICIES = ['author_only', 'managers', 'anyone'] as const;
+export type DaybookEditPolicy = typeof DAYBOOK_EDIT_POLICIES[number];
+
+export const DAYBOOK_COLOUR_KEYS = [
+  'pastel_rose',
+  'pastel_peach',
+  'pastel_mint',
+  'pastel_sky',
+  'fluoro_yellow',
+  'fluoro_lime',
+  'fluoro_pink',
+] as const;
+export type DaybookColourKey = typeof DAYBOOK_COLOUR_KEYS[number];
