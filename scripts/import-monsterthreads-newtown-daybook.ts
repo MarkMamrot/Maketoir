@@ -26,7 +26,7 @@ const args = new Map(process.argv.slice(2).map(argument => {
 }));
 
 if (args.has('--help')) {
-  console.log('Usage: npx tsx scripts/import-monsterthreads-newtown-daybook.ts --business-id=<id> (--location-id=<id> | --location-code=<code>) [--apply --confirm=IMPORT-NEWTOWN]');
+  console.log('Usage: npx tsx scripts/import-monsterthreads-newtown-daybook.ts --parse-only | --business-id=<id> (--location-id=<id> | --location-code=<code>) [--apply --confirm=IMPORT-NEWTOWN]');
   process.exit(0);
 }
 
@@ -34,7 +34,8 @@ const businessId = String(args.get('--business-id') ?? '').trim();
 const locationIdArg = Number(args.get('--location-id') ?? 0);
 const locationCode = String(args.get('--location-code') ?? '').trim();
 const apply = args.get('--apply') === 'true';
-if (!businessId || (!locationIdArg && !locationCode)) throw new Error('Explicit --business-id and --location-id or --location-code are required.');
+const parseOnly = args.get('--parse-only') === 'true';
+if (!parseOnly && (!businessId || (!locationIdArg && !locationCode))) throw new Error('Explicit --business-id and --location-id or --location-code are required.');
 if (apply && args.get('--confirm') !== 'IMPORT-NEWTOWN') throw new Error('Apply mode requires --confirm=IMPORT-NEWTOWN.');
 
 async function main() {
@@ -74,6 +75,10 @@ const summary = {
   productGuides: weekly.guides.length,
   checksum,
 };
+if (parseOnly) {
+  console.log(JSON.stringify({ mode: 'parse-only', ...summary }, null, 2));
+  return;
+}
 
 function staffName(initials: string) {
   const namesByInitials: Record<string, string> = { HG: 'Holly', LM: 'Lucinda', LIZ: 'Liz', EH: 'Liz', AP: 'Anouk', SR: 'Stefania', TN: 'Historical staff', IMP: 'Spreadsheet import' };
