@@ -185,7 +185,7 @@ export async function GET(request: Request) {
 
   try {
     const taskDates = getDaybookDateRange(taskDate, 7);
-    await Promise.all(taskDates.map(date => materializeTasks(context, date)));
+    for (const date of taskDates) await materializeTasks(context, date);
     const [rawTasks, taskHistory, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
