@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-25","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-26","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -20,6 +20,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 |---|---|
 | Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |
 | Stock | A completed stock-item sale reduces stock at the active POS location |
+| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |
 | Split tender | Add payment lines until **Remaining** is zero |
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
 | Parked sale | Saved in this browser and removed from Parked Sales when resumed |
@@ -43,14 +44,16 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 
 ## Step-by-step
 
-1. Scan a barcode or search by product name, SKU, or barcode.
-2. Add the correct variant and set the quantity.
-3. Apply any permitted line discount, price change, or order discount before payment.
-4. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.
-5. Check the tax-inclusive total and the **GST (incl.)** amount.
-6. Choose **Charge** and choose a payment method.
-7. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
-8. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
+1. Choose **Variants** to see each variant separately, or **Products** to see one result for each product.
+2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.
+3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.
+4. Add the correct variant and set the quantity.
+5. Apply any permitted line discount, price change, or order discount before payment.
+6. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.
+7. Check the tax-inclusive total and the **GST (incl.)** amount.
+8. Choose **Charge** and choose a payment method.
+9. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
+10. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
 
 When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
 
@@ -84,6 +87,7 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |
 | Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |
 | Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |
+| Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |
 | A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |
 | A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |
 

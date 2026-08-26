@@ -4248,6 +4248,13 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
           {dropdownOpen && dropdownItems.length > 0 && (
             <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,.5)' }}>
               {dropdownItems.map((p, i) => (
+                (() => {
+                const productVariants = variantsByProduct.get(p.product_id) ?? [p];
+                const isGroupedProduct = productViewMode === 'products' && productVariants.length > 1;
+                const available = isGroupedProduct ? productVariants.reduce((sum, variant) => sum + (variant.available ?? variant.soh), 0) : (p.available ?? p.soh);
+                const availableAll = isGroupedProduct ? productVariants.reduce((sum, variant) => sum + variant.available_all, 0) : p.available_all;
+                const openStock = () => isGroupedProduct ? setProductStockModal(productVariants) : setStockModal({ variantId: p.variant_id, productName: p.name, barcode: p.barcode, sku: p.code });
+                return (
                 <div
                   key={p.variant_id}
                   onMouseDown={() => { clearTimeout(blurTimer.current); }}
@@ -4268,11 +4275,13 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
                     )}
                     <span style={{ fontWeight: 700, color: p.original_price != null ? '#fb923c' : 'var(--sv-action)', fontSize: '.85rem' }}>${fmt(p.price)}</span>
                   </div>
-                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, barcode: p.barcode, sku: p.code }); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: (p.available ?? p.soh) > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: (p.available ?? p.soh) > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{(p.available ?? p.soh) > 0 ? (p.available ?? p.soh) : 'OOS'}</button>
-                  {p.available_all !== undefined && p.available_all !== (p.available ?? p.soh) && (
-                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); setStockModal({ variantId: p.variant_id, productName: p.name, barcode: p.barcode, sku: p.code }); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{p.available_all}</button>
+                  <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); openStock(); }} style={{ fontSize: '.72rem', padding: '2px 6px', borderRadius: 5, background: available > 0 ? 'var(--sv-mint-tint)' : 'var(--sv-red-tint)', color: available > 0 ? 'var(--sv-mint)' : 'var(--sv-red)', flexShrink: 0, border: 'none', cursor: 'pointer', fontWeight: 700 }} title="Available to sell at this store (SOH minus committed) — click for breakdown">{available > 0 ? available : 'OOS'}</button>
+                  {availableAll !== undefined && availableAll !== available && (
+                    <button onMouseDown={e => { e.stopPropagation(); e.preventDefault(); clearTimeout(blurTimer.current); openStock(); }} style={{ fontSize: '.72rem', padding: '2px 5px', borderRadius: 5, background: 'var(--sv-bg-2)', color: 'var(--sv-text-dim)', flexShrink: 0, border: '1px solid var(--sv-etch)', cursor: 'pointer' }} title="Available across all locations — click for breakdown">all:{availableAll}</button>
                   )}
                 </div>
+                );
+                })()
               ))}
             </div>
           )}
@@ -4349,7 +4358,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
         {/* Search results banner — stays inside the same header bg */}
         {mode === 'search' && (
           <div style={{ padding: '2px 12px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>🔍 Results for <strong>"{search}"</strong> — {filtered.length} product{filtered.length !== 1 ? 's' : ''}</span>
+            <span style={{ fontSize: 12, color: 'var(--sv-action)' }}>🔍 Results for <strong>"{search}"</strong> — {filtered.length} {productViewMode === 'products' ? 'product' : 'variant'}{filtered.length !== 1 ? 's' : ''}</span>
             <div style={{ flex: 1 }} />
             <button
               onClick={() => { setMode('browse'); setSearch(''); setDropdownOpen(false); scanRef.current?.focus(); }}
