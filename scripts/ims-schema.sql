@@ -1890,6 +1890,23 @@ CREATE TABLE IF NOT EXISTS pos_daybook_import_runs (
   UNIQUE KEY uq_daybook_import_run (business_id, location_id, source_checksum)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS pos_daybook_content_events (
+  id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id       VARCHAR(100) NOT NULL,
+  location_id       INT NOT NULL,
+  item_type         VARCHAR(32) NOT NULL,
+  item_id           BIGINT NOT NULL,
+  action            VARCHAR(32) NOT NULL,
+  staff_identity_id BIGINT NULL,
+  staff_name        VARCHAR(120) NOT NULL,
+  staff_initials    VARCHAR(8) NOT NULL,
+  actor_user_id     INT NULL,
+  actor_name        VARCHAR(255) NOT NULL,
+  actor_tier        VARCHAR(50) NOT NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_daybook_content_events (business_id, item_type, item_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── POS Sale Items ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS pos_sale_items (
   id              INT AUTO_INCREMENT PRIMARY KEY,

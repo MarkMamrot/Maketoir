@@ -42,6 +42,7 @@ const DAYBOOK_TABLES = [
   'pos_daybook_references',
   'pos_daybook_product_guides',
   'pos_daybook_import_runs',
+  'pos_daybook_content_events',
 ];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');

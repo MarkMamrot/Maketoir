@@ -13,7 +13,7 @@ import {
   parseDaybookDate,
 } from '@/lib/pos/daybookService';
 import type { DaybookDiscrepancyStatus, DaybookEditPolicy, DaybookNeedStatus, DaybookRequestStatus, DaybookStaffIdentity } from '@/lib/pos/daybookTypes';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 const MANAGER_TIERS = new Set(['PosManager', 'StandardUser', 'Admin', 'SuperAdmin']);
 const RECORD_TYPES = new Set(['customer_request', 'store_need', 'stock_discrepancy', 'incident']);
@@ -199,6 +199,7 @@ export async function GET(request: Request) {
            WHERE s2.business_id = i.business_id AND s2.instance_id = i.id ORDER BY s2.id DESC LIMIT 1
          )
          WHERE i.business_id = ? AND i.location_id = ? AND i.task_date = ?
+           AND (t.is_active = 1 OR i.status = 'completed' OR i.task_date < CURRENT_DATE())
          ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.id`,
         [context.businessId, context.locationId, taskDate],
       ),
@@ -211,6 +212,7 @@ export async function GET(request: Request) {
            WHERE s2.business_id = i.business_id AND s2.instance_id = i.id ORDER BY s2.id DESC LIMIT 1
          )
          WHERE i.business_id = ? AND i.location_id = ? AND i.task_date BETWEEN ? AND ?
+           AND (t.is_active = 1 OR i.status = 'completed' OR i.task_date < CURRENT_DATE())
          ORDER BY FIELD(i.phase, 'opening','during_day','closing'), i.template_id, i.task_date`,
         [context.businessId, context.locationId, taskDates[0], taskDate],
       ),
@@ -231,6 +233,7 @@ export async function GET(request: Request) {
       imsQuery(
         `SELECT * FROM pos_daybook_records
          WHERE business_id = ? AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?)
+           AND status <> 'deleted'
            AND (record_type <> 'incident' OR ? = 1)
          ORDER BY created_at DESC LIMIT 500`,
         [context.businessId, context.locationId, context.locationId, context.locationId, context.isManager ? 1 : 0],
@@ -348,6 +351,132 @@ export async function POST(request: Request) {
       name: String(body.staff_name ?? ''),
       initials: String(body.staff_initials ?? ''),
     });
+
+    if (action === 'delete_item') {
+      const itemType = String(body.item_type ?? '');
+      const itemId = Number(body.item_id ?? 0);
+      if (!['task', 'communication', 'record', 'reference', 'guide'].includes(itemType) || !Number.isInteger(itemId) || itemId <= 0) {
+        return error('Invalid Daybook item.');
+      }
+      const editPolicy = await getEditPolicy(context.businessId);
+      const connection = await getIMSPool().getConnection();
+      try {
+        await connection.beginTransaction();
+        let item: {
+          author_user_id?: number | null;
+          author_staff_identity_id?: number | null;
+          author_staff_initials?: string | null;
+          record_type?: string;
+          status?: string;
+        } | undefined;
+
+        if (itemType === 'task') {
+          const [rows] = await connection.execute(
+            `SELECT created_by_id AS author_user_id, created_by_staff_identity_id AS author_staff_identity_id,
+                    created_by_staff_initials AS author_staff_initials
+             FROM pos_daybook_task_templates
+             WHERE id = ? AND business_id = ? AND location_id = ? AND is_active = 1 FOR UPDATE`,
+            [itemId, context.businessId, context.locationId],
+          ) as any;
+          item = rows[0];
+        } else if (itemType === 'communication') {
+          const [rows] = await connection.execute(
+            `SELECT c.author_user_id, c.author_staff_identity_id, c.author_staff_initials
+             FROM pos_daybook_communications c
+             JOIN pos_daybook_communication_targets t ON t.business_id = c.business_id AND t.communication_id = c.id
+             WHERE c.id = ? AND c.business_id = ? AND t.location_id = ? AND c.archived_at IS NULL LIMIT 1 FOR UPDATE`,
+            [itemId, context.businessId, context.locationId],
+          ) as any;
+          item = rows[0];
+        } else if (itemType === 'record') {
+          const [rows] = await connection.execute(
+            `SELECT record_type, status, actor_user_id AS author_user_id, staff_identity_id AS author_staff_identity_id,
+                    staff_initials AS author_staff_initials
+             FROM pos_daybook_records
+             WHERE id = ? AND business_id = ? AND status <> 'deleted'
+               AND (location_id = ? OR source_location_id = ? OR destination_location_id = ?) LIMIT 1 FOR UPDATE`,
+            [itemId, context.businessId, context.locationId, context.locationId, context.locationId],
+          ) as any;
+          item = rows[0];
+          if (item?.record_type === 'incident' && !context.isManager) item = undefined;
+        } else if (itemType === 'reference') {
+          const [rows] = await connection.execute(
+            `SELECT author_user_id, author_staff_identity_id, author_staff_initials
+             FROM pos_daybook_references
+             WHERE id = ? AND business_id = ? AND is_active = 1 AND (location_id IS NULL OR location_id = ?) FOR UPDATE`,
+            [itemId, context.businessId, context.locationId],
+          ) as any;
+          item = rows[0];
+        } else {
+          const [rows] = await connection.execute(
+            `SELECT author_user_id, author_staff_identity_id, author_staff_initials
+             FROM pos_daybook_product_guides
+             WHERE id = ? AND business_id = ? AND status <> 'archived' AND (location_id IS NULL OR location_id = ?) FOR UPDATE`,
+            [itemId, context.businessId, context.locationId],
+          ) as any;
+          item = rows[0];
+        }
+
+        if (!item) {
+          await connection.rollback();
+          return error('Daybook item not found.', 404);
+        }
+        if (!mayEdit(context, staff, editPolicy, item)) {
+          await connection.rollback();
+          return error('You do not have permission to delete this item.', 403);
+        }
+
+        if (itemType === 'task') {
+          await connection.execute(
+            'UPDATE pos_daybook_task_templates SET is_active = 0 WHERE id = ? AND business_id = ? AND location_id = ?',
+            [itemId, context.businessId, context.locationId],
+          );
+        } else if (itemType === 'communication') {
+          await connection.execute(
+            'UPDATE pos_daybook_communications SET archived_at = NOW() WHERE id = ? AND business_id = ?',
+            [itemId, context.businessId],
+          );
+        } else if (itemType === 'record') {
+          await connection.execute(
+            "UPDATE pos_daybook_records SET status = 'deleted', resolved_at = NOW() WHERE id = ? AND business_id = ?",
+            [itemId, context.businessId],
+          );
+          await connection.execute(
+            `INSERT INTO pos_daybook_record_events
+               (business_id, record_id, from_status, to_status, note, staff_identity_id, staff_name,
+                staff_initials, actor_user_id, actor_name, actor_tier)
+             VALUES (?, ?, ?, 'deleted', 'Deleted from Daybook', ?, ?, ?, ?, ?, ?)`,
+            [context.businessId, itemId, item.status, staff.id, staff.name, staff.initials,
+              context.actorUserId, context.actorName, context.actorTier],
+          );
+        } else if (itemType === 'reference') {
+          await connection.execute(
+            'UPDATE pos_daybook_references SET is_active = 0 WHERE id = ? AND business_id = ?',
+            [itemId, context.businessId],
+          );
+        } else {
+          await connection.execute(
+            "UPDATE pos_daybook_product_guides SET status = 'archived' WHERE id = ? AND business_id = ?",
+            [itemId, context.businessId],
+          );
+        }
+        await connection.execute(
+          `INSERT INTO pos_daybook_content_events
+             (business_id, location_id, item_type, item_id, action, staff_identity_id, staff_name,
+              staff_initials, actor_user_id, actor_name, actor_tier)
+           VALUES (?, ?, ?, ?, 'deleted', ?, ?, ?, ?, ?, ?)`,
+          [context.businessId, context.locationId, itemType, itemId, staff.id, staff.name, staff.initials,
+            context.actorUserId, context.actorName, context.actorTier],
+        );
+        await connection.commit();
+        return NextResponse.json({ success: true });
+      } catch (caught) {
+        await connection.rollback().catch(() => {});
+        throw caught;
+      } finally {
+        connection.release();
+      }
+    }
 
     if (action === 'sign_task') {
       const instanceId = Number(body.instance_id ?? 0);
