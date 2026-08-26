@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 import { getIMSPool } from '@/services/IMSMySQLService';
-import { StockShortfallError } from './stockShortfall';
+import { StockShortfallError, type StockShortfall } from './stockShortfall';
 import { reconcileStockAllocationsForFulfilment } from '../stockAllocation/service';
 
 const QUANTITY_SCALE = 10_000;
@@ -19,6 +19,10 @@ export type CustomerFulfilmentResult = {
     fulfilledAllocationIds: number[];
     releasedAllocationIds: number[];
   }>;
+  incomingCoveredShortfalls?: Array<StockShortfall & {
+    purchaseOrderIncomingQuantity: number;
+    branchTransferIncomingQuantity: number;
+  }>;
 };
 
 function scaledQuantity(value: number): number {
@@ -32,6 +36,7 @@ export async function fulfilSalesOrderPartial(input: {
   operationKey: string;
   shipmentQuantities: ShipmentQuantity[];
   allowNegativeStock?: boolean;
+  allowIncomingCoveredStockShortfall?: boolean;
   finalizeWhenComplete?: boolean;
 }): Promise<CustomerFulfilmentResult> {
   const operationKey = input.operationKey.trim();
@@ -114,6 +119,7 @@ export async function fulfilSalesOrderPartial(input: {
 
     const fulfilledVariantIds: string[] = [];
     const allocationFulfilments: CustomerFulfilmentResult['allocationFulfilments'] = [];
+    const incomingCoveredShortfalls: NonNullable<CustomerFulfilmentResult['incomingCoveredShortfalls']> = [];
     for (const [itemId, shipmentScaled] of requested) {
       if (shipmentScaled === 0) continue;
       const item = itemsById.get(itemId);
@@ -147,7 +153,7 @@ export async function fulfilSalesOrderPartial(input: {
       }
 
       const [[stock]] = await conn.execute<any[]>(
-        `SELECT s.qty_on_hand, s.qty_committed, COALESCE(pv.avg_cost, 0) AS avg_cost
+        `SELECT s.qty_on_hand, s.qty_committed, s.qty_incoming, COALESCE(pv.avg_cost, 0) AS avg_cost
            FROM ims_stock s
            JOIN ims_product_variants pv ON pv.variant_id = s.variant_id
           WHERE s.variant_id = ? AND s.location_id = ?
@@ -157,13 +163,40 @@ export async function fulfilSalesOrderPartial(input: {
       const oldOnHand = Number(stock?.qty_on_hand ?? 0);
       const oldCommitted = Number(stock?.qty_committed ?? 0);
       if (scaledQuantity(oldOnHand) < shipmentScaled && !input.allowNegativeStock) {
-        throw new StockShortfallError([{
+        const shortfall: StockShortfall = {
           itemId,
           variantId: String(item.variant_id),
           requestedQuantity: quantity,
           quantityOnHand: oldOnHand,
           resultingQuantityOnHand: oldOnHand - quantity,
-        }]);
+        };
+        let coveredByIncoming = false;
+        if (input.allowIncomingCoveredStockShortfall) {
+          const [[branchTransfer]] = await conn.execute<any[]>(
+            `SELECT COALESCE(SUM(GREATEST(bti.qty_sent - COALESCE(bti.qty_received, 0), 0)), 0) AS incoming_quantity
+               FROM ims_branch_transfers bt
+               JOIN ims_branch_transfer_items bti ON bti.transfer_id = bt.id
+              WHERE bt.business_id = ?
+                AND bt.to_location_id = ?
+                AND bt.status IN ('sent', 'partial')
+                AND bti.variant_id = ?`,
+            [input.businessId, so.location_id, item.variant_id],
+          );
+          const purchaseOrderIncomingQuantity = Number(stock?.qty_incoming ?? 0);
+          const branchTransferIncomingQuantity = Number(branchTransfer?.incoming_quantity ?? 0);
+          const shortageQuantity = quantity - oldOnHand;
+          coveredByIncoming = scaledQuantity(
+            purchaseOrderIncomingQuantity + branchTransferIncomingQuantity,
+          ) >= scaledQuantity(shortageQuantity);
+          if (coveredByIncoming) {
+            incomingCoveredShortfalls.push({
+              ...shortfall,
+              purchaseOrderIncomingQuantity,
+              branchTransferIncomingQuantity,
+            });
+          }
+        }
+        if (!coveredByIncoming) throw new StockShortfallError([shortfall]);
       }
       if (scaledQuantity(oldCommitted) < shipmentScaled) throw new Error(`Insufficient committed stock to ship item ${itemId}.`);
 
@@ -226,6 +259,7 @@ export async function fulfilSalesOrderPartial(input: {
       operationKey,
       fulfilledVariantIds: [...new Set(fulfilledVariantIds)],
       allocationFulfilments,
+      ...(incomingCoveredShortfalls.length > 0 ? { incomingCoveredShortfalls } : {}),
     };
     await conn.execute(
       `UPDATE ims_so_fulfilment_operations

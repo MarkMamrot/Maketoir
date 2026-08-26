@@ -40,6 +40,8 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 5. Select **Fulfil** and enter only the quantity in this shipment for each line.
 6. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
 7. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
+
+> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received, and staff receive an incoming-stock warning to complete the receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
 8. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
 
 | Resolve Outstanding choice | Use it when | Result |

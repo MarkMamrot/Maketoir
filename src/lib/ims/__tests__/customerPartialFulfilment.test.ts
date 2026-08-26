@@ -12,6 +12,8 @@ const connection = {
 let storedRequestHash = '';
 let firstItemIsStock = 1;
 let quantityOnHand = 20;
+let quantityIncoming = 0;
+let branchTransferIncoming = 0;
 let allocationRows: Record<string, unknown>[] = [];
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -26,6 +28,8 @@ describe('fulfilSalesOrderPartial', () => {
     storedRequestHash = '';
     firstItemIsStock = 1;
     quantityOnHand = 20;
+    quantityIncoming = 0;
+    branchTransferIncoming = 0;
     allocationRows = [];
     execute.mockImplementation(async (sql: string, params?: unknown[]) => {
       if (sql.includes('INSERT IGNORE INTO ims_so_fulfilment_operations')) {
@@ -47,8 +51,9 @@ describe('fulfilSalesOrderPartial', () => {
         ]];
       }
       if (sql.includes('FROM ims_stock s')) {
-        return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, avg_cost: 4.5 }]];
+        return [[{ qty_on_hand: quantityOnHand, qty_committed: 12, qty_incoming: quantityIncoming, avg_cost: 4.5 }]];
       }
+      if (sql.includes('FROM ims_branch_transfers bt')) return [[{ incoming_quantity: branchTransferIncoming }]];
       if (sql.includes('FROM ims_stock_allocations')) return [allocationRows];
       return [{ affectedRows: 1 }];
     });
@@ -256,5 +261,41 @@ describe('fulfilSalesOrderPartial', () => {
       [-1, 3, 'variant-1', 4],
     );
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('allows a Shopify shortage fully covered by pending branch-transfer stock', async () => {
+    quantityOnHand = 2;
+    branchTransferIncoming = 1;
+
+    const result = await fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shopify-incoming-covered',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+      allowIncomingCoveredStockShortfall: true,
+    });
+
+    expect(result.incomingCoveredShortfalls).toEqual([{
+      itemId: 10,
+      variantId: 'variant-1',
+      requestedQuantity: 3,
+      quantityOnHand: 2,
+      resultingQuantityOnHand: -1,
+      purchaseOrderIncomingQuantity: 0,
+      branchTransferIncomingQuantity: 1,
+    }]);
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('SET qty_on_hand = ?'),
+      [-1, 3, 'variant-1', 4],
+    );
+  });
+
+  it('still rejects a Shopify shortage not fully covered by incoming stock', async () => {
+    quantityOnHand = 2;
+    quantityIncoming = 0.5;
+
+    await expect(fulfilSalesOrderPartial({
+      businessId: 'biz-1', soId: 42, operationKey: 'shopify-incoming-insufficient',
+      shipmentQuantities: [{ itemId: 10, quantity: 3 }],
+      allowIncomingCoveredStockShortfall: true,
+    })).rejects.toMatchObject({ code: 'STOCK_SHORTFALL' });
   });
 });

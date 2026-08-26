@@ -372,13 +372,40 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             : [],
           orderItems,
         });
-        await fulfilSalesOrderPartial({
+        const fulfilmentResult = await fulfilSalesOrderPartial({
           businessId,
           soId: order.id,
           operationKey: `shopify:${topic}:${String(payload.id ?? orderId)}`,
           shipmentQuantities,
+          allowIncomingCoveredStockShortfall: true,
           finalizeWhenComplete: true,
         });
+        if (fulfilmentResult.incomingCoveredShortfalls?.length) {
+          const incomingContext = {
+            shopify_order_id: orderId,
+            shopify_order_name: order.shopify_order_name,
+            so_id: order.id,
+            fulfilment_location: order.location_name,
+            shortfalls: fulfilmentResult.incomingCoveredShortfalls,
+          };
+          await reportRuntimeIssue({
+            businessId,
+            source: 'shopify_webhook',
+            operation: 'fulfilment_used_incoming_stock',
+            severity: 'warning',
+            title: 'Shopify fulfilment used incoming stock',
+            error: new Error('Shopify fulfilment completed before incoming stock was received.'),
+            context: incomingContext,
+            reference: { type: 'sales_order', id: String(order.id) },
+          });
+          createNotification(
+            businessId,
+            'shopify_webhook',
+            `Incoming Stock Used — ${order.shopify_order_name || orderId}`,
+            'Shopify marked this order fulfilled before incoming stock was received. Solvantis completed the fulfilment and allowed stock to go negative temporarily. Receive the pending supply and verify the location stock.',
+            incomingContext,
+          ).catch(console.error);
+        }
         if (shipment) await persistShopifyShipment({ businessId, soId: order.id, shipment });
       } catch (e: any) {
         const msg = e?.message ?? String(e);

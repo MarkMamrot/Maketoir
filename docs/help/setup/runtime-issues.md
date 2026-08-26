@@ -66,4 +66,4 @@ Avoid credentials, access tokens, customer details, or raw external payloads in 
 
 A missing tenant table that has since been deployed to every active business can be marked fixed after each tenant is verified. The resolution note should identify the completed rollout and state that no business records were changed.
 
-A Shopify fulfilment failure caused by insufficient stock should remain open if the order is still unfulfilled. Stock at another branch does not by itself authorise a transfer or a change of fulfilment location.
+A Shopify fulfilment failure caused by insufficient stock should remain open if the order is still unfulfilled. Stock at another branch does not by itself authorise a transfer or a change of fulfilment location. Recorded incoming stock can support an automatic Shopify fulfilment when it fully covers the shortage; staff must still complete the receipt and verify location stock after the warning.
