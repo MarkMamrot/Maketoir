@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   }
   const afterId = Math.max(0, Number(body.afterId) || 0);
   const limit = Math.min(100, Math.max(1, Number(body.limit) || 50));
+  const queryLimit = limit + 1;
 
   try {
     const connection = await ConnectionsRepository.get(session.businessId);
@@ -35,11 +36,11 @@ export async function POST(request: Request) {
       : (await imsQuery<{ id: number }>(
           `SELECT id
              FROM ims_contacts
-            WHERE business_id = ? AND deleted_at IS NULL AND shopify_customer_id IS NOT NULL
+            WHERE business_id = ? AND is_active = 1 AND shopify_customer_id IS NOT NULL
               AND shopify_customer_id <> '' AND type IN ('retail_customer','b2b_customer','both') AND id > ?
             ORDER BY id
-            LIMIT ?`,
-          [session.businessId, afterId, limit + 1],
+            LIMIT ${queryLimit}`,
+          [session.businessId, afterId],
         )).map(row => Number(row.id));
     const hasMore = requestedContactId == null && contactIds.length > limit;
     const batch = contactIds.slice(0, requestedContactId == null ? limit : 1);

@@ -39,6 +39,9 @@ interface IssueEvent {
 
 const panel = { background: 'var(--sv-bg-1,#1e293b)', border: '1px solid var(--sv-etch,rgba(255,255,255,.1))', borderRadius: 8 };
 const input = { padding: '8px 10px', background: 'var(--sv-bg-2,#334155)', border: '1px solid var(--sv-etch,rgba(255,255,255,.15))', borderRadius: 6, color: 'var(--sv-text-main,#e2e8f0)', fontSize: 12 };
+const drawerSurface = '#0f172a';
+const drawerPanel = { background: '#172033', border: '1px solid #334155', borderRadius: 8 };
+const drawerInput = { padding: '9px 11px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, color: '#0f172a', fontSize: 12 };
 
 function dateTime(value: string | null | undefined) {
   if (!value) return '—';
@@ -185,13 +188,16 @@ export default function RuntimeIssuesView() {
       </div>
 
       {selected && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,23,.82)', display: 'flex', justifyContent: 'flex-end' }} onClick={() => setSelected(null)}>
-          <div style={{ width: 'min(720px,100vw)', height: '100%', overflow: 'auto', background: '#0f172a', borderLeft: '1px solid rgba(255,255,255,.12)', padding: 24 }} onClick={event => event.stopPropagation()}>
-            <button aria-label="Close issue" onClick={() => setSelected(null)} style={{ float: 'right', ...input, cursor: 'pointer' }}>×</button>
-            <p style={{ color: severityColor(selected.issue.severity), textTransform: 'uppercase', fontSize: 10, fontWeight: 800 }}>{selected.issue.severity} · {selected.issue.source} / {selected.issue.operation}</p>
-            <h2 style={{ margin: '6px 0' }}>{selected.issue.title}</h2>
-            <p style={{ color: '#cbd5e1', lineHeight: 1.6 }}>{selected.issue.message}</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, ...panel, padding: 14, margin: '18px 0' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(2,6,23,.72)', display: 'flex', justifyContent: 'flex-end' }} onClick={() => setSelected(null)}>
+          <aside aria-label="Runtime issue details" style={{ width: 'min(680px, 100vw)', height: '100dvh', overflowY: 'auto', boxSizing: 'border-box', background: drawerSurface, borderLeft: '1px solid #334155', color: '#e2e8f0', boxShadow: '-20px 0 50px rgba(2,6,23,.28)' }} onClick={event => event.stopPropagation()}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, padding: '14px 20px', background: 'rgba(15,23,42,.97)', borderBottom: '1px solid #334155' }}>
+              <p style={{ margin: 0, color: severityColor(selected.issue.severity), textTransform: 'uppercase', fontSize: 10, fontWeight: 800 }}>{selected.issue.severity} · {selected.issue.source} / {selected.issue.operation}</p>
+              <button aria-label="Close issue" title="Close" onClick={() => setSelected(null)} style={{ width: 34, height: 34, border: '1px solid #475569', borderRadius: 6, background: '#1e293b', color: '#f8fafc', cursor: 'pointer', fontSize: 22, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: '20px clamp(16px, 4vw, 28px) 32px' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 20, lineHeight: 1.3 }}>{selected.issue.title}</h2>
+            <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.55, fontSize: 13 }}>{selected.issue.message}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, ...drawerPanel, padding: 14, margin: '18px 0' }}>
               <span><small style={{ color: '#94a3b8' }}>Organisation</small><br />{selected.issue.business_name}</span>
               <span><small style={{ color: '#94a3b8' }}>Occurrences</small><br />{selected.issue.occurrence_count}</span>
               <span><small style={{ color: '#94a3b8' }}>First seen</small><br />{dateTime(selected.issue.first_seen_at)}</span>
@@ -204,22 +210,23 @@ export default function RuntimeIssuesView() {
               </>
             )}
             <label style={{ display: 'block', color: '#94a3b8', fontSize: 11, marginBottom: 6 }}>Resolution notes</label>
-            <textarea value={notes} onChange={event => setNotes(event.target.value)} rows={4} style={{ ...input, width: '100%', boxSizing: 'border-box', resize: 'vertical' }} />
-            <div style={{ display: 'flex', gap: 8, margin: '10px 0 22px' }}>
-              <button disabled={saving} onClick={() => void updateStatus('new')} style={{ ...input, cursor: 'pointer' }}>Mark new</button>
-              <button disabled={saving} onClick={() => void updateStatus('in_progress')} style={{ ...input, cursor: 'pointer', background: '#1d4ed8' }}>In progress</button>
-              <button disabled={saving} onClick={() => void updateStatus('fixed')} style={{ ...input, cursor: 'pointer', background: '#047857' }}>Mark fixed</button>
+            <textarea value={notes} onChange={event => setNotes(event.target.value)} rows={4} style={{ ...drawerInput, width: '100%', boxSizing: 'border-box', resize: 'vertical', minHeight: 104 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '10px 0 22px' }}>
+              <button disabled={saving} onClick={() => void updateStatus('new')} style={{ ...drawerInput, cursor: 'pointer', background: '#f8fafc', color: '#334155', fontWeight: 700 }}>Mark new</button>
+              <button disabled={saving} onClick={() => void updateStatus('in_progress')} style={{ ...drawerInput, cursor: 'pointer', borderColor: '#60a5fa', background: '#1d4ed8', color: '#fff', fontWeight: 700 }}>In progress</button>
+              <button disabled={saving} onClick={() => void updateStatus('fixed')} style={{ ...drawerInput, cursor: 'pointer', borderColor: '#34d399', background: '#047857', color: '#fff', fontWeight: 700 }}>Mark fixed</button>
             </div>
             <h3 style={{ fontSize: 14 }}>Occurrence history</h3>
             {selected.events.map(event => (
-              <div key={event.id} style={{ ...panel, padding: 12, marginBottom: 8 }}>
+              <div key={event.id} style={{ ...drawerPanel, padding: 12, marginBottom: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, color: '#94a3b8', fontSize: 10 }}><strong>{event.event_type}</strong><span>{dateTime(event.created_at)}</span></div>
                 {event.message && <p style={{ margin: '7px 0', fontSize: 12 }}>{event.message}</p>}
                 {event.stack_trace && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: '#fca5a5', fontSize: 10, background: '#020617', padding: 10, borderRadius: 5 }}>{event.stack_trace}</pre>}
                 {formatContext(event.context) && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', color: '#cbd5e1', fontSize: 10, background: '#020617', padding: 10, borderRadius: 5 }}>{formatContext(event.context)}</pre>}
               </div>
             ))}
-          </div>
+            </div>
+          </aside>
         </div>
       )}
     </div>

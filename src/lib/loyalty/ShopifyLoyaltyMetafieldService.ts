@@ -66,7 +66,7 @@ export const ShopifyLoyaltyMetafieldService = {
       }>(
         `SELECT id, loyalty_member, shopify_customer_id
            FROM ims_contacts
-          WHERE id = ? AND business_id = ? AND deleted_at IS NULL
+          WHERE id = ? AND business_id = ? AND is_active = 1
             AND type IN ('retail_customer','b2b_customer','both')
           LIMIT 1`,
         [input.contactId, input.businessId],

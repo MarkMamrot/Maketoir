@@ -268,11 +268,10 @@ export async function GET(req: Request) {
 
          UNION ALL
 
-         SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id, COALESCE(soi.line_total, 0) AS sales
+         SELECT svid.variant_id, COALESCE(soi.line_total, 0) AS sales
          FROM ims_sales_orders so
          JOIN ims_sales_order_items soi ON soi.so_id = so.id
          LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
-         LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
          WHERE so.order_date >= ?
            AND so.is_staff_preview_test = 0
            ${soUpperClause}
@@ -346,13 +345,12 @@ export async function GET(req: Request) {
 
         UNION ALL
 
-        SELECT COALESCE(svid.variant_id, ssku.variant_id) AS variant_id,
+         SELECT svid.variant_id,
                ABS(COALESCE(soi.qty_ordered, 0)) AS units_sold,
                COALESCE(soi.line_total, 0) AS revenue
         FROM ims_sales_orders so
         JOIN ims_sales_order_items soi ON soi.so_id = so.id
         LEFT JOIN ims_product_variants svid ON svid.variant_id = soi.variant_id
-        LEFT JOIN ims_product_variants ssku ON svid.variant_id IS NULL AND ssku.sku = soi.code
         WHERE so.order_date >= ?
           AND so.is_staff_preview_test = 0
           ${soUpperClause}

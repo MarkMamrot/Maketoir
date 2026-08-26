@@ -47,6 +47,14 @@ describe('GET /api/onboarding', () => {
       purchaseOrders: 0,
       stockRows: 0,
     });
+    expect(mocks.imsQuery).toHaveBeenCalledWith(
+      expect.stringMatching(/FROM ims_contacts[\s\S]*is_active = 1/),
+      ['business-1'],
+    );
+    expect(mocks.imsQuery).not.toHaveBeenCalledWith(
+      expect.stringMatching(/FROM ims_contacts[\s\S]*deleted_at/),
+      expect.anything(),
+    );
     expect(mocks.reportIssue).not.toHaveBeenCalled();
   });
 

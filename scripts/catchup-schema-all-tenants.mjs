@@ -1618,6 +1618,12 @@ async function migrateSchema(schema, businessId) {
     await ensureColumnCollationMatches(schema, 'ims_crm_pipeline_stages', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_opportunities', 'business_id', 'ims_contacts', 'business_id');
     await ensureColumnCollationMatches(schema, 'ims_crm_contact_merges', 'business_id', 'ims_contacts', 'business_id');
+    for (const table of ONLINE_SHOP_TABLES) {
+      await ensureColumnCollationMatches(schema, table, 'business_id', 'ims_products', 'business_id');
+    }
+    await ensureColumnCollationMatches(schema, 'ims_online_shop_products', 'product_id', 'ims_products', 'product_id');
+    await ensureColumnCollationMatches(schema, 'ims_stock_allocations', 'business_id', 'ims_products', 'business_id');
+    await ensureColumnCollationMatches(schema, 'ims_stock_allocation_operations', 'business_id', 'ims_products', 'business_id');
   } catch (e) {
     console.error(`  ✗ ${schema} schema catch-up: ${e.message}`);
   }

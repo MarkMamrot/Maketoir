@@ -105,8 +105,8 @@ export async function listXeroReconciliationTargets(
        FROM xero_reconciliation_targets
       WHERE business_id = ? AND id > ? AND xero_id IS NOT NULL AND expected_snapshot IS NOT NULL
       ORDER BY id ASC
-      LIMIT ?`,
-    [input.businessId, Math.max(0, Math.floor(input.afterId ?? 0)), limit],
+      LIMIT ${limit}`,
+    [input.businessId, Math.max(0, Math.floor(input.afterId ?? 0))],
   );
   return rows.map(row => ({
     id: Number(row.id),

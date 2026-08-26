@@ -30,7 +30,8 @@ export async function POST(request: Request) {
     return applyProspectCookie(NextResponse.json(result, { status: 201 }), session.cookie);
   } catch (error) {
     const response = publicErrorResponse(error);
-    if (response.status >= 500) await reportRuntimeIssue({
+    const requestAborted = error instanceof Error && error.message === 'aborted';
+    if (response.status >= 500 && !requestAborted) await reportRuntimeIssue({
       source: 'ProspectEventRoute', operation: 'record_event', title: 'Prospect event recording failed', error,
       context: { endpoint: 'public_sales_event' },
     }).catch(() => null);

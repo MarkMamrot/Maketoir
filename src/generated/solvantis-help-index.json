@@ -3293,6 +3293,80 @@
       ]
     },
     {
+      "id": "setup-runtime-issues",
+      "title": "Runtime Issues",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "SuperAdmin > Runtime Issues",
+      "product": "setup",
+      "format": "task",
+      "parentId": "setup-connections",
+      "contexts": [
+        "runtime-issues"
+      ],
+      "contextSections": {
+        "runtime-issues": "Step-by-step"
+      },
+      "relatedTopics": [
+        "setup-integration-readiness-troubleshooting",
+        "setup-team-access-security"
+      ],
+      "order": 6,
+      "summary": "Review operational failures, record the outcome, and close only issues that have been verified.",
+      "lastReviewed": "2026-08-26",
+      "owner": "platform",
+      "filename": "docs/help/setup/runtime-issues.md",
+      "sections": [
+        {
+          "id": "setup-runtime-issues:1",
+          "heading": "Runtime Issues",
+          "content": "Runtime Issues gives SuperAdmins one place to review application exceptions and integration failures across businesses. Repeated occurrences of the same failure are grouped into one issue."
+        },
+        {
+          "id": "setup-runtime-issues:2",
+          "heading": "Main operations",
+          "content": "- Review new issues in small batches.\n- Start with the latest occurrence, then use earlier occurrences to confirm whether the pattern changed.\n- Check the affected business, operation, dates, occurrence count, context, and history.\n- Record a concise resolution note before marking an issue fixed.\n- Keep an issue open when stock, money, customer value, or external-system state still needs a decision."
+        },
+        {
+          "id": "setup-runtime-issues:3",
+          "heading": "At a glance",
+          "content": "| Status | Meaning |\n| --- | --- |\n| New | The issue has not been verified or resolved |\n| In progress | Investigation or an external action is still underway |\n| Fixed | The cause or affected operational state has been verified as resolved |\n\nA fixed issue automatically returns to **New** if the same failure occurs again. This makes it safe to close verified historical incidents without hiding a recurrence."
+        },
+        {
+          "id": "setup-runtime-issues:4",
+          "heading": "Before you begin",
+          "content": "- Confirm you are signed in as a SuperAdmin.\n- Have access to the affected business and relevant external service when verification requires it.\n- Do not change stock, accounting, customer value, or integration links unless the intended correction is clear and authorised.\n- Treat context and stack details as diagnostic evidence, not as instructions to repeat an action."
+        },
+        {
+          "id": "setup-runtime-issues:5",
+          "heading": "Step-by-step",
+          "content": "1. Open **Admin** and select **Runtime Issues**.\n2. Choose **New** or **In progress**, then narrow the list by business, source, severity, or search.\n3. Open an issue to view its latest context and occurrence history in the side panel.\n4. Check the most recent occurrence first. Compare older entries when the message or context has changed.\n5. Verify the current code, configuration, external service, or affected record as appropriate.\n6. Enter resolution notes that state what was checked and why the selected status is accurate.\n7. Select **In progress** when work or a decision remains, or **Mark fixed** only after verification.\n\n> **Important:** A stopped recurrence is useful evidence, but it does not prove that affected stock, payments, orders, gift cards, or external links are correct. Verify those records separately."
+        },
+        {
+          "id": "setup-runtime-issues:6",
+          "heading": "Reading the detail panel",
+          "content": "The fixed header keeps the severity, source, operation, and close control visible while scrolling. Summary details show the business, occurrence count, first-seen time, and last-seen time. Latest context describes the newest occurrence, while Occurrence history retains earlier evidence and status changes."
+        },
+        {
+          "id": "setup-runtime-issues:7",
+          "heading": "Resolution notes",
+          "content": "Useful notes state the verified outcome in plain language. Include whether the issue was a code correction, configuration change, completed migration, resolved external incident, or reviewed business record. If no data was changed, say so when that distinction matters.\n\nAvoid credentials, access tokens, customer details, or raw external payloads in resolution notes."
+        },
+        {
+          "id": "setup-runtime-issues:8",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | What to do |\n| --- | --- | --- |\n| A fixed issue appears under New again | The same fingerprint occurred after it was closed | Review the newest occurrence; do not assume the earlier fix covered it |\n| A recurring issue has many occurrences | Repeated events were grouped together | Start with the latest event and compare only enough history to establish the pattern |\n| An issue references stock, money, or customer value | Operational data may need review | Keep it open until the intended correction is authorised and verified |\n| An issue references an external ID that no longer exists | The local integration link may be stale | Verify identity in the external service before relinking or clearing anything |\n| A button is disabled | A status update is already saving | Wait for the list to refresh before taking another action |"
+        },
+        {
+          "id": "setup-runtime-issues:9",
+          "heading": "Worked examples",
+          "content": "A missing tenant table that has since been deployed to every active business can be marked fixed after each tenant is verified. The resolution note should identify the completed rollout and state that no business records were changed.\n\nA Shopify fulfilment failure caused by insufficient stock should remain open if the order is still unfulfilled. Stock at another branch does not by itself authorise a transfer or a change of fulfilment location."
+        }
+      ]
+    },
+    {
       "id": "setup-team-access-security",
       "title": "Team Access and Security",
       "audiences": [

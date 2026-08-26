@@ -1,3 +1,19 @@
+## 2026-08-26 - Runtime Issue triage, query compatibility, and detail UI
+
+- Reviewed Runtime Issues in small batches using each fingerprint's latest event as primary evidence. The live control plane now has 40 fixed and 21 open fingerprints; issues requiring stock, customer-value, external-link, configuration, or current deployment decisions remain open.
+- Reworked the SuperAdmin Runtime Issue detail drawer for explicit dark-surface contrast, bounded responsive width, sticky actions, readable metadata/events, and automatic issue reopening remains authoritative when a fixed fingerprint recurs.
+- Fixed canonical-schema query failures in onboarding supplier counts, IMS dashboard product/brand insights, Shopify loyalty sync, and Xero reconciliation scanning. Production MySQL rejects prepared `LIMIT ?` on the affected paths, so validated and clamped integer literals are used instead.
+- Extended and applied the idempotent all-tenant catch-up to align online-shop and stock-allocation join-key collations with each tenant's owning IMS tables. Exact publication, allocation, shipping, CRM, and Sandbox joins were then executed successfully; no stock, order, accounting, gift-card, or customer-value data was mutated.
+- Onboarding issue 457 and dashboard issue 447 remain open until the deployment carrying their code fixes is live and rechecked. A fixed fingerprint must not be closed merely because code is ready: a new production occurrence automatically reopens it.
+- Added canonical Runtime Issues Help and rebuilt the generated Help/Assistant indexes. Validation passed the full Vitest suite, production build, touched-file diagnostics, and `git diff --check`; authenticated browser inspection of the redesigned drawer remains pending.
+
+## 2026-08-26 - Per-business feature rollouts and Foresight Marketing launch
+
+- Added a shared main-database `business_feature_flags` control plane and SuperAdmin **Feature Rollouts** matrix. Registered features are default-off when no row exists, switches persist the changing SuperAdmin identity, and new rollout entries are added through the typed `BUSINESS_FEATURES` registry rather than new `businesses` columns.
+- Foresight reads current flags through `/api/user/me`. Disabled businesses do not see Marketing Activities or Marketing Settings; stale Marketing hashes cannot mount Marketing views and return to Dashboard after flags load.
+- Initial `foresight.marketing` rollout was applied and idempotently verified: Monsterthreads is enabled; Monsterthreads DEV SANDBOX, Sage, and Solvantis Pty Ltd are disabled. The migration aligns `business_feature_flags.business_id` to the legacy `businesses.business_id` collation before joining.
+- Canonical Feature Rollouts and Foresight Help were updated and generated indexes rebuilt. Validation included focused feature-registry tests, full Vitest, production build, TypeScript diagnostics, migration rerun, live rollout-matrix readback, and `git diff --check`.
+
 ## 2026-08-23 - Native shop customer value, refunds, and custom domains
 
 - Signed-in native checkout now reserves one eligible fixed loyalty reward before store credit, freezes value when payment starts, finalizes both ledgers idempotently, and completes fully covered orders without creating a zero-value Stripe PaymentIntent. Native orders persist loyalty as a merchandise discount and Stripe/store-credit settlement as separate sales-order payment rows; loyalty earning uses the shared policy on eligible merchandise after the reward discount.

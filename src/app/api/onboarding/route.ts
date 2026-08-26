@@ -97,7 +97,7 @@ export async function GET() {
         countMain('SELECT COUNT(*) AS c FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_locations WHERE business_id = ? AND is_active = 1', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_brands WHERE business_id = ?', [businessId]),
-        countIms("SELECT COUNT(*) AS c FROM ims_contacts WHERE business_id = ? AND type IN ('supplier', 'both') AND is_active = 1 AND deleted_at IS NULL", [businessId]),
+        countIms("SELECT COUNT(*) AS c FROM ims_contacts WHERE business_id = ? AND type IN ('supplier', 'both') AND is_active = 1", [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_products WHERE business_id = ? AND is_active = 1', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_sales_orders WHERE business_id = ?', [businessId]),
         countIms('SELECT COUNT(*) AS c FROM ims_purchase_orders WHERE business_id = ?', [businessId]),

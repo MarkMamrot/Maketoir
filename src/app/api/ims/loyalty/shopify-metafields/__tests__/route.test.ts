@@ -69,7 +69,7 @@ describe('POST /api/ims/loyalty/shopify-metafields', () => {
     const response = await POST(request({ afterId: 5, limit: 2 }));
     const body = await response.json();
 
-    expect(mockImsQuery).toHaveBeenCalledWith(expect.stringContaining('business_id = ?'), ['business-1', 5, 3]);
+    expect(mockImsQuery).toHaveBeenCalledWith(expect.stringMatching(/business_id = \?[\s\S]*is_active = 1[\s\S]*LIMIT 3/), ['business-1', 5]);
     expect(mockSyncCustomer.mock.calls.map(call => call[0].contactId)).toEqual([10, 11]);
     expect(body).toMatchObject({ processed: 2, synced: 2, nextAfterId: 11, hasMore: true });
   });

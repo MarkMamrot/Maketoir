@@ -10,6 +10,7 @@ import {
   listOpenXeroReconciliationIssuesForDigest,
   ignoreXeroReconciliationIssue,
   insertXeroReconciliationTargetIfAbsent,
+  listXeroReconciliationTargets,
   recordXeroReconciliationActionEvent,
   recordXeroReconciliationEmailEvents,
   recordXeroReconciliationIssue,
@@ -17,6 +18,21 @@ import {
   saveXeroReconciliationEmailSettings,
   saveXeroReconciliationRecipients,
 } from '../repository';
+
+describe('listXeroReconciliationTargets', () => {
+  it('uses a clamped literal limit for MySQL prepared-statement compatibility', async () => {
+    const query = vi.fn().mockResolvedValue([]);
+
+    await listXeroReconciliationTargets(
+      { businessId: 'biz-1', afterId: 12, limit: 900 },
+      { query: query as any, execute: vi.fn() as any },
+    );
+
+    expect(String(query.mock.calls[0][0])).toContain('LIMIT 500');
+    expect(String(query.mock.calls[0][0])).not.toContain('LIMIT ?');
+    expect(query.mock.calls[0][1]).toEqual(['biz-1', 12]);
+  });
+});
 
 describe('reconciliation email persistence', () => {
   it('loads typed digest settings and persists the complete email schedule', async () => {
