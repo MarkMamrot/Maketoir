@@ -1136,7 +1136,7 @@
         {
           "id": "ims-catalogue-stock:2",
           "heading": "Main operations",
-          "content": "| I need to... | Open | What it changes |\n|---|---|---|\n| Create an item or add sizes and colours | **Products > All Products** | Product and variant details |\n| Check quantity at a store | **Products > Stock Levels** | Nothing; this is a read-only view |\n| Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |\n| Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |\n| Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |\n| Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |\n\n> **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive."
+          "content": "| I need to... | Open | What it changes |\n|---|---|---|\n| Create an item or add sizes and colours | **Products > All Products** | Product and variant details |\n| Check quantity at a store | **Products > Stock Levels** | Nothing; this is a read-only view |\n| Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |\n| Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |\n| Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |\n| Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |\n| Repair a Shopify product link | Open the product, then **Sync status > Advanced** | Shopify product and exact variant links only |\n\n> **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive."
         },
         {
           "id": "ims-catalogue-stock:3",
@@ -1145,26 +1145,31 @@
         },
         {
           "id": "ims-catalogue-stock:4",
+          "heading": "Shopify product links",
+          "content": "The small **Advanced** menu at the bottom-right of a product's Sync status panel is for repairing an incorrect or missing Shopify relationship.\n\n- **Delink from Shopify item** clears the Shopify product link and all Shopify variant and inventory-item links in Solvantis after confirmation. It does not delete the product in Shopify or change local product details, prices, stock or barcodes.\n- **Link Shopify item** verifies a Shopify product number before saving it. In Shopify Admin, open the product and copy the number immediately after `/products/` in the page URL. For example, the number in `/products/9404164997336` is `9404164997336`.\n\nWhen linking, Solvantis restores variant links only where an exact SKU or barcode identifies one Shopify variant. Ambiguous or unmatched variants remain unlinked rather than being guessed. Review the reported matched count before using product, price or inventory sync."
+        },
+        {
+          "id": "ims-catalogue-stock:5",
           "heading": "Brands",
           "content": "Create a consistent brand name before assigning it to products. A brand can be used in filters and may also affect online or wholesale presentation, so check affected products before renaming it.\n\nUse one spelling for the same brand. For example, choose **Coastal Home** rather than mixing **Coastal Home**, **CoastalHome** and **Coastal Home AU**."
         },
         {
-          "id": "ims-catalogue-stock:5",
+          "id": "ims-catalogue-stock:6",
           "heading": "Gift cards",
           "content": "Gift Cards shows issued cards and their supported balance activity. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity."
         },
         {
-          "id": "ims-catalogue-stock:6",
+          "id": "ims-catalogue-stock:7",
           "heading": "Bulk edit",
           "content": "Bulk Edit is useful when the same supported change applies to a known group. Before applying it:\n\n- [ ] Clear old filters.\n- [ ] Filter to the intended products or variants.\n- [ ] Review the full selection, not only the first rows.\n- [ ] Check whether the value is tax-inclusive or tax-exclusive.\n- [ ] Reopen a few affected products after the change.\n\nStop and narrow the selection if unrelated products appear. Use the individual product screen when exceptions need different values."
         },
         {
-          "id": "ims-catalogue-stock:7",
+          "id": "ims-catalogue-stock:8",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |\n| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |\n| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |\n| Bulk Edit includes too many items | The selection is broader than intended | Stop before applying, refine the filters and review again |"
         },
         {
-          "id": "ims-catalogue-stock:8",
+          "id": "ims-catalogue-stock:9",
           "heading": "Worked examples",
           "content": "### Update a winter price group\n\nA retailer needs to change 24 winter jackets to a tax-inclusive retail price of $220. They filter by the exact brand and product type, review all 24 products, apply the supported price change, then open three products to confirm the new price. The $220 price already contains $20 GST; GST is not added again at the register.\n\n### Investigate a stock question\n\nStock Levels shows 10 candles on hand and 3 committed, so 7 are available. The retailer checks the customer orders behind the committed quantity instead of increasing stock to 10 again."
         }

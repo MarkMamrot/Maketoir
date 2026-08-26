@@ -8,6 +8,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getIMSPool } from '@/services/IMSMySQLService';
 import fs from 'fs';
 import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -15,6 +16,8 @@ import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
+import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 async function getShopify(businessId: string) {
@@ -107,6 +110,136 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? 'Failed to load status' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const session = await getImsSession();
+  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const businessId = session.businessId as string;
+  const body = await req.json().catch(() => null);
+  const action = body?.action;
+  if (action !== 'link' && action !== 'unlink') {
+    return NextResponse.json({ error: 'Action must be link or unlink.' }, { status: 400 });
+  }
+
+  const product = await ImsProductsRepo.get(params.id, businessId);
+  if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+  const shop = await getShopify(businessId);
+  if (!shop) return NextResponse.json({ error: 'Shopify is not connected.' }, { status: 400 });
+
+  let shopifyProductId: string | null = null;
+  let remoteProduct: any = null;
+  let variantMatches: ReturnType<typeof matchShopifyVariants> = [];
+  if (action === 'link') {
+    shopifyProductId = parseShopifyProductId(body?.shopifyProductId);
+    if (!shopifyProductId) {
+      return NextResponse.json({ error: 'Enter the numeric Shopify product ID from its Admin URL.' }, { status: 400 });
+    }
+    if (product.shopify_product_id && String(product.shopify_product_id) !== shopifyProductId) {
+      return NextResponse.json({ error: 'Delink the current Shopify product before linking a different one.' }, { status: 409 });
+    }
+    try {
+      remoteProduct = await shop.service.getProduct(shopifyProductId);
+    } catch {
+      return NextResponse.json({ error: 'That Shopify product could not be found or accessed.' }, { status: 400 });
+    }
+    variantMatches = matchShopifyVariants(product.variants ?? [], remoteProduct?.variants ?? []);
+  }
+
+  const connection = await getIMSPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [[lockedProduct]] = await connection.execute<any[]>(
+      `SELECT shopify_product_id
+         FROM ims_products
+        WHERE product_id = ? AND business_id = ?
+        FOR UPDATE`,
+      [params.id, businessId],
+    );
+    if (!lockedProduct) {
+      await connection.rollback();
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    if (action === 'unlink') {
+      const [variants] = await connection.execute<any[]>(
+        `SELECT variant_id FROM ims_product_variants WHERE product_id = ? AND business_id = ?`,
+        [params.id, businessId],
+      );
+      const variantIds = variants.map(variant => String(variant.variant_id));
+      if (variantIds.length) {
+        await connection.execute(
+          `DELETE FROM ims_shopify_inventory_queue WHERE variant_id IN (${variantIds.map(() => '?').join(',')})`,
+          variantIds,
+        );
+      }
+      await connection.execute(
+        `UPDATE ims_product_variants
+            SET shopify_variant_id = NULL, shopify_inventory_item_id = NULL
+          WHERE product_id = ? AND business_id = ?`,
+        [params.id, businessId],
+      );
+      await connection.execute(
+        `UPDATE ims_products SET shopify_product_id = NULL WHERE product_id = ? AND business_id = ?`,
+        [params.id, businessId],
+      );
+      await connection.commit();
+      return NextResponse.json({ success: true, action, variantsDelinked: variantIds.length });
+    }
+
+    const [[duplicate]] = await connection.execute<any[]>(
+      `SELECT product_id, name
+         FROM ims_products
+        WHERE business_id = ? AND shopify_product_id = ? AND product_id <> ?
+        LIMIT 1`,
+      [businessId, shopifyProductId, params.id],
+    );
+    if (duplicate) {
+      await connection.rollback();
+      return NextResponse.json({ error: `That Shopify product is already linked to ${duplicate.name}.` }, { status: 409 });
+    }
+    await connection.execute(
+      `UPDATE ims_products SET shopify_product_id = ? WHERE product_id = ? AND business_id = ?`,
+      [shopifyProductId, params.id, businessId],
+    );
+    await connection.execute(
+      `UPDATE ims_product_variants
+          SET shopify_variant_id = NULL, shopify_inventory_item_id = NULL
+        WHERE product_id = ? AND business_id = ?`,
+      [params.id, businessId],
+    );
+    for (const match of variantMatches) {
+      await connection.execute(
+        `UPDATE ims_product_variants
+            SET shopify_variant_id = ?, shopify_inventory_item_id = ?
+          WHERE variant_id = ? AND product_id = ? AND business_id = ?`,
+        [match.shopifyVariantId, match.shopifyInventoryItemId, match.variantId, params.id, businessId],
+      );
+    }
+    await connection.commit();
+    return NextResponse.json({
+      success: true,
+      action,
+      shopifyProductId,
+      shopifyTitle: String(remoteProduct?.title ?? ''),
+      variantsLinked: variantMatches.length,
+      variantsTotal: product.variants?.length ?? 0,
+    });
+  } catch (error: any) {
+    await connection.rollback().catch(() => {});
+    await reportRuntimeIssue({
+      businessId,
+      source: 'shopify',
+      operation: 'manage_product_link',
+      title: 'Shopify product link update failed',
+      error,
+      context: { action, product_id: params.id, shopify_product_id: shopifyProductId },
+      reference: { type: 'product', id: params.id },
+    });
+    return NextResponse.json({ error: error?.message ?? 'Shopify link update failed.' }, { status: 500 });
+  } finally {
+    connection.release();
   }
 }
 

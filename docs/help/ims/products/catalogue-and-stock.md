@@ -15,6 +15,7 @@ Use this page to choose the right Products workspace. Product details describe w
 | Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |
 | Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |
 | Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |
+| Repair a Shopify product link | Open the product, then **Sync status > Advanced** | Shopify product and exact variant links only |
 
 > **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive.
 
@@ -29,6 +30,15 @@ Use this page to choose the right Products workspace. Product details describe w
 | Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Edit |
 
 Do not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.
+
+## Shopify product links
+
+The small **Advanced** menu at the bottom-right of a product's Sync status panel is for repairing an incorrect or missing Shopify relationship.
+
+- **Delink from Shopify item** clears the Shopify product link and all Shopify variant and inventory-item links in Solvantis after confirmation. It does not delete the product in Shopify or change local product details, prices, stock or barcodes.
+- **Link Shopify item** verifies a Shopify product number before saving it. In Shopify Admin, open the product and copy the number immediately after `/products/` in the page URL. For example, the number in `/products/9404164997336` is `9404164997336`.
+
+When linking, Solvantis restores variant links only where an exact SKU or barcode identifies one Shopify variant. Ambiguous or unmatched variants remain unlinked rather than being guessed. Review the reported matched count before using product, price or inventory sync.
 
 ## Brands
 

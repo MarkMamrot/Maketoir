@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardCopy, FileDown, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
+import { ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
@@ -4068,6 +4068,8 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [pushing, setPushing] = useState(false);
+  const [managingLink, setManagingLink] = useState(false);
+  const [shopifyProductId, setShopifyProductId] = useState('');
   const [msg, setMsg] = useState('');
 
   const load = async () => {
@@ -4100,6 +4102,32 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
     setPushing(false);
   };
 
+  const manageLink = async (action: 'link' | 'unlink') => {
+    if (action === 'unlink' && !window.confirm(
+      'Delink this IMS product from Shopify?\n\nThis does not delete anything in Shopify. It clears the product and variant links in IMS, so product, price and inventory sync will stop until it is linked again.',
+    )) return;
+    setManagingLink(true); setMsg('');
+    try {
+      const response = await fetch(`/api/ims/products/${productId}/shopify-sync`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, shopifyProductId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || 'Shopify link update failed.');
+      if (action === 'unlink') {
+        setMsg(`✓ Delinked from Shopify${data.variantsDelinked ? ` with ${data.variantsDelinked} variant link${data.variantsDelinked === 1 ? '' : 's'} cleared` : ''}.`);
+      } else {
+        setMsg(`✓ Linked to ${data.shopifyTitle || `Shopify product ${data.shopifyProductId}`}. Exact variant links: ${data.variantsLinked}/${data.variantsTotal}.`);
+        setShopifyProductId('');
+      }
+      await load();
+    } catch (error: any) {
+      setMsg(`⚠️ ${error.message}`);
+    }
+    setManagingLink(false);
+  };
+
   const chip = (text: string, bg: string, color: string) => (
     <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 99, background: bg, color }}>{text}</span>
   );
@@ -4119,7 +4147,7 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
         </label>
       </div>
 
-      <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+      <div style={{ position: 'relative', background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
         {loading ? (
           <span style={{ fontSize: 13, color: 'var(--sv-text-dim)' }}>Checking online store status…</span>
         ) : !status?.connected ? (
@@ -4149,6 +4177,35 @@ function OnlineStoreSection({ productId, isOnline, onChangeIsOnline, isReadOnly 
               <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Pushes title, description, tags, price and saved IMS images. Save your changes first.</span>
               {msg && <span style={{ fontSize: 12, color: msg.startsWith('✓') ? '#10b981' : '#f87171', fontWeight: 600 }}>{msg}</span>}
             </div>
+            {!isReadOnly && (
+              <details style={{ alignSelf: 'flex-end', position: 'relative' }}>
+                <summary style={{ listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 10, userSelect: 'none' }}>
+                  Advanced <ChevronDown size={12} aria-hidden="true" />
+                </summary>
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, width: 280, padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(0,0,0,.28)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {status.linked ? (
+                    <button type="button" onClick={() => manageLink('unlink')} disabled={managingLink}
+                      style={{ ...btnStyle('ghost', 'xs'), color: '#f87171', justifyContent: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <Link2Off size={14} aria-hidden="true" /> Delink from Shopify item
+                    </button>
+                  ) : (
+                    <>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                        Shopify product number
+                        <input value={shopifyProductId} onChange={event => setShopifyProductId(event.target.value)} inputMode="numeric" placeholder="9404164997336" style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontSize: 12 }} />
+                      </label>
+                      <div style={{ fontSize: 10, lineHeight: 1.4, color: 'var(--sv-text-muted)' }}>
+                        In Shopify Admin, open the product and use the number after <strong>/products/</strong> in its URL.
+                      </div>
+                      <button type="button" onClick={() => manageLink('link')} disabled={managingLink || !shopifyProductId.trim()}
+                        style={{ ...btnStyle('ghost', 'xs'), justifyContent: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 7, opacity: managingLink || !shopifyProductId.trim() ? .5 : 1 }}>
+                        <Link2 size={14} aria-hidden="true" /> {managingLink ? 'Checking…' : 'Link Shopify item'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </details>
+            )}
           </div>
         )}
       </div>
