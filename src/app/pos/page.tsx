@@ -917,6 +917,7 @@ function PosSettingsModal({
   activeRegister, zellerEnabled, onZellerToggle,
   trainingMode, onTrainingModeChange,
   inStockOnly, onInStockOnlyChange,
+  productViewMode, onProductViewModeChange,
   cartLeft, onCartLeftChange,
 }: {
   locationId:      number;
@@ -931,6 +932,8 @@ function PosSettingsModal({
   onTrainingModeChange: (enabled: boolean) => void;
   inStockOnly: boolean;
   onInStockOnlyChange: (enabled: boolean) => void;
+  productViewMode: 'variants' | 'products';
+  onProductViewModeChange: (mode: 'variants' | 'products') => void;
   cartLeft: boolean;
   onCartLeftChange: (left: boolean) => void;
 }) {
@@ -1030,6 +1033,14 @@ function PosSettingsModal({
         <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
           {tab === 'misc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Product display</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 3, borderRadius: 7, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }} role="group" aria-label="Product display">
+                  <button type="button" onClick={() => onProductViewModeChange('products')} aria-pressed={productViewMode === 'products'} style={{ minHeight: 34, border: 0, borderRadius: 5, background: productViewMode === 'products' ? 'var(--sv-action)' : 'transparent', color: productViewMode === 'products' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Products</button>
+                  <button type="button" onClick={() => onProductViewModeChange('variants')} aria-pressed={productViewMode === 'variants'} style={{ minHeight: 34, border: 0, borderRadius: 5, background: productViewMode === 'variants' ? 'var(--sv-action)' : 'transparent', color: productViewMode === 'variants' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Variants</button>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 7, lineHeight: 1.45 }}>Products groups the catalogue and asks for a variant before adding it. Barcode scans always add the exact scanned variant.</div>
+              </div>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
                   <input type="checkbox" checked={inStockOnly} onChange={event => onInStockOnlyChange(event.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }} />
@@ -1424,6 +1435,9 @@ function MainPos({
   const [queueInspectOpen, setQueueInspectOpen] = useState(false);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
   const [inStockOnly, setInStockOnly] = useState(() => { try { const value = localStorage.getItem('pos_in_stock_only'); return value === null ? true : value === '1'; } catch { return true; } });
+  const [productViewMode, setProductViewMode] = useState<'variants' | 'products'>(() => {
+    try { return localStorage.getItem('pos_product_view_mode') === 'products' ? 'products' : 'variants'; } catch { return 'variants'; }
+  });
   // undefined = still fetching, null = no open session, object = session is open
   const [regSession, setRegSession] = useState<any>(session.register_id ? undefined : null);
   const submittingRef = useRef(false);
@@ -2476,7 +2490,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }} productViewMode={productViewMode} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2804,6 +2818,8 @@ function MainPos({
           }}
           inStockOnly={inStockOnly}
           onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }}
+          productViewMode={productViewMode}
+          onProductViewModeChange={mode => { setProductViewMode(mode); try { localStorage.setItem('pos_product_view_mode', mode); } catch {} }}
           cartLeft={cartLeft}
           onCartLeftChange={left => { setCartLeft(left); try { localStorage.setItem('pos_cart_left', left ? '1' : '0'); } catch {} }}
           onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
@@ -3913,15 +3929,14 @@ function PosVariantPicker({ variants, onSelect, onInfo, onClose }: { variants: C
 
 // ─── Product Panel ────────────────────────────────────────────────────────────
 
-function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false, inStockOnly, onInStockOnlyChange }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean; inStockOnly: boolean; onInStockOnlyChange: (enabled: boolean) => void }) {
+function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', focusScanTick = 0, bgImage = '', bgOpacity = 10, bgPosition = 'center', bgScale = 'fit', cartLeft = false, inStockOnly, onInStockOnlyChange, productViewMode }: { products: CachedProduct[]; onAdd: (p: CachedProduct) => void; onChargeEnter?: () => void; defaultView?: string; focusScanTick?: number; bgImage?: string; bgOpacity?: number; bgPosition?: 'center' | 'bottom'; bgScale?: 'fit' | 'original'; cartLeft?: boolean; inStockOnly: boolean; onInStockOnlyChange: (enabled: boolean) => void; productViewMode: 'variants' | 'products' }) {
   const [search, setSearch]             = useState('');
   const [brand, setBrand]               = useState(() => defaultView.startsWith('brand:') ? defaultView.slice(6) : '');
   const [stockModal, setStockModal]     = useState<{ variantId: string; productName: string; imageUrl?: string; barcode?: string | null; sku?: string | null } | null>(null);
   const [productStockModal, setProductStockModal] = useState<CachedProduct[] | null>(null);
   const [variantPicker, setVariantPicker] = useState<CachedProduct[] | null>(null);
-  const [productViewMode, setProductViewMode] = useState<'variants' | 'products'>(() => {
-    try { return localStorage.getItem('pos_product_view_mode') === 'products' ? 'products' : 'variants'; } catch { return 'variants'; }
-  });
+
+  useEffect(() => { setVariantPicker(null); }, [productViewMode]);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {
@@ -4293,17 +4308,6 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
           title={inStockOnly ? 'Showing in-stock only — click to show all' : 'Show in-stock only'}
           style={{ flexShrink: 0, padding: '5px 9px', borderRadius: 6, border: `1px solid ${inStockOnly ? 'var(--sv-mint)' : 'var(--sv-etch)'}`, background: inStockOnly ? 'var(--sv-mint-tint)' : 'transparent', color: inStockOnly ? 'var(--sv-mint)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 12, fontWeight: 600, lineHeight: 1, whiteSpace: 'nowrap' }}
         >In Stock</button>
-          <div role="group" aria-label="Product search display" style={{ display: 'flex', flexShrink: 0, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
-            {(['variants', 'products'] as const).map(view => (
-              <button
-                key={view}
-                onClick={() => { setProductViewMode(view); setVariantPicker(null); try { localStorage.setItem('pos_product_view_mode', view); } catch {} }}
-                aria-pressed={productViewMode === view}
-                title={view === 'variants' ? 'Show each variant separately' : 'Show one tile per product, then choose a variant'}
-                style={{ padding: '5px 8px', border: 'none', borderLeft: view === 'products' ? '1px solid var(--sv-etch)' : 'none', background: productViewMode === view ? 'var(--sv-bg-2)' : 'transparent', color: productViewMode === view ? 'var(--sv-action)' : 'var(--sv-text-dim)', cursor: 'pointer', fontSize: 11, fontWeight: 700, lineHeight: 1 }}
-              >{view === 'variants' ? 'Variants' : 'Products'}</button>
-            ))}
-          </div>
           {/* Search button */}
           <button
             onClick={() => { if (search.trim()) { setMode('search'); setDropdownOpen(false); setHighlightIdx(-1); inputRef.current?.focus(); } }}

@@ -44,7 +44,7 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 
 ## Step-by-step
 
-1. Choose **Variants** to see each variant separately, or **Products** to see one result for each product.
+1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.
 2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.
 3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.
 4. Add the correct variant and set the quantity.
