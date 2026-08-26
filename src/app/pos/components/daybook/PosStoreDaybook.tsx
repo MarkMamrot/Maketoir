@@ -431,7 +431,7 @@ function EditorForm({ type, form, setForm, locations, saving, perform }: { type:
     {type === 'reference' && <><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Title" value={form.title} onChange={value => setForm({ ...form, title: value })} /><Field label="Information" type="textarea" value={form.content} onChange={value => setForm({ ...form, content: value })} /><Field label="Safe link (optional)" type="url" value={form.link_url} onChange={value => setForm({ ...form, link_url: value })} /></>}
     {type === 'guide' && <><GuideProductPicker form={form} setForm={setForm} /><div className={styles.formRow}><Field label="Category" value={form.category} onChange={value => setForm({ ...form, category: value })} /><Field label="Shelf" value={form.shelf_location} onChange={value => setForm({ ...form, shelf_location: value })} /><Field label="Box" value={form.box_location} onChange={value => setForm({ ...form, box_location: value })} /></div><Field label="Guidance" type="textarea" value={form.guidance} onChange={value => setForm({ ...form, guidance: value })} /></>}
     {type !== 'task' && <ColourPicker value={form.background_color} onChange={value => setForm({ ...form, background_color: value })} />}
-    <button className={styles.primary} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button>
+    <button className={styles.primary} disabled={saving || (type === 'guide' && !form.variant_id)}>{saving ? 'Saving…' : editing ? 'Save changes' : `Add ${heading}`}</button>
   </form></>;
 }
 

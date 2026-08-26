@@ -27,7 +27,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 | Store needs | Consumables or stock needed from a warehouse | Requested, approved, packed, sent and received |
 | Discrepancies | Differences between system and physical quantities | A manager records the stocktake outcome |
 | Incidents | Factual safety, security, loss or damage reports | Staff sign on submission; managers review and close |
-| References and Product guide | Approved store information, shelf and box locations | Managers maintain the content |
+| References and Product guide | Approved store information, product photos, shelf and box locations | Managers maintain the content |
 
 ## Before you begin
 
@@ -81,6 +81,10 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 Managers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.
 
+To add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.
+
+Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
+
 When an item can be edited under the current policy, select its pencil button to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
 
 Managers open **Settings** and choose one tenant-wide editing policy:
@@ -114,7 +118,8 @@ Status changes and incident visibility still follow their separate operational p
 | The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
-| Product photo or box location is blank | The guide has not yet been enriched | Use the known shelf details and ask a manager to add the missing guidance |
+| Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |
+| A Product guide cannot be saved | No active catalogue product has been selected | Search by product name, SKU or barcode and select a result before saving |
 
 ## Worked examples
 
