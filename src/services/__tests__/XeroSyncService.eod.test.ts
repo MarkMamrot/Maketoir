@@ -201,6 +201,46 @@ describe('triggerEodXeroSync clearing payments', () => {
     expect(results).toEqual([expect.objectContaining({ status: 'paid', xeroId: 'invoice-1' })]);
   });
 
+  it('posts calculated card fees from the location clearing account after payment', async () => {
+    mockQuery.mockImplementation((sql: string) => {
+      if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{
+        payment_method: 'Card', xero_account_code: '091', fee_account_code: '404',
+        fee_tax_type: 'INPUT', deduct_fee_enabled: 1, fixed_fee_amount: 0.3, percentage_fee_rate: 1.75,
+      }]);
+      if (sql.includes('role_key = ?')) return Promise.resolve(NEWTOWN_REVENUE_MAPPING);
+      if (sql.includes('xero_account_mappings')) return Promise.resolve([{ role_key: 'sales_revenue', xero_account_code: '200' }]);
+      return Promise.resolve([]);
+    });
+    mockImsQuery.mockImplementation((sql: string) => {
+      if (sql.includes('FROM pos_payments')) return Promise.resolve([{ gross_amount: '110.00', payment_count: '2' }]);
+      if (sql.includes('issued_total')) return Promise.resolve([{ issued_total: '0' }]);
+      return Promise.resolve([]);
+    });
+    mockXeroApiFetch
+      .mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'invoice-fee', InvoiceNumber: 'INV-FEE', AmountDue: 110 }] })
+      .mockResolvedValueOnce({ Payments: [{ PaymentID: 'payment-fee' }] })
+      .mockResolvedValueOnce({ BankTransactions: [{ BankTransactionID: 'fee-transaction' }] });
+
+    const results = await triggerEodXeroSync(
+      'biz-1', 4, '2026-07-25',
+      [{ id: 81, payment_method: 'Card', counted_amount: 110, opening_float: 0, register_session_id: 8 }],
+      'Newtown', 2, persistence(), 'Front Till',
+    );
+
+    const feeTransaction = mockXeroApiFetch.mock.calls[2][2].body.BankTransactions[0];
+    expect(feeTransaction).toEqual(expect.objectContaining({
+      Type: 'SPEND',
+      LineAmountTypes: 'Inclusive',
+      BankAccount: { Code: '091' },
+    }));
+    expect(feeTransaction.LineItems[0]).toEqual(expect.objectContaining({
+      UnitAmount: 2.53,
+      AccountCode: '404',
+      TaxType: 'INPUT',
+    }));
+    expect(results).toEqual([expect.objectContaining({ status: 'paid', xeroId: 'invoice-fee' })]);
+  });
+
   it('retries only the payment when a new-flow invoice already exists', async () => {
     mockQuery.mockImplementation((sql: string) => {
       if (sql.includes('xero_pos_clearing_mappings')) return Promise.resolve([{ payment_method: 'Card', xero_account_code: '091' }]);

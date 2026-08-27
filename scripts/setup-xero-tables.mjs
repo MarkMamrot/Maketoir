@@ -210,6 +210,26 @@ async function main() {
     }
   }
 
+  const posClearingFeeColumns = [
+    ['fee_account_code', 'VARCHAR(50) NULL AFTER xero_account_name'],
+    ['fee_account_name', 'VARCHAR(255) NULL AFTER fee_account_code'],
+    ['fee_tax_type', 'VARCHAR(30) NULL AFTER fee_account_name'],
+    ['deduct_fee_enabled', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER fee_tax_type'],
+    ['fixed_fee_amount', 'DECIMAL(10,4) NOT NULL DEFAULT 0 AFTER deduct_fee_enabled'],
+    ['percentage_fee_rate', 'DECIMAL(8,4) NOT NULL DEFAULT 0 AFTER fixed_fee_amount'],
+  ];
+  for (const [columnName, definition] of posClearingFeeColumns) {
+    const [columns] = await conn.query(
+      `SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_pos_clearing_mappings'
+          AND COLUMN_NAME = ? LIMIT 1`,
+      [columnName],
+    );
+    if (columns.length === 0) {
+      await conn.query(`ALTER TABLE xero_pos_clearing_mappings ADD COLUMN ${columnName} ${definition}`);
+    }
+  }
+
   const cashDepositConfirmationColumns = [
     ['deposited_total', 'DECIMAL(14,2) NULL AFTER variance_total'],
     ['bank_variance_total', 'DECIMAL(14,2) NULL AFTER deposited_total'],
@@ -254,6 +274,7 @@ async function main() {
   console.log('✔ xero_cogs_journal_runs created');
   console.log('✔ xero_pos_payment_mappings created');
   console.log('✔ xero_pos_clearing_mappings created');
+  console.log('✔ xero_pos_eod_fees created');
   console.log('✔ xero_pos_cash_eod_actions created');
   console.log('✔ xero_cash_deposit_settings created');
   console.log('✔ xero_cash_deposits created');

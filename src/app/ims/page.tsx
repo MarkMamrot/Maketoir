@@ -18762,16 +18762,30 @@ function XeroDocumentPolicySection({ getBusinessId }: { getBusinessId: () => str
   );
 }
 
-function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string; enablePaymentsToAccount?: boolean }[]; getBusinessId: () => string }) {
+function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: { accountId: string; code: string; name: string; type: string; class: string; enablePaymentsToAccount?: boolean }[]; getBusinessId: () => string }) {
+  type PosClearingMapping = {
+    ims_location_id: number;
+    payment_method: string;
+    xero_account_id: string;
+    xero_account_code: string;
+    xero_account_name: string | null;
+    fee_account_code: string | null;
+    fee_account_name: string | null;
+    fee_tax_type: 'INPUT' | 'NONE' | null;
+    deduct_fee_enabled: boolean | number;
+    fixed_fee_amount: number;
+    percentage_fee_rate: number;
+  };
   const [methods, setMethods] = useState<Array<{ payment_method: string }>>([]);
   const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
-  const [mappings, setMappings] = useState<Array<{ ims_location_id: number; payment_method: string; xero_account_id: string; xero_account_code: string; xero_account_name: string | null }>>([]);
+  const [mappings, setMappings] = useState<PosClearingMapping[]>([]);
   const [depositSettings, setDepositSettings] = useState<Array<{ ims_location_id: number; destination_account_id: string; destination_account_code: string; destination_account_name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<Record<string, string>>({});
   const clearingAccounts = accounts.filter(account => account.type === 'BANK' || account.enablePaymentsToAccount === true);
   const bankAccounts = accounts.filter(account => account.type === 'BANK');
+  const expenseAccounts = accounts.filter(account => account.class === 'EXPENSE');
 
   const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
   const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
@@ -18807,14 +18821,17 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
 
   useEffect(() => { load(); }, []);
 
-  const handleMapAccount = async (locationId: number, paymentMethod: string, accountId: string) => {
+  const handleSaveMapping = async (locationId: number, paymentMethod: string, changes: Partial<PosClearingMapping>) => {
     const bid = getBusinessId();
     if (!bid) return;
     const key = cellKey(locationId, paymentMethod);
+    const current = mappingFor(locationId, paymentMethod);
+    const next = { ...current, ...changes };
     setSaving(key);
     setSaveError(previous => ({ ...previous, [key]: '' }));
     try {
-      const account = clearingAccounts.find(candidate => candidate.accountId === accountId);
+      const account = clearingAccounts.find(candidate => candidate.accountId === next.xero_account_id);
+      const feeAccount = expenseAccounts.find(candidate => candidate.code === next.fee_account_code);
       const res = await fetch('/api/xero/pos-payment-mappings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -18824,6 +18841,11 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
           paymentMethod,
           xeroAccountId: account?.accountId ?? '',
           xeroAccountCode: account?.code ?? '',
+          feeAccountCode: feeAccount?.code ?? '',
+          feeTaxType: next.fee_tax_type ?? 'NONE',
+          deductFeeEnabled: Boolean(next.deduct_fee_enabled),
+          fixedFeeAmount: Number(next.fixed_fee_amount ?? 0),
+          percentageFeeRate: Number(next.percentage_fee_rate ?? 0),
         }),
       });
       const data = await res.json();
@@ -18836,6 +18858,12 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
           xero_account_id: account.accountId,
           xero_account_code: account.code,
           xero_account_name: account.name,
+          fee_account_code: feeAccount?.code ?? null,
+          fee_account_name: feeAccount?.name ?? null,
+          fee_tax_type: next.fee_tax_type ?? 'NONE',
+          deduct_fee_enabled: Boolean(next.deduct_fee_enabled),
+          fixed_fee_amount: Number(next.fixed_fee_amount ?? 0),
+          percentage_fee_rate: Number(next.percentage_fee_rate ?? 0),
         }] : remaining;
       });
     } catch (error: any) {
@@ -18906,24 +18934,28 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No active POS locations found.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(860, 440 + methods.length * 250) }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1500 }}>
             <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
               <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Location</th>
-              {methods.map(method => <th key={method.payment_method} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{method.payment_method}</th>)}
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Payment method</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Clearing account</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Fee account</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Fee tax</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Calculated fees</th>
               <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Default Cash Deposit Bank</th>
             </tr></thead>
             <tbody>
-              {locations.map(location => (
-                <tr key={location.id} style={{ borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
-                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{location.name}</td>
-                  {methods.map(method => {
+              {locations.flatMap(location => methods.map((method, methodIndex) => {
                     const key = cellKey(location.id, method.payment_method);
                     const mapping = mappingFor(location.id, method.payment_method);
                     return (
-                      <td key={method.payment_method} style={{ padding: '5px 8px' }}>
+                <tr key={key} style={{ borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
+                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{methodIndex === 0 ? location.name : ''}</td>
+                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{method.payment_method}</td>
+                  <td style={{ padding: '5px 8px' }}>
                         <select
                           value={mapping?.xero_account_id || ''}
-                          onChange={event => handleMapAccount(location.id, method.payment_method, event.target.value)}
+                      onChange={event => handleSaveMapping(location.id, method.payment_method, { xero_account_id: event.target.value })}
                           disabled={saving === key}
                           style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : mapping ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: mapping ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
                         >
@@ -18935,9 +18967,53 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                           ))}
                         </select>
                         {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
-                      </td>
-                    );
-                  })}
+                  </td>
+                  <td style={{ padding: '5px 8px' }}>
+                    <select
+                      value={mapping?.fee_account_code ?? ''}
+                      onChange={event => handleSaveMapping(location.id, method.payment_method, { fee_account_code: event.target.value || null })}
+                      disabled={saving === key || !mapping}
+                      style={{ width: '100%', minWidth: 190, padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}
+                    >
+                      <option value="">— no calculated fee —</option>
+                      {expenseAccounts.map(account => <option key={account.accountId} value={account.code}>{account.code} — {account.name}</option>)}
+                    </select>
+                  </td>
+                  <td style={{ padding: '5px 8px' }}>
+                    <select
+                      value={mapping?.fee_tax_type ?? 'NONE'}
+                      onChange={event => handleSaveMapping(location.id, method.payment_method, { fee_tax_type: event.target.value as 'INPUT' | 'NONE' })}
+                      disabled={saving === key || !mapping}
+                      style={{ width: '100%', minWidth: 150, padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}
+                    >
+                      <option value="NONE">BAS Excluded</option>
+                      <option value="INPUT">GST on Expenses</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '5px 8px', minWidth: 260 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-main)', fontSize: 11 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(mapping?.deduct_fee_enabled)}
+                        onChange={event => handleSaveMapping(location.id, method.payment_method, { deduct_fee_enabled: event.target.checked })}
+                        disabled={saving === key || !mapping || !mapping.fee_account_code}
+                      />
+                      Calculate from POS payments
+                    </label>
+                    {Boolean(mapping?.deduct_fee_enabled) && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>$</span>
+                        <input type="number" min="0" step="0.01" title="Fixed fee per payment" defaultValue={Number(mapping?.fixed_fee_amount ?? 0)}
+                          onBlur={event => handleSaveMapping(location.id, method.payment_method, { fixed_fee_amount: Number(event.target.value) })}
+                          disabled={saving === key} style={{ width: 72, padding: '5px 6px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>+</span>
+                        <input type="number" min="0" max="100" step="0.01" title="Percentage fee" defaultValue={Number(mapping?.percentage_fee_rate ?? 0)}
+                          onBlur={event => handleSaveMapping(location.id, method.payment_method, { percentage_fee_rate: Number(event.target.value) })}
+                          disabled={saving === key} style={{ width: 72, padding: '5px 6px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>% per payment</span>
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '5px 8px' }}>
                     {(() => {
                       const key = `deposit:${location.id}`;
@@ -18962,7 +19038,8 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                     })()}
                   </td>
                 </tr>
-              ))}
+                    );
+              }))}
             </tbody>
           </table>
         </div>

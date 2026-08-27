@@ -482,7 +482,7 @@
       ],
       "order": 91,
       "summary": "Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "owner": "integrations",
       "filename": "docs/help/ims/integrations/xero-sync-and-reconciliation.md"
     },
@@ -4014,7 +4014,7 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "Use Xero setup and activity views to configure supported accounting work, investigate failures, and retry without repeating successful IMS operations."
     },
     {
@@ -4032,7 +4032,7 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "- Maintain sync rules, account and tracking mappings, and payment routing.\n- Review Sync History for pending, successful, blocked, partial, or dismissed work.\n- Use COGS Reconciliation to investigate cost posting coverage.\n- Review and post balanced Shopify payout plans when enabled.\n- Retry only the accounting action that remains unfinished."
     },
     {
@@ -4050,7 +4050,7 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Area | Use it for | Typical question |\n|---|---|---|\n| Sync Rules | Choose which supported workflows create Xero documents and when | Should this workflow post automatically? |\n| Accounts & Tracking | Map IMS activity to Xero accounts and reporting dimensions | Which account or branch option should this use? |\n| Payment Methods | Route tender and gateway settlement | Where should this payment clear? |\n| Sync History | Inspect and retry accounting work | Did Xero accept this source? |\n| COGS Reconciliation | Compare eligible source cost with Xero journals | Is cost of goods sold fully posted? |\n| Shopify Payouts | Plan and post balanced payout settlement | Do sales, fees, refunds, and payout total balance? |"
     },
     {
@@ -4068,7 +4068,7 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "- [ ] Confirm Xero is connected and authorized.\n- [ ] Identify the exact IMS source and whether its operational action already succeeded.\n- [ ] Read the safe error shown in Sync History.\n- [ ] Check the required account, tax, tracking, and payment mappings.\n- [ ] Confirm whether the workflow is manual or automatic under Sync Rules.\n\n> **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry."
     },
     {
@@ -4086,8 +4086,8 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "### Configure a posting path\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Save the mappings and run a normal source workflow.\n5. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\n### Recover a failed accounting action\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting."
+      "lastReviewed": "2026-08-27",
+      "content": "### Configure a posting path\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n4. Under **POS Clearing Accounts**, optionally configure processing fees for each location and payment method:\n\t- Choose the fee expense account and whether the fee is **GST on Expenses** or **BAS Excluded**.\n\t- Enable calculated fees and enter the fixed amount per successful payment plus the percentage rate.\n\t- Calculated fees post from that row's clearing account after its EOD invoice payment succeeds.\n5. Save the mappings and run a normal source workflow.\n6. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\n### Recover a failed accounting action\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting."
     },
     {
       "id": "ims-xero-reconciliation:6",
@@ -4104,7 +4104,7 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Many entries fail together | Connection expired or Xero unavailable | Reauthorize and retry affected entries |\n| One source is blocked | A required mapping or source condition is missing | Correct the named item and retry that entry |\n| COGS does not reconcile | Missing or incomplete historical cost coverage, or journal not posted | Review COGS Reconciliation and source movement cost |\n| Shopify payout will not post | Invoice, credit, clearing account, fee account, tax, currency, or total does not balance | Fix the named difference and replan |\n| Entry was dismissed | It was removed from the active queue, not synced | Find it in history and use the available manual retry if still required |"
     },
     {
@@ -4122,8 +4122,8 @@
         "xero"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "### Operational success with accounting failure\n\nStaff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.\n\n### Reconcile a Shopify payout\n\nA paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout."
+      "lastReviewed": "2026-08-27",
+      "content": "### Operational success with accounting failure\n\nStaff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.\n\n### Reconcile a Shopify payout\n\nA paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.\n\n### Calculate a POS card fee\n\nNewtown Card is configured for a $0.30 fixed fee and 1.75%. Two successful card payments total $110.00 during the register session. The EOD fee is $0.30 × 2 + $110.00 × 1.75% = $2.53. After the card clearing payment succeeds, Solvantis posts a $2.53 Spend Money transaction from Newtown's card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment."
     },
     {
       "id": "ims-catalogue-stock:1",

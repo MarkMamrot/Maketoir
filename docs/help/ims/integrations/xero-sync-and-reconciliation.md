@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Integrations > Xero","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero"],"contextSections":{"xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-08-23","owner":"integrations"}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Integrations > Xero","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero"],"contextSections":{"xero":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-08-27","owner":"integrations"}
 ---
 # Xero Sync and Reconciliation
 
@@ -41,8 +41,12 @@ Use Xero setup and activity views to configure supported accounting work, invest
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.
 3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.
-4. Save the mappings and run a normal source workflow.
-5. Open **Sync History** and confirm the resulting status before enabling broader automation.
+4. Under **POS Clearing Accounts**, optionally configure processing fees for each location and payment method:
+	- Choose the fee expense account and whether the fee is **GST on Expenses** or **BAS Excluded**.
+	- Enable calculated fees and enter the fixed amount per successful payment plus the percentage rate.
+	- Calculated fees post from that row's clearing account after its EOD invoice payment succeeds.
+5. Save the mappings and run a normal source workflow.
+6. Open **Sync History** and confirm the resulting status before enabling broader automation.
 
 ### Recover a failed accounting action
 
@@ -85,3 +89,7 @@ Staff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xer
 ### Reconcile a Shopify payout
 
 A paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.
+
+### Calculate a POS card fee
+
+Newtown Card is configured for a $0.30 fixed fee and 1.75%. Two successful card payments total $110.00 during the register session. The EOD fee is $0.30 × 2 + $110.00 × 1.75% = $2.53. After the card clearing payment succeeds, Solvantis posts a $2.53 Spend Money transaction from Newtown's card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.

@@ -88,17 +88,54 @@ export async function getTrackingMappings(businessId: string): Promise<TrackingM
   );
 }
 
-async function getPosClearingMappings(businessId: string, locationId: number): Promise<Record<string, string>> {
-  const rows = await query<{ payment_method: string; xero_account_code: string }>(
-    `SELECT payment_method, xero_account_code
-       FROM xero_pos_clearing_mappings
-      WHERE business_id = ? AND ims_location_id = ?`,
-    [businessId, locationId],
-  );
-  const mappings: Record<string, string> = {};
+type PosClearingMapping = {
+  xeroAccountCode: string;
+  feeAccountCode: string | null;
+  feeTaxType: 'INPUT' | 'NONE';
+  deductFeeEnabled: boolean;
+  fixedFeeAmount: number;
+  percentageFeeRate: number;
+};
+
+async function getPosClearingMappings(businessId: string, locationId: number): Promise<Record<string, PosClearingMapping>> {
+  type PosClearingMappingRow = {
+    payment_method: string;
+    xero_account_code: string;
+    fee_account_code?: string | null;
+    fee_tax_type?: string | null;
+    deduct_fee_enabled?: number;
+    fixed_fee_amount?: number;
+    percentage_fee_rate?: number;
+  };
+  let rows: PosClearingMappingRow[];
+  try {
+    rows = await query<PosClearingMappingRow>(
+      `SELECT payment_method, xero_account_code, fee_account_code, fee_tax_type,
+              deduct_fee_enabled, fixed_fee_amount, percentage_fee_rate
+         FROM xero_pos_clearing_mappings
+        WHERE business_id = ? AND ims_location_id = ?`,
+      [businessId, locationId],
+    );
+  } catch (error: any) {
+    if (error?.code !== 'ER_BAD_FIELD_ERROR') throw error;
+    rows = await query<PosClearingMappingRow>(
+      `SELECT payment_method, xero_account_code
+         FROM xero_pos_clearing_mappings
+        WHERE business_id = ? AND ims_location_id = ?`,
+      [businessId, locationId],
+    );
+  }
+  const mappings: Record<string, PosClearingMapping> = {};
   for (const row of rows) {
     const key = row.payment_method.trim().toLowerCase();
-    if (key) mappings[key] = row.xero_account_code;
+    if (key) mappings[key] = {
+      xeroAccountCode: row.xero_account_code,
+      feeAccountCode: row.fee_account_code || null,
+      feeTaxType: row.fee_tax_type === 'INPUT' ? 'INPUT' : 'NONE',
+      deductFeeEnabled: Boolean(row.deduct_fee_enabled),
+      fixedFeeAmount: Number(row.fixed_fee_amount ?? 0),
+      percentageFeeRate: Number(row.percentage_fee_rate ?? 0),
+    };
   }
   return mappings;
 }
@@ -2723,7 +2760,7 @@ type EodSyncPersistence = {
 
 export type EodXeroSyncResult = {
   method: string;
-  status: 'paid' | 'not_required' | 'blocked_missing_mapping' | 'blocked_missing_revenue_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
+  status: 'paid' | 'not_required' | 'blocked_missing_mapping' | 'blocked_missing_revenue_mapping' | 'blocked_missing_over_short_mapping' | 'blocked_missing_petty_cash_mapping' | 'invoice_posted_payment_failed' | 'paid_variance_failed' | 'paid_petty_cash_failed' | 'paid_fee_failed' | 'already_paid' | 'invoice_failed' | 'skipped_policy' | 'invoice_only_policy';
   xeroId?: string;
   invoiceNumber?: string;
   error?: string;
@@ -2755,6 +2792,121 @@ async function applyEodClearingPayment(
   const paymentId = response?.Payments?.[0]?.PaymentID;
   if (!paymentId) throw new Error('Xero did not return a clearing payment ID');
   return paymentId;
+}
+
+async function postPosEodFee(input: {
+  businessId: string;
+  reconciliationId: number | undefined;
+  date: string;
+  locationId: number;
+  locationName: string;
+  registerId: number | null;
+  sessionId: number | null;
+  method: string;
+  mapping: PosClearingMapping;
+}): Promise<string | null> {
+  if (!input.mapping.deductFeeEnabled || !input.mapping.feeAccountCode) return null;
+  if (!input.reconciliationId) throw new Error('POS fee posting requires an EOD reconciliation ID');
+
+  const normalizedMethod = input.method.trim().toLowerCase();
+  const totals = await imsQuery<{ gross_amount: string; payment_count: string }>(
+    input.sessionId
+      ? `SELECT COALESCE(SUM(p.amount), 0) AS gross_amount, COUNT(*) AS payment_count
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+          WHERE s.location_id = ? AND s.register_session_id = ?
+            AND s.status IN ('completed','layby_complete') AND p.amount > 0
+            AND LOWER(TRIM(p.payment_method)) = ?`
+      : `SELECT COALESCE(SUM(p.amount), 0) AS gross_amount, COUNT(*) AS payment_count
+           FROM pos_payments p
+           JOIN pos_sales s ON s.id = p.sale_id
+          WHERE s.location_id = ? AND DATE(s.completed_at) = ?
+            AND (? IS NULL OR s.register_id = ?)
+            AND s.status IN ('completed','layby_complete') AND p.amount > 0
+            AND LOWER(TRIM(p.payment_method)) = ?`,
+    input.sessionId
+      ? [input.locationId, input.sessionId, normalizedMethod]
+      : [input.locationId, input.date, input.registerId, input.registerId, normalizedMethod],
+  );
+  const grossAmount = roundCurrency(Number(totals[0]?.gross_amount ?? 0));
+  const paymentCount = Number(totals[0]?.payment_count ?? 0);
+  const feeAmount = roundCurrency(
+    input.mapping.fixedFeeAmount * paymentCount
+      + grossAmount * input.mapping.percentageFeeRate / 100,
+  );
+  if (!(feeAmount > 0)) return null;
+
+  let claim = await execute(
+    `INSERT IGNORE INTO xero_pos_eod_fees
+       (business_id, eod_reconciliation_id, fee_amount, payment_count, gross_amount,
+        clearing_account_code, fee_account_code, fee_tax_type, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'posting')`,
+    [input.businessId, input.reconciliationId, feeAmount, paymentCount, grossAmount,
+     input.mapping.xeroAccountCode, input.mapping.feeAccountCode, input.mapping.feeTaxType],
+  );
+  if (claim.affectedRows === 0) {
+    claim = await execute(
+      `UPDATE xero_pos_eod_fees
+          SET status = 'posting', error_detail = NULL, fee_amount = ?, payment_count = ?, gross_amount = ?,
+              clearing_account_code = ?, fee_account_code = ?, fee_tax_type = ?
+        WHERE business_id = ? AND eod_reconciliation_id = ?
+          AND (status IN ('pending','error') OR (status = 'posting' AND updated_at < DATE_SUB(NOW(), INTERVAL 15 MINUTE)))`,
+      [feeAmount, paymentCount, grossAmount, input.mapping.xeroAccountCode, input.mapping.feeAccountCode,
+       input.mapping.feeTaxType, input.businessId, input.reconciliationId],
+    );
+  }
+  if (claim.affectedRows === 0) return null;
+
+  const reference = `POS fee L${input.locationId} ${input.method} ${input.date}`;
+  const idempotencyKey = crypto.createHash('sha256')
+    .update(`${input.businessId}|pos-eod-fee|${input.reconciliationId}`)
+    .digest('hex');
+  try {
+    const response = await xeroApiFetch(input.businessId, '/BankTransactions', {
+      method: 'POST',
+      idempotencyKey,
+      body: { BankTransactions: [{
+        Type: 'SPEND',
+        Contact: { Name: `${input.method} processing fees` },
+        Date: input.date,
+        LineAmountTypes: input.mapping.feeTaxType === 'INPUT' ? 'Inclusive' : 'NoTax',
+        BankAccount: { Code: input.mapping.xeroAccountCode },
+        Reference: reference,
+        LineItems: [{
+          Description: `${input.locationName} ${input.method} fees (${paymentCount} payments)`,
+          Quantity: 1,
+          UnitAmount: feeAmount,
+          AccountCode: input.mapping.feeAccountCode,
+          TaxType: input.mapping.feeTaxType,
+        }],
+      }] },
+    });
+    const transactionId = response?.BankTransactions?.[0]?.BankTransactionID;
+    if (!transactionId) throw new Error('Xero did not return a fee bank transaction ID');
+    await execute(
+      `UPDATE xero_pos_eod_fees SET status = 'completed', xero_bank_transaction_id = ?, error_detail = NULL
+        WHERE business_id = ? AND eod_reconciliation_id = ?`,
+      [transactionId, input.businessId, input.reconciliationId],
+    );
+    return transactionId;
+  } catch (error: any) {
+    const message = error?.message ?? 'POS processing fee posting failed';
+    await execute(
+      `UPDATE xero_pos_eod_fees SET status = 'error', error_detail = ?
+        WHERE business_id = ? AND eod_reconciliation_id = ?`,
+      [message, input.businessId, input.reconciliationId],
+    ).catch(() => {});
+    await reportRuntimeIssue({
+      businessId: input.businessId,
+      source: 'xero',
+      operation: 'post_pos_eod_fee',
+      title: 'POS EOD card fee posting failed',
+      error,
+      context: { locationId: input.locationId, reconciliationId: input.reconciliationId, paymentMethod: input.method },
+      sourceReference: String(input.reconciliationId),
+    });
+    throw error;
+  }
 }
 
 type CashEodPlan = {
@@ -3029,7 +3181,8 @@ export async function triggerEodXeroSync(
     const openFloat = isCash ? (row.opening_float ?? 0) : 0;
     let salesAmount = row.counted_amount - openFloat;
     let cashPlan: CashEodPlan | null = null;
-    const clearingAccountCode = clearingMappings[row.payment_method.trim().toLowerCase()] ?? '';
+    const clearingMapping = clearingMappings[row.payment_method.trim().toLowerCase()];
+    const clearingAccountCode = clearingMapping?.xeroAccountCode ?? '';
     if (paymentSyncEnabled && !clearingAccountCode) {
       const detail = `Missing POS clearing account mapping: ${locationName} / ${row.payment_method}`;
       await logSync(businessId, 'eod_reconciliation', null, null, 'skipped', detail);
@@ -3159,6 +3312,17 @@ export async function triggerEodXeroSync(
       continue;
     }
     if (paymentAlreadyComplete) {
+      if (clearingMapping?.deductFeeEnabled) {
+        try {
+          await postPosEodFee({
+            businessId, reconciliationId: row.id, date, locationId, locationName, registerId,
+            sessionId: row.register_session_id ?? null, method: row.payment_method, mapping: clearingMapping,
+          });
+        } catch (error: any) {
+          results.push({ method: row.payment_method, status: 'paid_fee_failed', xeroId: row.xero_invoice_id ?? undefined, error: error?.message ?? 'Fee posting failed' });
+          continue;
+        }
+      }
       if (cashPlan
         && Number(cashPlan.till_variance) === 0
         && ['completed', 'not_required'].includes(cashPlan.petty_cash_status)) {
@@ -3237,6 +3401,17 @@ export async function triggerEodXeroSync(
         idempotencyKey: cashPlan?.payment_idempotency_key,
       });
       await persistence.setXeroPayment(locationId, date, row.payment_method, paymentId, clearingAccountCode, registerId);
+      if (clearingMapping?.deductFeeEnabled) {
+        try {
+          await postPosEodFee({
+            businessId, reconciliationId: row.id, date, locationId, locationName, registerId,
+            sessionId: row.register_session_id ?? null, method: row.payment_method, mapping: clearingMapping,
+          });
+        } catch (error: any) {
+          results.push({ method: row.payment_method, status: 'paid_fee_failed', xeroId, invoiceNumber, error: error?.message ?? 'Fee posting failed' });
+          continue;
+        }
+      }
       if (cashPlan) {
         await execute(
           `UPDATE xero_pos_cash_eod_actions

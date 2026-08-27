@@ -56,13 +56,13 @@ describe('/api/xero/pos-payment-mappings', () => {
 
   it('returns active locations, deduplicated methods and existing mappings', async () => {
     mockImsQuery.mockResolvedValueOnce([{ id: 2, name: 'Newtown' }]);
-    mockQuery.mockResolvedValueOnce([{
-      ims_location_id: 2,
-      payment_method: 'Card',
-      xero_account_id: 'bank-1',
-      xero_account_code: '091',
-      xero_account_name: 'Newtown Card Clearing',
-    }]);
+    mockQuery.mockImplementation((sql: string) => sql.includes('FROM xero_pos_clearing_mappings') ? [{
+        ims_location_id: 2,
+        payment_method: 'Card',
+        xero_account_id: 'bank-1',
+        xero_account_code: '091',
+        xero_account_name: 'Newtown Card Clearing',
+      }] : []);
 
     const response = await GET(new Request('http://localhost/api/xero/pos-payment-mappings?databaseId=biz-1'));
     const body = await response.json();
@@ -87,7 +87,7 @@ describe('/api/xero/pos-payment-mappings', () => {
 
     expect(response.status).toBe(200);
     const upsert = mockExecute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO xero_pos_clearing_mappings'));
-    expect(upsert?.[1]).toEqual(['biz-1', 2, 'Card', 'bank-1', '091', 'Newtown Card Clearing']);
+    expect(upsert?.[1]).toEqual(['biz-1', 2, 'Card', 'bank-1', '091', 'Newtown Card Clearing', null, null, 'NONE', 0, 0, 0]);
   });
 
   it('rejects a location outside the authenticated business', async () => {
@@ -146,7 +146,29 @@ describe('/api/xero/pos-payment-mappings', () => {
 
     expect(response.status).toBe(200);
     const upsert = mockExecute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO xero_pos_clearing_mappings'));
-    expect(upsert?.[1]).toEqual(['biz-1', 2, 'Card', 'clearing-1', '610', 'Card Clearing']);
+    expect(upsert?.[1]).toEqual(['biz-1', 2, 'Card', 'clearing-1', '610', 'Card Clearing', null, null, 'NONE', 0, 0, 0]);
+  });
+
+  it('saves validated calculated card fees for one location and payment method', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ id: 2 }]);
+    mockXeroApiFetch.mockResolvedValueOnce({ Accounts: [
+      { AccountID: 'bank-1', Code: '091', Name: 'Newtown Card Clearing', Type: 'BANK', Status: 'ACTIVE' },
+      { AccountID: 'fees-1', Code: '404', Name: 'Merchant Fees', Class: 'EXPENSE', Status: 'ACTIVE' },
+    ] });
+
+    const response = await POST(postRequest({
+      databaseId: 'biz-1', locationId: 2, paymentMethod: 'Card',
+      xeroAccountId: 'bank-1', xeroAccountCode: '091',
+      feeAccountCode: '404', feeTaxType: 'INPUT', deductFeeEnabled: true,
+      fixedFeeAmount: 0.3, percentageFeeRate: 1.75,
+    }));
+
+    expect(response.status).toBe(200);
+    const upsert = mockExecute.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO xero_pos_clearing_mappings'));
+    expect(upsert?.[1]).toEqual([
+      'biz-1', 2, 'Card', 'bank-1', '091', 'Newtown Card Clearing',
+      '404', 'Merchant Fees', 'INPUT', 1, 0.3, 1.75,
+    ]);
   });
 
   it('removes one location and method cell without calling Xero', async () => {

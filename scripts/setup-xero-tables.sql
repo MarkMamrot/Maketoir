@@ -285,10 +285,35 @@ CREATE TABLE IF NOT EXISTS xero_pos_clearing_mappings (
   xero_account_id   VARCHAR(100) NOT NULL,
   xero_account_code VARCHAR(20)  NOT NULL,
   xero_account_name VARCHAR(255) DEFAULT NULL,
+  fee_account_code  VARCHAR(50)  DEFAULT NULL,
+  fee_account_name  VARCHAR(255) DEFAULT NULL,
+  fee_tax_type      VARCHAR(30)  DEFAULT NULL,
+  deduct_fee_enabled TINYINT(1) NOT NULL DEFAULT 0,
+  fixed_fee_amount  DECIMAL(10,4) NOT NULL DEFAULT 0,
+  percentage_fee_rate DECIMAL(8,4) NOT NULL DEFAULT 0,
   created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_xero_pos_clearing (business_id, ims_location_id, payment_method),
   INDEX idx_xero_pos_clearing_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Idempotent calculated processing-fee spend for one POS EOD tender row.
+CREATE TABLE IF NOT EXISTS xero_pos_eod_fees (
+  id                       BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id              VARCHAR(255) NOT NULL,
+  eod_reconciliation_id    BIGINT       NOT NULL,
+  fee_amount               DECIMAL(14,2) NOT NULL,
+  payment_count            INT          NOT NULL,
+  gross_amount             DECIMAL(14,2) NOT NULL,
+  clearing_account_code    VARCHAR(50)  NOT NULL,
+  fee_account_code         VARCHAR(50)  NOT NULL,
+  fee_tax_type             VARCHAR(30)  NOT NULL,
+  status                   VARCHAR(30)  NOT NULL DEFAULT 'pending',
+  xero_bank_transaction_id VARCHAR(100) DEFAULT NULL,
+  error_detail             TEXT         DEFAULT NULL,
+  created_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at               DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_xero_pos_eod_fee (business_id, eod_reconciliation_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Versioned accounting state for one tenant POS cash reconciliation. Rows that
