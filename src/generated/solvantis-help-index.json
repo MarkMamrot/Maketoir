@@ -1632,11 +1632,16 @@
         },
         {
           "id": "ims-supplier-returns-credit-notes:9",
+          "heading": "Xero account for non-stock credits",
+          "content": "Map **Supplier Credit Notes (Non-stock lines)** to a Xero **Direct Costs** or **Expense** account. Use an account such as **Purchases**, or create a dedicated **Supplier Credits - Non-stock** account when you want these adjustments reported separately. Xero handles the reduction in Accounts Payable; this mapping controls the account used for the credit-note line.\n\nFor example, a supplier refunds $55 including $5 GST for freight, and no goods are returned. The credit reduces the mapped expense by $50, reduces GST by $5 and reduces Accounts Payable by $55. Stock quantity and inventory value do not change. Lines for physical goods returned to the supplier use the Inventory Asset mapping instead."
+        },
+        {
+          "id": "ims-supplier-returns-credit-notes:10",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Remaining returnable quantity is lower than expected | Earlier linked returns already used part of the receipt | Review the PO and earlier supplier credit notes |\n| Stock would reduce for a rebate | Return stock is selected | Clear it before completing the Draft |\n| A zero quantity cannot be saved | Credit-note quantities must be non-zero | Remove the line or enter the actual positive quantity |\n| The credit is complete but Xero failed | The IMS result completed separately | Use Retry Xero Sync; do not complete another credit note |\n| Completion was genuinely entered by mistake | A reversing correction is needed | Use Reverse Mistaken Completion and provide the reason |"
         },
         {
-          "id": "ims-supplier-returns-credit-notes:10",
+          "id": "ims-supplier-returns-credit-notes:11",
           "heading": "Worked examples",
           "content": "### Return damaged stock\n\nA Sydney store received 12 lamps at $50 each before GST. Two are damaged and go back. Staff start from the completed PO, enter quantity 2, keep **Return stock** selected and record the supplier's $110 tax-inclusive credit. Completion removes 2 lamps and records a $100 credit before GST plus $10 GST.\n\n### Record a freight overcharge\n\nA supplier gives a $44 credit for freight charged twice. No goods leave the store. Staff create a Supplier Credit Note, enter the agreed tax treatment and clear **Return stock**. Completion records the $44 supplier credit and leaves all product quantities unchanged."
         }

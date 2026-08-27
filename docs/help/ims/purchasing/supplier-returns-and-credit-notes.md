@@ -1,5 +1,5 @@
 ---
-{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-supplier-returns-credit-notes","title":"Supplier Returns and Credit Notes","audiences":["ims"],"capability":"orders","screen":"Purchasing > Supplier Credit Notes","product":"ims","format":"task","parentId":"ims-supplier-work","contexts":["supplier-credit-notes"],"contextSections":{"supplier-credit-notes":"Step-by-step"},"relatedTopics":["ims-supplier-work","ims-purchase-orders","ims-po-receiving-resolution","ims-inventory-costing"],"order":13,"summary":"Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.","lastReviewed":"2026-08-27","owner":"inventory"}
 ---
 # Supplier Returns and Credit Notes
 
@@ -81,6 +81,12 @@ Supplier credit lines use positive quantities and values in the form, even if th
 | Total supplier credit | $110.00 |
 
 Stock value is reduced using the tax-exclusive cost basis. Selling prices remain tax-inclusive and do not determine the supplier credit.
+
+## Xero account for non-stock credits
+
+Map **Supplier Credit Notes (Non-stock lines)** to a Xero **Direct Costs** or **Expense** account. Use an account such as **Purchases**, or create a dedicated **Supplier Credits - Non-stock** account when you want these adjustments reported separately. Xero handles the reduction in Accounts Payable; this mapping controls the account used for the credit-note line.
+
+For example, a supplier refunds $55 including $5 GST for freight, and no goods are returned. The credit reduces the mapped expense by $50, reduces GST by $5 and reduces Accounts Payable by $55. Stock quantity and inventory value do not change. Lines for physical goods returned to the supplier use the Inventory Asset mapping instead.
 
 ## Troubleshooting
 

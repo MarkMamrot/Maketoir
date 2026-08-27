@@ -5324,6 +5324,24 @@
       "id": "ims-supplier-returns-credit-notes:9",
       "documentId": "ims-supplier-returns-credit-notes",
       "title": "Supplier Returns and Credit Notes",
+      "heading": "Xero account for non-stock credits",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "orders",
+      "screen": "Purchasing > Supplier Credit Notes",
+      "topicId": "ims-supplier-returns-credit-notes",
+      "contexts": [
+        "supplier-credit-notes"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-23",
+      "content": "Map **Supplier Credit Notes (Non-stock lines)** to a Xero **Direct Costs** or **Expense** account. Use an account such as **Purchases**, or create a dedicated **Supplier Credits - Non-stock** account when you want these adjustments reported separately. Xero handles the reduction in Accounts Payable; this mapping controls the account used for the credit-note line.\n\nFor example, a supplier refunds $55 including $5 GST for freight, and no goods are returned. The credit reduces the mapped expense by $50, reduces GST by $5 and reduces Accounts Payable by $55. Stock quantity and inventory value do not change. Lines for physical goods returned to the supplier use the Inventory Asset mapping instead."
+    },
+    {
+      "id": "ims-supplier-returns-credit-notes:10",
+      "documentId": "ims-supplier-returns-credit-notes",
+      "title": "Supplier Returns and Credit Notes",
       "heading": "Troubleshooting",
       "audiences": [
         "ims"
@@ -5339,7 +5357,7 @@
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Remaining returnable quantity is lower than expected | Earlier linked returns already used part of the receipt | Review the PO and earlier supplier credit notes |\n| Stock would reduce for a rebate | Return stock is selected | Clear it before completing the Draft |\n| A zero quantity cannot be saved | Credit-note quantities must be non-zero | Remove the line or enter the actual positive quantity |\n| The credit is complete but Xero failed | The IMS result completed separately | Use Retry Xero Sync; do not complete another credit note |\n| Completion was genuinely entered by mistake | A reversing correction is needed | Use Reverse Mistaken Completion and provide the reason |"
     },
     {
-      "id": "ims-supplier-returns-credit-notes:10",
+      "id": "ims-supplier-returns-credit-notes:11",
       "documentId": "ims-supplier-returns-credit-notes",
       "title": "Supplier Returns and Credit Notes",
       "heading": "Worked examples",
