@@ -70,11 +70,38 @@ CREATE TABLE IF NOT EXISTS loyalty_portal_profiles (
   terms_url            VARCHAR(2048) NOT NULL,
   terms_version        VARCHAR(100) NOT NULL,
   privacy_url          VARCHAR(2048) NOT NULL,
+  policy_mode          VARCHAR(20) NOT NULL DEFAULT 'external',
+  legal_name           VARCHAR(255) NULL,
+  trading_name         VARCHAR(255) NULL,
+  business_number      VARCHAR(100) NULL,
+  policy_contact_email VARCHAR(320) NULL,
+  policy_contact_address VARCHAR(1000) NULL,
+  policy_jurisdiction  VARCHAR(100) NULL,
+  current_policy_version_id BIGINT UNSIGNED NULL,
   is_active            TINYINT(1) NOT NULL DEFAULT 0,
   created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_loyalty_portal_profiles_slug (slug),
   INDEX idx_loyalty_portal_profiles_active (is_active, slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS loyalty_policy_versions (
+  id                   BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  business_id          VARCHAR(100) NOT NULL,
+  version              VARCHAR(100) NOT NULL,
+  policy_mode          VARCHAR(20) NOT NULL,
+  terms_url            VARCHAR(2048) NOT NULL,
+  privacy_url          VARCHAR(2048) NOT NULL,
+  terms_markdown       LONGTEXT NULL,
+  privacy_markdown     LONGTEXT NULL,
+  merchant_snapshot_json JSON NULL,
+  template_version     VARCHAR(100) NULL,
+  content_hash         CHAR(64) NOT NULL,
+  approved_by_user_id  INT NOT NULL,
+  approved_by_name     VARCHAR(255) NOT NULL,
+  published_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_loyalty_policy_business_version (business_id, version),
+  INDEX idx_loyalty_policy_business_published (business_id, published_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS online_shop_domains (

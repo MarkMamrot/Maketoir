@@ -2213,6 +2213,7 @@ CREATE TABLE IF NOT EXISTS loyalty_membership_events (
   action          ENUM('enrolled','opted_out') NOT NULL,
   source          VARCHAR(50) NOT NULL,
   terms_version   VARCHAR(100) NULL,
+  policy_version_id BIGINT UNSIGNED NULL,
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_loyalty_membership_contact (business_id, contact_id, created_at),
   CONSTRAINT fk_loyalty_membership_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT

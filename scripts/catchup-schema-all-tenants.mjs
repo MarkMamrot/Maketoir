@@ -1282,6 +1282,7 @@ const COLUMNS = [
   ['gift_card_transactions', 'reference_type', 'VARCHAR(64) NULL'],
   ['gift_card_transactions', 'reference_id', 'VARCHAR(191) NULL'],
   ['loyalty_transactions', 'eligible_spend_cents', 'INT UNSIGNED NULL'],
+  ['loyalty_membership_events', 'policy_version_id', 'BIGINT UNSIGNED NULL AFTER terms_version'],
   ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_backorder_merges', 'request_hash', 'CHAR(64) NULL AFTER operation_key'],

@@ -1,0 +1,16 @@
+.shell { min-height:100vh; padding:28px 20px 72px; background:repeating-linear-gradient(90deg,#f3f0e8 0,#f3f0e8 31px,#ece8dd 32px); color:#202820; font-family:Georgia,'Times New Roman',serif; }
+.nav,.article { width:min(780px,100%); margin:0 auto; }
+.nav { display:flex; align-items:center; justify-content:space-between; gap:18px; padding-bottom:22px; border-bottom:1px solid #bfc3b8; }
+.brand { color:#202820; font-size:18px; font-weight:700; text-decoration:none; }
+.navLinks { display:flex; gap:18px; font:700 12px 'Trebuchet MS',sans-serif; }
+.navLinks a,.article a { color:#1f6048; }
+.article { padding-top:56px; }
+.eyebrow { margin:0 0 10px; color:#a84936; font:800 11px 'Trebuchet MS',sans-serif; text-transform:uppercase; }
+.article h1 { max-width:680px; margin:0 0 36px; font-size:clamp(38px,7vw,66px); line-height:1; letter-spacing:0; }
+.article h2 { margin:0 0 12px; padding-top:28px; border-top:1px solid #bfc3b8; font-size:24px; letter-spacing:0; }
+.article h2:not(:first-of-type) { margin-top:28px; }
+.article p,.article li { color:#414b42; font:14px/1.75 'Trebuchet MS',sans-serif; }
+.article ul { padding-left:22px; }
+.article li+li,.article p+p { margin-top:8px; }
+.footer { margin-top:34px; padding-top:28px; border-top:1px solid #bfc3b8; color:#677064; font:12px/1.7 'Trebuchet MS',sans-serif; }
+@media(max-width:600px){.shell{padding-inline:16px}.nav{align-items:flex-start;flex-direction:column}.article{padding-top:38px}}

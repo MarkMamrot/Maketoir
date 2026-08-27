@@ -57,7 +57,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
             : `UPDATE ims_contacts SET loyalty_member=0, loyalty_member_opted_out_at=NOW() WHERE id=? AND business_id=?`,
           [auth.session.contactId, auth.profile.businessId]);
         if (nextMember) await connection.execute(`INSERT INTO loyalty_accounts (business_id,contact_id,status) VALUES (?,?,'active') ON DUPLICATE KEY UPDATE status='active'`, [auth.profile.businessId, auth.session.contactId]);
-        await connection.execute(`INSERT INTO loyalty_membership_events (business_id,contact_id,action,source,terms_version) VALUES (?,?,?,'loyalty_portal',?)`, [auth.profile.businessId, auth.session.contactId, nextMember ? 'enrolled' : 'opted_out', nextMember ? auth.profile.termsVersion : null]);
+        await connection.execute(`INSERT INTO loyalty_membership_events (business_id,contact_id,action,source,terms_version,policy_version_id) VALUES (?,?,?,'loyalty_portal',?,?)`, [auth.profile.businessId, auth.session.contactId, nextMember ? 'enrolled' : 'opted_out', nextMember ? auth.profile.termsVersion : null, nextMember ? auth.profile.currentPolicyVersionId : null]);
         await connection.commit();
         return { found: true, changed: true };
       } catch (error) { await connection.rollback(); throw error; } finally { connection.release(); }
