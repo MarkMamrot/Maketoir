@@ -49,7 +49,7 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.
 4. Add the correct variant and set the quantity.
 5. Apply any permitted line discount, price change, or order discount before payment.
-6. Open **Customer** and type at least two characters of the customer's name or phone number. Choose the active retail customer from the narrowing results when the sale uses store credit or a loyalty reward.
+6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward.
 7. Check the tax-inclusive total and the **GST (incl.)** amount.
 8. Choose **Charge** and choose a payment method.
 9. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.

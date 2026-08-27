@@ -1408,9 +1408,9 @@ function MainPos({
   const [saleNotes, setSaleNotes] = useState('');
   const [isLayby, setIsLayby] = useState(false);
   // Gift card / store credit
-  const [linkedContact, setLinkedContact] = useState<{ id: number; name: string; phone: string | null; store_credit: number } | null>(null);
+  const [linkedContact, setLinkedContact] = useState<{ id: number; name: string; email: string | null; phone: string | null; store_credit: number } | null>(null);
   const [contactSearch, setContactSearch] = useState('');
-  const [contactResults, setContactResults] = useState<{ id: number; name: string; phone: string | null; store_credit: number }[]>([]);
+  const [contactResults, setContactResults] = useState<{ id: number; name: string; email: string | null; phone: string | null; store_credit: number }[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
   const [contactSearchError, setContactSearchError] = useState(false);
   const [loyaltySummary, setLoyaltySummary] = useState<{
@@ -2536,31 +2536,18 @@ function MainPos({
           </div>
           {customerOpen && (
             <div style={{ padding: '0 .75rem .4rem' }}>
-              <div style={{ display: 'flex', gap: '.5rem', marginBottom: '.35rem' }}>
+              {!linkedContact && <div style={{ marginBottom: '.35rem' }}>
                 <input
-                  placeholder='Customer name'
-                  value={customerName}
+                  placeholder='Search customer by name, phone or email'
+                  aria-label='Search customer by name, phone or email'
+                  value={contactSearch}
                   autoComplete='off'
                   onChange={e => {
-                    setCustomerName(e.target.value);
-                    setLinkedContact(null);
                     setContactSearch(e.target.value);
                   }}
-                  style={{ ...inputStyle, flex: 1, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }}
+                  style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }}
                 />
-                <input
-                  placeholder='Phone'
-                  value={customerPhone}
-                  inputMode='tel'
-                  autoComplete='off'
-                  onChange={e => {
-                    setCustomerPhone(e.target.value);
-                    setLinkedContact(null);
-                    setContactSearch(e.target.value);
-                  }}
-                  style={{ ...inputStyle, width: 110, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem' }}
-                />
-              </div>
+              </div>}
               {/* Contact/store-credit lookup */}
               {linkedContact ? (
                 <div>
@@ -2569,7 +2556,7 @@ function MainPos({
                       {linkedContact.name}
                       {linkedContact.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)' }}>${linkedContact.store_credit.toFixed(2)} store credit</span>}
                     </span>
-                    <button onClick={() => { setLinkedContact(null); setContactSearch(''); setContactResults([]); }} style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem', padding: '0 2px' }}>×</button>
+                    <button onClick={() => { setLinkedContact(null); setCustomerName(''); setCustomerPhone(''); setContactSearch(''); setContactResults([]); }} aria-label="Remove customer" style={{ background: 'transparent', border: 'none', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.85rem', padding: '0 2px' }}>×</button>
                   </div>
                   <div style={{ marginTop: '.3rem', padding: '.4rem .5rem', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', fontSize: '.75rem', color: 'var(--sv-text-dim)' }}>
                     {loyaltyLoading ? 'Loading loyalty details…' : loyaltyError ? 'Loyalty details unavailable.' : !loyaltySummary ? 'Loyalty details require an online connection.' : !loyaltySummary.enabled ? 'Loyalty program is switched off.' : !loyaltySummary.active ? `${loyaltySummary.programName} has not started yet.` : !loyaltySummary.member ? 'Customer is not a loyalty member.' : (
@@ -2615,13 +2602,13 @@ function MainPos({
                   {(contactSearching || contactResults.length > 0 || contactSearch.trim().length >= 2) && (
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 200, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.3)', overflow: 'hidden' }}>
                       {contactSearching && contactResults.length === 0 && (
-                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>Searching retail customers…</div>
+                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>Searching customers…</div>
                       )}
                       {!contactSearching && contactSearchError && (
                         <div style={{ padding: '.45rem .6rem', color: 'var(--sv-red)', fontSize: '.78rem' }}>Customer search unavailable. Try again.</div>
                       )}
                       {!contactSearching && !contactSearchError && contactResults.length === 0 && (
-                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>No retail customers found.</div>
+                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>No customers found.</div>
                       )}
                       {contactResults.map(c => (
                         <button
@@ -2631,6 +2618,7 @@ function MainPos({
                         >
                           <span style={{ fontWeight: 600 }}>{c.name}</span>
                           {c.phone && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{c.phone}</span>}
+                          {c.email && <span style={{ display: 'block', color: 'var(--sv-text-dim)', marginTop: 2, fontSize: '.72rem' }}>{c.email}</span>}
                           {c.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)', fontWeight: 700 }}>${c.store_credit.toFixed(2)} credit</span>}
                         </button>
                       ))}
