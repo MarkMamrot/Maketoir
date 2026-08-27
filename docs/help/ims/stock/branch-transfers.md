@@ -8,6 +8,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 ## Main operations
 
 - Create and review a Draft transfer.
+- Add multiline transfer notes for packing instructions or selected Store Daybook needs.
 - Send the transfer when goods leave the source.
 - Keep Sent goods in transit until the destination counts them.
 - Receive the actual quantities or save a partial receipt for later.
@@ -37,10 +38,11 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 ### Create and send
 
 1. Open **Locations > Branch Transfers** and select **New Transfer**.
-2. Choose the source, destination, transfer date, and any useful packing note.
+2. Choose the source, destination, transfer date, and any useful packing notes. You can paste the combined clipboard built from Store Daybook Requests and Store needs.
 3. Add each product variant and quantity to send, then save the Draft.
 4. Review the transfer number, route, items, quantities, and value.
-5. Mark the transfer **Sent** only when the goods physically leave the source.
+5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.
+6. Mark the transfer **Sent** only when the goods physically leave the source.
 
 ### Receive at the destination
 

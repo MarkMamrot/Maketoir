@@ -78,6 +78,10 @@ export function getDaybookDateRange(endDate: string, days: number): string[] {
   });
 }
 
+export function getDaybookDisplayDates(taskDates: readonly string[]): string[] {
+  return [...taskDates].reverse();
+}
+
 export function shouldImportNewtownCommunication(value: string): boolean {
   const date = parseDaybookDate(value);
   return date !== null && date >= NEWTOWN_COMMUNICATIONS_START_DATE;

@@ -4,6 +4,7 @@ import {
   canTransitionDiscrepancy,
   canTransitionNeed,
   getDaybookDateRange,
+  getDaybookDisplayDates,
   normalizeStaffIdentity,
   parseDaybookDate,
   resolveDaybookLocationId,
@@ -43,6 +44,12 @@ describe('Store Daybook rules', () => {
       '2026-01-01', '2026-01-02', '2026-01-03',
     ]);
     expect(getDaybookDateRange('invalid', 7)).toEqual([]);
+  });
+
+  it('shows the latest checklist date closest to the task list', () => {
+    const taskDates = ['2026-08-25', '2026-08-26', '2026-08-27'];
+    expect(getDaybookDisplayDates(taskDates)).toEqual(['2026-08-27', '2026-08-26', '2026-08-25']);
+    expect(taskDates).toEqual(['2026-08-25', '2026-08-26', '2026-08-27']);
   });
 
   it('imports Newtown communications only from the start of 2026', () => {

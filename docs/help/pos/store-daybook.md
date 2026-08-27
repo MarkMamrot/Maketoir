@@ -12,6 +12,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 - Read and acknowledge store communications.
 - See the names and initials of everyone who has acknowledged each communication.
 - Record customer requests, store needs, stock discrepancies and incidents.
+- Build one clipboard from selected Requests and Store needs for pasting into branch transfer notes.
 - Follow warehouse requests through packing, sending and receipt.
 - Search approved reference information and product storage guidance.
 - Add new items from the tab where they belong and choose an optional card colour.
@@ -45,13 +46,13 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 
 1. Open **Today** and use the clearly separated **Open the store**, **Keep the day moving**, or **Close with confidence** panels across the top.
 2. Read tasks in the **Every day** or weekday group where they are scheduled. Weekly daytime work appears together under Monday, Tuesday and the other relevant weekdays.
-3. Use the compact date headings and read across a task row to see signed initials, a task that was not signed, or a day when that task was not scheduled. Weekday names appear in the date headings and schedule group headings rather than repeating in every sign-off cell.
+3. Use the compact date headings and read across a task row to see signed initials, a task that was not signed, or a day when that task was not scheduled. The selected and latest date is closest to the task list; progressively older dates continue to the right. Weekday names appear in the date headings and schedule group headings rather than repeating in every sign-off cell.
 4. In the highlighted current-day column, select **Sign off** only after the work is complete.
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
 
-> **Note:** The seven-day table follows the date selected in the Daybook header. This makes it possible to review an earlier day and the six days leading up to it.
+> **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 
 ## Open a location Daybook from IMS
 
@@ -77,6 +78,16 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.
 5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.
 
+### Build branch transfer notes
+
+1. Open **Requests** or **Store needs**.
+2. Select **Add to clipboard** at the bottom-right of each card that should be included. Requests and Store needs share the same location clipboard, and adding the same card again updates its existing entry.
+3. Review the combined text in **Transfer notes clipboard** at the bottom of either tab.
+4. Open the branch transfer, place the cursor in **Notes**, and paste. The note keeps separate labelled blocks for each selected card.
+5. Select **Clear clipboard** when the transfer note is complete. The saved Daybook clipboard is kept for that location until it is cleared.
+
+> **Important:** A copied customer request includes the contact details entered on its card. Include a request only when those details are needed for the transfer, and clear the clipboard after use on a shared device.
+
 > **Warning:** A stock discrepancy is a manager stocktake queue, not a stock adjustment. Do not assume recording or closing it changes stock on hand.
 
 ### Report an incident
@@ -94,9 +105,9 @@ To add or edit a Product guide, search the active product list by product name, 
 
 Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
 
-When an item can be edited under the current policy, select its pencil button to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
+When an item can be edited under the current policy, select **Edit** at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
 
-To remove an item, open its edit popup and select **Delete**. Review the warning and select **Delete item** to confirm. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
+To remove a Request or Store need, select **Delete** at the bottom-right of its card and confirm the warning. For other editable items, open the edit popup and select **Delete**. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
 
 Managers open **Settings** and choose one tenant-wide editing policy:
 
@@ -127,7 +138,8 @@ Status changes and incident visibility still follow their separate operational p
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
 | The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
-| The Delete button is missing | Delete is available only from an item's permitted edit popup | Ask an allowed editor or manager to open the item with its pencil button |
+| Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |
+| Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |
 | A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |
 | Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |

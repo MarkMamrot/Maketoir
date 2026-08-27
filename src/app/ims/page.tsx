@@ -22779,7 +22779,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               </Field>
               <Field label="Transfer Date *"><input required type="date" value={form.transfer_date} onChange={sf('transfer_date')} style={inputStyle} /></Field>
             </Row3>
-            <Field label="Notes"><input value={form.notes} onChange={sf('notes')} style={inputStyle} /></Field>
+            <Field label="Notes"><textarea value={form.notes} onChange={sf('notes')} rows={4} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Paste Store Daybook needs or add transfer instructions" /></Field>
 
             {/* Line items */}
             <div style={{ marginBottom: 14 }}>
@@ -23753,8 +23753,6 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
               <span style={{ fontWeight: 600 }}>From:</span><span>{data.from_location_name}</span>
               <span style={{ fontWeight: 600 }}>To:</span><span>{data.to_location_name}</span>
             </div>
-            {data.notes && <div style={{ marginBottom: 14, fontSize: 12, color: 'var(--sv-text-dim)', fontStyle: 'italic' }}>Note: {data.notes}</div>}
-
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
@@ -23801,6 +23799,10 @@ function BTPrintModal({ id, onClose }: { id: number; onClose: () => void }) {
             </table>
 
             <div style={{ marginTop: 14, fontSize: 12, color: '#9ca3af', textAlign: 'right' }}>{data.items.length} line{data.items.length !== 1 ? 's' : ''}</div>
+            {data.notes?.trim() && <section style={{ marginTop: 22, paddingTop: 12, borderTop: '1px solid #cbd5e1', breakInside: 'avoid' }}>
+              <h3 style={{ margin: '0 0 6px', fontSize: 13, color: '#374151' }}>Notes</h3>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: '#111827', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{data.notes}</div>
+            </section>}
           </>
         )}
       </div>

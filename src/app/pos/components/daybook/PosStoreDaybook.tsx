@@ -3,11 +3,18 @@
 import { useEffect, useState } from 'react';
 import {
   AlertTriangle, BookOpen, Box, Check, ChevronLeft, ClipboardCheck, Clock3,
-  Megaphone, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
+  ClipboardPlus, ClipboardX, Megaphone, PackageOpen, Pencil, Plus, Search, Settings2, ShoppingBag, Sparkles,
   Trash2, Truck, UserRoundCheck, Users, X,
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { getDaybookDisplayDates } from '@/lib/pos/daybookService';
+import {
+  addDaybookClipboardItem,
+  formatDaybookClipboardRecord,
+  serializeDaybookClipboard,
+  type DaybookClipboardItem,
+} from '@/lib/pos/daybookClipboard';
 import styles from './PosStoreDaybook.module.css';
 
 type Staff = { id?: number | null; name: string; initials: string };
@@ -113,10 +120,13 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   const [taskPhase, setTaskPhase] = useState<TaskPhase>('opening');
   const [taskPhaseDate, setTaskPhaseDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
+  const [clipboardItems, setClipboardItems] = useState<DaybookClipboardItem[]>([]);
+  const [clipboardMessage, setClipboardMessage] = useState('');
 
   const location = locationOverride ?? { id: session.location_id, name: session.location_name };
   const locationParam = locationOverride ? `&location_id=${location.id}` : '';
   const identityKey = `pos_daybook_staff_${location.id}_${date}`;
+  const clipboardKey = `pos_daybook_clipboard_${location.id}`;
 
   useEffect(() => {
     try {
@@ -125,6 +135,14 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
       setIdentityOpen(!saved);
     } catch { setStaff(null); setIdentityOpen(true); }
   }, [identityKey]);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(clipboardKey) ?? '[]');
+      setClipboardItems(Array.isArray(saved) ? saved : []);
+    } catch { setClipboardItems([]); }
+    setClipboardMessage('');
+  }, [clipboardKey]);
 
   async function load(selectedStaff = staff) {
     setLoading(true);
@@ -188,6 +206,36 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
 
   async function perform(action: string, payload: Record<string, unknown> = {}) {
     try { await post(action, payload); setForm({}); setEditor(null); await load(); } catch {}
+  }
+
+  async function writeDaybookClipboard(items: DaybookClipboardItem[]) {
+    const text = serializeDaybookClipboard(items);
+    try { localStorage.setItem(clipboardKey, JSON.stringify(items)); } catch {}
+    setClipboardItems(items);
+    if (!navigator.clipboard) return false;
+    try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+  }
+
+  async function addRecordToClipboard(record: RecordRow) {
+    const item = formatDaybookClipboardRecord({
+      id: record.id,
+      recordType: record.record_type as 'customer_request' | 'store_need',
+      title: record.title,
+      details: detailsOf(record),
+    });
+    const next = addDaybookClipboardItem(clipboardItems, item);
+    const copied = await writeDaybookClipboard(next);
+    setClipboardMessage(copied
+      ? `${record.title} added. ${next.length} ${next.length === 1 ? 'item' : 'items'} ready to paste.`
+      : `${record.title} was added to the saved list, but browser clipboard access was blocked. Add it again before pasting or copy the visible text manually.`);
+  }
+
+  async function clearDaybookClipboard() {
+    try { localStorage.removeItem(clipboardKey); } catch {}
+    setClipboardItems([]);
+    if (!navigator.clipboard) { setClipboardMessage('Saved list cleared. Browser clipboard access is unavailable.'); return; }
+    try { await navigator.clipboard.writeText(''); setClipboardMessage('Clipboard cleared.'); }
+    catch { setClipboardMessage('Saved list cleared, but browser clipboard access was blocked.'); }
   }
 
   function openEditor(type: EditorType, values: Record<string, unknown> = {}) {
@@ -277,7 +325,23 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
         )}
 
         {!loading && ['customer_request', 'store_need', 'stock_discrepancy', 'incident'].includes(active) && (
-          <RecordSection type={active} records={records} saving={saving} perform={perform} manager={Boolean(workspace?.permissions.manager)} onAdd={() => openEditor(active as EditorType)} onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, background_color: record.background_color, ...detailsOf(record) })} />
+          <RecordSection
+            type={active}
+            records={records}
+            saving={saving}
+            perform={perform}
+            manager={Boolean(workspace?.permissions.manager)}
+            onAdd={() => openEditor(active as EditorType)}
+            onEdit={record => openEditor(active as EditorType, { _id: record.id, occurred_on: record.occurred_on, background_color: record.background_color, ...detailsOf(record) })}
+            onDelete={async record => {
+              if (!confirm(`Delete "${record.title}" from the active Daybook? Its audit history will be retained.`)) return;
+              await perform('delete_item', { item_type: 'record', item_id: record.id });
+            }}
+            onAddToClipboard={addRecordToClipboard}
+            clipboardItems={clipboardItems}
+            clipboardMessage={clipboardMessage}
+            onClearClipboard={clearDaybookClipboard}
+          />
         )}
 
         {!loading && active === 'references' && (
@@ -350,6 +414,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
     scheduleGroups.set(schedule.key, group);
   }
   const groupedRows = [...scheduleGroups.entries()].sort(([, left], [, right]) => left.order - right.order);
+  const displayDates = getDaybookDisplayDates(workspace.taskDates);
   const completed = currentTasks.filter(task => task.status === 'completed').length;
   const selected = phaseMeta.find(item => item.id === phase) ?? phaseMeta[0];
 
@@ -367,8 +432,8 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
     <div className={styles.checklistHeading}><div><span>{selected.short}</span><h2>{selected.title}</h2></div><b>{completed}/{currentTasks.length} complete today</b></div>
     <div className={styles.checklistScroll} tabIndex={0} aria-label={`${selected.title} seven-day sign-off history`}>
       <table className={styles.checklistTable}>
-        <colgroup><col className={styles.taskColumn} />{workspace.taskDates.map(taskDate => <col className={styles.signoffColumn} key={taskDate} />)}</colgroup>
-        <thead><tr><th scope="col">Task</th>{workspace.taskDates.map((taskDate, dayIndex) => {
+        <colgroup><col className={styles.taskColumn} />{displayDates.map(taskDate => <col className={styles.signoffColumn} key={taskDate} />)}</colgroup>
+        <thead><tr><th scope="col">Task</th>{displayDates.map(taskDate => {
           const label = taskDateLabel(taskDate);
           return <th scope="col" className={taskDate === workspace.date ? styles.currentDate : ''} key={taskDate}><span>{label.weekday.slice(0, 3)}</span><strong>{label.day}</strong>{taskDate === workspace.date && <small>Today</small>}</th>;
         })}</tr></thead>
@@ -376,7 +441,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
           <tr className={styles.scheduleHeading}><th colSpan={workspace.taskDates.length + 1} scope="rowgroup"><span>{group.label}</span><small>{group.rows.length} {group.rows.length === 1 ? 'task' : 'tasks'}</small></th></tr>
           {group.rows.map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{workspace.taskDates.map((taskDate, dayIndex) => {
+          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;
@@ -398,7 +463,20 @@ function Field({ label, value, onChange, type = 'text', placeholder = '' }: { la
   return <label className={styles.field}><span>{label}</span>{type === 'textarea' ? <textarea value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <input type={type} value={value || ''} onChange={event => onChange(event.target.value)} placeholder={placeholder} />}</label>;
 }
 
-function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit }: { type: string; records: RecordRow[]; saving: boolean; perform: (action: string, payload?: Record<string, unknown>) => Promise<void>; manager: boolean; onAdd: () => void; onEdit: (record: RecordRow) => void }) {
+function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit, onDelete, onAddToClipboard, clipboardItems, clipboardMessage, onClearClipboard }: {
+  type: string;
+  records: RecordRow[];
+  saving: boolean;
+  perform: (action: string, payload?: Record<string, unknown>) => Promise<void>;
+  manager: boolean;
+  onAdd: () => void;
+  onEdit: (record: RecordRow) => void;
+  onDelete: (record: RecordRow) => Promise<void>;
+  onAddToClipboard: (record: RecordRow) => void;
+  clipboardItems: DaybookClipboardItem[];
+  clipboardMessage: string;
+  onClearClipboard: () => void;
+}) {
   const meta: Record<string, [string, string]> = {
     customer_request: ['Customer requests', 'Record sold-out products and follow up without losing the customer thread.'],
     store_need: ['Store needs', 'Ask the warehouse for consumables or stock, then follow it through dispatch.'],
@@ -406,12 +484,32 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit 
     incident: ['Incident reports', 'Record the facts carefully and sign the report before submitting it.'],
   };
   const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
+  const usesClipboard = type === 'customer_request' || type === 'store_need';
   return <section className={styles.contentSection}>
     <Title title={meta[type][0]} subtitle={meta[type][1]} action={<button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button>} />
       <div className={styles.recordList}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{records.map(record => {
         const details = detailsOf(record);
-        return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}><div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div><div className={styles.cardHeading}><h3>{record.title}</h3>{record.can_edit && <button className={styles.editButton} onClick={() => onEdit(record)} aria-label={`Edit ${record.title}`}><Pencil size={16} /></button>}</div><p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p><small>Logged by {record.staff_name} ({record.staff_initials})</small><StatusActions record={record} saving={saving} manager={manager} perform={perform} /></article>;
+        return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}>
+          <div className={styles.recordTop}><span>{record.status.replaceAll('_', ' ')}</span><time>{shortTime(record.created_at)}</time></div>
+          <div className={styles.cardHeading}><h3>{record.title}</h3></div>
+          <p>{Object.entries(details).filter(([, value]) => value !== '').slice(0, 4).map(([key, value]) => `${labels[key] || key.replaceAll('_', ' ')}: ${String(value)}`).join(' · ')}</p>
+          <small>Logged by {record.staff_name} ({record.staff_initials})</small>
+          <div className={styles.recordFooter}>
+            <StatusActions record={record} saving={saving} manager={manager} perform={perform} />
+            {usesClipboard && <div className={styles.recordCardActions}>
+              {record.can_edit && <button type="button" onClick={() => onEdit(record)} title={`Edit ${record.title}`}><Pencil size={15} /> Edit</button>}
+              {record.can_edit && <button type="button" className={styles.recordDeleteAction} onClick={() => void onDelete(record)} disabled={saving} title={`Delete ${record.title}`}><Trash2 size={15} /> Delete</button>}
+              <button type="button" onClick={() => void onAddToClipboard(record)} title={`Add ${record.title} to clipboard`}><ClipboardPlus size={15} /> Add to clipboard</button>
+            </div>}
+          </div>
+        </article>;
       })}</div>
+      {usesClipboard && <aside className={styles.daybookClipboard} aria-live="polite">
+        <div><ClipboardCheck size={18} /><span><strong>Transfer notes clipboard</strong><small>{clipboardItems.length ? `${clipboardItems.length} ${clipboardItems.length === 1 ? 'item' : 'items'} ready to paste into branch transfer notes.` : 'Add cards above to build transfer notes.'}</small></span></div>
+        {clipboardMessage && <p>{clipboardMessage}</p>}
+        {clipboardItems.length > 0 && <pre>{serializeDaybookClipboard(clipboardItems)}</pre>}
+        <button type="button" onClick={() => void onClearClipboard()} disabled={clipboardItems.length === 0}><ClipboardX size={16} /> Clear clipboard</button>
+      </aside>}
   </section>;
 }
 
