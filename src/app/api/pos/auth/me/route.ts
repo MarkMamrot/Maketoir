@@ -2,65 +2,68 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getAdminSession, getPosSession } from '@/lib/sessionUtils';
 
 export async function GET(req: Request) {
   try {
-  // 1. Check for existing POS session (cashier login)
-  const posRaw = cookies().get('pos_session')?.value;
-  if (posRaw) {
-    try {
-      await getImsSession(['pos_session']);
-      const session = JSON.parse(posRaw);
-      return NextResponse.json({ session });
-    } catch {}
-  }
-
-  // 2. Fallback: check for admin session (marketoir_session)
-  //    Admins who arrive at /pos via the main login page bypass the POS cashier login.
-  const adminRaw = cookies().get('marketoir_session')?.value;
-  if (!adminRaw) return NextResponse.json({ session: null });
-
-  let adminSession: any;
-  try { adminSession = JSON.parse(adminRaw); } catch { return NextResponse.json({ session: null }); }
-  try { await getImsSession(['marketoir_session']); } catch {}
-
-  // Need location_id from the device config (passed as query param by the POS page)
   const { searchParams } = new URL(req.url);
   const locationId = parseInt(searchParams.get('location_id') ?? '0', 10);
-  if (!locationId) return NextResponse.json({ session: null });
+  const deviceBusinessId = searchParams.get('business_id') ?? '';
+  const adminSession = getAdminSession();
+  const posSession = getPosSession();
 
-  // Fetch location name and businessId
-  let locationName = `Location ${locationId}`;
-  let locationBusinessId: string | null = adminSession.businessId ?? null;
-  try {
-    const rows = await imsQuery<{ name: string; business_id: string | null }>(
-      'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1', [locationId, adminSession.businessId]
-    );
-    if (rows[0]) {
-      locationName = rows[0].name;
-      if (rows[0].business_id) locationBusinessId = rows[0].business_id;
+  // A signed back-office session is authoritative. A POS cookie may belong to
+  // another business previously used in this browser.
+  if (adminSession) {
+    if (deviceBusinessId && deviceBusinessId !== adminSession.businessId) {
+      cookies().set('pos_session', '', { maxAge: 0, path: '/' });
+      return NextResponse.json({ session: null, device_mismatch: true });
     }
-  } catch {}
+    if (!locationId) return NextResponse.json({ session: null });
 
-  const sessionData = {
-    pos_user_id:   0,   // 0 = admin-as-POS cashier
-    username:      adminSession.email ?? 'admin',
-    full_name:     adminSession.name  ?? adminSession.email ?? 'Admin',
-    tier:          adminSession.tier  ?? 'SuperAdmin',
-    location_id:   locationId,
-    location_name: locationName,
-    businessId:    locationBusinessId,
-  };
+    await getImsSession(['marketoir_session']);
+    const rows = await imsQuery<{ name: string; business_id: string | null }>(
+      'SELECT name, business_id FROM ims_locations WHERE id = ? AND business_id = ? LIMIT 1',
+      [locationId, adminSession.businessId],
+    );
+    if (!rows[0]) {
+      cookies().set('pos_session', '', { maxAge: 0, path: '/' });
+      return NextResponse.json({ session: null, device_mismatch: true });
+    }
 
-  // Set pos_session cookie so subsequent requests don't need this fallback
-  cookies().set('pos_session', JSON.stringify(sessionData), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 60 * 60 * 16,
-    path: '/',
-  });
+    const sessionData = {
+      pos_user_id:   0,
+      username:      adminSession.email ?? 'admin',
+      full_name:     adminSession.name  ?? adminSession.email ?? 'Admin',
+      tier:          adminSession.tier  ?? 'SuperAdmin',
+      location_id:   locationId,
+      location_name: rows[0].name,
+      businessId:    adminSession.businessId,
+    };
 
-  return NextResponse.json({ session: sessionData });
+    cookies().set('pos_session', JSON.stringify(sessionData), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 16,
+      path: '/',
+    });
+
+    return NextResponse.json({ session: sessionData });
+  }
+
+  if (posSession) {
+    const matchesDevice =
+      (!deviceBusinessId || posSession.businessId === deviceBusinessId) &&
+      (!locationId || posSession.location_id === locationId);
+    if (!matchesDevice) {
+      cookies().set('pos_session', '', { maxAge: 0, path: '/' });
+      return NextResponse.json({ session: null, device_mismatch: true });
+    }
+    await getImsSession(['pos_session']);
+    return NextResponse.json({ session: posSession });
+  }
+
+  return NextResponse.json({ session: null });
   } catch {
     return NextResponse.json({ session: null });
   }

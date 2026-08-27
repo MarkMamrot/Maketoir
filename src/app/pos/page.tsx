@@ -326,7 +326,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
 
   // On mount: probe auth/me — if admin is logged in, skip the PIN form entirely.
   useEffect(() => {
-    fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}`)
+    fetch(`/api/pos/auth/me?location_id=${deviceConfig.location_id}&business_id=${encodeURIComponent(deviceConfig.business_id)}`)
       .then(r => r.json())
       .then(async d => {
         if (d?.session) {
@@ -8118,7 +8118,7 @@ export default function PosPage() {
     if (cfg) {
       setDeviceConfig(cfg);
       // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
-      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}`).then(r => r.json()).then(d => {
+      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}&business_id=${encodeURIComponent(cfg.business_id)}`).then(r => r.json()).then(d => {
         if (d.session) {
           const sess: PosSession = {
             ...d.session,
@@ -8138,6 +8138,11 @@ export default function PosPage() {
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
             else setDefaultView(prev => prev ?? 'all');
           }).catch(() => {});
+        } else if (d.device_mismatch) {
+          clearDeviceConfig();
+          clearLocalSession();
+          setDeviceConfig(null);
+          setScreen('setup');
         } else {
           clearLocalSession();
           setScreen('login');

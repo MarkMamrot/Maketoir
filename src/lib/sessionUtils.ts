@@ -26,6 +26,7 @@ export interface PosSession {
   full_name: string;
   location_id: number;
   location_name: string;
+  businessId: string;
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
