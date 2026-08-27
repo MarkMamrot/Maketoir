@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
   if (!connection?.shopify_shop_id || !connection.shopify_access_token) return NextResponse.json({ error: 'Shopify is not configured.' }, { status: 503 });
   try {
     return await runImsForBusiness(auth.profile.businessId, async () => {
-      const contacts = await imsQuery<{ shopify_customer_id: string }>(`SELECT shopify_customer_id FROM ims_contacts WHERE id=? AND business_id=? AND loyalty_member=1 AND shopify_customer_id IS NOT NULL AND deleted_at IS NULL AND is_active=1 LIMIT 1`, [auth.session.contactId, auth.profile.businessId]);
+      const contacts = await imsQuery<{ shopify_customer_id: string }>(`SELECT shopify_customer_id FROM ims_contacts WHERE id=? AND business_id=? AND loyalty_member=1 AND shopify_customer_id IS NOT NULL AND is_active=1 LIMIT 1`, [auth.session.contactId, auth.profile.businessId]);
       if (!contacts[0]) return NextResponse.json({ error: 'Active loyalty membership is required.' }, { status: 403 });
       let token = connection.shopify_access_token!;
       try { token = decrypt(token); } catch { /* Legacy unencrypted token. */ }

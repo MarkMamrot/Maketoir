@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const contacts = await imsQuery<{ loyalty_member: number }>(
       `SELECT loyalty_member
          FROM ims_contacts
-        WHERE id = ? AND business_id = ? AND deleted_at IS NULL AND is_active = 1
+        WHERE id = ? AND business_id = ? AND is_active = 1
         LIMIT 1`,
       [contactId, session.businessId],
     );

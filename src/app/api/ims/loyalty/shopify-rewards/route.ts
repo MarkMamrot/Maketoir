@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     const contacts = await imsQuery<{ loyalty_member: number; shopify_customer_id: string | null }>(
       `SELECT loyalty_member, shopify_customer_id
          FROM ims_contacts
-        WHERE id = ? AND business_id = ? AND deleted_at IS NULL AND is_active = 1
+        WHERE id = ? AND business_id = ? AND is_active = 1
           AND type IN ('retail_customer','b2b_customer','both')
         LIMIT 1`,
       [contactId, session.businessId],

@@ -28,7 +28,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       return NextResponse.json({ error: 'That code is invalid or has expired.' }, { status: 401 });
     }
     const valid = await runImsForBusiness(businessId, async () => (await imsQuery<{ id: number }>(
-      `SELECT id FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND deleted_at IS NULL AND is_active=1 LIMIT 1`,
+      `SELECT id FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND is_active=1 LIMIT 1`,
       [result.contactId, businessId!])).length === 1);
     if (!valid) return NextResponse.json({ error: 'This customer account is unavailable.' }, { status: 403 });
     cookies().set(LOYALTY_PORTAL_SESSION_COOKIE, signLoyaltyPortalSession({ businessId, contactId: result.contactId, email: result.email, portalSlug: profile.slug }),

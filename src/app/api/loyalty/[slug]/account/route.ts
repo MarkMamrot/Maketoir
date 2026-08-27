@@ -13,7 +13,7 @@ export async function GET(_: Request, { params }: { params: { slug: string } }) 
   try {
     return await runImsForBusiness(auth.profile.businessId, async () => {
       const contacts = await imsQuery<{ loyalty_member: number; name: string }>(
-        `SELECT loyalty_member, name FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND deleted_at IS NULL AND is_active=1 LIMIT 1`,
+        `SELECT loyalty_member, name FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND is_active=1 LIMIT 1`,
         [auth.session.contactId, auth.profile.businessId]);
       if (!contacts[0]) return NextResponse.json({ error: 'Customer not found.' }, { status: 403 });
       const settings = await LoyaltyService.getSettings(auth.profile.businessId);
@@ -45,7 +45,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       try {
         await connection.beginTransaction();
         const [rows] = await connection.execute<any[]>(
-          `SELECT loyalty_member FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND deleted_at IS NULL AND is_active=1 FOR UPDATE`,
+          `SELECT loyalty_member FROM ims_contacts WHERE id=? AND business_id=? AND shopify_customer_id IS NOT NULL AND is_active=1 FOR UPDATE`,
           [auth.session.contactId, auth.profile.businessId]);
         if (!rows[0]) { await connection.rollback(); return { found: false, changed: false }; }
         const member = Boolean(rows[0].loyalty_member);
