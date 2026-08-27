@@ -53,11 +53,26 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {
-    const existing = await ImsLocationsRepo.get(Number(params.id), businessId);
+    const locationId = Number(params.id);
+    const existing = await ImsLocationsRepo.get(locationId, businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
-    await ImsLocationsRepo.delete(Number(params.id));
+    const locationWithStatus = (await ImsLocationsRepo.listWithDeletionStatus(businessId))
+      .find(location => Number(location.id) === locationId);
+    if (!locationWithStatus?.can_delete) {
+      return NextResponse.json({
+        success: false,
+        error: 'This location has activity and cannot be deleted. Set it to Inactive instead.',
+      }, { status: 409 });
+    }
+    await ImsLocationsRepo.delete(locationId, businessId);
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (e?.code === 'ER_ROW_IS_REFERENCED_2' || e?.errno === 1451) {
+      return NextResponse.json({
+        success: false,
+        error: 'This location has activity and cannot be deleted. Set it to Inactive instead.',
+      }, { status: 409 });
+    }
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

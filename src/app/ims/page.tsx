@@ -3005,6 +3005,7 @@ function LocationRegistersPanel({ locationId, locationName, onClose }: { locatio
 
 function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
   const [locations, setLocations] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<{ open: boolean; edit: any | null }>({ open: false, edit: null });
   const [form, setForm] = useState({ ...BLANK_LOC });
@@ -3029,7 +3030,7 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+    fetch('/api/ims/locations?includeDeletionStatus=1').then(r => r.json()).then(d => {
       if (d.success) setLocations(d.data);
     }).finally(() => setLoading(false));
   }, []);
@@ -3068,16 +3069,25 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
     catch (e: any) { alert(e.message); }
   };
 
+  const visibleLocations = locations.filter(location =>
+    statusFilter === 'all' || (statusFilter === 'active' ? !!Number(location.is_active) : !Number(location.is_active)),
+  );
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Locations</h1>
+        <select aria-label="Filter locations by status" value={statusFilter} onChange={e => setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')} style={{ ...inputStyle, width: 130, marginBottom: 0 }}>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="all">All</option>
+        </select>
         {!isAdvisor && <button onClick={() => { setForm({ ...BLANK_LOC }); setModal({ open: true, edit: null }); }} style={btnStyle('action')}>+ New Location</button>}
       </div>
       {loading ? <Spinner /> : (
         <ImsTable
           cols={['Name','Code','City','State','Active','']}
-          rows={locations}
+          rows={visibleLocations}
           background="var(--sv-bg-1)"
           headerBackground="var(--sv-bg-2)"
           columnWidths={[240, 140, 200, 120, 100, 230]}
@@ -3089,7 +3099,8 @@ function LocationsView({ isAdvisor = false }: { isAdvisor?: boolean } = {}) {
             <ActiveDot active={l.is_active} />,
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setRegistersFor(registersFor?.id === l.id ? null : { id: l.id, name: l.name })} style={btnStyle('ghost', 'xs')}>Registers</button>
-              <RowActions isAdvisor={isAdvisor} onEdit={() => { setForm({ ...BLANK_LOC, ...l, manager_pin: '', clear_manager_pin: false }); setModal({ open: true, edit: l }); }} onDelete={() => handleDelete(l)} />
+              {!isAdvisor && <button onClick={() => { setForm({ ...BLANK_LOC, ...l, manager_pin: '', clear_manager_pin: false }); setModal({ open: true, edit: l }); }} style={btnStyle('ghost', 'xs')}>Edit</button>}
+              {!isAdvisor && l.can_delete && <button onClick={() => handleDelete(l)} style={btnStyle('danger', 'xs')}>Delete</button>}
             </div>,
           ]}
         />

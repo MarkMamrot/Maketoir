@@ -1007,7 +1007,7 @@
       },
       "order": 50,
       "summary": "Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "owner": "inventory",
       "filename": "docs/help/ims/stock/location-operations.md"
     },
@@ -6653,7 +6653,7 @@
         "locations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "Use this page to choose the physical-stock workflow that matches what happened in the store or warehouse."
     },
     {
@@ -6671,7 +6671,7 @@
         "locations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| What happened | Start here | Do not substitute |\n|---|---|---|\n| Goods are moving between two branches | **Branch Transfers** | A negative adjustment at one branch and positive adjustment at another |\n| A branch is counting a range of products | **Stocktakes** | A set of unrelated manual adjustments |\n| One known quantity is wrong and no transfer or open count explains it | **Stock** quantity adjustment | A stocktake covering products that were not counted |\n| A branch name, status, or operating setting changes | **Locations** | A stock movement; settings do not move existing goods |"
     },
     {
@@ -6689,8 +6689,8 @@
         "locations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.\n\nOpen a location's register controls to add or reactivate the tills that POS devices can use. The same register controls are available in **Settings > Point of Sale > Registers**, where location details remain read-only. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there."
+      "lastReviewed": "2026-08-27",
+      "content": "Locations identify the branches used by stock, POS, transfers, tracking, and reports. The list shows Active locations by default; use the status filter to view Inactive locations or all locations. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.\n\nOpen a location's register controls to add or reactivate the tills that POS devices can use. The same register controls are available in **Settings > Point of Sale > Registers**, where location details remain read-only. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there.\n\nDelete is available only when a location has no records that require it to be retained. Once a location has stock, orders, registers or other activity, edit it and set **Active** to **No** instead. Inactive locations are hidden by the default filter but remain available in historical records and through the Inactive or All filters."
     },
     {
       "id": "ims-location-stock-operations:4",
@@ -6707,7 +6707,7 @@
         "locations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Destination stock is missing | The transfer was sent but not received | Open **Receive Transfers** at the destination |\n| A transfer is not in Receive Transfers | It is Draft, already Received, Cancelled, or for another destination | Search all statuses in **Branch Transfers** |\n| A variance is surprising | The wrong location or product was counted, or stock moved during the count | Review the count details and movement timing before completion |\n| One quantity needs correction | No broader physical count is required | Use the supported stock adjustment and record a clear reason |\n| POS says no active registers exist | No usable till is configured for the selected location | Open **Settings > Point of Sale > Registers**, select the location, and add or reactivate a register |"
     },
     {
@@ -6725,7 +6725,7 @@
         "locations"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "### Route a physical movement\n\nThe warehouse sends 6 lamps to the city store. Create and send one branch transfer for 6, then let the city store receive the quantity that physically arrives. Do not also reduce and increase the two stock balances manually.\n\n### Route a single correction\n\nThe shelf and storeroom contain 14 mugs but the stock view shows 15. After checking that no sale, receipt, transfer, or stocktake is unfinished, use a quantity adjustment of -1 with a clear reason."
     },
     {

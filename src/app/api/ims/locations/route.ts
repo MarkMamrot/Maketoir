@@ -3,12 +3,15 @@ import { ImsLocationsRepo } from '@/lib/ims/ImsRepository';
 import { query } from '@/services/MySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
-export async function GET() {
-  const session = await getImsSession(['marketoir_session', 'pos_session']);
+export async function GET(req: Request) {
+  const includeDeletionStatus = new URL(req.url).searchParams.get('includeDeletionStatus') === '1';
+  const session = await getImsSession(includeDeletionStatus ? undefined : ['marketoir_session', 'pos_session']);
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {
-    const data = await ImsLocationsRepo.list(businessId);
+    const data = includeDeletionStatus
+      ? await ImsLocationsRepo.listWithDeletionStatus(businessId)
+      : await ImsLocationsRepo.list(businessId);
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });

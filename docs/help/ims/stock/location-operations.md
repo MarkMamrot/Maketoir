@@ -1,5 +1,5 @@
 ---
-{"id":"ims-location-stock-operations","title":"Locations, Transfers, and Stocktakes","audiences":["ims"],"capability":"inventory","screen":"Locations and Stock","product":"ims","format":"overview","parentId":"ims-stock","relatedTopics":["ims-branch-transfers","ims-stocktakes-adjustments"],"contexts":["locations"],"contextSections":{"locations":"Locations"},"order":50,"summary":"Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-location-stock-operations","title":"Locations, Transfers, and Stocktakes","audiences":["ims"],"capability":"inventory","screen":"Locations and Stock","product":"ims","format":"overview","parentId":"ims-stock","relatedTopics":["ims-branch-transfers","ims-stocktakes-adjustments"],"contexts":["locations"],"contextSections":{"locations":"Locations"},"order":50,"summary":"Choose the right location workflow for branch setup, transfers, physical counts, and quantity corrections.","lastReviewed":"2026-08-27","owner":"inventory"}
 ---
 # Locations, Transfers, and Stocktakes
 
@@ -16,9 +16,11 @@ Use this page to choose the physical-stock workflow that matches what happened i
 
 ## Locations
 
-Locations identify the branches used by stock, POS, transfers, tracking, and reports. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.
+Locations identify the branches used by stock, POS, transfers, tracking, and reports. The list shows Active locations by default; use the status filter to view Inactive locations or all locations. Select **Save** to add a location; a new location is not treated as a draft. The form stays open if you click outside it, so use **Cancel** or Escape to leave without saving.
 
 Open a location's register controls to add or reactivate the tills that POS devices can use. The same register controls are available in **Settings > Point of Sale > Registers**, where location details remain read-only. Review open transfers, stocktakes, register use, and connected mappings before changing or deactivating a location. Changing a setting can affect where future work appears, but it does not move quantities already recorded there.
+
+Delete is available only when a location has no records that require it to be retained. Once a location has stock, orders, registers or other activity, edit it and set **Active** to **No** instead. Inactive locations are hidden by the default filter but remain available in historical records and through the Inactive or All filters.
 
 ## Troubleshooting
 

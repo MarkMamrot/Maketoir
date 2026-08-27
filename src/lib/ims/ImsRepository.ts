@@ -644,6 +644,31 @@ export const ImsLocationsRepo = {
     return rows.map(stripManagerPinHash);
   },
 
+  async listWithDeletionStatus(businessId: string): Promise<(ImsLocation & { can_delete: boolean })[]> {
+    const locations = await this.list(businessId);
+    if (!locations.length) return [];
+
+    const foreignKeys = await imsQuery<{ table_name: string; column_name: string }>(
+      `SELECT DISTINCT kcu.TABLE_NAME AS table_name, kcu.COLUMN_NAME AS column_name
+         FROM information_schema.KEY_COLUMN_USAGE kcu
+        WHERE kcu.REFERENCED_TABLE_SCHEMA = DATABASE()
+          AND kcu.REFERENCED_TABLE_NAME = 'ims_locations'`,
+    );
+    const safeForeignKeys = foreignKeys.filter(({ table_name, column_name }) =>
+      /^[A-Za-z0-9_]+$/.test(table_name) && /^[A-Za-z0-9_]+$/.test(column_name),
+    );
+    const placeholders = locations.map(() => '?').join(',');
+    const locationIds = locations.map(location => location.id);
+    const references = await Promise.all(safeForeignKeys.map(({ table_name, column_name }) =>
+      imsQuery<{ location_id: number }>(
+        `SELECT DISTINCT \`${column_name}\` AS location_id FROM \`${table_name}\` WHERE \`${column_name}\` IN (${placeholders})`,
+        locationIds,
+      ),
+    ));
+    const blockedIds = new Set(references.flat().map(row => Number(row.location_id)));
+    return locations.map(location => ({ ...location, can_delete: !blockedIds.has(Number(location.id)) }));
+  },
+
   async get(id: number, businessId?: string): Promise<ImsLocation | null> {
     const where = businessId ? 'WHERE id = ? AND business_id = ?' : 'WHERE id = ?';
     const params = businessId ? [id, businessId] : [id];
@@ -678,8 +703,8 @@ export const ImsLocationsRepo = {
     await imsExecute(`UPDATE ims_locations SET ${sets.join(', ')} WHERE id = ?`, vals);
   },
 
-  async delete(id: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_locations WHERE id = ?`, [id]);
+  async delete(id: number, businessId: string): Promise<void> {
+    await imsExecute(`DELETE FROM ims_locations WHERE id = ? AND business_id = ?`, [id, businessId]);
   },
 };
 
