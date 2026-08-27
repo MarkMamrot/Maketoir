@@ -411,7 +411,10 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
   const rows = new Map<number, { templateId: number; title: string; instructions?: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; editableTask?: EditableTask }>();
   for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, instructions: item.instructions, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, editableTask: item.can_edit ? item : undefined });
-  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, instructions: task.instructions, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : undefined });
+  for (const task of currentTasks) {
+    const historicalTask = rows.get(task.template_id)?.editableTask;
+    rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, instructions: task.instructions, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : historicalTask });
+  }
   const scheduleGroups = new Map<string, { label: string; order: number; rows: typeof rows extends Map<number, infer Row> ? Row[] : never }>();
   for (const row of rows.values()) {
     const schedule = taskSchedule(row.recurrence, row.weekday, row.scheduledDate);
