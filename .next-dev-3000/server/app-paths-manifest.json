@@ -1,7 +1,7 @@
 {
   "/login/page": "app/login/page.js",
-  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
   "/page": "app/page.js",
+  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
   "/pos/page": "app/pos/page.js",
   "/ims/page": "app/ims/page.js"
 }
