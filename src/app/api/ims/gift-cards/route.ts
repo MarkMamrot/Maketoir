@@ -2,13 +2,16 @@ import { NextResponse } from 'next/server';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { syncGiftCardIssueInvoice } from '@/services/XeroSyncService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 // ── GET /api/ims/gift-cards ───────────────────────────────────────────────────
 // Query params: status, search, limit, offset
 export async function GET(req: Request) {
+  let businessId: string | undefined;
   try {
     const session = await getImsSession();
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    businessId = session.businessId;
 
     const { searchParams } = new URL(req.url);
     const status           = searchParams.get('status')            ?? '';
@@ -54,7 +57,7 @@ export async function GET(req: Request) {
          FROM gift_cards gc
          LEFT JOIN ims_contacts contact
            ON contact.business_id = ?
-          AND contact.shopify_customer_id = gc.customer_id
+          AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
          ${where}
         ORDER BY gc.created_at DESC
         LIMIT ${limit} OFFSET ${offset}`,
@@ -66,7 +69,7 @@ export async function GET(req: Request) {
          FROM gift_cards gc
          LEFT JOIN ims_contacts contact
            ON contact.business_id = ?
-          AND contact.shopify_customer_id = gc.customer_id
+          AND contact.shopify_customer_id COLLATE utf8mb4_general_ci = gc.customer_id COLLATE utf8mb4_general_ci
          ${where}`,
       [session.businessId, ...params],
     );
@@ -75,7 +78,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: true, data: rows, total: Number(total) });
   } catch (e: any) {
     console.error('[gift-cards GET] FULL ERROR:', e.message, e.stack);
-    return NextResponse.json({ success: false, error: e.message, stack: e.stack }, { status: 500 });
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims',
+      operation: 'gift_card_list',
+      title: 'Gift cards could not be loaded',
+      error: e,
+    }).catch(() => {});
+    return NextResponse.json({ success: false, error: 'Gift cards could not be loaded.' }, { status: 500 });
   }
 }
 
