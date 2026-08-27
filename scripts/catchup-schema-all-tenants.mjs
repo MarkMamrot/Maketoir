@@ -1250,6 +1250,24 @@ const COLUMNS = [
   ['pos_petty_cash_transactions', 'evidence_note', 'VARCHAR(500) NULL AFTER evidence_type'],
   ['store_credit_transactions', 'credit_note_id',   'INT NULL'],
   ['store_credit_transactions', 'idempotency_key',  'VARCHAR(191) NULL'],
+  // ── gift-card reconciliation ────────────────────────────────────────────
+  ['gift_cards', 'shopify_updated_at', 'DATETIME NULL'],
+  ['gift_cards', 'shopify_observed_balance', 'DECIMAL(12,2) NULL'],
+  ['gift_cards', 'shopify_observed_status', 'VARCHAR(32) NULL'],
+  ['gift_cards', 'reconciliation_state', "VARCHAR(32) NOT NULL DEFAULT 'unverified'"],
+  ['gift_cards', 'reconciliation_reason', 'VARCHAR(500) NULL'],
+  ['gift_cards', 'last_reconciled_at', 'DATETIME NULL'],
+  ['gift_card_transactions', 'idempotency_key', 'VARCHAR(191) NULL'],
+  ['gift_card_transactions', 'event_source', "VARCHAR(32) NOT NULL DEFAULT 'legacy'"],
+  ['gift_card_transactions', 'shopify_transaction_id', 'VARCHAR(191) NULL'],
+  ['gift_card_transactions', 'shopify_processed_at', 'DATETIME NULL'],
+  ['gift_card_transactions', 'provider_balance_after', 'DECIMAL(12,2) NULL'],
+  ['gift_card_transactions', 'sync_state', "VARCHAR(32) NOT NULL DEFAULT 'local_only'"],
+  ['gift_card_transactions', 'sync_error', 'VARCHAR(500) NULL'],
+  ['gift_card_transactions', 'actor_id', 'INT NULL'],
+  ['gift_card_transactions', 'actor_name', 'VARCHAR(255) NULL'],
+  ['gift_card_transactions', 'reference_type', 'VARCHAR(64) NULL'],
+  ['gift_card_transactions', 'reference_id', 'VARCHAR(191) NULL'],
   ['loyalty_transactions', 'eligible_spend_cents', 'INT UNSIGNED NULL'],
   ['ims_po_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
   ['ims_so_backorder_lines', 'source_item_snapshot', 'JSON NULL AFTER transferred_qty'],
@@ -1285,6 +1303,10 @@ const INDEXES = [
   ['pos_sale_items', 'idx_psi_return_source', 'INDEX `idx_psi_return_source` (`return_of_sale_item_id`)'],
   ['store_credit_transactions', 'idx_sct_credit_note', 'INDEX `idx_sct_credit_note` (`credit_note_id`)'],
   ['store_credit_transactions', 'uq_sct_idempotency', 'UNIQUE INDEX `uq_sct_idempotency` (`idempotency_key`)'],
+  ['gift_cards', 'idx_gc_reconciliation', 'INDEX `idx_gc_reconciliation` (`reconciliation_state`, `updated_at`)'],
+  ['gift_card_transactions', 'uq_gct_idempotency', 'UNIQUE INDEX `uq_gct_idempotency` (`idempotency_key`)'],
+  ['gift_card_transactions', 'uq_gct_shopify_transaction', 'UNIQUE INDEX `uq_gct_shopify_transaction` (`shopify_transaction_id`)'],
+  ['gift_card_transactions', 'idx_gct_sync', 'INDEX `idx_gct_sync` (`sync_state`, `created_at`)'],
   ['ims_supplier_credit_notes', 'uq_business_scn', 'UNIQUE INDEX `uq_business_scn` (`business_id`, `scn_number`)'],
   ['ims_supplier_credit_note_items', 'idx_scn_source_po_item', 'INDEX `idx_scn_source_po_item` (`source_po_item_id`)'],
   ['ims_sales_order_items', 'idx_soitem_shopify_li', 'INDEX `idx_soitem_shopify_li` (`shopify_line_item_id`)'],
@@ -1425,6 +1447,22 @@ async function ensureNativeCheckoutIndex(schema) {
   await conn.query(`ALTER TABLE \`${schema}\`.ims_sales_orders ADD UNIQUE INDEX uq_so_native_checkout (business_id, native_checkout_id, location_id)`);
 }
 
+async function assertUniqueGiftCardTransactionIdentities(schema) {
+  for (const column of ['idempotency_key', 'shopify_transaction_id']) {
+    const [rows] = await conn.query(
+      `SELECT \`${column}\` AS identity_value, COUNT(*) AS duplicate_count
+         FROM \`${schema}\`.gift_card_transactions
+        WHERE \`${column}\` IS NOT NULL AND \`${column}\` <> ''
+        GROUP BY \`${column}\`
+       HAVING COUNT(*) > 1
+        LIMIT 5`,
+    );
+    if (rows.length) {
+      throw new Error(`${schema}.gift_card_transactions has duplicate ${column} values; resolve them before adding the unique index`);
+    }
+  }
+}
+
 async function migrateSchema(schema, businessId) {
   for (const ddl of TABLE_DDLS) {
     try {
@@ -1532,6 +1570,7 @@ async function migrateSchema(schema, businessId) {
   }
 
   let indexesAdded = 0, indexesSkipped = 0;
+  await assertUniqueGiftCardTransactionIdentities(schema);
   for (const [table, indexName, def] of INDEXES) {
     if (existingIndexes.has(`${table}.${indexName}`)) { indexesSkipped++; continue; }
     try {
@@ -1594,6 +1633,7 @@ async function migrateSchema(schema, businessId) {
     await ensureEnumValues(schema, 'ims_purchase_orders', 'status', ['draft', 'confirmed', 'partially_received', 'backordered', 'complete', 'cancelled']);
     await ensureEnumValues(schema, 'ims_sales_orders', 'status', ['draft', 'confirmed', 'partially_fulfilled', 'backordered', 'fulfilled', 'cancelled']);
     await ensureEnumValues(schema, 'loyalty_transactions', 'channel', ['pos', 'shopify', 'native_shop', 'manual', 'migration']);
+    await ensureEnumValues(schema, 'gift_card_transactions', 'type', ['deactivate', 'reconcile']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'status', ['draft', 'awaiting_product', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_supplier_credit_notes', 'status', ['draft', 'complete', 'cancelled', 'reversed']);
     await ensureEnumValues(schema, 'ims_credit_notes', 'source', ['manual', 'shopify', 'pos', 'so_shortfall']);
@@ -1660,6 +1700,42 @@ async function verifyStockAvailabilitySchema(schema) {
     for (const column of columns) if (!found.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
   }
   console.log(`  verified ${schema} stock availability schema`);
+}
+
+async function verifyGiftCardReconciliationSchema(schema) {
+  const requiredColumns = {
+    gift_cards: [
+      'shopify_updated_at', 'shopify_observed_balance', 'shopify_observed_status',
+      'reconciliation_state', 'reconciliation_reason', 'last_reconciled_at',
+    ],
+    gift_card_transactions: [
+      'event_source', 'shopify_transaction_id', 'shopify_processed_at', 'provider_balance_after',
+      'sync_state', 'sync_error', 'actor_id', 'actor_name', 'reference_type', 'reference_id',
+    ],
+  };
+  for (const [table, columns] of Object.entries(requiredColumns)) {
+    const [rows] = await conn.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+      [schema, table],
+    );
+    const found = new Set(rows.map(row => row.COLUMN_NAME));
+    for (const column of columns) if (!found.has(column)) throw new Error(`${schema}.${table} is missing ${column}`);
+  }
+  const [indexRows] = await conn.query(
+    `SELECT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('gift_cards', 'gift_card_transactions')`,
+    [schema],
+  );
+  const indexes = new Set(indexRows.map(row => `${row.TABLE_NAME}.${row.INDEX_NAME}`));
+  for (const index of [
+    'gift_cards.idx_gc_reconciliation',
+    'gift_card_transactions.uq_gct_idempotency',
+    'gift_card_transactions.uq_gct_shopify_transaction',
+    'gift_card_transactions.idx_gct_sync',
+  ]) {
+    if (!indexes.has(index)) throw new Error(`${schema} is missing ${index}`);
+  }
+  console.log(`  verified ${schema} gift-card reconciliation schema`);
 }
 
 async function verifyOutstandingResolutionSchema(schema) {
@@ -1944,6 +2020,7 @@ try {
     await migrateSchema(schema, businessIdsBySchema.get(schema));
     await verifyBackorderMergeSchema(schema);
     await verifyStockAvailabilitySchema(schema);
+    await verifyGiftCardReconciliationSchema(schema);
     await verifyOutstandingResolutionSchema(schema);
     await verifyInventoryDocumentOperationSchema(schema);
     await verifyInventoryDocumentCorrectionSchema(schema);

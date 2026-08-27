@@ -1,5 +1,5 @@
 ---
-{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-08-27","owner":"inventory"}
 ---
 # Catalogue and Stock
 
@@ -48,7 +48,17 @@ Use one spelling for the same brand. For example, choose **Coastal Home** rather
 
 ## Gift cards
 
-Gift Cards shows issued cards and their supported balance activity. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity.
+Gift Cards shows issued cards, linked customer details, balance activity and Shopify reconciliation state. Search can use the card code, customer name, email, phone or mobile number. Issue and redemption belong to the gift-card and POS workflow; a gift-card balance is not a product price, customer store credit or stock quantity.
+
+When **Shopify > Gift Cards** is set to **Combined**, Solvantis checks Shopify each day for new cards, disabled cards and transaction activity. Use **Reconcile Now** in Shopify settings when an immediate check is needed. Shopify-created cards appear with a protected placeholder ending in the visible last four characters until the full code is resolved at POS.
+
+The **Sync** column shows whether balances agree. **Review** means Shopify and Solvantis differ but the available Shopify events do not prove the complete change, so Solvantis keeps its existing balance. Open the card to inspect activity on both sides before making a correction.
+
+Use **Apply Adjustment** for a deliberate signed balance correction and enter a reason. A positive amount adds value; a negative amount removes value. In Combined mode the same change is sent to Shopify and recorded in history. Use **Retry** on an activity row when that provider update failed. Retry first checks Shopify history so an update that already succeeded is not repeated.
+
+Use **Deactivate** only when the card must no longer be accepted. Deactivation requires a reason, is sent to Shopify first for linked cards, and cannot be reversed in Solvantis.
+
+> **Important:** Do not repeat an adjustment manually in Shopify after Solvantis reports a sync error. Retry the activity from the card history so Solvantis can first check whether Shopify already recorded it.
 
 ## Bulk edit
 

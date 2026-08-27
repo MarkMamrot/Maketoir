@@ -1,0 +1,20 @@
+name: Shopify Gift Card Reconciliation
+
+on:
+  schedule:
+    - cron: '17 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile Shopify gift cards
+        run: |
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/ims/shopify/gift-cards/reconcile-cron")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1

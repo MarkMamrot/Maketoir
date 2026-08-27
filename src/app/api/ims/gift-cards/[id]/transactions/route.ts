@@ -17,10 +17,22 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     amount:        string;
     balance_after: string;
     pos_sale_id:   number | null;
+    event_source: string;
+    shopify_transaction_id: string | null;
+    shopify_processed_at: string | null;
+    provider_balance_after: string | null;
+    sync_state: string;
+    sync_error: string | null;
+    actor_name: string | null;
+    reference_type: string | null;
+    reference_id: string | null;
     notes:         string | null;
     created_at:    string;
   }>(
-    `SELECT id, type, amount, balance_after, pos_sale_id, notes, created_at
+        `SELECT id, type, amount, balance_after, pos_sale_id,
+          event_source, shopify_transaction_id, shopify_processed_at,
+          provider_balance_after, sync_state, sync_error, actor_name,
+          reference_type, reference_id, notes, created_at
      FROM gift_card_transactions
      WHERE card_id = ?
      ORDER BY created_at ASC`,

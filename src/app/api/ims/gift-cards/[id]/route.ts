@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
+import { imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 
 // ── PUT /api/ims/gift-cards/[id] ──────────────────────────────────────────────
@@ -13,34 +13,30 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 
   try {
     const body = await req.json();
-    const { code, initial_balance, balance, status, currency, expires_on, customer_id, order_id, recipient_email, notes, last_used_at } = body;
+    const forbiddenFields = ['code', 'initial_balance', 'balance', 'status', 'currency', 'last_used_at']
+      .filter(field => Object.prototype.hasOwnProperty.call(body, field));
+    if (forbiddenFields.length) {
+      return NextResponse.json({
+        error: 'Code, balance, status, currency, and usage history cannot be edited directly. Use a named gift-card action.',
+        fields: forbiddenFields,
+      }, { status: 400 });
+    }
+    const { expires_on, customer_id, order_id, recipient_email, notes } = body;
 
     await imsExecute(
       `UPDATE gift_cards SET
-         code            = ?,
-         initial_balance = ?,
-         balance         = ?,
-         status          = ?,
-         currency        = ?,
          expires_on      = ?,
          customer_id     = ?,
          order_id        = ?,
          recipient_email = ?,
-         notes           = ?,
-         last_used_at    = ?
+         notes           = ?
        WHERE id = ?`,
       [
-        String(code ?? '').trim().toUpperCase(),
-        initial_balance ?? null,
-        Number(balance ?? 0),
-        status ?? 'active',
-        currency || 'AUD',
         expires_on   || null,
         customer_id  || null,
         order_id     || null,
         recipient_email || null,
         notes           || null,
-        last_used_at    || null,
         id,
       ],
     );
@@ -63,10 +59,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const id = parseInt(params.id, 10);
   if (!id) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
-  try {
-    await imsExecute('DELETE FROM gift_cards WHERE id = ?', [id]);
-    return NextResponse.json({ success: true });
-  } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
-  }
+  return NextResponse.json({
+    error: 'Issued gift cards and their transaction history are retained. Deactivate the card instead.',
+  }, { status: 409 });
 }

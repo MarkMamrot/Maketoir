@@ -35,8 +35,7 @@ async function getGcMode(): Promise<string> {
 
 // POST /api/pos/gift-card/redeem
 // Body: { code, amount, pos_sale_id? }
-// combined mode: partial redemption = disable old Shopify card + issue new one with remaining balance.
-// Full redemption: disable Shopify card.
+// Combined mode debits the same Shopify card and preserves its provider transaction history.
 export async function POST(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
@@ -109,33 +108,51 @@ export async function POST(req: Request) {
   const actualDebit = Math.min(debitAmt, card.balance);
   const newBalance  = Math.max(0, Math.round((card.balance - actualDebit) * 100) / 100);
   const newStatus   = newBalance <= 0 ? 'redeemed' : 'active';
+  const redemptionIdempotencyKey = pos_sale_id ? `pos-gift-card-redeem:${pos_sale_id}:${card.id}` : null;
+
+  if (redemptionIdempotencyKey) {
+    const existingTransactions = await imsQuery<{
+      balance_after: string | number;
+      sync_state: string;
+    }>(
+      'SELECT balance_after, sync_state FROM gift_card_transactions WHERE idempotency_key = ? LIMIT 1',
+      [redemptionIdempotencyKey],
+    );
+    if (existingTransactions.length) {
+      return NextResponse.json({
+        success: true,
+        duplicate: true,
+        balance_after: Number(existingTransactions[0].balance_after),
+        status: Number(existingTransactions[0].balance_after) <= 0 ? 'redeemed' : 'active',
+        shopify_synced: existingTransactions[0].sync_state === 'synced'
+          ? true
+          : existingTransactions[0].sync_state === 'error' ? false : null,
+        xero_synced: null,
+        xero_warning: null,
+      });
+    }
+  }
 
   // ── Shopify sync (combined mode) ──────────────────────────────────────────
-  let newCode: string | null = null;
-  let newShopifyGcId: number | null = null;
   let shopifySynced: boolean | null = null; // null = not applicable (non-combined mode)
+  let shopifyTransactionId: string | null = null;
+  let shopifyProcessedAt: string | null = null;
+  let shopifyBalanceAfter: number | null = null;
+  let shopifySyncError: string | null = null;
 
   if (gcMode === 'combined' && card.shopify_gc_id) {
     shopifySynced = false; // will be set to true only on full success
     try {
       const shopify = await getShopify(session.businessId);
       if (shopify) {
-        // Disable the old card. Returns false if already disabled (previous partial attempt),
-        // which is treated as no-op success so replacement creation can still proceed.
-        const freshlyDisabled = await shopify.disableGiftCard(card.shopify_gc_id);
-        if (!freshlyDisabled) {
-          console.warn(`[POS gift-card/redeem] GC shopify_id=${card.shopify_gc_id} was already disabled — continuing with replacement creation`, { card_id: card.id });
-        }
-
-        if (newBalance > 0) {
-          // Issue a replacement card in Shopify with the remaining balance
-          const replacement = await shopify.createGiftCard({
-            initial_value: newBalance,
-            note: `Replacement for redeemed card (${actualDebit.toFixed(2)} used at POS)`,
-          });
-          newCode        = replacement.code;
-          newShopifyGcId = replacement.id;
-        }
+        const providerResult = await shopify.giftCardDebit({
+          giftCardId: card.shopify_gc_id,
+          amount: actualDebit,
+          note: pos_sale_id ? `Solvantis POS sale ${pos_sale_id}` : 'Solvantis POS redemption',
+        });
+        shopifyTransactionId = providerResult.transactionId;
+        shopifyProcessedAt = providerResult.processedAt;
+        shopifyBalanceAfter = providerResult.balance;
         shopifySynced = true;
       }
     } catch (e: any) {
@@ -145,6 +162,7 @@ export async function POST(req: Request) {
         shopify_gc_id: card.shopify_gc_id,
         newBalance,
       });
+      shopifySyncError = e?.message ?? String(e);
       await reportRuntimeIssue({
         businessId: session.businessId,
         source: 'shopify',
@@ -163,30 +181,38 @@ export async function POST(req: Request) {
   }
 
   // ── Debit IMS ─────────────────────────────────────────────────────────────
-  // If Shopify issued a replacement, update the code + shopify_gc_id too
-  if (newCode && newShopifyGcId) {
-    await imsExecute(
-      `UPDATE gift_cards
-       SET balance = ?, status = ?, last_used_at = NOW(),
-           code = ?, shopify_gc_id = ?,
-           order_id = COALESCE(order_id, ?)
-       WHERE id = ?`,
-      [newBalance, newStatus, newCode, newShopifyGcId, pos_sale_id ? String(pos_sale_id) : null, card.id],
-    );
-  } else {
-    await imsExecute(
-      `UPDATE gift_cards
-       SET balance = ?, status = ?, last_used_at = NOW(),
-           order_id = COALESCE(order_id, ?)
-       WHERE id = ?`,
-      [newBalance, newStatus, pos_sale_id ? String(pos_sale_id) : null, card.id],
-    );
-  }
+  const reconciliationState = shopifySynced === false ? 'error' : shopifySynced === true ? 'matched' : 'local_only';
+  await imsExecute(
+    `UPDATE gift_cards
+     SET balance = ?, status = ?, last_used_at = NOW(),
+         order_id = COALESCE(order_id, ?),
+         shopify_observed_balance = COALESCE(?, shopify_observed_balance),
+         reconciliation_state = ?, reconciliation_reason = ?,
+         last_reconciled_at = IF(? IS NULL, last_reconciled_at, NOW())
+     WHERE id = ?`,
+    [
+      newBalance, newStatus, pos_sale_id ? String(pos_sale_id) : null,
+      shopifyBalanceAfter, reconciliationState, shopifySyncError,
+      shopifyBalanceAfter, card.id,
+    ],
+  );
 
   const txnRes = await imsExecute(
-    `INSERT INTO gift_card_transactions (card_id, type, amount, balance_after, pos_sale_id)
-     VALUES (?, 'redeem', ?, ?, ?)`,
-    [card.id, -actualDebit, newBalance, pos_sale_id ?? null],
+    `INSERT INTO gift_card_transactions
+       (card_id, type, amount, balance_after, pos_sale_id, idempotency_key, event_source,
+        shopify_transaction_id, shopify_processed_at, provider_balance_after,
+        sync_state, sync_error, reference_type, reference_id, notes)
+     VALUES (?, 'redeem', ?, ?, ?, ?, 'pos', ?, ?, ?, ?, ?, 'pos_sale', ?, 'Redeemed at POS')`,
+    [
+      card.id, -actualDebit, newBalance, pos_sale_id ?? null,
+      redemptionIdempotencyKey,
+      shopifyTransactionId,
+      shopifyProcessedAt ? shopifyProcessedAt.slice(0, 19).replace('T', ' ') : null,
+      shopifyBalanceAfter,
+      shopifySynced === true ? 'synced' : shopifySynced === false ? 'error' : 'local_only',
+      shopifySyncError?.slice(0, 500) ?? null,
+      pos_sale_id != null ? String(pos_sale_id) : null,
+    ],
   );
 
   let xeroSynced: boolean | null = null;
@@ -219,7 +245,5 @@ export async function POST(req: Request) {
     shopify_synced: shopifySynced,
     xero_synced: xeroSynced,
     xero_warning: xeroWarning,
-    // new_code is set when combined mode issued a replacement card — cashier must give this to customer
-    ...(newCode ? { new_code: newCode } : {}),
   });
 }

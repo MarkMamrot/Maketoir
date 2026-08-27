@@ -2129,26 +2129,46 @@ CREATE TABLE IF NOT EXISTS gift_cards (
   notes                   TEXT           NULL,
   created_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_used_at            DATETIME       NULL,
+  shopify_updated_at      DATETIME       NULL,
+  shopify_observed_balance DECIMAL(12,2) NULL,
+  shopify_observed_status VARCHAR(32)     NULL,
+  reconciliation_state    VARCHAR(32)     NOT NULL DEFAULT 'unverified',
+  reconciliation_reason   VARCHAR(500)    NULL,
+  last_reconciled_at      DATETIME        NULL,
   updated_at              DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_gift_card_code     (code),
   UNIQUE KEY uq_shopify_gc_id      (shopify_gc_id),
   INDEX idx_gc_status              (status),
-  INDEX idx_gc_customer            (customer_id)
+  INDEX idx_gc_customer            (customer_id),
+  INDEX idx_gc_reconciliation      (reconciliation_state, updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gift_card_transactions (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   card_id       INT NOT NULL,
-  type          ENUM('issue','redeem','return','adjust') NOT NULL,
+  type          ENUM('issue','redeem','return','adjust','deactivate','reconcile') NOT NULL,
   amount        DECIMAL(12,2) NOT NULL,
   balance_after DECIMAL(12,2) NOT NULL,
   pos_sale_id   INT NULL,
   credit_note_id INT NULL,
   idempotency_key VARCHAR(191) NULL,
+  event_source  VARCHAR(32) NOT NULL DEFAULT 'legacy',
+  shopify_transaction_id VARCHAR(191) NULL,
+  shopify_processed_at DATETIME NULL,
+  provider_balance_after DECIMAL(12,2) NULL,
+  sync_state    VARCHAR(32) NOT NULL DEFAULT 'local_only',
+  sync_error    VARCHAR(500) NULL,
+  actor_id      INT NULL,
+  actor_name    VARCHAR(255) NULL,
+  reference_type VARCHAR(64) NULL,
+  reference_id  VARCHAR(191) NULL,
   notes         VARCHAR(255) NULL,
   created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_gct_idempotency (idempotency_key),
+  UNIQUE KEY uq_gct_shopify_transaction (shopify_transaction_id),
   INDEX idx_gct_card (card_id),
   INDEX idx_gct_sale (pos_sale_id),
+  INDEX idx_gct_sync (sync_state, created_at),
   CONSTRAINT fk_gct_card FOREIGN KEY (card_id) REFERENCES gift_cards(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

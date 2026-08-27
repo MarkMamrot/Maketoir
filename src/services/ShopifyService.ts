@@ -12,6 +12,41 @@ export class ShopifyAdminUserError extends Error {
   }
 }
 
+export interface ShopifyGiftCardTransaction {
+  id: string;
+  type: 'credit' | 'debit' | 'cash_out' | 'unknown';
+  amount: number;
+  currency: string;
+  processedAt: string;
+  note: string | null;
+}
+
+export interface ShopifyGiftCardTransactionHistory {
+  balance: number;
+  currency: string;
+  updatedAt: string;
+  enabled: boolean;
+  deactivatedAt: string | null;
+  transactions: ShopifyGiftCardTransaction[];
+}
+
+export interface ShopifyGiftCardBalanceMutationResult {
+  transactionId: string;
+  amount: number;
+  currency: string;
+  processedAt: string;
+  note: string | null;
+  balance: number;
+}
+
+interface GiftCardMutationTransaction {
+  id: string;
+  amount: { amount: string; currencyCode: string };
+  processedAt: string;
+  note: string | null;
+  giftCard: { balance: { amount: string; currencyCode: string } };
+}
+
 export class ShopifyService {
   private shopify: Shopify;
   private readonly shopName_: string;
@@ -78,6 +113,11 @@ export class ShopifyService {
       throw new Error(`Shopify GraphQL: ${payload.errors.map((error: any) => error.message).join('; ')}`);
     }
     return payload.data as T;
+  }
+
+  private giftCardGid(id: string | number): string {
+    const value = String(id);
+    return value.startsWith('gid://') ? value : `gid://shopify/GiftCard/${value}`;
   }
 
   async findDiscountCode(code: string): Promise<{ id: string; code: string } | null> {
@@ -217,6 +257,146 @@ export class ShopifyService {
       }
       throw e;
     }
+  }
+
+  async getGiftCardTransactions(shopifyGcId: string | number): Promise<ShopifyGiftCardTransactionHistory> {
+    const transactions: ShopifyGiftCardTransaction[] = [];
+    let after: string | null = null;
+    let cardState: Omit<ShopifyGiftCardTransactionHistory, 'transactions'> | null = null;
+
+    do {
+      const data = await this.adminGraphql<{
+        giftCard: {
+          balance: { amount: string; currencyCode: string };
+          updatedAt: string;
+          enabled: boolean;
+          deactivatedAt: string | null;
+          transactions: {
+            nodes: Array<{
+              id: string;
+              __typename: string;
+              amount: { amount: string; currencyCode: string };
+              processedAt: string;
+              note: string | null;
+            }>;
+            pageInfo: { hasNextPage: boolean; endCursor: string | null };
+          };
+        } | null;
+      }>(
+        `query GiftCardTransactions($id: ID!, $after: String) {
+          giftCard(id: $id) {
+            balance { amount currencyCode }
+            updatedAt
+            enabled
+            deactivatedAt
+            transactions(first: 100, after: $after) {
+              nodes { id __typename amount { amount currencyCode } processedAt note }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }`,
+        { id: this.giftCardGid(shopifyGcId), after },
+      );
+      if (!data.giftCard) throw new Error(`Shopify gift card ${shopifyGcId} was not found.`);
+      cardState = {
+        balance: Number(data.giftCard.balance.amount),
+        currency: data.giftCard.balance.currencyCode,
+        updatedAt: data.giftCard.updatedAt,
+        enabled: data.giftCard.enabled,
+        deactivatedAt: data.giftCard.deactivatedAt,
+      };
+      transactions.push(...data.giftCard.transactions.nodes.map(node => ({
+        id: node.id,
+        type: node.__typename === 'GiftCardCreditTransaction'
+          ? 'credit'
+          : node.__typename === 'GiftCardDebitTransaction'
+            ? 'debit'
+            : node.__typename === 'GiftCardCashOutTransaction' ? 'cash_out' : 'unknown',
+        amount: Number(node.amount.amount),
+        currency: node.amount.currencyCode,
+        processedAt: node.processedAt,
+        note: node.note,
+      })));
+      after = data.giftCard.transactions.pageInfo.hasNextPage
+        ? data.giftCard.transactions.pageInfo.endCursor
+        : null;
+    } while (after);
+
+    if (!cardState) throw new Error(`Shopify gift card ${shopifyGcId} returned no state.`);
+    return { ...cardState, transactions };
+  }
+
+  async giftCardCredit(input: {
+    giftCardId: string | number;
+    amount: number;
+    currency?: string;
+    note?: string;
+    processedAt?: string;
+  }): Promise<ShopifyGiftCardBalanceMutationResult> {
+    return this.mutateGiftCardBalance('credit', input);
+  }
+
+  async giftCardDebit(input: {
+    giftCardId: string | number;
+    amount: number;
+    currency?: string;
+    note?: string;
+    processedAt?: string;
+  }): Promise<ShopifyGiftCardBalanceMutationResult> {
+    return this.mutateGiftCardBalance('debit', input);
+  }
+
+  private async mutateGiftCardBalance(
+    operation: 'credit' | 'debit',
+    input: {
+      giftCardId: string | number;
+      amount: number;
+      currency?: string;
+      note?: string;
+      processedAt?: string;
+    },
+  ): Promise<ShopifyGiftCardBalanceMutationResult> {
+    if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error('Gift card adjustment amount must be positive.');
+    const mutationName = operation === 'credit' ? 'giftCardCredit' : 'giftCardDebit';
+    const inputType = operation === 'credit' ? 'GiftCardCreditInput' : 'GiftCardDebitInput';
+    const inputName = operation === 'credit' ? 'creditInput' : 'debitInput';
+    const amountName = operation === 'credit' ? 'creditAmount' : 'debitAmount';
+    const transactionName = operation === 'credit' ? 'giftCardCreditTransaction' : 'giftCardDebitTransaction';
+    const data = await this.adminGraphql<Record<string, {
+      userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
+      giftCardCreditTransaction?: GiftCardMutationTransaction | null;
+      giftCardDebitTransaction?: GiftCardMutationTransaction | null;
+    }>>(
+      `mutation GiftCardBalance($id: ID!, $input: ${inputType}!) {
+        ${mutationName}(id: $id, ${inputName}: $input) {
+          ${transactionName} {
+            id amount { amount currencyCode } processedAt note
+            giftCard { balance { amount currencyCode } }
+          }
+          userErrors { field message code }
+        }
+      }`,
+      {
+        id: this.giftCardGid(input.giftCardId),
+        input: {
+          [amountName]: { amount: input.amount.toFixed(2), currencyCode: input.currency ?? 'AUD' },
+          ...(input.note ? { note: input.note } : {}),
+          ...(input.processedAt ? { processedAt: input.processedAt } : {}),
+        },
+      },
+    );
+    const payload = data[mutationName];
+    if (payload.userErrors.length) throw new ShopifyAdminUserError(payload.userErrors);
+    const transaction = payload[transactionName as keyof typeof payload] as GiftCardMutationTransaction | null | undefined;
+    if (!transaction) throw new Error(`Shopify returned no ${operation} transaction.`);
+    return {
+      transactionId: transaction.id,
+      amount: Number(transaction.amount.amount),
+      currency: transaction.amount.currencyCode,
+      processedAt: transaction.processedAt,
+      note: transaction.note,
+      balance: Number(transaction.giftCard.balance.amount),
+    };
   }
 
   /**

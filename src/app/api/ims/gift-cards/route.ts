@@ -14,36 +14,61 @@ export async function GET(req: Request) {
     const status           = searchParams.get('status')            ?? '';
     const search           = searchParams.get('search')            ?? '';
     const contactShopifyId = searchParams.get('contact_shopify_id') ?? '';
-    const limit   = Math.min(parseInt(searchParams.get('limit')  ?? '200', 10), 500);
-    const offset  = parseInt(searchParams.get('offset') ?? '0', 10);
+    const requestedLimit = Number.parseInt(searchParams.get('limit') ?? '200', 10);
+    const requestedOffset = Number.parseInt(searchParams.get('offset') ?? '0', 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(requestedLimit, 500)) : 200;
+    const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
 
     console.log('[gift-cards GET] session businessId:', session.businessId);
     const conditions: string[] = [];
     const params: any[] = [];
 
     if (contactShopifyId.trim()) {
-      conditions.push('customer_id = ?');
+      conditions.push('gc.customer_id = ?');
       params.push(contactShopifyId.trim());
     }
     if (status && status !== 'all') {
-      conditions.push('status = ?');
+      conditions.push('gc.status = ?');
       params.push(status);
     }
     if (search.trim()) {
-      conditions.push('(code LIKE ? OR recipient_email LIKE ? OR customer_id LIKE ?)');
+      conditions.push(`(
+        gc.code LIKE ? OR gc.recipient_email LIKE ? OR gc.customer_id LIKE ?
+        OR contact.name LIKE ? OR contact.first_name LIKE ? OR contact.last_name LIKE ?
+        OR contact.email LIKE ? OR contact.phone LIKE ? OR contact.mobile LIKE ?
+      )`);
       const like = `%${search.trim()}%`;
-      params.push(like, like, like);
+      params.push(like, like, like, like, like, like, like, like, like);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = await imsQuery<any>(
-      `SELECT * FROM gift_cards ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-      params,
+      `SELECT gc.*,
+              contact.id AS contact_id,
+              contact.name AS customer_name,
+              contact.first_name AS customer_first_name,
+              contact.last_name AS customer_last_name,
+              contact.email AS customer_email,
+              contact.phone AS customer_phone,
+              contact.mobile AS customer_mobile
+         FROM gift_cards gc
+         LEFT JOIN ims_contacts contact
+           ON contact.business_id = ?
+          AND contact.shopify_customer_id = gc.customer_id
+         ${where}
+        ORDER BY gc.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      [session.businessId, ...params],
     );
 
     const [{ total }] = await imsQuery<any>(
-      `SELECT COUNT(*) AS total FROM gift_cards ${where}`,
-      params,
+      `SELECT COUNT(*) AS total
+         FROM gift_cards gc
+         LEFT JOIN ims_contacts contact
+           ON contact.business_id = ?
+          AND contact.shopify_customer_id = gc.customer_id
+         ${where}`,
+      [session.businessId, ...params],
     );
 
     console.log('[gift-cards GET] rows:', rows.length, 'total:', total);

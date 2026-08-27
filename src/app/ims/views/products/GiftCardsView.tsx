@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 
 interface GiftCard {
   id: number;
@@ -12,6 +13,12 @@ interface GiftCard {
   customer_id: string | null;
   order_id: string | null;
   recipient_email: string | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_mobile: string | null;
+  reconciliation_state: string;
+  reconciliation_reason: string | null;
   notes: string | null;
   created_at: string;
   last_used_at: string | null;
@@ -54,8 +61,14 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
   const [saving, setSaving]         = useState(false);
   const [gcHistory, setGcHistory]         = useState<any[]>([]);
   const [gcHistoryLoading, setGcHistoryLoading] = useState(false);
+  const [adjustmentAmount, setAdjustmentAmount] = useState('');
+  const [actionReason, setActionReason] = useState('');
+  const [commandBusy, setCommandBusy] = useState<string | null>(null);
   const [gcMode, setGcMode]         = useState<'off' | 'combined'>('off');
   const [shopDomain, setShopDomain] = useState('');
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
+  useTableArrowScroll(bodyScrollRef);
 
   useEffect(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -111,6 +124,8 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
       last_used_at: card.last_used_at,
     });
     setGcHistory([]);
+    setAdjustmentAmount('');
+    setActionReason('');
     setGcHistoryLoading(true);
     fetch(`/api/ims/gift-cards/${card.id}/transactions`)
       .then(r => r.json())
@@ -120,13 +135,109 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
     setModalOpen(true);
   };
 
+  const refreshHistory = async (cardId: number) => {
+    setGcHistoryLoading(true);
+    try {
+      const response = await fetch(`/api/ims/gift-cards/${cardId}/transactions`);
+      const data = await response.json();
+      if (data.success) setGcHistory(data.data ?? []);
+    } finally {
+      setGcHistoryLoading(false);
+    }
+  };
+
+  const handleAdjust = async () => {
+    if (!editing) return;
+    const amount = Number(adjustmentAmount);
+    if (!Number.isFinite(amount) || amount === 0) { alert('Enter a non-zero adjustment amount.'); return; }
+    if (!actionReason.trim()) { alert('Enter a reason for the adjustment.'); return; }
+    setCommandBusy('adjust');
+    try {
+      const response = await fetch(`/api/ims/gift-cards/${editing.id}/adjust`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          expected_balance: editing.balance,
+          reason: actionReason.trim(),
+          idempotency_key: crypto.randomUUID(),
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error ?? 'Adjustment failed.');
+      const nextBalance = Number(data.balance);
+      setEditing(current => current ? { ...current, balance: nextBalance, reconciliation_state: data.syncState } : current);
+      setForm(current => ({ ...current, balance: nextBalance }));
+      setAdjustmentAmount('');
+      setActionReason('');
+      await refreshHistory(editing.id);
+      load();
+      if (data.warning) alert(data.warning);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setCommandBusy(null);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!editing) return;
+    if (!actionReason.trim()) { alert('Enter a reason for deactivation.'); return; }
+    if (!confirm('Deactivate this gift card? This cannot be reversed.')) return;
+    setCommandBusy('deactivate');
+    try {
+      const response = await fetch(`/api/ims/gift-cards/${editing.id}/deactivate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_balance: editing.balance,
+          reason: actionReason.trim(),
+          idempotency_key: crypto.randomUUID(),
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error ?? 'Deactivation failed.');
+      setEditing(current => current ? { ...current, status: 'cancelled', reconciliation_state: 'matched' } : current);
+      setForm(current => ({ ...current, status: 'cancelled' }));
+      setActionReason('');
+      await refreshHistory(editing.id);
+      load();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setCommandBusy(null);
+    }
+  };
+
+  const handleRetry = async (transactionId: number) => {
+    if (!editing) return;
+    setCommandBusy(`retry-${transactionId}`);
+    try {
+      const response = await fetch(`/api/ims/gift-cards/${editing.id}/transactions/${transactionId}/retry`, { method: 'POST' });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error ?? 'Retry failed.');
+      await refreshHistory(editing.id);
+      load();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setCommandBusy(null);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.code.trim()) { alert('Code is required'); return; }
     setSaving(true);
     try {
       if (editing) {
         const r = await fetch(`/api/ims/gift-cards/${editing.id}`, {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expires_on: form.expires_on,
+            customer_id: form.customer_id,
+            order_id: form.order_id,
+            recipient_email: form.recipient_email,
+            notes: form.notes,
+          }),
         });
         const d = await r.json();
         if (!d.success) throw new Error(d.error ?? 'Failed');
@@ -141,16 +252,6 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
       load();
     } catch (e: any) { alert(e.message); }
     finally { setSaving(false); }
-  };
-
-  const handleDelete = async (card: GiftCard) => {
-    if (!confirm(`Delete gift card "${card.code}"? This cannot be undone.`)) return;
-    try {
-      const r = await fetch(`/api/ims/gift-cards/${card.id}`, { method: 'DELETE' });
-      const d = await r.json();
-      if (!d.success) throw new Error(d.error ?? 'Delete failed');
-      load();
-    } catch (e: any) { alert(e.message); }
   };
 
   const parseSageDate = (str: string): string | null => {
@@ -235,8 +336,30 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
     );
   };
 
+  const syncBadge = (state: string) => {
+    const styles: Record<string, { bg: string; color: string; label: string }> = {
+      matched: { bg: '#dcfce7', color: '#166534', label: 'Matched' },
+      review_required: { bg: '#fef3c7', color: '#92400e', label: 'Review' },
+      pending: { bg: '#dbeafe', color: '#1d4ed8', label: 'Pending' },
+      error: { bg: '#fee2e2', color: '#991b1b', label: 'Error' },
+      unverified: { bg: '#f3f4f6', color: '#4b5563', label: 'Unverified' },
+    };
+    const style = styles[state] ?? styles.unverified;
+    return <span title={state} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: style.bg, color: style.color }}>{style.label}</span>;
+  };
+
+  const tableWidth = 1170;
+  const columnWidths = [180, 100, 100, 230, 110, 105, 110, 135, 100];
+  const renderColGroup = () => (
+    <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+  );
+  const frozenCellStyle: React.CSSProperties = {
+    position: 'sticky', left: 0, zIndex: 2, background: 'var(--sv-bg-2)',
+    boxShadow: '2px 0 0 var(--sv-etch)',
+  };
+
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Gift Cards</h2>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -295,37 +418,58 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
         <EmptyState text="No gift cards found." />
       ) : (
         <>
-        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
-                {['Code', 'Balance', 'Status', 'Expires', 'Email', 'Created', 'Last Used', ''].map((h, i) => (
-                  <th key={i} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+        <div style={{ background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden', minWidth: 0 }}>
+          <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 4, overflow: 'hidden', background: 'var(--sv-bg-2)' }}>
+            <table style={{ width: tableWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+              {renderColGroup()}
+              <thead>
+                <tr>
+                  {['Code', 'Balance', 'Status', 'Customer', 'Expires', 'Sync', 'Created', 'Last Used', ''].map((heading, index) => (
+                    <th key={heading || index} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: .8, whiteSpace: 'nowrap', borderBottom: '1px solid var(--sv-etch)', ...(index === 0 ? { ...frozenCellStyle, zIndex: 5 } : {}) }}>{heading}</th>
+                  ))}
+                </tr>
+              </thead>
+            </table>
+          </div>
+          <div
+            ref={bodyScrollRef}
+            className="ims-sticky-table ims-sticky-table--self-scroll gift-cards-table-scroll"
+            role="region"
+            aria-label="Gift cards table. Use arrow keys to scroll."
+            tabIndex={0}
+            onScroll={event => {
+              if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft;
+            }}
+            style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0 }}
+          >
+            <table style={{ width: tableWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
+              {renderColGroup()}
+              <tbody>
               {cards.map(card => (
                 <tr key={card.id} style={{ borderTop: '1px solid var(--sv-etch)' }}>
-                  <td style={{ padding: '8px 14px', fontWeight: 600, fontSize: 13, fontFamily: 'monospace', letterSpacing: .5 }}>{card.code}</td>
-                  <td style={{ padding: '8px 14px', fontSize: 13 }}>{fmtCurrency(card.balance)}</td>
-                  <td style={{ padding: '8px 14px' }}>{statusBadge(card.status)}</td>
+                  <td style={{ ...frozenCellStyle, padding: '8px 14px', fontWeight: 600, fontSize: 13, fontFamily: 'monospace', letterSpacing: .5, borderTop: '1px solid var(--sv-etch)' }}>{card.code}</td>
+                  <td style={{ padding: '8px 14px', fontSize: 13, borderTop: '1px solid var(--sv-etch)' }}>{fmtCurrency(card.balance)}</td>
+                  <td style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)' }}>{statusBadge(card.status)}</td>
+                  <td style={{ padding: '8px 14px', borderTop: '1px solid var(--sv-etch)', overflow: 'hidden' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.customer_name ?? 'Unlinked customer'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{card.customer_mobile ?? card.customer_phone ?? card.customer_email ?? card.recipient_email ?? card.customer_id ?? 'No contact details'}</div>
+                  </td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: card.expires_on ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
                     {card.expires_on ? fmtDate(card.expires_on) : '—'}
                   </td>
-                  <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{card.recipient_email ?? '—'}</td>
+                  <td title={card.reconciliation_reason ?? undefined} style={{ padding: '8px 14px' }}>{syncBadge(card.reconciliation_state)}</td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{fmtDate(card.created_at)}</td>
                   <td style={{ padding: '8px 14px', fontSize: 12, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>{fmtDate(card.last_used_at)}</td>
                   <td style={{ padding: '8px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
                       <button onClick={() => openEdit(card)} style={btnStyle('ghost', 'xs')}>Edit</button>
-                      <button onClick={() => handleDelete(card)} style={btnStyle('danger', 'xs')}>Del</button>
                     </div>
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
         {Math.ceil(total / PAGE_SIZE) > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14 }}>
@@ -351,6 +495,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                 Code <span style={{ color: '#dc2626' }}>*</span>
                 <input
                   value={form.code}
+                  disabled={Boolean(editing)}
                   onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                   style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4, fontFamily: 'monospace', letterSpacing: .5 }}
                   placeholder="e.g. GC10001"
@@ -361,6 +506,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                   Balance <span style={{ color: '#dc2626' }}>*</span>
                   <input
                     type="number" step="0.01" min="0"
+                    disabled={Boolean(editing)}
                     value={form.balance}
                     onChange={e => setForm(f => ({ ...f, balance: parseFloat(e.target.value) || 0 }))}
                     style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4 }}
@@ -370,6 +516,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                   Status
                   <select
                     value={form.status}
+                    disabled={Boolean(editing)}
                     onChange={e => setForm(f => ({ ...f, status: e.target.value as any }))}
                     style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4 }}
                   >
@@ -394,6 +541,7 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                   Currency
                   <input
                     value={form.currency}
+                    disabled={Boolean(editing)}
                     onChange={e => setForm(f => ({ ...f, currency: e.target.value.toUpperCase() }))}
                     style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4 }}
                     maxLength={10}
@@ -427,6 +575,38 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                   style={{ ...inputStyle, display: 'block', width: '100%', marginTop: 4, resize: 'vertical' }}
                 />
               </label>
+
+              {editing && editing.status === 'active' && (
+                <div style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Balance &amp; Status Commands</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={adjustmentAmount}
+                      onChange={event => setAdjustmentAmount(event.target.value)}
+                      placeholder="Signed amount"
+                      aria-label="Signed adjustment amount"
+                      style={{ ...inputStyle, width: 135 }}
+                    />
+                    <input
+                      value={actionReason}
+                      onChange={event => setActionReason(event.target.value)}
+                      placeholder="Reason required"
+                      aria-label="Command reason"
+                      style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button onClick={handleAdjust} disabled={Boolean(commandBusy)} style={btnStyle('action', 'sm')}>
+                      {commandBusy === 'adjust' ? 'Applying…' : 'Apply Adjustment'}
+                    </button>
+                    <button onClick={handleDeactivate} disabled={Boolean(commandBusy)} style={btnStyle('danger', 'sm')}>
+                      {commandBusy === 'deactivate' ? 'Deactivating…' : 'Deactivate'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {editing && editing.shopify_gc_id && gcMode === 'combined' && shopDomain && (
                 <div style={{ paddingTop: 16, borderTop: '1px solid var(--sv-etch)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -477,6 +657,21 @@ export function GiftCardsView({ inputStyle, btnStyle, Spinner, EmptyState, fmtCu
                                 <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', flexShrink: 0 }}>bal: ${bal.toFixed(2)}</span>
                               </div>
                               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 1 }}>{dt}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                                <span style={{ fontSize: 10, color: t.sync_state === 'error' ? '#dc2626' : 'var(--sv-text-dim)' }}>
+                                  {t.event_source ?? 'legacy'} · {t.sync_state ?? 'local_only'}
+                                </span>
+                                {t.sync_state === 'error' && (
+                                  <button
+                                    onClick={() => handleRetry(t.id)}
+                                    disabled={Boolean(commandBusy)}
+                                    title={t.sync_error ?? 'Retry Shopify synchronization'}
+                                    style={btnStyle('ghost', 'xs')}
+                                  >
+                                    {commandBusy === `retry-${t.id}` ? 'Retrying…' : 'Retry'}
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         );
