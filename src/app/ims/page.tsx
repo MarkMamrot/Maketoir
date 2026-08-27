@@ -29,6 +29,7 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { LocationDaybooksView } from './views/locations/LocationDaybooksView';
 import { BackordersView } from './views/backorders/BackordersView';
 import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
@@ -21234,7 +21235,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -25990,6 +25991,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
     { id: 'pos',             label: 'Point of Sale',   icon: '🖥' },
+    { id: 'loyalty',         label: 'Loyalty',         icon: '★' },
     { id: 'wholesale',       label: 'Wholesale Portal', icon: '🏪' },
     { id: 'xero',            label: 'Xero',            icon: '🔗' },
     { id: 'sync',            label: 'Sync & Import',   icon: '🔄' },
@@ -26983,6 +26985,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {/* ── Wholesale Portal ── */}
         {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
+
+        {/* ── Loyalty ── */}
+        {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={fetchSettings} />}
 
       </div>{/* ─ end right content ─ */}
     </div>

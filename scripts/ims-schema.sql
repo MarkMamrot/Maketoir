@@ -2206,6 +2206,18 @@ CREATE TABLE IF NOT EXISTS loyalty_accounts (
   CONSTRAINT fk_loyalty_account_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS loyalty_membership_events (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id     VARCHAR(100) NOT NULL,
+  contact_id      INT NOT NULL,
+  action          ENUM('enrolled','opted_out') NOT NULL,
+  source          VARCHAR(50) NOT NULL,
+  terms_version   VARCHAR(100) NULL,
+  created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_loyalty_membership_contact (business_id, contact_id, created_at),
+  CONSTRAINT fk_loyalty_membership_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS loyalty_transactions (
   id              BIGINT AUTO_INCREMENT PRIMARY KEY,
   business_id     VARCHAR(100) NOT NULL,
@@ -2507,6 +2519,7 @@ CREATE TABLE IF NOT EXISTS loyalty_redemptions (
   pos_sale_id         INT NULL,
   shopify_discount_id VARCHAR(100) NULL,
   voucher_code        VARCHAR(100) NULL,
+  expires_at          DATETIME NULL,
   used_at             DATETIME NULL,
   cancelled_at        DATETIME NULL,
   cancelled_reason    VARCHAR(500) NULL,

@@ -61,6 +61,22 @@ CREATE TABLE IF NOT EXISTS online_shop_profiles (
   INDEX idx_online_shop_profiles_active (is_active, slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS loyalty_portal_profiles (
+  business_id          VARCHAR(100) PRIMARY KEY,
+  slug                 VARCHAR(80) NOT NULL,
+  display_name         VARCHAR(255) NOT NULL,
+  logo_url             VARCHAR(2048) NULL,
+  shopify_return_url   VARCHAR(2048) NOT NULL,
+  terms_url            VARCHAR(2048) NOT NULL,
+  terms_version        VARCHAR(100) NOT NULL,
+  privacy_url          VARCHAR(2048) NOT NULL,
+  is_active            TINYINT(1) NOT NULL DEFAULT 0,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uq_loyalty_portal_profiles_slug (slug),
+  INDEX idx_loyalty_portal_profiles_active (is_active, slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS online_shop_domains (
   business_id          VARCHAR(100) PRIMARY KEY,
   domain_name          VARCHAR(253) NOT NULL,
@@ -142,6 +158,7 @@ CREATE TABLE IF NOT EXISTS online_shop_otp_challenges (
   business_id          VARCHAR(100) NOT NULL,
   email                VARCHAR(320) NOT NULL,
   contact_id           INT NULL,
+  purpose              VARCHAR(32) NOT NULL DEFAULT 'native_shop',
   challenge_token_hash CHAR(64) NOT NULL,
   code_hash            CHAR(64) NOT NULL,
   attempt_count        INT UNSIGNED NOT NULL DEFAULT 0,
@@ -150,7 +167,7 @@ CREATE TABLE IF NOT EXISTS online_shop_otp_challenges (
   verified_at          DATETIME(3) NULL,
   created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_online_shop_otp_token (challenge_token_hash),
-  INDEX idx_online_shop_otp_email_active (business_id, email, consumed_at, expires_at),
+  INDEX idx_online_shop_otp_email_active (business_id, purpose, email, consumed_at, expires_at),
   INDEX idx_online_shop_otp_expiry (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

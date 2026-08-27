@@ -506,13 +506,13 @@ export const LoyaltyRepository = {
 
   async markRedemptionIssued(
     connection: PoolConnection,
-    input: { businessId: string; redemptionId: number; shopifyDiscountId: string; voucherCode: string },
+    input: { businessId: string; redemptionId: number; shopifyDiscountId: string; voucherCode: string; expiresAt?: string | null },
   ): Promise<void> {
     const [result] = await connection.execute<ResultSetHeader>(
       `UPDATE loyalty_redemptions
-          SET status = 'issued', shopify_discount_id = ?, voucher_code = ?
+          SET status = 'issued', shopify_discount_id = ?, voucher_code = ?, expires_at = COALESCE(expires_at, ?)
         WHERE id = ? AND business_id = ? AND status IN ('reserved','issued')`,
-      [input.shopifyDiscountId, input.voucherCode, input.redemptionId, input.businessId],
+      [input.shopifyDiscountId, input.voucherCode, input.expiresAt ?? null, input.redemptionId, input.businessId],
     );
     if (Number(result.affectedRows) !== 1) throw new LoyaltyValidationError('This loyalty redemption can no longer be issued.');
   },

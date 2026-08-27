@@ -115,12 +115,14 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'gift_card_transactions',
   'store_credit_transactions',
   'loyalty_accounts',
+  'loyalty_membership_events',
   'loyalty_transactions',
   'loyalty_rewards',
   'loyalty_redemptions',
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
   pos_training_sales: ['business_id', 'local_id', 'location_id', 'items_json', 'payments_json', 'created_at'],
   pos_daybook_task_signoffs: ['business_id', 'staff_name', 'staff_initials', 'actor_user_id', 'actor_name', 'actor_tier', 'created_at'],

@@ -545,6 +545,26 @@ export class ShopifyService {
     return match ? { id: match.id } : null;
   }
 
+  async findCustomersByExactEmail(email: string): Promise<Array<{
+    id: number; email: string; firstName: string | null; lastName: string | null; phone: string | null;
+  }>> {
+    const normalized = email.trim().toLowerCase();
+    const query = encodeURIComponent(`email:${normalized}`);
+    const { body } = await this.customerFetch('GET', `/customers/search.json?query=${query}`);
+    const customers = (body.customers ?? []) as Array<{
+      id: number; email?: string | null; first_name?: string | null; last_name?: string | null; phone?: string | null;
+    }>;
+    return customers
+      .filter(customer => String(customer.email ?? '').trim().toLowerCase() === normalized)
+      .map(customer => ({
+        id: Number(customer.id),
+        email: normalized,
+        firstName: customer.first_name?.trim() || null,
+        lastName: customer.last_name?.trim() || null,
+        phone: customer.phone?.trim() || null,
+      }));
+  }
+
   async createCustomer(payload: {
     first_name?: string;
     last_name?: string;

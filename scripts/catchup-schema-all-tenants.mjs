@@ -937,6 +937,17 @@ const TABLE_DDLS = [
     UNIQUE KEY uq_loyalty_reward_code (business_id, reward_code),
     INDEX idx_loyalty_reward_active (business_id, is_active, sort_order)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  `CREATE TABLE IF NOT EXISTS loyalty_membership_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    business_id VARCHAR(100) NOT NULL,
+    contact_id INT NOT NULL,
+    action ENUM('enrolled','opted_out') NOT NULL,
+    source VARCHAR(50) NOT NULL,
+    terms_version VARCHAR(100) NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_loyalty_membership_contact (business_id, contact_id, created_at),
+    CONSTRAINT fk_loyalty_membership_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   `CREATE TABLE IF NOT EXISTS loyalty_redemptions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     business_id VARCHAR(100) NOT NULL,
@@ -949,6 +960,7 @@ const TABLE_DDLS = [
     pos_sale_id INT NULL,
     shopify_discount_id VARCHAR(100) NULL,
     voucher_code VARCHAR(100) NULL,
+    expires_at DATETIME NULL,
     used_at DATETIME NULL,
     cancelled_at DATETIME NULL,
     cancelled_reason VARCHAR(500) NULL,
@@ -1027,6 +1039,7 @@ const TABLE_DDLS = [
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['loyalty_redemptions', 'expires_at', 'DATETIME NULL AFTER voucher_code'],
   ['pos_daybook_task_templates', 'created_by_staff_identity_id', 'BIGINT NULL AFTER created_by_name'],
   ['pos_daybook_task_templates', 'created_by_staff_name', 'VARCHAR(120) NULL AFTER created_by_staff_identity_id'],
   ['pos_daybook_task_templates', 'created_by_staff_initials', 'VARCHAR(8) NULL AFTER created_by_staff_name'],

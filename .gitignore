@@ -11,6 +11,9 @@ scripts/*.log
 /.next-e2e/
 /.live-e2e-runs/
 
+# Local customer migration audit artifacts
+/tmp/love-loyalty-migration-audit.json
+
 deploy.zip
 
 # Environment secrets — never commit

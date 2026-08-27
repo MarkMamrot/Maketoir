@@ -104,9 +104,10 @@ export const ShopifyLoyaltyService = {
         `SELECT id
            FROM ims_contacts
           WHERE id = ? AND business_id = ? AND is_active = 1 AND loyalty_member = 1
+            AND (loyalty_member_enrolled_at IS NULL OR DATE(loyalty_member_enrolled_at) <= ?)
             AND type IN ('retail_customer','b2b_customer','both')
           LIMIT 1`,
-        [contactId, input.businessId],
+        [contactId, input.businessId, input.paidDate],
       );
       if (!contacts[0]) {
         await connection.commit();

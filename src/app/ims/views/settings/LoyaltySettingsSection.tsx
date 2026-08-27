@@ -4,6 +4,7 @@ import { Award, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { DEFAULT_LOYALTY_SETTINGS, LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
+import { LoyaltyPortalSettings } from './LoyaltyPortalSettings';
 
 interface LoyaltySettingsSectionProps {
   settings: Record<string, string>;
@@ -173,6 +174,7 @@ export function LoyaltySettingsSection({ settings, refetchSettings }: LoyaltySet
           {message && <span style={{ fontSize: 12, color: message.tone === 'success' ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{message.text}</span>}
         </div>
       </section>
+      <LoyaltyPortalSettings />
     </div>
   );
 }

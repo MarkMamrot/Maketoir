@@ -141,12 +141,14 @@ export const ShopifyRewardIssuanceService = {
       voucherCode: prepared.voucherCode,
     };
     let discount: { id: string; code: string };
+    let expiresAt: string | null = null;
     try {
       const found = await input.shopify.findDiscountCode(prepared.voucherCode);
       if (found) {
         discount = found;
       } else {
         const window = expiryWindow(input.now ?? new Date());
+        expiresAt = window.endsAt;
         discount = await input.shopify.createCustomerDiscountCode({
           code: prepared.voucherCode,
           title: `Loyalty reward ${prepared.reservation.redemptionId}`,
@@ -203,6 +205,7 @@ export const ShopifyRewardIssuanceService = {
       redemptionId: prepared.reservation.redemptionId,
       shopifyDiscountId: discount.id,
       voucherCode: discount.code,
+      expiresAt,
     }));
     await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
       businessId: input.businessId,
