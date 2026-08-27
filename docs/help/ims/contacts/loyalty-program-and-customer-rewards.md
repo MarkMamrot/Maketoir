@@ -39,6 +39,8 @@ Points expiry, VIP tiers, birthday rewards, referral bonuses, promotional multip
 
 Publishing requires both an enabled loyalty program and a connected Shopify store. The portal itself is hosted by Solvantis, while Shopify remains the online checkout.
 
+The loyalty terms and privacy policy must be public HTTPS pages that customers can open before signing in and while joining. Review them for the business and keep them current. Increase **Terms version** when the enrolment terms materially change so future consent records identify the updated version.
+
 ## Customer enrolment
 
 A customer signs in to the rewards portal using the email address on their Shopify customer account and a one-time six-digit code. New portal customers are not enrolled automatically. They must accept the current loyalty terms before joining.
