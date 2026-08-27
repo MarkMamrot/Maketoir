@@ -1586,7 +1586,7 @@
       ],
       "order": 13,
       "summary": "Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/supplier-returns-and-credit-notes.md",
       "sections": [

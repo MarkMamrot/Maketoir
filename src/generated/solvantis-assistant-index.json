@@ -694,7 +694,7 @@
       ],
       "order": 13,
       "summary": "Return received goods to a supplier or record a rebate, overcharge correction, or other money-only supplier credit.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "owner": "inventory",
       "filename": "docs/help/ims/purchasing/supplier-returns-and-credit-notes.md"
     },
@@ -5191,7 +5191,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "Use a Supplier Credit Note when a supplier owes your business money, with or without physical goods leaving a location."
     },
     {
@@ -5209,7 +5209,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "- Start from a completed PO for a linked return when possible.\n- Keep **Return stock** selected for goods physically sent back to the supplier.\n- Clear **Return stock** for a rebate, overcharge or other money-only credit.\n- Save a Draft for review, then Complete it to apply the stock and supplier-credit result.\n- Review Xero and attachment status separately after completion."
     },
     {
@@ -5227,7 +5227,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Event | Return stock? | Stock result | Supplier value result |\n|---|---|---|---|\n| Damaged goods sent back | Yes | On hand decreases | Credit recorded |\n| Wrong colour sent back | Yes | On hand decreases | Credit recorded |\n| Supplier rebate | No | No stock change | Credit recorded |\n| Invoice overcharge correction | No | No stock change | Credit recorded |\n| Receipt entered but goods never arrived | No supplier credit note | Use Undo Mistaken Receipt if available | Original receipt correction |\n\n> **Important:** **Return stock** means goods are leaving your business. Despite the field's older technical name, selecting it reduces stock; clearing it records a money-only credit."
     },
     {
@@ -5245,7 +5245,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "- [ ] Confirm whether goods physically arrived and whether they are now leaving.\n- [ ] Open the completed PO and use **Supplier Return / Credit** when the credit relates to that receipt.\n- [ ] Confirm the supplier, location, variants and returnable quantities.\n- [ ] Obtain the supplier's credit reference or keep a clear evidence note.\n- [ ] Check currency, exchange rate, tax treatment and tax-exclusive unit cost.\n- [ ] Attach the supplier document when available.\n\nSupplier credit lines use positive quantities and values in the form, even if the supplier's PDF prints them as negatives. Solvantis converts entered negative values to positive credit-note values."
     },
     {
@@ -5263,7 +5263,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "1. For received goods, open the completed PO and choose **Supplier Return / Credit**. For a standalone rebate, open **Purchasing > Supplier Credit Notes** and select **New Supplier Credit Note**.\n2. Confirm the supplier, location, date and reference.\n3. Enter the supplier's credit reference when available.\n4. Review each product, quantity, tax-exclusive unit cost and tax rate.\n5. Keep **Return stock** selected only on lines for goods physically going back.\n6. Clear **Return stock** on money-only lines such as rebates and overcharge corrections.\n7. Review the displayed stock quantity to be removed and the total credit value.\n8. Select **Create Draft**, attach supporting files and review the Draft.\n9. Complete the credit note when the stock and money treatment are correct.\n10. Check Xero status. If it failed, retry the Xero sync without completing the credit again."
     },
     {
@@ -5281,7 +5281,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Question | Yes | No |\n|---|---|---|\n| Did the goods physically arrive? | Continue | Consider Undo Mistaken Receipt instead |\n| Are goods now leaving your location? | Select Return stock | Clear Return stock |\n| Is the credit linked to a completed PO? | Start from that PO | Create a standalone Supplier Credit Note |\n| Has the Draft been checked against supplier evidence? | Complete | Leave as Draft |\n| Did only Xero fail? | Retry Xero | Investigate the operational document first |"
     },
     {
@@ -5299,7 +5299,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Status or action | Meaning |\n|---|---|\n| Draft | Editable; no stock has been removed |\n| Complete | Selected return lines reduce stock and the supplier credit is recorded |\n| Cancelled | Retained for reference; no stock change is applied |\n| Reverse Mistaken Completion | Restores stock previously removed and records a correcting result |\n| Void in Xero | Voids the linked Xero credit when available; it is separate from the IMS stock correction |"
     },
     {
@@ -5317,7 +5317,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Detail | Amount |\n|---|---:|\n| Supplier unit price including 10% GST | $55.00 |\n| Tax-exclusive unit cost | $50.00 |\n| GST per unit | $5.00 |\n| Two units returned: credit before GST | $100.00 |\n| GST on credit | $10.00 |\n| Total supplier credit | $110.00 |\n\nStock value is reduced using the tax-exclusive cost basis. Selling prices remain tax-inclusive and do not determine the supplier credit."
     },
     {
@@ -5335,7 +5335,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "Map **Supplier Credit Notes (Non-stock lines)** to a Xero **Direct Costs** or **Expense** account. Use an account such as **Purchases**, or create a dedicated **Supplier Credits - Non-stock** account when you want these adjustments reported separately. Xero handles the reduction in Accounts Payable; this mapping controls the account used for the credit-note line.\n\nFor example, a supplier refunds $55 including $5 GST for freight, and no goods are returned. The credit reduces the mapped expense by $50, reduces GST by $5 and reduces Accounts Payable by $55. Stock quantity and inventory value do not change. Lines for physical goods returned to the supplier use the Inventory Asset mapping instead."
     },
     {
@@ -5353,7 +5353,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Remaining returnable quantity is lower than expected | Earlier linked returns already used part of the receipt | Review the PO and earlier supplier credit notes |\n| Stock would reduce for a rebate | Return stock is selected | Clear it before completing the Draft |\n| A zero quantity cannot be saved | Credit-note quantities must be non-zero | Remove the line or enter the actual positive quantity |\n| The credit is complete but Xero failed | The IMS result completed separately | Use Retry Xero Sync; do not complete another credit note |\n| Completion was genuinely entered by mistake | A reversing correction is needed | Use Reverse Mistaken Completion and provide the reason |"
     },
     {
@@ -5371,7 +5371,7 @@
         "supplier-credit-notes"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-27",
       "content": "### Return damaged stock\n\nA Sydney store received 12 lamps at $50 each before GST. Two are damaged and go back. Staff start from the completed PO, enter quantity 2, keep **Return stock** selected and record the supplier's $110 tax-inclusive credit. Completion removes 2 lamps and records a $100 credit before GST plus $10 GST.\n\n### Record a freight overcharge\n\nA supplier gives a $44 credit for freight charged twice. No goods leave the store. Staff create a Supplier Credit Note, enter the agreed tax treatment and clear **Return stock**. Completion records the $44 supplier credit and leaves all product quantities unchanged."
     },
     {
