@@ -79,7 +79,7 @@ describe('Store Daybook rules', () => {
     expect(normalizeDaybookColour('fluoro_orange')).toBeNull();
   });
 
-  it('allows managers to maintain every task while retaining policy checks for other staff', () => {
+  it('allows every Daybook staff member to maintain active checklist tasks', () => {
     const task = {
       policy: 'author_only' as const,
       actorUserId: 20,
@@ -90,7 +90,7 @@ describe('Store Daybook rules', () => {
       authorStaffInitials: 'AB',
     };
     expect(canManageDaybookTask({ ...task, isManager: true })).toBe(true);
-    expect(canManageDaybookTask({ ...task, isManager: false })).toBe(false);
+    expect(canManageDaybookTask({ ...task, isManager: false })).toBe(true);
   });
 
   it('normalizes edit policy and respects shared-login staff authorship', () => {

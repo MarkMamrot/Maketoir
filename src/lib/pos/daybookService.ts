@@ -146,6 +146,6 @@ export function canEditDaybookItem(input: {
     || (Boolean(input.staffInitials) && input.staffInitials.toUpperCase() === input.authorStaffInitials.toUpperCase());
 }
 
-export function canManageDaybookTask(input: Parameters<typeof canEditDaybookItem>[0]): boolean {
-  return input.isManager || canEditDaybookItem(input);
+export function canManageDaybookTask(_input: Parameters<typeof canEditDaybookItem>[0]): boolean {
+  return true;
 }

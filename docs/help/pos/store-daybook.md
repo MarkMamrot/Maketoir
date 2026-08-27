@@ -51,7 +51,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
-8. Managers use the pencil or bin icon beside any active task in Open the store, Keep the day moving, or Close with confidence. Other staff see these controls when permitted by the editing policy. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
+8. Any Daybook staff member can use the pencil or bin icon beside every active task in Open the store, Keep the day moving, or Close with confidence. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 
@@ -114,7 +114,7 @@ Managers open **Settings** and choose one tenant-wide editing policy:
 
 | Policy | Who can revise an existing item |
 |---|---|
-| Original author only | The signed-in account or selected staff identity recorded when the item was created; managers can maintain all checklist tasks and imported items |
+| Original author only | The signed-in account or selected staff identity recorded when the item was created; checklist tasks remain maintainable by all Daybook staff |
 | Managers only | POS managers and administrators; this is the default and permits maintenance of imported content |
 | Any staff member | Any staff member with access to Store Daybook |
 
@@ -138,7 +138,7 @@ Status changes and incident visibility still follow their separate operational p
 | A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
-| Edit or Delete is missing from a task | The task is no longer active, or the current editing policy does not permit this staff member to change it | Ask a manager to review **Settings** or make the correction |
+| Pencil or bin is missing from a task | The task is historical and no longer active | Add a new active task if the work needs to resume |
 | Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |
 | Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |

@@ -287,7 +287,7 @@ export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onF
         .ob-step[data-active='true'] { background: var(--sv-bg-1); color: var(--sv-text-strong); }
         .ob-step-number { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--sv-etch); font-size: 11px; font-weight: 800; }
         .ob-step[data-complete='true'] .ob-step-number { border-color: var(--sv-mint); background: var(--sv-mint); color: #fff; }
-        .ob-main { min-width: 0; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+        .ob-main { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
         .ob-top { min-height: 56px; padding: 0 20px; display: flex; align-items: center; justify-content: flex-end; border-bottom: 1px solid var(--sv-etch); }
         .ob-content { padding: 34px clamp(28px,5vw,64px); overflow-y: auto; }
         .ob-content header { margin-bottom: 28px; }
@@ -305,7 +305,7 @@ export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onF
         .ob-button { min-height: 38px; padding: 8px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--sv-etch); border-radius: 6px; background: var(--sv-bg-1); color: var(--sv-text-main); font-size: 13px; font-weight: 700; cursor: pointer; }
         .ob-button.primary { border-color: var(--sv-action); background: var(--sv-action); color: #fff; }
         .ob-button:disabled { opacity: .55; cursor: wait; }
-        @media (max-width: 760px) { .ob-overlay { padding: 0; } .ob-shell { height: 100vh; border: 0; border-radius: 0; grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); } .ob-side { padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--sv-etch); overflow-x: auto; } .ob-side-title, .ob-progress-label { display:none; } .ob-progress { margin: 0 0 9px; } .ob-step-list { display: flex; gap: 4px; } .ob-step { width: auto; min-width: 34px; min-height: 34px; padding: 4px; grid-template-columns: 27px; } .ob-step-label { display: none; } .ob-main { min-height: 0; } .ob-content { padding: 24px 18px; } .ob-fields { grid-template-columns: 1fr; } .ob-content h2 { font-size: 23px; } }
+        @media (max-width: 760px) { .ob-overlay { padding: 0; } .ob-shell { height: 100vh; border: 0; border-radius: 0; grid-template-columns: 1fr; grid-template-rows: auto minmax(0,1fr); } .ob-side { padding: 12px 14px; border-right: 0; border-bottom: 1px solid var(--sv-etch); overflow-x: auto; } .ob-side-title, .ob-progress-label { display:none; } .ob-progress { margin: 0 0 9px; } .ob-step-list { display: flex; gap: 4px; } .ob-step { width: auto; min-width: 34px; min-height: 34px; padding: 4px; grid-template-columns: 27px; } .ob-step-label { display: none; } .ob-content { padding: 24px 18px; } .ob-fields { grid-template-columns: 1fr; } .ob-content h2 { font-size: 23px; } }
       `}</style>
       <div className="ob-shell">
         <aside className="ob-side">

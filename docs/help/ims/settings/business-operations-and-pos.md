@@ -79,6 +79,7 @@ Location names, codes, addresses, and operational flags cannot be edited from th
 |---|---|---|
 | A supplier is missing during product setup | The supplier step was skipped or the contact is not an active Supplier | Open Contacts, create or update the supplier, then return to Products |
 | A brand is missing during product import | The brand has not been created | Open Brands, add it, then retry the product workflow |
+| Onboarding content does not fit at high browser zoom | The visible wizard area is shorter at higher zoom levels | Scroll the middle setup panel; the Back and continue buttons remain available below it |
 | A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |
 | Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |
 
