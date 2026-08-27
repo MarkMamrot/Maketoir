@@ -32,6 +32,7 @@ import { ShopifyLoyaltyService } from '@/lib/loyalty/ShopifyLoyaltyService';
 import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfilment';
 import { buildShopifyShipmentQuantities, parseShopifyShipment } from '@/lib/ims/shopifyFulfilment';
 import { persistShopifyShipment } from '@/lib/ims/shopifyShipmentPersistence';
+import { reconcileGiftCardsFromPaidShopifyOrder } from '@/lib/ims/shopifyGiftCardWebhook';
 
 export const runtime = 'nodejs';
 
@@ -161,6 +162,26 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
   let payload: any;
   try { payload = JSON.parse(rawBody); } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  if (topic === 'orders/paid') {
+    try {
+      await reconcileGiftCardsFromPaidShopifyOrder(businessId, payload);
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId,
+        source: 'shopify_webhook',
+        operation: 'gift_card_reconciliation_trigger',
+        title: 'Paid Shopify order could not reconcile gift cards',
+        error,
+        context: {
+          shopify_order_id: String(payload.id ?? ''),
+          shopify_order_name: String(payload.name ?? ''),
+        },
+        reference: payload.id != null ? { type: 'shopify_order', id: String(payload.id) } : undefined,
+      });
+      return NextResponse.json({ error: 'Gift card reconciliation failed' }, { status: 500 });
+    }
   }
 
   const respond = () => NextResponse.json({ ok: true });

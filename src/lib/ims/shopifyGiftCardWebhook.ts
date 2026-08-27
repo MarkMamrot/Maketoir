@@ -1,0 +1,34 @@
+import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { decrypt } from '@/lib/encryption';
+import { syncShopifyGiftCardSnapshots, type ShopifyGiftCardSyncResult } from '@/lib/ims/shopifyGiftCardSync';
+import { imsQuery } from '@/services/IMSMySQLService';
+import { ShopifyService } from '@/services/ShopifyService';
+
+export function hasShopifyGiftCardPayment(payload: unknown): boolean {
+  const gateways = (payload as { payment_gateway_names?: unknown })?.payment_gateway_names;
+  if (!Array.isArray(gateways)) return false;
+  return gateways.some(gateway => String(gateway).trim().toLowerCase().replace(/[\s-]+/g, '_') === 'gift_card');
+}
+
+export async function reconcileGiftCardsFromPaidShopifyOrder(
+  businessId: string,
+  payload: unknown,
+): Promise<ShopifyGiftCardSyncResult | null> {
+  if (!hasShopifyGiftCardPayment(payload)) return null;
+
+  const settingRows = await imsQuery<{ value: string }>(
+    "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",
+  );
+  if (settingRows[0]?.value !== 'combined') return null;
+
+  const connection = await ConnectionsRepository.get(businessId);
+  if (!connection?.shopify_shop_id || !connection.shopify_access_token) return null;
+
+  let token = connection.shopify_access_token;
+  try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
+
+  return syncShopifyGiftCardSnapshots(
+    businessId,
+    new ShopifyService(connection.shopify_shop_id, token),
+  );
+}

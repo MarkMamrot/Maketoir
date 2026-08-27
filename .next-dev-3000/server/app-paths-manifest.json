@@ -1,10 +1,7 @@
 {
-  "/api/pos/locations/route": "app/api/pos/locations/route.js",
-  "/login/page": "app/login/page.js",
   "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
-  "/api/pos/settings/receipt/route": "app/api/pos/settings/receipt/route.js",
   "/page": "app/page.js",
-  "/api/pos/settings/products/route": "app/api/pos/settings/products/route.js",
+  "/login/page": "app/login/page.js",
   "/pos/page": "app/pos/page.js",
   "/ims/page": "app/ims/page.js"
 }
