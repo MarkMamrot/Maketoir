@@ -23,7 +23,7 @@ describe('GET /api/pos/store-credit', () => {
     mockGetImsSession.mockResolvedValue({ businessId: 'sage-business' });
   });
 
-  it('searches active retail customers by maintained name or phone', async () => {
+  it('searches active customer contacts in the current business by maintained name or phone', async () => {
     mockImsQuery.mockResolvedValue([
       { id: 7, name: 'Acme Retail', first_name: 'Ava', last_name: 'Chen', phone: '0412 345 678', store_credit: '12.50' },
     ]);
@@ -31,11 +31,13 @@ describe('GET /api/pos/store-credit', () => {
     const response = await GET(new Request('http://localhost/api/pos/store-credit?q=0412'));
     const [sql, params] = mockImsQuery.mock.calls[0];
 
-    expect(sql).toContain("type = 'retail_customer'");
+    expect(sql).toContain("type IN ('retail_customer', 'b2b_customer', 'both')");
+    expect(sql).toContain('business_id = ?');
     expect(sql).toContain('is_active = 1');
+    expect(sql).not.toContain('deleted_at');
     expect(sql).toContain('name LIKE ?');
     expect(sql).toContain("REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', '')");
-    expect(params).toEqual(Array(7).fill('%0412%'));
+    expect(params).toEqual([...Array(7).fill('%0412%'), 'sage-business']);
     expect(await response.json()).toEqual({
       contacts: [{ id: 7, name: 'Acme Retail', email: null, phone: '0412 345 678', store_credit: 12.5 }],
     });

@@ -2873,7 +2873,7 @@
       },
       "order": 10,
       "summary": "Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.",
-      "lastReviewed": "2026-08-26",
+      "lastReviewed": "2026-08-28",
       "owner": "retail",
       "filename": "docs/help/pos/selling-payments-and-manager-approval.md",
       "sections": [
@@ -2885,7 +2885,7 @@
         {
           "id": "pos-selling-payments-manager-approval:2",
           "heading": "Main operations",
-          "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find and link an active retail customer by name or phone when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
+          "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find and link an active retail or business customer by name, email, or phone when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
         },
         {
           "id": "pos-selling-payments-manager-approval:3",
@@ -2915,7 +2915,7 @@
         {
           "id": "pos-selling-payments-manager-approval:8",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |\n| Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details or maintain the contact as an active customer in IMS |\n| Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |\n| Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
         },
         {
           "id": "pos-selling-payments-manager-approval:9",

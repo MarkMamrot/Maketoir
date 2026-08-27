@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-26","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park it safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-28","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -9,7 +9,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 
 - Search, scan, or browse for the correct product variant.
 - Adjust quantities, prices, item discounts, or the order discount before payment.
-- Find and link an active retail customer by name or phone when using store credit or loyalty.
+- Find and link an active retail or business customer by name, email, or phone when using store credit or loyalty.
 - Park an unfinished cart on this device and resume it later.
 - Add more than one tender when the customer splits payment.
 - Ask a manager to authorise an action only when POS displays the manager PIN prompt.
@@ -86,7 +86,8 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |
 | Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |
 | Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |
-| Customer search has no matches | No active Retail Customer matches the entered name or phone | Check the details or maintain the contact as an active Retail Customer in IMS |
+| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details or maintain the contact as an active customer in IMS |
+| Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |
 | Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |
 | A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |
 | A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |

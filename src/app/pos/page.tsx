@@ -1412,6 +1412,7 @@ function MainPos({
   const [contactSearch, setContactSearch] = useState('');
   const [contactResults, setContactResults] = useState<{ id: number; name: string; phone: string | null; store_credit: number }[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
+  const [contactSearchError, setContactSearchError] = useState(false);
   const [loyaltySummary, setLoyaltySummary] = useState<{
     enabled: boolean;
     active: boolean;
@@ -1613,17 +1614,20 @@ function MainPos({
     if (contactSearch.trim().length < 2) {
       setContactResults([]);
       setContactSearching(false);
+      setContactSearchError(false);
       return;
     }
     setContactSearching(true);
+    setContactSearchError(false);
     let active = true;
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch.trim())}`);
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Customer search failed.');
         if (active) setContactResults(Array.isArray(data.contacts) ? data.contacts : []);
       } catch {
-        if (active) setContactResults([]);
+        if (active) { setContactResults([]); setContactSearchError(true); }
       } finally {
         if (active) setContactSearching(false);
       }
@@ -2613,7 +2617,10 @@ function MainPos({
                       {contactSearching && contactResults.length === 0 && (
                         <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>Searching retail customers…</div>
                       )}
-                      {!contactSearching && contactResults.length === 0 && (
+                      {!contactSearching && contactSearchError && (
+                        <div style={{ padding: '.45rem .6rem', color: 'var(--sv-red)', fontSize: '.78rem' }}>Customer search unavailable. Try again.</div>
+                      )}
+                      {!contactSearching && !contactSearchError && contactResults.length === 0 && (
                         <div style={{ padding: '.45rem .6rem', color: 'var(--sv-text-dim)', fontSize: '.78rem' }}>No retail customers found.</div>
                       )}
                       {contactResults.map(c => (

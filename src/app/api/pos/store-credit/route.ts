@@ -14,7 +14,8 @@ function getPosSession() {
 export async function GET(req: Request) {
   const session = getPosSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  await getImsSession(['pos_session']);
+  const imsSession = await getImsSession(['pos_session']);
+  if (!imsSession) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim() ?? '';
@@ -29,12 +30,12 @@ export async function GET(req: Request) {
      WHERE (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?
             OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?
             OR name LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)
-       AND type = 'retail_customer'
+       AND business_id = ?
+       AND type IN ('retail_customer', 'b2b_customer', 'both')
        AND is_active = 1
-       AND deleted_at IS NULL
      ORDER BY CASE WHEN store_credit > 0 THEN 0 ELSE 1 END, last_name, first_name
      LIMIT 10`,
-    [like, like, like, like, normalizedPhoneLike, like, like],
+     [like, like, like, like, normalizedPhoneLike, like, like, imsSession.businessId],
   );
   return NextResponse.json({
     contacts: rows.map((r: any) => ({
