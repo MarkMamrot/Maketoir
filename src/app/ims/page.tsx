@@ -26987,7 +26987,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         {active === 'wholesale' && <WholesaleSettingsSection settings={settings} saveSettings={saveSettings} />}
 
         {/* ── Loyalty ── */}
-        {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={fetchSettings} />}
+        {active === 'loyalty' && <LoyaltySettingsSection settings={settings} refetchSettings={refetchSettings} />}
 
       </div>{/* ─ end right content ─ */}
     </div>
