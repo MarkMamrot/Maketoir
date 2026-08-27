@@ -11,6 +11,14 @@ import { DAYBOOK_COLOUR_KEYS, DAYBOOK_EDIT_POLICIES } from './daybookTypes';
 
 export const NEWTOWN_COMMUNICATIONS_START_DATE = '2026-01-01';
 
+export function resolveDaybookLocationId(sessionLocationId: number, requestedLocationId: number): number | null {
+  const sessionId = Number(sessionLocationId);
+  const requestedId = Number(requestedLocationId);
+  if (sessionId > 0 && requestedId > 0 && sessionId !== requestedId) return null;
+  const locationId = sessionId > 0 ? sessionId : requestedId;
+  return Number.isInteger(locationId) && locationId > 0 ? locationId : null;
+}
+
 const REQUEST_TRANSITIONS: Record<DaybookRequestStatus, readonly DaybookRequestStatus[]> = {
   open: ['contacted', 'fulfilled', 'cancelled'],
   contacted: ['open', 'fulfilled', 'cancelled'],

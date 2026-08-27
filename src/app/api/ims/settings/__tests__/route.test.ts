@@ -38,6 +38,7 @@ describe('/api/ims/settings loyalty settings', () => {
 
     expect(body.success).toBe(true);
     expect(body.data).toMatchObject({
+      business_requires_pos: 'yes',
       loyalty_enabled: '0',
       loyalty_earn_rate: '1',
       loyalty_program_name: 'Rewards Program',
@@ -45,6 +46,7 @@ describe('/api/ims/settings loyalty settings', () => {
       loyalty_started_at: '',
       sales_document_show_logo: '1',
     });
+    expect(body.capabilities).toEqual({ hasPosLocations: false });
   });
 
   it('validates sales document settings before writing', async () => {
@@ -53,6 +55,12 @@ describe('/api/ims/settings loyalty settings', () => {
 
     expect(response.status).toBe(400);
     expect(body.error).toContain('exactly 6 digits');
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid POS requirement settings before writing', async () => {
+    const response = await PUT(putRequest({ business_requires_pos: 'sometimes' }));
+    expect(response.status).toBe(400);
     expect(mockImsExecute).not.toHaveBeenCalled();
   });
 

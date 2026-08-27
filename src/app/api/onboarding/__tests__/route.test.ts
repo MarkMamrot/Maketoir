@@ -37,6 +37,7 @@ describe('GET /api/onboarding', () => {
 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
+    expect(body.settings.business_requires_pos).toBe('yes');
     expect(body.counts).toEqual({
       users: 1,
       locations: 0,
@@ -110,7 +111,7 @@ describe('GET /api/onboarding', () => {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        settings: { use_foreign_currencies: 'no', unsupported_setting: 'ignored' },
+        settings: { use_foreign_currencies: 'no', business_requires_pos: 'no', unsupported_setting: 'ignored' },
         completeStep: 'operations',
       }),
     }));
@@ -119,6 +120,10 @@ describe('GET /api/onboarding', () => {
     expect(mocks.imsExecute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_settings'),
       ['business-1', 'use_foreign_currencies', 'no'],
+    );
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'business_requires_pos', 'no'],
     );
     expect(mocks.imsExecute).not.toHaveBeenCalledWith(
       expect.any(String),

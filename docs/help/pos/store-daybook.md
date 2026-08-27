@@ -1,5 +1,5 @@
 ---
-{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-end-of-day-xero","pos-branch-transfers"],"contexts":["daybook","store-daybook"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-08-27","owner":"retail"}
+{"id":"pos-store-daybook","title":"Store Daybook","audiences":["pos","ims"],"capability":"pos","screen":"POS > Store Daybook or IMS > Locations > Location Daybooks","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-end-of-day-xero","pos-branch-transfers","ims-business-operations-pos-settings"],"contexts":["daybook","store-daybook","location-daybooks"],"contextSections":{"daybook":"Step-by-step","store-daybook":"Step-by-step","location-daybooks":"Open a location Daybook from IMS"},"order":25,"summary":"Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.","lastReviewed":"2026-08-27","owner":"retail"}
 ---
 # Store Daybook
 
@@ -52,6 +52,15 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. This makes it possible to review an earlier day and the six days leading up to it.
+
+## Open a location Daybook from IMS
+
+1. Open **Locations > Location Daybooks** in IMS.
+2. Select an active location.
+3. Use the location's full Daybook. Reads, edits and sign-offs retain both the selected staff identity and the signed-in IMS account for audit history.
+4. Select the back arrow in the Daybook header to choose another location.
+
+Location Daybooks is available when **Business requires POS** is enabled or when an active location already has POS configuration.
 
 ### Read a communication
 

@@ -8,7 +8,7 @@ import OnlineShopView from './onlineShop/OnlineShopView';
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -21,6 +21,8 @@ interface MainSectionsProps {
   advisorMappingEnabled: boolean;
   businessId: string;
   hasForesight: boolean;
+  userName: string;
+  userTier?: string;
   pendingOpenPO: number | null;
   pendingOpenSO: number | null;
   pendingOpenCN: number | null;
@@ -52,6 +54,7 @@ interface MainSectionsProps {
   BulkEditView: any;
   ContactsView: any;
   LocationsView: any;
+  LocationDaybooksView: any;
   PurchaseOrdersView: any;
   SalesOrdersView: any;
   StockAvailabilityWorkbenchView: any;
@@ -94,6 +97,8 @@ export function MainSections(props: MainSectionsProps) {
     advisorMappingEnabled,
     businessId,
     hasForesight,
+    userName,
+    userTier,
     pendingOpenPO,
     pendingOpenSO,
     pendingOpenCN,
@@ -124,6 +129,7 @@ export function MainSections(props: MainSectionsProps) {
     BulkEditView,
     ContactsView,
     LocationsView,
+    LocationDaybooksView,
     PurchaseOrdersView,
     SalesOrdersView,
     StockAvailabilityWorkbenchView,
@@ -203,6 +209,7 @@ export function MainSections(props: MainSectionsProps) {
       )}
       {view === 'wholesale-applications' && <WholesaleApplicationQueue isAdvisor={isAdvisor} />}
       {view === 'locations' && <LocationsView isAdvisor={isAdvisor} />}
+      {view === 'location-daybooks' && <LocationDaybooksView userName={userName} userTier={userTier} />}
       {view === 'stocktakes' && <StocktakesView isAdvisor={isAdvisor} businessId={businessId} />}
 
       {/* Products section */}

@@ -33,10 +33,21 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId;
   try {
-    const rows = await imsQuery<{ key: string; value: string }>(
-      'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?',
-      [businessId]
-    );
+    const [rows, posEvidence] = await Promise.all([
+      imsQuery<{ key: string; value: string }>(
+        'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?',
+        [businessId]
+      ),
+      imsQuery<{ has_pos_locations: number }>(
+        `SELECT EXISTS(
+           SELECT 1 FROM ims_locations location
+           LEFT JOIN pos_registers register_row ON register_row.location_id = location.id AND register_row.is_active = 1
+           WHERE location.business_id = ? AND location.is_active = 1
+             AND (location.has_pos = 1 OR NULLIF(location.pos_location_code, '') IS NOT NULL OR register_row.id IS NOT NULL)
+         ) AS has_pos_locations`,
+        [businessId],
+      ),
+    ]);
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value ?? '';
     settings.business_timezone ||= DEFAULT_BUSINESS_TIME_ZONE;
@@ -50,11 +61,12 @@ export async function GET() {
     settings[WEBSITE_AI_SETTING_KEYS.measurementSystem] ||= 'auto';
     settings[SALES_DOCUMENT_SETTING_KEYS.showLogo] ??= '1';
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
+    settings.business_requires_pos ??= 'yes';
     applyWholesalePortalSettingDefaults(settings);
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
-    return NextResponse.json({ success: true, data: settings, shopDomain });
+    return NextResponse.json({ success: true, data: settings, shopDomain, capabilities: { hasPosLocations: Boolean(posEvidence[0]?.has_pos_locations) } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
@@ -88,6 +100,9 @@ export async function PUT(req: Request) {
     }
     if (pairs[SELLS_WHOLESALE_SETTING_KEY] !== undefined && !['yes', 'no'].includes(String(pairs[SELLS_WHOLESALE_SETTING_KEY]))) {
       return NextResponse.json({ success: false, error: 'Sells wholesale must be yes or no.' }, { status: 400 });
+    }
+    if (pairs.business_requires_pos !== undefined && !['yes', 'no'].includes(String(pairs.business_requires_pos))) {
+      return NextResponse.json({ success: false, error: 'Business requires POS must be yes or no.' }, { status: 400 });
     }
     for (const [key, rawValue] of Object.entries(pairs)) {
       const normalized = validateWholesalePortalSetting(key, rawValue);

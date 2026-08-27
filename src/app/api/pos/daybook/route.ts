@@ -11,6 +11,7 @@ import {
   normalizeDaybookEditPolicy,
   normalizeStaffIdentity,
   parseDaybookDate,
+  resolveDaybookLocationId,
 } from '@/lib/pos/daybookService';
 import type { DaybookDiscrepancyStatus, DaybookEditPolicy, DaybookNeedStatus, DaybookRequestStatus, DaybookStaffIdentity } from '@/lib/pos/daybookTypes';
 import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -29,12 +30,14 @@ type DaybookContext = {
   isManager: boolean;
 };
 
-async function resolveContext(): Promise<DaybookContext | null> {
-  const session = await getImsSession(['pos_session', 'marketoir_session']);
+async function resolveContext(locationOverride?: number): Promise<DaybookContext | null> {
+  const session = await getImsSession(locationOverride ? ['marketoir_session'] : ['pos_session', 'marketoir_session']);
   if (!session?.businessId) return null;
   const raw = session as typeof session & { location_id?: number; location_name?: string; full_name?: string; username?: string };
-  const locationId = Number(raw.location_id ?? 0);
-  if (!Number.isInteger(locationId) || locationId <= 0) return null;
+  const sessionLocationId = Number(raw.location_id ?? 0);
+  const requestedLocationId = Number(locationOverride ?? 0);
+  const locationId = resolveDaybookLocationId(sessionLocationId, requestedLocationId);
+  if (!locationId) return null;
   const locations = await imsQuery<{ id: number; name: string }>(
     'SELECT id, name FROM ims_locations WHERE business_id = ? AND id = ? AND is_active = 1 LIMIT 1',
     [session.businessId, locationId],
@@ -160,9 +163,9 @@ async function materializeTasks(context: DaybookContext, taskDate: string) {
 }
 
 export async function GET(request: Request) {
-  const context = await resolveContext();
-  if (!context) return error('An active POS location is required.', 401);
   const url = new URL(request.url);
+  const context = await resolveContext(Number(url.searchParams.get('location_id') ?? 0));
+  if (!context) return error('An active POS location is required.', 401);
   if (url.searchParams.get('view') === 'products') {
     const search = String(url.searchParams.get('q') ?? '').trim().slice(0, 120);
     try {
@@ -327,10 +330,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const context = await resolveContext();
-  if (!context) return error('An active POS location is required.', 401);
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return error('Invalid JSON.'); }
+  const context = await resolveContext(Number(body.location_id ?? 0));
+  if (!context) return error('An active POS location is required.', 401);
   const action = String(body.action ?? '');
 
   try {

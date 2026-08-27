@@ -29,6 +29,7 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { LocationDaybooksView } from './views/locations/LocationDaybooksView';
 import { BackordersView } from './views/backorders/BackordersView';
 import { StockAvailabilityWorkbenchView } from './views/orders/StockAvailabilityWorkbenchView';
 import { SalesByBranchView as SalesByBranchViewComponent } from './views/reports/SalesByBranchView';
@@ -76,7 +77,7 @@ import {
 
 type ImsView =
   | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations'
+  | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
   | 'pos-sales' | 'online-sales' | 'stocktakes'
@@ -118,6 +119,7 @@ const NAV = [
   ]},
   { id: '__locations',     label: 'Locations',        section: 'locations', children: [
     { id: 'locations',      label: 'Locations' },
+    { id: 'location-daybooks', label: 'Location Daybooks' },
     { id: 'branch-transfers', label: 'Branch Transfers' },
     { id: 'receive-transfers', label: 'Receive Transfers' },
   ]},
@@ -388,11 +390,13 @@ function CostSummaryPills({ items }: { items: Array<{ label: string; value: stri
 
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const [capabilities, setCapabilities] = useState<{ hasPosLocations: boolean }>({ hasPosLocations: false });
   const fetchSettings = useCallback(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
       if (d.success) {
         activeBusinessTimeZone = d.data?.business_timezone || 'Australia/Sydney';
         setSettings(d.data || {});
+        setCapabilities({ hasPosLocations: Boolean(d.capabilities?.hasPosLocations) });
       }
     }).catch(() => {});
   }, []);
@@ -408,7 +412,7 @@ function useImsSettings() {
       });
     } catch {}
   }, []);
-  return { settings, saveSettings, refetchSettings: fetchSettings };
+  return { settings, capabilities, saveSettings, refetchSettings: fetchSettings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -525,11 +529,11 @@ function Row3({ children }: { children: React.ReactNode }) {
 function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v: ImsView) => void; userTier?: string }) {
   const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>({ __products: false, __sales: false, __purchasing: false, __contacts: false, __locations: false, __integrations: false });
   const [collapsed, setCollapsed] = useState(false);
-  const { settings: sidebarSettings } = useImsSettings();
-  // Hide Locations group unless the business explicitly operates multiple locations.
-  // Default to showing (treat unset as 'yes') so existing users aren't locked out.
-  const showLocations = sidebarSettings.use_multiple_locations !== 'no';
+  const { settings: sidebarSettings, capabilities } = useImsSettings();
+  const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
+  const showLocationDaybooks = sidebarSettings.business_requires_pos !== 'no' || capabilities.hasPosLocations;
+  const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
 
   const toggleSection = (id: string) => setSectionOpen(prev => {
@@ -627,7 +631,14 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
 
       {/* Nav items — expanded */}
       {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
-        const hasChildren = 'children' in item && (item as any).children?.length > 0;
+        const visibleChildren = 'children' in item
+          ? (item as any).children.filter((child: any) => {
+            if (child.id === 'location-daybooks') return showLocationDaybooks;
+            if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
+            return true;
+          })
+          : [];
+        const hasChildren = visibleChildren.length > 0;
         const isGroupOpen = sectionOpen[item.id];
         const isActive = active === item.id;
         const isMainActive = itemContainsActiveView(item);
@@ -662,7 +673,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             </button>
             {hasChildren && isGroupOpen && (
               <div style={{ marginLeft: 16, marginRight: 10, marginTop: 2, marginBottom: 4, borderLeft: '1px solid #dfe3e8', background: 'rgba(148,163,184,.04)', borderRadius: 0, overflow: 'hidden' }}>
-                {(item as any).children.map((child: any) => (
+                {visibleChildren.map((child: any) => (
                   <button key={child.id} data-testid={`ims-nav-${child.id}`} onClick={() => { openOnlySection(item.id); onSelect(child.id as ImsView); }}
                     style={{
                       width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -1099,6 +1110,12 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
               {/* ── Operations ── */}
               <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--sv-text-dim)', marginBottom: 10 }}>Operations</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 6 }}>
+                <div title="Turn on when the business sells directly to the public in stores or other staffed locations. Enables POS setup and Location Daybooks.">
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Business requires POS?</div>
+                  <select value={onboardingDraft.business_requires_pos ?? 'yes'} onChange={e => setOnboardingField('business_requires_pos', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
+                    <option value="yes">Yes</option><option value="no">No</option>
+                  </select>
+                </div>
                 <div title="Turn on if you have more than one warehouse, store, or fulfilment location. Enables branch transfers and per-location stock.">
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Multiple locations?</div>
                   <select value={onboardingDraft.use_multiple_locations ?? 'yes'} onChange={e => setOnboardingField('use_multiple_locations', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
@@ -21833,6 +21850,8 @@ export default function ImsPage() {
               advisorMappingEnabled={advisorXeroMappingEnabled}
               businessId={user?.businessId ?? ''}
               hasForesight={user?.hasForesight ?? false}
+              userName={user?.name || user?.email || 'IMS user'}
+              userTier={user?.tier}
               pendingOpenPO={pendingOpenPO}
               pendingOpenSO={pendingOpenSO}
               pendingOpenCN={pendingOpenCN}
@@ -21860,6 +21879,7 @@ export default function ImsPage() {
               BulkEditView={BulkEditView}
               ContactsView={ContactsView}
               LocationsView={LocationsView}
+              LocationDaybooksView={LocationDaybooksView}
               PurchaseOrdersView={PurchaseOrdersView}
               SalesOrdersView={SalesOrdersView}
               StockAvailabilityWorkbenchView={StockAvailabilityWorkbenchView}
@@ -25669,6 +25689,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       use_zones_bins:           'no',
       use_categories:           'no',
       use_foreign_currencies:   'yes',
+      business_requires_pos:    'yes',
       sells_wholesale:          'yes',
       connect_online_shop:      'no',
       online_shop_platform:     'shopify',
@@ -26282,6 +26303,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
               <section>
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Sales channels and integrations</h4>
+                <OperationToggle setting="business_requires_pos" defaultValue="yes" label="Business requires POS" description="Enable Point of Sale and Location Daybooks for businesses selling directly to the public in stores or staffed locations." />
                 <OperationToggle setting="sells_wholesale" defaultValue="yes" label="Wholesale sales" description="Enable the Wholesale Portal and customer-specific brand access." />
                 <OperationToggle setting="connect_online_shop" label="Online shop" description="Use the Solvantis Online Store or connect an external commerce platform." />
                 {taxDraft.connect_online_shop === 'yes' && (

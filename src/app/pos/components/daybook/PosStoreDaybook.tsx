@@ -96,7 +96,7 @@ function defaultTaskPhase(tasks: Task[]): TaskPhase {
   return 'closing';
 }
 
-export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBack: () => void }) {
+export function PosStoreDaybook({ session, onBack, locationOverride, embedded = false }: { session: PosSession; onBack: () => void; locationOverride?: Location; embedded?: boolean }) {
   const [date, setDate] = useState(todayLocal);
   const [active, setActive] = useState<string>('today');
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -114,7 +114,9 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   const [taskPhaseDate, setTaskPhaseDate] = useState('');
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const identityKey = `pos_daybook_staff_${session.location_id}_${date}`;
+  const location = locationOverride ?? { id: session.location_id, name: session.location_name };
+  const locationParam = locationOverride ? `&location_id=${location.id}` : '';
+  const identityKey = `pos_daybook_staff_${location.id}_${date}`;
 
   useEffect(() => {
     try {
@@ -129,7 +131,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
     setError('');
     try {
       const initials = selectedStaff?.initials ? `&initials=${encodeURIComponent(selectedStaff.initials)}` : '';
-      const response = await fetch(`/api/pos/daybook?date=${date}${initials}`, { cache: 'no-store' });
+      const response = await fetch(`/api/pos/daybook?date=${date}${initials}${locationParam}`, { cache: 'no-store' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Daybook could not be loaded.');
       setWorkspace(result);
@@ -156,6 +158,7 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action,
+          ...(locationOverride ? { location_id: location.id } : {}),
           ...payload,
           ...(staff ? { staff_identity_id: staff.id, staff_name: staff.name, staff_initials: staff.initials } : {}),
         }),
@@ -209,12 +212,12 @@ export function PosStoreDaybook({ session, onBack }: { session: PosSession; onBa
   const unread = workspace?.communications.filter(item => !Number(item.my_read)).length ?? 0;
 
   return (
-    <div className={styles.shell}>
+    <div className={`${styles.shell} ${embedded ? styles.embeddedShell : ''}`}>
       <header className={styles.header}>
-        <button className={styles.iconButton} onClick={onBack} aria-label="Back to POS"><ChevronLeft /></button>
+        <button className={styles.iconButton} onClick={onBack} aria-label={embedded ? 'Back to location daybooks' : 'Back to POS'}><ChevronLeft /></button>
         <div className={styles.brand}>
           <span className={styles.brandMark}><Sparkles size={19} /></span>
-          <div><h1>Store Daybook</h1><p>{session.location_name} · one place for today</p></div>
+          <div><h1>Store Daybook</h1><p>{location.name} · one place for today</p></div>
         </div>
         <div className={styles.headerTools}>
           <input type="date" value={date} onChange={event => setDate(event.target.value)} aria-label="Daybook date" />

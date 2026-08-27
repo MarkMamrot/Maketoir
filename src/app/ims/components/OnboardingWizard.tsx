@@ -34,7 +34,7 @@ const CONFIG_STEP_FIELDS: Record<string, string[]> = {
     'business_address_line2', 'business_suburb', 'business_state', 'business_postcode',
     'business_country',
   ],
-  operations: ['use_multiple_locations', 'use_zones_bins', 'use_categories', 'use_foreign_currencies'],
+  operations: ['use_multiple_locations', 'use_zones_bins', 'use_categories', 'use_foreign_currencies', 'business_requires_pos'],
   tax: ['sales_tax_on_sales', 'sales_tax_rate', 'sales_tax_code', 'purchase_tax_rate', 'purchase_tax_code'],
   integrations: ['connect_online_shop', 'online_shop_platform', 'connect_accounting_software', 'accounting_software'],
 };
@@ -200,6 +200,9 @@ export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onF
         <>
           <header><div className="ob-eyebrow">Step 2</div><h2>Operations</h2><p>Choose the inventory features that match how your business actually works.</p></header>
           <div className="ob-question-list">
+            <Field label="Does your business require Point of Sale?" help="Enable this when selling directly to the public in stores or other staffed locations. It enables POS setup and Location Daybooks.">
+              <YesNo value={draft.business_requires_pos ?? 'yes'} onChange={value => onFieldChange('business_requires_pos', value)} />
+            </Field>
             <Field label="Does your business operate multiple locations?" help="Enable this for multiple shops, warehouses, or fulfilment locations. It turns on per-location stock and branch transfers.">
               <YesNo value={draft.use_multiple_locations ?? 'yes'} onChange={value => onFieldChange('use_multiple_locations', value)} />
             </Field>

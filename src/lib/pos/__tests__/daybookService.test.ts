@@ -6,6 +6,7 @@ import {
   getDaybookDateRange,
   normalizeStaffIdentity,
   parseDaybookDate,
+  resolveDaybookLocationId,
   shouldImportNewtownCommunication,
   taskOccursOnDate,
   canEditDaybookItem,
@@ -14,6 +15,14 @@ import {
 } from '../daybookService';
 
 describe('Store Daybook rules', () => {
+  it('keeps POS sessions pinned while allowing IMS sessions to select a location', () => {
+    expect(resolveDaybookLocationId(4, 0)).toBe(4);
+    expect(resolveDaybookLocationId(0, 7)).toBe(7);
+    expect(resolveDaybookLocationId(4, 4)).toBe(4);
+    expect(resolveDaybookLocationId(4, 7)).toBeNull();
+    expect(resolveDaybookLocationId(0, 0)).toBeNull();
+  });
+
   it('normalizes shared-login staff identity', () => {
     expect(normalizeStaffIdentity({ name: '  Holly   Green ', initials: ' h.g ' })).toEqual({
       id: null,

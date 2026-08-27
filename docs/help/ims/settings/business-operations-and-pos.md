@@ -1,5 +1,5 @@
 ---
-{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login"],"contexts":["dashboard","locations","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-08-24","owner":"setup"}
+{"id":"ims-business-operations-pos-settings","title":"Business Operations and POS Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings","product":"ims","format":"task","parentId":"ims-workspaces","relatedTopics":["ims-location-stock-operations","setup-connections","ims-online-shop","pos-register-device-login","pos-store-daybook"],"contexts":["dashboard","locations","location-daybooks","pos-sales"],"contextSections":{"dashboard":"Step-by-step","locations":"Manage POS registers","location-daybooks":"Configure Business Operations","pos-sales":"Manage POS registers"},"order":90,"summary":"Complete onboarding, choose operational capabilities, and manage each location's POS registers without editing location details.","lastReviewed":"2026-08-27","owner":"setup"}
 ---
 # Business Operations and POS Settings
 
@@ -48,9 +48,11 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 |---|---|---|
 | Locations and catalogue | Multiple locations, Zones and bins, Product categories | Controls location-aware and catalogue organisation workflows |
 | Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
-| Sales channels and integrations | Wholesale sales, Online shop, Accounting software | Enables the relevant portal, store, connection, and mapping workflows |
+| Sales channels and integrations | Business requires POS, Wholesale sales, Online shop, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |
 
 Use each switch to enable or disable the capability, then select **Save Settings**. These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+
+Enable **Business requires POS** when the business sells directly to the public in stores or other staffed locations. This makes **Locations > Location Daybooks** available. Existing businesses default to enabled. If the switch is later disabled, Location Daybooks remains available while an active location still has POS enabled, an enrolment code, or an active register.
 
 When **Online shop** is enabled, choose one of these supported paths:
 
