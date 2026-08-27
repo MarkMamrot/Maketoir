@@ -20,7 +20,7 @@ export async function GET(req: Request) {
   }
 
   // POS cashiers may only fetch products for their own assigned location
-  if (posSession && locationId !== posSession.location_id) {
+  if (!adminSession && posSession && locationId !== posSession.location_id) {
     return NextResponse.json({ error: 'Not authorised for this location.' }, { status: 403 });
   }
 
