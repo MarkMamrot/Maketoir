@@ -18,6 +18,8 @@
 
 .taskRowActions{display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;gap:5px;margin-left:auto}.taskRowActions button{display:grid;place-items:center;flex:0 0 auto;width:30px;height:30px;padding:0;border:1px solid rgba(23,55,53,.26);border-radius:5px;background:rgba(255,255,255,.72);color:#173735;cursor:pointer}.taskRowActions button:hover,.taskRowActions button:focus-visible{border-color:#173735;background:#fff}.taskRowActions button:disabled{opacity:.48;cursor:not-allowed}.taskRowActions .taskDeleteAction{border-color:rgba(166,46,41,.38);color:#a62e29}
 
+.checklistTable tbody th:has(>.taskRowActions)>div:first-child{padding-right:76px}.checklistTable tbody th>div:first-child>strong,.checklistTable tbody th>div:first-child>small{overflow:visible;overflow-wrap:anywhere;text-overflow:clip;white-space:normal}.checklistTable tbody th>.taskRowActions{position:absolute;right:8px;top:50%;transform:translateY(-50%)}
+
 /* Strong phase landmarks and vertically traceable day columns. */
 .phaseSelector{gap:0;overflow:hidden;padding:0;background:#d4d1c7;border-color:#c8c4b9}
 .phaseSelector button{min-height:68px;padding:11px 14px;border:0;border-right:1px solid #c8c4b9;border-radius:0;background:#f5f3ed;color:#33413f}

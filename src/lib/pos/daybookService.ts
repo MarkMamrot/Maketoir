@@ -82,6 +82,14 @@ export function getDaybookDisplayDates(taskDates: readonly string[]): string[] {
   return [...taskDates].reverse();
 }
 
+export function getDaybookTaskDisplay(title: string, instructions?: string | null): { title: string; instructions: string } {
+  const fullInstructions = String(instructions ?? '').trim();
+  if (fullInstructions && fullInstructions.startsWith(title.trim())) {
+    return { title: fullInstructions, instructions: '' };
+  }
+  return { title, instructions: fullInstructions };
+}
+
 export function shouldImportNewtownCommunication(value: string): boolean {
   const date = parseDaybookDate(value);
   return date !== null && date >= NEWTOWN_COMMUNICATIONS_START_DATE;

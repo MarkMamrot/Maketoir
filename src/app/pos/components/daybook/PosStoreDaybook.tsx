@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import type { PosSession } from '../../_types';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
-import { getDaybookDisplayDates } from '@/lib/pos/daybookService';
+import { getDaybookDisplayDates, getDaybookTaskDisplay } from '@/lib/pos/daybookService';
 import {
   addDaybookClipboardItem,
   formatDaybookClipboardRecord,
@@ -409,9 +409,9 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   ];
   const currentTasks = workspace.tasks.filter(task => task.phase === phase);
   const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
-  const rows = new Map<number, { templateId: number; title: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; editableTask?: EditableTask }>();
-  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, editableTask: item.can_edit ? item : undefined });
-  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : undefined });
+  const rows = new Map<number, { templateId: number; title: string; instructions?: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; editableTask?: EditableTask }>();
+  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, instructions: item.instructions, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, editableTask: item.can_edit ? item : undefined });
+  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, instructions: task.instructions, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : undefined });
   const scheduleGroups = new Map<string, { label: string; order: number; rows: typeof rows extends Map<number, infer Row> ? Row[] : never }>();
   for (const row of rows.values()) {
     const schedule = taskSchedule(row.recurrence, row.weekday, row.scheduledDate);
@@ -447,7 +447,8 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
           <tr className={styles.scheduleHeading}><th colSpan={workspace.taskDates.length + 1} scope="rowgroup"><span>{group.label}</span><small>{group.rows.length} {group.rows.length === 1 ? 'task' : 'tasks'}</small></th></tr>
           {group.rows.map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button></div>}</th>{displayDates.map(taskDate => {
+          const display = getDaybookTaskDisplay(row.title, currentTask?.instructions_snapshot ?? row.instructions);
+          return <tr key={row.templateId}><th scope="row"><div><strong>{display.title}</strong>{display.instructions && <small>{display.instructions}</small>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`} aria-label={`Delete ${row.title}`}><Trash2 size={15} /></button></div>}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;

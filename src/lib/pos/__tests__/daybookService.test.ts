@@ -5,6 +5,7 @@ import {
   canTransitionNeed,
   getDaybookDateRange,
   getDaybookDisplayDates,
+  getDaybookTaskDisplay,
   normalizeStaffIdentity,
   parseDaybookDate,
   resolveDaybookLocationId,
@@ -51,6 +52,12 @@ describe('Store Daybook rules', () => {
     const taskDates = ['2026-08-25', '2026-08-26', '2026-08-27'];
     expect(getDaybookDisplayDates(taskDates)).toEqual(['2026-08-27', '2026-08-26', '2026-08-25']);
     expect(taskDates).toEqual(['2026-08-25', '2026-08-26', '2026-08-27']);
+  });
+
+  it('shows legacy long imported task text once without the truncated duplicate', () => {
+    const fullText = 'Cash Sheet: Fill in the complete reconciliation details and include a description.';
+    expect(getDaybookTaskDisplay(fullText.slice(0, 30), fullText)).toEqual({ title: fullText, instructions: '' });
+    expect(getDaybookTaskDisplay('Count till', 'Use the cash sheet')).toEqual({ title: 'Count till', instructions: 'Use the cash sheet' });
   });
 
   it('imports Newtown communications only from the start of 2026', () => {

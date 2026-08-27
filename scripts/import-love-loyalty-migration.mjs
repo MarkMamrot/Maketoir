@@ -22,6 +22,7 @@ const pathArgument = process.argv.slice(2).find(argument => !argument.startsWith
 const CSV_PATH = path.resolve(pathArgument || 'customers/customers-export.csv');
 const EXPECTED_SCHEMA = 'readyedu_MonsterthreadsIMS';
 const BATCH_SIZE = 500;
+const APPLY_BATCH_SIZE = 100;
 const REQUIRED_HEADERS = ['customerId', 'email', 'name', 'points', 'referralUrl'];
 
 function connectionConfig(database) {
@@ -109,7 +110,8 @@ async function stageRecords(connection, businessId, records) {
        contact_id INT NOT NULL PRIMARY KEY,
        shopify_customer_id VARBINARY(50) NOT NULL UNIQUE,
        target_points INT UNSIGNED NOT NULL,
-       source_row INT UNSIGNED NOT NULL
+       source_row INT UNSIGNED NOT NULL,
+       INDEX idx_love_loyalty_source_row (source_row)
      ) ENGINE=InnoDB`,
   );
   for (let offset = 0; offset < records.length; offset += BATCH_SIZE) {
@@ -159,9 +161,9 @@ async function preflight(connection, businessId, expectedRows) {
             COUNT(DISTINCT CASE WHEN t.type <> 'migration' THEN a.id END) AS non_migration_accounts
        FROM love_loyalty_import i
       JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
-       LEFT JOIN loyalty_accounts a ON a.business_id = c.business_id AND a.contact_id = c.id
-       LEFT JOIN loyalty_transactions t ON t.business_id = a.business_id AND t.account_id = a.id`,
-    [businessId],
+       LEFT JOIN loyalty_accounts a ON a.business_id = ? AND a.contact_id = c.id
+       LEFT JOIN loyalty_transactions t ON t.business_id = ? AND t.account_id = a.id`,
+     [businessId, businessId, businessId],
   );
   const result = {
     stagedRows: Number(summary.staged_rows),
@@ -184,25 +186,25 @@ async function preflight(connection, businessId, expectedRows) {
   return result;
 }
 
-async function applyImport(connection, businessId, fingerprint) {
+async function applyBatch(connection, businessId, fingerprint, firstRow, lastRow) {
   await connection.beginTransaction();
   try {
     const [lockedContacts] = await connection.execute(
       `SELECT c.id
          FROM love_loyalty_import i
          JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
+        WHERE i.source_row BETWEEN ? AND ?
         FOR UPDATE`,
-      [businessId],
+      [businessId, firstRow, lastRow],
     );
-    const checks = await preflight(connection, businessId, lockedContacts.length);
 
     const [membershipEvents] = await connection.execute(
       `INSERT INTO loyalty_membership_events (business_id, contact_id, action, source, terms_version)
        SELECT ?, c.id, 'enrolled', 'love_loyalty_migration', NULL
          FROM love_loyalty_import i
-         JOIN ims_contacts c ON c.business_id = ? AND c.shopify_customer_id = i.shopify_customer_id
-        WHERE c.loyalty_member = 0`,
-      [businessId, businessId],
+         JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
+        WHERE i.source_row BETWEEN ? AND ? AND c.loyalty_member = 0`,
+      [businessId, businessId, firstRow, lastRow],
     );
     const [memberships] = await connection.execute(
       `UPDATE ims_contacts c
@@ -210,15 +212,16 @@ async function applyImport(connection, businessId, fingerprint) {
           SET c.loyalty_member = 1,
               c.loyalty_member_enrolled_at = COALESCE(c.loyalty_member_enrolled_at, CURRENT_TIMESTAMP),
               c.loyalty_member_opted_out_at = NULL
-        WHERE c.business_id = ?`,
-      [businessId],
+        WHERE c.business_id = ? AND i.source_row BETWEEN ? AND ?`,
+      [businessId, firstRow, lastRow],
     );
     const [accounts] = await connection.execute(
       `INSERT IGNORE INTO loyalty_accounts (business_id, contact_id)
        SELECT ?, c.id
          FROM love_loyalty_import i
-         JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id`,
-      [businessId, businessId],
+         JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
+        WHERE i.source_row BETWEEN ? AND ?`,
+      [businessId, businessId, firstRow, lastRow],
     );
     const idempotencyPrefix = `love-loyalty:${fingerprint}:`;
     const [transactions] = await connection.execute(
@@ -231,23 +234,25 @@ async function applyImport(connection, businessId, fingerprint) {
               'Opening balance migrated from Love Loyalty'
          FROM love_loyalty_import i
          JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
-         JOIN loyalty_accounts a ON a.business_id = c.business_id AND a.contact_id = c.id
+         JOIN loyalty_accounts a ON a.business_id = ? AND a.contact_id = c.id
          LEFT JOIN loyalty_transactions existing
-           ON existing.business_id = a.business_id AND existing.idempotency_key = CONCAT(?, i.shopify_customer_id)
-        WHERE i.target_points <> a.balance_points AND existing.id IS NULL`,
-      [businessId, idempotencyPrefix, businessId, idempotencyPrefix],
+           ON existing.business_id = ? AND existing.idempotency_key = CONCAT(?, i.shopify_customer_id)
+        WHERE i.source_row BETWEEN ? AND ?
+          AND i.target_points <> a.balance_points AND existing.id IS NULL`,
+      [businessId, idempotencyPrefix, businessId, businessId, businessId, idempotencyPrefix, firstRow, lastRow],
     );
     const [balances] = await connection.execute(
       `UPDATE loyalty_accounts a
-       JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = a.business_id
+       JOIN ims_contacts c ON c.id = a.contact_id AND c.business_id = ?
       JOIN love_loyalty_import i ON i.contact_id = c.id
           SET a.balance_points = i.target_points
-        WHERE a.business_id = ? AND a.balance_points <> i.target_points`,
-      [businessId],
+        WHERE a.business_id = ? AND i.source_row BETWEEN ? AND ?
+          AND a.balance_points <> i.target_points`,
+      [businessId, businessId, firstRow, lastRow],
     );
     await connection.commit();
     return {
-      ...checks,
+      processed: lockedContacts.length,
       membershipEvents: Number(membershipEvents.affectedRows),
       membershipsChanged: Number(memberships.affectedRows),
       accountsCreated: Number(accounts.affectedRows),
@@ -260,6 +265,21 @@ async function applyImport(connection, businessId, fingerprint) {
   }
 }
 
+async function applyImport(connection, businessId, fingerprint, records) {
+  const totals = { processed: 0, membershipEvents: 0, membershipsChanged: 0, accountsCreated: 0, transactionsCreated: 0, balancesChanged: 0 };
+  const batchCount = Math.ceil(records.length / APPLY_BATCH_SIZE);
+  for (let offset = 0; offset < records.length; offset += APPLY_BATCH_SIZE) {
+    const batch = records.slice(offset, offset + APPLY_BATCH_SIZE);
+    const result = await applyBatch(connection, businessId, fingerprint, batch[0].sourceRow, batch[batch.length - 1].sourceRow);
+    for (const key of Object.keys(totals)) totals[key] += result[key];
+    const batchNumber = Math.floor(offset / APPLY_BATCH_SIZE) + 1;
+    if (batchNumber === 1 || batchNumber % 10 === 0 || batchNumber === batchCount) {
+      console.log(`Imported ${Math.min(offset + batch.length, records.length)}/${records.length} customers (${batchNumber}/${batchCount} batches)`);
+    }
+  }
+  return totals;
+}
+
 async function verifyImport(connection, businessId, expectedRows, expectedPoints) {
   const [[result]] = await connection.execute(
     `SELECT COUNT(DISTINCT a.id) AS accounts,
@@ -267,8 +287,8 @@ async function verifyImport(connection, businessId, expectedRows, expectedPoints
             SUM(CASE WHEN c.loyalty_member = 1 THEN 1 ELSE 0 END) AS members
        FROM love_loyalty_import i
       JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id
-       JOIN loyalty_accounts a ON a.business_id = c.business_id AND a.contact_id = c.id`,
-    [businessId],
+       JOIN loyalty_accounts a ON a.business_id = ? AND a.contact_id = c.id`,
+     [businessId, businessId],
   );
   const verification = { accounts: Number(result.accounts), balancePoints: Number(result.balance_points), members: Number(result.members) };
   if (verification.accounts !== expectedRows || verification.members !== expectedRows || verification.balancePoints !== expectedPoints) {
@@ -315,7 +335,7 @@ async function main() {
       console.log('Dry run complete. No data changed. Re-run with --apply to import this exact export.');
       return;
     }
-    const applied = await applyImport(imsDb, business.business_id, fingerprint);
+    const applied = await applyImport(imsDb, business.business_id, fingerprint, records);
     const verified = await verifyImport(imsDb, business.business_id, records.length, preflightResult.targetPoints);
     console.log(JSON.stringify({ applied, verified }, null, 2));
   } finally {
