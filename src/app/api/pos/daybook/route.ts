@@ -591,7 +591,7 @@ export async function POST(request: Request) {
       );
       const record = rows[0];
       if (!record || (record.record_type === 'incident' && !context.isManager)) return error('Record not found.', 404);
-      if (!mayManageTask(context, staff, await getEditPolicy(context.businessId), {
+      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), {
         author_user_id: record.actor_user_id,
         author_staff_identity_id: record.staff_identity_id,
         author_staff_initials: record.staff_initials,
@@ -702,7 +702,7 @@ export async function POST(request: Request) {
       );
       const template = rows[0];
       if (!template) return error('Task not found.', 404);
-      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), {
+      if (!mayManageTask(context, staff, await getEditPolicy(context.businessId), {
         author_user_id: template.created_by_id,
         author_staff_identity_id: template.created_by_staff_identity_id,
         author_staff_initials: template.created_by_staff_initials,
