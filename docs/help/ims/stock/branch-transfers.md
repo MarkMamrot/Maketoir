@@ -38,7 +38,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 ### Create and send
 
 1. Open **Locations > Branch Transfers** and select **New Transfer**.
-2. Choose the source, destination, transfer date, and any useful packing notes. You can paste the combined clipboard built from Store Daybook Requests and Store needs.
+2. Choose the source, destination, transfer date, and any useful packing notes. Notes support multiple lines. You can paste the combined clipboard built from Store Daybook Requests and Store needs; each copied request is separated by blank space and a divider.
 3. Add each product variant and quantity to send, then save the Draft.
 4. Review the transfer number, route, items, quantities, and value.
 5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.

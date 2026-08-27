@@ -18783,11 +18783,18 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<Record<string, string>>({});
+  const [feeEditor, setFeeEditor] = useState<{
+    key: string;
+    feeAccountCode: string;
+    feeTaxType: 'INPUT' | 'NONE';
+    percentage: string;
+  } | null>(null);
   const clearingAccounts = accounts.filter(account => account.type === 'BANK' || account.enablePaymentsToAccount === true);
   const bankAccounts = accounts.filter(account => account.type === 'BANK');
   const expenseAccounts = accounts.filter(account => account.class === 'EXPENSE');
 
   const cellKey = (locationId: number, paymentMethod: string) => `${locationId}:${paymentMethod.trim().toLowerCase()}`;
+  const isCardMethod = (paymentMethod: string) => !/\bgift\s*card\b/i.test(paymentMethod) && /\bcard\b/i.test(paymentMethod);
   const mappingFor = (locationId: number, paymentMethod: string) => mappings.find(mapping =>
     mapping.ims_location_id === locationId && mapping.payment_method.trim().toLowerCase() === paymentMethod.trim().toLowerCase(),
   );
@@ -18821,9 +18828,9 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
 
   useEffect(() => { load(); }, []);
 
-  const handleSaveMapping = async (locationId: number, paymentMethod: string, changes: Partial<PosClearingMapping>) => {
+  const handleSaveMapping = async (locationId: number, paymentMethod: string, changes: Partial<PosClearingMapping>): Promise<boolean> => {
     const bid = getBusinessId();
-    if (!bid) return;
+    if (!bid) return false;
     const key = cellKey(locationId, paymentMethod);
     const current = mappingFor(locationId, paymentMethod);
     const next = { ...current, ...changes };
@@ -18841,10 +18848,10 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
           paymentMethod,
           xeroAccountId: account?.accountId ?? '',
           xeroAccountCode: account?.code ?? '',
-          feeAccountCode: feeAccount?.code ?? '',
+          feeAccountCode: next.fee_account_code ?? '',
           feeTaxType: next.fee_tax_type ?? 'NONE',
-          deductFeeEnabled: Boolean(next.deduct_fee_enabled),
-          fixedFeeAmount: Number(next.fixed_fee_amount ?? 0),
+          deductFeeEnabled: isCardMethod(paymentMethod) && Number(next.percentage_fee_rate ?? 0) > 0,
+          fixedFeeAmount: 0,
           percentageFeeRate: Number(next.percentage_fee_rate ?? 0),
         }),
       });
@@ -18858,18 +18865,54 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
           xero_account_id: account.accountId,
           xero_account_code: account.code,
           xero_account_name: account.name,
-          fee_account_code: feeAccount?.code ?? null,
+          fee_account_code: next.fee_account_code ?? null,
           fee_account_name: feeAccount?.name ?? null,
           fee_tax_type: next.fee_tax_type ?? 'NONE',
-          deduct_fee_enabled: Boolean(next.deduct_fee_enabled),
-          fixed_fee_amount: Number(next.fixed_fee_amount ?? 0),
+          deduct_fee_enabled: isCardMethod(paymentMethod) && Number(next.percentage_fee_rate ?? 0) > 0,
+          fixed_fee_amount: 0,
           percentage_fee_rate: Number(next.percentage_fee_rate ?? 0),
         }] : remaining;
       });
+      setSaving(null);
+      return true;
     } catch (error: any) {
       setSaveError(previous => ({ ...previous, [key]: error?.message ?? 'Save failed' }));
     }
     setSaving(null);
+    return false;
+  };
+
+  const openFeeEditor = (locationId: number, paymentMethod: string, mapping: PosClearingMapping) => {
+    setFeeEditor({
+      key: cellKey(locationId, paymentMethod),
+      feeAccountCode: mapping.fee_account_code ?? '',
+      feeTaxType: mapping.fee_tax_type === 'INPUT' ? 'INPUT' : 'NONE',
+      percentage: String(Number(mapping.percentage_fee_rate ?? 0)),
+    });
+  };
+
+  const saveFee = async (locationId: number, paymentMethod: string) => {
+    if (!feeEditor) return;
+    const saved = await handleSaveMapping(locationId, paymentMethod, {
+      fee_account_code: feeEditor.feeAccountCode || null,
+      fee_tax_type: feeEditor.feeTaxType,
+      deduct_fee_enabled: true,
+      fixed_fee_amount: 0,
+      percentage_fee_rate: Number(feeEditor.percentage),
+    });
+    if (saved) setFeeEditor(null);
+  };
+
+  const removeFee = async (locationId: number, paymentMethod: string) => {
+    const saved = await handleSaveMapping(locationId, paymentMethod, {
+      fee_account_code: null,
+      fee_account_name: null,
+      fee_tax_type: 'NONE',
+      deduct_fee_enabled: false,
+      fixed_fee_amount: 0,
+      percentage_fee_rate: 0,
+    });
+    if (saved) setFeeEditor(null);
   };
 
   const handleDepositBank = async (locationId: number, accountId: string) => {
@@ -18934,28 +18977,25 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
         <p style={{ fontSize: 12, color: 'var(--sv-text-dim)', margin: 0 }}>No active POS locations found.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1500 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: Math.max(860, 440 + methods.length * 250) }}>
             <thead><tr style={{ borderBottom: '1px solid var(--sv-etch)' }}>
               <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Location</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Payment method</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Clearing account</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Fee account</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Fee tax</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Calculated fees</th>
+              {methods.map(method => <th key={method.payment_method} style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{method.payment_method}</th>)}
               <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>Default Cash Deposit Bank</th>
             </tr></thead>
             <tbody>
-              {locations.flatMap(location => methods.map((method, methodIndex) => {
+              {locations.map(location => (
+                <tr key={location.id} style={{ borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
+                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{location.name}</td>
+                  {methods.map(method => {
                     const key = cellKey(location.id, method.payment_method);
                     const mapping = mappingFor(location.id, method.payment_method);
+                    const isCard = isCardMethod(method.payment_method);
                     return (
-                <tr key={key} style={{ borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>
-                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{methodIndex === 0 ? location.name : ''}</td>
-                  <td style={{ padding: '10px 8px', color: 'var(--sv-text-main)', fontWeight: 600, whiteSpace: 'nowrap' }}>{method.payment_method}</td>
-                  <td style={{ padding: '5px 8px' }}>
+                      <td key={method.payment_method} style={{ padding: '5px 8px' }}>
                         <select
                           value={mapping?.xero_account_id || ''}
-                      onChange={event => handleSaveMapping(location.id, method.payment_method, { xero_account_id: event.target.value })}
+                          onChange={event => handleSaveMapping(location.id, method.payment_method, { xero_account_id: event.target.value })}
                           disabled={saving === key}
                           style={{ width: '100%', minWidth: 220, padding: '6px 8px', borderRadius: 5, border: `1px solid ${saveError[key] ? 'var(--sv-red)' : mapping ? 'var(--sv-mint)' : 'var(--sv-amber)'}`, background: 'var(--sv-bg-1)', color: mapping ? 'var(--sv-text-main)' : 'var(--sv-text-dim)', fontSize: 12 }}
                         >
@@ -18966,54 +19006,49 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                             </option>
                           ))}
                         </select>
+                        {isCard && mapping && feeEditor?.key !== key && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 6 }}>
+                            {Boolean(mapping.deduct_fee_enabled) ? (
+                              <>
+                                <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
+                                  Fee {Number(mapping.percentage_fee_rate ?? 0).toFixed(2)}% · {mapping.fee_account_name ?? mapping.fee_account_code} · {mapping.fee_tax_type === 'INPUT' ? 'GST' : 'No GST'}
+                                </span>
+                                <span style={{ display: 'flex', gap: 5 }}>
+                                  <button type="button" onClick={() => openFeeEditor(location.id, method.payment_method, mapping)} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', fontSize: 10, cursor: 'pointer' }}>Edit</button>
+                                  <button type="button" onClick={() => removeFee(location.id, method.payment_method)} disabled={saving === key} style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-red)', fontSize: 10, cursor: 'pointer' }}>Remove</button>
+                                </span>
+                              </>
+                            ) : (
+                              <button type="button" onClick={() => openFeeEditor(location.id, method.payment_method, mapping)} style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-main)', fontSize: 11, cursor: 'pointer' }}>+ Add fee</button>
+                            )}
+                          </div>
+                        )}
+                        {isCard && mapping && feeEditor?.key === key && (
+                          <div style={{ marginTop: 7, padding: 8, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', display: 'grid', gap: 7 }}>
+                            <select value={feeEditor.feeAccountCode} onChange={event => setFeeEditor(current => current ? { ...current, feeAccountCode: event.target.value } : current)} style={{ width: '100%', padding: '5px 7px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 11 }}>
+                              <option value="">Fee expense account</option>
+                              {expenseAccounts.map(account => <option key={account.accountId} value={account.code}>{account.code} — {account.name}</option>)}
+                            </select>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 88px', gap: 6 }}>
+                              <select value={feeEditor.feeTaxType} onChange={event => setFeeEditor(current => current ? { ...current, feeTaxType: event.target.value as 'INPUT' | 'NONE' } : current)} style={{ padding: '5px 7px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 11 }}>
+                                <option value="NONE">BAS Excluded</option>
+                                <option value="INPUT">GST on Expenses</option>
+                              </select>
+                              <label style={{ position: 'relative' }}>
+                                <input type="number" min="0" max="100" step="0.01" value={feeEditor.percentage} onChange={event => setFeeEditor(current => current ? { ...current, percentage: event.target.value } : current)} aria-label="Card fee percentage" style={{ width: '100%', padding: '5px 22px 5px 7px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 11 }} />
+                                <span style={{ position: 'absolute', right: 7, top: 5, color: 'var(--sv-text-dim)', fontSize: 11 }}>%</span>
+                              </label>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button type="button" onClick={() => saveFee(location.id, method.payment_method)} disabled={saving === key || !feeEditor.feeAccountCode || !(Number(feeEditor.percentage) > 0)} style={{ padding: '3px 9px', borderRadius: 5, border: 'none', background: 'var(--sv-action)', color: '#fff', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}>Save fee</button>
+                              <button type="button" onClick={() => setFeeEditor(null)} style={{ padding: '3px 9px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', fontSize: 10, cursor: 'pointer' }}>Cancel</button>
+                            </div>
+                          </div>
+                        )}
                         {saveError[key] && <div style={{ marginTop: 3, fontSize: 10, color: 'var(--sv-red)' }}>{saveError[key]}</div>}
-                  </td>
-                  <td style={{ padding: '5px 8px' }}>
-                    <select
-                      value={mapping?.fee_account_code ?? ''}
-                      onChange={event => handleSaveMapping(location.id, method.payment_method, { fee_account_code: event.target.value || null })}
-                      disabled={saving === key || !mapping}
-                      style={{ width: '100%', minWidth: 190, padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}
-                    >
-                      <option value="">— no calculated fee —</option>
-                      {expenseAccounts.map(account => <option key={account.accountId} value={account.code}>{account.code} — {account.name}</option>)}
-                    </select>
-                  </td>
-                  <td style={{ padding: '5px 8px' }}>
-                    <select
-                      value={mapping?.fee_tax_type ?? 'NONE'}
-                      onChange={event => handleSaveMapping(location.id, method.payment_method, { fee_tax_type: event.target.value as 'INPUT' | 'NONE' })}
-                      disabled={saving === key || !mapping}
-                      style={{ width: '100%', minWidth: 150, padding: '6px 8px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}
-                    >
-                      <option value="NONE">BAS Excluded</option>
-                      <option value="INPUT">GST on Expenses</option>
-                    </select>
-                  </td>
-                  <td style={{ padding: '5px 8px', minWidth: 260 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--sv-text-main)', fontSize: 11 }}>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(mapping?.deduct_fee_enabled)}
-                        onChange={event => handleSaveMapping(location.id, method.payment_method, { deduct_fee_enabled: event.target.checked })}
-                        disabled={saving === key || !mapping || !mapping.fee_account_code}
-                      />
-                      Calculate from POS payments
-                    </label>
-                    {Boolean(mapping?.deduct_fee_enabled) && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>$</span>
-                        <input type="number" min="0" step="0.01" title="Fixed fee per payment" defaultValue={Number(mapping?.fixed_fee_amount ?? 0)}
-                          onBlur={event => handleSaveMapping(location.id, method.payment_method, { fixed_fee_amount: Number(event.target.value) })}
-                          disabled={saving === key} style={{ width: 72, padding: '5px 6px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>+</span>
-                        <input type="number" min="0" max="100" step="0.01" title="Percentage fee" defaultValue={Number(mapping?.percentage_fee_rate ?? 0)}
-                          onBlur={event => handleSaveMapping(location.id, method.payment_method, { percentage_fee_rate: Number(event.target.value) })}
-                          disabled={saving === key} style={{ width: 72, padding: '5px 6px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
-                        <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>% per payment</span>
-                      </div>
-                    )}
-                  </td>
+                      </td>
+                    );
+                  })}
                   <td style={{ padding: '5px 8px' }}>
                     {(() => {
                       const key = `deposit:${location.id}`;
@@ -19038,8 +19073,7 @@ function XeroPosPaymentMappingSection({ accounts, getBusinessId }: { accounts: {
                     })()}
                   </td>
                 </tr>
-                    );
-              }))}
+              ))}
             </tbody>
           </table>
         </div>
@@ -22779,7 +22813,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               </Field>
               <Field label="Transfer Date *"><input required type="date" value={form.transfer_date} onChange={sf('transfer_date')} style={inputStyle} /></Field>
             </Row3>
-            <Field label="Notes"><textarea value={form.notes} onChange={sf('notes')} rows={4} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Paste Store Daybook needs or add transfer instructions" /></Field>
+            <Field label="Notes"><textarea value={form.notes} onChange={sf('notes')} rows={8} style={{ ...inputStyle, resize: 'vertical', whiteSpace: 'pre-wrap' }} placeholder="Paste Store Daybook needs or add transfer instructions. Separate entries with a blank line." /></Field>
 
             {/* Line items */}
             <div style={{ marginBottom: 14 }}>

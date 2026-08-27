@@ -41,12 +41,11 @@ Use Xero setup and activity views to configure supported accounting work, invest
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.
 3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.
-4. Under **POS Clearing Accounts**, optionally configure processing fees for each location and payment method:
-	- Choose the fee expense account and whether the fee is **GST on Expenses** or **BAS Excluded**.
-	- Enable calculated fees and enter the fixed amount per successful payment plus the percentage rate.
-	- Calculated fees post from that row's clearing account after its EOD invoice payment succeeds.
-5. Save the mappings and run a normal source workflow.
-6. Open **Sync History** and confirm the resulting status before enabling broader automation.
+4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.
+5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.
+6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.
+7. Save the mappings and run a normal source workflow.
+8. Open **Sync History** and confirm the resulting status before enabling broader automation.
 
 ### Recover a failed accounting action
 
@@ -92,4 +91,4 @@ A paid payout contains sales, a refund, fees, and the net bank settlement. Revie
 
 ### Calculate a POS card fee
 
-Newtown Card is configured for a $0.30 fixed fee and 1.75%. Two successful card payments total $110.00 during the register session. The EOD fee is $0.30 × 2 + $110.00 × 1.75% = $2.53. After the card clearing payment succeeds, Solvantis posts a $2.53 Spend Money transaction from Newtown's card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.
+Newtown Card is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from Newtown's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.

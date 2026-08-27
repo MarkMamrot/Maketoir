@@ -83,8 +83,8 @@ Location Daybooks is available when **Business requires POS** is enabled or when
 1. Open **Requests** or **Store needs**.
 2. Select **Add to clipboard** at the bottom-right of each card that should be included. Requests and Store needs share the same location clipboard, and adding the same card again updates its existing entry.
 3. Review the combined text in **Transfer notes clipboard** at the bottom of either tab.
-4. Open the branch transfer, place the cursor in **Notes**, and paste. The note keeps separate labelled blocks for each selected card.
-5. Select **Clear clipboard** when the transfer note is complete. The saved Daybook clipboard is kept for that location until it is cleared.
+4. Open the branch transfer, place the cursor in the multiline **Notes** field, and paste. Each selected card appears as a labelled block with blank space and a divider between it and the next request.
+5. Select **Clear clipboard** beside **Add new** or at the bottom of the list when the transfer note is complete. The saved Daybook clipboard is kept for that location until it is cleared.
 
 > **Important:** A copied customer request includes the contact details entered on its card. Include a request only when those details are needed for the transfer, and clear the clipboard after use on a shared device.
 

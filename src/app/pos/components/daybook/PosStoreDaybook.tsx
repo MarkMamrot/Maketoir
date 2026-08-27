@@ -486,7 +486,10 @@ function RecordSection({ type, records, saving, perform, manager, onAdd, onEdit,
   const labels: Record<string, string> = { customer_name: 'Customer name', contact_details: 'Contact details', item: 'Item', notes: 'Notes', quantity: 'Quantity', unit: 'Unit', store_notes: 'Store notes', sku: 'SKU / code', size: 'Size', system_quantity: 'System quantity', physical_quantity: 'Physical quantity found', time: 'Time', staff_present: 'Staff present', event_description: 'Event description', loss_or_damage: 'Loss or damage', emergency_services: 'Emergency services called?', instigator_description: 'Description of incident instigator', management_notified: 'Has management been told?' };
   const usesClipboard = type === 'customer_request' || type === 'store_need';
   return <section className={styles.contentSection}>
-    <Title title={meta[type][0]} subtitle={meta[type][1]} action={<button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button>} />
+    <Title title={meta[type][0]} subtitle={meta[type][1]} action={<div className={styles.titleActions}>
+      {usesClipboard && <button type="button" className={styles.clearClipboardButton} onClick={() => void onClearClipboard()} disabled={clipboardItems.length === 0}><ClipboardX size={16} /> Clear clipboard</button>}
+      <button className={styles.addButton} onClick={onAdd}><Plus size={17} /> Add new</button>
+    </div>} />
       <div className={styles.recordList}>{records.length === 0 && <p className={styles.empty}>Nothing recorded here yet.</p>}{records.map(record => {
         const details = detailsOf(record);
         return <article className={`${styles.record} ${record.background_color ? styles[record.background_color] : ''}`} key={record.id}>

@@ -24,10 +24,12 @@ describe('Store Daybook clipboard', () => {
     }).text).toContain('Customer: Alex\nContact: 0400 000 000\nItem: Blue scarf');
   });
 
-  it('replaces a duplicate record and serializes entries as note blocks', () => {
+  it('replaces a duplicate record and clearly separates multiline note blocks', () => {
     const first = { id: 1, recordType: 'store_need' as const, text: 'Old' };
     const replacement = { ...first, text: 'Updated' };
     const request = { id: 2, recordType: 'customer_request' as const, text: 'Request' };
-    expect(serializeDaybookClipboard(addDaybookClipboardItem([first, request], replacement))).toBe('Request\n\nUpdated');
+    expect(serializeDaybookClipboard(addDaybookClipboardItem([first, request], replacement))).toBe(
+      'Request\n\n--------------------\n\nUpdated',
+    );
   });
 });

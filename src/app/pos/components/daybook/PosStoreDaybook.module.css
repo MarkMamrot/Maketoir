@@ -12,6 +12,10 @@
 
 @media(max-width:650px){.recordFooter{align-items:stretch;flex-direction:column}.recordCardActions{width:100%;margin-left:0}.recordCardActions button{flex:1 1 auto}.daybookClipboard{grid-template-columns:1fr}.daybookClipboard>button{grid-column:1;grid-row:auto;justify-self:end}}
 
+.titleActions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}.clearClipboardButton{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:39px;padding:9px 13px;border:1px solid rgba(23,55,53,.3);border-radius:6px;background:#fff;color:#173735;font-weight:700;cursor:pointer}.clearClipboardButton:hover,.clearClipboardButton:focus-visible{border-color:#173735;background:#edf4f1}.clearClipboardButton:disabled{opacity:.46;cursor:not-allowed}
+
+@media(max-width:650px){.titleActions{justify-content:flex-start}}
+
 /* Strong phase landmarks and vertically traceable day columns. */
 .phaseSelector{gap:0;overflow:hidden;padding:0;background:#d4d1c7;border-color:#c8c4b9}
 .phaseSelector button{min-height:68px;padding:11px 14px;border:0;border-right:1px solid #c8c4b9;border-radius:0;background:#f5f3ed;color:#33413f}

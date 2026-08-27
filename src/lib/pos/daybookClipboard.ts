@@ -38,5 +38,5 @@ export function addDaybookClipboardItem(items: DaybookClipboardItem[], item: Day
 }
 
 export function serializeDaybookClipboard(items: DaybookClipboardItem[]): string {
-  return items.map(item => item.text).join('\n\n');
+  return items.map(item => item.text.trim()).join('\n\n--------------------\n\n');
 }
