@@ -1,27 +1,15 @@
 ﻿import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
-
-function getPosSession() {
-  const raw = cookies().get('pos_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
-
-function getAdminSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
+import { getAdminSession, getPosSession } from '@/lib/sessionUtils';
 
 export async function GET(req: Request) {
   const posSession   = getPosSession();
   const adminSession = getAdminSession();
-  const session      = posSession ?? adminSession;
+  const session      = adminSession ?? posSession;
   if (!session) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
-  await getImsSession(['pos_session', 'marketoir_session']);
+  await getImsSession(adminSession ? ['marketoir_session'] : ['pos_session']);
 
   const { searchParams } = new URL(req.url);
   const rawId      = searchParams.get('location_id') ?? String(session.location_id ?? 0);
