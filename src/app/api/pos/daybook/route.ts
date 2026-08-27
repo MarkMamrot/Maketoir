@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
   canEditDaybookItem,
+  canManageDaybookTask,
   canTransitionDiscrepancy,
   canTransitionNeed,
   canTransitionRequest,
@@ -133,6 +134,23 @@ function mayEdit(context: DaybookContext, staff: DaybookStaffIdentity, policy: D
   author_staff_initials?: string | null;
 }) {
   return canEditDaybookItem({
+    policy,
+    isManager: context.isManager,
+    actorUserId: context.actorUserId,
+    staffIdentityId: staff.id ?? null,
+    staffInitials: staff.initials,
+    authorUserId: Number(item.author_user_id ?? 0) || null,
+    authorStaffIdentityId: Number(item.author_staff_identity_id ?? 0) || null,
+    authorStaffInitials: String(item.author_staff_initials ?? ''),
+  });
+}
+
+function mayManageTask(context: DaybookContext, staff: DaybookStaffIdentity, policy: DaybookEditPolicy, item: {
+  author_user_id?: number | null;
+  author_staff_identity_id?: number | null;
+  author_staff_initials?: string | null;
+}) {
+  return canManageDaybookTask({
     policy,
     isManager: context.isManager,
     actorUserId: context.actorUserId,
@@ -287,7 +305,7 @@ export async function GET(request: Request) {
     }));
     const tasks = rawTasks.map(item => ({
       ...item,
-      can_edit: Boolean(item.is_active) && mayEdit(context, selectedStaff, editPolicy, {
+      can_edit: Boolean(item.is_active) && mayManageTask(context, selectedStaff, editPolicy, {
         author_user_id: item.created_by_id,
         author_staff_identity_id: item.created_by_staff_identity_id,
         author_staff_initials: item.created_by_staff_initials,
@@ -295,7 +313,7 @@ export async function GET(request: Request) {
     }));
     const taskHistory = rawTaskHistory.map(item => ({
       ...item,
-      can_edit: Boolean(item.is_active) && mayEdit(context, selectedStaff, editPolicy, {
+      can_edit: Boolean(item.is_active) && mayManageTask(context, selectedStaff, editPolicy, {
         author_user_id: item.created_by_id,
         author_staff_identity_id: item.created_by_staff_identity_id,
         author_staff_initials: item.created_by_staff_initials,
@@ -435,7 +453,7 @@ export async function POST(request: Request) {
           await connection.rollback();
           return error('Daybook item not found.', 404);
         }
-        if (!mayEdit(context, staff, editPolicy, item)) {
+        if (!(itemType === 'task' ? mayManageTask(context, staff, editPolicy, item) : mayEdit(context, staff, editPolicy, item))) {
           await connection.rollback();
           return error('You do not have permission to delete this item.', 403);
         }
@@ -573,7 +591,7 @@ export async function POST(request: Request) {
       );
       const record = rows[0];
       if (!record || (record.record_type === 'incident' && !context.isManager)) return error('Record not found.', 404);
-      if (!mayEdit(context, staff, await getEditPolicy(context.businessId), {
+      if (!mayManageTask(context, staff, await getEditPolicy(context.businessId), {
         author_user_id: record.actor_user_id,
         author_staff_identity_id: record.staff_identity_id,
         author_staff_initials: record.staff_initials,

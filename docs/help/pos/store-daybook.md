@@ -51,7 +51,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
-8. When permitted by the editing policy, use **Edit** or **Delete** beside any active task in Open the store, Keep the day moving, or Close with confidence. Deleting stops future occurrences but retains existing sign-off history.
+8. Managers use the pencil or bin icon beside any active task in Open the store, Keep the day moving, or Close with confidence. Other staff see these controls when permitted by the editing policy. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 
@@ -114,7 +114,7 @@ Managers open **Settings** and choose one tenant-wide editing policy:
 
 | Policy | Who can revise an existing item |
 |---|---|
-| Original author only | The signed-in account or selected staff identity recorded when the item was created; managers can maintain imported items with no recorded author |
+| Original author only | The signed-in account or selected staff identity recorded when the item was created; managers can maintain all checklist tasks and imported items |
 | Managers only | POS managers and administrators; this is the default and permits maintenance of imported content |
 | Any staff member | Any staff member with access to Store Daybook |
 

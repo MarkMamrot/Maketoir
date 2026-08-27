@@ -24,6 +24,7 @@ interface CronResult {
   inserted?: number;
   updated?: number;
   reviewRequired?: number;
+  transactionHistoryAvailable?: boolean;
   errors?: number;
 }
 
@@ -81,6 +82,7 @@ export async function POST(req: Request) {
           inserted: result.inserted,
           updated: result.updated,
           reviewRequired: result.reviewRequired,
+          transactionHistoryAvailable: result.transactionHistoryAvailable,
           errors: result.errors,
         });
       });

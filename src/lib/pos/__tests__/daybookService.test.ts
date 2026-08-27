@@ -11,6 +11,7 @@ import {
   shouldImportNewtownCommunication,
   taskOccursOnDate,
   canEditDaybookItem,
+  canManageDaybookTask,
   normalizeDaybookColour,
   normalizeDaybookEditPolicy,
 } from '../daybookService';
@@ -76,6 +77,20 @@ describe('Store Daybook rules', () => {
     expect(normalizeDaybookColour('pastel_mint')).toBe('pastel_mint');
     expect(normalizeDaybookColour('#000000')).toBeNull();
     expect(normalizeDaybookColour('fluoro_orange')).toBeNull();
+  });
+
+  it('allows managers to maintain every task while retaining policy checks for other staff', () => {
+    const task = {
+      policy: 'author_only' as const,
+      actorUserId: 20,
+      staffIdentityId: null,
+      staffInitials: 'MG',
+      authorUserId: 10,
+      authorStaffIdentityId: null,
+      authorStaffInitials: 'AB',
+    };
+    expect(canManageDaybookTask({ ...task, isManager: true })).toBe(true);
+    expect(canManageDaybookTask({ ...task, isManager: false })).toBe(false);
   });
 
   it('normalizes edit policy and respects shared-login staff authorship', () => {

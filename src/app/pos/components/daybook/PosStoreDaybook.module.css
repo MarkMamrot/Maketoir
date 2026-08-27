@@ -16,7 +16,7 @@
 
 @media(max-width:650px){.titleActions{justify-content:flex-start}}
 
-.taskRowActions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:5px;margin-left:auto}.taskRowActions button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:30px;padding:5px 7px;border:1px solid rgba(23,55,53,.26);border-radius:5px;background:rgba(255,255,255,.72);color:#173735;font-size:11px;font-weight:700;cursor:pointer}.taskRowActions button:hover,.taskRowActions button:focus-visible{border-color:#173735;background:#fff}.taskRowActions button:disabled{opacity:.48;cursor:not-allowed}.taskRowActions .taskDeleteAction{border-color:rgba(166,46,41,.38);color:#a62e29}
+.taskRowActions{display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;gap:5px;margin-left:auto}.taskRowActions button{display:grid;place-items:center;flex:0 0 auto;width:30px;height:30px;padding:0;border:1px solid rgba(23,55,53,.26);border-radius:5px;background:rgba(255,255,255,.72);color:#173735;cursor:pointer}.taskRowActions button:hover,.taskRowActions button:focus-visible{border-color:#173735;background:#fff}.taskRowActions button:disabled{opacity:.48;cursor:not-allowed}.taskRowActions .taskDeleteAction{border-color:rgba(166,46,41,.38);color:#a62e29}
 
 /* Strong phase landmarks and vertically traceable day columns. */
 .phaseSelector{gap:0;overflow:hidden;padding:0;background:#d4d1c7;border-color:#c8c4b9}

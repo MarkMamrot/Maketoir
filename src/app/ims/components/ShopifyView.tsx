@@ -1174,7 +1174,12 @@ function ShopifyGiftCardsTab() {
   const [saving,    setSaving]    = useState(false);
   const [saveMsg,   setSaveMsg]   = useState<string | null>(null);
   const [syncing,   setSyncing]   = useState(false);
-  const [syncResult, setSyncResult] = useState<{ synced: number; errors: number; total: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{
+    synced: number;
+    errors: number;
+    total: number;
+    transactionHistoryAvailable?: boolean;
+  } | null>(null);
   const [syncError,  setSyncError]  = useState<string | null>(null);
   const [customerSyncing, setCustomerSyncing] = useState(false);
   const [customerSyncResult, setCustomerSyncResult] = useState<{
@@ -1402,6 +1407,11 @@ function ShopifyGiftCardsTab() {
             {' — '}{syncResult.synced} synced
             {syncResult.errors > 0 && <span style={{ marginLeft: 8, color: 'var(--sv-red)' }}>{syncResult.errors} errors</span>}
             {' ('}total on Shopify: {syncResult.total}{')'}
+            {syncResult.transactionHistoryAvailable === false && (
+              <div style={{ marginTop: 6, color: 'var(--sv-red)' }}>
+                Card snapshots reconciled, but Shopify transaction history is unavailable. Add read_gift_card_transactions access to enable event-level balance reconciliation.
+              </div>
+            )}
           </div>
         )}
       </div>
