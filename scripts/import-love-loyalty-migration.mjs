@@ -266,15 +266,25 @@ async function applyBatch(connection, businessId, fingerprint, firstRow, lastRow
 }
 
 async function applyImport(connection, businessId, fingerprint, records) {
+  const [completedRows] = await connection.execute(
+    `SELECT i.source_row
+       FROM love_loyalty_import i
+       JOIN ims_contacts c ON c.business_id = ? AND c.id = i.contact_id AND c.loyalty_member = 1
+       JOIN loyalty_accounts a ON a.business_id = ? AND a.contact_id = c.id AND a.balance_points = i.target_points`,
+    [businessId, businessId],
+  );
+  const completedSourceRows = new Set(completedRows.map(row => Number(row.source_row)));
+  const pendingRecords = records.filter(record => !completedSourceRows.has(record.sourceRow));
+  console.log(`Resume check: ${completedSourceRows.size} complete, ${pendingRecords.length} pending.`);
   const totals = { processed: 0, membershipEvents: 0, membershipsChanged: 0, accountsCreated: 0, transactionsCreated: 0, balancesChanged: 0 };
-  const batchCount = Math.ceil(records.length / APPLY_BATCH_SIZE);
-  for (let offset = 0; offset < records.length; offset += APPLY_BATCH_SIZE) {
-    const batch = records.slice(offset, offset + APPLY_BATCH_SIZE);
+  const batchCount = Math.ceil(pendingRecords.length / APPLY_BATCH_SIZE);
+  for (let offset = 0; offset < pendingRecords.length; offset += APPLY_BATCH_SIZE) {
+    const batch = pendingRecords.slice(offset, offset + APPLY_BATCH_SIZE);
     const result = await applyBatch(connection, businessId, fingerprint, batch[0].sourceRow, batch[batch.length - 1].sourceRow);
     for (const key of Object.keys(totals)) totals[key] += result[key];
     const batchNumber = Math.floor(offset / APPLY_BATCH_SIZE) + 1;
     if (batchNumber === 1 || batchNumber % 10 === 0 || batchNumber === batchCount) {
-      console.log(`Imported ${Math.min(offset + batch.length, records.length)}/${records.length} customers (${batchNumber}/${batchCount} batches)`);
+      console.log(`Imported ${Math.min(offset + batch.length, pendingRecords.length)}/${pendingRecords.length} pending customers (${batchNumber}/${batchCount} batches)`);
     }
   }
   return totals;

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-08-27","owner":"customer"}
+{"id":"ims-loyalty-customer-rewards","title":"Loyalty Program and Customer Rewards","audiences":["ims","pos"],"capability":"navigation","screen":"IMS Settings > Loyalty","product":"ims","format":"task","parentId":"ims-contacts-crm","relatedTopics":["ims-contacts-crm","ims-customer-orders","pos-selling-payments-manager-approval"],"contexts":["loyalty","contact-profile","pos","online-sales"],"contextSections":{"loyalty":"Step-by-step","contact-profile":"Customer enrolment","pos":"Use points at POS","online-sales":"Convert points for Shopify"},"order":42,"summary":"Configure loyalty, enrol customers, use points directly at POS, and convert points into customer-only Shopify discounts.","lastReviewed":"2026-08-28","owner":"customer"}
 ---
 # Loyalty Program and Customer Rewards
 
@@ -11,7 +11,7 @@ Enable the program in IMS, publish the Solvantis-hosted portal, then share its U
 
 ## Before you begin
 
-Confirm Shopify is connected, decide the earning rate and start date, and publish current loyalty terms and a privacy policy at HTTPS addresses.
+Confirm Shopify is connected, decide the earning rate, start date, and fixed-dollar rewards, and publish current loyalty terms and a privacy policy at HTTPS addresses.
 
 > **Important:** Converting points creates a Shopify-only discount immediately. The points cannot then be used at POS or restored automatically when the code expires.
 
@@ -29,10 +29,13 @@ Confirm Shopify is connected, decide the earning rate and start date, and publis
 
 1. Open **IMS Settings > Loyalty**.
 2. Enter the program name, points label, points earned per dollar, and start date.
-3. Switch the loyalty program on and save it.
-4. Enter a unique portal address, display name, Shopify store URL, loyalty terms URL and version, and privacy policy URL.
-5. Publish the customer rewards portal.
-6. Copy the displayed portal URL and add it to the Shopify navigation or customer communications.
+3. Add each reward with a unique code, customer-facing name, whole-number points cost, and fixed AUD discount value. Switch off a reward to hide it without removing its redemption history.
+4. Switch the loyalty program on and save it.
+5. Enter a unique portal address, display name, Shopify store URL, loyalty terms URL and version, and privacy policy URL.
+6. Publish the customer rewards portal.
+7. Copy the displayed portal URL and add it to the Shopify navigation or customer communications.
+
+Points expiry, VIP tiers, birthday rewards, referral bonuses, promotional multipliers, and annual earning caps are shown as unavailable settings. They do not affect balances or earning until those features are released.
 
 Publishing requires both an enabled loyalty program and a connected Shopify store. The portal itself is hosted by Solvantis, while Shopify remains the online checkout.
 

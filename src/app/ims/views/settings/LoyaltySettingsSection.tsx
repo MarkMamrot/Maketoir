@@ -1,10 +1,11 @@
 'use client';
 
-import { Award, Save } from 'lucide-react';
+import { Award, Clock3, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { DEFAULT_LOYALTY_SETTINGS, LOYALTY_SETTING_KEYS } from '@/lib/loyalty/types';
 import { LoyaltyPortalSettings } from './LoyaltyPortalSettings';
+import { LoyaltyRewardsSettings } from './LoyaltyRewardsSettings';
 
 interface LoyaltySettingsSectionProps {
   settings: Record<string, string>;
@@ -172,6 +173,22 @@ export function LoyaltySettingsSection({ settings, refetchSettings }: LoyaltySet
             {saving ? 'Saving...' : 'Save settings'}
           </button>
           {message && <span style={{ fontSize: 12, color: message.tone === 'success' ? 'var(--sv-mint)' : 'var(--sv-red)' }}>{message.text}</span>}
+        </div>
+      </section>
+      <LoyaltyRewardsSettings />
+
+      <section style={{ marginTop: 16, padding: 20, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}><Clock3 size={16} />Advanced loyalty rules</div>
+        <div style={{ marginBottom: 16, fontSize: 12, color: 'var(--sv-text-dim)' }}>These controls are planned but are not applied by the loyalty ledger yet.</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 12, opacity: 0.52 }}>
+          {[
+            ['Points expiry', 'No expiry'],
+            ['VIP tiers', 'Not configured'],
+            ['Birthday reward', 'Off'],
+            ['Referral bonus', 'Off'],
+            ['Promotional multipliers', 'Off'],
+            ['Annual earning cap', 'No cap'],
+          ].map(([label, value]) => <div key={label}><label style={labelStyle}>{label} · Coming later</label><input aria-label={`${label} coming later`} disabled value={value} style={{ ...inputStyle, cursor: 'not-allowed' }} /></div>)}
         </div>
       </section>
       <LoyaltyPortalSettings />
