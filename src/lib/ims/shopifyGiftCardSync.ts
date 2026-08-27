@@ -30,6 +30,8 @@ interface ExistingGiftCardRow {
   id: number;
   balance: string | number;
   shopify_observed_balance: string | number | null;
+  shopify_updated_at: string | null;
+  reconciliation_state: string;
 }
 
 export interface ShopifyGiftCardSyncFailure {
@@ -45,6 +47,7 @@ export interface ShopifyGiftCardSyncResult {
   updated: number;
   reviewRequired: number;
   importedTransactions: number;
+  transactionHistoryAvailable: boolean;
   errors: number;
   failures: ShopifyGiftCardSyncFailure[];
   total: number;
@@ -77,6 +80,8 @@ export async function syncShopifyGiftCardSnapshots(
   let updated = 0;
   let reviewRequired = 0;
   let importedTransactions = 0;
+  let transactionHistoryAvailable = true;
+  let transactionHistoryScopeReported = false;
   const failures: ShopifyGiftCardSyncFailure[] = [];
 
   for (const card of allCards) {
@@ -85,12 +90,36 @@ export async function syncShopifyGiftCardSnapshots(
       const plan = planShopifyGiftCardImport(card);
       shopifyGiftCardId = plan.shopifyGiftCardId;
       const existingRows = await imsQuery<ExistingGiftCardRow>(
-        'SELECT id, balance, shopify_observed_balance FROM gift_cards WHERE shopify_gc_id = ? LIMIT 1',
+        `SELECT id, balance, shopify_observed_balance, shopify_updated_at, reconciliation_state
+           FROM gift_cards WHERE shopify_gc_id = ? LIMIT 1`,
         [plan.shopifyGiftCardId],
       );
-      const history = shopify.getGiftCardTransactions
-        ? await shopify.getGiftCardTransactions(plan.shopifyGiftCardId)
-        : null;
+      const existingCard = existingRows[0];
+      const providerSnapshotChanged = !existingCard
+        || !card.updated_at
+        || !existingCard.shopify_updated_at
+        || normalizeShopifyTimestamp(card.updated_at) !== normalizeShopifyTimestamp(existingCard.shopify_updated_at)
+        || existingCard.reconciliation_state !== 'matched';
+      let history: Awaited<ReturnType<NonNullable<ShopifyGiftCardSnapshotClient['getGiftCardTransactions']>>> | null = null;
+      if (shopify.getGiftCardTransactions && providerSnapshotChanged && transactionHistoryAvailable) {
+        try {
+          history = await shopify.getGiftCardTransactions(plan.shopifyGiftCardId);
+        } catch (error) {
+          if (!isGiftCardTransactionScopeError(error)) throw error;
+          transactionHistoryAvailable = false;
+          if (!transactionHistoryScopeReported) {
+            transactionHistoryScopeReported = true;
+            await reportRuntimeIssue({
+              businessId,
+              source: 'shopify',
+              operation: 'gift_card_transaction_history_scope',
+              title: 'Shopify gift card transaction history is unavailable',
+              error,
+              context: { requiredScope: 'read_gift_card_transactions' },
+            });
+          }
+        }
+      }
       const cardId = existingRows[0]?.id ?? null;
       const knownTransactionRows = cardId && history
         ? await imsQuery<{ shopify_transaction_id: string }>(
@@ -103,9 +132,15 @@ export async function syncShopifyGiftCardSnapshots(
       const knownTransactionIds = new Set(knownTransactionRows.map(row => row.shopify_transaction_id));
       const unseenTransactions = history?.transactions.filter(transaction => !knownTransactionIds.has(transaction.id)) ?? [];
       const providerBalance = history?.balance ?? plan.balance;
+      const providerUpdatedAt = history?.updatedAt ?? card.updated_at ?? null;
       const transactionAmountsForProof = unseenTransactions.every(transaction => transaction.type !== 'unknown')
         ? unseenTransactions.map(transaction => transaction.amount)
         : [];
+
+      if (existingRows.length && history && unseenTransactions.length) {
+        await importShopifyTransactions(existingRows[0].id, history.balance, history.transactions, knownTransactionIds);
+        importedTransactions += unseenTransactions.length;
+      }
 
       if (existingRows.length) {
         const balanceDecision = planObservedBalanceUpdate({
@@ -129,7 +164,7 @@ export async function syncShopifyGiftCardSnapshots(
           [
             plan.lineItemId, plan.initialBalance, balanceDecision.applyProviderBalance ? 1 : 0, providerBalance,
             plan.status, plan.currency, plan.expiresOn, plan.customerId, plan.orderId, plan.createdAt,
-            history?.updatedAt ? history.updatedAt.slice(0, 19).replace('T', ' ') : null,
+            providerUpdatedAt ? normalizeShopifyTimestamp(providerUpdatedAt) : null,
             providerBalance, plan.status, balanceDecision.state, balanceDecision.reason, existingRows[0].id,
           ],
         );
@@ -147,24 +182,24 @@ export async function syncShopifyGiftCardSnapshots(
               currency, expires_on, customer_id, order_id, notes, created_at,
               shopify_updated_at, shopify_observed_balance, shopify_observed_status, reconciliation_state,
               reconciliation_reason, last_reconciled_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?, ?, ?, ?, 'matched', NULL, NOW())`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Imported from Shopify', ?, ?, ?, ?, ?, NULL, NOW())`,
           [
             plan.shopifyGiftCardId, plan.lineItemId, code, plan.initialBalance, providerBalance,
             plan.status, plan.currency, plan.expiresOn, plan.customerId, plan.orderId, plan.createdAt,
-            history?.updatedAt ? history.updatedAt.slice(0, 19).replace('T', ' ') : null,
-            providerBalance, plan.status,
+            providerUpdatedAt ? normalizeShopifyTimestamp(providerUpdatedAt) : null,
+            providerBalance, plan.status, history ? 'pending' : 'matched',
           ],
         );
         if (history) {
           const newCardId = Number(insertResult.insertId);
           await importShopifyTransactions(newCardId, history.balance, history.transactions, new Set());
           importedTransactions += history.transactions.length;
+          await imsExecute(
+            "UPDATE gift_cards SET reconciliation_state = 'matched', reconciliation_reason = NULL WHERE id = ?",
+            [newCardId],
+          );
         }
         inserted++;
-      }
-      if (existingRows.length && history && unseenTransactions.length) {
-        await importShopifyTransactions(existingRows[0].id, history.balance, history.transactions, knownTransactionIds);
-        importedTransactions += unseenTransactions.length;
       }
       synced++;
     } catch (error) {
@@ -193,10 +228,21 @@ export async function syncShopifyGiftCardSnapshots(
     updated,
     reviewRequired,
     importedTransactions,
+    transactionHistoryAvailable,
     errors: failures.length,
     failures,
     total: allCards.length,
   };
+}
+
+function isGiftCardTransactionScopeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('read_gift_card_transactions')
+    || message.toLowerCase().includes('access denied for nodes field');
+}
+
+function normalizeShopifyTimestamp(value: string): string {
+  return value.slice(0, 19).replace('T', ' ');
 }
 
 async function importShopifyTransactions(

@@ -74,7 +74,12 @@ export async function POST(
     try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
     const shopify = new ShopifyService(provider.shopify_shop_id, token);
     const history = await shopify.getGiftCardTransactions(transaction.shopify_gc_id);
-    const existingProviderTransaction = findProviderTransaction(history.transactions, providerNote, amount);
+    const existingProviderTransaction = findProviderTransaction(
+      history.transactions,
+      history.balance,
+      providerNote,
+      amount,
+    );
     const result = existingProviderTransaction
       ? {
           transactionId: existingProviderTransaction.transaction.id,
@@ -142,11 +147,14 @@ export async function POST(
 
 function findProviderTransaction(
   transactions: ShopifyGiftCardTransaction[],
+  currentProviderBalance: number,
   providerNote: string,
   expectedAmount: number,
 ): { transaction: ShopifyGiftCardTransaction; balanceAfter: number } | null {
-  let balanceAfter = 0;
-  for (const transaction of [...transactions].sort((left, right) => left.processedAt.localeCompare(right.processedAt))) {
+  const ordered = [...transactions].sort((left, right) => left.processedAt.localeCompare(right.processedAt));
+  const transactionTotal = ordered.reduce((sum, transaction) => sum + transaction.amount, 0);
+  let balanceAfter = Math.round((currentProviderBalance - transactionTotal) * 100) / 100;
+  for (const transaction of ordered) {
     balanceAfter = Math.round((balanceAfter + transaction.amount) * 100) / 100;
     if (transaction.note === providerNote && Math.abs(transaction.amount - expectedAmount) < 0.005) {
       return { transaction, balanceAfter };

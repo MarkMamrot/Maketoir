@@ -10,6 +10,7 @@ import { query } from '@/services/MySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
 export const runtime = 'nodejs';
+export const maxDuration = 1800;
 
 interface BusinessRow {
   business_id: string;

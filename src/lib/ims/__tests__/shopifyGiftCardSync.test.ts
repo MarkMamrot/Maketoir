@@ -77,9 +77,9 @@ describe('syncShopifyGiftCardSnapshots', () => {
     const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 0, importedTransactions: 1 });
-    expect(mockImsExecute.mock.calls[0][1][2]).toBe(1);
-    expect(mockImsExecute.mock.calls[0][1][3]).toBe(90);
-    expect(mockImsExecute.mock.calls[1][1]).toEqual([
+    expect(mockImsExecute.mock.calls[1][1][2]).toBe(1);
+    expect(mockImsExecute.mock.calls[1][1][3]).toBe(90);
+    expect(mockImsExecute.mock.calls[0][1]).toEqual([
       7, 'redeem', -10, 90, 'debit-1', '2026-08-27 01:00:00', 90, 'Used online',
     ]);
   });
@@ -124,8 +124,8 @@ describe('syncShopifyGiftCardSnapshots', () => {
     const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 1, importedTransactions: 1 });
-    expect(mockImsExecute.mock.calls[0][1][2]).toBe(0);
-    expect(mockImsExecute.mock.calls[0][1]).toContain('review_required');
+    expect(mockImsExecute.mock.calls[1][1][2]).toBe(0);
+    expect(mockImsExecute.mock.calls[1][1]).toContain('review_required');
   });
 
   it('imports an unknown provider event without using it to authorize a balance change', async () => {
@@ -145,7 +145,59 @@ describe('syncShopifyGiftCardSnapshots', () => {
     const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
 
     expect(result).toMatchObject({ reviewRequired: 1, importedTransactions: 1 });
-    expect(mockImsExecute.mock.calls[0][1][2]).toBe(0);
-    expect(mockImsExecute.mock.calls[1][1][1]).toBe('reconcile');
+    expect(mockImsExecute.mock.calls[1][1][2]).toBe(0);
+    expect(mockImsExecute.mock.calls[0][1][1]).toBe('reconcile');
+  });
+
+  it('skips transaction history when the matched Shopify update checkpoint is unchanged', async () => {
+    mockImsQuery.mockResolvedValueOnce([{
+      id: 7,
+      balance: '90.00',
+      shopify_observed_balance: '90.00',
+      shopify_updated_at: '2026-08-27 01:00:00',
+      reconciliation_state: 'matched',
+    }]);
+    const getGiftCardTransactions = vi.fn();
+    const shopify = {
+      getAllGiftCards: vi.fn(async (status: 'enabled' | 'disabled') => status === 'enabled'
+        ? [{ id: 100, last_characters: '7215', balance: '90.00', updated_at: '2026-08-27T01:00:00Z' }]
+        : []),
+      getGiftCardTransactions,
+    };
+
+    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+
+    expect(result).toMatchObject({ synced: 1, importedTransactions: 0, reviewRequired: 0 });
+    expect(getGiftCardTransactions).not.toHaveBeenCalled();
+    expect(mockImsExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues snapshot reconciliation after reporting missing transaction-history scope once', async () => {
+    mockImsQuery
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    const getGiftCardTransactions = vi.fn().mockRejectedValue(
+      new Error('Shopify GraphQL: Access denied for nodes field. Required access: `read_gift_card_transactions` access scope.'),
+    );
+    const shopify = {
+      getAllGiftCards: vi.fn(async (status: 'enabled' | 'disabled') => status === 'enabled' ? [
+        { id: 100, last_characters: '7215', balance: '10.00', updated_at: '2026-08-27T01:00:00Z' },
+        { id: 200, last_characters: '4848', balance: '20.00', updated_at: '2026-08-27T02:00:00Z' },
+      ] : []),
+      getGiftCardTransactions,
+    };
+
+    const result = await syncShopifyGiftCardSnapshots('business-1', shopify);
+
+    expect(result).toMatchObject({ success: true, inserted: 2, errors: 0, transactionHistoryAvailable: false });
+    expect(getGiftCardTransactions).toHaveBeenCalledTimes(1);
+    expect(mockImsExecute.mock.calls[0][1]).toContain('2026-08-27 01:00:00');
+    expect(mockImsExecute.mock.calls[1][1]).toContain('2026-08-27 02:00:00');
+    expect(mockReportRuntimeIssue).toHaveBeenCalledTimes(1);
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'gift_card_transaction_history_scope',
+    }));
   });
 });

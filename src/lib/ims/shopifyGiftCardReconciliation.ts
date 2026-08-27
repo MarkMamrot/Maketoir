@@ -10,6 +10,7 @@ export interface ShopifyGiftCardSnapshot {
   order_id?: string | number | null;
   line_item_id?: string | number | null;
   created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ShopifyGiftCardImportPlan {

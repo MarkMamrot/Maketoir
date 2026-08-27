@@ -1364,7 +1364,7 @@ function ShopifyGiftCardsTab() {
         <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10, marginBottom: 16 }}>
           {([
             ['off',      'Separate (IMS only)',    'Gift cards exist independently in IMS. No Shopify sync. Use this if you manage Shopify gift cards separately or don\'t use Shopify gift cards.'],
-            ['combined', 'Combined (sync with Shopify)', 'Gift cards are reconciled with Shopify each day. POS redemptions debit the same Shopify card, preserving one card and its history. Requires read_gift_cards and write_gift_cards access.'],
+            ['combined', 'Combined (sync with Shopify)', 'Gift cards are reconciled with Shopify each day. POS redemptions debit the same Shopify card, preserving one card and its history. Requires read_gift_cards and write_gift_cards access; transaction history also requires read_gift_card_transactions.'],
           ] as const).map(([val, title, desc]) => (
             <label key={val} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', padding: '10px 14px', borderRadius: 8, border: `1px solid ${gcMode === val ? 'var(--sv-action)' : 'var(--sv-etch)'}`, background: gcMode === val ? 'rgba(99,102,241,.07)' : 'var(--sv-bg-1)' }}>
               <input type="radio" name="gcMode" value={val} checked={gcMode === val} onChange={() => saveMode(val)} style={{ marginTop: 2, accentColor: 'var(--sv-action)' }} />

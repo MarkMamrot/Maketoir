@@ -52,6 +52,8 @@ Gift Cards shows issued cards, linked customer details, balance activity and Sho
 
 When **Shopify > Gift Cards** is set to **Combined**, Solvantis checks Shopify each day for new cards, disabled cards and transaction activity. Use **Reconcile Now** in Shopify settings when an immediate check is needed. Shopify-created cards appear with a protected placeholder ending in the visible last four characters until the full code is resolved at POS.
 
+The Shopify connection needs gift-card read and write access. Event-level history and proven balance updates also require Shopify's `read_gift_card_transactions` access. Without that access, new cards and deactivations still reconcile, while transaction history remains unavailable and an integration issue is recorded for an administrator.
+
 The **Sync** column shows whether balances agree. **Review** means Shopify and Solvantis differ but the available Shopify events do not prove the complete change, so Solvantis keeps its existing balance. Open the card to inspect activity on both sides before making a correction.
 
 Use **Apply Adjustment** for a deliberate signed balance correction and enter a reason. A positive amount adds value; a negative amount removes value. In Combined mode the same change is sent to Shopify and recorded in history. Use **Retry** on an activity row when that provider update failed. Retry first checks Shopify history so an update that already succeeded is not repeated.

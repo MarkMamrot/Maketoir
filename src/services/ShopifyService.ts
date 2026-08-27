@@ -51,6 +51,7 @@ export class ShopifyService {
   private shopify: Shopify;
   private readonly shopName_: string;
   private readonly accessToken_: string;
+  private static readonly GIFT_CARD_REQUEST_TIMEOUT_MS = 30_000;
 
   constructor(shopName: string, accessToken: string) {
     this.shopify       = new Shopify({ shopName, accessToken });
@@ -67,6 +68,7 @@ export class ShopifyService {
       {
         method,
         headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(ShopifyService.GIFT_CARD_REQUEST_TIMEOUT_MS),
         ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       },
     );
@@ -103,6 +105,7 @@ export class ShopifyService {
       method: 'POST',
       headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(ShopifyService.GIFT_CARD_REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -428,10 +431,14 @@ export class ShopifyService {
    */
   async getAllGiftCards(status: 'enabled' | 'disabled' = 'enabled'): Promise<any[]> {
     const results: any[] = [];
+    const visitedUrls = new Set<string>();
     let url: string | null = `https://${this.shopName_}/admin/api/2024-04/gift_cards.json?status=${status}&limit=250`;
     while (url) {
+      if (visitedUrls.has(url)) throw new Error(`Shopify gift-card pagination repeated a page for ${status} cards.`);
+      visitedUrls.add(url);
       const res: Response = await fetch(url, {
         headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(ShopifyService.GIFT_CARD_REQUEST_TIMEOUT_MS),
       });
       if (!res.ok) {
         const text = await res.text();

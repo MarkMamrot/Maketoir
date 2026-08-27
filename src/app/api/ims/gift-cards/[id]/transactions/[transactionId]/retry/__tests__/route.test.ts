@@ -52,13 +52,13 @@ describe('gift-card transaction retry route', () => {
       card_balance: '90.00',
     }]);
     mocks.getHistory.mockResolvedValue({
-      balance: 90,
+      balance: 140,
       currency: 'AUD',
       updatedAt: '2026-08-27T01:00:00Z',
       enabled: true,
       deactivatedAt: null,
       transactions: [
-        { id: 'credit-1', type: 'credit', amount: 100, currency: 'AUD', processedAt: '2026-08-26T01:00:00Z', note: 'Issued' },
+        { id: 'credit-1', type: 'credit', amount: 50, currency: 'AUD', processedAt: '2026-08-26T01:00:00Z', note: 'Earlier credit' },
         { id: 'debit-1', type: 'debit', amount: -10, currency: 'AUD', processedAt: '2026-08-27T01:00:00Z', note: 'Solvantis POS sale 55' },
       ],
     });
@@ -70,9 +70,9 @@ describe('gift-card transaction retry route', () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(body).toMatchObject({ success: true, recoveredFromHistory: true, providerBalance: 90 });
+    expect(body).toMatchObject({ success: true, recoveredFromHistory: true, providerBalance: 140 });
     expect(mocks.giftCardDebit).not.toHaveBeenCalled();
     expect(mocks.imsExecute).toHaveBeenCalledTimes(3);
-    expect(mocks.imsExecute.mock.calls[1][1]).toEqual(['debit-1', '2026-08-27 01:00:00', 90, 44]);
+    expect(mocks.imsExecute.mock.calls[1][1]).toEqual(['debit-1', '2026-08-27 01:00:00', 140, 44]);
   });
 });
