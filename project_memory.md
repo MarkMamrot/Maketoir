@@ -394,3 +394,9 @@ Always read this file when starting a new session or implementing a feature to u
 * `POST /api/ims/xero/push` now guards CN/SCN retries with MySQL named locks (`GET_LOCK`) to prevent duplicate concurrent retries, and short-circuits with `skipped: true, reason: 'already_synced'` when a credit note already has synced status + stored Xero ID.
 * Tenant migration safety fix: `scripts/catchup-schema-all-tenants.mjs` now bootstraps CN/SCN tables when missing, catches up CN/SCN columns/indexes, and extends enums for `ims_credit_notes.status` (`awaiting_product`) and `ims_stock_movements` (`cn_returned`/`scn_returned`, `credit_note`/`supplier_credit_note`).
 * Baseline provisioning fix: `scripts/ims-schema.sql` now includes CN/SCN tables (`ims_credit_notes`, `ims_credit_note_items`, `ims_supplier_credit_notes`, `ims_supplier_credit_note_items`, `ims_supplier_credit_note_files`) and the required stock movement enum values so new tenants don't miss credit-note structures.
+
+### IMS Location Daybooks and POS capability (2026-08-27)
+* Added **Locations > Location Daybooks** so IMS managers can select an active location and use its full Store Daybook with the signed-in IMS account retained in the audit trail.
+* Added the tenant setting `business_requires_pos` to onboarding Operations and IMS General Settings. Existing businesses default to `yes`; Location Daybooks also remains available when an active location is marked for POS, has a POS enrolment code, or owns an active register.
+* IMS-selected Daybook locations authenticate only through `marketoir_session` and are revalidated against the current tenant. POS sessions remain pinned to their enrolled location and cannot submit a different location override.
+* Corrected phase-selector CSS so badge colours apply only to OPEN/TODAY/CLOSE badges; titles and completion counts retain readable neutral text.

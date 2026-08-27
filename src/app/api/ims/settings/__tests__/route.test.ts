@@ -49,6 +49,18 @@ describe('/api/ims/settings loyalty settings', () => {
     expect(body.capabilities).toEqual({ hasPosLocations: false });
   });
 
+  it('reports existing POS location evidence separately from editable settings', async () => {
+    mockImsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT EXISTS') ? [{ has_pos_locations: 1 }] : [],
+    ));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.capabilities).toEqual({ hasPosLocations: true });
+    expect(body.data).not.toHaveProperty('has_pos_locations');
+  });
+
   it('validates sales document settings before writing', async () => {
     const response = await PUT(putRequest({ sales_document_bank_bsb: '1234' }));
     const body = await response.json();
