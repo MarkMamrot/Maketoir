@@ -74,15 +74,20 @@ export function retrieveAssistantKnowledge(input: {
     .filter(chunk => chunk.score > 0)
     .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id));
   const limit = Math.min(Math.max(input.limit ?? 4, 1), 8);
+  const primary: typeof ranked = [];
+  const secondary: typeof ranked = [];
   const topicCounts = new Map<string, number>();
-  return ranked
-    .filter(chunk => {
-      const topic = chunk.topicId ?? chunk.title;
-      const count = topicCounts.get(topic) ?? 0;
-      if (count >= 2) return false;
+  const strongestTopic = ranked[0] ? ranked[0].topicId ?? ranked[0].title : '';
+  for (const chunk of ranked) {
+    const topic = chunk.topicId ?? chunk.title;
+    const count = topicCounts.get(topic) ?? 0;
+    const primaryLimit = topic === strongestTopic ? 2 : 1;
+    if (count < primaryLimit) {
       topicCounts.set(topic, count + 1);
-      return true;
-    })
+      primary.push(chunk);
+    } else secondary.push(chunk);
+  }
+  return [...primary, ...secondary]
     .slice(0, limit)
     .map(({ id, title, heading, screen, topicId, content, score }) => ({ id, title, heading, screen, topicId, content, score }));
 }

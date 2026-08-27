@@ -1408,11 +1408,15 @@ function MainPos({
   const [saleNotes, setSaleNotes] = useState('');
   const [isLayby, setIsLayby] = useState(false);
   // Gift card / store credit
-  const [linkedContact, setLinkedContact] = useState<{ id: number; name: string; email: string | null; phone: string | null; store_credit: number } | null>(null);
+  type PosCustomerResult = { id: number; name: string; email: string | null; phone: string | null; store_credit: number; is_active: boolean };
+  const [linkedContact, setLinkedContact] = useState<PosCustomerResult | null>(null);
   const [contactSearch, setContactSearch] = useState('');
-  const [contactResults, setContactResults] = useState<{ id: number; name: string; email: string | null; phone: string | null; store_credit: number }[]>([]);
+  const [contactResults, setContactResults] = useState<PosCustomerResult[]>([]);
   const [contactSearching, setContactSearching] = useState(false);
   const [contactSearchError, setContactSearchError] = useState(false);
+  const [inactiveContactCount, setInactiveContactCount] = useState(0);
+  const [showInactiveContacts, setShowInactiveContacts] = useState(false);
+  const [pendingInactiveContact, setPendingInactiveContact] = useState<PosCustomerResult | null>(null);
   const [loyaltySummary, setLoyaltySummary] = useState<{
     enabled: boolean;
     active: boolean;
@@ -1615,6 +1619,8 @@ function MainPos({
       setContactResults([]);
       setContactSearching(false);
       setContactSearchError(false);
+      setInactiveContactCount(0);
+      setShowInactiveContacts(false);
       return;
     }
     setContactSearching(true);
@@ -1622,10 +1628,11 @@ function MainPos({
     let active = true;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch.trim())}`);
+        const inactiveParam = showInactiveContacts ? '&include_inactive=1' : '';
+        const res = await fetch(`/api/pos/store-credit?q=${encodeURIComponent(contactSearch.trim())}${inactiveParam}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Customer search failed.');
-        if (active) setContactResults(Array.isArray(data.contacts) ? data.contacts : []);
+        if (active) { setContactResults(Array.isArray(data.contacts) ? data.contacts : []); setInactiveContactCount(Number(data.inactiveCount || 0)); }
       } catch {
         if (active) { setContactResults([]); setContactSearchError(true); }
       } finally {
@@ -1633,7 +1640,24 @@ function MainPos({
       }
     }, 250);
     return () => { active = false; clearTimeout(timer); };
-  }, [contactSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [contactSearch, showInactiveContacts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const linkCustomer = (customer: PosCustomerResult) => {
+    setLinkedContact({ ...customer, is_active: true });
+    setCustomerName(customer.name);
+    setCustomerPhone(customer.phone ?? '');
+    setContactSearch('');
+    setContactResults([]);
+    setShowInactiveContacts(false);
+  };
+
+  const reactivateCustomer = async (customer: PosCustomerResult, managerPin?: string) => {
+    const response = await fetch('/api/pos/store-credit', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: customer.id, manager_pin: managerPin }) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'Customer could not be reactivated.');
+    setPendingInactiveContact(null);
+    linkCustomer(customer);
+  };
 
   useEffect(() => {
     setLoyaltySummary(null);
@@ -2613,19 +2637,26 @@ function MainPos({
                       {contactResults.map(c => (
                         <button
                           key={c.id}
-                          onClick={() => { setLinkedContact(c); setCustomerName(c.name); setCustomerPhone(c.phone ?? ''); setContactSearch(''); setContactResults([]); }}
+                          onClick={() => {
+                            if (c.is_active) linkCustomer(c);
+                            else setPendingInactiveContact(c);
+                          }}
                           style={{ display: 'block', width: '100%', padding: '.4rem .6rem', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', borderBottom: '1px solid var(--sv-etch)' }}
                         >
                           <span style={{ fontWeight: 600 }}>{c.name}</span>
+                          {!c.is_active && <span style={{ marginLeft: 6, padding: '1px 5px', borderRadius: 4, background: 'rgba(245,158,11,.14)', color: '#f59e0b', fontSize: '.66rem', fontWeight: 800 }}>Inactive</span>}
                           {c.phone && <span style={{ color: 'var(--sv-text-dim)', marginLeft: 6 }}>{c.phone}</span>}
                           {c.email && <span style={{ display: 'block', color: 'var(--sv-text-dim)', marginTop: 2, fontSize: '.72rem' }}>{c.email}</span>}
                           {c.store_credit > 0 && <span style={{ marginLeft: 6, color: 'var(--sv-mint)', fontWeight: 700 }}>${c.store_credit.toFixed(2)} credit</span>}
                         </button>
                       ))}
+                      {!showInactiveContacts && inactiveContactCount > 0 && <button type="button" onClick={() => setShowInactiveContacts(true)} style={{ width: '100%', padding: '.45rem .6rem', border: 0, background: 'var(--sv-bg-2)', color: 'var(--sv-action)', textAlign: 'left', cursor: 'pointer', fontSize: '.76rem', fontWeight: 700 }}>{inactiveContactCount.toLocaleString()} inactive customer{inactiveContactCount === 1 ? '' : 's'} found · Show</button>}
+                      {showInactiveContacts && <button type="button" onClick={() => setShowInactiveContacts(false)} style={{ width: '100%', padding: '.45rem .6rem', border: 0, background: 'var(--sv-bg-2)', color: 'var(--sv-action)', textAlign: 'left', cursor: 'pointer', fontSize: '.76rem', fontWeight: 700 }}>Back to active customers</button>}
                     </div>
                   )}
                 </div>
               )}
+              {pendingInactiveContact && <ManagerPinModal locationId={session.location_id} title="Reactivate customer" onVerified={pin => reactivateCustomer(pendingInactiveContact, pin)} onClose={() => setPendingInactiveContact(null)} />}
             </div>
           )}
           {notesOpen && (
@@ -2787,7 +2818,7 @@ function MainPos({
         onOpenChange={setHelpOpen}
         audience="pos"
         product="pos"
-        currentContext={screen}
+        currentContext={customerOpen ? 'customer-search' : screen}
         chatEndpoint="/api/pos/assistant/chat"
         escalationEndpoint="/api/pos/assistant/escalate"
         assistantDisabled={!isOnline || offlineMode}

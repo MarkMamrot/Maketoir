@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { verifyManagerPin } from '@/lib/pos/managerPin';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { syncStoreCreditRedemptionReclass } from '@/services/XeroSyncService';
 
 function getPosSession() {
@@ -19,24 +21,35 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const q = searchParams.get('q')?.trim() ?? '';
+  const inactiveOnly = searchParams.get('include_inactive') === '1';
   if (q.length < 2) return NextResponse.json({ contacts: [] });
 
   const like = `%${q}%`;
   const phoneDigits = q.replace(/\D/g, '');
   const normalizedPhoneLike = phoneDigits.length >= 2 ? `%${phoneDigits}%` : '__no_phone_match__';
-  const rows = await imsQuery(
+  const searchSql = `(first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?
+            OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?
+            OR name LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)`;
+  const searchParamsList = [like, like, like, like, normalizedPhoneLike, like, like, imsSession.businessId];
+  const [rows, inactiveCountRows] = await Promise.all([
+    imsQuery(
     `SELECT id, name, first_name, last_name, email, phone, store_credit
      FROM ims_contacts
-     WHERE (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?
-            OR REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?
-            OR name LIKE ? OR CONCAT(first_name, ' ', last_name) LIKE ?)
+     WHERE ${searchSql}
        AND business_id = ?
        AND type IN ('retail_customer', 'b2b_customer', 'both')
-       AND is_active = 1
+       AND is_active = ${inactiveOnly ? '0' : '1'}
      ORDER BY CASE WHEN store_credit > 0 THEN 0 ELSE 1 END, last_name, first_name
      LIMIT 10`,
-     [like, like, like, like, normalizedPhoneLike, like, like, imsSession.businessId],
-  );
+     searchParamsList,
+    ),
+    inactiveOnly ? Promise.resolve([{ count: 0 }]) : imsQuery<{ count: number }>(
+      `SELECT COUNT(*) AS count FROM ims_contacts
+        WHERE ${searchSql} AND business_id = ?
+          AND type IN ('retail_customer', 'b2b_customer', 'both') AND is_active = 0`,
+      searchParamsList,
+    ),
+  ]);
   return NextResponse.json({
     contacts: rows.map((r: any) => ({
       id:           r.id,
@@ -44,8 +57,44 @@ export async function GET(req: Request) {
       email:        r.email ?? null,
       phone:        r.phone ?? null,
       store_credit: Number(r.store_credit ?? 0),
+      is_active:    !inactiveOnly,
     })),
+    inactiveCount: Number(inactiveCountRows[0]?.count ?? 0),
   });
+}
+
+// PUT /api/pos/store-credit — reactivate an inactive customer before linking it.
+export async function PUT(req: Request) {
+  const session = getPosSession();
+  if (!session?.businessId || !session.location_id) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const imsSession = await getImsSession(['pos_session']);
+  if (!imsSession?.businessId || imsSession.businessId !== session.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const body = await req.json().catch(() => null);
+  const contactId = Number(body?.contact_id);
+  if (!Number.isInteger(contactId) || contactId <= 0) return NextResponse.json({ error: 'A valid customer is required.' }, { status: 400 });
+
+  const pinResult = await verifyManagerPin(Number(session.location_id), body?.manager_pin);
+  if (!pinResult.ok) return NextResponse.json({ error: pinResult.error }, { status: pinResult.status });
+
+  try {
+    const pool = getIMSPool();
+    const connection = await pool.getConnection();
+    try {
+      const [result] = await connection.execute(
+        `UPDATE ims_contacts SET is_active = 1
+          WHERE id = ? AND business_id = ? AND is_active = 0
+            AND type IN ('retail_customer', 'b2b_customer', 'both')`,
+        [contactId, session.businessId],
+      );
+      if (!Number((result as any).affectedRows)) return NextResponse.json({ error: 'Inactive customer not found.' }, { status: 404 });
+    } finally {
+      connection.release();
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: session.businessId, source: 'pos.customer', operation: 'reactivate_customer', title: 'POS customer could not be reactivated', error, context: { contactId }, reference: { type: 'ims_contact', id: contactId } }).catch(() => {});
+    return NextResponse.json({ error: 'Customer could not be reactivated.' }, { status: 500 });
+  }
 }
 
 // POST /api/pos/store-credit — redeem existing credit. Issues are owned by completed credit notes.
