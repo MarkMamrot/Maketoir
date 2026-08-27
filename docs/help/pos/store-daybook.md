@@ -51,6 +51,7 @@ Store Daybook is the shared daily workspace for the branch shown in POS. It keep
 5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.
 6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.
 7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.
+8. When permitted by the editing policy, use **Edit** or **Delete** beside any active task in Open the store, Keep the day moving, or Close with confidence. Deleting stops future occurrences but retains existing sign-off history.
 
 > **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it.
 
@@ -105,9 +106,9 @@ To add or edit a Product guide, search the active product list by product name, 
 
 Some imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.
 
-When an item can be edited under the current policy, select **Edit** at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
+When an item can be edited under the current policy, select **Edit** beside a daily task or at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.
 
-To remove a Request or Store need, select **Delete** at the bottom-right of its card and confirm the warning. For other editable items, open the edit popup and select **Delete**. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
+To remove a task, Request or Store need, select **Delete** beside it and confirm the warning. For other editable items, open the edit popup and select **Delete**. A deleted task stops appearing on future scheduled dates. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.
 
 Managers open **Settings** and choose one tenant-wide editing policy:
 
@@ -137,7 +138,7 @@ Status changes and incident visibility still follow their separate operational p
 | A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |
 | A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |
 | A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |
-| The pencil button is missing | The current editing policy does not permit this staff member to edit the item | Ask a manager to review **Settings** or make the correction |
+| Edit or Delete is missing from a task | The task is no longer active, or the current editing policy does not permit this staff member to change it | Ask a manager to review **Settings** or make the correction |
 | Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |
 | Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |
 | A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |

@@ -20,7 +20,8 @@ import styles from './PosStoreDaybook.module.css';
 type Staff = { id?: number | null; name: string; initials: string };
 type TaskPhase = 'opening' | 'during_day' | 'closing';
 type Task = { id: number; template_id: number; phase: TaskPhase; title_snapshot: string; instructions_snapshot?: string; instructions?: string; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; can_edit: boolean; last_staff_name?: string; last_staff_initials?: string; signed_at?: string };
-type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; staff_name?: string; staff_initials?: string; signed_at?: string };
+type TaskHistory = { id: number; template_id: number; task_date: string; title_snapshot: string; instructions?: string; phase: TaskPhase; recurrence: string; weekday?: number | null; scheduled_date?: string | null; status: string; is_active: number; can_edit: boolean; staff_name?: string; staff_initials?: string; signed_at?: string };
+type EditableTask = Pick<Task, 'template_id' | 'title_snapshot' | 'instructions' | 'phase' | 'recurrence' | 'weekday' | 'scheduled_date'>;
 type ColourKey = 'pastel_rose' | 'pastel_peach' | 'pastel_mint' | 'pastel_sky' | 'fluoro_yellow' | 'fluoro_lime' | 'fluoro_pink';
 type Reader = { name: string; initials: string; read_at: string };
 type Editable = { background_color?: ColourKey | null; can_edit: boolean };
@@ -308,6 +309,10 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
             saving={saving}
             onSign={signChecklistTask}
             onEdit={task => openEditor('task', { _id: task.template_id, title: task.title_snapshot, instructions: task.instructions, phase: task.phase, recurrence: task.recurrence, weekday: task.weekday, scheduled_date: task.scheduled_date })}
+            onDelete={async task => {
+              if (!confirm(`Delete "${task.title_snapshot}" from the active Daybook? Future occurrences will stop, while existing sign-off history will be retained.`)) return;
+              await perform('delete_item', { item_type: 'task', item_id: task.template_id });
+            }}
             onAdd={workspace?.permissions.manager ? () => openEditor('task', { phase: taskPhase }) : undefined}
           />
         )}
@@ -386,13 +391,14 @@ export function PosStoreDaybook({ session, onBack, locationOverride, embedded = 
   );
 }
 
-function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onAdd }: {
+function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit, onDelete, onAdd }: {
   workspace: Workspace | null;
   phase: TaskPhase;
   onPhaseChange: (phase: TaskPhase) => void;
   saving: boolean;
   onSign: (task: Task) => Promise<void>;
-  onEdit: (task: Task) => void;
+  onEdit: (task: EditableTask) => void;
+  onDelete: (task: EditableTask) => Promise<void>;
   onAdd?: () => void;
 }) {
   if (!workspace) return null;
@@ -403,9 +409,9 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
   ];
   const currentTasks = workspace.tasks.filter(task => task.phase === phase);
   const phaseHistory = workspace.taskHistory.filter(item => item.phase === phase);
-  const rows = new Map<number, { templateId: number; title: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null }>();
-  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date });
-  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date });
+  const rows = new Map<number, { templateId: number; title: string; recurrence: string; weekday?: number | null; scheduledDate?: string | null; editableTask?: EditableTask }>();
+  for (const item of phaseHistory) rows.set(item.template_id, { templateId: item.template_id, title: item.title_snapshot, recurrence: item.recurrence, weekday: item.weekday, scheduledDate: item.scheduled_date, editableTask: item.can_edit ? item : undefined });
+  for (const task of currentTasks) rows.set(task.template_id, { templateId: task.template_id, title: task.title_snapshot, recurrence: task.recurrence, weekday: task.weekday, scheduledDate: task.scheduled_date, editableTask: task.can_edit ? task : undefined });
   const scheduleGroups = new Map<string, { label: string; order: number; rows: typeof rows extends Map<number, infer Row> ? Row[] : never }>();
   for (const row of rows.values()) {
     const schedule = taskSchedule(row.recurrence, row.weekday, row.scheduledDate);
@@ -441,7 +447,7 @@ function ChecklistView({ workspace, phase, onPhaseChange, saving, onSign, onEdit
           <tr className={styles.scheduleHeading}><th colSpan={workspace.taskDates.length + 1} scope="rowgroup"><span>{group.label}</span><small>{group.rows.length} {group.rows.length === 1 ? 'task' : 'tasks'}</small></th></tr>
           {group.rows.map(row => {
           const currentTask = currentTasks.find(task => task.template_id === row.templateId);
-          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{currentTask?.can_edit && <button className={styles.editButton} onClick={() => onEdit(currentTask)} aria-label={`Edit ${row.title}`}><Pencil size={15} /></button>}</th>{displayDates.map(taskDate => {
+          return <tr key={row.templateId}><th scope="row"><div><strong>{row.title}</strong>{currentTask?.instructions_snapshot && <small>{currentTask.instructions_snapshot}</small>}</div>{row.editableTask && <div className={styles.taskRowActions}><button type="button" onClick={() => onEdit(row.editableTask!)} title={`Edit ${row.title}`}><Pencil size={14} /> Edit</button><button type="button" className={styles.taskDeleteAction} onClick={() => void onDelete(row.editableTask!)} disabled={saving} title={`Delete ${row.title}`}><Trash2 size={14} /> Delete</button></div>}</th>{displayDates.map(taskDate => {
             const entry = phaseHistory.find(item => item.template_id === row.templateId && item.task_date === taskDate);
             const isCurrent = taskDate === workspace.date;
             if (!entry) return <td className={styles.notScheduled} key={taskDate}><span aria-label="Not scheduled">—</span></td>;

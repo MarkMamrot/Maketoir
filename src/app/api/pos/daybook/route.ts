@@ -189,7 +189,7 @@ export async function GET(request: Request) {
   try {
     const taskDates = getDaybookDateRange(taskDate, 7);
     for (const date of taskDates) await materializeTasks(context, date);
-    const [rawTasks, taskHistory, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
+    const [rawTasks, rawTaskHistory, rawCommunications, rawRecords, rawReferences, rawGuides, staff, locations, communicationReads, editPolicy] = await Promise.all([
       imsQuery(
         `SELECT i.*, s.staff_name AS last_staff_name, s.staff_initials AS last_staff_initials,
                 s.actor_name AS last_actor_name, s.created_at AS signed_at,
@@ -208,7 +208,8 @@ export async function GET(request: Request) {
       ),
       imsQuery(
         `SELECT i.id, i.template_id, i.task_date, i.title_snapshot, i.phase, i.status, t.is_active,
-          t.recurrence, t.weekday, t.scheduled_date,
+          t.recurrence, t.weekday, t.scheduled_date, t.instructions,
+          t.created_by_id, t.created_by_staff_identity_id, t.created_by_staff_initials,
                 s.staff_name, s.staff_initials, s.created_at AS signed_at
          FROM pos_daybook_task_instances i
          JOIN pos_daybook_task_templates t ON t.business_id = i.business_id AND t.id = i.template_id
@@ -285,6 +286,14 @@ export async function GET(request: Request) {
       can_edit: mayEdit(context, selectedStaff, editPolicy, item),
     }));
     const tasks = rawTasks.map(item => ({
+      ...item,
+      can_edit: Boolean(item.is_active) && mayEdit(context, selectedStaff, editPolicy, {
+        author_user_id: item.created_by_id,
+        author_staff_identity_id: item.created_by_staff_identity_id,
+        author_staff_initials: item.created_by_staff_initials,
+      }),
+    }));
+    const taskHistory = rawTaskHistory.map(item => ({
       ...item,
       can_edit: Boolean(item.is_active) && mayEdit(context, selectedStaff, editPolicy, {
         author_user_id: item.created_by_id,
