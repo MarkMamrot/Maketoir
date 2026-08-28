@@ -1,3 +1,8 @@
+import {
+  assertXeroAccountingEnabled,
+  isXeroAccountingDisabledError,
+  type XeroAccountingDisabledError,
+} from '@/lib/ims/businessOperations';
 import { getXeroDocumentPolicy } from './documentPolicyRepository';
 import type { XeroDocumentPolicy } from './documentPolicies';
 
@@ -31,6 +36,7 @@ export class XeroPostingDisabledError extends Error {
 }
 
 export async function assertXeroPostingEnabled(businessId: string): Promise<void> {
+  await assertXeroAccountingEnabled(businessId);
   const policy = await getXeroDocumentPolicy(businessId);
   if (!policy.postingEnabled) throw new XeroPostingDisabledError();
 }
@@ -49,6 +55,7 @@ export async function assertXeroWorkflowEnabled(
   businessId: string,
   workflow: XeroWorkflowPolicyKey,
 ): Promise<XeroDocumentPolicy> {
+  await assertXeroAccountingEnabled(businessId);
   const policy = await getXeroDocumentPolicy(businessId);
   if (!policy.postingEnabled) throw new XeroPostingDisabledError();
   if (!policy[workflow]) throw new XeroWorkflowDisabledError(workflow);
@@ -65,6 +72,6 @@ export function isXeroWorkflowDisabledError(error: unknown): error is XeroWorkfl
 
 export function isXeroPolicyDisabledError(
   error: unknown,
-): error is XeroPostingDisabledError | XeroWorkflowDisabledError {
-  return isXeroPostingDisabledError(error) || isXeroWorkflowDisabledError(error);
+): error is XeroAccountingDisabledError | XeroPostingDisabledError | XeroWorkflowDisabledError {
+  return isXeroAccountingDisabledError(error) || isXeroPostingDisabledError(error) || isXeroWorkflowDisabledError(error);
 }

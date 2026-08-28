@@ -11,6 +11,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 function isPayPalGateway(value: string): boolean {
   return normalizeOnlineGateway(value).includes('paypal');
@@ -64,6 +65,7 @@ export async function syncOnlineDailySalesDay(
   date: string,
 ): Promise<OnlineDailySalesSyncResult> {
   return runImsForBusiness(businessId, async () => {
+    await assertXeroAccountingEnabled(businessId);
     const policy = await getXeroDocumentPolicy(businessId);
     const timeZone = await getBusinessTimeZone(businessId);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });

@@ -27,6 +27,20 @@ export async function POST(req: Request) {
         { status: 403 },
       );
     }
+    for (const [field, label] of [['variant_sku', 'Variant SKU'], ['barcode', 'Barcode']] as const) {
+      const value = typeof body?.[field === 'variant_sku' ? 'sku' : 'barcode'] === 'string'
+        ? body[field === 'variant_sku' ? 'sku' : 'barcode'].trim()
+        : '';
+      if (!value) continue;
+      const conflict = await ImsVariantsRepo.findIdentifierConflict(field, value, {}, businessId);
+      if (conflict) {
+        return NextResponse.json({
+          success: false,
+          error: `${label} "${value}" is already used by product "${conflict.product_name}". Enter a unique ${label}.`,
+          conflict,
+        }, { status: 409 });
+      }
+    }
     const variant_id = await ImsVariantsRepo.create(body, businessId);
     return NextResponse.json({ success: true, variant_id });
   } catch (e: any) {

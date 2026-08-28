@@ -9,6 +9,7 @@
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ImsPORepo, ImsSORepo, ImsCNRepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { isOrderXeroEligible } from '@/lib/ims/backorders/domain';
+import { assertXeroAccountingEnabled, isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { allocateReservedCustomerCredit, allocateReservedSupplierCredit } from '@/lib/ims/orderResolution/reservedCreditAllocation';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -22,6 +23,7 @@ import { query } from '@/services/MySQLService';
  * Check if a business has Xero connected (quick check before doing any sync work).
  */
 async function isXeroConnected(businessId: string): Promise<boolean> {
+  if (!await isXeroAccountingEnabled(businessId)) return false;
   const conn = await ConnectionsRepository.get(businessId);
   return !!(conn?.xero_tenant_id && conn?.xero_refresh_token);
 }
@@ -231,6 +233,7 @@ async function resolveAccountingActionFailure(
 
 /** Triggered when staff explicitly choose Post to Xero for a PO payment. */
 export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<OrderPaymentXeroResult> {
+  await assertXeroAccountingEnabled(businessId);
   await setOrderPaymentXeroState('po', businessId, paymentId, 'pending');
   if (!await isXeroConnected(businessId)) {
     return failOrderPaymentXeroPost('po', businessId, paymentId, 'Xero is not connected for this business.');
@@ -295,6 +298,7 @@ export async function triggerPOPaymentXeroSync(businessId: string, poId: number,
  * Ensures invoice exists and is approved, then records the payment in Xero.
  */
 export async function triggerSOPaymentXeroSync(businessId: string, soId: number, paymentId: number): Promise<OrderPaymentXeroResult> {
+  await assertXeroAccountingEnabled(businessId);
   await setOrderPaymentXeroState('so', businessId, paymentId, 'pending');
   if (!await isXeroConnected(businessId)) {
     return failOrderPaymentXeroPost('so', businessId, paymentId, 'Xero is not connected for this business.');

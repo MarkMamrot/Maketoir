@@ -16,6 +16,20 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       );
     }
     const body = await req.json();
+    for (const [field, bodyKey, label] of [['variant_sku', 'sku', 'Variant SKU'], ['barcode', 'barcode', 'Barcode']] as const) {
+      const value = typeof body?.[bodyKey] === 'string' ? body[bodyKey].trim() : '';
+      if (!value) continue;
+      const conflict = await ImsVariantsRepo.findIdentifierConflict(
+        field, value, { excludeVariantId: params.id }, session.businessId as string,
+      );
+      if (conflict) {
+        return NextResponse.json({
+          success: false,
+          error: `${label} "${value}" is already used by product "${conflict.product_name}". Enter a unique ${label}.`,
+          conflict,
+        }, { status: 409 });
+      }
+    }
     await ImsVariantsRepo.update(params.id, body);
 
     // Fire-and-forget Shopify sync when price, SKU, or barcode changes and variant is linked

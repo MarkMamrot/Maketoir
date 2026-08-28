@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   refundCredit: vi.fn(),
   updateInvoice: vi.fn(),
   updateBill: vi.fn(),
+  assertXeroAccountingEnabled: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -21,6 +22,9 @@ vi.mock('@/services/IMSMySQLService', () => ({
   imsExecute: mocks.imsExecute,
 }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mocks.getPolicy }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: mocks.assertXeroAccountingEnabled,
+}));
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsCNRepo: { get: mocks.getCustomerCredit },
   ImsSupplierCNRepo: { get: mocks.getSupplierCredit },
@@ -58,6 +62,7 @@ const settlement = {
 describe('order resolution Xero reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.assertXeroAccountingEnabled.mockResolvedValue(undefined);
     mocks.imsQuery.mockResolvedValueOnce([resolution]).mockResolvedValueOnce([settlement]);
     mocks.imsExecute.mockResolvedValue({ affectedRows: 1 });
     mocks.getPolicy.mockResolvedValue({ shortfallCreditDraftFirst: false });
@@ -65,6 +70,15 @@ describe('order resolution Xero reconciliation', () => {
     mocks.syncCustomerCredit.mockResolvedValue('xero-cn-21');
     mocks.approveCredit.mockResolvedValue(true);
     mocks.refundCredit.mockResolvedValue('payment-1');
+  });
+
+  it('rejects disabled tenants before loading or claiming a resolution', async () => {
+    mocks.assertXeroAccountingEnabled.mockRejectedValueOnce(new Error('Xero accounting is disabled.'));
+
+    await expect(reconcileOrderResolution({ businessId: 'biz-1', side: 'customer', resolutionId: 7 }))
+      .rejects.toThrow('Xero accounting is disabled.');
+    expect(mocks.imsQuery).not.toHaveBeenCalled();
+    expect(mocks.imsExecute).not.toHaveBeenCalled();
   });
 
   it('replays only the unfinished customer refund with its persisted account and operation key', async () => {

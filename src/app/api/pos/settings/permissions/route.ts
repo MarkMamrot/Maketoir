@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { resolveXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 function getSession() {
   for (const name of ['pos_session', 'marketoir_session']) {
@@ -23,11 +24,15 @@ export async function GET() {
   await getImsSession(['pos_session', 'marketoir_session']);
   const businessId: string = session.businessId ?? session.business_id ?? '';
 
-  const rows = await imsQuery<{ value: string }>(
-    "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'pos_bt_access' LIMIT 1",
+  const rows = await imsQuery<{ key: string; value: string }>(
+    "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('pos_bt_access', 'connect_accounting_software', 'accounting_software')",
     [businessId],
   ).catch(() => []);
 
-  const access = rows[0]?.value;
-  return NextResponse.json({ bt_access: access === 'disabled' || access === 'manager' ? access : 'all' });
+  const settings = Object.fromEntries(rows.map(row => [row.key, row.value]));
+  const access = settings.pos_bt_access;
+  return NextResponse.json({
+    bt_access: access === 'disabled' || access === 'manager' ? access : 'all',
+    xeroAccountingEnabled: resolveXeroAccountingEnabled(settings),
+  });
 }

@@ -46,7 +46,7 @@ describe('/api/ims/settings loyalty settings', () => {
       loyalty_started_at: '',
       sales_document_show_logo: '1',
     });
-    expect(body.capabilities).toEqual({ hasPosLocations: false });
+    expect(body.capabilities).toEqual({ hasPosLocations: false, xeroAccountingEnabled: false });
   });
 
   it('reports existing POS location evidence separately from editable settings', async () => {
@@ -57,8 +57,24 @@ describe('/api/ims/settings loyalty settings', () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(body.capabilities).toEqual({ hasPosLocations: true });
+    expect(body.capabilities).toEqual({ hasPosLocations: true, xeroAccountingEnabled: false });
     expect(body.data).not.toHaveProperty('has_pos_locations');
+  });
+
+  it('reports Xero accounting only when both operation settings enable it', async () => {
+    mockImsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT EXISTS')
+        ? [{ has_pos_locations: 0 }]
+        : [
+            { key: 'connect_accounting_software', value: 'yes' },
+            { key: 'accounting_software', value: 'xero' },
+          ],
+    ));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.capabilities.xeroAccountingEnabled).toBe(true);
   });
 
   it('validates sales document settings before writing', async () => {
@@ -72,6 +88,15 @@ describe('/api/ims/settings loyalty settings', () => {
 
   it('rejects invalid POS requirement settings before writing', async () => {
     const response = await PUT(putRequest({ business_requires_pos: 'sometimes' }));
+    expect(response.status).toBe(400);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { connect_accounting_software: 'sometimes' },
+    { accounting_software: 'quickbooks' },
+  ])('rejects invalid accounting operation settings before writing: %o', async settings => {
+    const response = await PUT(putRequest(settings));
     expect(response.status).toBe(400);
     expect(mockImsExecute).not.toHaveBeenCalled();
   });

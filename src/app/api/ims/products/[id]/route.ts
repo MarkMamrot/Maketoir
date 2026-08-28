@@ -38,6 +38,48 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       );
     }
     const { variants, ...productData } = body;
+    const productSku = typeof productData.base_sku === 'string' ? productData.base_sku.trim() : '';
+    if (productSku) {
+      const conflict = await ImsVariantsRepo.findIdentifierConflict(
+        'product_sku', productSku, { excludeProductId: params.id }, businessId,
+      );
+      if (conflict) {
+        return NextResponse.json({
+          success: false,
+          error: `Product SKU "${productSku}" is already used by product "${conflict.product_name}". Enter a unique Product SKU.`,
+          conflict,
+        }, { status: 409 });
+      }
+    }
+    const seenSkus = new Set<string>();
+    const seenBarcodes = new Set<string>();
+    for (const variant of variants ?? []) {
+      for (const [field, bodyKey, label, seen] of [
+        ['variant_sku', 'sku', 'Variant SKU', seenSkus],
+        ['barcode', 'barcode', 'Barcode', seenBarcodes],
+      ] as const) {
+        const value = typeof variant?.[bodyKey] === 'string' ? variant[bodyKey].trim() : '';
+        if (!value) continue;
+        const normalized = value.toLowerCase();
+        if (seen.has(normalized)) {
+          return NextResponse.json({
+            success: false,
+            error: `${label} "${value}" is used more than once in this product. Enter a unique ${label} for each variant.`,
+          }, { status: 409 });
+        }
+        seen.add(normalized);
+        const conflict = await ImsVariantsRepo.findIdentifierConflict(
+          field, value, { excludeVariantId: variant.variant_id }, businessId,
+        );
+        if (conflict) {
+          return NextResponse.json({
+            success: false,
+            error: `${label} "${value}" is already used by product "${conflict.product_name}". Enter a unique ${label}.`,
+            conflict,
+          }, { status: 409 });
+        }
+      }
+    }
     await ImsProductsRepo.update(params.id, productData);
     if (variants) {
       for (const v of variants) {

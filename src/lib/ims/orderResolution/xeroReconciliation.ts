@@ -1,5 +1,6 @@
 import { ImsCNRepo, ImsPORepo, ImsSORepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import {
   approveCreditNote,
@@ -147,6 +148,7 @@ export async function reconcileOrderResolution(input: {
   resolutionId: number;
   authoriseDraft?: boolean;
 }): Promise<{ state: 'complete' | 'awaiting_review'; xeroCreditNoteId?: string }> {
+  await assertXeroAccountingEnabled(input.businessId);
   const resolution = await loadResolution(input.businessId, input.side, input.resolutionId);
   if (resolution.state === 'complete') return { state: 'complete' };
   if (resolution.state === 'unknown') {

@@ -17,6 +17,7 @@ type ImsView =
 
 interface MainSectionsProps {
   view: ImsView;
+  xeroAccountingEnabled: boolean;
   isAdvisor: boolean;
   advisorMappingEnabled: boolean;
   businessId: string;
@@ -93,6 +94,7 @@ interface MainSectionsProps {
 export function MainSections(props: MainSectionsProps) {
   const {
     view,
+    xeroAccountingEnabled,
     isAdvisor,
     advisorMappingEnabled,
     businessId,
@@ -164,6 +166,7 @@ export function MainSections(props: MainSectionsProps) {
       {view === 'dashboard' && (
         <DashboardView
           businessId={businessId}
+          xeroAccountingEnabled={xeroAccountingEnabled}
           onNav={setView}
           onOpenSettings={(s: any) => { setSettingsSection(s); setSettingsOpen(true); }}
           onOpenPurchaseOrder={onOpenPurchaseOrder}
@@ -280,7 +283,7 @@ export function MainSections(props: MainSectionsProps) {
       />
 
       {/* Integrations */}
-      {view === 'xero' && (
+      {view === 'xero' && xeroAccountingEnabled && (
         <XeroView
           businessId={businessId}
           isAdvisor={isAdvisor}

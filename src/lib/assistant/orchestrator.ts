@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 import { retrieveAssistantKnowledge } from './knowledge';
+import { isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 import { loadAssistantPrompt } from './promptManifest';
 import { getAssistantToolDefinitions, executeAssistantTool, type AssistantPrincipal } from './tools';
 import type { WorkflowFindingCategory } from './policy';
@@ -160,11 +161,15 @@ export async function runAssistant(input: {
   if (!apiKey) throw new Error('Assistant provider is not configured.');
   const model = process.env.SOLVANTIS_ASSISTANT_MODEL || 'gemini-2.5-flash';
   const prompt = await loadAssistantPrompt();
+  const xeroAccountingEnabled = input.principal.audience === 'ims' || input.principal.audience === 'pos'
+    ? await isXeroAccountingEnabled(input.principal.businessId).catch(() => false)
+    : undefined;
   const knowledge = retrieveAssistantKnowledge({
     query: input.message,
     audience: input.principal.audience,
     currentView: input.currentView,
     limit: 5,
+    xeroAccountingEnabled,
   });
   const tools = getAssistantToolDefinitions(input.principal.audience);
   const ai = new GoogleGenAI({ apiKey });

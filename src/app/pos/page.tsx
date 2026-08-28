@@ -1469,6 +1469,8 @@ function MainPos({
   const [activeRegister, setActiveRegister] = useState<any>(null);
   const [zellerTerminalEnabled, setZellerTerminalEnabled] = useState(false);
   const [btAccess, setBtAccess] = useState<'disabled' | 'manager' | 'all'>('all');
+  const [xeroAccountingEnabled, setXeroAccountingEnabled] = useState(false);
+  const [posCapabilitiesLoaded, setPosCapabilitiesLoaded] = useState(false);
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
   const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
   // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
@@ -1505,19 +1507,24 @@ function MainPos({
   useEffect(() => {
     fetch('/api/pos/settings/permissions')
       .then(r => r.json())
-      .then(d => { if (d.bt_access) setBtAccess(d.bt_access); })
-      .catch(() => {});
+      .then(d => {
+        if (d.bt_access) setBtAccess(d.bt_access);
+        setXeroAccountingEnabled(Boolean(d.xeroAccountingEnabled));
+      })
+      .catch(() => {})
+      .finally(() => setPosCapabilitiesLoaded(true));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-sync unsynced online sales batches to Xero — once per browser session,
   // non-blocking. Works from POS login too (endpoint accepts any valid session).
   useEffect(() => {
+    if (!posCapabilitiesLoaded || !xeroAccountingEnabled) return;
     const sessionKey = `online_auto_sync_pos_${session.location_id ?? 'x'}`;
     if (!sessionStorage.getItem(sessionKey)) {
       sessionStorage.setItem(sessionKey, '1');
       fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [posCapabilitiesLoaded, session.location_id, xeroAccountingEnabled]);
 
   // Load register config (Zeller terminal settings) — requires authenticated session
   useEffect(() => {
@@ -2170,7 +2177,7 @@ function MainPos({
   if (screen === 'receive-transfers') return <ReceiveTransfersScreen session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'branch-transfer') return <PosBranchTransferScreen session={session} btAccess={btAccess} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
   if (screen === 'daybook') return <PosStoreDaybook session={session} onBack={() => { setScreen('pos'); setScanFocusTick(t => t + 1); }} />;
-  if (screen === 'eod') return <EodScreen session={session} initialMode={eodInitialMode} onBack={() => {
+  if (screen === 'eod') return <EodScreen session={session} xeroAccountingEnabled={xeroAccountingEnabled} initialMode={eodInitialMode} onBack={() => {
     // Always re-fetch register session when returning from EOD so mustOpenRegister
     // reflects the latest state (closed or newly opened). Also drain the offline
     // queue — if the cashier just opened the register, queued sales will now link.
@@ -2885,6 +2892,7 @@ function MainPos({
         currentContext={customerOpen ? 'customer-search' : screen}
         chatEndpoint="/api/pos/assistant/chat"
         escalationEndpoint="/api/pos/assistant/escalate"
+        xeroAccountingEnabled={xeroAccountingEnabled}
         assistantDisabled={!isOnline || offlineMode}
         assistantDisabledLabel="Assistant needs an internet connection"
         showFloatingTrigger={false}
@@ -5583,7 +5591,7 @@ function calcCash(denoms: Record<string, string>): number {
   return AUD_DENOMS.reduce((sum, d) => sum + d.value * (parseFloat(denoms[String(d.value)] ?? '0') || 0), 0);
 }
 
-function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBack: () => void; initialMode?: 'open' | 'eod' }) {
+function EodScreen({ session, xeroAccountingEnabled, onBack, initialMode }: { session: PosSession; xeroAccountingEnabled: boolean; onBack: () => void; initialMode?: 'open' | 'eod' }) {
   const today = new Date().toLocaleDateString('sv-SE');
   const [mode, setMode]                   = useState<'open' | 'eod'>(initialMode ?? (new Date().getHours() < 12 ? 'open' : 'eod'));
   // Default date to today; will be corrected to session_date once the register
@@ -6112,12 +6120,12 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
                                 <span>{value}</span>
                               </div>
                             ))}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', marginTop: '.2rem' }}>
+                            {xeroAccountingEnabled && <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.5rem', marginTop: '.2rem' }}>
                               <span style={{ color: '#555' }}>Xero:</span>
                               <span style={{ fontWeight: 700, color: hasSynced ? '#228B22' : '#c00' }}>
                                 {hasSynced ? `✓ Synced${xeroInvoiceIds[m].number ? ` (${xeroInvoiceIds[m].number})` : ''}` : '✗ Not synced'}
                               </span>
-                            </div>
+                            </div>}
                           </div>
                         );
                       })}
@@ -6130,7 +6138,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
               </div>
             )}
 
-            <EodAccountingSection
+            {xeroAccountingEnabled && <EodAccountingSection
               session={session} methods={methods} expected={expected}
               entries={entries} defaultFloat={defaultFloat} date={date}
               xeroInvoiceIds={xeroInvoiceIds}
@@ -6152,7 +6160,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
                 }
                 return next;
               })}
-            />
+            />}
           </div>
         )}
 
@@ -6244,7 +6252,7 @@ function EodScreen({ session, onBack, initialMode }: { session: PosSession; onBa
             <ul style={{ color: 'var(--sv-text-dim)', fontSize: '.82rem', margin: '0 0 .75rem', paddingLeft: '1.25rem', lineHeight: 1.7 }}>
               <li>Sales won't be linked to a register session</li>
               <li>EOD expected amounts won't include these sales — your cash count will appear higher than expected</li>
-              <li>These sales may not sync correctly to your accounting software (Xero)</li>
+              <li>These sales may not be included correctly in downstream accounting</li>
               <li>Open the register as soon as you reconnect to restore normal tracking</li>
             </ul>
             <button

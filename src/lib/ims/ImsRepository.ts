@@ -834,6 +834,46 @@ export const ImsProductsRepo = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const ImsVariantsRepo = {
+  async findIdentifierConflict(
+    field: 'product_sku' | 'variant_sku' | 'barcode',
+    value: string,
+    options: { excludeProductId?: string; excludeVariantId?: string } = {},
+    businessId?: string,
+  ): Promise<{ product_id: string; product_name: string; variant_id?: string; value: string } | null> {
+    const identifier = value.trim();
+    if (!identifier) return null;
+
+    if (field === 'product_sku') {
+      const conditions = ['LOWER(TRIM(p.base_sku)) = LOWER(?)'];
+      const params: any[] = [identifier];
+      if (businessId) { conditions.push('p.business_id = ?'); params.push(businessId); }
+      if (options.excludeProductId) { conditions.push('p.product_id <> ?'); params.push(options.excludeProductId); }
+      const rows = await imsQuery<{ product_id: string; product_name: string; value: string }>(
+        `SELECT p.product_id, p.name AS product_name, p.base_sku AS value
+         FROM ims_products p
+         WHERE ${conditions.join(' AND ')}
+         LIMIT 1`,
+        params,
+      );
+      return rows[0] ?? null;
+    }
+
+    const column = field === 'variant_sku' ? 'v.sku' : 'v.barcode';
+    const conditions = [`LOWER(TRIM(${column})) = LOWER(?)`];
+    const params: any[] = [identifier];
+    if (businessId) { conditions.push('v.business_id = ?'); params.push(businessId); }
+    if (options.excludeVariantId) { conditions.push('v.variant_id <> ?'); params.push(options.excludeVariantId); }
+    const rows = await imsQuery<{ product_id: string; product_name: string; variant_id: string; value: string }>(
+      `SELECT v.product_id, p.name AS product_name, v.variant_id, ${column} AS value
+       FROM ims_product_variants v
+       JOIN ims_products p ON p.product_id = v.product_id
+       WHERE ${conditions.join(' AND ')}
+       LIMIT 1`,
+      params,
+    );
+    return rows[0] ?? null;
+  },
+
   async listAll(businessId?: string): Promise<ImsVariant[]> {
     const where = businessId ? 'WHERE v.business_id = ?' : '';
     const params = businessId ? [businessId] : [];

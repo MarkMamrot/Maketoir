@@ -32,6 +32,7 @@ export function UnifiedHelpDrawer({
   assistantDisabledLabel,
   showFloatingTrigger = true,
   teamChatEnabled = false,
+  xeroAccountingEnabled,
   modeRequest,
 }: {
   open: boolean;
@@ -45,13 +46,14 @@ export function UnifiedHelpDrawer({
   assistantDisabledLabel?: string;
   showFloatingTrigger?: boolean;
   teamChatEnabled?: boolean;
+  xeroAccountingEnabled?: boolean;
   modeRequest?: { key: number; mode: 'help' | 'ask' | 'team' };
 }) {
   const contextual = useMemo(
-    () => resolveHelpContext({ audience, product, context: currentContext }),
-    [audience, product, currentContext],
+    () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled }),
+    [audience, product, currentContext, xeroAccountingEnabled],
   );
-  const topics = useMemo(() => listHelpTopics(audience, product), [audience, product]);
+  const topics = useMemo(() => listHelpTopics(audience, product, xeroAccountingEnabled), [audience, product, xeroAccountingEnabled]);
   const [mode, setMode] = useState<'help' | 'ask' | 'team'>('help');
   const [teamUnread, setTeamUnread] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);

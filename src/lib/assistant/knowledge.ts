@@ -51,6 +51,7 @@ export function retrieveAssistantKnowledge(input: {
   audience: AssistantAudience;
   currentView?: string | null;
   limit?: number;
+  xeroAccountingEnabled?: boolean;
 }): AssistantKnowledgeResult[] {
   const queryTerms = new Set(terms(input.query));
   if (queryTerms.size === 0) return [];
@@ -58,6 +59,7 @@ export function retrieveAssistantKnowledge(input: {
 
   const ranked = (assistantIndex.chunks as IndexedChunk[])
     .filter(chunk => chunk.audiences.includes(input.audience))
+    .filter(chunk => input.xeroAccountingEnabled !== false || !/\bxero\b/i.test(`${chunk.title} ${chunk.heading} ${chunk.screen} ${chunk.content}`))
     .map(chunk => {
       const titleTerms = terms(`${chunk.title} ${chunk.heading}`);
       const bodyTerms = terms(chunk.content);

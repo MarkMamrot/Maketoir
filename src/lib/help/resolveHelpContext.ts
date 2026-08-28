@@ -18,9 +18,15 @@ function normalize(value?: string | null): string {
   return value?.trim().toLowerCase().replace(/^#/, '') ?? '';
 }
 
-export function listHelpTopics(audience: AssistantAudience, product?: HelpProduct): HelpTopic[] {
+function topicRequiresXero(topic: HelpTopic): boolean {
+  return /\bxero\b/i.test(JSON.stringify(topic));
+}
+
+export function listHelpTopics(audience: AssistantAudience, product?: HelpProduct, xeroAccountingEnabled?: boolean): HelpTopic[] {
   return topics
-    .filter(topic => topic.audiences.includes(audience) && (!product || topic.product === product || topic.product === 'shared'))
+    .filter(topic => topic.audiences.includes(audience)
+      && (!product || topic.product === product || topic.product === 'shared')
+      && (xeroAccountingEnabled !== false || !topicRequiresXero(topic)))
     .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0) || left.title.localeCompare(right.title));
 }
 
@@ -28,9 +34,10 @@ export function resolveHelpContext(input: {
   audience: AssistantAudience;
   product: HelpProduct;
   context?: string | null;
+  xeroAccountingEnabled?: boolean;
 }): ResolvedHelpContext | null {
   const context = normalize(input.context);
-  const available = listHelpTopics(input.audience, input.product).filter(topic => topic.product === input.product);
+  const available = listHelpTopics(input.audience, input.product, input.xeroAccountingEnabled).filter(topic => topic.product === input.product);
   const exactTopic = context
     ? available
       .filter(topic => topic.contexts.some(alias => normalize(alias) === context))
@@ -47,6 +54,8 @@ export function resolveHelpContext(input: {
   return { topic, sectionId: section?.id ?? null, exact: !!exactTopic };
 }
 
-export function getHelpTopic(topicId: string, audience: AssistantAudience): HelpTopic | null {
-  return topics.find(topic => topic.id === topicId && topic.audiences.includes(audience)) ?? null;
+export function getHelpTopic(topicId: string, audience: AssistantAudience, xeroAccountingEnabled?: boolean): HelpTopic | null {
+  return topics.find(topic => topic.id === topicId
+    && topic.audiences.includes(audience)
+    && (xeroAccountingEnabled !== false || !topicRequiresXero(topic))) ?? null;
 }

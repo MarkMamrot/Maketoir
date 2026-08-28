@@ -72,6 +72,49 @@ export async function POST(req: Request) {
     }
   }
 
+  const seenVariantSkus = new Map<string, { productName: string; variantId?: string }>();
+  const seenBarcodes = new Map<string, { productName: string; variantId?: string }>();
+  for (const row of rows) {
+    if (row.action === 'error') continue;
+    const checks = [
+      { field: 'product_sku' as const, label: 'Product SKU', value: row.base_sku?.trim(), excludeProductId: row.existing_product_id },
+      { field: 'variant_sku' as const, label: 'Variant SKU', value: row.sku?.trim(), excludeVariantId: row.existing_variant_id },
+      { field: 'barcode' as const, label: 'Barcode', value: row.barcode?.trim(), excludeVariantId: row.existing_variant_id },
+    ];
+    for (const check of checks) {
+      if (!check.value) continue;
+      const conflict = await ImsVariantsRepo.findIdentifierConflict(
+        check.field,
+        check.value,
+        { excludeProductId: check.excludeProductId, excludeVariantId: check.excludeVariantId },
+        businessId,
+      );
+      if (conflict) {
+        return NextResponse.json({
+          success: false,
+          error: `${check.label} "${check.value}" for "${row.product_name}" conflicts with product "${conflict.product_name}". Enter a unique ${check.label}.`,
+          conflict: { ...conflict, field: check.field, importedProductName: row.product_name },
+        }, { status: 409 });
+      }
+    }
+
+    for (const [label, value, seen] of [
+      ['Variant SKU', row.sku?.trim(), seenVariantSkus],
+      ['Barcode', row.barcode?.trim(), seenBarcodes],
+    ] as const) {
+      if (!value) continue;
+      const key = value.toLowerCase();
+      const earlier = seen.get(key);
+      if (earlier && (!row.existing_variant_id || earlier.variantId !== row.existing_variant_id)) {
+        return NextResponse.json({
+          success: false,
+          error: `${label} "${value}" for "${row.product_name}" is duplicated in the import and conflicts with "${earlier.productName}". Enter a unique ${label}.`,
+        }, { status: 409 });
+      }
+      seen.set(key, { productName: row.product_name, variantId: row.existing_variant_id });
+    }
+  }
+
   // Ensure ims_stock has zone/bin columns before any per-location writes.
   const anyLocationStock = rows.some(r => Array.isArray(r.location_stock) && r.location_stock.length > 0);
   if (anyLocationStock) await ImsStockRepo.ensureZoneBinColumns();
@@ -131,45 +174,6 @@ export async function POST(req: Request) {
   for (const row of rows) {
     try {
       if (row.action === 'error') { skipped++; continue; }
-
-      // Never trust client-side classification as the final identity check. A stale
-      // product list or malformed template must not create a duplicate variant.
-      if (row.action === 'new_product' || row.action === 'new_variant') {
-        const existingVariant = row.sku?.trim()
-          ? await ImsVariantsRepo.findBySku(row.sku.trim())
-          : row.barcode?.trim()
-            ? await ImsVariantsRepo.findByBarcodeOrSku(row.barcode.trim())
-            : row.base_sku?.trim()
-              ? await ImsVariantsRepo.findBySku(row.base_sku.trim())
-              : null;
-        if (existingVariant) {
-          row.action = 'update';
-          row.existing_variant_id = existingVariant.variant_id;
-          row.existing_product_id = existingVariant.product_id;
-        } else if (!row.sku?.trim() && !row.barcode?.trim()) {
-          const productCandidate = row.base_sku?.trim()
-            ? await ImsProductsRepo.findByBaseSku(row.base_sku.trim(), businessId)
-            : row.product_name?.trim()
-              ? await ImsProductsRepo.findByName(row.product_name.trim())
-              : null;
-
-          if (productCandidate) {
-            const productWithVariants = await ImsProductsRepo.get(productCandidate.product_id, businessId);
-            const defaultVariant = productWithVariants?.variants?.find((variant) => {
-              const hasNoIdentity = !variant.sku && !variant.barcode;
-              const matchesBaseSku = !!row.base_sku && variant.sku && variant.sku.toLowerCase() === row.base_sku.trim().toLowerCase();
-              const matchesProductSku = !!row.base_sku && variant.sku && variant.sku.toLowerCase() === row.base_sku.trim().toLowerCase();
-              return hasNoIdentity || matchesBaseSku || matchesProductSku;
-            }) ?? (productWithVariants?.variants?.length === 1 ? productWithVariants.variants[0] : null);
-
-            if (defaultVariant) {
-              row.action = 'update';
-              row.existing_variant_id = defaultVariant.variant_id;
-              row.existing_product_id = productCandidate.product_id;
-            }
-          }
-        }
-      }
 
       // Resolve supplier contact id
       const supplierContactId = row.supplier_name

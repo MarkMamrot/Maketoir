@@ -8,6 +8,7 @@ const {
   mockSyncGiftCardLiabilityReclass,
   mockGetBusinessTimeZone,
   mockGetXeroDocumentPolicy,
+  mockAssertXeroAccountingEnabled,
 } = vi.hoisted(() => ({
   mockRunImsForBusiness: vi.fn(),
   mockImsQuery: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockSyncGiftCardLiabilityReclass: vi.fn(),
   mockGetBusinessTimeZone: vi.fn(),
   mockGetXeroDocumentPolicy: vi.fn(),
+  mockAssertXeroAccountingEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
@@ -31,6 +33,9 @@ vi.mock('@/lib/ims/businessTimeZone', () => ({
 }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({
   getXeroDocumentPolicy: mockGetXeroDocumentPolicy,
+}));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: mockAssertXeroAccountingEnabled,
 }));
 
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
@@ -59,6 +64,7 @@ describe('syncOnlineDailySalesDay', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-27T02:00:00Z'));
     mockRunImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<unknown>) => callback());
+    mockAssertXeroAccountingEnabled.mockResolvedValue(undefined);
     mockGetBusinessTimeZone.mockResolvedValue('Australia/Sydney');
     mockGetXeroDocumentPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockQuery.mockResolvedValue([
@@ -77,6 +83,14 @@ describe('syncOnlineDailySalesDay', () => {
       ]);
     mockSyncDailySalesBatch.mockResolvedValue('invoice-1');
     mockSyncGiftCardLiabilityReclass.mockResolvedValue('journal-1');
+  });
+
+  it('rejects disabled tenants before querying online sales', async () => {
+    mockAssertXeroAccountingEnabled.mockRejectedValueOnce(new Error('Xero accounting is disabled.'));
+
+    await expect(syncOnlineDailySalesDay('biz-1', '2026-07-25')).rejects.toThrow('Xero accounting is disabled.');
+    expect(mockImsQuery).not.toHaveBeenCalled();
+    expect(mockGetXeroDocumentPolicy).not.toHaveBeenCalled();
   });
 
   afterEach(() => {

@@ -60,6 +60,15 @@ describe('assistant knowledge retrieval', () => {
     expect(timing?.content).toContain('configured EOD process');
   });
 
+  it('excludes every Xero-bearing chunk when tenant accounting is disabled', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do Xero syncs work for purchase orders and POS?',
+      audience: 'ims',
+      xeroAccountingEnabled: false,
+    });
+    expect(results.every(result => !/\bxero\b/i.test(JSON.stringify(result)))).toBe(true);
+  });
+
   it('explains Shopify Misc Charge as an unmatched variant fallback', () => {
     const results = retrieveAssistantKnowledge({
       query: 'Why does my online order have Shopify Misc Charge in IMS?',

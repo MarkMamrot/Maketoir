@@ -58,6 +58,8 @@ Open **Import Products** and review the accepted CSV titles before preparing the
 
 Every imported row requires **Product_SKU**. A default or single variant uses Product_SKU as its SKU. When option values are present, Solvantis derives the variant SKU by appending Option1, Option2 and Option3 values in order, with spaces removed. For example, Product_SKU **HLS** with Size **M** and Colour **Navy** becomes **HLS-M-Navy**. Product Import does not accept a separate variant SKU override.
 
+Each Product SKU must belong to only one product. Each variant SKU and each non-blank barcode must belong to only one variant. Solvantis checks all import rows before creating products, brands or suppliers. If an identifier is already used, the import stops and names both the imported product and the existing product causing the conflict. Correct the Product_SKU, option values or Barcode in the spreadsheet, then review and import it again. Rows classified as updates may retain the identifiers already assigned to that same product or variant.
+
 Before reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import.
 
 ## Variant setup matrix
@@ -87,6 +89,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 |---|---|---|
 | Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |
 | An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |
+| Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |
 | Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |
 | Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |
 | A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |

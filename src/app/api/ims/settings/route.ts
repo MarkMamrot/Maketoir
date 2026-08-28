@@ -11,6 +11,11 @@ import {
   WEBSITE_AI_SETTING_KEYS,
 } from '@/lib/website/contentPreferences';
 import { SALES_DOCUMENT_SETTING_KEYS, validateSalesDocumentSetting } from '@/lib/ims/salesDocumentSettings';
+import {
+  ACCOUNTING_CONNECTION_SETTING,
+  ACCOUNTING_PLATFORM_SETTING,
+  resolveXeroAccountingEnabled,
+} from '@/lib/ims/businessOperations';
 import { SELLS_WHOLESALE_SETTING_KEY } from '@/lib/wholesale/wholesaleAccess';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -66,7 +71,15 @@ export async function GET() {
     // Include Shopify shop domain so client can build admin links without a separate fetch
     const conn = await ConnectionsRepository.get(businessId);
     const shopDomain: string = conn?.shopify_shop_id ?? '';
-    return NextResponse.json({ success: true, data: settings, shopDomain, capabilities: { hasPosLocations: Boolean(posEvidence[0]?.has_pos_locations) } });
+    return NextResponse.json({
+      success: true,
+      data: settings,
+      shopDomain,
+      capabilities: {
+        hasPosLocations: Boolean(posEvidence[0]?.has_pos_locations),
+        xeroAccountingEnabled: resolveXeroAccountingEnabled(settings),
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
@@ -103,6 +116,12 @@ export async function PUT(req: Request) {
     }
     if (pairs.business_requires_pos !== undefined && !['yes', 'no'].includes(String(pairs.business_requires_pos))) {
       return NextResponse.json({ success: false, error: 'Business requires POS must be yes or no.' }, { status: 400 });
+    }
+    if (pairs[ACCOUNTING_CONNECTION_SETTING] !== undefined && !['yes', 'no'].includes(String(pairs[ACCOUNTING_CONNECTION_SETTING]))) {
+      return NextResponse.json({ success: false, error: 'Connect accounting software must be yes or no.' }, { status: 400 });
+    }
+    if (pairs[ACCOUNTING_PLATFORM_SETTING] !== undefined && String(pairs[ACCOUNTING_PLATFORM_SETTING]) !== 'xero') {
+      return NextResponse.json({ success: false, error: 'Unsupported accounting software.' }, { status: 400 });
     }
     for (const [key, rawValue] of Object.entries(pairs)) {
       const normalized = validateWholesalePortalSetting(key, rawValue);

@@ -30,10 +30,11 @@ type PosRegisterSession = {
 
 interface PosRegistersReportViewProps {
   onBack: () => void;
+  xeroAccountingEnabled: boolean;
   XeroStatusBadge: React.ComponentType<{ status: string | null }>;
 }
 
-export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegistersReportViewProps) {
+export function PosRegistersReportView({ onBack, xeroAccountingEnabled, XeroStatusBadge }: PosRegistersReportViewProps) {
   const defaultDate = new Date().toLocaleDateString('sv-SE', { timeZone: 'Australia/Sydney' });
 
   const [date, setDate] = React.useState(defaultDate);
@@ -124,11 +125,11 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
   }
 
   function exportCsv() {
-    const rows: string[][] = [
-      ['Location', 'Register', 'Status', 'Opened At', 'Opened By', 'Opening Float',
-       'Closed At', 'Closed By', 'Payment Method', 'Expected', 'Counted', 'Variance',
-        'Xero Invoice', 'Xero Synced', 'Till Variance', 'Variance Status', 'Xero Variance'],
-    ];
+    const rows: string[][] = [[
+      'Location', 'Register', 'Status', 'Opened At', 'Opened By', 'Opening Float',
+      'Closed At', 'Closed By', 'Payment Method', 'Expected', 'Counted', 'Variance',
+      ...(xeroAccountingEnabled ? ['Xero Invoice', 'Xero Synced', 'Till Variance', 'Variance Status', 'Xero Variance'] : []),
+    ]];
     for (const s of sessions) {
       const base = [
         s.location_name, s.register_name, s.status,
@@ -139,7 +140,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
         s.closed_by ?? '',
       ];
       if (s.reconciliations.length === 0) {
-        rows.push([...base, '', '', '', '', '', '', '', '', '']);
+        rows.push([...base, '', '', '', '', ...(xeroAccountingEnabled ? ['', '', '', '', ''] : [])]);
       } else {
         for (const r of s.reconciliations) {
           rows.push([
@@ -148,11 +149,13 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
             r.expected_amount?.toFixed(2) ?? '',
             r.counted_amount?.toFixed(2) ?? '',
             r.variance?.toFixed(2) ?? '',
-            r.xero_invoice_id ?? '',
-            r.xero_synced_at ? fmtDt(r.xero_synced_at) : '',
-            r.till_variance?.toFixed(2) ?? '',
-            r.variance_status ?? '',
-            r.xero_variance_id ?? '',
+            ...(xeroAccountingEnabled ? [
+              r.xero_invoice_id ?? '',
+              r.xero_synced_at ? fmtDt(r.xero_synced_at) : '',
+              r.till_variance?.toFixed(2) ?? '',
+              r.variance_status ?? '',
+              r.xero_variance_id ?? '',
+            ] : []),
           ]);
         }
         rows.push([
@@ -161,7 +164,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
           s.total_expected.toFixed(2),
           s.total_counted.toFixed(2),
           s.total_variance.toFixed(2),
-          '', '', '', '', '',
+          ...(xeroAccountingEnabled ? ['', '', '', '', ''] : []),
         ]);
       }
     }
@@ -185,7 +188,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
     borderBottom: '1px solid var(--sv-border)',
     verticalAlign: 'middle',
   };
-  const columnWidths = [150, 140, 100, 170, 130, 100, 170, 130, 150, 120, 120, 120, 100];
+  const columnWidths = [150, 140, 100, 170, 130, 100, 170, 130, 150, 120, 120, 120, ...(xeroAccountingEnabled ? [100] : [])];
   const tableWidth = columnWidths.reduce((sum, width) => sum + width, 0);
   const renderColGroup = () => <colgroup>{columnWidths.map((width, index) => <col key={index} style={{ width }} />)}</colgroup>;
 
@@ -250,7 +253,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                 <th style={{ ...thStyle, textAlign: 'right' }}>Expected</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Counted</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Variance</th>
-                <th style={thStyle}>Xero</th>
+                {xeroAccountingEnabled && <th style={thStyle}>Xero</th>}
               </tr>
           }
         >
@@ -291,10 +294,10 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                           <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(s.reconciliations[0].variance) }}>
                             {s.reconciliations[0].variance != null ? (s.reconciliations[0].variance >= 0 ? '+' : '') + fmt$(s.reconciliations[0].variance) : '—'}
                           </td>
-                          <td style={tdStyle}>{renderXeroDocuments(s.reconciliations[0])}</td>
+                          {xeroAccountingEnabled && <td style={tdStyle}>{renderXeroDocuments(s.reconciliations[0])}</td>}
                         </>
                       ) : (
-                        <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} colSpan={5}>No reconciliation data</td>
+                        <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} colSpan={xeroAccountingEnabled ? 5 : 4}>No reconciliation data</td>
                       )}
                     </tr>
 
@@ -306,7 +309,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: varColor(r.variance) }}>
                           {r.variance != null ? (r.variance >= 0 ? '+' : '') + fmt$(r.variance) : '—'}
                         </td>
-                        <td style={tdStyle}>{renderXeroDocuments(r)}</td>
+                        {xeroAccountingEnabled && <td style={tdStyle}>{renderXeroDocuments(r)}</td>}
                       </tr>
                     ))}
 
@@ -318,7 +321,7 @@ export function PosRegistersReportView({ onBack, XeroStatusBadge }: PosRegisters
                         <td style={{ ...tdStyle, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: varColor(s.total_variance) }}>
                           {(s.total_variance >= 0 ? '+' : '') + fmt$(s.total_variance)}
                         </td>
-                        <td style={tdStyle} />
+                        {xeroAccountingEnabled && <td style={tdStyle} />}
                       </tr>
                     )}
                   </React.Fragment>

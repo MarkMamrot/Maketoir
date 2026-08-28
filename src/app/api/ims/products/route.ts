@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ImsProductsRepo } from '@/lib/ims/ImsRepository';
+import { ImsProductsRepo, ImsVariantsRepo } from '@/lib/ims/ImsRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { isReservedShopifyFallbackSku } from '@/lib/shopifyFallbackVariant';
 
@@ -26,6 +26,17 @@ export async function POST(req: Request) {
         { success: false, error: 'SHOPIFY-MISC is reserved for the Shopify system fallback product.' },
         { status: 403 },
       );
+    }
+    const productSku = typeof body?.base_sku === 'string' ? body.base_sku.trim() : '';
+    if (productSku) {
+      const conflict = await ImsVariantsRepo.findIdentifierConflict('product_sku', productSku, {}, businessId);
+      if (conflict) {
+        return NextResponse.json({
+          success: false,
+          error: `Product SKU "${productSku}" is already used by product "${conflict.product_name}". Enter a unique Product SKU.`,
+          conflict,
+        }, { status: 409 });
+      }
     }
     const product_id = await ImsProductsRepo.create(body, businessId);
     return NextResponse.json({ success: true, product_id });

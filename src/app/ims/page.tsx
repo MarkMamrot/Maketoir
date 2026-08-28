@@ -389,31 +389,51 @@ function CostSummaryPills({ items }: { items: Array<{ label: string; value: stri
 // Shared settings hook  (fetches ims_settings for the current business)
 // ─────────────────────────────────────────────────────────────────────────────
 
+type ImsCapabilities = {
+  hasPosLocations: boolean;
+  xeroAccountingEnabled: boolean;
+};
+
+const IMS_SETTINGS_UPDATED_EVENT = 'solvantis:ims-settings-updated';
+
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
-  const [capabilities, setCapabilities] = useState<{ hasPosLocations: boolean }>({ hasPosLocations: false });
+  const settingsRef = useRef<Record<string, string>>({});
+  const [capabilities, setCapabilities] = useState<ImsCapabilities>({ hasPosLocations: false, xeroAccountingEnabled: false });
+  const [loaded, setLoaded] = useState(false);
   const fetchSettings = useCallback(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
       if (d.success) {
         activeBusinessTimeZone = d.data?.business_timezone || 'Australia/Sydney';
-        setSettings(d.data || {});
-        setCapabilities({ hasPosLocations: Boolean(d.capabilities?.hasPosLocations) });
+        settingsRef.current = d.data || {};
+        setSettings(settingsRef.current);
+        setCapabilities({
+          hasPosLocations: Boolean(d.capabilities?.hasPosLocations),
+          xeroAccountingEnabled: Boolean(d.capabilities?.xeroAccountingEnabled),
+        });
       }
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoaded(true));
   }, []);
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
+  useEffect(() => {
+    const refresh = () => fetchSettings();
+    window.addEventListener(IMS_SETTINGS_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(IMS_SETTINGS_UPDATED_EVENT, refresh);
+  }, [fetchSettings]);
   const saveSettings = useCallback(async (updates: Record<string, string>) => {
     if (updates.business_timezone) activeBusinessTimeZone = updates.business_timezone;
-    setSettings(prev => ({ ...prev, ...updates }));
+    settingsRef.current = { ...settingsRef.current, ...updates };
+    setSettings(settingsRef.current);
     try {
-      await fetch('/api/ims/settings', {
+      const response = await fetch('/api/ims/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: updates }),
       });
+      if (response.ok) window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
     } catch {}
   }, []);
-  return { settings, capabilities, saveSettings, refetchSettings: fetchSettings };
+  return { settings, capabilities, loaded, saveSettings, refetchSettings: fetchSettings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -534,6 +554,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
   const showLocationDaybooks = sidebarSettings.business_requires_pos !== 'no' || capabilities.hasPosLocations;
+  const showXero = capabilities.xeroAccountingEnabled;
   const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
 
@@ -636,6 +657,7 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
           ? (item as any).children.filter((child: any) => {
             if (child.id === 'location-daybooks') return showLocationDaybooks;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
+            if (child.id === 'xero') return showXero;
             return true;
           })
           : [];
@@ -820,7 +842,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
   );
 }
 
-function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
+function DashboardView({ businessId, xeroAccountingEnabled, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; xeroAccountingEnabled: boolean; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [salesWindow, setSalesWindow] = useState<'today' | 'yesterday' | '30' | '120' | '365'>('today');
@@ -1163,13 +1185,13 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     </select>
                   </div>
                 )}
-                <div title="Connect Xero or QuickBooks to automatically post purchase orders, sales invoices, and stocktake journals.">
+                {xeroAccountingEnabled && <div title="Connect Xero or QuickBooks to automatically post purchase orders, sales invoices, and stocktake journals.">
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Connect accounting software?</div>
                   <select value={onboardingDraft.connect_accounting_software ?? 'no'} onChange={e => setOnboardingField('connect_accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
                     <option value="yes">Yes</option><option value="no">No</option>
                   </select>
-                </div>
-                {onboardingDraft.connect_accounting_software === 'yes' && (
+                </div>}
+                {xeroAccountingEnabled && onboardingDraft.connect_accounting_software === 'yes' && (
                   <div title="The accounting platform you use. Xero is fully supported; QuickBooks is coming soon.">
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Accounting platform</div>
                     <select value={onboardingDraft.accounting_software ?? 'xero'} onChange={e => setOnboardingField('accounting_software', e.target.value)} style={{ ...inputStyle, fontSize: 13 }}>
@@ -1211,7 +1233,7 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
                     onChange={e => setOnboardingField('purchase_tax_rate', e.target.value ? String(Number(e.target.value) / 100) : '')}
                     style={{ ...inputStyle, fontSize: 13 }} placeholder="10" />
                 </div>
-                <div style={{ gridColumn: 'span 2' }} title="The purchase tax code label used in Xero and on PDF purchase orders, e.g. GST on Purchases.">
+                <div style={{ gridColumn: 'span 2' }} title="The purchase tax code label used on PDF purchase orders, e.g. GST on Purchases.">
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Purchase Tax Code</div>
                   <input value={onboardingDraft.purchase_tax_code ?? ''} onChange={e => setOnboardingField('purchase_tax_code', e.target.value)}
                     style={{ ...inputStyle, fontSize: 13 }} placeholder="GST on Purchases" />
@@ -1229,7 +1251,9 @@ function DashboardView({ businessId, onNav, onOpenSettings, onOpenSalesOrder }: 
             {/* Right: step checklist */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {(onboarding.steps ?? []).map((step: OnboardingStep, index: number) => {
-                const action = IMS_ONBOARDING_ACTIONS[step.id];
+                const action = step.id === 'accounting' && !xeroAccountingEnabled
+                  ? undefined
+                  : IMS_ONBOARDING_ACTIONS[step.id];
                 const handleAction = action
                   ? () => action.type === 'nav'
                     ? onNav((action as { type: 'nav'; view: ImsView; label: string }).view)
@@ -9042,7 +9066,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const [invoiceImportPoId, setInvoiceImportPoId] = useState<number | null>(null);
   const [invoicePendingFile, setInvoicePendingFile] = useState<File | null>(null);
   const pendingReceiveOverrideRef = React.useRef<Record<string, number> | null>(null);
-  const { settings } = useImsSettings();
+  const { settings, capabilities } = useImsSettings();
+  const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const load = useCallback(() => {
     setLoading(true);
     fetch('/api/ims/purchase-orders').then(r => r.json()).then(d => {
@@ -9230,9 +9255,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       const result = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}/payments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined, xero_post_intent: poPayForm.xeroIntent }),
+        body: JSON.stringify({ payment_date: poPayForm.date, amount: Number(poPayForm.amount), currency_code: currency, exchange_rate: rate, notes: poPayForm.notes || undefined, payment_method_id: poPayForm.method ? Number(poPayForm.method) : undefined, xero_post_intent: xeroAccountingEnabled ? poPayForm.xeroIntent : 'solvantis_only' }),
       });
-      if (result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
+      if (xeroAccountingEnabled && result?.xeroWarning) alert(`Payment recorded in Solvantis, but Xero needs attention:\n\n${result.xeroWarning}`);
       setPoPayForm(null);
       await refreshPoView(viewModal.po.id);
     } catch (e: any) { alert(e.message); }
@@ -9258,15 +9283,15 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     if (!viewModal.po) return;
     const dateStr = payment.payment_date?.slice(0, 10) ?? '';
     const amtStr  = fmtFx(payment.amount, (viewModal.po.currency_code || 'AUD').toUpperCase());
+    const xeroNotice = xeroAccountingEnabled
+      ? `\n──────────────────────────────\nIMPORTANT: This payment is NOT automatically removed from Xero.\nPlease notify your bookkeeper to delete the matching payment from the Xero bill manually.\n──────────────────────────────\n`
+      : '';
     const confirmed = confirm(
       `⚠️ Delete this payment?\n\n` +
       `Date: ${dateStr}\n` +
       `Amount: ${amtStr}\n` +
       (payment.notes ? `Notes: ${payment.notes}\n` : '') +
-      `\n──────────────────────────────\n` +
-      `IMPORTANT: This payment is NOT automatically removed from Xero.\n` +
-      `Please notify your bookkeeper to delete the matching payment from the Xero bill manually.\n` +
-      `──────────────────────────────\n\n` +
+      xeroNotice + '\n' +
       `Click OK to delete the payment from IMS only.`
     );
     if (!confirmed) return;
@@ -9369,7 +9394,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
         const d = await apiFetch(`/api/ims/purchase-orders/${po.id}`);
         setViewModal({ open: true, po: d.data });
       }
-      if (res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
+      if (xeroAccountingEnabled && res?.xeroWarning) alert(`Xero notice:\n\n${res.xeroWarning}`);
     } catch (e: any) { alert(e.message); }
   };
 
@@ -9381,7 +9406,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     if (!confirm(
       `Undo the receipt for PO ${po.po_number}?\n\n` +
       `Use this only when the receipt was entered by mistake and the goods never arrived. ` +
-      `This removes the exact received stock, cancels the PO, and attempts to void the linked Xero bill.\n\n` +
+      (xeroAccountingEnabled
+        ? `This removes the exact received stock, cancels the PO, and attempts to void the linked accounting bill.\n\n`
+        : `This removes the exact received stock and cancels the PO.\n\n`) +
       `For goods that genuinely arrived and are now going back, use Supplier Return / Credit instead.`,
     )) return;
     try {
@@ -9395,7 +9422,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       });
       await load();
       if (viewModal.open && viewModal.po?.id === po.id) await refreshPoView(po.id);
-      if (res?.xeroWarning) alert(`Receipt undone. Xero needs attention:\n\n${res.xeroWarning}`);
+      if (xeroAccountingEnabled && res?.xeroWarning) alert(`Receipt undone. Xero needs attention:\n\n${res.xeroWarning}`);
     } catch (e: any) {
       alert(e.message);
     }
@@ -9413,7 +9440,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   };
 
   const createPoReplacement = async (po: any) => {
-    const correctionNotice = po.status === 'complete'
+    const correctionNotice = po.status === 'complete' && xeroAccountingEnabled
       ? `\n\nThis does not undo the original receipt or alter its Xero bill. Use Undo Mistaken Receipt or Supplier Return / Credit separately when the original needs correction.`
       : '';
     if (!confirm(`Create a replacement Draft from PO ${po.po_number}?${correctionNotice}`)) return;
@@ -9447,7 +9474,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   };
 
   const editPoWithWarn = (po: any, beforeAction?: () => void, editOnly = false) => {
-    if (po.status === 'complete') {
+    if (po.status === 'complete' && xeroAccountingEnabled) {
       beforeAction?.(); // close view modal before showing warning so it renders on top
       showXeroWarnForReceived('edit', po, () => openEdit(po, editOnly));
     } else {
@@ -9457,7 +9484,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   };
 
   const deletePoWithWarn = (po: any, beforeAction?: () => void) => {
-    if (po.status === 'complete') {
+    if (po.status === 'complete' && xeroAccountingEnabled) {
       beforeAction?.(); // close view modal before showing warning so it renders on top
       showXeroWarnForReceived('delete', po, () => {
         apiFetch(`/api/ims/purchase-orders/${po.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
@@ -10042,7 +10069,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       )}
 
       {/* Xero warning modal for complete PO edit/delete */}
-      {xeroWarnModal && (
+      {xeroAccountingEnabled && xeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
             {xeroWarnModal.action === 'edit' ? (
@@ -10321,7 +10348,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--sv-bg-1)' }}>
-                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', 'Xero', '']).map((h: string, idx: number) => (
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', ...(xeroAccountingEnabled ? ['Xero'] : []), '']).map((h: string, idx: number) => (
                           <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                         ))}
                       </tr>
@@ -10335,11 +10362,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
-                          <td style={{ padding: '5px 10px' }}>
+                          {xeroAccountingEnabled && <td style={{ padding: '5px 10px' }}>
                             {p.xero_post_status === 'posted'
                               ? <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 700 }}>Posted</span>
                               : <div><div style={{ color: p.xero_post_status === 'failed' || p.xero_post_status === 'unknown' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 10, marginBottom: 3 }}>{({ pending: 'Pending', failed: 'Failed', unknown: 'Outcome unknown' } as Record<string, string>)[p.xero_post_status] || 'Solvantis only'}</div><button disabled={syncingPoPaymentId === Number(p.id) || !p.payment_method_id} onClick={() => handleManualSyncPoPayment(p)} title={!p.payment_method_id ? 'Assign a payment method first' : p.xero_post_error || 'Post this payment to Xero'} style={btnStyle('ghost', 'xs')}>{syncingPoPaymentId === Number(p.id) ? 'Posting…' : 'Post to Xero'}</button></div>}
-                          </td>
+                          </td>}
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeletePoPayment(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
@@ -10358,10 +10385,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
                 {poPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                    <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                    {xeroAccountingEnabled && <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
                       {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setPoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(poPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
-                    </div>
-                    {poPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero bill. A linked Draft will be Authorised before the payment is applied.</div>}
+                    </div>}
+                    {xeroAccountingEnabled && poPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero bill. A linked Draft will be Authorised before the payment is applied.</div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -10399,7 +10426,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </div>
             );
           })()}
-          <PoAccountingSection po={viewModal.po} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
+          <PoAccountingSection po={viewModal.po} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
           <OrderActivityHistory entries={viewModal.po.activity_history ?? viewModal.po.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, po: null }); onOpenActivityDocument?.(entry); }} />
 
           {/* ── Supplier Invoices / Attachments ── */}
@@ -10665,7 +10692,7 @@ function OrderActivityHistory({ entries, onOpenDocument }: { entries?: any[]; on
 // Accounting Debug Sections (PO & SO)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Record<string, string>; onVoided?: () => void }) {
+function PoAccountingSection({ po, settings, xeroAccountingEnabled, onVoided }: { po: any; settings: Record<string, string>; xeroAccountingEnabled: boolean; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
   const accountingScrollRef = useRef<HTMLDivElement | null>(null);
   const [xeroRetrying, setXeroRetrying] = useState(false);
@@ -10701,7 +10728,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
 
   // Fetch live Xero bill details (number + total) whenever a linked bill exists
   useEffect(() => {
-    if (!xeroId || xeroVoidResult === 'voided') { setXeroBillDetails(null); return; }
+    if (!xeroAccountingEnabled || !xeroId || xeroVoidResult === 'voided') { setXeroBillDetails(null); return; }
     let cancelled = false;
     setXeroBillFetching(true);
     fetch(`/api/ims/xero/bill-details?poId=${po.id}`)
@@ -10710,9 +10737,10 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
       .catch(() => {})
       .finally(() => { if (!cancelled) setXeroBillFetching(false); });
     return () => { cancelled = true; };
-  }, [xeroId, xeroVoidResult, xeroRetried, po.id]);
+  }, [xeroAccountingEnabled, xeroId, xeroVoidResult, xeroRetried, po.id]);
 
   const XeroBadge = () => (
+    !xeroAccountingEnabled ? null :
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
       ? <div style={{ display:'flex', flexDirection:'column', gap:4, padding:'5px 10px', background: xeroVoidResult === 'voided' || xeroDraftDeleted ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6 }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
@@ -10946,9 +10974,9 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
 
       <div style={{ ...dim, marginTop: 6, lineHeight: 1.7 }}>
         <div>Tip: focus the table and use ← / → arrow keys to scroll horizontally.</div>
-        <div>Tax treatment: <strong>{po.tax_treatment || 'ex_tax'}</strong>{po.tax_code ? <> · Tax code <strong>{po.tax_code}</strong></> : null} · Xero TaxType <strong>{(po.tax_treatment || 'ex_tax') === 'no_tax' ? 'NONE' : 'INPUT'}</strong> · LineAmountTypes <strong>{(po.tax_treatment || 'ex_tax') === 'inc_tax' ? 'Inclusive' : 'Exclusive'}</strong></div>
-        <div>Xero bill: <strong>ACCPAY</strong> draft to <strong>{po.supplier_name || '—'}</strong> · Ref <strong>{po.po_number}</strong>{po.supplier_invoice_number ? <> · Supplier invoice <strong>{po.supplier_invoice_number}</strong></> : null}</div>
-        {isFx && <div>Stored FX rate {rate.toFixed(4)} is used for IMS AUD costing. Xero applies its live conversion at bill date.</div>}
+        <div>Tax treatment: <strong>{po.tax_treatment || 'ex_tax'}</strong>{po.tax_code ? <> · Tax code <strong>{po.tax_code}</strong></> : null}</div>
+        {xeroAccountingEnabled && <div>Xero bill: <strong>ACCPAY</strong> draft to <strong>{po.supplier_name || '—'}</strong> · Ref <strong>{po.po_number}</strong>{po.supplier_invoice_number ? <> · Supplier invoice <strong>{po.supplier_invoice_number}</strong></> : null}</div>}
+        {isFx && <div>Stored FX rate {rate.toFixed(4)} is used for IMS AUD costing.</div>}
         {totalLanded > 0 && <div>Landed costs: {fmtCurrency(totalLanded)} AUD (distributed into avg cost per unit on receive).</div>}
         {hasDeposits && <div style={{ color: 'var(--sv-amber,#f59e0b)' }}>Deposits exist: purchase lines are posted to Inventory in Transit until receiving journals clear them to Inventory Asset.</div>}
       </div>
@@ -10956,7 +10984,7 @@ function PoAccountingSection({ po, settings, onVoided }: { po: any; settings: Re
   );
 }
 
-function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Record<string, string>; onVoided?: () => void }) {
+function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: { so: any; settings: Record<string, string>; xeroAccountingEnabled: boolean; onVoided?: () => void }) {
   const [open, setOpen] = useState(false);
   const [xeroRetrying, setXeroRetrying] = useState(false);
   const [xeroRetried, setXeroRetried] = useState<boolean | null>(null);
@@ -10967,14 +10995,14 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
   const [xeroBillFetching, setXeroBillFetching] = useState(false);
   useEffect(() => {
     const xid = so.xero_invoice_id as string | null;
-    if (!xid) { setXeroBillDetails(null); return; }
+    if (!xeroAccountingEnabled || !xid) { setXeroBillDetails(null); return; }
     setXeroBillFetching(true);
     fetch(`/api/ims/xero/invoice-details?soId=${so.id}`)
       .then(r => r.json())
       .then(d => setXeroBillDetails({ invoiceNumber: d.invoiceNumber ?? null, total: d.total ?? null }))
       .catch(() => setXeroBillDetails(null))
       .finally(() => setXeroBillFetching(false));
-  }, [so.xero_invoice_id, so.id]);
+  }, [xeroAccountingEnabled, so.xero_invoice_id, so.id]);
   const doXeroRetry = async () => {
     setXeroRetrying(true); setXeroRetried(null);
     try {
@@ -10998,6 +11026,7 @@ function SoAccountingSection({ so, settings, onVoided }: { so: any; settings: Re
   const xeroId = so.xero_invoice_id as string | null;
   const xeroAt = so.xero_synced_at ? new Date(so.xero_synced_at).toLocaleString() : null;
   const XeroBadge = () => (
+    !xeroAccountingEnabled ? null :
     xeroStatus === 'synced' || xeroVoidResult === 'voided'
       ? <div style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 10px', background: xeroVoidResult === 'voided' ? 'rgba(251,191,36,.1)' : 'rgba(16,185,129,.1)', borderRadius:6, fontSize:11, marginBottom:6, flexWrap:'wrap' }}>
           {xeroVoidResult === 'voided'
@@ -13222,6 +13251,8 @@ function ImportSOsModal({ locations, onClose, onDone }: {
 }
 
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
+  const { capabilities } = useBusinessOperationsCapabilities();
+  const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const soBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -13701,7 +13732,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const editSoWithWarn = (so: any, beforeAction?: () => void) => {
-    if (so.status === 'fulfilled') {
+    if (so.status === 'fulfilled' && xeroAccountingEnabled) {
       beforeAction?.(); // close view modal before showing warning so it renders on top
       showSoXeroWarnForFulfilled('edit', so, () => openEdit(so));
     } else {
@@ -13711,7 +13742,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   };
 
   const deleteSoWithWarn = (so: any, beforeAction?: () => void) => {
-    if (so.status === 'fulfilled') {
+    if (so.status === 'fulfilled' && xeroAccountingEnabled) {
       beforeAction?.(); // close view modal before showing warning so it renders on top
       showSoXeroWarnForFulfilled('delete', so, () => {
         apiFetch(`/api/ims/sales-orders/${so.id}`, { method: 'DELETE' }).then(() => load()).catch((e: any) => alert(e.message));
@@ -14294,7 +14325,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
       )}
 
       {/* Xero warning modal for fulfilled SO edit/delete */}
-      {soXeroWarnModal && (
+      {xeroAccountingEnabled && soXeroWarnModal && (
         <Modal title="⚠️ Xero Manual Update Required" onClose={() => setSoXeroWarnModal(null)}>
           <div style={{ padding: '4px 0 8px', lineHeight: 1.6 }}>
             {soXeroWarnModal.action === 'edit' ? (
@@ -14622,7 +14653,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
               </div>
             );
           })()}
-          <SoAccountingSection so={viewModal.so} settings={settings} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
+          <SoAccountingSection so={viewModal.so} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/sales-orders/${viewModal.so.id}`); setViewModal(v => ({ ...v, so: d.data })); } catch {} }} />
           <OrderActivityHistory entries={viewModal.so.activity_history ?? viewModal.so.amendment_history} onOpenDocument={(entry) => { setViewModal({ open: false, so: null }); onOpenActivityDocument?.(entry); }} />
         </Modal>
       )}
@@ -21542,7 +21573,7 @@ export default function ImsPage() {
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
-  const { settings: pageSettings } = useImsSettings();
+  const { settings: pageSettings, capabilities: pageCapabilities, loaded: settingsLoaded } = useImsSettings();
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
   const [xeroQueuedCount, setXeroQueuedCount] = useState(0);
@@ -21681,6 +21712,12 @@ export default function ImsPage() {
       window.history.pushState(window.history.state, '', `#${view}`);
     }
   }, [hasRestoredInitialHash, view]);
+
+  useEffect(() => {
+    if (!hasRestoredInitialHash || !settingsLoaded || pageCapabilities.xeroAccountingEnabled || view !== 'xero') return;
+    window.history.replaceState(window.history.state, '', '#dashboard');
+    setViewSafe('dashboard');
+  }, [hasRestoredInitialHash, pageCapabilities.xeroAccountingEnabled, settingsLoaded, setViewSafe, view]);
 
   useEffect(() => {
     if (pageSettings.connect_accounting_software !== 'yes') return;
@@ -22043,6 +22080,7 @@ export default function ImsPage() {
           <main style={{ flex: 1, minWidth: 0, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
             <MainSections
               view={view}
+              xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
               isAdvisor={isAdvisor}
               advisorMappingEnabled={advisorXeroMappingEnabled}
               businessId={user?.businessId ?? ''}
@@ -22097,7 +22135,7 @@ export default function ImsPage() {
               InventoryValuationView={InventoryValuationView}
               ProductMarginView={ProductMarginView}
               PosPriceChangesView={(props: { onBack: () => void }) => <PosPriceChangesViewComponent {...props} btnStyle={btnStyle} />}
-              PosRegistersReportView={(props: { onBack: () => void }) => <PosRegistersReportViewComponent {...props} XeroStatusBadge={XeroStatusBadge} />}
+              PosRegistersReportView={(props: { onBack: () => void }) => <PosRegistersReportViewComponent {...props} xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled} XeroStatusBadge={XeroStatusBadge} />}
               CashBankingReportView={CashBankingReportView}
               StockAvailabilityManagementView={StockAvailabilityManagementView}
               XeroView={XeroView}
@@ -22164,6 +22202,7 @@ export default function ImsPage() {
         currentContext={view}
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
+        xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
         teamChatEnabled
         modeRequest={helpModeRequest}
       />
@@ -25820,7 +25859,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
 }
 
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
-  const { settings, saveSettings, refetchSettings } = useImsSettings();
+  const { settings, capabilities, loaded, saveSettings, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
     if (isOpen) {
@@ -25828,6 +25867,9 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       refetchSettings();
     }
   }, [defaultSection, isOpen, refetchSettings]);
+  useEffect(() => {
+    if (loaded && !capabilities.xeroAccountingEnabled && active === 'xero') setActive('general');
+  }, [active, capabilities.xeroAccountingEnabled, loaded]);
 
   // Match keyboard behavior with the modal close/back action.
   useEffect(() => {
@@ -26081,7 +26123,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-text-dim)', fontSize: 22, lineHeight: 1, padding: 0 }}>×</button>
         </div>
         <div style={{ height: 1, background: 'var(--sv-etch)', margin: '0 0 8px' }} />
-        {NAV_ITEMS_DRAWER.map(item => {
+        {NAV_ITEMS_DRAWER.filter(item => item.id !== 'xero' || capabilities.xeroAccountingEnabled).map(item => {
           const isActive = active === item.id;
           return (
             <button key={item.id} onClick={() => setActive(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', padding: '9px 16px', background: isActive ? 'rgba(99,179,117,.12)' : 'transparent', border: 'none', cursor: 'pointer', color: isActive ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', fontWeight: isActive ? 600 : 400, fontSize: 13, textAlign: 'left', borderLeft: isActive ? '3px solid var(--sv-action)' : '3px solid transparent', transition: 'background .12s' }}>
@@ -26159,7 +26201,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         )}
 
         {/* ── Xero ── */}
-        {active === 'xero' && (
+        {active === 'xero' && capabilities.xeroAccountingEnabled && (
           <div style={{ padding: 32, maxWidth: 980 }}>
             <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Xero Access</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--sv-text-dim)' }}>
