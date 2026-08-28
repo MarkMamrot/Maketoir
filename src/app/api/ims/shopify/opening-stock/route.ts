@@ -4,7 +4,7 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
-import { applyStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -162,6 +162,20 @@ export async function POST(req: Request) {
              location.solvantisLocationId, line.variantId, businessId],
           );
         }
+      }
+
+      if (!existing[0] || existing[0].status === 'draft') {
+        await transitionStocktake({
+          businessId,
+          stocktakeId,
+          action: 'start',
+          context: {
+            operationKey: `shopify-opening-start-${runId}-${offset}-${location.solvantisLocationId}`,
+            requestHash: await hashInventoryDocumentRequest({}),
+            actorId: session.userId,
+            actorName: session.name ?? session.email,
+          },
+        });
       }
 
       const result = await applyStocktake({
