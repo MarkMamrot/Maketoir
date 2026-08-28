@@ -5810,6 +5810,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [exporting, setExporting] = useState(false);
   const [barcodeLabelOpen, setBarcodeLabelOpen] = useState(false);
   const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
+  const [pendingProductPhotos, setPendingProductPhotos] = useState<Array<{ file: File; previewUrl: string }>>([]);
 
   const CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
 
@@ -5894,7 +5895,31 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm((p: any) => ({ ...p, [k]: e.target.value }));
 
+  const clearPendingProductPhotos = () => {
+    setPendingProductPhotos(current => {
+      current.forEach(photo => URL.revokeObjectURL(photo.previewUrl));
+      return [];
+    });
+  };
+
+  const stageProductPhotos = (files: FileList | null) => {
+    if (!files) return;
+    const photos = Array.from(files).filter(file => file.type.startsWith('image/'));
+    const available = Math.max(0, 10 - pendingProductPhotos.length);
+    if (photos.length > available) alert(`A product can have up to 10 photos. Only the first ${available} selected photo${available === 1 ? '' : 's'} were added.`);
+    setPendingProductPhotos(current => [
+      ...current,
+      ...photos.slice(0, available).map(file => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  };
+
+  const removePendingProductPhoto = (previewUrl: string) => {
+    URL.revokeObjectURL(previewUrl);
+    setPendingProductPhotos(current => current.filter(photo => photo.previewUrl !== previewUrl));
+  };
+
   const openNew = () => {
+    clearPendingProductPhotos();
     setDescHtmlMode('preview');
     setForm({ ...BLANK_PRODUCT });
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -5904,6 +5929,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   };
 
   const openEdit = (p: any) => {
+    clearPendingProductPhotos();
     setDescHtmlMode('preview');
     // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
     let base_sku = p.base_sku || '';
@@ -6013,6 +6039,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const doSave = async (brandOverride?: string, formOverride?: any): Promise<boolean> => {
     setSaving(true);
     try {
+      const isNewProduct = !modal.edit;
       let productId: string = modal.edit?.product_id ?? '';
       const [o1n, o2n, o3n] = optionSets.map(s => s.name.trim());
       const sourceForm = formOverride ?? form;
@@ -6055,12 +6082,31 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           await apiFetch('/api/ims/variants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         }
       }
+      const failedPhotoNames: string[] = [];
+      if (isNewProduct && pendingProductPhotos.length > 0) {
+        for (const [index, photo] of pendingProductPhotos.entries()) {
+          try {
+            const data = new FormData();
+            data.append('file', photo.file);
+            data.append('is_primary', index === 0 ? '1' : '0');
+            const response = await fetch(`/api/ims/products/${productId}/images/upload`, { method: 'POST', body: data });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'Upload failed');
+          } catch {
+            failedPhotoNames.push(photo.file.name);
+          }
+        }
+        clearPendingProductPhotos();
+      }
       load();
       // Stay open — refresh modal.edit with updated product data
       try {
         const fresh = await apiFetch(`/api/ims/products/${productId}`);
         if (fresh?.data) setModal({ open: true, edit: fresh.data });
       } catch { /* keep modal as-is */ }
+      if (failedPhotoNames.length > 0) {
+        alert(`The product was saved, but ${failedPhotoNames.length} photo${failedPhotoNames.length === 1 ? '' : 's'} could not be uploaded: ${failedPhotoNames.join(', ')}`);
+      }
       return true;
     } catch (e: any) { alert(e.message); return false; }
     finally { setSaving(false); }
@@ -6861,7 +6907,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
       {/* ── Combined Product + Variants Modal ── */}
       {modal.open && (
-        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => { setModal({ open: false, edit: null }); window.history.pushState(window.history.state, '', '#products'); }} wider>
+        <Modal title={modal.edit ? `Edit: ${form.name || 'Product'}` : 'New Product'} onClose={() => { clearPendingProductPhotos(); setModal({ open: false, edit: null }); window.history.pushState(window.history.state, '', '#products'); }} wider>
           {/* ── Product Details ── */}
           <div style={{ marginBottom: 20 }}>
             {modal.edit?.product_id && (
@@ -6967,13 +7013,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           </div>
 
           {/* ── Media ── */}
-          {modal.edit?.product_id && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Media</span>
-                <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-              </div>
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Media</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            </div>
+            {modal.edit?.product_id ? (
               <div style={{ marginBottom: 20 }}>
                 <ProductImageGallery
                   productId={modal.edit.product_id}
@@ -6991,8 +7037,36 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                   }))}
                 />
               </div>
-            </>
-          )}
+            ) : (
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ ...btnStyle('ghost', 'sm'), display: 'inline-flex', alignItems: 'center', cursor: pendingProductPhotos.length >= 10 ? 'not-allowed' : 'pointer', opacity: pendingProductPhotos.length >= 10 ? 0.55 : 1 }}>
+                  Add photos
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    disabled={pendingProductPhotos.length >= 10}
+                    onChange={event => { stageProductPhotos(event.target.files); event.target.value = ''; }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                <span style={{ marginLeft: 10, fontSize: 11, color: 'var(--sv-text-dim)' }}>{pendingProductPhotos.length}/10 photos selected</span>
+                {pendingProductPhotos.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {pendingProductPhotos.map((photo, index) => (
+                      <div key={photo.previewUrl} style={{ width: 84, position: 'relative' }}>
+                        <img src={photo.previewUrl} alt="" style={{ width: 84, height: 84, display: 'block', objectFit: 'cover', borderRadius: 6, border: '1px solid var(--sv-etch)' }} />
+                        {index === 0 && <span style={{ position: 'absolute', left: 4, bottom: 22, padding: '1px 4px', borderRadius: 3, background: 'rgba(0,0,0,.65)', color: '#fff', fontSize: 9 }}>Primary</span>}
+                        <button type="button" onClick={() => removePendingProductPhoto(photo.previewUrl)} aria-label={`Remove ${photo.file.name}`} title="Remove photo" style={{ position: 'absolute', top: 3, right: 3, width: 20, height: 20, padding: 0, border: 0, borderRadius: '50%', background: 'rgba(0,0,0,.65)', color: '#fff', cursor: 'pointer' }}>×</button>
+                        <div title={photo.file.name} style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{photo.file.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 7, fontSize: 11, color: 'var(--sv-text-dim)' }}>Photos are uploaded when you select Save All. The first photo will be the primary image.</div>
+              </div>
+            )}
+          </>
 
           {/* ── Section divider ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -7221,7 +7295,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
             {modal.edit && <button type="button" onClick={() => setBarcodeLabelOpen(true)} style={{ ...btnStyle('ghost'), marginRight: 'auto' }}>🏷 Print Labels</button>}
-            <button type="button" onClick={() => setModal({ open: false, edit: null })} style={btnStyle('ghost')}>Close</button>
+            <button type="button" onClick={() => { clearPendingProductPhotos(); setModal({ open: false, edit: null }); }} style={btnStyle('ghost')}>Close</button>
             {!isAdvisor && <button type="button" onClick={() => { void handleSaveAll(); }} disabled={saving} style={btnStyle('action')}>{saving ? 'Saving…' : 'Save All'}</button>}
           </div>
         </Modal>

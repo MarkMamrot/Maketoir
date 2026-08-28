@@ -107,7 +107,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   };
 
   const uploadFile = async (file: File) => {
-    if (images.length >= 8) { setError('Maximum 8 media items per product.'); return; }
+    if (images.length >= 10) { setError('Maximum 10 media items per product.'); return; }
     try {
       const fd = new FormData();
       fd.append('file', file);
@@ -123,7 +123,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
   const addUrl = async () => {
     const url = urlInput.trim();
     if (!url) return;
-    if (images.length >= 8) { setError('Maximum 8 media items per product.'); return; }
+    if (images.length >= 10) { setError('Maximum 10 media items per product.'); return; }
     try {
       const r = await fetch(`/api/ims/products/${productId}/images`, {
         method: 'POST',
@@ -357,8 +357,8 @@ export default function ProductImageGallery({ productId, productName = 'Product'
                   </div>
                 ))}
 
-                {/* Add placeholder if < 8 */}
-                {images.length < 8 && (
+                {/* Add placeholder if below the media limit */}
+                {images.length < 10 && (
                   <div
                     onClick={() => fileRef.current?.click()}
                     style={{ width: 64, height: 64, borderRadius: 6, border: '2px dashed var(--sv-etch)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: uploading ? 'not-allowed' : 'pointer', opacity: uploading ? 0.5 : 1, color: 'var(--sv-text-dim)', fontSize: 22 }}
@@ -419,7 +419,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
             </button>
             <button
               onClick={() => fileRef.current?.click()}
-              disabled={uploading || images.length >= 8}
+              disabled={uploading || images.length >= 10}
               style={{
                 padding: '4px 10px', fontSize: 12, border: '1px solid var(--sv-etch)',
                 borderRadius: 5, cursor: 'pointer', background: 'var(--sv-bg-2)',
@@ -430,7 +430,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
             </button>
             <button
               onClick={() => setShowUrl(v => !v)}
-              disabled={images.length >= 8}
+              disabled={images.length >= 10}
               style={{
                 padding: '4px 10px', fontSize: 12, border: '1px solid var(--sv-etch)',
                 borderRadius: 5, cursor: 'pointer', background: 'var(--sv-bg-2)',
@@ -465,7 +465,7 @@ export default function ProductImageGallery({ productId, productName = 'Product'
           )}
 
           <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>
-            {images.length}/8 media items · primary image shown once on the left · videos grouped to the right
+            {images.length}/10 media items · primary image shown once on the left · videos grouped to the right
           </div>
         </div>
       </div>

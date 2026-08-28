@@ -4708,12 +4708,12 @@ export const ImsImagesRepo = {
     source: ImsProductImage['source'],
     opts?: { driveFileId?: string; altText?: string; isPrimary?: boolean },
   ): Promise<number> {
-    // Count existing — enforce max 5
+    // Keep the server authoritative so every image source follows the same limit.
     const rows = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ims_product_images WHERE product_id = ?`,
       [productId],
     );
-    if ((rows[0]?.cnt ?? 0) >= 8) throw new Error('Maximum of 8 media items per product.');
+    if ((rows[0]?.cnt ?? 0) >= 10) throw new Error('Maximum of 10 media items per product.');
 
     // If this is marked primary, demote any existing primary
     if (opts?.isPrimary) {
@@ -4793,7 +4793,12 @@ export const ImsImagesRepo = {
       `DELETE FROM ims_product_images WHERE product_id = ? AND source = 'shopify'`,
       [productId],
     );
-    for (let i = 0; i < Math.min(images.length, 5); i++) {
+    const existingRows = await imsQuery<{ cnt: number }>(
+      `SELECT COUNT(*) AS cnt FROM ims_product_images WHERE product_id = ?`,
+      [productId],
+    );
+    const availableSlots = Math.max(0, 10 - (existingRows[0]?.cnt ?? 0));
+    for (let i = 0; i < Math.min(images.length, availableSlots); i++) {
       await imsExecute(
         `INSERT INTO ims_product_images (product_id, url, source, is_primary, sort_order, alt_text)
          VALUES (?, ?, 'shopify', ?, ?, ?)`,

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products"],"contextSections":{"products":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing"],"order":16,"summary":"Create a product, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products"],"contextSections":{"products":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing"],"order":16,"summary":"Create a product, add product photos, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.","lastReviewed":"2026-08-28","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -8,6 +8,7 @@ Use this guide to create a clean product record and give each sellable option it
 ## Main operations
 
 - Create one product for the item customers recognise.
+- Add up to 10 product photos when creating or editing a product.
 - Add a default variant for a single-option item, or generate variants from Size, Colour or Style.
 - Give each variant a unique SKU and, where used, a unique barcode.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
@@ -43,11 +44,12 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 3. Enter the product Name and Product SKU.
 4. Choose or type the Product Type, brand, category, tags and default supplier as needed.
 5. Add a description and set Active to **Yes** when the item should be available.
-6. For a simple product, add one blank row and use the default variant.
-7. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
-8. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
-9. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
-10. Select **Save All**, then reopen the product and check representative variants.
+6. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
+7. For a simple product, add one blank row and use the default variant.
+8. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
+9. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
+10. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
+11. Select **Save All**, then check the uploaded photos and representative variants.
 
 ## Import products
 

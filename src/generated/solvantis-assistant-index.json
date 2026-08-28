@@ -603,8 +603,8 @@
         "ims-inventory-costing"
       ],
       "order": 16,
-      "summary": "Create a product, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Create a product, add product photos, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.",
+      "lastReviewed": "2026-08-28",
       "owner": "inventory",
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md"
     },
@@ -4737,7 +4737,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "Use this guide to create a clean product record and give each sellable option its own SKU, barcode, prices and cost."
     },
     {
@@ -4755,8 +4755,8 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "- Create one product for the item customers recognise.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+      "lastReviewed": "2026-08-28",
+      "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
     },
     {
       "id": "ims-product-setup-variants:3",
@@ -4773,7 +4773,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "| Decision | Use | Example |\n|---|---|---|\n| One item with no choices | One default variant | Ceramic vase |\n| Same product in sizes or colours | One product with several variants | Linen shirt: S / Navy, M / Navy |\n| A fee or service that is not physically counted | A clearly named product and variant used only where supported | Gift wrapping service |\n| Different products that only look similar | Separate products | Adult raincoat and children's raincoat |\n\n> **Important:** Product Type is a catalogue label. Entering “Service” or “Non-stock” does not by itself guarantee that every sale, PO or stock workflow will ignore quantity. Keep non-stock items out of physical receiving and counting unless your business has confirmed the intended workflow."
     },
     {
@@ -4791,7 +4791,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "- [ ] Search by name, Product SKU, variant SKU and barcode to avoid a duplicate.\n- [ ] Decide the product name customers and staff will recognise.\n- [ ] Decide which choices create separate variants.\n- [ ] Prepare unique SKUs and barcodes.\n- [ ] Confirm retail and wholesale prices, supplier cost and tax treatment.\n- [ ] Choose the default supplier and brand where known.\n\nSelling prices are tax-inclusive. A retail price of $110 includes $10 GST. The Cost field represents buying cost and should be entered on the appropriate tax-exclusive basis; do not enter the $110 selling price as cost."
     },
     {
@@ -4809,8 +4809,8 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open **Products > All Products** and search for the item.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, tags and default supplier as needed.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. For a simple product, add one blank row and use the default variant.\n7. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n8. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n9. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n10. Select **Save All**, then reopen the product and check representative variants."
+      "lastReviewed": "2026-08-28",
+      "content": "1. Open **Products > All Products** and search for the item.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, tags and default supplier as needed.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n7. For a simple product, add one blank row and use the default variant.\n8. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n9. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n10. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n11. Select **Save All**, then check the uploaded photos and representative variants."
     },
     {
       "id": "ims-product-setup-variants:6",
@@ -4827,7 +4827,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "Open **Import Products** and review the accepted CSV titles before preparing the file. Select **Copy CSV titles** to copy the current tab-separated header row, which can be pasted into the first row of a spreadsheet. Keep the supplied column names unchanged when exporting the completed sheet as CSV.\n\nEvery imported row requires **Product_SKU**. A default or single variant uses Product_SKU as its SKU. When option values are present, Solvantis derives the variant SKU by appending Option1, Option2 and Option3 values in order, with spaces removed. For example, Product_SKU **HLS** with Size **M** and Colour **Navy** becomes **HLS-M-Navy**. Product Import does not accept a separate variant SKU override.\n\nBefore reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import."
     },
     {
@@ -4845,7 +4845,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Active | Product and variant | Inactive records should not be used for new work |"
     },
     {
@@ -4863,7 +4863,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named service-style product | Do not receive or count it as a physical unit |\n| Repair labour | Separate service-style product | Keep it out of stocktakes unless a physical item is also supplied |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
     },
     {
@@ -4881,7 +4881,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
     },
     {
@@ -4899,7 +4899,7 @@
         "products"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "content": "### Create a shirt with size and colour variants\n\nCreate **Harbour Linen Shirt** with Product SKU **HLS**. Add Size values **S, M, L** and Colour values **Navy, White**, then generate six variants. Assign SKUs such as **HLS-S-NAVY** and **HLS-M-WHITE**. Set the shelf price to $110 including GST and the supplier cost to $42 tax-exclusive for each applicable row.\n\n### Set up gift wrapping\n\nCreate **Gift Wrapping Service** with one default variant and a tax-inclusive selling price of $8.80, which contains $0.80 GST. Classify it clearly for staff, but do not receive ten units on a PO or include it in a physical stocktake merely because Product Type says “Service”."
     },
     {

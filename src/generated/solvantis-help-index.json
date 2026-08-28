@@ -1354,8 +1354,8 @@
         "ims-inventory-costing"
       ],
       "order": 16,
-      "summary": "Create a product, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Create a product, add product photos, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.",
+      "lastReviewed": "2026-08-28",
       "owner": "inventory",
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md",
       "sections": [
@@ -1367,7 +1367,7 @@
         {
           "id": "ims-product-setup-variants:2",
           "heading": "Main operations",
-          "content": "- Create one product for the item customers recognise.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+          "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
         },
         {
           "id": "ims-product-setup-variants:3",
@@ -1382,7 +1382,7 @@
         {
           "id": "ims-product-setup-variants:5",
           "heading": "Step-by-step",
-          "content": "1. Open **Products > All Products** and search for the item.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, tags and default supplier as needed.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. For a simple product, add one blank row and use the default variant.\n7. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n8. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n9. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n10. Select **Save All**, then reopen the product and check representative variants."
+          "content": "1. Open **Products > All Products** and search for the item.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, tags and default supplier as needed.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n7. For a simple product, add one blank row and use the default variant.\n8. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n9. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n10. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n11. Select **Save All**, then check the uploaded photos and representative variants."
         },
         {
           "id": "ims-product-setup-variants:6",

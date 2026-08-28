@@ -266,7 +266,7 @@ export async function POST(req: Request) {
 
       const images = (shopifyProduct.images ?? [])
         .filter((image: any) => text(image.src))
-        .slice(0, 5)
+        .slice(0, 10)
         .map((image: any) => ({ src: String(image.src), alt: text(image.alt) ?? undefined }));
       await ImsImagesRepo.upsertFromShopify(productId, images);
       imagesCollected += images.length;
