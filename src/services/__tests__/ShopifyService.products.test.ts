@@ -30,6 +30,6 @@ describe('ShopifyService product pagination', () => {
       nextPageInfo: null,
       hasMore: false,
     });
-    expect(list).toHaveBeenCalledWith({ limit: 25, status: 'active', page_info: 'opaque-cursor' });
+    expect(list).toHaveBeenCalledWith({ limit: 25, page_info: 'opaque-cursor' });
   });
 });

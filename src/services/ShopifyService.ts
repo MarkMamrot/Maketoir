@@ -679,8 +679,9 @@ export class ShopifyService {
     hasMore: boolean;
   }> {
     const limit = Math.max(1, Math.min(Math.floor(Number(opts?.limit ?? 25)), 50));
-    const params: Record<string, string | number> = { limit, status: 'active' };
-    if (opts?.pageInfo) params.page_info = opts.pageInfo;
+    const params: Record<string, string | number> = opts?.pageInfo
+      ? { limit, page_info: opts.pageInfo }
+      : { limit, status: 'active' };
 
     const products = await (this.shopify as any).product.list(params) as any;
     const nextPageInfo = String(products.nextPageParameters?.page_info ?? '').trim() || null;
