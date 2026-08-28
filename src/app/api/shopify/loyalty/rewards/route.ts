@@ -100,9 +100,8 @@ export async function POST(request: Request) {
 
   const businessId = connection.business_id;
   try {
-    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
-    const credentials = await getShopifyAdminCredentials(businessId);
-    if (!credentials) return json({ error: 'This Shopify store is not connected to Solvantis.' }, 403);
+    const { resolveShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await resolveShopifyAdminCredentials(businessId, connection);
     return await runImsForBusiness(businessId, async () => {
       const contacts = await imsQuery<{ id: number }>(
         `SELECT id
