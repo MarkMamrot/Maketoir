@@ -57,9 +57,11 @@ async function getCredentials(databaseId: string): Promise<Record<string, string
   try {
     const conn = await ConnectionsRepository.get(databaseId);
     if (!conn) return {};
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const shopify = await getShopifyAdminCredentials(databaseId);
     const data: Record<string, string> = {
-      ShopifyShopId:         conn.shopify_shop_id           ?? '',
-      ShopifyAccessToken:    conn.shopify_access_token      ? decrypt(conn.shopify_access_token) : '',
+      ShopifyShopId:         shopify?.shopDomain            ?? '',
+      ShopifyAccessToken:    shopify?.token                 ?? '',
       MetaAdAccountId:       conn.meta_ad_account_id        ?? '',
       MetaAccessToken:       conn.meta_access_token         ? decrypt(conn.meta_access_token) : '',
       GA4PropertyId:         conn.ga4_property_id           ?? '',

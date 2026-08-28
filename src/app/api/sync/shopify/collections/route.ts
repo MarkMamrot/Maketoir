@@ -57,23 +57,13 @@ export async function POST(req: Request) {
     const [hdrs, vals] = connRows as string[][];
     const get = (k: string) => vals[hdrs.indexOf(k)] ?? '';
 
-    const rawShopId = get('ShopifyShopId');
-    const encryptedToken = get('ShopifyAccessToken');
-
-    if (!rawShopId || !encryptedToken) {
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(databaseId);
+    if (!credentials) {
       return NextResponse.json({ success: false, error: 'Shopify credentials not configured.' }, { status: 400 });
     }
-
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-
-    const accessToken = decrypt(encryptedToken);
-    const shopDomain = `${shopName}.myshopify.com`;
-
-    const shopify = new ShopifyService(shopName, accessToken);
-    const collections = await shopify.getAllCollections(shopDomain);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
+    const collections = await shopify.getAllCollections(credentials.shopDomain);
 
     const websiteSheetId = await getOrCreateWebsiteSheet(sheets, databaseId);
     await sheets.addSheetIfNotExists(websiteSheetId, SHEET_NAME, ShopifyService.COLLECTION_HEADERS);

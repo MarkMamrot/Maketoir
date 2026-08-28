@@ -68,11 +68,10 @@ export async function POST(
     : `Solvantis transaction ${transactionId}: ${transaction.notes ?? 'Gift card adjustment'}`;
 
   try {
-    const provider = await ConnectionsRepository.get(session.businessId);
-    if (!provider?.shopify_shop_id || !provider.shopify_access_token) throw new Error('Shopify credentials are not configured.');
-    let token = provider.shopify_access_token;
-    try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
-    const shopify = new ShopifyService(provider.shopify_shop_id, token);
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(session.businessId);
+    if (!credentials) throw new Error('Shopify credentials are not configured.');
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
     const history = await shopify.getGiftCardTransactions(transaction.shopify_gc_id);
     const existingProviderTransaction = findProviderTransaction(
       history.transactions,

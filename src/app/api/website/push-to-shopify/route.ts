@@ -41,19 +41,14 @@ export async function POST(req: Request) {
     }
     const hdrs = connRows[0] as string[];
     const vals = connRows[1] as string[];
-    const rawShopId = vals[hdrs.indexOf('ShopifyShopId')] || '';
-    const encToken  = vals[hdrs.indexOf('ShopifyAccessToken')] || '';
-
-    if (!rawShopId || !encToken) {
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(databaseId);
+    if (!credentials) {
       return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
     }
-
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-    const accessToken = decrypt(encToken);
-    const shopifyAdminBase = `https://${shopName}.myshopify.com/admin/api/2024-01`;
+    const shopName = credentials.shopName;
+    const accessToken = credentials.token;
+    const shopifyAdminBase = `https://${credentials.shopDomain}/admin/api/2024-01`;
 
     // Find the Shopify product by variant SKU using the GraphQL Admin API
     // (The REST GET /variants.json does not support sku filtering)

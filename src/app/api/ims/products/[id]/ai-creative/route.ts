@@ -773,12 +773,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
       if (shopifyProductId) {
         try {
-          const conn = await ConnectionsRepository.get(businessId) as any;
-          const encToken = conn?.shopify_access_token ?? '';
-          const shopId   = conn?.shopify_shop_id ?? '';
-          if (encToken && shopId) {
-            const token = decrypt(encToken);
-            const shop  = shopId.replace(/\.myshopify\.com$/, '');
+          const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+          const credentials = await getShopifyAdminCredentials(businessId);
+          if (credentials) {
+            const token = credentials.token;
+            const shop  = credentials.shopName;
             const ext   = isVideo ? 'mp4' : (mediaType.split('/')[1] ?? 'jpg');
             if (isVideo) {
               shopifyVideo = await uploadVideoToShopifyProduct({

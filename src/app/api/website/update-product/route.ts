@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { decrypt } from '@/lib/encryption';
 
 /**
@@ -42,21 +43,14 @@ export async function POST(req: Request) {
 
   try {
     // ── Read Shopify credentials ────────────────────────────────────────────
-    const conn = await ConnectionsRepository.get(databaseId);
-    if (!conn?.shopify_shop_id || !conn?.shopify_access_token) {
+    const credentials = await getShopifyAdminCredentials(databaseId);
+    if (!credentials) {
       return NextResponse.json(
         { success: false, error: 'Shopify credentials not configured.' },
         { status: 400 },
       );
     }
-
-    const shopName = conn.shopify_shop_id.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-
-    const accessToken = decrypt(conn.shopify_access_token);
-    const shopify = new ShopifyService(shopName, accessToken);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     // ── Apply updates ───────────────────────────────────────────────────────
     if (hasProductChanges) {

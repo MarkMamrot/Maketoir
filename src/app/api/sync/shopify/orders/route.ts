@@ -69,23 +69,14 @@ export async function POST(req: Request) {
     const [hdrs, vals] = connRows as string[][];
     const get = (k: string) => vals[hdrs.indexOf(k)] ?? '';
 
-    const rawShopId = get('ShopifyShopId');
-    const encryptedToken = get('ShopifyAccessToken');
-
-    if (!rawShopId || !encryptedToken) {
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(databaseId);
+    if (!credentials) {
       return NextResponse.json({ success: false, error: 'Shopify credentials not configured. Go to Setup → Connections.' }, { status: 400 });
     }
 
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    // Validate shop name to prevent SSRF
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-
-    const accessToken = decrypt(encryptedToken);
-
     // ── 2. Fetch orders ─────────────────────────────────────────────────────
-    const shopify = new ShopifyService(shopName, accessToken);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
     const months = Math.max(1, Math.min(36, Number(monthsBack) || 24)); // clamp 1–36
     const orders = await shopify.getOrdersForSync(months);
 

@@ -32,7 +32,10 @@ export async function PUT(request: Request) {
         runImsForBusiness(auth.user.businessId, () => LoyaltyService.getSettings(auth.user.businessId)),
       ]);
       if (!settings.enabled) return NextResponse.json({ error: 'Enable and save the loyalty program before publishing the portal.' }, { status: 400 });
-      if (!connection?.shopify_shop_id || !connection.shopify_access_token) return NextResponse.json({ error: 'Connect Shopify before publishing the loyalty portal.' }, { status: 400 });
+      const hasShopifyCredentials = connection?.shopify_auth_mode === 'client_credentials'
+        ? Boolean(connection.shopify_shop_id && connection.shopify_client_id && connection.shopify_client_secret)
+        : Boolean(connection?.shopify_shop_id && connection.shopify_access_token);
+      if (!hasShopifyCredentials) return NextResponse.json({ error: 'Connect Shopify before publishing the loyalty portal.' }, { status: 400 });
     }
     await LoyaltyPortalProfileRepository.upsert({
       businessId: auth.user.businessId,

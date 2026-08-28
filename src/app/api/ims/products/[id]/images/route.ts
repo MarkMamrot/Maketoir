@@ -6,15 +6,13 @@ import { ImsImagesRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 
 
 async function getShopifyClient(businessId: string) {
   try {
-    const conn = await ConnectionsRepository.get(businessId) as any;
-    const encToken = conn?.shopify_access_token ?? '';
-    const shopId   = conn?.shopify_shop_id ?? '';
-    if (!encToken || !shopId) return null;
-    return { token: decrypt(encToken), shop: shopId.replace(/\.myshopify\.com$/, '') };
+    const credentials = await getShopifyAdminCredentials(businessId);
+    return credentials ? { token: credentials.token, shop: credentials.shopName } : null;
   } catch { return null; }
 }
 

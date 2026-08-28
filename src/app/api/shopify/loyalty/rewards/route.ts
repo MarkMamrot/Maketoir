@@ -94,12 +94,15 @@ export async function POST(request: Request) {
     });
     return json({ error: 'The Shopify store could not be resolved.' }, 500);
   }
-  if (!connection?.shopify_access_token) {
+  if (!connection?.shopify_shop_id) {
     return json({ error: 'This Shopify store is not connected to Solvantis.' }, 403);
   }
 
   const businessId = connection.business_id;
   try {
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(businessId);
+    if (!credentials) return json({ error: 'This Shopify store is not connected to Solvantis.' }, 403);
     return await runImsForBusiness(businessId, async () => {
       const contacts = await imsQuery<{ id: number }>(
         `SELECT id
@@ -113,15 +116,13 @@ export async function POST(request: Request) {
         return json({ error: 'An enrolled loyalty customer could not be resolved.' }, 403);
       }
 
-      let accessToken = connection.shopify_access_token!;
-      try { accessToken = decrypt(accessToken); } catch { /* Legacy unencrypted token. */ }
       const result = await ShopifyRewardIssuanceService.issue({
         businessId,
         contactId: Number(contacts[0].id),
         rewardId,
         idempotencyKey: `shopify-account:${identity.shopifyCustomerId}:${requestKey}`,
         actorId: `shopify-customer:${identity.shopifyCustomerId}`,
-        shopify: new ShopifyService(connection!.shopify_shop_id ?? identity.shopDomain, accessToken),
+        shopify: new ShopifyService(credentials.shopDomain, credentials.token),
       });
       return json({
         success: true,

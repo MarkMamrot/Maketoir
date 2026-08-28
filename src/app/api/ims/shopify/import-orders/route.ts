@@ -89,16 +89,14 @@ export async function POST(req: Request) {
   }
 
   // Shopify credentials
-  const conn = await ConnectionsRepository.get(businessId);
-  const shopId    = (conn as any)?.shopify_shop_id;
-  let   shopToken = (conn as any)?.shopify_access_token ?? '';
-  if (!shopId || !shopToken) {
+  const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) {
     return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
   }
-  try { shopToken = decrypt(shopToken); } catch { /* unencrypted */ }
 
   // Fetch orders from Shopify
-  const shopify = new ShopifyService(shopId, shopToken);
+  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
   let shopifyOrders: any[];
   try {
     // Fetch from (syncFrom − 1 day) so no order near the AEST/UTC midnight boundary
