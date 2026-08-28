@@ -14,6 +14,7 @@ import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
 import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
@@ -21,14 +22,9 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 
 async function getShopify(businessId: string) {
-  const conn = await ConnectionsRepository.get(businessId) as any;
-  const rawShopId = conn?.shopify_shop_id ?? '';
-  const encToken  = conn?.shopify_access_token ?? '';
-  if (!rawShopId || !encToken) return null;
-  const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-  if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return null;
-  const accessToken = decrypt(encToken);
-  return { service: new ShopifyService(shopName, accessToken), shopName, shopDomain: `${shopName}.myshopify.com`, accessToken };
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) return null;
+  return { service: new ShopifyService(credentials.shopDomain, credentials.token), shopName: credentials.shopName, shopDomain: credentials.shopDomain, accessToken: credentials.token };
 }
 
 /**

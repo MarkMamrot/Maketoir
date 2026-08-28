@@ -16,11 +16,9 @@ function getPosSession() {
 
 async function getShopify(businessId: string): Promise<ShopifyService | null> {
   try {
-    const conn = await ConnectionsRepository.get(businessId);
-    if (!conn?.shopify_shop_id || !conn?.shopify_access_token) return null;
-    let token = conn.shopify_access_token;
-    try { token = decrypt(token); } catch { /* unencrypted */ }
-    return new ShopifyService(conn.shopify_shop_id, token);
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(businessId);
+    return credentials ? new ShopifyService(credentials.shopDomain, credentials.token) : null;
   } catch { return null; }
 }
 

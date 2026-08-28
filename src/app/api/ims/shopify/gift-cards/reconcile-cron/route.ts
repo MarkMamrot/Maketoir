@@ -66,14 +66,13 @@ export async function POST(req: Request) {
           return;
         }
 
-        const connection = await ConnectionsRepository.get(businessId);
-        if (!connection?.shopify_shop_id || !connection.shopify_access_token) {
+        const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+        const credentials = await getShopifyAdminCredentials(businessId);
+        if (!credentials) {
           results.push({ businessId, status: 'skipped', reason: 'shopify_not_connected' });
           return;
         }
-        let token = connection.shopify_access_token;
-        try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
-        const shopify = new ShopifyService(connection.shopify_shop_id, token);
+        const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
         const result = await syncShopifyGiftCardSnapshots(businessId, shopify);
         results.push({
           businessId,

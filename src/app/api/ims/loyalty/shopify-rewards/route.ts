@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { LoyaltyRepository, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import { LoyaltyService } from '@/lib/loyalty/LoyaltyService';
 import { ShopifyRewardIssuanceService } from '@/lib/loyalty/ShopifyRewardIssuanceService';
@@ -117,12 +118,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'contactId, rewardId, and idempotencyKey are required.' }, { status: 400 });
   }
 
-  const connection = await ConnectionsRepository.get(session.businessId);
-  if (!connection?.shopify_shop_id || !connection.shopify_access_token) {
+  const credentials = await getShopifyAdminCredentials(session.businessId);
+  if (!credentials) {
     return NextResponse.json({ error: 'Shopify credentials are not configured.' }, { status: 400 });
   }
-  let accessToken = connection.shopify_access_token;
-  try { accessToken = decrypt(accessToken); } catch { /* Legacy unencrypted token. */ }
 
   try {
     const result = await ShopifyRewardIssuanceService.issue({
@@ -131,7 +130,7 @@ export async function POST(request: Request) {
       rewardId,
       idempotencyKey,
       actorId: session.userId ?? null,
-      shopify: new ShopifyService(connection.shopify_shop_id, accessToken),
+      shopify: new ShopifyService(credentials.shopDomain, credentials.token),
     });
     return NextResponse.json({ success: true, redemption: result });
   } catch (error) {

@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -17,17 +18,11 @@ export async function POST() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   try {
-    const conn = await ConnectionsRepository.get(session.businessId);
-    const rawShopId = conn?.shopify_shop_id ?? '';
-    const encToken  = conn?.shopify_access_token ?? '';
-    if (!rawShopId || !encToken) {
+    const credentials = await getShopifyAdminCredentials(session.businessId);
+    if (!credentials) {
       return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
     }
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-    const shopify = new ShopifyService(shopName, decrypt(encToken));
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     // Get all IMS products for this business that are linked to Shopify
     const linked = await imsQuery<{ product_id: string; shopify_product_id: string }>(

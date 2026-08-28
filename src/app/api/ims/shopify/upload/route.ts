@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 
 
@@ -16,18 +17,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'product_ids array required.' }, { status: 400 });
     }
 
-    const conn = await ConnectionsRepository.get(session.businessId);
-    const rawShopId = conn?.shopify_shop_id ?? '';
-    const encToken  = conn?.shopify_access_token ?? '';
-    if (!rawShopId || !encToken) {
+    const credentials = await getShopifyAdminCredentials(session.businessId);
+    if (!credentials) {
       return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
     }
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-    const accessToken = decrypt(encToken);
-    const shopify = new ShopifyService(shopName, accessToken);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     const results: Array<{ product_id: string; name: string; success: boolean; shopify_id?: string; error?: string }> = [];
 

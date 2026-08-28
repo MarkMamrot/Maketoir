@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { decrypt } from '@/lib/encryption';
 
 export const runtime = 'nodejs';
@@ -43,13 +44,9 @@ function buildExpectedUrl(req: Request, businessId: string): string {
 }
 
 async function getShopifyCreds(businessId: string) {
-  const conn = await ConnectionsRepository.get(businessId) as any;
-  const rawShopId = conn?.shopify_shop_id ?? '';
-  const encToken  = conn?.shopify_access_token ?? '';
-  if (!rawShopId || !encToken) return null;
-  const shopName = String(rawShopId).replace(/\.myshopify\.com$/, '');
-  const token = decrypt(encToken);
-  return { shopName, token, base: `https://${shopName}.myshopify.com/admin/api/2024-10` };
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) return null;
+  return { shopName: credentials.shopName, token: credentials.token, base: `https://${credentials.shopDomain}/admin/api/2024-10` };
 }
 
 async function listApiWebhooks(base: string, token: string) {

@@ -27,11 +27,10 @@ export async function POST(request: Request, { params }: { params: { slug: strin
     const subject = createAuthRateLimitSubject('loyalty-portal-otp-request', businessId, email, clientIp(request));
     if ((await getAuthRateLimit('loyalty-portal-otp-request', subject)).locked) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
     await recordAuthFailure({ action: 'loyalty-portal-otp-request', subjectHash: subject, threshold: 3, windowSeconds: 600, lockSeconds: 600 });
-    const connection = await ConnectionsRepository.get(businessId);
-    if (!connection?.shopify_shop_id || !connection.shopify_access_token) throw new Error('Shopify is not configured for this loyalty portal.');
-    let token = connection.shopify_access_token;
-    try { token = decrypt(token); } catch { /* Legacy unencrypted token. */ }
-    const customers = await new ShopifyService(connection.shopify_shop_id, token).findCustomersByExactEmail(email);
+    const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+    const credentials = await getShopifyAdminCredentials(businessId);
+    if (!credentials) throw new Error('Shopify is not configured for this loyalty portal.');
+    const customers = await new ShopifyService(credentials.shopDomain, credentials.token).findCustomersByExactEmail(email);
     if (customers.length !== 1) return NextResponse.json({ success: true, message: MESSAGE, challengeToken: fallback });
     const contactId = await runImsForBusiness(businessId, () => upsertLoyaltyPortalCustomer(businessId!, customers[0]));
     const challenge = await createCustomerOtp({ businessId, contactId, email, purpose: 'loyalty_portal' });

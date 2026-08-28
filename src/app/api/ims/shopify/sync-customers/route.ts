@@ -237,14 +237,13 @@ export async function POST(req: Request) {
     });
   }
 
-  const conn = await ConnectionsRepository.get(session.businessId);
-  if (!conn?.shopify_shop_id || !conn?.shopify_access_token) {
+  const { getShopifyAdminCredentials } = await import('@/lib/shopifyCredentials');
+  const credentials = await getShopifyAdminCredentials(session.businessId);
+  if (!credentials) {
     return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
   }
 
-  let token = conn.shopify_access_token;
-  try { token = decrypt(token); } catch { /* unencrypted */ }
-  const shopify = new ShopifyService(conn.shopify_shop_id, token);
+  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
   const activeCustomerIds = new Set<string>();
   const activeMonthsCutoff = new Date();
   activeMonthsCutoff.setMonth(activeMonthsCutoff.getMonth() - inactiveAfterMonths);

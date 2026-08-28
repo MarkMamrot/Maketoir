@@ -4,6 +4,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 
 const SHEET_NAME = 'Shopify_Products';
 const LAST_SYNC_CONFIG_KEY = 'WebsiteProductsLastSync';
@@ -70,29 +71,16 @@ export async function POST(req: Request) {
 
   try {
     // ── 1. Read Shopify credentials ─────────────────────────────────────────
-    const conn = await ConnectionsRepository.get(databaseId);
-    const rawShopId = conn?.shopify_shop_id ?? '';
-    const encryptedToken = conn?.shopify_access_token ?? '';
-    if (!conn) throw new Error('Connection record not found.');
-
-    if (!rawShopId || !encryptedToken) {
+    const credentials = await getShopifyAdminCredentials(databaseId);
+    if (!credentials) {
       return NextResponse.json(
         { success: false, error: 'Shopify credentials not configured. Go to Setup → Connections.' },
         { status: 400 },
       );
     }
 
-    // Normalise: strip .myshopify.com if the user stored the full domain
-    const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-    // Validate shop name (alphanumeric + hyphens only) to prevent SSRF
-    if (!/^[a-zA-Z0-9-]+$/.test(shopName)) {
-      return NextResponse.json({ success: false, error: 'Invalid Shopify shop name.' }, { status: 400 });
-    }
-
-    const accessToken = decrypt(encryptedToken);
-
     // ── 2. Fetch all products from Shopify ──────────────────────────────────
-    const shopify = new ShopifyService(shopName, accessToken);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
     console.log('[shopify-sync] Fetching all products…');
     const allProducts = await shopify.getAllProducts();
     console.log(`[shopify-sync] Fetched ${allProducts.length} products.`);
