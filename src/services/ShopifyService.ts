@@ -672,6 +672,21 @@ export class ShopifyService {
     return products;
   }
 
+  /** Fetch one bounded product page so callers can pace long-running catalogue work. */
+  async getProductsPage(opts?: { limit?: number; afterId?: string | number | null }): Promise<{
+    products: any[];
+    nextAfterId: string | null;
+    hasMore: boolean;
+  }> {
+    const limit = Math.max(1, Math.min(Math.floor(Number(opts?.limit ?? 25)), 50));
+    const params: Record<string, string | number> = { limit };
+    if (opts?.afterId) params.since_id = String(opts.afterId);
+
+    const products = await (this.shopify as any).product.list(params) as any[];
+    const nextAfterId = products.length > 0 ? String(products[products.length - 1].id) : null;
+    return { products, nextAfterId, hasMore: products.length === limit };
+  }
+
   /**
    * Fetches all orders created on or after `sinceDate` (ISO date string, e.g. '2026-07-01').
    * Returns full order objects including line_items, financial_status, fulfillment_status.

@@ -8,6 +8,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 ## Main operations
 
 - Confirm Shopify connection health and required access before syncing.
+- Import a Shopify catalogue into Solvantis in paced batches during onboarding or later catalogue maintenance.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
 - Repair variant linkage before retrying affected Shopify data.
@@ -17,6 +18,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 
 | Need | Check | Safe action |
 |---|---|---|
+| Bring an existing Shopify catalogue into Solvantis | Shopify connection and existing SKU or barcode records | Use **Products > Import from Shopify** and review any warnings |
 | Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |
 | Inventory looks stale | Variant linkage, location mapping, and recent sync or webhook | Fix the cause, then retry or wait for the queued update |
 | Order line shows Shopify Misc Charge | Original Shopify title and variant linkage | Repair the intended product mapping |
@@ -34,6 +36,21 @@ Use Shopify integration status and history to keep supported catalogue and order
 > **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.
 
 ## Step-by-step
+
+### Import products from Shopify
+
+1. Open **Integrations > Shopify** and choose **Products**.
+2. Choose **Import from Shopify**.
+3. Keep the page open while Solvantis imports the catalogue in small batches.
+4. Review the running totals for Shopify products and image links.
+5. Open **items need review** when warnings appear and resolve ambiguous SKU or barcode matches.
+6. Confirm the imported products, variants, prices, and images in IMS before using them in normal operations.
+
+The import creates products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear product.
+
+> **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.
+
+> **Tip:** Run the import again when Shopify catalogue details or image links need refreshing. The batches are deliberately paced, so large catalogues take longer and place less pressure on Shopify.
 
 ### Check or repair product linkage
 
@@ -69,6 +86,9 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 
 | Symptom | Likely cause | What to do |
 |---|---|---|
+| Import reports items needing review | A SKU or barcode matches variants on more than one Solvantis product | Inspect the listed products, correct the duplicate identifier, then run the import again |
+| Imported product has no stock | Catalogue import intentionally leaves stock unchanged | Enter or import opening stock through the normal stock workflow |
+| Import stops partway through | The browser closed, the connection failed, or Shopify rejected a request | Correct the connection issue and run the import again; completed records will be updated rather than duplicated |
 | Several sync actions fail | Authorization or required Shopify access changed | Reconnect or correct access before retrying individual items |
 | One product remains unlinked | Variant linkage is absent or points to another item | Inspect every variant and repair the intended match |
 | Inventory differs between systems | Queued update, location mapping, webhook failure, or manual change | Trace sync history and source stock before correcting anything |
@@ -76,6 +96,10 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 | Payout status is missing here | Payout accounting is handled in Xero activity | Open **Xero > Shopify Payouts** |
 
 ## Worked examples
+
+### Onboard an existing Shopify catalogue
+
+A retailer connects a store with 620 products and starts **Import from Shopify**. Solvantis requests 25 products at a time, pauses between batches, creates missing products and variants, and records their Shopify image URLs. An existing SKU matches one clear IMS product, so that product is linked and refreshed. Two duplicate barcodes point to different IMS products, so those Shopify items are left for review instead of being guessed. No stock quantity changes during the import.
 
 ### Identify an unmatched size variant
 

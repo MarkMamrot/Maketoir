@@ -106,8 +106,6 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState<any>(null);
   const [reconcileError, setReconcileError]   = useState<string | null>(null);
-  const [importingImages, setImportingImages] = useState(false);
-  const [importResult, setImportResult]       = useState<string | null>(null);
 
   const runReconcile = async () => {
     setReconciling(true);
@@ -123,17 +121,6 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
       setReconcileError(e.message);
     }
     setReconciling(false);
-  };
-
-  const runImportImages = async () => {
-    setImportingImages(true); setImportResult(null);
-    try {
-      const r = await fetch('/api/ims/shopify/import-images', { method: 'POST' });
-      const d = await r.json();
-      if (!d.success) throw new Error(d.error);
-      setImportResult(`Imported images for ${d.imported} products (${d.skipped} skipped).`);
-    } catch (e: any) { setImportResult(`Error: ${e.message}`); }
-    setImportingImages(false);
   };
 
   const card: React.CSSProperties = {
@@ -209,30 +196,6 @@ function ShopifyOverviewTab({ status, onReload }: { status: any; onReload: () =>
         )}
       </div>
 
-      {/* Import images card */}
-      <div style={{ ...card, marginTop: 16 }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--sv-text-strong)' }}>Import Product Images from Shopify</h3>
-        <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Pulls Shopify CDN image URLs for all linked products into IMS. Run after Reconcile.
-          Images are stored as URLs — nothing is downloaded.
-        </p>
-        <button
-          onClick={runImportImages}
-          disabled={importingImages}
-          style={{
-            padding: '9px 20px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)',
-            border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: importingImages ? 'not-allowed' : 'pointer',
-            fontWeight: 600, fontSize: 14, opacity: importingImages ? 0.7 : 1,
-          }}
-        >
-          {importingImages ? 'Importing…' : '🖼 Import Images'}
-        </button>
-        {importResult && (
-          <div style={{ marginTop: 12, fontSize: 13, color: importResult.startsWith('Error') ? '#f87171' : '#34d399' }}>
-            {importResult.startsWith('Error') ? '✗' : '✓'} {importResult}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -249,6 +212,11 @@ function ShopifyProductsTab() {
   const [opResult, setOpResult]   = useState<string | null>(null);
   const [opError, setOpError]     = useState<string | null>(null);
   const [opProgress, setOpProgress] = useState<{ synced: number; total: number; batch: number; batches: number } | null>(null);
+  const [importingCatalogue, setImportingCatalogue] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    batches: number; fetched: number; createdProducts: number; updatedProducts: number;
+    createdVariants: number; updatedVariants: number; images: number; warnings: string[];
+  } | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -299,6 +267,53 @@ function ShopifyProductsTab() {
       await fetchProducts();
     } catch (e: any) { setOpError(e.message); }
     setUploading(false);
+  };
+
+  const runCatalogueImport = async () => {
+    setImportingCatalogue(true); setOpResult(null); setOpError(null);
+    let afterId: string | null = null;
+    const totals = {
+      batches: 0, fetched: 0, createdProducts: 0, updatedProducts: 0,
+      createdVariants: 0, updatedVariants: 0, images: 0, warnings: [] as string[],
+    };
+    setImportProgress({ ...totals });
+
+    try {
+      let hasMore = true;
+      while (hasMore) {
+        const response = await fetch('/api/ims/shopify/import-products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ after_id: afterId, limit: 25 }),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok || !data.success) throw new Error(data.error ?? `Import failed with status ${response.status}`);
+
+        totals.batches++;
+        totals.fetched += Number(data.fetched ?? 0);
+        totals.createdProducts += Number(data.created_products ?? 0);
+        totals.updatedProducts += Number(data.updated_products ?? 0);
+        totals.createdVariants += Number(data.created_variants ?? 0);
+        totals.updatedVariants += Number(data.updated_variants ?? 0);
+        totals.images += Number(data.images_collected ?? 0);
+        totals.warnings.push(...(data.warnings ?? []));
+        setImportProgress({ ...totals, warnings: [...totals.warnings] });
+
+        hasMore = Boolean(data.has_more && data.next_after_id);
+        afterId = data.next_after_id ?? null;
+        if (hasMore) await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+
+      setOpResult(
+        `Shopify import complete: ${totals.createdProducts} new and ${totals.updatedProducts} updated products, `
+        + `${totals.createdVariants} new and ${totals.updatedVariants} updated variants, ${totals.images} image links collected.`,
+      );
+      await fetchProducts();
+    } catch (e: any) {
+      setOpError(e.message);
+    } finally {
+      setImportingCatalogue(false);
+    }
   };
 
   /** Sync prices for a list of IMS product IDs, batching into ≤30-product calls
@@ -384,6 +399,38 @@ function ShopifyProductsTab() {
 
   return (
     <div>
+      <div style={{ padding: 18, marginBottom: 16, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 420px' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Import Products from Shopify</h3>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
+              Creates missing products and variants, refreshes linked catalogue details, and collects Shopify image URLs. Stock quantities are not changed.
+            </p>
+          </div>
+          <button
+            onClick={runCatalogueImport}
+            disabled={importingCatalogue || uploading || syncing}
+            style={{ padding: '8px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: importingCatalogue ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: importingCatalogue ? 0.7 : 1 }}
+          >
+            {importingCatalogue ? 'Importing…' : 'Import from Shopify'}
+          </button>
+        </div>
+        {importProgress && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
+            <strong>{importingCatalogue ? 'Import in progress' : 'Last import'}</strong>
+            {' · '}{importProgress.batches} batches · {importProgress.fetched} Shopify products · {importProgress.images} image links
+            {importProgress.warnings.length > 0 && (
+              <details style={{ marginTop: 6 }}>
+                <summary style={{ cursor: 'pointer', color: '#fbbf24' }}>{importProgress.warnings.length} items need review</summary>
+                <div style={{ marginTop: 4, maxHeight: 120, overflowY: 'auto', color: 'var(--sv-text-dim)' }}>
+                  {importProgress.warnings.map((warning, index) => <div key={`${index}-${warning}`}>{warning}</div>)}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Controls row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 6 }}>
@@ -397,19 +444,19 @@ function ShopifyProductsTab() {
           style={{ flex: 1, minWidth: 160, height: 34, padding: '0 10px', fontSize: 13, border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)' }}
         />
         <button
-          onClick={runUpload} disabled={uploading || syncing}
+          onClick={runUpload} disabled={uploading || syncing || importingCatalogue}
           style={{ padding: '7px 16px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: uploading ? 0.7 : 1 }}
         >
           {uploading ? 'Uploading…' : '⬆ Upload Selected'}
         </button>
         <button
-          onClick={runSyncPrices} disabled={syncing || uploading}
+          onClick={runSyncPrices} disabled={syncing || uploading || importingCatalogue}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '💲 Sync Prices'}
         </button>
         <button
-          onClick={runResync} disabled={syncing || uploading}
+          onClick={runResync} disabled={syncing || uploading || importingCatalogue}
           style={{ padding: '7px 16px', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13, opacity: syncing ? 0.7 : 1 }}
         >
           {syncing ? 'Syncing…' : '🔄 Full Resync'}
