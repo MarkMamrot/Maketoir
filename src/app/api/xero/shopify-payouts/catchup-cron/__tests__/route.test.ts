@@ -10,6 +10,10 @@ const { mockQuery, mockRunImsForBusiness, mockGetCreds, mockFetchPayouts, mockIn
 
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: vi.fn().mockResolvedValue(undefined),
+  isXeroAccountingDisabledError: vi.fn().mockReturnValue(false),
+}));
 vi.mock('@/lib/ims/shopifyPayoutIngestion', () => ({
   getShopifyApiCreds: mockGetCreds,
   fetchPaidShopifyPayouts: mockFetchPayouts,

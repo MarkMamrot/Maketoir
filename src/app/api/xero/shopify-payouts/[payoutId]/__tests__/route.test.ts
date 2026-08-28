@@ -30,6 +30,10 @@ vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBu
 vi.mock('@/lib/ims/shopifyPayoutActionPlanner', () => ({ planShopifyPayoutActions: mockPlan }));
 vi.mock('@/lib/ims/shopifyPayoutActionExecutor', () => ({ executeShopifyPayoutActions: mockExecute }));
 vi.mock('@/lib/xero/onlineDailySalesSync', () => ({ syncOnlineDailySalesDay: mockSyncOnlineDailySalesDay }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: vi.fn().mockResolvedValue(undefined),
+  isXeroAccountingDisabledError: vi.fn().mockReturnValue(false),
+}));
 vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
   return { ...actual, assertXeroWorkflowEnabled: mockAssertXeroWorkflowEnabled };

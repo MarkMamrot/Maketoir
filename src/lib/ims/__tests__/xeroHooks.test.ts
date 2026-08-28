@@ -60,6 +60,10 @@ vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsSupplierCNRepo: { get: mockSupplierCNGet },
 }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({ getXeroDocumentPolicy: mockGetPolicy }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  isXeroAccountingEnabled: vi.fn().mockResolvedValue(true),
+  assertXeroAccountingEnabled: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/services/XeroSyncService', () => ({
   syncPOAsDraftBill: mockSyncPOAsDraftBill,

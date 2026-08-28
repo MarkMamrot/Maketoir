@@ -16,6 +16,10 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/services/XeroCogsService', () => ({ postCogsPeriod: mockPostCogsPeriod }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: vi.fn().mockResolvedValue(undefined),
+  isXeroAccountingDisabledError: vi.fn().mockReturnValue(false),
+}));
 vi.mock('@/lib/xero/postingPolicy', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/xero/postingPolicy')>();
   return { ...actual, assertXeroPostingEnabled: mockAssertXeroPostingEnabled };
