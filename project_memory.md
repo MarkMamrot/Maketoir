@@ -1,10 +1,10 @@
-## 2026-08-26 - Runtime Issue triage, query compatibility, and detail UI
-
 ## 2026-08-28 - Shopify Dev Dashboard authentication
 
 - Setup Shopify connections now support existing permanent legacy Admin API tokens and new Dev Dashboard client credentials per business. Client secrets and generated tokens are encrypted; 24-hour tokens are cached and renewed five minutes before expiry through one shared credential resolver used by active catalogue, order, customer, inventory, gift-card, loyalty, webhook, payout, and website paths.
 - `scripts/setup-shopify-connections.mjs` added `shopify_auth_mode`, `shopify_client_id`, `shopify_client_secret`, and `shopify_token_expires_at` to the shared `connections` table. It was applied successfully and an immediate rerun made no changes. Existing rows default to `legacy_token`, so Monsterthreads credentials remain unchanged.
 - Setup tests Shopify server-side without exposing credentials in the URL or returning saved client secrets. Canonical Connections Help documents the Dev Dashboard install/save/test/webhook sequence. Validation: 439 Vitest files passed / one skipped, 2,099 tests passed / one skipped, production build and migration idempotency passed.
+
+## 2026-08-26 - Runtime Issue triage, query compatibility, and detail UI
 
 - Reviewed Runtime Issues in small batches using each fingerprint's latest event as primary evidence. The live control plane now has 40 fixed and 21 open fingerprints; issues requiring stock, customer-value, external-link, configuration, or current deployment decisions remain open.
 - Product Sync status now has a compact Advanced menu for guarded Shopify delink/manual link repair. Delink clears the product and child variant/inventory IDs without deleting Shopify or changing local catalogue/stock data. Manual link verifies the numeric Shopify product ID remotely, rejects duplicate IMS ownership, and restores only unique exact SKU/barcode variant matches in one tenant transaction.

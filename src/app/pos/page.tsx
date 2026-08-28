@@ -1416,7 +1416,11 @@ function MainPos({
   const [contactSearchError, setContactSearchError] = useState(false);
   const [inactiveContactCount, setInactiveContactCount] = useState(0);
   const [showInactiveContacts, setShowInactiveContacts] = useState(false);
-  const [pendingInactiveContact, setPendingInactiveContact] = useState<PosCustomerResult | null>(null);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ firstName: '', lastName: '', email: '', phone: '', loyaltyMember: false });
+  const [newCustomerOptions, setNewCustomerOptions] = useState<{ active: boolean; programName: string; termsUrl: string | null } | null>(null);
+  const [newCustomerLoading, setNewCustomerLoading] = useState(false);
+  const [newCustomerError, setNewCustomerError] = useState('');
   const [loyaltySummary, setLoyaltySummary] = useState<{
     enabled: boolean;
     active: boolean;
@@ -1649,14 +1653,49 @@ function MainPos({
     setContactSearch('');
     setContactResults([]);
     setShowInactiveContacts(false);
+    setNewCustomerOpen(false);
   };
 
-  const reactivateCustomer = async (customer: PosCustomerResult, managerPin?: string) => {
-    const response = await fetch('/api/pos/store-credit', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: customer.id, manager_pin: managerPin }) });
+  const reactivateCustomer = async (customer: PosCustomerResult) => {
+    const response = await fetch('/api/pos/store-credit', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact_id: customer.id }) });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || 'Customer could not be reactivated.');
-    setPendingInactiveContact(null);
     linkCustomer(customer);
+  };
+
+  const openNewCustomer = async () => {
+    setNewCustomer({ firstName: '', lastName: '', email: '', phone: '', loyaltyMember: false });
+    setNewCustomerError('');
+    setNewCustomerOptions(null);
+    setNewCustomerOpen(true);
+    try {
+      const response = await fetch('/api/pos/customers');
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Customer options could not be loaded.');
+      setNewCustomerOptions(body.loyalty ?? null);
+    } catch (error) {
+      setNewCustomerError(error instanceof Error ? error.message : 'Customer options could not be loaded.');
+    }
+  };
+
+  const createCustomer = async (event: { preventDefault(): void }) => {
+    event.preventDefault();
+    setNewCustomerLoading(true);
+    setNewCustomerError('');
+    try {
+      const response = await fetch('/api/pos/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCustomer),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Customer could not be created.');
+      linkCustomer(body.customer);
+    } catch (error) {
+      setNewCustomerError(error instanceof Error ? error.message : 'Customer could not be created.');
+    } finally {
+      setNewCustomerLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -2560,7 +2599,7 @@ function MainPos({
           </div>
           {customerOpen && (
             <div style={{ padding: '0 .75rem .4rem' }}>
-              {!linkedContact && <div style={{ marginBottom: '.35rem' }}>
+              {!linkedContact && !newCustomerOpen && <div style={{ marginBottom: '.35rem', display: 'flex', gap: '.35rem' }}>
                 <input
                   placeholder='Search customer by name, phone or email'
                   aria-label='Search customer by name, phone or email'
@@ -2569,8 +2608,9 @@ function MainPos({
                   onChange={e => {
                     setContactSearch(e.target.value);
                   }}
-                  style={{ ...inputStyle, width: '100%', marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }}
+                  style={{ ...inputStyle, flex: 1, minWidth: 0, marginBottom: 0, padding: '.35rem .5rem', fontSize: '.8rem', boxSizing: 'border-box' }}
                 />
+                <button type="button" onClick={() => void openNewCustomer()} disabled={!isOnline} style={{ padding: '0 .7rem', borderRadius: 6, border: '1px solid var(--sv-action)', background: 'transparent', color: isOnline ? 'var(--sv-action)' : 'var(--sv-text-muted)', cursor: isOnline ? 'pointer' : 'not-allowed', fontSize: '.76rem', fontWeight: 800 }}>New</button>
               </div>}
               {/* Contact/store-credit lookup */}
               {linkedContact ? (
@@ -2621,6 +2661,31 @@ function MainPos({
                     )}
                   </div>
                 </div>
+              ) : newCustomerOpen ? (
+                <form onSubmit={createCustomer} style={{ padding: '.55rem', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-2)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.45rem' }}>
+                    <strong style={{ fontSize: '.8rem' }}>New customer</strong>
+                    <button type="button" onClick={() => setNewCustomerOpen(false)} aria-label="Cancel new customer" style={{ border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '1rem' }}>×</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
+                    <label style={{ fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>First name<input required maxLength={100} autoFocus value={newCustomer.firstName} onChange={event => setNewCustomer(current => ({ ...current, firstName: event.target.value }))} style={{ ...inputStyle, width: '100%', margin: '.15rem 0 0', padding: '.35rem .45rem', boxSizing: 'border-box' }} /></label>
+                    <label style={{ fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>Last name<input maxLength={100} value={newCustomer.lastName} onChange={event => setNewCustomer(current => ({ ...current, lastName: event.target.value }))} style={{ ...inputStyle, width: '100%', margin: '.15rem 0 0', padding: '.35rem .45rem', boxSizing: 'border-box' }} /></label>
+                    <label style={{ fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>Email<input type="email" maxLength={255} value={newCustomer.email} onChange={event => setNewCustomer(current => ({ ...current, email: event.target.value }))} style={{ ...inputStyle, width: '100%', margin: '.15rem 0 0', padding: '.35rem .45rem', boxSizing: 'border-box' }} /></label>
+                    <label style={{ fontSize: '.7rem', color: 'var(--sv-text-dim)' }}>Phone<input type="tel" maxLength={50} value={newCustomer.phone} onChange={event => setNewCustomer(current => ({ ...current, phone: event.target.value }))} style={{ ...inputStyle, width: '100%', margin: '.15rem 0 0', padding: '.35rem .45rem', boxSizing: 'border-box' }} /></label>
+                  </div>
+                  <div style={{ marginTop: '.35rem', fontSize: '.68rem', color: 'var(--sv-text-dim)' }}>An email address or phone number is required.</div>
+                  {newCustomerOptions?.active && (
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '.4rem', marginTop: '.5rem', fontSize: '.72rem', color: 'var(--sv-text-main)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={newCustomer.loyaltyMember} onChange={event => setNewCustomer(current => ({ ...current, loyaltyMember: event.target.checked }))} style={{ marginTop: 2 }} />
+                      <span>Customer agrees to join {newCustomerOptions.programName}{newCustomerOptions.termsUrl && <> under the <a href={newCustomerOptions.termsUrl} target="_blank" rel="noreferrer" onClick={event => event.stopPropagation()} style={{ color: 'var(--sv-action)' }}>loyalty terms</a></>}.</span>
+                    </label>
+                  )}
+                  {newCustomerError && <div role="alert" style={{ marginTop: '.45rem', color: 'var(--sv-red)', fontSize: '.72rem' }}>{newCustomerError}</div>}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '.4rem', marginTop: '.55rem' }}>
+                    <button type="button" onClick={() => setNewCustomerOpen(false)} style={{ padding: '.35rem .65rem', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer', fontSize: '.72rem', fontWeight: 700 }}>Cancel</button>
+                    <button type="submit" disabled={newCustomerLoading || !newCustomerOptions} style={{ padding: '.35rem .7rem', borderRadius: 5, border: 0, background: 'var(--sv-action)', color: '#fff', cursor: newCustomerLoading || !newCustomerOptions ? 'not-allowed' : 'pointer', opacity: newCustomerLoading || !newCustomerOptions ? .6 : 1, fontSize: '.72rem', fontWeight: 800 }}>{newCustomerLoading ? 'Creating…' : 'Create & link'}</button>
+                  </div>
+                </form>
               ) : (
                 <div style={{ position: 'relative' }}>
                   {(contactSearching || contactResults.length > 0 || contactSearch.trim().length >= 2) && (
@@ -2639,7 +2704,7 @@ function MainPos({
                           key={c.id}
                           onClick={() => {
                             if (c.is_active) linkCustomer(c);
-                            else setPendingInactiveContact(c);
+                            else void reactivateCustomer(c).catch(() => setContactSearchError(true));
                           }}
                           style={{ display: 'block', width: '100%', padding: '.4rem .6rem', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sv-text-main)', fontSize: '.8rem', borderBottom: '1px solid var(--sv-etch)' }}
                         >
@@ -2656,7 +2721,6 @@ function MainPos({
                   )}
                 </div>
               )}
-              {pendingInactiveContact && <ManagerPinModal locationId={session.location_id} title="Reactivate customer" onVerified={pin => reactivateCustomer(pendingInactiveContact, pin)} onClose={() => setPendingInactiveContact(null)} />}
             </div>
           )}
           {notesOpen && (

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCookiesGet, mockGetImsSession, mockImsQuery, mockGetIMSPool, mockGetConnection, mockExecute, mockRelease, mockVerifyManagerPin } = vi.hoisted(() => ({
+const { mockCookiesGet, mockGetImsSession, mockImsQuery, mockGetIMSPool, mockGetConnection, mockExecute, mockRelease } = vi.hoisted(() => ({
   mockCookiesGet: vi.fn(),
   mockGetImsSession: vi.fn(),
   mockImsQuery: vi.fn(),
@@ -8,7 +8,6 @@ const { mockCookiesGet, mockGetImsSession, mockImsQuery, mockGetIMSPool, mockGet
   mockGetConnection: vi.fn(),
   mockExecute: vi.fn(),
   mockRelease: vi.fn(),
-  mockVerifyManagerPin: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ cookies: () => ({ get: mockCookiesGet }) }));
@@ -17,7 +16,6 @@ vi.mock('@/services/IMSMySQLService', () => ({
   imsQuery: mockImsQuery,
   getIMSPool: mockGetIMSPool,
 }));
-vi.mock('@/lib/pos/managerPin', () => ({ verifyManagerPin: mockVerifyManagerPin }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 vi.mock('@/services/XeroSyncService', () => ({ syncStoreCreditRedemptionReclass: vi.fn() }));
 
@@ -31,7 +29,6 @@ describe('GET /api/pos/store-credit', () => {
     mockGetConnection.mockResolvedValue({ execute: mockExecute, release: mockRelease });
     mockGetIMSPool.mockReturnValue({ getConnection: mockGetConnection });
     mockExecute.mockResolvedValue([{ affectedRows: 1 }]);
-    mockVerifyManagerPin.mockResolvedValue({ ok: true });
   });
 
   it('searches active customer contacts in the current business by maintained name or phone', async () => {
@@ -65,31 +62,14 @@ describe('GET /api/pos/store-credit', () => {
     expect(await response.json()).toMatchObject({ contacts: [{ id: 9, is_active: false }], inactiveCount: 0 });
   });
 
-  it('requires manager-capable staff to verify the location manager PIN too', async () => {
-    mockCookiesGet.mockReturnValue({ value: JSON.stringify({ businessId: 'sage-business', location_id: 4, tier: 'PosManager' }) });
-    const response = await PUT(new Request('http://localhost/api/pos/store-credit', { method: 'PUT', body: JSON.stringify({ contact_id: 9, manager_pin: '1234' }) }));
+  it('allows authenticated POS staff to reactivate a tenant customer without manager approval', async () => {
+    const response = await PUT(new Request('http://localhost/api/pos/store-credit', { method: 'PUT', body: JSON.stringify({ contact_id: 9 }) }));
 
     expect(response.status).toBe(200);
-    expect(mockVerifyManagerPin).toHaveBeenCalledWith(4, '1234');
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain('business_id = ?');
     expect(sql).toContain("type IN ('retail_customer', 'b2b_customer', 'both')");
     expect(params).toEqual([9, 'sage-business']);
-  });
-
-  it('re-verifies the location manager PIN for ordinary POS users', async () => {
-    const response = await PUT(new Request('http://localhost/api/pos/store-credit', { method: 'PUT', body: JSON.stringify({ contact_id: 9, manager_pin: '1234' }) }));
-
-    expect(response.status).toBe(200);
-    expect(mockVerifyManagerPin).toHaveBeenCalledWith(4, '1234');
-  });
-
-  it('rejects ordinary POS users when manager PIN verification fails', async () => {
-    mockVerifyManagerPin.mockResolvedValue({ ok: false, status: 403, error: 'Incorrect manager PIN.' });
-    const response = await PUT(new Request('http://localhost/api/pos/store-credit', { method: 'PUT', body: JSON.stringify({ contact_id: 9, manager_pin: 'bad' }) }));
-
-    expect(response.status).toBe(403);
-    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('rejects reactivation when the tenant session does not match the POS session', async () => {
@@ -97,7 +77,6 @@ describe('GET /api/pos/store-credit', () => {
     const response = await PUT(new Request('http://localhost/api/pos/store-credit', { method: 'PUT', body: JSON.stringify({ contact_id: 9, manager_pin: '1234' }) }));
 
     expect(response.status).toBe(401);
-    expect(mockVerifyManagerPin).not.toHaveBeenCalled();
     expect(mockExecute).not.toHaveBeenCalled();
   });
 });

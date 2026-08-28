@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { imsQuery, getIMSPool } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { verifyManagerPin } from '@/lib/pos/managerPin';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { syncStoreCreditRedemptionReclass } from '@/services/XeroSyncService';
 
@@ -72,9 +71,6 @@ export async function PUT(req: Request) {
   const body = await req.json().catch(() => null);
   const contactId = Number(body?.contact_id);
   if (!Number.isInteger(contactId) || contactId <= 0) return NextResponse.json({ error: 'A valid customer is required.' }, { status: 400 });
-
-  const pinResult = await verifyManagerPin(Number(session.location_id), body?.manager_pin);
-  if (!pinResult.ok) return NextResponse.json({ error: pinResult.error }, { status: pinResult.status });
 
   try {
     const pool = getIMSPool();

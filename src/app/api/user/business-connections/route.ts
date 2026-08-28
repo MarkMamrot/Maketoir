@@ -69,7 +69,8 @@ export async function POST(req: Request) {
 
       if (requestedShopifyMode === 'legacy_token') {
         const submittedToken = String(connections.ShopifyAccessToken ?? '').trim();
-        if (!submittedToken && !existing?.shopify_access_token) {
+        const existingLegacyToken = existing?.shopify_auth_mode !== 'client_credentials' && existing?.shopify_access_token;
+        if (!submittedToken && !existingLegacyToken) {
           return NextResponse.json({ success: false, error: 'Enter the legacy Admin API access token.' }, { status: 400 });
         }
         await ConnectionsRepository.upsert(databaseId, {

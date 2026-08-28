@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","customer-search","parked"],"contextSections":{"pos":"Step-by-step","customer-search":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, find or reactivate customers, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-28","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","customer-search","parked"],"contextSections":{"pos":"Step-by-step","customer-search":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-28","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -9,7 +9,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 
 - Search, scan, or browse for the correct product variant.
 - Adjust quantities, prices, item discounts, or the order discount before payment.
-- Find and link an active retail or business customer by name, email, or phone when using store credit or loyalty.
+- Find, create, or reactivate and link a retail customer when using store credit or loyalty.
 - Park an unfinished cart on this device and resume it later.
 - Add more than one tender when the customer splits payment.
 - Ask a manager to authorise an action only when POS displays the manager PIN prompt.
@@ -49,11 +49,12 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.
 4. Add the correct variant and set the quantity.
 5. Apply any permitted line discount, price change, or order discount before payment.
-6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** to view them for this search. Select the customer marked **Inactive** and ask a manager to approve reactivation before linking them to the sale. Reactivation keeps the customer's existing details, store credit, and loyalty balance.
-7. Check the tax-inclusive total and the **GST (incl.)** amount.
-8. Choose **Charge** and choose a payment method.
-9. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
-10. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
+6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.
+7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.
+8. Check the tax-inclusive total and the **GST (incl.)** amount.
+9. Choose **Charge** and choose a payment method.
+10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
+11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
 
 When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
 
@@ -74,7 +75,7 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | Edit a transaction from the current open register session | Required |
 | Delete or void a transaction from the current open register session | Required |
 | Send a branch transfer when POS transfer access is set to Manager | Required |
-| Reactivate an inactive customer from customer search | Required |
+| Reactivate an inactive customer from customer search | Not required |
 | Ordinary cart discount or price edit | Follow local policy; POS does not document a universal approval threshold |
 | Change POS appearance or terminal settings | Available only to POS Manager, Standard User, Admin, or SuperAdmin roles |
 
@@ -87,7 +88,8 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |
 | Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |
 | Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |
-| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details; when POS reports inactive matches, choose **Show** and ask a manager to approve reactivation |
+| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details, choose **Show** for inactive matches, or choose **New** to create and link a customer |
+| New customer cannot be created | The email or phone already belongs to an active or inactive customer, required details are missing, or the connection is offline | Search for the existing customer, enter a first name plus email or phone, and retry while online |
 | Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |
 | Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |
 | A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |
