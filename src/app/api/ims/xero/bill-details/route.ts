@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { xeroApiFetch } from '@/services/XeroService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 
 export async function GET(req: Request) {
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
   }
 
   try {
+    await assertXeroAccountingEnabled(businessId);
     const rows = await imsQuery<{ xero_bill_id: string | null }>(
       `SELECT xero_bill_id FROM ims_purchase_orders WHERE id = ? AND business_id = ? LIMIT 1`,
       [Number(poId), businessId],
@@ -46,6 +48,6 @@ export async function GET(req: Request) {
       status: bill.Status ?? null,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: e?.status ?? 500 });
   }
 }

@@ -26,6 +26,7 @@ describe('resolveHelpContext', () => {
   it('excludes every Xero-bearing topic when tenant accounting is disabled', () => {
     const topics = listHelpTopics('ims', 'ims', false);
     expect(topics.every(topic => !/\bxero\b/i.test(JSON.stringify(topic)))).toBe(true);
+    expect(topics.some(topic => topic.id === 'ims-purchase-orders')).toBe(true);
     expect(resolveHelpContext({ audience: 'ims', product: 'ims', context: 'xero', xeroAccountingEnabled: false })?.topic.id)
       .not.toBe('ims-xero-sync-reconciliation');
   });

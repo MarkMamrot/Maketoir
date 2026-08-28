@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { isXeroConfigured } from '@/services/XeroService';
+import { isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 export async function GET(req: Request) {
   const { user, response } = requireAdminSession();
@@ -19,9 +20,21 @@ export async function GET(req: Request) {
   if (denied) return denied;
 
   try {
+    const accountingEnabled = await isXeroAccountingEnabled(databaseId!);
+    if (!accountingEnabled) {
+      return NextResponse.json({
+        accountingEnabled: false,
+        connected: false,
+        tenantName: null,
+        tenantId: null,
+        tokenExpiry: null,
+        envConfigured: false,
+      });
+    }
     const row = await ConnectionsRepository.get(databaseId!);
     const connected = !!(row?.xero_tenant_id && row?.xero_refresh_token);
     return NextResponse.json({
+      accountingEnabled: true,
       connected,
       tenantName:  connected ? row!.xero_tenant_name  ?? null : null,
       tenantId:    connected ? row!.xero_tenant_id    ?? null : null,

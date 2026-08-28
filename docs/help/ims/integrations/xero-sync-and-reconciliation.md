@@ -26,6 +26,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 
 ## Before you begin
 
+- Enable **Accounting software** and choose **Xero** in **Settings > General > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.
 - [ ] Confirm Xero is connected and authorized.
 - [ ] Identify the exact IMS source and whether its operational action already succeeded.
 - [ ] Read the safe error shown in Sync History.

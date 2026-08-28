@@ -1095,6 +1095,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
 
   // Xero OAuth state
   const [xeroStatus, setXeroStatus] = useState<{
+    accountingEnabled: boolean;
     connected: boolean;
     tenantName: string | null;
     tenantId: string | null;
@@ -1346,7 +1347,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         const xeroData = await xeroRes.json();
         setXeroStatus(xeroData);
       } catch {
-        setXeroStatus({ connected: false, tenantName: null, tenantId: null, tokenExpiry: null, envConfigured: false });
+        setXeroStatus({ accountingEnabled: false, connected: false, tenantName: null, tenantId: null, tokenExpiry: null, envConfigured: false });
       } finally {
         setXeroLoading(false);
       }
@@ -2025,6 +2026,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         </div>
 
         {/* Xero */}
+        {xeroStatus?.accountingEnabled && (
         <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
@@ -2086,6 +2088,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
             </p>
           )}
         </div>
+        )}
       </div>
 
       {/* AI Settings */}

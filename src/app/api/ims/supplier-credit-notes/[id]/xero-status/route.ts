@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { query } from '@/services/MySQLService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const session = await getImsSession();
@@ -9,6 +10,12 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const businessId = session.businessId as string;
   const scnId = Number(params.id);
   if (isNaN(scnId)) return NextResponse.json({ error: 'Invalid supplier credit note id' }, { status: 400 });
+
+  try {
+    await assertXeroAccountingEnabled(businessId);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message }, { status: error?.status ?? 500 });
+  }
 
   const scn = await ImsSupplierCNRepo.get(scnId, businessId).catch(() => null);
   if (!scn) return NextResponse.json({ error: 'Supplier credit note not found' }, { status: 404 });

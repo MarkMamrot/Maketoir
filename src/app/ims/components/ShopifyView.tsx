@@ -43,7 +43,7 @@ async function readApiResponse(res: Response) {
 }
 
 // ─── Main ShopifyView ─────────────────────────────────────────────────────────
-export default function ShopifyView({ businessId }: { businessId?: string }) {
+export default function ShopifyView({ businessId, xeroAccountingEnabled = false }: { businessId?: string; xeroAccountingEnabled?: boolean }) {
   const [status, setStatus]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState<'overview' | 'products' | 'log' | 'orders' | 'gift-cards'>('overview');
@@ -93,7 +93,7 @@ export default function ShopifyView({ businessId }: { businessId?: string }) {
           {tab === 'overview'   && <ShopifyOverviewTab status={status} onReload={reload} />}
           {tab === 'products'   && <ShopifyProductsTab />}
           {tab === 'log'        && <ShopifyLogTab />}
-          {tab === 'orders'     && <ShopifyOrdersTab businessId={businessId ?? ''} />}
+          {tab === 'orders'     && <ShopifyOrdersTab businessId={businessId ?? ''} xeroAccountingEnabled={xeroAccountingEnabled} />}
           {tab === 'gift-cards' && <ShopifyGiftCardsTab />}
         </>
       )}
@@ -802,7 +802,7 @@ function ShopifyLogTab() {
 }
 
 // ─── Orders & Webhooks Tab ────────────────────────────────────────────────────
-function ShopifyOrdersTab({ businessId }: { businessId: string }) {
+function ShopifyOrdersTab({ businessId, xeroAccountingEnabled }: { businessId: string; xeroAccountingEnabled: boolean }) {
   const [syncFrom,       setSyncFrom]       = useState('2026-07-01');
   const [locationId,     setLocationId]     = useState('');
   const [webhookSecret,  setWebhookSecret]  = useState('');
@@ -840,7 +840,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: {
           shopify_order_sync_enabled: syncEnabled ? '1' : '0',
-          shopify_xero_auto_sync_enabled: xeroAutoSyncEnabled ? '1' : '0',
+          ...(xeroAccountingEnabled ? { shopify_xero_auto_sync_enabled: xeroAutoSyncEnabled ? '1' : '0' } : {}),
           shopify_order_sync_from: syncFrom,
           online_sales_location_id: locationId,
           shopify_webhook_secret: webhookSecret,
@@ -896,7 +896,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
       </div>
       <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} style={card}>
         <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Order Sync Configuration</h3>
-        <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+        {xeroAccountingEnabled && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               onClick={async () => {
@@ -922,7 +922,7 @@ function ShopifyOrdersTab({ businessId }: { businessId: string }) {
               </div>
             </div>
           </div>
-        </div>
+        </div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <label style={label}>Transition Date (sync orders from)</label>

@@ -269,6 +269,7 @@ export function MainSections(props: MainSectionsProps) {
       {/* Reports section */}
       <ReportsSection
         view={view}
+        xeroAccountingEnabled={xeroAccountingEnabled}
         setView={setView}
         ReportsView={ReportsView}
         SalesByBranchView={SalesByBranchView}
@@ -295,7 +296,7 @@ export function MainSections(props: MainSectionsProps) {
           onOpenPosSalesDay={(date: string) => { setView('pos-sales'); setPendingOpenPosDay(date); }}
         />
       )}
-      {view === 'shopify' && <ShopifyView businessId={businessId} />}
+      {view === 'shopify' && <ShopifyView businessId={businessId} xeroAccountingEnabled={xeroAccountingEnabled} />}
       {view === 'online-shop' && <OnlineShopView />}
     </>
   );

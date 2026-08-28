@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockConnectionGet, mockConnectionUpsert, mockDecrypt, mockGetPolicy, mockEnsurePausedPolicy } = vi.hoisted(() => ({
+const { mockConnectionGet, mockConnectionUpsert, mockDecrypt, mockGetPolicy, mockEnsurePausedPolicy, mockAssertXeroAccountingEnabled } = vi.hoisted(() => ({
   mockConnectionGet: vi.fn(),
   mockConnectionUpsert: vi.fn(),
   mockDecrypt: vi.fn((value: string) => value),
   mockGetPolicy: vi.fn(),
   mockEnsurePausedPolicy: vi.fn(),
+  mockAssertXeroAccountingEnabled: vi.fn(),
 }));
 
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
@@ -16,6 +17,9 @@ vi.mock('@/lib/xero/documentPolicyRepository', () => ({
   ensurePausedXeroDocumentPolicy: mockEnsurePausedPolicy,
   getXeroDocumentPolicy: mockGetPolicy,
 }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  assertXeroAccountingEnabled: mockAssertXeroAccountingEnabled,
+}));
 
 import { XeroPostingDisabledError, saveXeroTokens, xeroApiFetch } from '../XeroService';
 
@@ -23,6 +27,7 @@ describe('xeroApiFetch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetPolicy.mockResolvedValue({ postingEnabled: true });
+    mockAssertXeroAccountingEnabled.mockResolvedValue(undefined);
     mockConnectionGet.mockResolvedValue({
       xero_access_token: 'access-token',
       xero_refresh_token: 'refresh-token',
@@ -75,6 +80,15 @@ describe('xeroApiFetch', () => {
 
     expect(mockGetPolicy).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it('blocks reads before loading credentials when Xero accounting is disabled', async () => {
+    mockAssertXeroAccountingEnabled.mockRejectedValueOnce(new Error('Xero accounting is disabled.'));
+
+    await expect(xeroApiFetch('biz-1', '/Accounts')).rejects.toThrow('Xero accounting is disabled.');
+
+    expect(mockConnectionGet).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('starts a first-time Xero connection with posting paused', async () => {

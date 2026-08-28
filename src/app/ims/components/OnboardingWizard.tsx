@@ -21,6 +21,7 @@ type Props = {
   onboarding: OnboardingState;
   draft: Record<string, string>;
   saving: boolean;
+  xeroAccountingEnabled: boolean;
   onClose: () => void;
   onFieldChange: (key: string, value: string) => void;
   onSaveStep: (stepId: string, settings: Record<string, string>) => Promise<void>;
@@ -132,7 +133,7 @@ function YesNo({ value, onChange }: { value: string; onChange: (value: string) =
   );
 }
 
-export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onFieldChange, onSaveStep, onCompleteStep, onAction }: Props) {
+export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccountingEnabled, onClose, onFieldChange, onSaveStep, onCompleteStep, onAction }: Props) {
   const firstIncomplete = Math.max(0, onboarding.steps.findIndex(step => !step.completed));
   const [activeIndex, setActiveIndex] = useState(firstIncomplete);
 
@@ -261,10 +262,10 @@ export function OnboardingWizard({ open, onboarding, draft, saving, onClose, onF
               </select>
             </Field>
           )}
-          <Field label="Connect accounting software?" help="Choose Yes to configure accounting document and payment synchronisation with Xero.">
+          {xeroAccountingEnabled && <Field label="Connect accounting software?" help="Choose Yes to configure accounting document and payment synchronisation with Xero.">
             <YesNo value={draft.connect_accounting_software ?? 'no'} onChange={value => onFieldChange('connect_accounting_software', value)} />
-          </Field>
-          {draft.connect_accounting_software === 'yes' && (
+          </Field>}
+          {xeroAccountingEnabled && draft.connect_accounting_software === 'yes' && (
             <Field label="Accounting platform" help="Xero is currently supported for accounting integration.">
               <select style={{ ...inputStyle, maxWidth: 280 }} value={draft.accounting_software ?? 'xero'} onChange={event => onFieldChange('accounting_software', event.target.value)}><option value="xero">Xero</option></select>
             </Field>

@@ -19,14 +19,38 @@ function normalize(value?: string | null): string {
 }
 
 function topicRequiresXero(topic: HelpTopic): boolean {
-  return /\bxero\b/i.test(JSON.stringify(topic));
+  return /xero/i.test(topic.id) || /\bxero\b/i.test(`${topic.title} ${topic.screen}`);
+}
+
+const xeroTopicIds = new Set(topics.filter(topicRequiresXero).map(topic => topic.id));
+
+function withoutXeroContent(topic: HelpTopic): HelpTopic | null {
+  if (topicRequiresXero(topic)) return null;
+  const contextSections = topic.contextSections
+    ? Object.fromEntries(Object.entries(topic.contextSections).filter(([context, heading]) => !/\bxero\b/i.test(`${context} ${heading}`)))
+    : undefined;
+  return {
+    ...topic,
+    summary: /\bxero\b/i.test(topic.summary) ? topic.summary.replace(/\bXero\b/gi, 'accounting') : topic.summary,
+    parentId: topic.parentId && (/xero/i.test(topic.parentId) || xeroTopicIds.has(topic.parentId)) ? null : topic.parentId,
+    contexts: topic.contexts.filter(context => !/\bxero\b/i.test(context)),
+    contextSections,
+    relatedTopics: topic.relatedTopics?.filter(topicId => !xeroTopicIds.has(topicId)),
+    sections: topic.sections
+      .map(section => ({
+        ...section,
+        content: section.content.split('\n').filter(line => !/\bxero\b/i.test(line)).join('\n').trim(),
+      }))
+      .filter(section => section.content.length > 0 && !/\bxero\b/i.test(`${section.heading} ${section.content}`)),
+  };
 }
 
 export function listHelpTopics(audience: AssistantAudience, product?: HelpProduct, xeroAccountingEnabled?: boolean): HelpTopic[] {
   return topics
     .filter(topic => topic.audiences.includes(audience)
-      && (!product || topic.product === product || topic.product === 'shared')
-      && (xeroAccountingEnabled !== false || !topicRequiresXero(topic)))
+      && (!product || topic.product === product || topic.product === 'shared'))
+    .map(topic => xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic)
+    .filter((topic): topic is HelpTopic => topic !== null)
     .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0) || left.title.localeCompare(right.title));
 }
 
@@ -55,7 +79,7 @@ export function resolveHelpContext(input: {
 }
 
 export function getHelpTopic(topicId: string, audience: AssistantAudience, xeroAccountingEnabled?: boolean): HelpTopic | null {
-  return topics.find(topic => topic.id === topicId
-    && topic.audiences.includes(audience)
-    && (xeroAccountingEnabled !== false || !topicRequiresXero(topic))) ?? null;
+  const topic = topics.find(candidate => candidate.id === topicId && candidate.audiences.includes(audience));
+  if (!topic) return null;
+  return xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic;
 }

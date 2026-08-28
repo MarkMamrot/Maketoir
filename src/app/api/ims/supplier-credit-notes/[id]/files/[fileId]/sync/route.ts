@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo, ImsSupplierCNFilesRepo } from '@/lib/ims/ImsRepository';
 import { syncSupplierCNAttachmentsToXero } from '@/services/XeroSyncService';
 import { query } from '@/services/MySQLService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 function extractValue(detail: string, key: string): string | null {
   const m = detail.match(new RegExp(`${key}=([^;]*)`));
@@ -17,6 +18,12 @@ export async function POST(_: Request, { params }: { params: { id: string; fileI
   const fileId = Number(params.fileId);
   if (isNaN(scnId) || isNaN(fileId)) {
     return NextResponse.json({ error: 'Invalid supplier credit note file id' }, { status: 400 });
+  }
+
+  try {
+    await assertXeroAccountingEnabled(session.businessId);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message }, { status: error?.status ?? 500 });
   }
 
   const scn = await ImsSupplierCNRepo.get(scnId, session.businessId).catch(() => null);

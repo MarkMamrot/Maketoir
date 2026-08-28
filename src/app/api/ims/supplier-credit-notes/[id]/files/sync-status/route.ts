@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsSupplierCNRepo, ImsSupplierCNFilesRepo } from '@/lib/ims/ImsRepository';
 import { query } from '@/services/MySQLService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 function extractValue(detail: string, key: string): string | null {
   const m = detail.match(new RegExp(`${key}=([^;]*)`));
@@ -20,6 +21,12 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
 
   const scnId = Number(params.id);
   if (isNaN(scnId)) return NextResponse.json({ error: 'Invalid supplier credit note id' }, { status: 400 });
+
+  try {
+    await assertXeroAccountingEnabled(session.businessId);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message }, { status: error?.status ?? 500 });
+  }
 
   const scn = await ImsSupplierCNRepo.get(scnId, session.businessId).catch(() => null);
   if (!scn) return NextResponse.json({ error: 'Supplier credit note not found' }, { status: 404 });

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { ImsPORepo, ImsPoFilesRepo } from '@/lib/ims/ImsRepository';
 import { syncPOAttachmentsToXero } from '@/services/XeroSyncService';
+import { isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // Matches the invoice parser limit
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
@@ -67,7 +68,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       file.size,
     );
 
-    const xeroWarnings = po.xero_bill_id
+    const xeroWarnings = po.xero_bill_id && await isXeroAccountingEnabled(session.businessId)
       ? await syncPOAttachmentsToXero(
           session.businessId,
           poId,

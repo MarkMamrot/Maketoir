@@ -11,6 +11,7 @@ type ImsView =
 
 interface ReportsSectionProps {
   view: ImsView;
+  xeroAccountingEnabled: boolean;
   setView: (v: ImsView) => void;
   ReportsView: any;
   SalesByBranchView: any;
@@ -26,6 +27,7 @@ interface ReportsSectionProps {
 
 export function ReportsSection({
   view,
+  xeroAccountingEnabled,
   setView,
   ReportsView,
   SalesByBranchView,
@@ -40,7 +42,7 @@ export function ReportsSection({
 }: ReportsSectionProps) {
   return (
     <>
-      {view === 'reports' && <ReportsView onNav={setView} />}
+      {view === 'reports' && <ReportsView onNav={setView} xeroAccountingEnabled={xeroAccountingEnabled} />}
       {(view === 'report-sales-detail' || view === 'report-sales-by-branch') && <SalesByBranchView onBack={() => setView('reports')} />}
       {view === 'report-sales-summary' && <SalesSummaryView onBack={() => setView('reports')} />}
       {view === 'report-sales-search' && <SalesSearchView onBack={() => setView('reports')} />}
@@ -48,7 +50,7 @@ export function ReportsSection({
       {view === 'report-product-margin' && <ProductMarginView onBack={() => setView('reports')} />}
       {view === 'report-pos-price-changes' && <PosPriceChangesView onBack={() => setView('reports')} />}
       {view === 'report-pos-registers' && <PosRegistersReportView onBack={() => setView('reports')} />}
-      {view === 'report-cash-banking' && <CashBankingReportView onBack={() => setView('reports')} />}
+      {view === 'report-cash-banking' && xeroAccountingEnabled && <CashBankingReportView onBack={() => setView('reports')} />}
       {view === 'report-stock-availability' && <StockAvailabilityManagementView onBack={() => setView('reports')} />}
     </>
   );

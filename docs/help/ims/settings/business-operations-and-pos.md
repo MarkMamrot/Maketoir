@@ -52,6 +52,8 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 
 Use each switch to enable or disable the capability, then select **Save Settings**. These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
 
+When **Accounting software** is off, accounting integration navigation, setup connections, document statuses, posting controls, automation, and contextual guidance are hidden. Integration requests are also blocked, so switching the capability off is more than a display preference. Turn it on and choose the supported accounting platform before connecting an organisation or configuring posting rules.
+
 Enable **Business requires POS** when the business sells directly to the public in stores or other staffed locations. This makes **Locations > Location Daybooks** available. Existing businesses default to enabled. If the switch is later disabled, Location Daybooks remains available while an active location still has POS enabled, an enrolment code, or an active register.
 
 When **Online shop** is enabled, choose one of these supported paths:
@@ -82,6 +84,7 @@ Location names, codes, addresses, and operational flags cannot be edited from th
 | Onboarding content does not fit at high browser zoom | The visible wizard area is shorter at higher zoom levels | Scroll the middle setup panel; the Back and continue buttons remain available below it |
 | A location has no register choices in POS | No active register exists for that location | Open Settings > Point of Sale > Registers and add or reactivate one |
 | Online Store controls are not available | Online shop is disabled or another platform is selected | Enable Online shop, choose Solvantis Online Store, save, then open Integrations > Online Shop |
+| Accounting integration controls are not available | Accounting software is disabled in Business Operations | Enable Accounting software, choose the supported platform, and save before opening its connection or posting setup |
 
 ## Worked examples
 

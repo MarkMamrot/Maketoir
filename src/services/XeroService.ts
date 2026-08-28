@@ -14,6 +14,7 @@ import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { encrypt, decrypt } from '@/lib/encryption';
 import { ensurePausedXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { assertXeroPostingEnabled } from '@/lib/xero/postingPolicy';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 export { XeroPostingDisabledError } from '@/lib/xero/postingPolicy';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -224,7 +225,8 @@ export async function xeroApiFetch(
   options: { method?: string; body?: unknown; idempotencyKey?: string } = {},
 ): Promise<any> {
   const method = (options.method ?? 'GET').toUpperCase();
-  if (method !== 'GET') await assertXeroPostingEnabled(businessId);
+  if (method === 'GET') await assertXeroAccountingEnabled(businessId);
+  else await assertXeroPostingEnabled(businessId);
   const { accessToken, tenantId } = await getValidAccessToken(businessId);
   const url = path.startsWith('http') ? path : `${XERO_API_BASE}${path}`;
   const res = await fetch(url, {

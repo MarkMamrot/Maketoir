@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 
 export async function GET() {
@@ -12,6 +13,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
   try {
+    await assertXeroAccountingEnabled(businessId);
     const pos = await imsQuery<any>(
       `SELECT po.id, po.po_number AS reference, 'po' AS type, po.status,
               po.total_amount, po.xero_synced_at,
@@ -54,6 +56,6 @@ export async function GET() {
     ).catch(() => [] as any[]);
     return NextResponse.json({ queued: [...pos, ...sos, ...cns, ...scns], count: pos.length + sos.length + cns.length + scns.length });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: e?.status ?? 500 });
   }
 }

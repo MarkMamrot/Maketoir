@@ -1070,6 +1070,7 @@ function DashboardView({ businessId, xeroAccountingEnabled, onNav, onOpenSetting
             onboarding={onboarding}
             draft={onboardingDraft}
             saving={onboardingSaving}
+            xeroAccountingEnabled={xeroAccountingEnabled}
             onClose={() => setOnboardingOpen(false)}
             onFieldChange={setOnboardingField}
             onSaveStep={saveOnboardingStep}
@@ -11285,6 +11286,8 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const { capabilities } = useBusinessOperationsCapabilities();
+  const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const cnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const cnBodyScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(cnBodyScrollRef);
@@ -11545,7 +11548,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
   };
 
   const handleReverse = async (cn: any) => {
-    const reason = prompt(`Why is ${cn.cn_number} being reversed? This removes its returned stock and issued store credit, and corrects Xero when linked.`)?.trim();
+    const reason = prompt(`Why is ${cn.cn_number} being reversed? This removes its returned stock and issued store credit${xeroAccountingEnabled ? ', and corrects Xero when linked' : ''}.`)?.trim();
     if (!reason) return;
     if (!confirm(`Reverse mistaken completion for ${cn.cn_number}? This is an append-only correction and cannot be undone.`)) return;
     try {
@@ -11559,7 +11562,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
       });
       setViewModal({ open: true, cn: result.data });
       load();
-      if (result.xeroWarning) alert(`The credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
+      if (xeroAccountingEnabled && result.xeroWarning) alert(`The credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
     } catch (err: any) {
       alert(err.message || 'Reversal failed');
     }
@@ -11639,7 +11642,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
       { value: 'complete', label: 'Complete Received Return' },
       { value: 'cancel', label: 'Cancel' },
     );
-    if (cn.status === 'complete' && ['queued', 'error'].includes(cn.xero_sync_status)) {
+    if (xeroAccountingEnabled && cn.status === 'complete' && ['queued', 'error'].includes(cn.xero_sync_status)) {
       actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
     }
     if (cn.status === 'complete' && cn.source === 'manual') {
@@ -11668,10 +11671,11 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
         : { label: 'Manual', background: 'rgba(156,163,175,.12)', color: 'var(--sv-text-dim)' };
     return <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 10, background: meta.background, color: meta.color, marginLeft: 6 }}>{meta.label}</span>;
   };
-  const cnTableWidth = 1180;
+  const cnColumnWidths = [150, 220, 120, 140, 110, 110, ...(xeroAccountingEnabled ? [110] : []), 220];
+  const cnTableWidth = cnColumnWidths.reduce((sum, width) => sum + width, 0);
   const renderCnColGroup = () => (
     <colgroup>
-      {[150, 220, 120, 140, 110, 110, 110, 220].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+      {cnColumnWidths.map((width, index) => <col key={`${index}-${width}`} style={{ width, minWidth: width }} />)}
     </colgroup>
   );
 
@@ -11684,7 +11688,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
       </div>
       <p style={{ margin: '-10px 0 16px', color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.5 }}>
         {recordType === 'pos_returns'
-          ? 'These internal return records are created by POS Sales to own returned stock and store-credit issuance. They remain in the POS end-of-day accounting flow and are not posted to Xero as separate credit notes.'
+          ? `These internal return records are created by POS Sales to own returned stock and store-credit issuance.${xeroAccountingEnabled ? ' They remain in the POS end-of-day accounting flow and are not posted to Xero as separate credit notes.' : ''}`
           : 'Completing a manual credit note adds its value to the customer\'s read-only store-credit balance. Shopify credits are settled by Shopify. Every balance change is recorded in the customer store-credit ledger.'}
       </p>
 
@@ -11773,7 +11777,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
             {renderCnColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                {['CN #', 'Customer', 'Date', 'Location', 'Status', 'Total', 'Xero', 'Actions'].map((h, index) => (
+                {['CN #', 'Customer', 'Date', 'Location', 'Status', 'Total', ...(xeroAccountingEnabled ? ['Xero'] : []), 'Actions'].map((h, index) => (
                   <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--sv-text-dim)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .8, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>
                 ))}
               </tr>
@@ -11798,14 +11802,14 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cn.location_name}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={cn.status} /></td>
                     <td style={{ padding: '10px 12px', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtCurrency(cn.total_amount)}</td>
-                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    {xeroAccountingEnabled && <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                       {cn.source === 'shopify' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Imported and settled by Shopify">Shopify</span>
                         : cn.source === 'pos' ? <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }} title="Included in the POS end-of-day accounting flow">POS / EOD</span>
                         : cn.xero_sync_status === 'synced' ? <span style={{ color: '#34d399', fontSize: 11 }}>✓ Synced</span>
                         : cn.xero_sync_status === 'queued' ? <span style={{ color: '#fbbf24', fontSize: 11 }}>⚠ Queued</span>
                         : cn.xero_sync_status === 'error' ? <span style={{ color: '#f87171', fontSize: 11 }}>✕ Error</span>
                         : <span style={{ color: 'var(--sv-text-dim)', fontSize: 11 }}>—</span>}
-                    </td>
+                    </td>}
                     <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <select
@@ -12025,7 +12029,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
               </table>
             </div>
 
-            {(() => {
+            {xeroAccountingEnabled && (() => {
               const items = (viewModal.cn.items ?? []).map((it: any) => {
                 const qty = Math.abs(Number(it.qty ?? 0));
                 const unitCost = it.unit_cost != null
@@ -12118,7 +12122,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
             {viewModal.cn.status === 'reversed' && (
               <div style={{ padding: '7px 10px', marginBottom: 12, borderRadius: 6, background: 'rgba(251,191,36,.1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
-                Reversed{viewModal.cn.reversal_reason ? `: ${viewModal.cn.reversal_reason}` : ''}. Xero correction: {String(viewModal.cn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.
+                Reversed{viewModal.cn.reversal_reason ? `: ${viewModal.cn.reversal_reason}` : ''}.{xeroAccountingEnabled ? ` Xero correction: ${String(viewModal.cn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.` : ''}
               </div>
             )}
 
@@ -12150,6 +12154,8 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
 function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
+  const { capabilities } = useBusinessOperationsCapabilities();
+  const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const scnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const scnBodyScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(scnBodyScrollRef);
@@ -12258,16 +12264,21 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
     const d = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}`);
     setViewModal({ open: true, scn: d.data });
     setScnFiles(d.data?.files ?? []);
-    try {
-      const s = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/files/sync-status`);
-      setScnFileSync(s.statusByFilename ?? {});
-    } catch {
+    if (xeroAccountingEnabled) {
+      try {
+        const s = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/files/sync-status`);
+        setScnFileSync(s.statusByFilename ?? {});
+      } catch {
+        setScnFileSync({});
+      }
+      try {
+        const x = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/xero-status`);
+        setScnXeroLatest(x.latest ?? null);
+      } catch {
+        setScnXeroLatest(null);
+      }
+    } else {
       setScnFileSync({});
-    }
-    try {
-      const x = await apiFetch(`/api/ims/supplier-credit-notes/${scn.id}/xero-status`);
-      setScnXeroLatest(x.latest ?? null);
-    } catch {
       setScnXeroLatest(null);
     }
   };
@@ -12393,7 +12404,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
         : await apiFetch('/api/ims/supplier-credit-notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       setModal({ open: false, edit: null });
       load();
-      if (saved?.xeroWarning) {
+      if (xeroAccountingEnabled && saved?.xeroWarning) {
         alert(`Xero notice:\n\n${saved.xeroWarning}`);
       }
       if (saved?.data?.id) {
@@ -12441,7 +12452,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   };
 
   const handleReverse = async (scn: any) => {
-    const reason = prompt(`Why is ${scn.scn_number} being reversed? This restores the stock previously returned to the supplier and corrects Xero when linked.`)?.trim();
+    const reason = prompt(`Why is ${scn.scn_number} being reversed? This restores the stock previously returned to the supplier${xeroAccountingEnabled ? ' and corrects Xero when linked' : ''}.`)?.trim();
     if (!reason) return;
     if (!confirm(`Reverse mistaken completion for ${scn.scn_number}? This is an append-only correction and cannot be undone.`)) return;
     try {
@@ -12455,7 +12466,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       });
       setViewModal({ open: true, scn: result.data });
       load();
-      if (result.xeroWarning) alert(`The supplier credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
+      if (xeroAccountingEnabled && result.xeroWarning) alert(`The supplier credit note was reversed locally. Xero needs attention:\n\n${result.xeroWarning}`);
     } catch (err: any) {
       alert(err.message || 'Reversal failed');
     }
@@ -12475,7 +12486,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       { value: 'cancel', label: 'Cancel' },
       { value: 'delete', label: 'Delete Draft' },
     );
-    if (scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) {
+    if (xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) {
       actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
     }
     if (scn.status === 'complete') actions.push({ value: 'reverse', label: 'Reverse Mistaken Completion' });
@@ -12492,10 +12503,11 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
     if (action === 'reverse') return void handleReverse(scn);
   };
   const money = (n: any) => `$${Number(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const scnTableWidth = 1190;
+  const scnColumnWidths = [150, 220, 120, 150, 110, 110, ...(xeroAccountingEnabled ? [110] : []), 220];
+  const scnTableWidth = scnColumnWidths.reduce((sum, width) => sum + width, 0);
   const renderScnColGroup = () => (
     <colgroup>
-      {[150, 220, 120, 150, 110, 110, 110, 220].map(width => <col key={width} style={{ width, minWidth: width }} />)}
+      {scnColumnWidths.map((width, index) => <col key={`${index}-${width}`} style={{ width, minWidth: width }} />)}
     </colgroup>
   );
 
@@ -12504,7 +12516,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Supplier Credit Notes</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers (returns, damaged goods, rebates) → Xero supplier (ACCPAY) credit notes.</p>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--sv-text-dim)' }}>Credits received from suppliers for returns, damaged goods, and rebates{xeroAccountingEnabled ? ' become Xero supplier (ACCPAY) credit notes' : ''}.</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <SBDatePicker value={dateRange} onChange={setDateRange} />
@@ -12525,7 +12537,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
             {renderScnColGroup()}
             <thead>
               <tr style={{ background: 'var(--sv-bg-2)' }}>
-                {['Number','Supplier','Date','Location','Total','Status','Xero','Actions'].map((h, index) => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>)}
+                {['Number','Supplier','Date','Location','Total','Status',...(xeroAccountingEnabled ? ['Xero'] : []),'Actions'].map((h, index) => <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .5, position: index < 2 ? 'sticky' : undefined, left: index === 0 ? 0 : index === 1 ? 150 : undefined, zIndex: index < 2 ? 3 : 1, background: 'var(--sv-bg-2)', boxShadow: index === 1 ? '1px 0 0 var(--sv-etch)' : undefined }}>{h}</th>)}
               </tr>
             </thead>
           </table>
@@ -12545,7 +12557,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.location_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
-                    <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>
+                    {xeroAccountingEnabled && <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>}
                     <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <select
@@ -12686,7 +12698,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                 </tr>
               </tfoot>
             </table>
-            {(() => {
+            {xeroAccountingEnabled && (() => {
               const items = (viewModal.scn.items ?? []).map((it: any) => {
                 const qty = Math.abs(Number(it.qty ?? 0));
                 const unitCost = Number(it.unit_cost ?? 0);
@@ -12751,7 +12763,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                         const data = await res.json();
                         if (!res.ok) { alert(data.error || 'Upload failed'); return; }
                         setScnFiles(data.files ?? []);
-                        await loadScnFileSync(viewModal.scn.id);
+                        if (xeroAccountingEnabled) await loadScnFileSync(viewModal.scn.id);
                       } catch (err: any) { alert(err.message); }
                       finally { setScnFileUploading(false); e.target.value = ''; }
                     }}
@@ -12767,7 +12779,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontSize: 16 }}>{f.mime_type === 'application/pdf' ? '📄' : '🖼️'}</span>
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.original_name}</span>
-                      {(() => {
+                      {xeroAccountingEnabled && (() => {
                         const entry = scnFileSync[f.filename];
                         const s = entry?.status ?? (viewModal.scn?.xero_credit_note_id ? 'pending' : 'not_synced');
                         const map: Record<string, { label: string; color: string; bg: string; title: string }> = {
@@ -12783,7 +12795,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                         <span style={{ fontSize: 11, color: 'var(--sv-text-dim)', whiteSpace: 'nowrap' }}>
                           {(f.file_size / 1024).toFixed(0)} KB · {new Date(f.uploaded_at).toLocaleDateString()}
                         </span>
-                        {viewModal.scn.xero_credit_note_id && ['pending', 'error', 'skipped'].includes(scnFileSync[f.filename]?.status ?? 'pending') && (
+                        {xeroAccountingEnabled && viewModal.scn.xero_credit_note_id && ['pending', 'error', 'skipped'].includes(scnFileSync[f.filename]?.status ?? 'pending') && (
                           <button
                             type="button"
                             style={btnStyle('mint', 'xs')}
@@ -12806,12 +12818,12 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                           const data = await res.json();
                           if (res.ok) {
                             setScnFiles(data.files ?? []);
-                            await loadScnFileSync(viewModal.scn.id);
+                            if (xeroAccountingEnabled) await loadScnFileSync(viewModal.scn.id);
                           }
                           else alert(data.error || 'Delete failed');
                         }}>✕</button>
                       </div>
-                      {scnFileSync[f.filename]?.status === 'error' && (
+                      {xeroAccountingEnabled && scnFileSync[f.filename]?.status === 'error' && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 26 }}>
                           <span style={{ fontSize: 11, color: '#fca5a5' }}>
                             {scnFileSync[f.filename]?.message || scnFileSync[f.filename]?.detail || 'Xero upload failed'}
@@ -12887,14 +12899,14 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
             })()}
             {viewModal.scn.status === 'reversed' && (
               <div style={{ padding: '7px 10px', marginBottom: 8, borderRadius: 6, background: 'rgba(251,191,36,.1)', color: 'var(--sv-text-dim)', fontSize: 12 }}>
-                Reversed{viewModal.scn.reversal_reason ? `: ${viewModal.scn.reversal_reason}` : ''}. Xero correction: {String(viewModal.scn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.
+                Reversed{viewModal.scn.reversal_reason ? `: ${viewModal.scn.reversal_reason}` : ''}.{xeroAccountingEnabled ? ` Xero correction: ${String(viewModal.scn.xero_correction_status ?? 'not required').replaceAll('_', ' ')}.` : ''}
               </div>
             )}
             <OrderActivityHistory entries={viewModal.scn.activity_history} />
             {!isAdvisor && viewModal.scn.status === 'draft' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={() => { setViewModal({ open: false, scn: null }); openEdit(viewModal.scn); }} style={btnStyle('ghost')}>Edit</button>
-                <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>Complete &amp; Post to Xero</button>
+                <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>{xeroAccountingEnabled ? 'Complete & Post to Xero' : 'Complete'}</button>
               </div>
             )}
             {!isAdvisor && viewModal.scn.status === 'complete' && (
@@ -14570,7 +14582,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                   <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 10, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--sv-bg-1)' }}>
-                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', 'Xero', '']).map((h: string, idx: number) => (
+                        {(['Date', 'Amount', ...(isFx ? ['Rate', 'AUD'] : []), 'Method', 'Notes', ...(xeroAccountingEnabled ? ['Xero'] : []), '']).map((h: string, idx: number) => (
                           <th key={idx} style={{ padding: '5px 10px', textAlign: 'left', fontSize: 11, color: 'var(--sv-text-dim)', fontWeight: 700 }}>{h}</th>
                         ))}
                       </tr>
@@ -14584,7 +14596,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                           {isFx && <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{fmtCurrency(p.amount_local)}</td>}
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)' }}>{p.payment_method_name || '—'}</td>
                           <td style={{ padding: '5px 10px', color: 'var(--sv-text-dim)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.notes || '—'}</td>
-                          <td style={{ padding: '5px 10px' }}>
+                          {xeroAccountingEnabled && <td style={{ padding: '5px 10px' }}>
                             {p.xero_post_status === 'posted' ? <span style={{ color: 'var(--sv-mint)', fontSize: 11, fontWeight: 700 }}>Posted</span> : <div><div style={{ color: p.xero_post_status === 'failed' || p.xero_post_status === 'unknown' ? 'var(--sv-amber)' : 'var(--sv-text-dim)', fontSize: 10, marginBottom: 3 }}>{({ pending: 'Pending', failed: 'Failed', unknown: 'Outcome unknown' } as Record<string, string>)[p.xero_post_status] || 'Solvantis only'}</div><button
                               disabled={syncingSoPaymentId === Number(p.id) || !p.payment_method_id}
                               onClick={() => handleManualSyncSoPayment(p)}
@@ -14593,7 +14605,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
                             >
                               {syncingSoPaymentId === Number(p.id) ? 'Posting…' : 'Post to Xero'}
                             </button></div>}
-                          </td>
+                          </td>}
                           <td style={{ padding: '5px 10px', textAlign: 'right' }}>
                             <button onClick={() => handleDeleteSoPayment(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
@@ -14612,10 +14624,10 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
 
                 {soPayForm && (
                   <div style={{ padding: '12px 14px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                    <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                    {xeroAccountingEnabled && <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
                       {([['solvantis_only', 'Record in Solvantis only'], ['post_to_xero', 'Post to Xero']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setSoPayForm(f => f ? { ...f, xeroIntent: value } : f)} style={{ ...btnStyle(soPayForm.xeroIntent === value ? 'action' : 'ghost', 'sm'), flex: 1 }}>{label}</button>)}
-                    </div>
-                    {soPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero invoice. A linked Draft will be Authorised before the payment is applied.</div>}
+                    </div>}
+                    {xeroAccountingEnabled && soPayForm.xeroIntent === 'post_to_xero' && <div style={{ marginBottom: 10, padding: '7px 9px', borderRadius: 5, background: 'rgba(245,158,11,.08)', border: '1px solid rgba(245,158,11,.25)', color: 'var(--sv-amber)', fontSize: 11, lineHeight: 1.45 }}>Posting requires an Authorised Xero invoice. A linked Draft will be Authorised before the payment is applied.</div>}
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginBottom: 4 }}>Date</div>
@@ -15658,17 +15670,19 @@ function GiftCardsView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosSalesView({ pendingOpenDay, onPendingHandled }: { pendingOpenDay?: string | null; onPendingHandled?: () => void } = {}) {
+  const { capabilities } = useBusinessOperationsCapabilities();
+  const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const [tab, setTab] = useState<'sales' | 'banking'>('sales');
   return (
     <div>
       <div style={{ display: 'inline-flex', padding: 3, marginBottom: 18, borderRadius: 7, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
-        {(['sales', 'banking'] as const).map(value => (
+        {(['sales', ...(xeroAccountingEnabled ? ['banking' as const] : [])] as const).map(value => (
           <button key={value} onClick={() => setTab(value)} style={{ padding: '7px 18px', border: 0, borderRadius: 5, cursor: 'pointer', fontSize: 13, fontWeight: 650, color: tab === value ? 'var(--sv-text-strong)' : 'var(--sv-text-dim)', background: tab === value ? 'var(--sv-bg-3)' : 'transparent' }}>
             {value === 'sales' ? 'Sales' : 'Banking'}
           </button>
         ))}
       </div>
-      {tab === 'sales' ? <PosSalesLedgerView pendingOpenDay={pendingOpenDay} onPendingHandled={onPendingHandled} /> : <CashBankingView />}
+      {tab === 'sales' || !xeroAccountingEnabled ? <PosSalesLedgerView pendingOpenDay={pendingOpenDay} onPendingHandled={onPendingHandled} /> : <CashBankingView />}
     </div>
   );
 }
@@ -17298,7 +17312,7 @@ const REPORT_CATALOG = [
   {
     id: 'report-pos-registers' as ImsView,
     title: 'Daily POS Registers Report',
-    description: 'Per-register session breakdown by date: open/close times, opening float, close totals by payment type, variances, and Xero sync status.',
+    description: 'Per-register session breakdown by date: open/close times, opening float, close totals by payment type, and reconciliation variances.',
     icon: '🏪',
   },
   {
@@ -17315,7 +17329,7 @@ const REPORT_CATALOG = [
   },
 ];
 
-function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
+function ReportsView({ onNav, xeroAccountingEnabled }: { onNav: (v: ImsView) => void; xeroAccountingEnabled: boolean }) {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -17323,7 +17337,7 @@ function ReportsView({ onNav }: { onNav: (v: ImsView) => void }) {
         <p style={{ fontSize: 14, color: 'var(--sv-text-dim)', marginTop: 4 }}>Analytics and insights from your Solvantis IMS data.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {REPORT_CATALOG.map(r => (
+        {REPORT_CATALOG.filter(report => xeroAccountingEnabled || report.id !== 'report-cash-banking').map(r => (
           <button
             key={r.id}
             onClick={() => onNav(r.id)}

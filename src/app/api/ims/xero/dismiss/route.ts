@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { markPoXeroStatus, markSoXeroStatus } from '@/services/XeroSyncService';
 import { imsExecute } from '@/services/IMSMySQLService';
+import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
 
 export async function POST(req: Request) {
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const businessId: string = session.businessId;
 
   try {
+    await assertXeroAccountingEnabled(businessId);
     const { type, id } = await req.json() as { type: 'po' | 'so'; id: number };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
 
@@ -39,6 +41,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: e?.status ?? 500 });
   }
 }
