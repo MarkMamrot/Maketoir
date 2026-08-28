@@ -1,9 +1,7 @@
 {
-  "/wholesale/[slug]/[section]/page": "app/wholesale/[slug]/[section]/page.js",
-  "/login/page": "app/login/page.js",
   "/page": "app/page.js",
-  "/rewards/[slug]/page": "app/rewards/[slug]/page.js",
-  "/api/loyalty/[slug]/account/route": "app/api/loyalty/[slug]/account/route.js",
+  "/login/page": "app/login/page.js",
   "/pos/page": "app/pos/page.js",
+  "/rewards/[slug]/page": "app/rewards/[slug]/page.js",
   "/ims/page": "app/ims/page.js"
 }

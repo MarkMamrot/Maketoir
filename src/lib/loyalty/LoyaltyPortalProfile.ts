@@ -64,6 +64,11 @@ interface PolicyVersionRow extends RowDataPacket {
   terms_markdown: string | null; privacy_markdown: string | null; published_at: string;
 }
 
+function isPolicySchemaMissing(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error
+    && (error.code === 'ER_BAD_FIELD_ERROR' || error.code === 'ER_NO_SUCH_TABLE'));
+}
+
 export function normalizeLoyaltyPortalSlug(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
@@ -138,12 +143,28 @@ export const LoyaltyPortalProfileRepository = {
   async getActiveBySlug(input: unknown): Promise<LoyaltyPortalProfile | null> {
     const slug = normalizeLoyaltyPortalSlug(input);
     if (!slug || RESERVED_SLUGS.has(slug)) return null;
-    const rows = await query<ProfileRow>(
-      `SELECT ${profileColumns('p')}
-         FROM loyalty_portal_profiles p
-         JOIN businesses b ON BINARY b.business_id = BINARY p.business_id
-        WHERE p.slug = ? AND p.is_active = 1 AND b.deleted_at IS NULL LIMIT 1`, [slug]);
-    return rows[0] ? mapProfile(rows[0]) : null;
+    try {
+      const rows = await query<ProfileRow>(
+        `SELECT ${profileColumns('p')}
+           FROM loyalty_portal_profiles p
+           JOIN businesses b ON BINARY b.business_id = BINARY p.business_id
+          WHERE p.slug = ? AND p.is_active = 1 AND b.deleted_at IS NULL LIMIT 1`, [slug]);
+      return rows[0] ? mapProfile(rows[0]) : null;
+    } catch (error) {
+      if (!isPolicySchemaMissing(error)) throw error;
+      const rows = await query<any>(
+        `SELECT p.business_id, p.slug, p.display_name, p.logo_url, p.shopify_return_url,
+                p.terms_url, p.terms_version, p.privacy_url, p.is_active
+           FROM loyalty_portal_profiles p
+           JOIN businesses b ON BINARY b.business_id = BINARY p.business_id
+          WHERE p.slug = ? AND p.is_active = 1 AND b.deleted_at IS NULL LIMIT 1`, [slug]);
+      if (!rows[0]) return null;
+      return mapProfile({
+        ...rows[0], policy_mode: 'external', legal_name: null, trading_name: null, business_number: null,
+        policy_contact_email: null, policy_contact_address: null, policy_jurisdiction: null,
+        current_policy_version_id: null,
+      });
+    }
   },
 
   async getPublishedPolicyBySlug(input: unknown, requestedVersion?: unknown): Promise<LoyaltyPolicyVersion | null> {
