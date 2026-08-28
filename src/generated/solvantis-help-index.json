@@ -3196,7 +3196,7 @@
         "setup": "Choose a Setup area",
         "connections": "Connection readiness",
         "pos": "POS setup",
-        "shopify": "Connection readiness",
+        "shopify": "Connect Shopify",
         "xero": "Connection readiness",
         "cin7": "Connection readiness",
         "meta": "Connection readiness",
@@ -3210,7 +3210,7 @@
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-28",
       "owner": "integrations",
       "filename": "docs/help/setup/connections.md",
       "sections": [
@@ -3236,21 +3236,26 @@
         },
         {
           "id": "setup-connections:5",
+          "heading": "Connect Shopify",
+          "content": "Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.\n\n1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.\n2. Install that app on the intended store.\n3. In **Setup > Connections > Shopify**, select **Dev Dashboard**.\n4. Enter the permanent `myshopify.com` store domain, Client ID, and Client secret from the app's Settings area.\n5. Select **Save**, then **Test Connection**.\n6. Open **IMS > Shopify > Orders & Webhooks** and register or verify the required webhooks.\n\nSolvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.\n\n> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode."
+        },
+        {
+          "id": "setup-connections:6",
           "heading": "POS setup",
           "content": "POS Settings controls the payment-method names shown on the POS payment screen.\n\n1. Review the current list.\n2. Add, rename, or remove a method.\n3. Select **Save Methods**.\n4. Open POS and confirm the expected choices before taking a sale.\n\n| Change | Effect | External change |\n| --- | --- | --- |\n| Save payment methods | Updates payment choices shown in POS | No external service is changed |"
         },
         {
-          "id": "setup-connections:6",
+          "id": "setup-connections:7",
           "heading": "Safe connection sequence",
           "content": "1. Select the intended business.\n2. Start the connection or enter details only in its protected fields.\n3. Confirm the external organisation, store, account, or property.\n4. Save and use the available status or test action.\n5. Complete downstream mappings and settings in the owning product area.\n6. Run one controlled sync or test and review its result."
         },
         {
-          "id": "setup-connections:7",
+          "id": "setup-connections:8",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Connected to the wrong account | The wrong organisation or account was selected during sign-in | Disconnect and reconnect the intended account |\n| Connected but a workflow is unavailable | Required mapping, permission, or product setup is incomplete | Open Integration Readiness and complete the shown dependency |\n| Access expired | The external service no longer accepts the saved authorisation | Reconnect through the normal connection flow |\n| A test fails twice | Account access or setup still needs attention | Stop retries and read the specific status or error |"
         },
         {
-          "id": "setup-connections:8",
+          "id": "setup-connections:9",
           "heading": "Worked examples",
           "content": "### Prepare Xero for POS accounting\n\nConnect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.\n\n### Add a POS payment method\n\nOpen POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account."
         }
