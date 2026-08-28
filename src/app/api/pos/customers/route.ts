@@ -14,7 +14,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function loyaltyProgram(businessId: string) {
   const settings = await LoyaltyService.getSettings(businessId);
   const active = settings.enabled && (!settings.startedAt || new Date().toISOString().slice(0, 10) >= settings.startedAt);
-  const profile = await LoyaltyPortalProfileRepository.getByBusinessId(businessId).catch(() => null);
+  const profile = await LoyaltyPortalProfileRepository.getByBusinessId(businessId);
   return {
     enabled: settings.enabled,
     active,
