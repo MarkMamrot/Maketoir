@@ -743,6 +743,18 @@ CREATE TABLE IF NOT EXISTS ims_product_images (
   INDEX idx_pi_primary (product_id, is_primary)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) NOT NULL DEFAULT '',
+  action      ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
+  status      ENUM('success','error','partial') NOT NULL,
+  summary     TEXT NOT NULL,
+  detail      JSON NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ssl_created (created_at),
+  INDEX idx_ssl_biz_created (business_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ── Website Content Attempts ────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
   id                  BIGINT AUTO_INCREMENT PRIMARY KEY,

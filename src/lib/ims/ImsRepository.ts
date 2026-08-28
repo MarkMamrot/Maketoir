@@ -4643,6 +4643,33 @@ export interface ImsShopifySyncLog {
   created_at: string;
 }
 
+const shopifySyncLogSchemaPromises = new Map<string, Promise<void>>();
+
+async function ensureShopifySyncLogSchema(): Promise<void> {
+  const schema = getCurrentImsDb();
+  let promise = shopifySyncLogSchemaPromises.get(schema);
+  if (!promise) {
+    promise = imsExecute(`
+      CREATE TABLE IF NOT EXISTS ims_shopify_sync_log (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        business_id VARCHAR(100) NOT NULL DEFAULT '',
+        action ENUM('reconcile','upload','sync_prices','resync') NOT NULL,
+        status ENUM('success','error','partial') NOT NULL,
+        summary TEXT NOT NULL,
+        detail JSON NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ssl_created (created_at),
+        INDEX idx_ssl_biz_created (business_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `).then(() => undefined).catch(error => {
+      shopifySyncLogSchemaPromises.delete(schema);
+      throw error;
+    });
+    shopifySyncLogSchemaPromises.set(schema, promise);
+  }
+  await promise;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Product Images
 // ─────────────────────────────────────────────────────────────────────────────
@@ -4785,6 +4812,7 @@ export const ImsShopifyRepo = {
     businessId: string,
     detail?: object,
   ): Promise<void> {
+    await ensureShopifySyncLogSchema();
     await imsExecute(
       `INSERT INTO ims_shopify_sync_log (business_id, action, status, summary, detail) VALUES (?, ?, ?, ?, ?)`,
       [businessId, action, status, summary, detail ? JSON.stringify(detail) : null],
@@ -4803,6 +4831,7 @@ export const ImsShopifyRepo = {
   },
 
   async getLog(limit = 50, businessId?: string): Promise<ImsShopifySyncLog[]> {
+    await ensureShopifySyncLogSchema();
     const n = Math.max(1, Math.min(Math.floor(Number(limit)), 500));
     if (businessId) {
       return imsQuery<ImsShopifySyncLog>(
