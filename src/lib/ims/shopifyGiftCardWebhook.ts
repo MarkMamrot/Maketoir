@@ -1,6 +1,5 @@
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
 import { syncShopifyGiftCardSnapshots, type ShopifyGiftCardSyncResult } from '@/lib/ims/shopifyGiftCardSync';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -21,14 +20,11 @@ export async function reconcileGiftCardsFromPaidShopifyOrder(
   );
   if (settingRows[0]?.value !== 'combined') return null;
 
-  const connection = await ConnectionsRepository.get(businessId);
-  if (!connection?.shopify_shop_id || !connection.shopify_access_token) return null;
-
-  let token = connection.shopify_access_token;
-  try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) return null;
 
   return syncShopifyGiftCardSnapshots(
     businessId,
-    new ShopifyService(connection.shopify_shop_id, token),
+    new ShopifyService(credentials.shopDomain, credentials.token),
   );
 }

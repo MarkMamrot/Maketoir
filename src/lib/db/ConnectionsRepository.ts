@@ -10,7 +10,11 @@ export interface ConnectionsRow {
   cin7_account_id:          string | null;
   cin7_api_key:             string | null;
   shopify_shop_id:          string | null;
+  shopify_auth_mode:        'legacy_token' | 'client_credentials' | null;
   shopify_access_token:     string | null;
+  shopify_client_id:        string | null;
+  shopify_client_secret:    string | null;
+  shopify_token_expires_at: string | number | null;
   meta_ad_account_id:       string | null;
   meta_access_token:        string | null;
   google_ads_customer_id:   string | null;
@@ -42,7 +46,10 @@ const LEGACY_MAP: Record<string, keyof PartialConnections> = {
   Cin7AccountId:           'cin7_account_id',
   Cin7ApiKey:              'cin7_api_key',
   ShopifyShopId:           'shopify_shop_id',
+  ShopifyAuthMode:         'shopify_auth_mode',
   ShopifyAccessToken:      'shopify_access_token',
+  ShopifyClientId:         'shopify_client_id',
+  ShopifyClientSecret:     'shopify_client_secret',
   MetaAdAccountId:         'meta_ad_account_id',
   MetaAccessToken:         'meta_access_token',
   GoogleAdsCustomerId:     'google_ads_customer_id',
@@ -63,6 +70,7 @@ const LEGACY_MAP: Record<string, keyof PartialConnections> = {
 /** Which legacy keys are secrets that must be encrypted/decrypted */
 export const CONNECTION_SECRET_FIELDS = new Set([
   'ShopifyAccessToken',
+  'ShopifyClientSecret',
   'MetaAccessToken',
   'Cin7ApiKey',
   'GmailRefreshToken',

@@ -31,7 +31,11 @@ export async function POST(request: Request) {
       WHERE b.deleted_at IS NULL
         AND COALESCE(b.automation_paused, 0) = 0
         AND c.shopify_shop_id IS NOT NULL AND c.shopify_shop_id != ''
-        AND c.shopify_access_token IS NOT NULL AND c.shopify_access_token != ''
+        AND (
+          (COALESCE(c.shopify_auth_mode, 'legacy_token') = 'legacy_token' AND c.shopify_access_token IS NOT NULL AND c.shopify_access_token != '')
+          OR
+          (c.shopify_auth_mode = 'client_credentials' AND c.shopify_client_id IS NOT NULL AND c.shopify_client_id != '' AND c.shopify_client_secret IS NOT NULL AND c.shopify_client_secret != '')
+        )
       ORDER BY b.business_id`,
     [],
   );

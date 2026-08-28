@@ -1049,7 +1049,11 @@ export interface Business { name: string; userId: string; databaseId: string; }
 export function ConnectionsTab({ business, onHelp }: { business: Business | null; onHelp: (context: string) => void }) {
   // Per-business credential state
   const [shopId, setShopId] = useState('');
+  const [shopifyAuthMode, setShopifyAuthMode] = useState<'legacy_token' | 'client_credentials'>('legacy_token');
   const [accessToken, setAccessToken] = useState('');
+  const [shopifyClientId, setShopifyClientId] = useState('');
+  const [shopifyClientSecret, setShopifyClientSecret] = useState('');
+  const [shopifyClientSecretConfigured, setShopifyClientSecretConfigured] = useState(false);
   const [spreadsheetId, setSpreadsheetId] = useState('');
   const [gaPropertyId, setGaPropertyId] = useState('');
   const [googleAdsCustomerId, setGoogleAdsCustomerId] = useState('');
@@ -1225,7 +1229,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       } catch {}
 
       const sid  = creds.ShopifyShopId       || '';
+      const shopMode = creds.ShopifyAuthMode === 'client_credentials' ? 'client_credentials' : 'legacy_token';
       const sat  = creds.ShopifyAccessToken  || '';
+      const shopClientId = creds.ShopifyClientId || '';
+      const shopClientSecretConfigured = creds.ShopifyClientSecretConfigured === 'true';
       const gaId = creds.GA4PropertyId       || '';
       const gads = creds.GoogleAdsCustomerId  || '';
       const maa  = creds.MetaAdAccountId     || '';
@@ -1239,7 +1246,11 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       const klKey  = creds.KlaviyoApiKey     || '';
 
       setShopId(sid);
+      setShopifyAuthMode(shopMode);
       setAccessToken(sat);
+      setShopifyClientId(shopClientId);
+      setShopifyClientSecret('');
+      setShopifyClientSecretConfigured(shopClientSecretConfigured);
       setSpreadsheetId(databaseId); // database IS the target spreadsheet
       setGaPropertyId(gaId);
       setGoogleAdsCustomerId(gads);
@@ -1319,8 +1330,13 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       if (klKey) {
         pingKlaviyo(klKey);
       }
-      if (sid && sat) {
-        ping(`/api/sync/catalog?shopId=${encodeURIComponent(sid)}&accessToken=${encodeURIComponent(sat)}`, setSyncResult);
+      if (sid && (shopMode === 'client_credentials' ? shopClientId && shopClientSecretConfigured : sat)) {
+        try {
+          const response = await fetch('/api/shopify/connection', { method: 'POST' });
+          setSyncResult(await response.json());
+        } catch {
+          setSyncResult({ success: false, error: 'Network error' });
+        }
       }
 
       // Xero status check
@@ -1352,7 +1368,13 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     setCardMsgs(prev => ({ ...prev, [cardId]: '' }));
     try {
       const valuesByCard: Record<string, Record<string, string>> = {
-        shopify: { ShopifyShopId: shopId, ShopifyAccessToken: accessToken },
+        shopify: {
+          ShopifyShopId: shopId,
+          ShopifyAuthMode: shopifyAuthMode,
+          ShopifyAccessToken: accessToken,
+          ShopifyClientId: shopifyClientId,
+          ShopifyClientSecret: shopifyClientSecret,
+        },
         cin7: { Cin7AccountId: cin7AccountId, Cin7ApiKey: cin7ApiKey },
         klaviyo: { KlaviyoApiKey: klaviyoApiKey },
         gmail: { GmailAddress: gmailAddress, GmailRefreshToken: gmailRefreshToken, GmailClientId: gmailClientId, GmailClientSecret: gmailClientSecret },
@@ -1395,7 +1417,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   const testShopifySync = async () => {
     setSyncLoading(true); setSyncResult(null);
     try {
-      const res = await fetch(`/api/sync/catalog?shopId=${encodeURIComponent(shopId)}&accessToken=${encodeURIComponent(accessToken)}`);
+      const res = await fetch('/api/shopify/connection', { method: 'POST' });
       setSyncResult(await res.json());
     } catch (err: any) { setSyncResult({ success: false, error: err.message }); }
     setSyncLoading(false);
@@ -1595,13 +1617,34 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
           <button onClick={() => onHelp('shopify')} className="text-xs text-blue-500 hover:underline">How to connect →</button>
         </div>
         <div className="w-full">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Shop ID</label>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Store domain</label>
           <input className="w-full p-2 border rounded text-sm" value={shopId} onChange={e => setShopId(e.target.value)} placeholder="mystore.myshopify.com" />
         </div>
         <div className="w-full">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Access Token</label>
-          <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="shpat_..." />
+          <span className="block text-xs font-semibold text-gray-600 mb-1">Authentication</span>
+          <div className="grid grid-cols-2 rounded border border-gray-200 p-1" role="group" aria-label="Shopify authentication mode">
+            <button type="button" onClick={() => setShopifyAuthMode('client_credentials')} className={`px-3 py-2 text-xs font-semibold rounded ${shopifyAuthMode === 'client_credentials' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Dev Dashboard</button>
+            <button type="button" onClick={() => setShopifyAuthMode('legacy_token')} className={`px-3 py-2 text-xs font-semibold rounded ${shopifyAuthMode === 'legacy_token' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>Legacy token</button>
+          </div>
         </div>
+        {shopifyAuthMode === 'legacy_token' ? (
+          <div className="w-full">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Admin API access token</label>
+            <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={accessToken} onChange={e => setAccessToken(e.target.value)} placeholder="shpat_..." />
+          </div>
+        ) : (
+          <>
+            <div className="w-full">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Client ID</label>
+              <input className="w-full p-2 border rounded text-sm font-mono" value={shopifyClientId} onChange={e => setShopifyClientId(e.target.value)} autoComplete="off" />
+            </div>
+            <div className="w-full">
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Client secret</label>
+              <input className="w-full p-2 border rounded text-sm font-mono" type="password" value={shopifyClientSecret} onChange={e => setShopifyClientSecret(e.target.value)} placeholder={shopifyClientSecretConfigured ? 'Saved; leave blank to keep current secret' : 'Enter client secret'} autoComplete="new-password" />
+              <p className="mt-1 text-xs text-gray-500">Solvantis renews the Shopify access token automatically. Save before testing.</p>
+            </div>
+          </>
+        )}
         <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
           <button onClick={testShopifySync} disabled={syncLoading} className="px-4 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition">
             {syncLoading ? 'Syncing...' : 'Test Connection'}

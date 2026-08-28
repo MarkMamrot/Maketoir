@@ -11,8 +11,7 @@
  */
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { createNotification } from '@/lib/ims/createNotification';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 
@@ -47,13 +46,9 @@ export async function getOnlinePickLocationIds(businessId: string): Promise<numb
 
 /** Build a Shopify service for a business, or null if not connected. */
 export async function getShopifyForBusiness(businessId: string): Promise<ShopifyService | null> {
-  const conn = await ConnectionsRepository.get(businessId) as any;
-  const rawShopId = conn?.shopify_shop_id ?? '';
-  const encToken  = conn?.shopify_access_token ?? '';
-  if (!rawShopId || !encToken) return null;
-  const shopName = rawShopId.replace(/\.myshopify\.com$/, '');
-  if (!/^[a-zA-Z0-9-]+$/.test(shopName)) return null;
-  return new ShopifyService(shopName, decrypt(encToken));
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) return null;
+  return new ShopifyService(credentials.shopDomain, credentials.token);
 }
 
 /**

@@ -1,5 +1,4 @@
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -55,14 +54,11 @@ export async function syncRetailCustomerToShopify(contact: SyncableContact, busi
     return { success: false, action: 'skipped', reason: 'Only retail customers sync to Shopify in v1.', shopifyCustomerId: contact.shopify_customer_id ?? null };
   }
 
-  const conn = await ConnectionsRepository.get(businessId);
-  if (!conn?.shopify_shop_id || !conn?.shopify_access_token) {
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) {
     return { success: false, action: 'skipped', reason: 'Shopify credentials not configured.', shopifyCustomerId: contact.shopify_customer_id ?? null };
   }
-
-  let token = conn.shopify_access_token;
-  try { token = decrypt(token); } catch { /* unencrypted */ }
-  const shopify = new ShopifyService(conn.shopify_shop_id, token);
+  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
   if (Number(contact.is_active ?? 1) === 0) {
     if (!contact.shopify_customer_id) {

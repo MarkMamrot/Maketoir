@@ -1,8 +1,7 @@
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
 import { LoyaltyRepository } from '@/lib/ims/LoyaltyRepository';
 import { LoyaltyService } from '@/lib/loyalty/LoyaltyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
@@ -24,16 +23,14 @@ export const ShopifyLoyaltyMetafieldService = {
     contactId: number;
   }): Promise<ShopifyLoyaltyMetafieldSyncResult> {
     try {
-      const connection = await ConnectionsRepository.get(input.businessId);
-      if (!connection?.shopify_shop_id || !connection.shopify_access_token) {
+      const credentials = await getShopifyAdminCredentials(input.businessId);
+      if (!credentials) {
         return { status: 'skipped', contactId: input.contactId, reason: 'shopify_not_configured' };
       }
-      let accessToken = connection.shopify_access_token;
-      try { accessToken = decrypt(accessToken); } catch { /* Legacy unencrypted token. */ }
       return this.syncCustomer({
         businessId: input.businessId,
         contactId: input.contactId,
-        shopify: new ShopifyService(connection.shopify_shop_id, accessToken),
+        shopify: new ShopifyService(credentials.shopDomain, credentials.token),
       });
     } catch (error) {
       await reportRuntimeIssue({

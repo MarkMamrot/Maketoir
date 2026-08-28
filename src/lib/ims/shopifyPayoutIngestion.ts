@@ -1,6 +1,5 @@
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
 import { planShopifyPayoutActions } from '@/lib/ims/shopifyPayoutActionPlanner';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { toBusinessDate } from '@/lib/shopifyDate';
 import { classifyShopifyPayoutTransaction } from '@/lib/xero/shopifyPayoutReconciliation';
 import { execute, query } from '@/services/MySQLService';
@@ -52,15 +51,12 @@ async function fetchShopifyPages(creds: ShopifyApiCreds, initialUrl: string, key
 }
 
 export async function getShopifyApiCreds(businessId: string): Promise<ShopifyApiCreds | null> {
-  const connection = await ConnectionsRepository.get(businessId);
-  const rawShopId = connection?.shopify_shop_id ?? '';
-  const encryptedToken = connection?.shopify_access_token ?? '';
-  if (!rawShopId || !encryptedToken) return null;
-  const shopName = String(rawShopId).replace(/\.myshopify\.com$/, '');
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) return null;
   return {
-    shopName,
-    token: decrypt(encryptedToken),
-    base: `https://${shopName}.myshopify.com/admin/api/2024-10`,
+    shopName: credentials.shopName,
+    token: credentials.token,
+    base: `https://${credentials.shopDomain}/admin/api/2024-10`,
   };
 }
 

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connection readiness","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-08-23","owner":"integrations"}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-08-28","owner":"integrations"}
 ---
 # Connections and Setup
 
@@ -39,6 +39,21 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |
 
 A green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post.
+
+## Connect Shopify
+
+Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.
+
+1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.
+2. Install that app on the intended store.
+3. In **Setup > Connections > Shopify**, select **Dev Dashboard**.
+4. Enter the permanent `myshopify.com` store domain, Client ID, and Client secret from the app's Settings area.
+5. Select **Save**, then **Test Connection**.
+6. Open **IMS > Shopify > Orders & Webhooks** and register or verify the required webhooks.
+
+Solvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.
+
+> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode.
 
 ## POS setup
 
