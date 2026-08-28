@@ -77,11 +77,15 @@ export async function POST(req: Request) {
         ? (await ImsBrandsRepo.list(businessId)).map(brand => brand.name.trim().toLowerCase())
         : [],
     );
-    const suppliersByName = new Map(
-      populateUnknownSuppliers
-        ? (await ImsContactsRepo.list('supplier', false, businessId)).map(supplier => [supplier.name.trim().toLowerCase(), supplier.id] as const)
-        : [],
-    );
+    const suppliersByName = new Map<string, number>();
+    if (populateUnknownSuppliers) {
+      for (const supplier of await ImsContactsRepo.list('supplier', false, businessId)) {
+        const supplierName = text(supplier.name)?.toLowerCase();
+        const supplierCompany = text(supplier.company)?.toLowerCase();
+        if (supplierName) suppliersByName.set(supplierName, supplier.id);
+        if (supplierCompany) suppliersByName.set(supplierCompany, supplier.id);
+      }
+    }
 
     let createdProducts = 0;
     let updatedProducts = 0;
