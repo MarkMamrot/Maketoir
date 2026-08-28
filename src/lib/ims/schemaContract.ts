@@ -27,6 +27,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'ims_products',
   'ims_product_variants',
   'ims_product_images',
+  'ims_shopify_sync_log',
   'ims_website_content_attempts',
   'ims_stock',
   'ims_stock_allocations',
