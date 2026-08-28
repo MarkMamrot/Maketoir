@@ -374,6 +374,10 @@ function ShopifyProductsTab() {
 
   const applyOpeningStock = async () => {
     if (!openingStockPreview?.batches.length) return;
+    if (openingStockPreview.batches.some(batch => !batch.snapshot)) {
+      setOpeningStockError('This preview was created before the opening-stock update. Refresh the page and preview again.');
+      return;
+    }
     const changed = openingStockPreview.lines.filter(line => Math.abs(line.adjustment) > 0.0001).length;
     if (!window.confirm(`Apply Shopify opening stock to Warehouse and Kotara? This will set ${changed} location/variant balances and create completed stocktakes.`)) return;
     setOpeningStockBusy('apply'); setOpeningStockResult(null); setOpeningStockError(null);
@@ -556,6 +560,7 @@ function ShopifyProductsTab() {
           </button>
         </div>
         {openingStockPreview && (() => {
+          const pendingVariants = openingStockPreview.batches.reduce((sum, batch) => sum + batch.variantIds.length, 0);
           const summaries = ['Warehouse', 'Kotara'].map(locationName => {
             const locationLines = openingStockPreview.lines.filter(line => line.locationName === locationName);
             return {
@@ -578,9 +583,13 @@ function ShopifyProductsTab() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
-                  {openingStockBusy === 'preview' ? `${openingStockPreview.lines.length / 2} of ${openingStockPreview.totalVariants} variants scanned` : `${openingStockPreview.totalVariants} linked variants ready`}
+                  {openingStockBusy === 'preview'
+                    ? `${openingStockPreview.lines.length / 2} of ${openingStockPreview.totalVariants} variants scanned`
+                    : pendingVariants > 0
+                      ? `${pendingVariants} of ${openingStockPreview.totalVariants} linked variants require updates`
+                      : `All ${openingStockPreview.totalVariants} linked variants already match Shopify`}
                 </span>
-                {openingStockBusy !== 'preview' && (
+                {openingStockBusy !== 'preview' && pendingVariants > 0 && (
                   <button
                     onClick={applyOpeningStock}
                     disabled={openingStockBusy !== null}

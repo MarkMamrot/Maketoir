@@ -30,6 +30,14 @@ export interface OpeningStockLine {
   productName?: string | null;
 }
 
+export function changedOpeningStockVariantIds(
+  lines: Array<{ variantId: string; adjustment: number }>,
+): Set<string> {
+  return new Set(lines
+    .filter(line => Number.isFinite(line.adjustment) && Math.abs(line.adjustment) > 0.0001)
+    .map(line => line.variantId));
+}
+
 function locationKey(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
 }

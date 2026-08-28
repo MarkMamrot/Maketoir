@@ -3,7 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
-import { planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
+import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
 import { signOpeningStockSnapshot, verifyOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
 import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
@@ -103,9 +103,11 @@ export async function POST(req: Request) {
         const current = currentByKey.get(`${line.variantId}:${line.solvantisLocationId}`) ?? 0;
         return { ...line, currentQuantity: current, adjustment: line.quantity - current };
       });
+      const changedVariantIds = changedOpeningStockVariantIds(previewLines);
       const applyBatches = [];
-      for (let batchOffset = 0; batchOffset < batch.length; batchOffset += APPLY_BATCH_SIZE) {
-        const applyVariants = batch.slice(batchOffset, batchOffset + APPLY_BATCH_SIZE);
+      const changedVariants = batch.filter(variant => changedVariantIds.has(variant.variant_id));
+      for (let batchOffset = 0; batchOffset < changedVariants.length; batchOffset += APPLY_BATCH_SIZE) {
+        const applyVariants = changedVariants.slice(batchOffset, batchOffset + APPLY_BATCH_SIZE);
         const applyVariantIds = new Set(applyVariants.map(variant => variant.variant_id));
         const snapshotLines = previewLines
           .filter(line => applyVariantIds.has(line.variantId))
@@ -116,7 +118,7 @@ export async function POST(req: Request) {
             quantity: line.quantity,
             wasNegative: line.wasNegative,
           }));
-        const applyOffset = offset + batchOffset;
+        const applyOffset = offset + batch.findIndex(variant => variant.variant_id === applyVariants[0].variant_id);
         applyBatches.push({
           offset: applyOffset,
           variant_ids: [...applyVariantIds],

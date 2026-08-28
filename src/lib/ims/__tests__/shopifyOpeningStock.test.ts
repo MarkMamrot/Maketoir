@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planOpeningStockLines, resolveOpeningStockLocations } from '../shopifyOpeningStock';
+import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations } from '../shopifyOpeningStock';
 
 describe('Shopify opening stock', () => {
   it('maps Warehouse and Kotara by exact normalized location name', () => {
@@ -43,5 +43,15 @@ describe('Shopify opening stock', () => {
       expect.objectContaining({ variantId: 'v1', locationName: 'Kotara', quantity: 3, wasNegative: false }),
       expect.objectContaining({ variantId: 'v2', locationName: 'Kotara', quantity: 0, wasNegative: false }),
     ]);
+  });
+
+  it('selects only variants with a material adjustment at either location', () => {
+    expect([...changedOpeningStockVariantIds([
+      { variantId: 'already-synced', adjustment: 0 },
+      { variantId: 'rounding-only', adjustment: 0.00001 },
+      { variantId: 'warehouse-change', adjustment: 3 },
+      { variantId: 'warehouse-change', adjustment: 0 },
+      { variantId: 'kotara-change', adjustment: -2 },
+    ])]).toEqual(['warehouse-change', 'kotara-change']);
   });
 });
