@@ -2,8 +2,7 @@
 import { cookies } from 'next/headers';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import {
@@ -19,11 +18,8 @@ function getPosSession() {
 
 async function getShopify(businessId: string): Promise<ShopifyService | null> {
   try {
-    const conn = await ConnectionsRepository.get(businessId);
-    if (!conn?.shopify_shop_id || !conn?.shopify_access_token) return null;
-    let token = conn.shopify_access_token;
-    try { token = decrypt(token); } catch { /* unencrypted */ }
-    return new ShopifyService(conn.shopify_shop_id, token);
+    const credentials = await getShopifyAdminCredentials(businessId);
+    return credentials ? new ShopifyService(credentials.shopDomain, credentials.token) : null;
   } catch { return null; }
 }
 

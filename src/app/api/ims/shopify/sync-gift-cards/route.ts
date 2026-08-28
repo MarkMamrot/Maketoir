@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { syncShopifyGiftCardSnapshots } from '@/lib/ims/shopifyGiftCardSync';
 
@@ -15,13 +14,11 @@ export async function POST() {
   if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const businessId = session.businessId;
 
-  const conn = await ConnectionsRepository.get(businessId);
-  if (!conn?.shopify_shop_id || !conn?.shopify_access_token)
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials)
     return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
 
-  let token = conn.shopify_access_token;
-  try { token = decrypt(token); } catch { /* unencrypted */ }
-  const shopify = new ShopifyService(conn.shopify_shop_id, token);
+  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
   try {
     const result = await syncShopifyGiftCardSnapshots(businessId, shopify);

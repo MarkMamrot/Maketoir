@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -23,13 +22,11 @@ export async function POST(request: Request) {
   const queryLimit = limit + 1;
 
   try {
-    const connection = await ConnectionsRepository.get(session.businessId);
-    if (!connection?.shopify_shop_id || !connection.shopify_access_token) {
+    const credentials = await getShopifyAdminCredentials(session.businessId);
+    if (!credentials) {
       return NextResponse.json({ error: 'Shopify credentials are not configured.' }, { status: 400 });
     }
-    let accessToken = connection.shopify_access_token;
-    try { accessToken = decrypt(accessToken); } catch { /* Legacy unencrypted token. */ }
-    const shopify = new ShopifyService(connection.shopify_shop_id, accessToken);
+    const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
     const contactIds = requestedContactId != null
       ? [requestedContactId]

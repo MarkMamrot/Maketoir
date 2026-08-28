@@ -21,6 +21,11 @@ type ShopifyCredentialDependencies = {
 
 const TOKEN_RENEWAL_MARGIN_MS = 5 * 60 * 1000;
 
+function decryptStoredValue(value: string | null): string {
+  const stored = value ?? '';
+  try { return decrypt(stored); } catch { return stored; }
+}
+
 const defaultDependencies: ShopifyCredentialDependencies = {
   fetchImpl: fetch,
   now: Date.now,
@@ -34,9 +39,10 @@ const defaultDependencies: ShopifyCredentialDependencies = {
 };
 
 export function normalizeShopifyShopDomain(value: string): string {
-  return value.trim().toLowerCase()
+  const normalized = value.trim().toLowerCase()
     .replace(/^https?:\/\//, '')
     .replace(/\/+$/, '');
+  return /^[a-z0-9][a-z0-9-]*$/.test(normalized) ? `${normalized}.myshopify.com` : normalized;
 }
 
 export async function resolveShopifyAdminCredentials(
@@ -55,19 +61,19 @@ export async function resolveShopifyAdminCredentials(
     : 'legacy_token';
 
   if (authMode === 'legacy_token') {
-    const token = decrypt(connection.shopify_access_token ?? '').trim();
+    const token = decryptStoredValue(connection.shopify_access_token).trim();
     if (!token) throw new Error('Shopify Admin API access token is not configured.');
     return { authMode, shopDomain, shopName, token };
   }
 
-  const cachedToken = decrypt(connection.shopify_access_token ?? '').trim();
+  const cachedToken = decryptStoredValue(connection.shopify_access_token).trim();
   const expiresAt = Number(connection.shopify_token_expires_at ?? 0);
   if (cachedToken && Number.isFinite(expiresAt) && expiresAt > dependencies.now() + TOKEN_RENEWAL_MARGIN_MS) {
     return { authMode, shopDomain, shopName, token: cachedToken };
   }
 
   const clientId = (connection.shopify_client_id ?? '').trim();
-  const clientSecret = decrypt(connection.shopify_client_secret ?? '').trim();
+  const clientSecret = decryptStoredValue(connection.shopify_client_secret).trim();
   if (!clientId || !clientSecret) throw new Error('Shopify Dev Dashboard client credentials are incomplete.');
 
   const response = await dependencies.fetchImpl(`https://${shopDomain}/admin/oauth/access_token`, {

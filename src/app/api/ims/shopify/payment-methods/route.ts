@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -10,15 +9,12 @@ export async function GET() {
   if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId = session.businessId;
-  const conn = await ConnectionsRepository.get(businessId);
-  if (!conn?.shopify_shop_id || !conn?.shopify_access_token) {
+  const credentials = await getShopifyAdminCredentials(businessId);
+  if (!credentials) {
     return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });
   }
 
-  let token = conn.shopify_access_token;
-  try { token = decrypt(token); } catch { /* already plain */ }
-
-  const shopify = new ShopifyService(conn.shopify_shop_id, token);
+  const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
   const syncFromRows = await imsQuery<{ value: string }>(
     "SELECT value FROM ims_settings WHERE business_id = ? AND `key` = 'shopify_order_sync_from' LIMIT 1",
     [businessId],

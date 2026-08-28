@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -47,11 +48,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (card.shopify_gc_id) {
       try {
-        const provider = await ConnectionsRepository.get(session.businessId);
-        if (!provider?.shopify_shop_id || !provider.shopify_access_token) throw new Error('Shopify credentials are not configured.');
-        let token = provider.shopify_access_token;
-        try { token = decrypt(token); } catch { /* unencrypted legacy token */ }
-        await new ShopifyService(provider.shopify_shop_id, token).disableGiftCard(card.shopify_gc_id);
+        const credentials = await getShopifyAdminCredentials(session.businessId);
+        if (!credentials) throw new Error('Shopify credentials are not configured.');
+        await new ShopifyService(credentials.shopDomain, credentials.token).disableGiftCard(card.shopify_gc_id);
       } catch (error) {
         await reportRuntimeIssue({
           businessId: session.businessId,
