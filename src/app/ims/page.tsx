@@ -6395,7 +6395,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     (showCols.active ? 70 : 0) + (showCols.created ? 100 : 0);
 
   const productHeaderColumns: [string, string][] = [
-    ...(showCols.sku ? [['sku', 'SKU'] as [string, string]] : []),
+    ...(showCols.sku ? [['sku', 'Product SKU'] as [string, string]] : []),
     ['name', 'Product'],
     ...(showCols.barcode ? [['barcode', 'Barcode'] as [string, string]] : []),
     ...(showCols.product_type ? [['product_type', 'Product Type'] as [string, string]] : []),
@@ -6596,7 +6596,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.sku} onChange={e => setShowCols(s => ({ ...s, sku: e.target.checked }))} style={{ marginRight: 8 }} />
-              SKU
+              Product SKU
             </label>
             <label style={{ display: 'block', marginBottom: 8, fontSize: 13, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
               <input type="checkbox" checked={showCols.barcode} onChange={e => setShowCols(s => ({ ...s, barcode: e.target.checked }))} style={{ marginRight: 8 }} />
@@ -6724,7 +6724,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                       <input type="checkbox" checked={selected.has(p.product_id)} onChange={() => toggleSelect(p.product_id)} style={{ cursor: 'pointer' }} />
                     </td>
                     {showCols.sku && <td style={{ width: 150, minWidth: 150, padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 32, zIndex: 3, background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}>
-                      <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{firstVar?.sku || '—'}</code>
+                      <code style={{ color: 'var(--sv-mint)', fontSize: 12 }}>{p.base_sku || '—'}</code>
                     </td>}
                     <td style={{ width: 384, minWidth: 384, padding: '10px 12px', borderTop: '1px solid var(--sv-etch)', overflow: 'hidden', position: 'sticky', left: showCols.sku ? 182 : 32, zIndex: 3, background: selected.has(p.product_id) ? 'color-mix(in srgb, var(--sv-action) 10%, var(--sv-bg-1))' : i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>

@@ -40,6 +40,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 ## Step-by-step
 
 1. Open **Products > All Products** and search for the item.
+	The Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.
 2. Select **New Product** when no matching product exists.
 3. Enter the product Name and Product SKU.
 4. Choose or type the Product Type, brand, category, tags and default supplier as needed.
