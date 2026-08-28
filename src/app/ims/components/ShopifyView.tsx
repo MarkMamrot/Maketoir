@@ -222,7 +222,8 @@ function ShopifyProductsTab() {
   } | null>(null);
   const [openingStockBusy, setOpeningStockBusy] = useState<'preview' | 'apply' | null>(null);
   const [openingStockPreview, setOpeningStockPreview] = useState<{
-    batches: Array<{ offset: number; variantIds: string[] }>;
+    runId: string;
+    batches: Array<{ offset: number; variantIds: string[]; snapshot: string }>;
     totalVariants: number;
     lines: Array<{ locationName: string; quantity: number; currentQuantity: number; adjustment: number; wasNegative: boolean }>;
   } | null>(null);
@@ -338,7 +339,8 @@ function ShopifyProductsTab() {
 
   const previewOpeningStock = async () => {
     setOpeningStockBusy('preview'); setOpeningStockPreview(null); setOpeningStockResult(null); setOpeningStockError(null);
-    const batches: Array<{ offset: number; variantIds: string[] }> = [];
+    const runId = crypto.randomUUID();
+    const batches: Array<{ offset: number; variantIds: string[]; snapshot: string }> = [];
     const lines: Array<{ locationName: string; quantity: number; currentQuantity: number; adjustment: number; wasNegative: boolean }> = [];
     let offset = 0;
     let totalVariants = 0;
@@ -351,10 +353,14 @@ function ShopifyProductsTab() {
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock preview failed.');
-        batches.push({ offset, variantIds: data.variant_ids ?? [] });
+        batches.push(...(data.apply_batches ?? []).map((batch: any) => ({
+          offset: Number(batch.offset),
+          variantIds: batch.variant_ids ?? [],
+          snapshot: String(batch.snapshot ?? ''),
+        })));
         lines.push(...(data.lines ?? []));
         totalVariants = Number(data.total_variants ?? 0);
-        setOpeningStockPreview({ batches: [...batches], totalVariants, lines: [...lines] });
+        setOpeningStockPreview({ runId, batches: [...batches], totalVariants, lines: [...lines] });
         hasMore = Boolean(data.has_more);
         offset = Number(data.next_offset ?? offset);
         if (hasMore) await new Promise(resolve => setTimeout(resolve, 1500));
@@ -371,21 +377,21 @@ function ShopifyProductsTab() {
     const changed = openingStockPreview.lines.filter(line => Math.abs(line.adjustment) > 0.0001).length;
     if (!window.confirm(`Apply Shopify opening stock to Warehouse and Kotara? This will set ${changed} location/variant balances and create completed stocktakes.`)) return;
     setOpeningStockBusy('apply'); setOpeningStockResult(null); setOpeningStockError(null);
-    const runId = crypto.randomUUID();
+    const runId = openingStockPreview.runId;
     let appliedVariants = 0;
     const stocktakeIds: number[] = [];
     try {
       for (const batch of openingStockPreview.batches) {
         const response = await fetch('/api/ims/shopify/opening-stock', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'apply', run_id: runId, offset: batch.offset, variant_ids: batch.variantIds }),
+          body: JSON.stringify({ mode: 'apply', run_id: runId, snapshot: batch.snapshot }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock apply failed.');
         appliedVariants += Number(data.variants ?? 0);
         stocktakeIds.push(...(data.stocktakes ?? []).map((stocktake: any) => Number(stocktake.id)));
         if (batch !== openingStockPreview.batches[openingStockPreview.batches.length - 1]) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
       setOpeningStockResult(`Opening stock applied for ${appliedVariants} variants across Warehouse and Kotara. Stocktakes: ${stocktakeIds.join(', ')}.`);

@@ -69,11 +69,13 @@ Shopify supplies one standard **vendor** value rather than separate brand and su
 7. Note the completed stocktake numbers shown when the import finishes.
 8. Review those stocktakes and the resulting Warehouse and Kotara stock before continuing onboarding.
 
-Shopify Warehouse quantities are applied only to Solvantis Warehouse. Shopify Kotara quantities are applied only to Solvantis Kotara. The apply step reads Shopify again, sets each linked variant to Shopify's current available quantity, and records the difference through completed stocktakes. Negative Shopify quantities become zero.
+Shopify Warehouse quantities are applied only to Solvantis Warehouse. Shopify Kotara quantities are applied only to Solvantis Kotara. Preview reads Shopify and prepares short-lived, protected quantity snapshots. Apply validates those snapshots and processes small database-only batches, setting each linked variant to the previewed available quantity and recording the difference through completed stocktakes. Negative Shopify quantities become zero.
 
 > **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at Warehouse and Kotara. It does not add Shopify stock on top of the Solvantis balance.
 
 > **Note:** If a completed opening-stock batch must be undone, open its stocktake and use the supported reversal workflow. Do not compensate with an unrelated manual quantity change.
+
+> **Tip:** If the connection is interrupted during apply, keep the preview open and choose **Apply Opening Stock** again. Completed batches are recognized and safely replayed. Run a new preview when the existing preview has expired or Shopify quantities need refreshing.
 
 ### Check or repair product linkage
 

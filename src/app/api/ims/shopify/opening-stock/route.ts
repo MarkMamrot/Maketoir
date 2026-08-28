@@ -4,13 +4,16 @@ import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
 import { planOpeningStockLines, resolveOpeningStockLocations } from '@/lib/ims/shopifyOpeningStock';
+import { signOpeningStockSnapshot, verifyOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
 import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
-const BATCH_SIZE = 50;
+const PREVIEW_BATCH_SIZE = 50;
+const APPLY_BATCH_SIZE = 10;
+const SNAPSHOT_TTL_MS = 2 * 60 * 60 * 1000;
 
 interface LinkedVariant {
   variant_id: string;
@@ -24,7 +27,7 @@ function validRunId(value: unknown): string | null {
   return /^[a-zA-Z0-9-]{8,64}$/.test(runId) ? runId : null;
 }
 
-async function loadContext(businessId: string, variantIds?: string[]) {
+async function loadPreviewContext(businessId: string) {
   const credentials = await getShopifyAdminCredentials(businessId);
   if (!credentials) throw new Error('Shopify not connected.');
   const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
@@ -46,17 +49,8 @@ async function loadContext(businessId: string, variantIds?: string[]) {
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
       WHERE v.business_id = ? AND v.is_active = 1
         AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`;
-  const params: unknown[] = [businessId];
-  if (variantIds) {
-    if (!variantIds.length || variantIds.length > BATCH_SIZE) throw new Error(`Apply batches must contain 1-${BATCH_SIZE} variants.`);
-    variantsSql += ` AND v.variant_id IN (${variantIds.map(() => '?').join(',')})`;
-    params.push(...variantIds);
-  }
   variantsSql += ' ORDER BY v.variant_id';
-  const variants = await imsQuery<LinkedVariant>(variantsSql, params);
-  if (variantIds && variants.length !== new Set(variantIds).size) {
-    throw new Error('One or more variants are no longer linked to Shopify. Preview again before applying.');
-  }
+  const variants = await imsQuery<LinkedVariant>(variantsSql, [businessId]);
   return { shopify, locations, variants };
 }
 
@@ -93,8 +87,8 @@ export async function POST(req: Request) {
 
     if (mode === 'preview') {
       const offset = Math.max(0, Math.floor(Number(body?.offset ?? 0)));
-      const context = await loadContext(businessId);
-      const batch = context.variants.slice(offset, offset + BATCH_SIZE);
+      const context = await loadPreviewContext(businessId);
+      const batch = context.variants.slice(offset, offset + PREVIEW_BATCH_SIZE);
       const lines = await loadLines(context.shopify, context.locations, batch);
       const locationIds = context.locations.map(location => location.solvantisLocationId);
       const currentRows = batch.length ? await imsQuery<{ variant_id: string; location_id: number; qty_on_hand: number }>(
@@ -109,12 +103,39 @@ export async function POST(req: Request) {
         const current = currentByKey.get(`${line.variantId}:${line.solvantisLocationId}`) ?? 0;
         return { ...line, currentQuantity: current, adjustment: line.quantity - current };
       });
+      const applyBatches = [];
+      for (let batchOffset = 0; batchOffset < batch.length; batchOffset += APPLY_BATCH_SIZE) {
+        const applyVariants = batch.slice(batchOffset, batchOffset + APPLY_BATCH_SIZE);
+        const applyVariantIds = new Set(applyVariants.map(variant => variant.variant_id));
+        const snapshotLines = previewLines
+          .filter(line => applyVariantIds.has(line.variantId))
+          .map(line => ({
+            variantId: line.variantId,
+            locationName: line.locationName,
+            solvantisLocationId: line.solvantisLocationId,
+            quantity: line.quantity,
+            wasNegative: line.wasNegative,
+          }));
+        const applyOffset = offset + batchOffset;
+        applyBatches.push({
+          offset: applyOffset,
+          variant_ids: [...applyVariantIds],
+          snapshot: signOpeningStockSnapshot({
+            version: 1,
+            businessId,
+            offset: applyOffset,
+            expiresAt: Date.now() + SNAPSHOT_TTL_MS,
+            lines: snapshotLines,
+          }),
+        });
+      }
       return NextResponse.json({
         success: true,
         mode,
         offset,
         total_variants: context.variants.length,
         variant_ids: batch.map(variant => variant.variant_id),
+        apply_batches: applyBatches,
         lines: previewLines,
         locations: context.locations,
         has_more: offset + batch.length < context.variants.length,
@@ -123,14 +144,41 @@ export async function POST(req: Request) {
     }
 
     const runId = validRunId(body?.run_id);
-    const offset = Math.max(0, Math.floor(Number(body?.offset ?? 0)));
-    const variantIds = Array.isArray(body?.variant_ids) ? body.variant_ids.map(String) : [];
     if (!runId) return NextResponse.json({ error: 'A valid run_id is required.' }, { status: 400 });
-    const context = await loadContext(businessId, variantIds);
-    const lines = await loadLines(context.shopify, context.locations, context.variants);
+    const snapshot = verifyOpeningStockSnapshot(body?.snapshot, businessId);
+    const offset = snapshot.offset;
+    const lines = snapshot.lines;
+    const variantIds = [...new Set(lines.map(line => line.variantId))];
+    const variants = await imsQuery<{ variant_id: string }>(
+      `SELECT variant_id FROM ims_product_variants
+        WHERE business_id = ? AND is_active = 1
+          AND shopify_inventory_item_id IS NOT NULL AND shopify_inventory_item_id <> ''
+          AND variant_id IN (${variantIds.map(() => '?').join(',')})`,
+      [businessId, ...variantIds],
+    );
+    if (variants.length !== variantIds.length) {
+      throw new Error('One or more variants are no longer linked to Shopify. Preview again before applying.');
+    }
+    const locationIds = [...new Set(lines.map(line => line.solvantisLocationId))];
+    const locations = await imsQuery<{ id: number; name: string; is_active: number }>(
+      `SELECT id, name, is_active FROM ims_locations
+        WHERE business_id = ? AND id IN (${locationIds.map(() => '?').join(',')})`,
+      [businessId, ...locationIds],
+    );
+    const validLocations = new Map(locations
+      .filter(location => Number(location.is_active) !== 0)
+      .map(location => [location.name.trim().toLowerCase(), Number(location.id)]));
+    for (const line of lines) {
+      if (validLocations.get(line.locationName.toLowerCase()) !== line.solvantisLocationId) {
+        throw new Error('An opening stock location changed after preview. Preview again before applying.');
+      }
+    }
     const stocktakes: Array<{ id: number; location: string; applied: number; variances: number; replayed: boolean }> = [];
 
-    for (const location of context.locations) {
+    for (const location of [...new Map(lines.map(line => [line.solvantisLocationId, {
+      name: line.locationName,
+      solvantisLocationId: line.solvantisLocationId,
+    }])).values()]) {
       const reference = `SHOPIFY-OPEN-${runId}-${offset}-${location.name}`.slice(0, 100);
       const existing = await imsQuery<{ id: number; status: string }>(
         `SELECT id, status FROM ims_stocktakes
