@@ -68,7 +68,7 @@ function decrypt(stored) {
 
   const shopify = new Shopify({ shopName: shopDomain.replace(/\.myshopify\.com$/, ''), accessToken: token });
   const shopifyProducts = [];
-  let productParams = { limit: 250 };
+  let productParams = { limit: 250, status: 'active' };
   while (productParams) {
     const page = await shopify.product.list(productParams);
     shopifyProducts.push(...page);
@@ -84,6 +84,11 @@ function decrypt(stored) {
   });
   const [products] = await tenant.execute(
     `SELECT product_id, name, shopify_product_id FROM ims_products WHERE business_id = ? ORDER BY name`,
+    [businesses[0].business_id],
+  );
+  const [variants] = await tenant.execute(
+    `SELECT variant_id, product_id, shopify_variant_id
+       FROM ims_product_variants WHERE business_id = ? AND shopify_variant_id IS NOT NULL AND shopify_variant_id <> ''`,
     [businesses[0].business_id],
   );
   const [logs] = await tenant.execute(
@@ -128,6 +133,53 @@ function decrypt(stored) {
   const liveMissing = shopifyProducts
     .filter(product => !linkedShopifyIds.has(String(product.id)))
     .map(product => ({ id: String(product.id), handle: product.handle, title: product.title, status: product.status }));
+  const liveActiveProducts = shopifyProducts.filter(product => product.status === 'active');
+  const liveActiveMissing = liveActiveProducts
+    .filter(product => !linkedShopifyIds.has(String(product.id)))
+    .map(product => ({ id: String(product.id), handle: product.handle, title: product.title }));
+  const productById = new Map(products.map(product => [product.product_id, product]));
+  const variantOwnerByShopifyId = new Map(variants.map(variant => [String(variant.shopify_variant_id), variant.product_id]));
+  const missingOwnership = liveActiveProducts
+    .filter(product => !linkedShopifyIds.has(String(product.id)))
+    .map(product => {
+      const ownerProductIds = [...new Set((product.variants || [])
+        .map(variant => variantOwnerByShopifyId.get(String(variant.id)))
+        .filter(Boolean))];
+      return {
+        id: String(product.id),
+        handle: product.handle,
+        title: product.title,
+        ownerProductIds,
+        ownerShopifyProductIds: ownerProductIds.map(productId => String(productById.get(productId)?.shopify_product_id || '')),
+      };
+    });
+  const activeShopifyIds = new Set(liveActiveProducts.map(product => String(product.id)));
+  const missingOwnershipCounts = {
+    noVariantOwner: missingOwnership.filter(product => product.ownerProductIds.length === 0).length,
+    oneVariantOwner: missingOwnership.filter(product => product.ownerProductIds.length === 1).length,
+    multipleVariantOwners: missingOwnership.filter(product => product.ownerProductIds.length > 1).length,
+    ownerCurrentlyLinkedToActive: missingOwnership.filter(product =>
+      product.ownerShopifyProductIds.some(productId => activeShopifyIds.has(productId)),
+    ).length,
+  };
+
+  if (process.argv.includes('--counts')) {
+    console.log(JSON.stringify({
+      csvProducts: csvProducts.length,
+      sageProducts: products.length,
+      uniqueShopifyProductIds: linkedShopifyIds.size,
+      liveShopifyProducts: shopifyProducts.length,
+      liveShopifyProductsByStatus: Object.fromEntries(['active', 'draft', 'archived'].map(status => [
+        status,
+        shopifyProducts.filter(product => product.status === status).length,
+      ])),
+      liveMissingCount: liveMissing.length,
+      liveActiveMissingCount: liveActiveMissing.length,
+      missingOwnershipCounts,
+      latestImportRun: importRuns[0],
+    }));
+    return;
+  }
 
   if (process.argv.includes('--compact')) {
     console.log(JSON.stringify({
@@ -136,8 +188,14 @@ function decrypt(stored) {
       linkedProducts: products.filter(product => product.shopify_product_id).length,
       uniqueShopifyProductIds: new Set(products.filter(product => product.shopify_product_id).map(product => String(product.shopify_product_id))).size,
       liveShopifyProducts: shopifyProducts.length,
+      liveShopifyProductsByStatus: Object.fromEntries(['active', 'draft', 'archived'].map(status => [
+        status,
+        shopifyProducts.filter(product => product.status === status).length,
+      ])),
       liveMissingCount: liveMissing.length,
-      liveMissing,
+      liveActiveProducts: liveActiveProducts.length,
+      liveActiveMissingCount: liveActiveMissing.length,
+      liveActiveMissing,
       unlinkedProducts: products.filter(product => !product.shopify_product_id).map(product => product.name),
       titleMissingCount: titleMissing.length,
       titleMissing: titleMissing.slice(0, 100),

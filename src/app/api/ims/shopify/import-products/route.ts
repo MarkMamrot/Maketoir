@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const limit = Math.max(1, Math.min(Math.floor(Number(body?.limit ?? DEFAULT_BATCH_SIZE)), MAX_BATCH_SIZE));
-    const afterId = text(body?.after_id);
+    const pageInfo = text(body?.page_info);
     const populateUnknownBrands = body?.populate_unknown_brands === true;
     const populateUnknownSuppliers = body?.populate_unknown_suppliers === true;
     const credentials = await getShopifyAdminCredentials(businessId);
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
-    const page = await shopify.getProductsPage({ limit, afterId });
+    const page = await shopify.getProductsPage({ limit, pageInfo });
     const products = await imsQuery<ImsProduct>(
       `SELECT * FROM ims_products WHERE business_id = ?`,
       [businessId],
@@ -293,7 +293,7 @@ export async function POST(req: Request) {
       created_suppliers: createdSuppliers,
       warnings,
       identifier_adjustments: identifierAdjustments,
-      next_after_id: page.nextAfterId,
+      next_page_info: page.nextPageInfo,
       has_more: page.hasMore,
     });
   } catch (error: any) {

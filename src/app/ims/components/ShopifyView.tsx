@@ -282,7 +282,7 @@ function ShopifyProductsTab() {
 
   const runCatalogueImport = async () => {
     setImportingCatalogue(true); setOpResult(null); setOpError(null);
-    let afterId: string | null = null;
+    let pageInfo: string | null = null;
     const totals = {
       batches: 0, fetched: 0, createdProducts: 0, updatedProducts: 0,
       createdVariants: 0, updatedVariants: 0, images: 0,
@@ -297,7 +297,7 @@ function ShopifyProductsTab() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            after_id: afterId,
+            page_info: pageInfo,
             limit: 25,
             populate_unknown_brands: populateUnknownBrands,
             populate_unknown_suppliers: populateUnknownSuppliers,
@@ -318,8 +318,8 @@ function ShopifyProductsTab() {
         totals.warnings.push(...(data.warnings ?? []));
         setImportProgress({ ...totals, warnings: [...totals.warnings] });
 
-        hasMore = Boolean(data.has_more && data.next_after_id);
-        afterId = data.next_after_id ?? null;
+        hasMore = Boolean(data.has_more && data.next_page_info);
+        pageInfo = data.next_page_info ?? null;
         if (hasMore) await new Promise(resolve => setTimeout(resolve, 1500));
       }
 

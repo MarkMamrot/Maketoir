@@ -673,18 +673,18 @@ export class ShopifyService {
   }
 
   /** Fetch one bounded product page so callers can pace long-running catalogue work. */
-  async getProductsPage(opts?: { limit?: number; afterId?: string | number | null }): Promise<{
+  async getProductsPage(opts?: { limit?: number; pageInfo?: string | null }): Promise<{
     products: any[];
-    nextAfterId: string | null;
+    nextPageInfo: string | null;
     hasMore: boolean;
   }> {
     const limit = Math.max(1, Math.min(Math.floor(Number(opts?.limit ?? 25)), 50));
-    const params: Record<string, string | number> = { limit };
-    if (opts?.afterId) params.since_id = String(opts.afterId);
+    const params: Record<string, string | number> = { limit, status: 'active' };
+    if (opts?.pageInfo) params.page_info = opts.pageInfo;
 
-    const products = await (this.shopify as any).product.list(params) as any[];
-    const nextAfterId = products.length > 0 ? String(products[products.length - 1].id) : null;
-    return { products, nextAfterId, hasMore: products.length === limit };
+    const products = await (this.shopify as any).product.list(params) as any;
+    const nextPageInfo = String(products.nextPageParameters?.page_info ?? '').trim() || null;
+    return { products: products as any[], nextPageInfo, hasMore: nextPageInfo !== null };
   }
 
   /**
