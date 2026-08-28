@@ -45,6 +45,12 @@
       "static/chunks/main-app.js",
       "static/css/app/pos/page.css",
       "static/chunks/app/pos/page.js"
+    ],
+    "/rewards/[slug]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/rewards/[slug]/page.css",
+      "static/chunks/app/rewards/[slug]/page.js"
     ]
   }
 }
