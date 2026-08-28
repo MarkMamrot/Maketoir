@@ -68,11 +68,12 @@ function decrypt(stored) {
 
   const shopify = new Shopify({ shopName: shopDomain.replace(/\.myshopify\.com$/, ''), accessToken: token });
   const shopifyProducts = [];
-  let productParams = { limit: 250, status: 'active' };
+  let productParams = { limit: 25, status: 'active' };
   while (productParams) {
     const page = await shopify.product.list(productParams);
     shopifyProducts.push(...page);
-    productParams = page.nextPageParameters || null;
+    const pageInfo = String(page.nextPageParameters?.page_info || '').trim();
+    productParams = pageInfo ? { limit: 25, page_info: pageInfo } : null;
   }
 
   const tenant = await mysql.createConnection({
