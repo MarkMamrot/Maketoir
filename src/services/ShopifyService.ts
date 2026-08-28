@@ -776,6 +776,25 @@ export class ShopifyService {
     return (locs ?? []).map((l: any) => ({ id: Number(l.id), name: String(l.name ?? ''), active: !!l.active }));
   }
 
+  /** Read available quantities for up to 50 inventory items at selected locations. */
+  async getInventoryLevels(
+    inventoryItemIds: Array<string | number>,
+    locationIds: Array<string | number>,
+  ): Promise<Array<{ inventoryItemId: string; locationId: string; available: number | null }>> {
+    if (!inventoryItemIds.length || !locationIds.length) return [];
+    if (inventoryItemIds.length > 50) throw new Error('Shopify inventory reads are limited to 50 items per request.');
+    const levels = await (this.shopify as any).inventoryLevel.list({
+      inventory_item_ids: inventoryItemIds.map(String).join(','),
+      location_ids: locationIds.map(String).join(','),
+      limit: 250,
+    });
+    return (levels ?? []).map((level: any) => ({
+      inventoryItemId: String(level.inventory_item_id),
+      locationId: String(level.location_id),
+      available: level.available == null ? null : Number(level.available),
+    }));
+  }
+
   /** Set the absolute available quantity for an inventory item at a location. */
   async setInventoryLevel(inventoryItemId: number | string, locationId: number | string, available: number): Promise<void> {
     await (this.shopify as any).inventoryLevel.set({

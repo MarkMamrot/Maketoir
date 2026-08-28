@@ -217,6 +217,14 @@ function ShopifyProductsTab() {
     batches: number; fetched: number; createdProducts: number; updatedProducts: number;
     createdVariants: number; updatedVariants: number; images: number; warnings: string[];
   } | null>(null);
+  const [openingStockBusy, setOpeningStockBusy] = useState<'preview' | 'apply' | null>(null);
+  const [openingStockPreview, setOpeningStockPreview] = useState<{
+    batches: Array<{ offset: number; variantIds: string[] }>;
+    totalVariants: number;
+    lines: Array<{ locationName: string; quantity: number; currentQuantity: number; adjustment: number; wasNegative: boolean }>;
+  } | null>(null);
+  const [openingStockResult, setOpeningStockResult] = useState<string | null>(null);
+  const [openingStockError, setOpeningStockError] = useState<string | null>(null);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -313,6 +321,67 @@ function ShopifyProductsTab() {
       setOpError(e.message);
     } finally {
       setImportingCatalogue(false);
+    }
+  };
+
+  const previewOpeningStock = async () => {
+    setOpeningStockBusy('preview'); setOpeningStockPreview(null); setOpeningStockResult(null); setOpeningStockError(null);
+    const batches: Array<{ offset: number; variantIds: string[] }> = [];
+    const lines: Array<{ locationName: string; quantity: number; currentQuantity: number; adjustment: number; wasNegative: boolean }> = [];
+    let offset = 0;
+    let totalVariants = 0;
+    try {
+      let hasMore = true;
+      while (hasMore) {
+        const response = await fetch('/api/ims/shopify/opening-stock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'preview', offset }),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock preview failed.');
+        batches.push({ offset, variantIds: data.variant_ids ?? [] });
+        lines.push(...(data.lines ?? []));
+        totalVariants = Number(data.total_variants ?? 0);
+        setOpeningStockPreview({ batches: [...batches], totalVariants, lines: [...lines] });
+        hasMore = Boolean(data.has_more);
+        offset = Number(data.next_offset ?? offset);
+        if (hasMore) await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    } catch (e: any) {
+      setOpeningStockError(e.message);
+    } finally {
+      setOpeningStockBusy(null);
+    }
+  };
+
+  const applyOpeningStock = async () => {
+    if (!openingStockPreview?.batches.length) return;
+    const changed = openingStockPreview.lines.filter(line => Math.abs(line.adjustment) > 0.0001).length;
+    if (!window.confirm(`Apply Shopify opening stock to Warehouse and Kotara? This will set ${changed} location/variant balances and create completed stocktakes.`)) return;
+    setOpeningStockBusy('apply'); setOpeningStockResult(null); setOpeningStockError(null);
+    const runId = crypto.randomUUID();
+    let appliedVariants = 0;
+    const stocktakeIds: number[] = [];
+    try {
+      for (const batch of openingStockPreview.batches) {
+        const response = await fetch('/api/ims/shopify/opening-stock', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: 'apply', run_id: runId, offset: batch.offset, variant_ids: batch.variantIds }),
+        });
+        const data = await readApiResponse(response);
+        if (!response.ok || !data.success) throw new Error(data.error ?? 'Opening stock apply failed.');
+        appliedVariants += Number(data.variants ?? 0);
+        stocktakeIds.push(...(data.stocktakes ?? []).map((stocktake: any) => Number(stocktake.id)));
+        if (batch !== openingStockPreview.batches[openingStockPreview.batches.length - 1]) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
+      setOpeningStockResult(`Opening stock applied for ${appliedVariants} variants across Warehouse and Kotara. Stocktakes: ${stocktakeIds.join(', ')}.`);
+      setOpeningStockPreview(null);
+    } catch (e: any) {
+      setOpeningStockError(`${e.message} Completed batches are safe; preview again before retrying.`);
+    } finally {
+      setOpeningStockBusy(null);
     }
   };
 
@@ -429,6 +498,64 @@ function ShopifyProductsTab() {
             )}
           </div>
         )}
+      </div>
+
+      <div style={{ padding: 18, marginBottom: 16, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 420px' }}>
+            <h3 style={{ margin: '0 0 6px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Import Shopify Opening Stock</h3>
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
+              Maps Shopify Warehouse to Solvantis Warehouse and Shopify Kotara to Solvantis Kotara. Quantities are set from Shopify available stock through completed stocktakes; negatives become zero.
+            </p>
+          </div>
+          <button
+            onClick={previewOpeningStock}
+            disabled={openingStockBusy !== null || importingCatalogue || uploading || syncing}
+            style={{ padding: '8px 16px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: openingStockBusy ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, opacity: openingStockBusy ? 0.7 : 1 }}
+          >
+            {openingStockBusy === 'preview' ? 'Building preview…' : 'Preview Opening Stock'}
+          </button>
+        </div>
+        {openingStockPreview && (() => {
+          const summaries = ['Warehouse', 'Kotara'].map(locationName => {
+            const locationLines = openingStockPreview.lines.filter(line => line.locationName === locationName);
+            return {
+              locationName,
+              target: locationLines.reduce((sum, line) => sum + Number(line.quantity), 0),
+              adjustments: locationLines.filter(line => Math.abs(line.adjustment) > 0.0001).length,
+              negatives: locationLines.filter(line => line.wasNegative).length,
+            };
+          });
+          return (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, marginBottom: 12 }}>
+                {summaries.map(summary => (
+                  <div key={summary.locationName} style={{ padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-main)' }}>
+                    <strong>{summary.locationName}</strong><br />
+                    {summary.target.toLocaleString()} units · {summary.adjustments} adjustments
+                    {summary.negatives > 0 && <div style={{ color: '#fbbf24' }}>{summary.negatives} negative quantities will become zero</div>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>
+                  {openingStockBusy === 'preview' ? `${openingStockPreview.lines.length / 2} of ${openingStockPreview.totalVariants} variants scanned` : `${openingStockPreview.totalVariants} linked variants ready`}
+                </span>
+                {openingStockBusy !== 'preview' && (
+                  <button
+                    onClick={applyOpeningStock}
+                    disabled={openingStockBusy !== null}
+                    style={{ marginLeft: 'auto', padding: '8px 16px', background: '#b91c1c', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                  >
+                    {openingStockBusy === 'apply' ? 'Applying…' : 'Apply Opening Stock'}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+        {openingStockResult && <div style={{ marginTop: 12, color: '#34d399', fontSize: 12 }}>{openingStockResult}</div>}
+        {openingStockError && <div style={{ marginTop: 12, color: '#f87171', fontSize: 12 }}>{openingStockError}</div>}
       </div>
 
       {/* Controls row */}
