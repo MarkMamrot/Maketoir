@@ -42,8 +42,8 @@ Use Shopify integration status and history to keep supported catalogue and order
 ### Import products from Shopify
 
 1. Open **Integrations > Shopify** and choose **Products**.
-2. Select **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.
-3. Select **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.
+2. Turn on **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.
+3. Turn on **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.
 4. Choose **Import from Shopify**.
 5. Keep the page open while Solvantis imports the catalogue in small batches.
 6. Review the running totals for Shopify products, image links, brands, and suppliers.
