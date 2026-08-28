@@ -8,7 +8,7 @@ import {
   type ImsProduct,
   type ImsVariant,
 } from '@/lib/ims/ImsRepository';
-import { planShopifyProductImport } from '@/lib/ims/shopifyProductImport';
+import { planShopifyProductImport, planShopifyVariantImport } from '@/lib/ims/shopifyProductImport';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -19,10 +19,6 @@ const MAX_BATCH_SIZE = 50;
 function text(value: unknown): string | null {
   const result = String(value ?? '').trim();
   return result || null;
-}
-
-function normalized(value: unknown): string | null {
-  return text(value)?.toLowerCase() ?? null;
 }
 
 function weightKg(variant: any): number | null {
@@ -42,24 +38,6 @@ function variantPrices(variant: any): { priceRrp: number | null; salePrice: numb
     return { priceRrp: compareAt, salePrice: validPrice };
   }
   return { priceRrp: validPrice, salePrice: null };
-}
-
-function findVariantMatch(shopifyVariant: any, targetProductId: string, variants: ImsVariant[]): ImsVariant | null | 'ambiguous' {
-  const directlyLinked = variants.filter(variant => String(variant.shopify_variant_id ?? '') === String(shopifyVariant.id));
-  if (directlyLinked.length === 1) return directlyLinked[0].product_id === targetProductId ? directlyLinked[0] : 'ambiguous';
-  if (directlyLinked.length > 1) return 'ambiguous';
-
-  const sku = normalized(shopifyVariant.sku);
-  const barcode = normalized(shopifyVariant.barcode);
-  const identifierMatches = variants.filter(variant =>
-    (sku !== null && normalized(variant.sku) === sku)
-    || (barcode !== null && normalized(variant.barcode) === barcode),
-  );
-  if (identifierMatches.length === 1) {
-    return identifierMatches[0].product_id === targetProductId ? identifierMatches[0] : 'ambiguous';
-  }
-  if (identifierMatches.length > 1) return 'ambiguous';
-  return null;
 }
 
 export async function POST(req: Request) {
@@ -157,9 +135,19 @@ export async function POST(req: Request) {
         (shopifyProduct.options ?? []).map((option: any) => [Number(option.position), text(option.name) ?? `Option ${option.position}`]),
       );
       for (const shopifyVariant of shopifyProduct.variants ?? []) {
-        const match = findVariantMatch(shopifyVariant, productId, variants);
-        if (match === 'ambiguous') {
-          warnings.push(`${shopifyProduct.title ?? shopifyProduct.id} / ${shopifyVariant.title ?? shopifyVariant.id}: identifier matches are ambiguous.`);
+        const variantPlan = planShopifyVariantImport(
+          shopifyVariant,
+          productId,
+          variants.map(variant => ({
+            variantId: variant.variant_id,
+            productId: variant.product_id,
+            shopifyVariantId: variant.shopify_variant_id,
+            sku: variant.sku,
+            barcode: variant.barcode,
+          })),
+        );
+        if (variantPlan.action === 'skip') {
+          warnings.push(`${shopifyProduct.title ?? shopifyProduct.id} / ${shopifyVariant.title ?? shopifyVariant.id}: ${variantPlan.reason}`);
           continue;
         }
 
@@ -179,7 +167,7 @@ export async function POST(req: Request) {
         };
 
         let variantId: string;
-        if (!match) {
+        if (variantPlan.action === 'create') {
           variantId = await ImsVariantsRepo.create({
             variant_id: '',
             product_id: productId,
@@ -191,7 +179,7 @@ export async function POST(req: Request) {
           variants.push({ id: 0, variant_id: variantId, product_id: productId, ...values, shopify_variant_id: String(shopifyVariant.id), is_active: 1 } as ImsVariant);
           createdVariants++;
         } else {
-          variantId = match.variant_id;
+          variantId = variantPlan.variantId;
           await imsExecute(
             `UPDATE ims_product_variants
                 SET sku = ?, barcode = ?, option1_name = ?, option1_value = ?, option2_name = ?, option2_value = ?,

@@ -48,7 +48,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 5. Open **items need review** when warnings appear and resolve ambiguous SKU or barcode matches.
 6. Confirm the imported products, variants, prices, and images in IMS before using them in normal operations.
 
-The import creates products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear product.
+The import creates products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. If Shopify reuses a SKU or barcode already linked to a different Shopify product, Solvantis creates a separate product instead of moving that link.
 
 > **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.
 
