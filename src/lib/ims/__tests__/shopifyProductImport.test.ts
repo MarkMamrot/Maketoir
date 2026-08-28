@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { planShopifyProductImport, planShopifyVariantImport } from '../shopifyProductImport';
+import {
+  planShopifyProductImport,
+  planShopifyVariantImport,
+  uniqueShopifyVariantIdentifier,
+} from '../shopifyProductImport';
 
 describe('planShopifyProductImport', () => {
   it('prefers an existing Shopify product link over identifier matches', () => {
@@ -80,6 +84,28 @@ describe('planShopifyVariantImport', () => {
     )).toEqual({ action: 'create' });
   });
 
+  it('creates a new variant when its barcode is already linked to another variant', () => {
+    expect(planShopifyVariantImport(
+      { id: 202, sku: 'NEW-SKU', barcode: '934000000001' },
+      'product-1',
+      [{
+        variantId: 'variant-2',
+        productId: 'product-2',
+        shopifyVariantId: '201',
+        sku: 'OLD-SKU',
+        barcode: '934000000001',
+      }],
+    )).toEqual({ action: 'create' });
+  });
+
+  it('adopts one unlinked variant matched by barcode without creating a duplicate', () => {
+    expect(planShopifyVariantImport(
+      { id: 202, barcode: '934000000001' },
+      'product-1',
+      [{ variantId: 'variant-1', productId: 'product-1', barcode: '934000000001' }],
+    )).toEqual({ action: 'use_existing', variantId: 'variant-1' });
+  });
+
   it('adopts one unlinked variant matched by SKU', () => {
     expect(planShopifyVariantImport(
       { id: 202, sku: 'ABC-1' },
@@ -88,11 +114,37 @@ describe('planShopifyVariantImport', () => {
     )).toEqual({ action: 'use_existing', variantId: 'variant-1' });
   });
 
-  it('skips an identifier match belonging to another product', () => {
+  it('creates a variant when its SKU belongs to an unlinked variant on another product', () => {
     expect(planShopifyVariantImport(
       { id: 202, sku: 'ABC-1' },
       'product-1',
       [{ variantId: 'variant-2', productId: 'product-2', sku: 'ABC-1' }],
-    ).action).toBe('skip');
+    )).toEqual({ action: 'create' });
+  });
+});
+
+describe('uniqueShopifyVariantIdentifier', () => {
+  const variants = [
+    { variantId: 'variant-1', productId: 'product-1', sku: 'SAME', barcode: '934000000001' },
+    { variantId: 'variant-2', productId: 'product-2', sku: 'SAME-2', barcode: '934000000001-2' },
+  ];
+
+  it('adds the next available suffix case-insensitively', () => {
+    expect(uniqueShopifyVariantIdentifier('same', 'sku', variants)).toBe('same-3');
+    expect(uniqueShopifyVariantIdentifier('934000000001', 'barcode', variants)).toBe('934000000001-3');
+  });
+
+  it('excludes the current variant so reruns keep the same identifier', () => {
+    expect(uniqueShopifyVariantIdentifier('SAME', 'sku', variants, 'variant-1')).toBe('SAME');
+    expect(uniqueShopifyVariantIdentifier('934000000001', 'barcode', variants, 'variant-1')).toBe('934000000001');
+  });
+
+  it('keeps suffixed identifiers within the database column length', () => {
+    const longIdentifier = 'A'.repeat(100);
+    const existing = [{ variantId: 'variant-1', productId: 'product-1', sku: longIdentifier }];
+    const result = uniqueShopifyVariantIdentifier(longIdentifier, 'sku', existing);
+
+    expect(result).toBe(`${'A'.repeat(98)}-2`);
+    expect(result).toHaveLength(100);
   });
 });

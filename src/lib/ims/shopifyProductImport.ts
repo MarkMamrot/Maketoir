@@ -39,6 +39,29 @@ function uniqueProductIds(matches: ExistingShopifyImportVariant[]): string[] {
   return [...new Set(matches.map(match => match.productId))];
 }
 
+export function uniqueShopifyVariantIdentifier(
+  value: unknown,
+  field: 'sku' | 'barcode',
+  variants: ExistingShopifyImportVariant[],
+  excludeVariantId?: string,
+): string | null {
+  const source = String(value ?? '').trim();
+  if (!source) return null;
+
+  const used = new Set(variants
+    .filter(variant => variant.variantId !== excludeVariantId)
+    .map(variant => normalizedKey(variant[field]))
+    .filter((identifier): identifier is string => identifier !== null));
+  const base = source.slice(0, 100);
+  if (!used.has(base.toLowerCase())) return base;
+
+  for (let sequence = 2; ; sequence++) {
+    const suffix = `-${sequence}`;
+    const candidate = `${source.slice(0, 100 - suffix.length)}${suffix}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
 export function planShopifyProductImport(
   shopifyProduct: ShopifyImportProduct,
   products: ExistingShopifyImportProduct[],
@@ -110,24 +133,26 @@ export function planShopifyVariantImport(
 
   const sku = normalizedKey(shopifyVariant.sku);
   const barcode = normalizedKey(shopifyVariant.barcode);
-  const identifierMatches = variants.filter(variant =>
-    (sku !== null && normalizedKey(variant.sku) === sku)
-    || (barcode !== null && normalizedKey(variant.barcode) === barcode),
-  );
-  if (identifierMatches.some(variant =>
-    variant.productId !== targetProductId && normalizedKey(variant.shopifyVariantId) === null,
-  )) {
-    return { action: 'skip', reason: `Shopify variant ${shopifyVariantId} matches a SKU or barcode on another Solvantis product.` };
+  const barcodeMatches = barcode === null
+    ? []
+    : variants.filter(variant => normalizedKey(variant.barcode) === barcode);
+  if (barcodeMatches.length === 1 && normalizedKey(barcodeMatches[0].shopifyVariantId) === null) {
+    return barcodeMatches[0].productId === targetProductId
+      ? { action: 'use_existing', variantId: barcodeMatches[0].variantId }
+      : { action: 'create' };
   }
 
-  const adoptableMatches = identifierMatches.filter(variant =>
+  const skuMatches = sku === null
+    ? []
+    : variants.filter(variant => normalizedKey(variant.sku) === sku);
+  const adoptableMatches = skuMatches.filter(variant =>
     variant.productId === targetProductId && normalizedKey(variant.shopifyVariantId) === null,
   );
   if (adoptableMatches.length === 1) {
     return { action: 'use_existing', variantId: adoptableMatches[0].variantId };
   }
   if (adoptableMatches.length > 1) {
-    return { action: 'skip', reason: `Shopify variant ${shopifyVariantId} matches multiple unlinked Solvantis variants.` };
+    return { action: 'create' };
   }
   return { action: 'create' };
 }

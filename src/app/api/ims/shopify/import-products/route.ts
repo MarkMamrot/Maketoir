@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import {
+  ImsBrandsRepo,
+  ImsContactsRepo,
   ImsImagesRepo,
   ImsProductsRepo,
   ImsShopifyRepo,
@@ -8,7 +10,11 @@ import {
   type ImsProduct,
   type ImsVariant,
 } from '@/lib/ims/ImsRepository';
-import { planShopifyProductImport, planShopifyVariantImport } from '@/lib/ims/shopifyProductImport';
+import {
+  planShopifyProductImport,
+  planShopifyVariantImport,
+  uniqueShopifyVariantIdentifier,
+} from '@/lib/ims/shopifyProductImport';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -49,6 +55,8 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const limit = Math.max(1, Math.min(Math.floor(Number(body?.limit ?? DEFAULT_BATCH_SIZE)), MAX_BATCH_SIZE));
     const afterId = text(body?.after_id);
+    const populateUnknownBrands = body?.populate_unknown_brands === true;
+    const populateUnknownSuppliers = body?.populate_unknown_suppliers === true;
     const credentials = await getShopifyAdminCredentials(businessId);
     if (!credentials) {
       return NextResponse.json({ success: false, error: 'Shopify not connected.' }, { status: 400 });
@@ -64,13 +72,26 @@ export async function POST(req: Request) {
       `SELECT * FROM ims_product_variants WHERE business_id = ?`,
       [businessId],
     );
+    const brandNames = new Set(
+      populateUnknownBrands
+        ? (await ImsBrandsRepo.list(businessId)).map(brand => brand.name.trim().toLowerCase())
+        : [],
+    );
+    const suppliersByName = new Map(
+      populateUnknownSuppliers
+        ? (await ImsContactsRepo.list('supplier', false, businessId)).map(supplier => [supplier.name.trim().toLowerCase(), supplier.id] as const)
+        : [],
+    );
 
     let createdProducts = 0;
     let updatedProducts = 0;
     let createdVariants = 0;
     let updatedVariants = 0;
     let imagesCollected = 0;
+    let createdBrands = 0;
+    let createdSuppliers = 0;
     const warnings: string[] = [];
+    const identifierAdjustments: string[] = [];
 
     for (const shopifyProduct of page.products) {
       const plan = planShopifyProductImport(
@@ -89,6 +110,26 @@ export async function POST(req: Request) {
         continue;
       }
 
+      const vendor = text(shopifyProduct.vendor);
+      const vendorKey = vendor?.toLowerCase() ?? null;
+      if (populateUnknownBrands && vendor && vendorKey && !brandNames.has(vendorKey)) {
+        await ImsBrandsRepo.create(vendor, businessId);
+        brandNames.add(vendorKey);
+        createdBrands++;
+      }
+      let supplierContactId = vendorKey ? suppliersByName.get(vendorKey) ?? null : null;
+      if (populateUnknownSuppliers && vendor && vendorKey && supplierContactId === null) {
+        supplierContactId = await ImsContactsRepo.create({
+          business_id: businessId,
+          type: 'supplier',
+          name: vendor,
+          company: vendor,
+          is_active: 1,
+        }, businessId);
+        suppliersByName.set(vendorKey, supplierContactId);
+        createdSuppliers++;
+      }
+
       let productId: string;
       if (plan.action === 'create') {
         productId = await ImsProductsRepo.create({
@@ -102,6 +143,7 @@ export async function POST(req: Request) {
           is_online: shopifyProduct.status === 'active' ? 1 : 0,
           is_stock_item: 1,
           is_active: 1,
+          supplier_contact_id: supplierContactId ?? undefined,
           shopify_product_id: String(shopifyProduct.id),
         }, businessId);
         products.push({ id: 0, product_id: productId, business_id: businessId, name: shopifyProduct.title, is_active: 1, shopify_product_id: String(shopifyProduct.id) } as ImsProduct);
@@ -111,7 +153,7 @@ export async function POST(req: Request) {
         await imsExecute(
           `UPDATE ims_products
               SET name = ?, description = ?, product_type = ?, brand = ?, tags = ?, website_title = ?,
-                  is_online = ?, shopify_product_id = ?
+                is_online = ?, shopify_product_id = ?, supplier_contact_id = COALESCE(?, supplier_contact_id)
             WHERE product_id = ? AND business_id = ?`,
           [
             text(shopifyProduct.title) ?? `Shopify product ${shopifyProduct.id}`,
@@ -122,6 +164,7 @@ export async function POST(req: Request) {
             text(shopifyProduct.title),
             shopifyProduct.status === 'active' ? 1 : 0,
             String(shopifyProduct.id),
+            supplierContactId,
             productId,
             businessId,
           ],
@@ -152,9 +195,26 @@ export async function POST(req: Request) {
         }
 
         const prices = variantPrices(shopifyVariant);
+        const existingVariantId = variantPlan.action === 'use_existing' ? variantPlan.variantId : undefined;
+        const sku = uniqueShopifyVariantIdentifier(shopifyVariant.sku, 'sku', variants.map(variant => ({
+          variantId: variant.variant_id,
+          productId: variant.product_id,
+          sku: variant.sku,
+        })), existingVariantId);
+        const barcode = uniqueShopifyVariantIdentifier(shopifyVariant.barcode, 'barcode', variants.map(variant => ({
+          variantId: variant.variant_id,
+          productId: variant.product_id,
+          barcode: variant.barcode,
+        })), existingVariantId);
+        if (sku !== text(shopifyVariant.sku)) {
+          identifierAdjustments.push(`${shopifyProduct.title ?? shopifyProduct.id} / ${shopifyVariant.title ?? shopifyVariant.id}: SKU ${text(shopifyVariant.sku)} changed to ${sku}.`);
+        }
+        if (barcode !== text(shopifyVariant.barcode)) {
+          identifierAdjustments.push(`${shopifyProduct.title ?? shopifyProduct.id} / ${shopifyVariant.title ?? shopifyVariant.id}: barcode ${text(shopifyVariant.barcode)} changed to ${barcode}.`);
+        }
         const values = {
-          sku: text(shopifyVariant.sku),
-          barcode: text(shopifyVariant.barcode),
+          sku,
+          barcode,
           option1_name: text(shopifyVariant.option1) ? optionNames.get(1) : null,
           option1_value: text(shopifyVariant.option1),
           option2_name: text(shopifyVariant.option2) ? optionNames.get(2) : null,
@@ -188,6 +248,8 @@ export async function POST(req: Request) {
             [values.sku, values.barcode, values.option1_name, values.option1_value, values.option2_name, values.option2_value,
              values.option3_name, values.option3_value, values.price_rrp, values.price_rrp_sale, values.weight_kg, variantId, businessId],
           );
+          const localVariant = variants.find(variant => variant.variant_id === variantId);
+          if (localVariant) Object.assign(localVariant, values);
           updatedVariants++;
         }
         await ImsShopifyRepo.linkVariant(
@@ -212,7 +274,7 @@ export async function POST(req: Request) {
       warnings.length ? 'partial' : 'success',
       summary,
       businessId,
-      { createdProducts, updatedProducts, createdVariants, updatedVariants, imagesCollected, warnings },
+      { createdProducts, updatedProducts, createdVariants, updatedVariants, imagesCollected, createdBrands, createdSuppliers, warnings, identifierAdjustments },
     );
 
     return NextResponse.json({
@@ -223,7 +285,10 @@ export async function POST(req: Request) {
       created_variants: createdVariants,
       updated_variants: updatedVariants,
       images_collected: imagesCollected,
+      created_brands: createdBrands,
+      created_suppliers: createdSuppliers,
       warnings,
+      identifier_adjustments: identifierAdjustments,
       next_after_id: page.nextAfterId,
       has_more: page.hasMore,
     });

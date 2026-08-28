@@ -213,9 +213,12 @@ function ShopifyProductsTab() {
   const [opError, setOpError]     = useState<string | null>(null);
   const [opProgress, setOpProgress] = useState<{ synced: number; total: number; batch: number; batches: number } | null>(null);
   const [importingCatalogue, setImportingCatalogue] = useState(false);
+  const [populateUnknownBrands, setPopulateUnknownBrands] = useState(false);
+  const [populateUnknownSuppliers, setPopulateUnknownSuppliers] = useState(false);
   const [importProgress, setImportProgress] = useState<{
     batches: number; fetched: number; createdProducts: number; updatedProducts: number;
-    createdVariants: number; updatedVariants: number; images: number; warnings: string[];
+    createdVariants: number; updatedVariants: number; images: number;
+    createdBrands: number; createdSuppliers: number; warnings: string[];
   } | null>(null);
   const [openingStockBusy, setOpeningStockBusy] = useState<'preview' | 'apply' | null>(null);
   const [openingStockPreview, setOpeningStockPreview] = useState<{
@@ -282,7 +285,8 @@ function ShopifyProductsTab() {
     let afterId: string | null = null;
     const totals = {
       batches: 0, fetched: 0, createdProducts: 0, updatedProducts: 0,
-      createdVariants: 0, updatedVariants: 0, images: 0, warnings: [] as string[],
+      createdVariants: 0, updatedVariants: 0, images: 0,
+      createdBrands: 0, createdSuppliers: 0, warnings: [] as string[],
     };
     setImportProgress({ ...totals });
 
@@ -292,7 +296,12 @@ function ShopifyProductsTab() {
         const response = await fetch('/api/ims/shopify/import-products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ after_id: afterId, limit: 25 }),
+          body: JSON.stringify({
+            after_id: afterId,
+            limit: 25,
+            populate_unknown_brands: populateUnknownBrands,
+            populate_unknown_suppliers: populateUnknownSuppliers,
+          }),
         });
         const data = await readApiResponse(response);
         if (!response.ok || !data.success) throw new Error(data.error ?? `Import failed with status ${response.status}`);
@@ -304,6 +313,8 @@ function ShopifyProductsTab() {
         totals.createdVariants += Number(data.created_variants ?? 0);
         totals.updatedVariants += Number(data.updated_variants ?? 0);
         totals.images += Number(data.images_collected ?? 0);
+        totals.createdBrands += Number(data.created_brands ?? 0);
+        totals.createdSuppliers += Number(data.created_suppliers ?? 0);
         totals.warnings.push(...(data.warnings ?? []));
         setImportProgress({ ...totals, warnings: [...totals.warnings] });
 
@@ -314,7 +325,8 @@ function ShopifyProductsTab() {
 
       setOpResult(
         `Shopify import complete: ${totals.createdProducts} new and ${totals.updatedProducts} updated products, `
-        + `${totals.createdVariants} new and ${totals.updatedVariants} updated variants, ${totals.images} image links collected.`,
+        + `${totals.createdVariants} new and ${totals.updatedVariants} updated variants, ${totals.images} image links collected, `
+        + `${totals.createdBrands} brands and ${totals.createdSuppliers} suppliers created.`,
       );
       await fetchProducts();
     } catch (e: any) {
@@ -475,6 +487,26 @@ function ShopifyProductsTab() {
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--sv-text-dim)' }}>
               Creates missing products and variants, refreshes linked catalogue details, and collects Shopify image URLs. Stock quantities are not changed.
             </p>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'var(--sv-text-main)' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={populateUnknownBrands}
+                  disabled={importingCatalogue}
+                  onChange={event => setPopulateUnknownBrands(event.target.checked)}
+                />
+                Create missing brands from Shopify vendor
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: importingCatalogue ? 'not-allowed' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={populateUnknownSuppliers}
+                  disabled={importingCatalogue}
+                  onChange={event => setPopulateUnknownSuppliers(event.target.checked)}
+                />
+                Create and assign missing suppliers from Shopify vendor
+              </label>
+            </div>
           </div>
           <button
             onClick={runCatalogueImport}
@@ -488,6 +520,7 @@ function ShopifyProductsTab() {
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--sv-etch)', fontSize: 12, color: 'var(--sv-text-main)', lineHeight: 1.7 }}>
             <strong>{importingCatalogue ? 'Import in progress' : 'Last import'}</strong>
             {' · '}{importProgress.batches} batches · {importProgress.fetched} Shopify products · {importProgress.images} image links
+            {' · '}{importProgress.createdBrands} brands created · {importProgress.createdSuppliers} suppliers created
             {importProgress.warnings.length > 0 && (
               <details style={{ marginTop: 6 }}>
                 <summary style={{ cursor: 'pointer', color: '#fbbf24' }}>{importProgress.warnings.length} items need review</summary>

@@ -42,13 +42,17 @@ Use Shopify integration status and history to keep supported catalogue and order
 ### Import products from Shopify
 
 1. Open **Integrations > Shopify** and choose **Products**.
-2. Choose **Import from Shopify**.
-3. Keep the page open while Solvantis imports the catalogue in small batches.
-4. Review the running totals for Shopify products and image links.
-5. Open **items need review** when warnings appear and resolve ambiguous SKU or barcode matches.
-6. Confirm the imported products, variants, prices, and images in IMS before using them in normal operations.
+2. Select **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.
+3. Select **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.
+4. Choose **Import from Shopify**.
+5. Keep the page open while Solvantis imports the catalogue in small batches.
+6. Review the running totals for Shopify products, image links, brands, and suppliers.
+7. Open **items need review** when warnings appear and resolve ambiguous matches.
+8. Confirm the imported products, variants, prices, images, brands, and suppliers in IMS before using them in normal operations.
 
-The import creates products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. If Shopify reuses a SKU or barcode already linked to a different Shopify product, Solvantis creates a separate product instead of moving that link.
+The import creates products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. When an imported SKU or barcode is already used in Solvantis, the later value receives the next available numeric suffix, such as `-2` or `-3`, so identifiers remain unique without moving an existing Shopify link.
+
+Shopify supplies one standard **vendor** value rather than separate brand and supplier values. The two import options use that vendor independently: the brand option maintains the brand list, while the supplier option creates or reuses an active supplier contact and assigns it to the product. Both options are off by default, and blank vendor values are ignored.
 
 > **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.
 
