@@ -120,19 +120,19 @@ try {
              CASE WHEN c.shopify_shop_id IS NOT NULL AND TRIM(c.shopify_shop_id) <> '' THEN 1 ELSE 0 END,
              CASE WHEN p.is_active = 1 THEN 1 ELSE 0 END
         FROM businesses b
-        LEFT JOIN connections c ON c.business_id = b.business_id
-        LEFT JOIN online_shop_profiles p ON p.business_id = b.business_id
-        LEFT JOIN business_online_channels channels ON channels.business_id = b.business_id
+        LEFT JOIN connections c ON BINARY c.business_id = BINARY b.business_id
+        LEFT JOIN online_shop_profiles p ON BINARY p.business_id = BINARY b.business_id
+        LEFT JOIN business_online_channels channels ON BINARY channels.business_id = BINARY b.business_id
        WHERE channels.business_id IS NULL`);
     if (addedShopifyEnabled) {
       await connection.query(`UPDATE business_online_channels channels
-        JOIN connections c ON c.business_id = channels.business_id
+        JOIN connections c ON BINARY c.business_id = BINARY channels.business_id
          SET channels.shopify_enabled = 1
        WHERE c.shopify_shop_id IS NOT NULL AND TRIM(c.shopify_shop_id) <> ''`);
     }
     if (addedNativeShopEnabled) {
       await connection.query(`UPDATE business_online_channels channels
-        JOIN online_shop_profiles p ON p.business_id = channels.business_id
+        JOIN online_shop_profiles p ON BINARY p.business_id = BINARY channels.business_id
          SET channels.native_shop_enabled = 1
        WHERE p.is_active = 1`);
     }

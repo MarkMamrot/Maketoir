@@ -52,7 +52,9 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 | Purchasing | Foreign currencies | Shows currency and exchange-rate fields for purchasing |
 | Sales channels and integrations | Business requires POS, Wholesale sales, Shopify, Solvantis Online Store, Accounting software | Enables the relevant POS, Daybook, portal, store, connection, and mapping workflows |
 
-Use each switch to enable or disable the capability, then select **Save Settings**. These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
+
+These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
 
 When **Accounting software** is off, accounting integration navigation, setup connections, document statuses, posting controls, automation, and contextual guidance are hidden. Integration requests are also blocked, so switching the capability off is more than a display preference. Turn it on and choose the supported accounting platform before connecting an organisation or configuring posting rules.
 

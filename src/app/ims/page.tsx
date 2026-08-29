@@ -408,20 +408,24 @@ function useImsSettings() {
     nativeShopEnabled: false,
   });
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const fetchSettings = useCallback(() => {
-    fetch('/api/ims/settings').then(r => r.json()).then(d => {
-      if (d.success) {
-        activeBusinessTimeZone = d.data?.business_timezone || 'Australia/Sydney';
-        settingsRef.current = d.data || {};
-        setSettings(settingsRef.current);
-        setCapabilities({
-          hasPosLocations: Boolean(d.capabilities?.hasPosLocations),
-          xeroAccountingEnabled: Boolean(d.capabilities?.xeroAccountingEnabled),
-          shopifyEnabled: Boolean(d.capabilities?.shopifyEnabled),
-          nativeShopEnabled: Boolean(d.capabilities?.nativeShopEnabled),
-        });
-      }
-    }).catch(() => {}).finally(() => setLoaded(true));
+    setLoaded(false);
+    setLoadError('');
+    fetch('/api/ims/settings').then(async response => {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) throw new Error(data?.error || 'Settings could not be loaded.');
+      activeBusinessTimeZone = data.data?.business_timezone || 'Australia/Sydney';
+      settingsRef.current = data.data || {};
+      setSettings(settingsRef.current);
+      setCapabilities({
+        hasPosLocations: Boolean(data.capabilities?.hasPosLocations),
+        xeroAccountingEnabled: Boolean(data.capabilities?.xeroAccountingEnabled),
+        shopifyEnabled: Boolean(data.capabilities?.shopifyEnabled),
+        nativeShopEnabled: Boolean(data.capabilities?.nativeShopEnabled),
+      });
+      setLoaded(true);
+    }).catch(error => setLoadError(error instanceof Error ? error.message : 'Settings could not be loaded.'));
   }, []);
   useEffect(() => { fetchSettings(); }, [fetchSettings]);
   useEffect(() => {
@@ -430,17 +434,15 @@ function useImsSettings() {
     return () => window.removeEventListener(IMS_SETTINGS_UPDATED_EVENT, refresh);
   }, [fetchSettings]);
   const saveSettings = useCallback(async (updates: Record<string, string>) => {
+    const response = await fetch('/api/ims/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: updates }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.success) throw new Error(data?.error || 'Settings could not be saved.');
     if (updates.business_timezone) activeBusinessTimeZone = updates.business_timezone;
-    settingsRef.current = { ...settingsRef.current, ...updates };
-    setSettings(settingsRef.current);
-    try {
-      const response = await fetch('/api/ims/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: updates }),
-      });
-      if (response.ok) window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
-    } catch {}
+    window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
   }, []);
   const saveOnlineChannels = useCallback(async (onlineChannels: Pick<ImsCapabilities, 'shopifyEnabled' | 'nativeShopEnabled'>) => {
     const response = await fetch('/api/ims/settings', {
@@ -451,7 +453,7 @@ function useImsSettings() {
     if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Online channel settings could not be saved.');
     window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
   }, []);
-  return { settings, capabilities, loaded, saveSettings, saveOnlineChannels, refetchSettings: fetchSettings };
+  return { settings, capabilities, loaded, loadError, saveSettings, saveOnlineChannels, refetchSettings: fetchSettings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25928,7 +25930,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
 }
 
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
-  const { settings, capabilities, loaded, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
+  const { settings, capabilities, loaded, loadError, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
     if (isOpen) {
@@ -25986,7 +25988,11 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
   const [onlineChannelDraft, setOnlineChannelDraft] = useState({ shopifyEnabled: false, nativeShopEnabled: false });
+  const [taxDirtyKeys, setTaxDirtyKeys] = useState<Set<string>>(new Set());
+  const [onlineChannelsDirty, setOnlineChannelsDirty] = useState(false);
   const [taxSaving, setTaxSaving] = useState(false);
+  const [taxSaveError, setTaxSaveError] = useState('');
+  const [taxSaved, setTaxSaved] = useState(false);
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
@@ -26006,18 +26012,34 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       accounting_software:      'xero',
       ...settings,
     });
+    setTaxDirtyKeys(new Set());
   }, [settings]);
   useEffect(() => {
     setOnlineChannelDraft({
       shopifyEnabled: capabilities.shopifyEnabled,
       nativeShopEnabled: capabilities.nativeShopEnabled,
     });
+    setOnlineChannelsDirty(false);
   }, [capabilities.nativeShopEnabled, capabilities.shopifyEnabled]);
+  const updateTaxDraft = (key: string, value: string) => {
+    setTaxDraft(previous => ({ ...previous, [key]: value }));
+    setTaxDirtyKeys(previous => new Set(previous).add(key));
+    setTaxSaved(false);
+  };
   const saveTaxSettings = async () => {
+    if (!loaded) return;
     setTaxSaving(true);
+    setTaxSaveError('');
+    setTaxSaved(false);
     try {
-      await saveSettings(taxDraft);
-      await saveOnlineChannels(onlineChannelDraft);
+      if (onlineChannelsDirty) await saveOnlineChannels(onlineChannelDraft);
+      if (taxDirtyKeys.size > 0) {
+        await saveSettings(Object.fromEntries([...taxDirtyKeys].map(key => [key, taxDraft[key] ?? ''])));
+      }
+      setTaxSaved(true);
+    } catch (error) {
+      setTaxSaveError(error instanceof Error ? error.message : 'Settings could not be saved.');
+      refetchSettings();
     } finally {
       setTaxSaving(false);
     }
@@ -26167,7 +26189,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
           <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>{label}</div>
           <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>{description}</div>
         </div>
-        <button type="button" role="switch" aria-checked={enabled} onClick={() => setTaxDraft(previous => ({ ...previous, [setting]: enabled ? 'no' : 'yes' }))} title={`${enabled ? 'Disable' : 'Enable'} ${label}`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: enabled ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+        <button type="button" role="switch" aria-checked={enabled} disabled={!loaded || taxSaving} onClick={() => updateTaxDraft(setting, enabled ? 'no' : 'yes')} title={`${enabled ? 'Disable' : 'Enable'} ${label}`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: enabled ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: !loaded || taxSaving ? 'not-allowed' : 'pointer', flexShrink: 0 }}>
           <span style={{ position: 'absolute', top: 3, left: enabled ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
         </button>
       </div>
@@ -26626,18 +26648,18 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <OperationToggle setting="business_requires_pos" defaultValue="yes" label="Business requires POS" description="Enable Point of Sale and Location Daybooks for businesses selling directly to the public in stores or staffed locations." />
                 <OperationToggle setting="sells_wholesale" defaultValue="yes" label="Wholesale sales" description="Enable the Wholesale Portal and customer-specific brand access." />
                 <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={onlineChannelDraft.shopifyEnabled} onChange={e => setOnlineChannelDraft(current => ({ ...current, shopifyEnabled: e.target.checked }))} style={{ marginTop: 2 }} />
+                  <input type="checkbox" disabled={!loaded || taxSaving} checked={onlineChannelDraft.shopifyEnabled} onChange={e => { setOnlineChannelDraft(current => ({ ...current, shopifyEnabled: e.target.checked })); setOnlineChannelsDirty(true); setTaxSaved(false); }} style={{ marginTop: 2 }} />
                   <span><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 13 }}>Shopify</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Show Shopify integration tools and allow Shopify sync activity.</span></span>
                 </label>
                 <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={onlineChannelDraft.nativeShopEnabled} onChange={e => setOnlineChannelDraft(current => ({ ...current, nativeShopEnabled: e.target.checked }))} style={{ marginTop: 2 }} />
+                  <input type="checkbox" disabled={!loaded || taxSaving} checked={onlineChannelDraft.nativeShopEnabled} onChange={e => { setOnlineChannelDraft(current => ({ ...current, nativeShopEnabled: e.target.checked })); setOnlineChannelsDirty(true); setTaxSaved(false); }} style={{ marginTop: 2 }} />
                   <span><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 13 }}>Solvantis Online Store</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Show native store setup. Public sales remain off until the storefront is activated.</span></span>
                 </label>
                 <OperationToggle setting="connect_accounting_software" label="Accounting software" description="Enable accounting connection and mapping prompts." />
                 {taxDraft.connect_accounting_software === 'yes' && (
                   <div style={{ padding: '10px 0 0 18px' }}>
                     <label style={labelStyle}>Accounting platform</label>
-                    <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => setTaxDraft(p => ({ ...p, accounting_software: e.target.value }))} style={{ ...inputStyle, width: 280 }}>
+                    <select value={taxDraft.accounting_software ?? 'xero'} onChange={e => updateTaxDraft('accounting_software', e.target.value)} style={{ ...inputStyle, width: 280 }}>
                       <option value="xero">Xero</option>
                       <option disabled>QuickBooks - coming soon</option>
                     </select>
@@ -26653,7 +26675,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
               <div style={{ marginBottom: 12 }}>
                 <label style={labelStyle}>Charge Sales Tax on Sales Orders</label>
-                <select value={taxDraft.sales_tax_on_sales ?? 'yes'} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_on_sales: e.target.value }))} style={{ ...inputStyle, width: 140 }}>
+                <select value={taxDraft.sales_tax_on_sales ?? 'yes'} onChange={e => updateTaxDraft('sales_tax_on_sales', e.target.value)} style={{ ...inputStyle, width: 140 }}>
                   <option value="yes">Yes</option>
                   <option value="no">No</option>
                 </select>
@@ -26662,28 +26684,30 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={labelStyle}>Sales Tax Rate (%)</label>
-                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => updateTaxDraft('sales_tax_rate', e.target.value !== '' ? String(Number(e.target.value) / 100) : '')} placeholder="e.g. 10" />
                 </div>
                 <div>
                   <label style={labelStyle}>Sales Tax Code</label>
-                  <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, sales_tax_code: e.target.value }))} placeholder="e.g. GST, VAT" />
+                  <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => updateTaxDraft('sales_tax_code', e.target.value)} placeholder="e.g. GST, VAT" />
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Purchase Tax Rate (%)</label>
-                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_rate: e.target.value !== '' ? String(Number(e.target.value) / 100) : '' }))} placeholder="e.g. 10" />
+                  <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => updateTaxDraft('purchase_tax_rate', e.target.value !== '' ? String(Number(e.target.value) / 100) : '')} placeholder="e.g. 10" />
                 </div>
                 <div>
                   <label style={labelStyle}>Purchase Tax Code</label>
-                  <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => setTaxDraft(p => ({ ...p, purchase_tax_code: e.target.value }))} placeholder="e.g. GST on Purchases" />
+                  <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => updateTaxDraft('purchase_tax_code', e.target.value)} placeholder="e.g. GST on Purchases" />
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <button type="button" disabled={taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              <button type="button" disabled={!loaded || taxSaving} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              {taxSaved && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>Saved</span>}
+              {(loadError || taxSaveError) && <span role="alert" style={{ fontSize: 12, color: 'var(--sv-red)' }}>{loadError || taxSaveError}</span>}
             </div>
           </div>{/* ─ end general ─ */}
 
