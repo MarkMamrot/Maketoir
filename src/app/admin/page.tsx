@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import AiUsageCreditsView from './AiUsageCreditsView';
+import AiUsageCreditsDashboard from './AiUsageCreditsDashboard';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import IntegrationOfferingsView from './IntegrationOfferingsView';
 import ProspectInsightsView from './ProspectInsightsView';
@@ -720,7 +720,7 @@ export default function AdminPage() {
           {view === 'integration-offerings' && <IntegrationOfferingsView />}
           {view === 'prospect-leads' && <ProspectLeadsView />}
           {view === 'prospect-insights' && <ProspectInsightsView />}
-          {view === 'ai-billing' && <AiUsageCreditsView />}
+          {view === 'ai-billing' && <AiUsageCreditsDashboard />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>
