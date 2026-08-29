@@ -1,5 +1,5 @@
 ---
-{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance"],"order":3,"summary":"Invite the right person with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-23","owner":"security"}
+{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance"],"order":3,"summary":"Invite the right person with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-29","owner":"security"}
 ---
 # Team Access and Security
 
@@ -61,6 +61,7 @@ The user form stays open if you click outside it. Select **Cancel** or press Esc
 | Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |
 | User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |
 | Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |
+| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |
 | Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |
 
 ## Worked examples

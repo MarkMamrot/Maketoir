@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Copy, Download, KeyRound, Loader2 } from 'lucide-react';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { parseMfaResponse } from '@/lib/auth/mfaResponse';
 
 type EnrollmentSetup = {
   qrDataUrl: string;
@@ -35,7 +36,10 @@ export default function MfaEnrollPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ preauthToken: token }),
     })
-      .then(async response => ({ response, data: await response.json() }))
+      .then(async response => ({
+        response,
+        data: await parseMfaResponse<EnrollmentSetup & { error?: string }>(response),
+      }))
       .then(({ response, data }) => {
         if (!response.ok) throw new Error(data.error || 'Unable to start setup.');
         setSetup({ qrDataUrl: data.qrDataUrl, manualKey: data.manualKey });
@@ -54,7 +58,11 @@ export default function MfaEnrollPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preauthToken, code }),
       });
-      const data = await response.json();
+      const data = await parseMfaResponse<{
+        error?: string;
+        recoveryCodes: string[];
+        nextRoute: string;
+      }>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to verify code.');
       sessionStorage.removeItem('mfaPreauthToken');
       setRecoveryCodes(data.recoveryCodes);

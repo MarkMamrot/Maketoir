@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { KeyRound, ShieldCheck } from 'lucide-react';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { parseMfaResponse } from '@/lib/auth/mfaResponse';
 
 export default function MfaChallengePage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function MfaChallengePage() {
           ...(mode === 'totp' ? { code } : { recoveryCode: code }),
         }),
       });
-      const data = await response.json();
+      const data = await parseMfaResponse<{ error?: string; nextRoute: string }>(response);
       if (!response.ok) throw new Error(data.error || 'Unable to verify code.');
       sessionStorage.removeItem('mfaPreauthToken');
       router.replace(data.nextRoute);
