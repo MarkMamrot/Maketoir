@@ -97,6 +97,7 @@ export async function POST(req: Request) {
     }
 
     // ── 3. Get Business_Website spreadsheet ────────────────────────────────
+    const conn = await ConnectionsRepository.get(databaseId);
     const websiteSheetId = conn.website_sheet_id;
     if (!websiteSheetId) {
       return NextResponse.json({ success: false, error: 'Website sheet not configured.' }, { status: 400 });
