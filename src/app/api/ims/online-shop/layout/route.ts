@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { OnlineShopAssetRepository } from '@/lib/onlineShop/onlineShopAsset';
 import { normalizeOnlineShopLayoutDocument } from '@/lib/onlineShop/layout/validation';
 import { OnlineShopLayoutRepository, OnlineShopLayoutRevisionConflictError } from '@/lib/onlineShop/onlineShopLayout';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { OnlineShopProfileRepository } from '@/lib/onlineShop/onlineShopProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
@@ -10,6 +11,7 @@ import { requireAdminTier } from '@/lib/sessionUtils';
 export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   try {
     return NextResponse.json({ success: true, state: await OnlineShopLayoutRepository.getEditorState(auth.user.businessId) });
   } catch (error) {
@@ -21,6 +23,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid JSON body is required.' }, { status: 400 }); }
   const action = String(body?.action ?? '');

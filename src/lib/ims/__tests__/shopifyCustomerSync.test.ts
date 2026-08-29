@@ -25,6 +25,9 @@ vi.mock('@/lib/db/ConnectionsRepository', () => ({
     get: mockGetConnection,
   },
 }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
 
 vi.mock('@/lib/encryption', () => ({
   decrypt: mockDecrypt,

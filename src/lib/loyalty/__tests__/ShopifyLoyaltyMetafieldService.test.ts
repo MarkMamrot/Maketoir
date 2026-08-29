@@ -16,6 +16,9 @@ vi.mock('@/lib/ims/LoyaltyRepository', () => ({
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mockReportRuntimeIssue }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
 vi.mock('@/lib/encryption', () => ({ decrypt: vi.fn(value => value) }));
 
 import { ShopifyLoyaltyMetafieldService } from '@/lib/loyalty/ShopifyLoyaltyMetafieldService';

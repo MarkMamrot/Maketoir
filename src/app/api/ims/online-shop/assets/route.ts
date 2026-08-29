@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { NextResponse } from 'next/server';
 import { OnlineShopAssetRepository } from '@/lib/onlineShop/onlineShopAsset';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { onlineShopAssetDirectory, onlineShopAssetPath, safeOnlineShopAssetOriginalName, validateOnlineShopAssetFile } from '@/lib/onlineShop/onlineShopAssetStorage';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
@@ -12,6 +13,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   try { return NextResponse.json({ success: true, assets: await OnlineShopAssetRepository.listOwned(auth.user.businessId) }); }
   catch (error) {
     await reportRuntimeIssue({ businessId: auth.user.businessId, source: 'online_shop_assets', operation: 'list', title: 'Online shop assets could not be listed', error }).catch(() => {});
@@ -22,6 +24,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   let file: File; let bytes: Uint8Array; let extension: string; let mimeType: string; let altText: string | null;
   try {
     const form = await request.formData();

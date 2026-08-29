@@ -15,6 +15,9 @@ const {
 }));
 
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
 vi.mock('@/lib/encryption', () => ({ decrypt: mockDecrypt }));
 vi.mock('@/lib/ims/shopifyGiftCardSync', () => ({ syncShopifyGiftCardSnapshots: mockSync }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));

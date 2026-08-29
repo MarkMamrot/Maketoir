@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { OnlineShopAssetRepository } from '@/lib/onlineShop/onlineShopAsset';
 import { normalizeOnlineShopContentPage } from '@/lib/onlineShop/layout/validation';
 import { OnlineShopPageRepository, OnlineShopPageRevisionConflictError } from '@/lib/onlineShop/onlineShopPages';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { OnlineShopProfileRepository } from '@/lib/onlineShop/onlineShopProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
@@ -18,6 +19,7 @@ async function revalidatePage(businessId: string, slug: string) {
 export async function GET(_: Request, { params }: { params: { pageId: string } }) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   if (!validPageId(params.pageId)) return NextResponse.json({ error: 'Page not found.' }, { status: 404 });
   try {
     const page = await OnlineShopPageRepository.getEditorState(auth.user.businessId, params.pageId);
@@ -32,6 +34,7 @@ export async function GET(_: Request, { params }: { params: { pageId: string } }
 export async function PUT(request: Request, { params }: { params: { pageId: string } }) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   if (!validPageId(params.pageId)) return NextResponse.json({ error: 'Page not found.' }, { status: 404 });
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid JSON body is required.' }, { status: 400 }); }
@@ -66,6 +69,7 @@ export async function PUT(request: Request, { params }: { params: { pageId: stri
 export async function DELETE(_: Request, { params }: { params: { pageId: string } }) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   if (!validPageId(params.pageId)) return NextResponse.json({ error: 'Page not found.' }, { status: 404 });
   try {
     const page = await OnlineShopPageRepository.getEditorState(auth.user.businessId, params.pageId);

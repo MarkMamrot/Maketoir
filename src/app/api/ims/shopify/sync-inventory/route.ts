@@ -12,6 +12,8 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { enterImsForBusiness, runImsForBusiness } from '@/lib/db/BusinessRegistry';
@@ -33,6 +35,7 @@ export async function GET() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   try {
     await enterImsForBusiness(businessId);
@@ -117,6 +120,11 @@ async function handlePost(req: Request) {
     const totals = { processed: 0, pushed: 0, businesses: 0, skipped: 0, errors: [] as string[] };
     for (const { business_id } of businesses) {
       try {
+        const capabilities = await getOnlineChannelCapabilities(business_id);
+        if (!capabilities.shopifyEnabled) {
+          totals.skipped += 1;
+          continue;
+        }
         const res = await runImsForBusiness(business_id, async () => {
           const settingsRows = await imsQuery<{ key: string; value: string }>(
             `SELECT \`key\`, value FROM ims_settings WHERE business_id = ? AND \`key\` IN ('shopify_inventory_sync_interval_minutes','shopify_inventory_sync_last_run_at')`,
@@ -154,6 +162,7 @@ async function handlePost(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
   await enterImsForBusiness(businessId);
 
   if (mode === 'queue') {

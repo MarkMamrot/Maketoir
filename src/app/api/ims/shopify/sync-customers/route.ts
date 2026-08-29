@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt } from '@/lib/encryption';
 import { ensureContactShopifyCustomerSchema } from '@/lib/ims/ensureContactShopifyCustomerSchema';
@@ -185,6 +186,7 @@ async function getGiftCardLinkStats() {
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
+  const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   const body = await req.json().catch(() => ({}));
   const mode = body?.mode === 'push' ? 'push' : 'pull';

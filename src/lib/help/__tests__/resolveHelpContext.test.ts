@@ -31,6 +31,16 @@ describe('resolveHelpContext', () => {
       .not.toBe('ims-xero-sync-reconciliation');
   });
 
+  it('filters Shopify and Native Shop topics independently', () => {
+    const shopifyOnly = listHelpTopics('ims', 'ims', { xero: true, shopify: true, native_shop: false });
+    expect(shopifyOnly.some(topic => topic.id === 'ims-shopify-sync')).toBe(true);
+    expect(shopifyOnly.some(topic => topic.id === 'ims-online-shop')).toBe(false);
+
+    const nativeOnly = listHelpTopics('ims', 'ims', { xero: true, shopify: false, native_shop: true });
+    expect(nativeOnly.some(topic => topic.id === 'ims-shopify-sync')).toBe(false);
+    expect(nativeOnly.some(topic => topic.id === 'ims-online-shop')).toBe(true);
+  });
+
   it('opens Store Daybook help from the Daybook screen', () => {
     expect(resolveHelpContext({ audience: 'pos', product: 'pos', context: 'daybook' })).toEqual(expect.objectContaining({
       exact: true,

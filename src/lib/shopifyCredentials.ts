@@ -1,6 +1,7 @@
 import type { ConnectionsRow } from '@/lib/db/ConnectionsRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { decrypt, encrypt } from '@/lib/encryption';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export type ShopifyAuthMode = 'legacy_token' | 'client_credentials';
@@ -103,6 +104,8 @@ export async function resolveShopifyAdminCredentials(
 }
 
 export async function getShopifyAdminCredentials(businessId: string): Promise<ShopifyAdminCredentials | null> {
+  const capabilities = await getOnlineChannelCapabilities(businessId);
+  if (!capabilities.shopifyEnabled) return null;
   const connection = await ConnectionsRepository.get(businessId);
   if (!connection?.shopify_shop_id) return null;
 

@@ -14,8 +14,8 @@ if (!database) throw new Error('MYSQL_DATABASE is required.');
 
 const tableContracts = {
   business_online_channels: {
-    columns: ['business_id', 'active_channel', 'changed_by_user_id', 'changed_by_name', 'changed_at', 'created_at', 'updated_at'],
-    indexes: ['PRIMARY', 'idx_business_online_channels_active'],
+    columns: ['business_id', 'active_channel', 'shopify_enabled', 'native_shop_enabled', 'changed_by_user_id', 'changed_by_name', 'changed_at', 'created_at', 'updated_at'],
+    indexes: ['PRIMARY', 'idx_business_online_channels_active', 'idx_business_online_channels_shopify', 'idx_business_online_channels_native'],
   },
   online_shop_profiles: {
     columns: ['business_id', 'slug', 'display_name', 'logo_url', 'support_email', 'default_meta_title', 'default_meta_description', 'is_active', 'created_at', 'updated_at'],
@@ -90,6 +90,35 @@ try {
     if (pending.length > 0) process.exitCode = 0;
   } else {
     for (const definition of Object.values(definitions)) await connection.query(definition);
+    const [channelColumnRows] = await connection.query(
+      `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'business_online_channels'`,
+      [database],
+    );
+    const channelColumns = new Set(channelColumnRows.map(row => row.COLUMN_NAME));
+    if (!channelColumns.has('shopify_enabled')) {
+      await connection.query(`ALTER TABLE business_online_channels
+        ADD COLUMN shopify_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER active_channel`);
+    }
+    if (!channelColumns.has('native_shop_enabled')) {
+      await connection.query(`ALTER TABLE business_online_channels
+        ADD COLUMN native_shop_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER shopify_enabled`);
+    }
+    await connection.query(`UPDATE business_online_channels
+      SET shopify_enabled = CASE WHEN active_channel = 'shopify' THEN 1 ELSE shopify_enabled END,
+          native_shop_enabled = CASE WHEN active_channel = 'native_shop' THEN 1 ELSE native_shop_enabled END`);
+    const [channelIndexRows] = await connection.query(
+      `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'business_online_channels'`,
+      [database],
+    );
+    const channelIndexes = new Set(channelIndexRows.map(row => row.INDEX_NAME));
+    if (!channelIndexes.has('idx_business_online_channels_shopify')) {
+      await connection.query('CREATE INDEX idx_business_online_channels_shopify ON business_online_channels (shopify_enabled, business_id)');
+    }
+    if (!channelIndexes.has('idx_business_online_channels_native')) {
+      await connection.query('CREATE INDEX idx_business_online_channels_native ON business_online_channels (native_shop_enabled, business_id)');
+    }
     console.log('Online shop main schema applied successfully.');
   }
 

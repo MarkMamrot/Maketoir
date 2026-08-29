@@ -37,7 +37,7 @@ const CONFIG_STEP_FIELDS: Record<string, string[]> = {
   ],
   operations: ['use_multiple_locations', 'use_zones_bins', 'use_categories', 'use_foreign_currencies', 'business_requires_pos'],
   tax: ['sales_tax_on_sales', 'sales_tax_rate', 'sales_tax_code', 'purchase_tax_rate', 'purchase_tax_code'],
-  integrations: ['connect_online_shop', 'online_shop_platform', 'connect_accounting_software', 'accounting_software'],
+  integrations: ['shopify_enabled', 'native_shop_enabled', 'connect_accounting_software', 'accounting_software'],
 };
 
 const ACTION_COPY: Record<string, { heading: string; body: string; action: string }> = {
@@ -251,17 +251,12 @@ export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccounti
       <>
         <header><div className="ob-eyebrow">Step 4</div><h2>Integrations</h2><p>Tell Solvantis which systems you plan to connect. You can complete the actual connection now or return later.</p></header>
         <div className="ob-question-list">
-          <Field label="Connect an online shop?" help="Choose Yes to use the Solvantis Online Store or connect an external commerce platform.">
-            <YesNo value={draft.connect_online_shop ?? 'no'} onChange={value => onFieldChange('connect_online_shop', value)} />
+          <Field label="Use Shopify?" help="Enable Shopify product, order, inventory, and customer integration tools.">
+            <YesNo value={draft.shopify_enabled ?? 'no'} onChange={value => onFieldChange('shopify_enabled', value)} />
           </Field>
-          {draft.connect_online_shop === 'yes' && (
-            <Field label="Online shop platform" help="Choose the native Solvantis storefront or Shopify synchronisation.">
-              <select style={{ ...inputStyle, maxWidth: 280 }} value={draft.online_shop_platform ?? 'shopify'} onChange={event => onFieldChange('online_shop_platform', event.target.value)}>
-                <option value="solvantis">Solvantis Online Store</option>
-                <option value="shopify">Shopify</option>
-              </select>
-            </Field>
-          )}
+          <Field label="Use Solvantis Online Store?" help="Enable native store setup. The public storefront remains unavailable until separately activated.">
+            <YesNo value={draft.native_shop_enabled ?? 'no'} onChange={value => onFieldChange('native_shop_enabled', value)} />
+          </Field>
           {xeroAccountingEnabled && <Field label="Connect accounting software?" help="Choose Yes to configure accounting document and payment synchronisation with Xero.">
             <YesNo value={draft.connect_accounting_software ?? 'no'} onChange={value => onFieldChange('connect_accounting_software', value)} />
           </Field>}

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { decrypt } from '@/lib/encryption';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { syncShopifyGiftCardSnapshots } from '@/lib/ims/shopifyGiftCardSync';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -57,6 +58,11 @@ export async function POST(req: Request) {
   const results: CronResult[] = [];
   for (const { business_id: businessId } of businesses) {
     try {
+      const capabilities = await getOnlineChannelCapabilities(businessId);
+      if (!capabilities.shopifyEnabled) {
+        results.push({ businessId, status: 'skipped', reason: 'shopify_disabled' });
+        continue;
+      }
       await runImsForBusiness(businessId, async () => {
         const settingRows = await imsQuery<{ value: string }>(
           "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",

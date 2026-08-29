@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { OnlineShopFulfilmentSettingsRepository } from '@/lib/onlineShop/onlineShopFulfilmentSettings';
 import { OnlineShopShippingRepository } from '@/lib/onlineShop/onlineShopShipping';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -8,6 +9,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 export async function GET() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  const disabled = await nativeShopDisabledResponse(session.businessId); if (disabled) return disabled;
   try {
     const [rules, pickups, locations] = await Promise.all([
       OnlineShopShippingRepository.listRules(session.businessId),
@@ -25,6 +27,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  const disabled = await nativeShopDisabledResponse(session.businessId); if (disabled) return disabled;
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid shipping setting is required.' }, { status: 400 }); }
   try {
@@ -47,6 +50,7 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  const disabled = await nativeShopDisabledResponse(session.businessId); if (disabled) return disabled;
   const id = Number(new URL(request.url).searchParams.get('id'));
   try {
     await OnlineShopShippingRepository.deleteRule(session.businessId, id);

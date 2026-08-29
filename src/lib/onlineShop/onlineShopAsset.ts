@@ -61,7 +61,7 @@ export const OnlineShopAssetRepository = {
     const rows = await query<AssetRow>(`SELECT ${aliasedColumns}
       FROM online_shop_assets a
       JOIN online_shop_profiles p ON p.business_id = a.business_id AND p.is_active = 1
-      JOIN business_online_channels c ON c.business_id = a.business_id AND c.active_channel = 'native_shop'
+      JOIN business_online_channels c ON c.business_id = a.business_id AND c.native_shop_enabled = 1
       WHERE a.asset_id = ? AND a.is_active = 1 LIMIT 1`, [assetId]);
     return rows[0] ? mapAsset(rows[0]) : null;
   },

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { normalizeOnlineShopPageSlug } from '@/lib/onlineShop/onlineShopPages';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -8,6 +9,7 @@ function duplicate(error: unknown): boolean { return Boolean(error && typeof err
 
 export async function GET(request: Request) {
   const session = await getImsSession(); if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  const disabled = await nativeShopDisabledResponse(session.businessId); if (disabled) return disabled;
   const businessId = session.businessId; const url = new URL(request.url); const search = url.searchParams.get('q')?.trim().slice(0, 100) ?? '';
   const page = Math.max(1, Number.parseInt(url.searchParams.get('page') ?? '1', 10) || 1); const limit = 40; const offset = (page - 1) * limit;
   const filter = url.searchParams.get('filter') === 'published' ? 'published' : url.searchParams.get('filter') === 'unpublished' ? 'unpublished' : 'all';
@@ -36,6 +38,7 @@ export async function GET(request: Request) {
 
 export async function PUT(request: Request) {
   const session = await getImsSession(); if (!session) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
+  const disabled = await nativeShopDisabledResponse(session.businessId); if (disabled) return disabled;
   const businessId = session.businessId; let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid JSON body is required.' }, { status: 400 }); }
   const productId = String(body?.productId ?? '').trim(); const isPublished = body?.isPublished === true;

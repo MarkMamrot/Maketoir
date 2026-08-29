@@ -14,6 +14,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
@@ -62,6 +63,7 @@ export async function GET(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   const settings = await imsQuery<{ key: string; value: string }>(
     `SELECT \`key\`, value FROM ims_settings WHERE business_id = ?
@@ -119,6 +121,7 @@ export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId as string;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   const expectedUrl = buildExpectedUrl(req, businessId);
   const creds = await getShopifyCreds(businessId);

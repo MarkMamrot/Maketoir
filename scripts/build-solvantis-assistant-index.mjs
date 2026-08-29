@@ -9,6 +9,7 @@ const outputPath = path.join(outputDirectory, 'solvantis-assistant-index.json');
 const helpOutputPath = path.join(outputDirectory, 'solvantis-help-index.json');
 const prospectOutputPath = path.join(outputDirectory, 'solvantis-prospect-index.json');
 const validAudiences = new Set(['ims', 'pos', 'wholesale']);
+const validOperationCapabilities = new Set(['xero', 'shopify', 'native_shop']);
 const prospectAudience = 'prospect';
 const prospectProduct = 'prospect';
 const validProspectCapabilities = new Set([
@@ -86,6 +87,10 @@ function parseDocument(filename, source, options = {}) {
   if (!Array.isArray(metadata.audiences) || metadata.audiences.some(value => !validAudiences.has(value))) {
     throw new Error(`${filename}: invalid audiences`);
   }
+  if (metadata.requiresCapabilities != null && (!Array.isArray(metadata.requiresCapabilities)
+    || metadata.requiresCapabilities.some(value => !validOperationCapabilities.has(value)))) {
+    throw new Error(`${filename}: invalid requiresCapabilities`);
+  }
   if (options.help) {
     for (const field of ['product', 'summary']) {
       if (!String(metadata[field] ?? '').trim()) throw new Error(`${filename}: missing ${field}`);
@@ -117,6 +122,7 @@ function parseDocument(filename, source, options = {}) {
       heading,
       audiences: metadata.audiences,
       capability: metadata.capability,
+      requiresCapabilities: metadata.requiresCapabilities,
       screen: metadata.screen,
       topicId: options.help ? metadata.id : undefined,
       contexts: options.help ? metadata.contexts : undefined,

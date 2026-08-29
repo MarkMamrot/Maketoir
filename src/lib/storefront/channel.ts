@@ -9,6 +9,15 @@ export function parseOnlineSalesChannel(value: unknown): OnlineSalesChannel {
   return isOnlineSalesChannel(value) ? value : 'none';
 }
 
+export interface OnlineChannelCapabilities {
+  shopifyEnabled: boolean;
+  nativeShopEnabled: boolean;
+}
+
+export function hasAnyOnlineChannel(capabilities: OnlineChannelCapabilities): boolean {
+  return capabilities.shopifyEnabled || capabilities.nativeShopEnabled;
+}
+
 export interface StorefrontContext {
   channel: Exclude<OnlineSalesChannel, 'none'>;
   businessId: string;

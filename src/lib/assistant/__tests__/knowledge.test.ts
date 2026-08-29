@@ -81,6 +81,24 @@ describe('assistant knowledge retrieval', () => {
     expect(results.some(result => result.title === 'Shopify Sync and Product Mapping')).toBe(true);
   });
 
+  it('does not retrieve Shopify knowledge when Shopify is disabled', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do I sync and map Shopify products?',
+      audience: 'ims',
+      availableCapabilities: { xero: true, shopify: false, native_shop: true },
+    });
+    expect(results.some(result => result.title === 'Shopify Sync and Product Mapping')).toBe(false);
+  });
+
+  it('does not retrieve Native Shop knowledge when Native Shop is disabled', () => {
+    const results = retrieveAssistantKnowledge({
+      query: 'How do I publish the Online Shop storefront?',
+      audience: 'ims',
+      availableCapabilities: { xero: true, shopify: true, native_shop: false },
+    });
+    expect(results.some(result => result.title === 'Online Shop')).toBe(false);
+  });
+
   it('returns the organisation-wide weighted-average inventory cost method', () => {
     const results = retrieveAssistantKnowledge({
       query: 'What kind of inventory cost system does Solvantis use?',

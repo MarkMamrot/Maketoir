@@ -11,6 +11,9 @@ const { mockGetImsSession, mockConnectionsGet, mockDecrypt, mockImsQuery, mockSy
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mockConnectionsGet } }));
 vi.mock('@/lib/encryption', () => ({ decrypt: mockDecrypt }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));

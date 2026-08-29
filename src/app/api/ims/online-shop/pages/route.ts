@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { OnlineShopPageRepository } from '@/lib/onlineShop/onlineShopPages';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
 
@@ -8,6 +9,7 @@ function duplicate(error: unknown): boolean { return Boolean(error && typeof err
 export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   try { return NextResponse.json({ success: true, pages: await OnlineShopPageRepository.list(auth.user.businessId) }); }
   catch (error) {
     await reportRuntimeIssue({ businessId: auth.user.businessId, source: 'online_shop_pages', operation: 'list', title: 'Online shop pages could not be listed', error }).catch(() => {});
@@ -18,6 +20,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid JSON body is required.' }, { status: 400 }); }
   try {

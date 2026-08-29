@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { OnlineShopDomainRepository } from '@/lib/onlineShop/onlineShopDomain';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
 
@@ -10,6 +11,7 @@ function duplicate(error: unknown): boolean {
 
 export async function GET() {
   const auth = requireAdminTier(); if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   const domain = await OnlineShopDomainRepository.get(auth.user.businessId);
   return NextResponse.json({ success: true, domain,
     records: domain ? OnlineShopDomainRepository.verificationRecords(domain) : null });
@@ -17,6 +19,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const auth = requireAdminTier(); if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid domain request is required.' }, { status: 400 }); }
   try {
@@ -33,6 +36,7 @@ export async function PUT(request: Request) {
 
 export async function POST() {
   const auth = requireAdminTier(); if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   try {
     const domain = await OnlineShopDomainRepository.verify(auth.user.businessId);
     return NextResponse.json({ success: true, domain, records: OnlineShopDomainRepository.verificationRecords(domain) });
@@ -46,6 +50,7 @@ export async function POST() {
 
 export async function DELETE() {
   const auth = requireAdminTier(); if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   await OnlineShopDomainRepository.remove(auth.user.businessId);
   return NextResponse.json({ success: true });
 }

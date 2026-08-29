@@ -1,6 +1,8 @@
 import type { AssistantAudience } from '@/lib/assistant/policy';
 
 export type HelpProduct = 'dashboard' | 'foresight' | 'ims' | 'pos' | 'wholesale' | 'setup' | 'shared';
+export type OperationCapability = 'xero' | 'shopify' | 'native_shop';
+export type AvailableOperationCapabilities = Partial<Record<OperationCapability, boolean>>;
 
 export interface HelpSection {
   id: string;
@@ -13,6 +15,7 @@ export interface HelpTopic {
   title: string;
   audiences: AssistantAudience[];
   capability: string;
+  requiresCapabilities?: OperationCapability[];
   screen: string;
   product: HelpProduct;
   parentId?: string | null;

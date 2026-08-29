@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
@@ -11,6 +12,7 @@ import { getShopifyForBusiness, shopifyVariantPricePayload } from '@/lib/ims/sho
 export async function GET() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   try {
     const rows = await imsQuery<{ product_id: string; variant_count: number }>(
@@ -42,6 +44,7 @@ const MAX_BATCH = 30;
 export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   try {
     const { product_ids }: { product_ids?: string[] } = await req.json().catch(() => ({}));

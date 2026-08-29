@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { ConnectionsRepository, CONNECTION_SECRET_FIELDS } from '@/lib/db/ConnectionsRepository';
 import { encrypt, decrypt } from '@/lib/encryption';
+import { assertShopifyEnabled, getOnlineChannelCapabilities, isOnlineChannelDisabledError } from '@/lib/ims/businessOperations';
 import { normalizeShopifyShopDomain, type ShopifyAuthMode } from '@/lib/shopifyCredentials';
 
 function requireSession() {
@@ -26,17 +27,21 @@ export async function GET(req: Request) {
   }
 
   try {
+    const capabilities = await getOnlineChannelCapabilities(databaseId);
     const row = await ConnectionsRepository.get(databaseId);
     const raw = await ConnectionsRepository.getLegacy(databaseId);
     // Decrypt secret fields before returning to frontend
     const data: Record<string, string> = {};
     for (const [key, val] of Object.entries(raw)) {
+      if (!capabilities.shopifyEnabled && key.startsWith('Shopify')) continue;
       data[key] = key === 'MetaAccessToken' || key === 'GoogleAdsRefreshToken' || key === 'ShopifyClientSecret'
         ? ''
         : CONNECTION_SECRET_FIELDS.has(key) ? decrypt(val) : val;
     }
-    if (row?.shopify_auth_mode === 'client_credentials') data.ShopifyAccessToken = '';
-    data.ShopifyClientSecretConfigured = row?.shopify_client_secret ? 'true' : 'false';
+    if (capabilities.shopifyEnabled) {
+      if (row?.shopify_auth_mode === 'client_credentials') data.ShopifyAccessToken = '';
+      data.ShopifyClientSecretConfigured = row?.shopify_client_secret ? 'true' : 'false';
+    }
     return NextResponse.json({ success: true, connections: data });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -59,6 +64,9 @@ export async function POST(req: Request) {
   }
 
   try {
+    const includesShopify = connections && typeof connections === 'object'
+      && Object.keys(connections).some(key => key.startsWith('Shopify'));
+    if (includesShopify) await assertShopifyEnabled(databaseId);
     const requestedShopifyMode = connections?.ShopifyAuthMode as ShopifyAuthMode | undefined;
     if (requestedShopifyMode === 'legacy_token' || requestedShopifyMode === 'client_credentials') {
       const existing = await ConnectionsRepository.get(databaseId);
@@ -108,6 +116,9 @@ export async function POST(req: Request) {
     await ConnectionsRepository.saveFromLegacy(databaseId, toSave);
     return NextResponse.json({ success: true, message: 'Connection settings saved.' });
   } catch (error: any) {
+    if (isOnlineChannelDisabledError(error)) {
+      return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
+    }
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -9,8 +9,8 @@ export interface OnlineShopReadinessItem { id: string; label: string; ready: boo
 export interface OnlineShopActivationState { activeChannel: OnlineSalesChannel; isActive: boolean; ready: boolean; items: OnlineShopReadinessItem[] }
 
 export async function getOnlineShopActivationState(businessId: string): Promise<OnlineShopActivationState> {
-  const [profile, activeChannel, layoutRows, stripe] = await Promise.all([
-    OnlineShopProfileRepository.getByBusinessId(businessId), OnlineSalesChannelRepository.get(businessId),
+  const [profile, capabilities, layoutRows, stripe] = await Promise.all([
+    OnlineShopProfileRepository.getByBusinessId(businessId), OnlineSalesChannelRepository.getCapabilities(businessId),
     query<{ published_revision: number }>('SELECT published_revision FROM online_shop_layouts WHERE business_id = ? LIMIT 1', [businessId]),
     OnlineShopStripeConnectionRepository.get(businessId),
   ]);
@@ -33,19 +33,17 @@ export async function getOnlineShopActivationState(businessId: string): Promise<
     { id: 'stripe', label: 'Stripe connected and charges enabled', ready: Boolean(stripe?.chargesEnabled && stripe.detailsSubmitted && process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) },
     { id: 'webhook', label: 'Stripe Connect webhook configured', ready: Boolean(process.env.STRIPE_CONNECT_WEBHOOK_SECRET) },
   ];
-  return { activeChannel, isActive: profile?.isActive === true && activeChannel === 'native_shop', ready: items.every(item => item.ready), items };
+  const activeChannel: OnlineSalesChannel = capabilities.nativeShopEnabled ? 'native_shop'
+    : capabilities.shopifyEnabled ? 'shopify' : 'none';
+  return { activeChannel, isActive: profile?.isActive === true && capabilities.nativeShopEnabled, ready: items.every(item => item.ready), items };
 }
 
-export async function setOnlineShopActivation(input: { businessId: string; active: boolean; forceSwitch?: boolean; actorUserId?: number; actorName?: string }): Promise<OnlineShopActivationState> {
+export async function setOnlineShopActivation(input: { businessId: string; active: boolean; actorUserId?: number; actorName?: string }): Promise<OnlineShopActivationState> {
   if (input.active) {
     const state = await getOnlineShopActivationState(input.businessId);
     if (!state.ready) throw new Error('Complete every online shop readiness item before activation.');
-    if (state.activeChannel === 'shopify' && !input.forceSwitch) throw new Error('Shopify is the active online channel. Confirm the switch to native shop.');
     await OnlineShopProfileRepository.setActive(input.businessId, true);
-    await OnlineSalesChannelRepository.set({ businessId: input.businessId, channel: 'native_shop', actorUserId: input.actorUserId, actorName: input.actorName });
   } else {
-    const channel = await OnlineSalesChannelRepository.get(input.businessId);
-    if (channel === 'native_shop') await OnlineSalesChannelRepository.set({ businessId: input.businessId, channel: 'none', actorUserId: input.actorUserId, actorName: input.actorName });
     await OnlineShopProfileRepository.setActive(input.businessId, false);
   }
   return getOnlineShopActivationState(input.businessId);

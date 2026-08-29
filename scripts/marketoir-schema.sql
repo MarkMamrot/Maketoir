@@ -38,12 +38,16 @@ CREATE TABLE IF NOT EXISTS business_feature_flags (
 CREATE TABLE IF NOT EXISTS business_online_channels (
   business_id          VARCHAR(100) PRIMARY KEY,
   active_channel       ENUM('none','shopify','native_shop') NOT NULL DEFAULT 'none',
+  shopify_enabled      TINYINT(1) NOT NULL DEFAULT 0,
+  native_shop_enabled  TINYINT(1) NOT NULL DEFAULT 0,
   changed_by_user_id   INT NULL,
   changed_by_name      VARCHAR(255) NULL,
   changed_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
-  INDEX idx_business_online_channels_active (active_channel, business_id)
+  INDEX idx_business_online_channels_active (active_channel, business_id),
+  INDEX idx_business_online_channels_shopify (shopify_enabled, business_id),
+  INDEX idx_business_online_channels_native (native_shop_enabled, business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS online_shop_profiles (

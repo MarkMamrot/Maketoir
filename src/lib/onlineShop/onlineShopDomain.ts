@@ -63,7 +63,7 @@ export const OnlineShopDomainRepository = {
        JOIN business_online_channels c ON BINARY c.business_id = BINARY d.business_id
        JOIN businesses b ON BINARY b.business_id = BINARY d.business_id
       WHERE d.domain_name = ? AND d.status = 'verified' AND d.is_active = 1
-        AND p.is_active = 1 AND c.active_channel = 'native_shop' AND b.deleted_at IS NULL LIMIT 1`,
+        AND p.is_active = 1 AND c.native_shop_enabled = 1 AND b.deleted_at IS NULL LIMIT 1`,
       [domain],
     );
     return rows[0]?.business_id ?? null;

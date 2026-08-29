@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import {
   ImsBrandsRepo,
   ImsContactsRepo,
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = String(session.businessId);
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   try {
     const body = await req.json().catch(() => ({}));

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { OnlineShopAssetRepository } from '@/lib/onlineShop/onlineShopAsset';
 import { OnlineShopFulfilmentSettingsRepository } from '@/lib/onlineShop/onlineShopFulfilmentSettings';
+import { nativeShopDisabledResponse } from '@/lib/onlineShop/onlineShopCapability';
 import { OnlineSalesChannelRepository, OnlineShopProfileRepository } from '@/lib/onlineShop/onlineShopProfile';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requireAdminTier } from '@/lib/sessionUtils';
@@ -11,6 +12,7 @@ function duplicate(error: unknown): boolean { return Boolean(error && typeof err
 export async function GET() {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   try {
     const [profile, activeChannel, fulfilment] = await Promise.all([
       OnlineShopProfileRepository.getByBusinessId(auth.user.businessId),
@@ -30,6 +32,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const auth = requireAdminTier();
   if (auth.response) return auth.response;
+  const disabled = await nativeShopDisabledResponse(auth.user.businessId); if (disabled) return disabled;
   let body: any;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'A valid JSON body is required.' }, { status: 400 }); }
   const logoUrl = typeof body?.logoUrl === 'string' ? body.logoUrl.trim() : '';

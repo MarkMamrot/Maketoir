@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getImsSession }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.imsQuery, imsExecute: mocks.imsExecute }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mocks.getConnection } }));
 vi.mock('@/lib/encryption', () => ({ decrypt: vi.fn(value => value) }));

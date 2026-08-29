@@ -2,13 +2,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertXeroAccountingEnabled,
+  assertNativeShopEnabled,
+  assertShopifyEnabled,
+  getOnlineChannelCapabilities,
   isXeroAccountingEnabled,
+  OnlineChannelDisabledError,
   resolveXeroAccountingEnabled,
   XeroAccountingDisabledError,
 } from '../businessOperations';
 
 const mocks = vi.hoisted(() => ({
   getImsDbNameStrict: vi.fn(),
+  getCapabilities: vi.fn(),
   imsQuery: vi.fn(),
 }));
 
@@ -20,10 +25,15 @@ vi.mock('@/services/IMSMySQLService', () => ({
   imsQuery: mocks.imsQuery,
 }));
 
+vi.mock('@/lib/onlineShop/onlineShopProfile', () => ({
+  OnlineSalesChannelRepository: { getCapabilities: mocks.getCapabilities },
+}));
+
 describe('business operation capabilities', () => {
   beforeEach(() => {
     mocks.getImsDbNameStrict.mockReset();
     mocks.imsQuery.mockReset();
+    mocks.getCapabilities.mockReset();
     mocks.getImsDbNameStrict.mockResolvedValue('tenant_ims');
   });
 
@@ -54,5 +64,23 @@ describe('business operation capabilities', () => {
     mocks.imsQuery.mockResolvedValue([{ key: 'accounting_software', value: 'xero' }]);
 
     await expect(assertXeroAccountingEnabled('biz-1')).rejects.toBeInstanceOf(XeroAccountingDisabledError);
+  });
+
+  it('returns independent online channel capabilities', async () => {
+    mocks.getCapabilities.mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: true });
+    await expect(getOnlineChannelCapabilities('biz-1')).resolves.toEqual({ shopifyEnabled: true, nativeShopEnabled: true });
+  });
+
+  it('fails closed for an empty business id', async () => {
+    await expect(getOnlineChannelCapabilities('')).resolves.toEqual({ shopifyEnabled: false, nativeShopEnabled: false });
+    expect(mocks.getCapabilities).not.toHaveBeenCalled();
+  });
+
+  it('asserts each online channel independently', async () => {
+    mocks.getCapabilities.mockResolvedValue({ shopifyEnabled: false, nativeShopEnabled: true });
+    await expect(assertNativeShopEnabled('biz-1')).resolves.toBeUndefined();
+    await expect(assertShopifyEnabled('biz-1')).rejects.toMatchObject<Partial<OnlineChannelDisabledError>>({
+      code: 'shopify_disabled', status: 403,
+    });
   });
 });

@@ -125,11 +125,8 @@ export default function OnlineShopView() {
     setProfile(body.profile); setMessage('Store settings saved.');
   }); };
   const changeActivation = (active: boolean) => void run('activation', async () => {
-    const forceSwitch = active && activation?.activeChannel === 'shopify'
-      ? confirm('Shopify is currently the active consumer channel. Switch public online sales to the native shop?') : false;
-    if (active && activation?.activeChannel === 'shopify' && !forceSwitch) return;
     const body = await jsonRequest('/api/ims/online-shop/activation', { method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active, forceSwitch }) }); setActivation(body.state); setChannel(body.state.activeChannel);
+      body: JSON.stringify({ active }) }); setActivation(body.state); setChannel(body.state.activeChannel);
     setMessage(active ? 'Native online shop activated.' : 'Native online shop deactivated.');
   });
   const saveDomain = () => void run('domain-save', async () => {

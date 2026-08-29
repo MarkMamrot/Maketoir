@@ -14,7 +14,9 @@ import { SALES_DOCUMENT_SETTING_KEYS, validateSalesDocumentSetting } from '@/lib
 import {
   ACCOUNTING_CONNECTION_SETTING,
   ACCOUNTING_PLATFORM_SETTING,
+  getOnlineChannelCapabilities,
   resolveXeroAccountingEnabled,
+  setOnlineChannelCapabilities,
 } from '@/lib/ims/businessOperations';
 import { SELLS_WHOLESALE_SETTING_KEY } from '@/lib/wholesale/wholesaleAccess';
 import { WholesaleSupplierProfileRepository } from '@/lib/wholesale/wholesaleSupplierProfile';
@@ -38,7 +40,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   const businessId = session.businessId;
   try {
-    const [rows, posEvidence] = await Promise.all([
+    const [rows, posEvidence, onlineChannels] = await Promise.all([
       imsQuery<{ key: string; value: string }>(
         'SELECT `key`, `value` FROM ims_settings WHERE business_id = ?',
         [businessId]
@@ -52,6 +54,7 @@ export async function GET() {
          ) AS has_pos_locations`,
         [businessId],
       ),
+      getOnlineChannelCapabilities(businessId),
     ]);
     const settings: Record<string, string> = {};
     for (const row of rows) settings[row.key] = row.value ?? '';
@@ -68,8 +71,8 @@ export async function GET() {
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
     settings.business_requires_pos ??= 'yes';
     applyWholesalePortalSettingDefaults(settings);
-    // Include Shopify shop domain so client can build admin links without a separate fetch
-    const conn = await ConnectionsRepository.get(businessId);
+    // Include the domain only when the Shopify operation is available.
+    const conn = onlineChannels.shopifyEnabled ? await ConnectionsRepository.get(businessId) : null;
     const shopDomain: string = conn?.shopify_shop_id ?? '';
     return NextResponse.json({
       success: true,
@@ -78,6 +81,8 @@ export async function GET() {
       capabilities: {
         hasPosLocations: Boolean(posEvidence[0]?.has_pos_locations),
         xeroAccountingEnabled: resolveXeroAccountingEnabled(settings),
+        shopifyEnabled: onlineChannels.shopifyEnabled,
+        nativeShopEnabled: onlineChannels.nativeShopEnabled,
       },
     });
   } catch (e: any) {
@@ -95,9 +100,18 @@ export async function PUT(req: Request) {
   const businessId = session.businessId;
   try {
     const body = await req.json();
+    const onlineChannels = body.onlineChannels;
+    if (onlineChannels !== undefined && (
+      !onlineChannels
+      || typeof onlineChannels !== 'object'
+      || typeof onlineChannels.shopifyEnabled !== 'boolean'
+      || typeof onlineChannels.nativeShopEnabled !== 'boolean'
+    )) {
+      return NextResponse.json({ success: false, error: 'Online channel settings must contain Shopify and Native Shop booleans.' }, { status: 400 });
+    }
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
-      body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : body);
+      body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
 
     for (const [key, rawValue] of Object.entries(pairs)) {
       const result = validateSalesDocumentSetting(key, rawValue);
@@ -187,6 +201,16 @@ export async function PUT(req: Request) {
         'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
         [businessId, key, value ?? null]
       );
+    }
+
+    if (onlineChannels) {
+      await setOnlineChannelCapabilities({
+        businessId,
+        shopifyEnabled: onlineChannels.shopifyEnabled,
+        nativeShopEnabled: onlineChannels.nativeShopEnabled,
+        actorUserId: session.userId ?? null,
+        actorName: session.name ?? null,
+      });
     }
 
     if (pairs[SELLS_WHOLESALE_SETTING_KEY] === 'yes') {

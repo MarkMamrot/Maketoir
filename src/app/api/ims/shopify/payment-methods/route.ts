@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -9,6 +10,7 @@ export async function GET() {
   if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId = session.businessId;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
   const credentials = await getShopifyAdminCredentials(businessId);
   if (!credentials) {
     return NextResponse.json({ error: 'Shopify credentials not configured.' }, { status: 400 });

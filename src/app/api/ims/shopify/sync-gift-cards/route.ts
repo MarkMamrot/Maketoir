@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { syncShopifyGiftCardSnapshots } from '@/lib/ims/shopifyGiftCardSync';
@@ -13,6 +14,7 @@ export async function POST() {
   const session = await getImsSession();
   if (!session?.businessId) return NextResponse.json({ error: 'Unauthorised.' }, { status: 401 });
   const businessId = session.businessId;
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   const credentials = await getShopifyAdminCredentials(businessId);
   if (!credentials)

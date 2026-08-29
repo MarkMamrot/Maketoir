@@ -392,6 +392,8 @@ function CostSummaryPills({ items }: { items: Array<{ label: string; value: stri
 type ImsCapabilities = {
   hasPosLocations: boolean;
   xeroAccountingEnabled: boolean;
+  shopifyEnabled: boolean;
+  nativeShopEnabled: boolean;
 };
 
 const IMS_SETTINGS_UPDATED_EVENT = 'solvantis:ims-settings-updated';
@@ -399,7 +401,12 @@ const IMS_SETTINGS_UPDATED_EVENT = 'solvantis:ims-settings-updated';
 function useImsSettings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const settingsRef = useRef<Record<string, string>>({});
-  const [capabilities, setCapabilities] = useState<ImsCapabilities>({ hasPosLocations: false, xeroAccountingEnabled: false });
+  const [capabilities, setCapabilities] = useState<ImsCapabilities>({
+    hasPosLocations: false,
+    xeroAccountingEnabled: false,
+    shopifyEnabled: false,
+    nativeShopEnabled: false,
+  });
   const [loaded, setLoaded] = useState(false);
   const fetchSettings = useCallback(() => {
     fetch('/api/ims/settings').then(r => r.json()).then(d => {
@@ -410,6 +417,8 @@ function useImsSettings() {
         setCapabilities({
           hasPosLocations: Boolean(d.capabilities?.hasPosLocations),
           xeroAccountingEnabled: Boolean(d.capabilities?.xeroAccountingEnabled),
+          shopifyEnabled: Boolean(d.capabilities?.shopifyEnabled),
+          nativeShopEnabled: Boolean(d.capabilities?.nativeShopEnabled),
         });
       }
     }).catch(() => {}).finally(() => setLoaded(true));
@@ -433,7 +442,16 @@ function useImsSettings() {
       if (response.ok) window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
     } catch {}
   }, []);
-  return { settings, capabilities, loaded, saveSettings, refetchSettings: fetchSettings };
+  const saveOnlineChannels = useCallback(async (onlineChannels: Pick<ImsCapabilities, 'shopifyEnabled' | 'nativeShopEnabled'>) => {
+    const response = await fetch('/api/ims/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ onlineChannels }),
+    });
+    if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Online channel settings could not be saved.');
+    window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
+  }, []);
+  return { settings, capabilities, loaded, saveSettings, saveOnlineChannels, refetchSettings: fetchSettings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -555,6 +573,8 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
   const showLocationDaybooks = sidebarSettings.business_requires_pos !== 'no' || capabilities.hasPosLocations;
   const showXero = capabilities.xeroAccountingEnabled;
+  const showShopify = capabilities.shopifyEnabled;
+  const showNativeShop = capabilities.nativeShopEnabled;
   const showLocations = showMultipleLocations || showLocationDaybooks;
   const showWholesalePreview = showWholesale && (userTier === 'Admin' || userTier === 'SuperAdmin');
 
@@ -658,6 +678,8 @@ function Sidebar({ active, onSelect, userTier }: { active: ImsView; onSelect: (v
             if (child.id === 'location-daybooks') return showLocationDaybooks;
             if (child.id === 'branch-transfers' || child.id === 'receive-transfers') return showMultipleLocations;
             if (child.id === 'xero') return showXero;
+            if (child.id === 'shopify') return showShopify;
+            if (child.id === 'online-shop') return showNativeShop;
             return true;
           })
           : [];
@@ -842,7 +864,7 @@ function TotalSalesProfitCircle({ rows, itemCount, periodLabel, loading }: { row
   );
 }
 
-function DashboardView({ businessId, xeroAccountingEnabled, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; xeroAccountingEnabled: boolean; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
+function DashboardView({ businessId, xeroAccountingEnabled, shopifyEnabled, nativeShopEnabled, onNav, onOpenSettings, onOpenSalesOrder }: { businessId: string; xeroAccountingEnabled: boolean; shopifyEnabled: boolean; nativeShopEnabled: boolean; onNav: (v: ImsView) => void; onOpenSettings?: (section: string) => void; onOpenSalesOrder?: (id: number) => void }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [salesWindow, setSalesWindow] = useState<'today' | 'yesterday' | '30' | '120' | '365'>('today');
@@ -903,7 +925,11 @@ function DashboardView({ businessId, xeroAccountingEnabled, onNav, onOpenSetting
       .then(d => {
         if (!d?.success) return;
         setOnboarding(d);
-        setOnboardingDraft(d.settings ?? {});
+        setOnboardingDraft({
+          ...(d.settings ?? {}),
+          shopify_enabled: shopifyEnabled ? 'yes' : 'no',
+          native_shop_enabled: nativeShopEnabled ? 'yes' : 'no',
+        });
         if (!d.complete && !onboardingAutoOpenedRef.current) {
           onboardingAutoOpenedRef.current = true;
           setOnboardingOpen(true);
@@ -912,17 +938,30 @@ function DashboardView({ businessId, xeroAccountingEnabled, onNav, onOpenSetting
       })
       .catch(() => {})
       .finally(() => setOnboardingLoading(false));
-  }, []);
+  }, [nativeShopEnabled, shopifyEnabled]);
 
   useEffect(() => { loadOnboarding(); }, [loadOnboarding]);
 
   const saveOnboardingStep = async (stepId: string, settings: Record<string, string>) => {
     setOnboardingSaving(true);
     try {
+      const { shopify_enabled, native_shop_enabled, ...tenantSettings } = settings;
+      if (stepId === 'integrations') {
+        const capabilityResponse = await fetch('/api/ims/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ onlineChannels: {
+            shopifyEnabled: shopify_enabled === 'yes',
+            nativeShopEnabled: native_shop_enabled === 'yes',
+          } }),
+        });
+        if (!capabilityResponse.ok) throw new Error((await capabilityResponse.json().catch(() => ({}))).error ?? 'Online channel settings could not be saved.');
+        window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT));
+      }
       const response = await fetch('/api/onboarding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings, completeStep: stepId }),
+        body: JSON.stringify({ settings: tenantSettings, completeStep: stepId }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? 'Onboarding details could not be saved.');
       loadOnboarding();
@@ -21734,6 +21773,15 @@ export default function ImsPage() {
   }, [hasRestoredInitialHash, pageCapabilities.xeroAccountingEnabled, settingsLoaded, setViewSafe, view]);
 
   useEffect(() => {
+    if (!hasRestoredInitialHash || !settingsLoaded) return;
+    const disabledView = (view === 'shopify' && !pageCapabilities.shopifyEnabled)
+      || (view === 'online-shop' && !pageCapabilities.nativeShopEnabled);
+    if (!disabledView) return;
+    window.history.replaceState(window.history.state, '', '#dashboard');
+    setViewSafe('dashboard');
+  }, [hasRestoredInitialHash, pageCapabilities.nativeShopEnabled, pageCapabilities.shopifyEnabled, settingsLoaded, setViewSafe, view]);
+
+  useEffect(() => {
     if (pageSettings.connect_accounting_software !== 'yes') return;
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
   }, [pageSettings.connect_accounting_software]);
@@ -22095,6 +22143,8 @@ export default function ImsPage() {
             <MainSections
               view={view}
               xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
+              shopifyEnabled={pageCapabilities.shopifyEnabled}
+              nativeShopEnabled={pageCapabilities.nativeShopEnabled}
               isAdvisor={isAdvisor}
               advisorMappingEnabled={advisorXeroMappingEnabled}
               businessId={user?.businessId ?? ''}
@@ -22217,6 +22267,11 @@ export default function ImsPage() {
         chatEndpoint="/api/ims/assistant/chat"
         escalationEndpoint="/api/ims/assistant/escalate"
         xeroAccountingEnabled={pageCapabilities.xeroAccountingEnabled}
+        availableCapabilities={{
+          xero: pageCapabilities.xeroAccountingEnabled,
+          shopify: pageCapabilities.shopifyEnabled,
+          native_shop: pageCapabilities.nativeShopEnabled,
+        }}
         teamChatEnabled
         modeRequest={helpModeRequest}
       />
@@ -25873,7 +25928,7 @@ function WholesaleSettingsSection({ settings, saveSettings }: { settings: Record
 }
 
 function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, syncingSteps, syncLog, handleSync, fullSyncConfirm, setFullSyncConfirm, salesMonthsInput, setSalesMonthsInput, poMonthsInput, setPoMonthsInput }: SettingsModalProps) {
-  const { settings, capabilities, loaded, saveSettings, refetchSettings } = useImsSettings();
+  const { settings, capabilities, loaded, saveSettings, saveOnlineChannels, refetchSettings } = useImsSettings();
   const [active, setActive] = useState<SettingsSection>(defaultSection);
   useEffect(() => {
     if (isOpen) {
@@ -25930,6 +25985,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   // Tax draft
   const [taxDraft, setTaxDraft] = useState<Record<string, string>>({});
+  const [onlineChannelDraft, setOnlineChannelDraft] = useState({ shopifyEnabled: false, nativeShopEnabled: false });
   const [taxSaving, setTaxSaving] = useState(false);
   const [xeroAdvisorEnabled, setXeroAdvisorEnabled] = useState(false);
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
@@ -25946,17 +26002,25 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
       use_foreign_currencies:   'yes',
       business_requires_pos:    'yes',
       sells_wholesale:          'yes',
-      connect_online_shop:      'no',
-      online_shop_platform:     'shopify',
       connect_accounting_software: 'no',
       accounting_software:      'xero',
       ...settings,
     });
   }, [settings]);
+  useEffect(() => {
+    setOnlineChannelDraft({
+      shopifyEnabled: capabilities.shopifyEnabled,
+      nativeShopEnabled: capabilities.nativeShopEnabled,
+    });
+  }, [capabilities.nativeShopEnabled, capabilities.shopifyEnabled]);
   const saveTaxSettings = async () => {
     setTaxSaving(true);
-    await saveSettings(taxDraft);
-    setTaxSaving(false);
+    try {
+      await saveSettings(taxDraft);
+      await saveOnlineChannels(onlineChannelDraft);
+    } finally {
+      setTaxSaving(false);
+    }
   };
   useEffect(() => {
     const v = settings['advisor_xero_mapping_enabled'];
@@ -26561,19 +26625,14 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Sales channels and integrations</h4>
                 <OperationToggle setting="business_requires_pos" defaultValue="yes" label="Business requires POS" description="Enable Point of Sale and Location Daybooks for businesses selling directly to the public in stores or staffed locations." />
                 <OperationToggle setting="sells_wholesale" defaultValue="yes" label="Wholesale sales" description="Enable the Wholesale Portal and customer-specific brand access." />
-                <OperationToggle setting="connect_online_shop" label="Online shop" description="Use the Solvantis Online Store or connect an external commerce platform." />
-                {taxDraft.connect_online_shop === 'yes' && (
-                  <div style={{ padding: '10px 0 14px 18px', borderBottom: '1px solid var(--sv-etch)' }}>
-                    <label style={labelStyle}>Online shop platform</label>
-                    <select value={taxDraft.online_shop_platform ?? 'shopify'} onChange={e => setTaxDraft(p => ({ ...p, online_shop_platform: e.target.value }))} style={{ ...inputStyle, width: 280 }}>
-                      <option value="solvantis">Solvantis Online Store</option>
-                      <option value="shopify">Shopify</option>
-                      <option disabled>WooCommerce - coming soon</option>
-                      <option disabled>BigCommerce - coming soon</option>
-                      <option disabled>Adobe Commerce - coming soon</option>
-                    </select>
-                  </div>
-                )}
+                <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={onlineChannelDraft.shopifyEnabled} onChange={e => setOnlineChannelDraft(current => ({ ...current, shopifyEnabled: e.target.checked }))} style={{ marginTop: 2 }} />
+                  <span><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 13 }}>Shopify</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Show Shopify integration tools and allow Shopify sync activity.</span></span>
+                </label>
+                <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 0', borderBottom: '1px solid var(--sv-etch)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={onlineChannelDraft.nativeShopEnabled} onChange={e => setOnlineChannelDraft(current => ({ ...current, nativeShopEnabled: e.target.checked }))} style={{ marginTop: 2 }} />
+                  <span><strong style={{ display: 'block', color: 'var(--sv-text-strong)', fontSize: 13 }}>Solvantis Online Store</strong><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Show native store setup. Public sales remain off until the storefront is activated.</span></span>
+                </label>
                 <OperationToggle setting="connect_accounting_software" label="Accounting software" description="Enable accounting connection and mapping prompts." />
                 {taxDraft.connect_accounting_software === 'yes' && (
                   <div style={{ padding: '10px 0 0 18px' }}>

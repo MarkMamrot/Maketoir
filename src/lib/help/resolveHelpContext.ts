@@ -1,7 +1,7 @@
 import helpIndex from '@/generated/solvantis-help-index.json';
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
-import type { HelpProduct, HelpTopic, ResolvedHelpContext } from './types';
+import type { AvailableOperationCapabilities, HelpProduct, HelpTopic, ResolvedHelpContext } from './types';
 
 const topics = helpIndex.topics as HelpTopic[];
 
@@ -45,10 +45,21 @@ function withoutXeroContent(topic: HelpTopic): HelpTopic | null {
   };
 }
 
-export function listHelpTopics(audience: AssistantAudience, product?: HelpProduct, xeroAccountingEnabled?: boolean): HelpTopic[] {
+function isTopicAvailable(topic: HelpTopic, availableCapabilities?: AvailableOperationCapabilities): boolean {
+  return !topic.requiresCapabilities?.some(capability => availableCapabilities?.[capability] === false);
+}
+
+export function listHelpTopics(
+  audience: AssistantAudience,
+  product?: HelpProduct,
+  availability?: boolean | AvailableOperationCapabilities,
+): HelpTopic[] {
+  const availableCapabilities = typeof availability === 'boolean' ? { xero: availability } : availability;
+  const xeroAccountingEnabled = availableCapabilities?.xero;
   return topics
     .filter(topic => topic.audiences.includes(audience)
-      && (!product || topic.product === product || topic.product === 'shared'))
+      && (!product || topic.product === product || topic.product === 'shared')
+      && isTopicAvailable(topic, availableCapabilities))
     .map(topic => xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic)
     .filter((topic): topic is HelpTopic => topic !== null)
     .sort((left, right) => Number(left.order ?? 0) - Number(right.order ?? 0) || left.title.localeCompare(right.title));
@@ -59,9 +70,11 @@ export function resolveHelpContext(input: {
   product: HelpProduct;
   context?: string | null;
   xeroAccountingEnabled?: boolean;
+  availableCapabilities?: AvailableOperationCapabilities;
 }): ResolvedHelpContext | null {
   const context = normalize(input.context);
-  const available = listHelpTopics(input.audience, input.product, input.xeroAccountingEnabled).filter(topic => topic.product === input.product);
+  const availability = input.availableCapabilities ?? (input.xeroAccountingEnabled === undefined ? undefined : { xero: input.xeroAccountingEnabled });
+  const available = listHelpTopics(input.audience, input.product, availability).filter(topic => topic.product === input.product);
   const exactTopic = context
     ? available
       .filter(topic => topic.contexts.some(alias => normalize(alias) === context))
@@ -78,8 +91,10 @@ export function resolveHelpContext(input: {
   return { topic, sectionId: section?.id ?? null, exact: !!exactTopic };
 }
 
-export function getHelpTopic(topicId: string, audience: AssistantAudience, xeroAccountingEnabled?: boolean): HelpTopic | null {
+export function getHelpTopic(topicId: string, audience: AssistantAudience, availability?: boolean | AvailableOperationCapabilities): HelpTopic | null {
   const topic = topics.find(candidate => candidate.id === topicId && candidate.audiences.includes(audience));
-  if (!topic) return null;
+  const availableCapabilities = typeof availability === 'boolean' ? { xero: availability } : availability;
+  if (!topic || !isTopicAvailable(topic, availableCapabilities)) return null;
+  const xeroAccountingEnabled = availableCapabilities?.xero;
   return xeroAccountingEnabled === false ? withoutXeroContent(topic) : topic;
 }

@@ -32,14 +32,22 @@ describe('online shop profile control plane', () => {
     await expect(OnlineSalesChannelRepository.get('business-1')).resolves.toBe('none');
   });
 
-  it('persists one authoritative online channel per business', async () => {
+  it('resolves Shopify and native capabilities independently with legacy fallback', async () => {
+    mockQuery.mockResolvedValueOnce([{ active_channel: 'shopify', shopify_enabled: 0, native_shop_enabled: 1 }]);
+    await expect(OnlineSalesChannelRepository.getCapabilities('business-1')).resolves.toEqual({
+      shopifyEnabled: true,
+      nativeShopEnabled: true,
+    });
+  });
+
+  it('persists independent online channel capabilities', async () => {
     mockExecute.mockResolvedValue({ affectedRows: 1 });
-    await OnlineSalesChannelRepository.set({
-      businessId: 'business-1', channel: 'native_shop', actorUserId: 7, actorName: 'Admin',
+    await OnlineSalesChannelRepository.setCapabilities({
+      businessId: 'business-1', shopifyEnabled: true, nativeShopEnabled: true, actorUserId: 7, actorName: 'Admin',
     });
     expect(mockExecute).toHaveBeenCalledWith(
       expect.stringContaining('ON DUPLICATE KEY UPDATE'),
-      ['business-1', 'native_shop', 7, 'Admin'],
+      ['business-1', 'none', 1, 1, 7, 'Admin'],
     );
   });
 
@@ -50,7 +58,7 @@ describe('online shop profile control plane', () => {
     await expect(OnlineShopProfileRepository.getActiveBySlug('Shop One')).resolves.toMatchObject({
       businessId: 'business-1', slug: 'shop-one', isActive: true,
     });
-    expect(mockQuery.mock.calls[0][0]).toContain("c.active_channel = 'native_shop'");
+    expect(mockQuery.mock.calls[0][0]).toContain('c.native_shop_enabled = 1');
   });
 
   it('creates inactive profiles unless activation is explicit', async () => {

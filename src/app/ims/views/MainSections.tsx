@@ -18,6 +18,8 @@ type ImsView =
 interface MainSectionsProps {
   view: ImsView;
   xeroAccountingEnabled: boolean;
+  shopifyEnabled: boolean;
+  nativeShopEnabled: boolean;
   isAdvisor: boolean;
   advisorMappingEnabled: boolean;
   businessId: string;
@@ -95,6 +97,8 @@ export function MainSections(props: MainSectionsProps) {
   const {
     view,
     xeroAccountingEnabled,
+    shopifyEnabled,
+    nativeShopEnabled,
     isAdvisor,
     advisorMappingEnabled,
     businessId,
@@ -167,6 +171,8 @@ export function MainSections(props: MainSectionsProps) {
         <DashboardView
           businessId={businessId}
           xeroAccountingEnabled={xeroAccountingEnabled}
+          shopifyEnabled={shopifyEnabled}
+          nativeShopEnabled={nativeShopEnabled}
           onNav={setView}
           onOpenSettings={(s: any) => { setSettingsSection(s); setSettingsOpen(true); }}
           onOpenPurchaseOrder={onOpenPurchaseOrder}
@@ -296,8 +302,8 @@ export function MainSections(props: MainSectionsProps) {
           onOpenPosSalesDay={(date: string) => { setView('pos-sales'); setPendingOpenPosDay(date); }}
         />
       )}
-      {view === 'shopify' && <ShopifyView businessId={businessId} xeroAccountingEnabled={xeroAccountingEnabled} />}
-      {view === 'online-shop' && <OnlineShopView />}
+      {view === 'shopify' && shopifyEnabled && <ShopifyView businessId={businessId} xeroAccountingEnabled={xeroAccountingEnabled} />}
+      {view === 'online-shop' && nativeShopEnabled && <OnlineShopView />}
     </>
   );
 }

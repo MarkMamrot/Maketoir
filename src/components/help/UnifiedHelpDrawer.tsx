@@ -6,7 +6,7 @@ import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search,
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
 import { searchHelpTopics } from '@/lib/help/searchHelpTopics';
-import type { HelpProduct, HelpTopic } from '@/lib/help/types';
+import type { AvailableOperationCapabilities, HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import { WarehouseTeamChat } from './WarehouseTeamChat';
 import { HelpMarkdown } from './HelpMarkdown';
@@ -33,6 +33,7 @@ export function UnifiedHelpDrawer({
   showFloatingTrigger = true,
   teamChatEnabled = false,
   xeroAccountingEnabled,
+  availableCapabilities,
   modeRequest,
 }: {
   open: boolean;
@@ -47,13 +48,17 @@ export function UnifiedHelpDrawer({
   showFloatingTrigger?: boolean;
   teamChatEnabled?: boolean;
   xeroAccountingEnabled?: boolean;
+  availableCapabilities?: AvailableOperationCapabilities;
   modeRequest?: { key: number; mode: 'help' | 'ask' | 'team' };
 }) {
   const contextual = useMemo(
-    () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled }),
-    [audience, product, currentContext, xeroAccountingEnabled],
+    () => resolveHelpContext({ audience, product, context: currentContext, xeroAccountingEnabled, availableCapabilities }),
+    [audience, product, currentContext, xeroAccountingEnabled, availableCapabilities],
   );
-  const topics = useMemo(() => listHelpTopics(audience, product, xeroAccountingEnabled), [audience, product, xeroAccountingEnabled]);
+  const topics = useMemo(
+    () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
+    [audience, product, availableCapabilities, xeroAccountingEnabled],
+  );
   const [mode, setMode] = useState<'help' | 'ask' | 'team'>('help');
   const [teamUnread, setTeamUnread] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);

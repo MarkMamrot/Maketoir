@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 
 import { execute, query } from '@/services/MySQLService';
-import { isOnlineSalesChannel, type OnlineSalesChannel } from '@/lib/storefront/channel';
+import { isOnlineSalesChannel, type OnlineChannelCapabilities, type OnlineSalesChannel } from '@/lib/storefront/channel';
 
 const RESERVED_SHOP_SLUGS = new Set([
   'account', 'admin', 'api', 'cart', 'checkout', 'collections', 'login', 'logout',
@@ -58,6 +58,40 @@ function mapProfile(row: OnlineShopProfileRow): OnlineShopProfile {
 }
 
 export const OnlineSalesChannelRepository = {
+  async getCapabilities(businessId: string): Promise<OnlineChannelCapabilities> {
+    const rows = await query<{ active_channel: string; shopify_enabled: number; native_shop_enabled: number }>(
+      `SELECT active_channel, shopify_enabled, native_shop_enabled
+         FROM business_online_channels WHERE business_id = ? LIMIT 1`,
+      [businessId],
+    );
+    const row = rows[0];
+    return {
+      shopifyEnabled: row?.shopify_enabled === 1 || row?.active_channel === 'shopify',
+      nativeShopEnabled: row?.native_shop_enabled === 1 || row?.active_channel === 'native_shop',
+    };
+  },
+
+  async setCapabilities(input: { businessId: string; shopifyEnabled: boolean; nativeShopEnabled: boolean; actorUserId?: number | null; actorName?: string | null }): Promise<void> {
+    const legacyChannel: OnlineSalesChannel = input.shopifyEnabled === input.nativeShopEnabled
+      ? 'none'
+      : input.shopifyEnabled ? 'shopify' : 'native_shop';
+    await execute(
+      `INSERT INTO business_online_channels
+         (business_id, active_channel, shopify_enabled, native_shop_enabled, changed_by_user_id, changed_by_name)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         active_channel = VALUES(active_channel),
+         shopify_enabled = VALUES(shopify_enabled),
+         native_shop_enabled = VALUES(native_shop_enabled),
+         changed_by_user_id = VALUES(changed_by_user_id),
+         changed_by_name = VALUES(changed_by_name),
+         changed_at = CURRENT_TIMESTAMP(3),
+         updated_at = CURRENT_TIMESTAMP(3)`,
+      [input.businessId, legacyChannel, input.shopifyEnabled ? 1 : 0, input.nativeShopEnabled ? 1 : 0,
+        input.actorUserId ?? null, input.actorName?.trim() || null],
+    );
+  },
+
   async get(businessId: string): Promise<OnlineSalesChannel> {
     const rows = await query<{ active_channel: string }>(
       'SELECT active_channel FROM business_online_channels WHERE business_id = ? LIMIT 1',
@@ -67,18 +101,13 @@ export const OnlineSalesChannelRepository = {
   },
 
   async set(input: { businessId: string; channel: OnlineSalesChannel; actorUserId?: number | null; actorName?: string | null }): Promise<void> {
-    await execute(
-      `INSERT INTO business_online_channels
-         (business_id, active_channel, changed_by_user_id, changed_by_name)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         active_channel = VALUES(active_channel),
-         changed_by_user_id = VALUES(changed_by_user_id),
-         changed_by_name = VALUES(changed_by_name),
-         changed_at = CURRENT_TIMESTAMP(3),
-         updated_at = CURRENT_TIMESTAMP(3)`,
-      [input.businessId, input.channel, input.actorUserId ?? null, input.actorName?.trim() || null],
-    );
+    await this.setCapabilities({
+      businessId: input.businessId,
+      shopifyEnabled: input.channel === 'shopify',
+      nativeShopEnabled: input.channel === 'native_shop',
+      actorUserId: input.actorUserId,
+      actorName: input.actorName,
+    });
   },
 };
 
@@ -102,7 +131,7 @@ export const OnlineShopProfileRepository = {
          FROM online_shop_profiles p
          JOIN business_online_channels c ON BINARY c.business_id = BINARY p.business_id
          JOIN businesses b ON BINARY b.business_id = BINARY p.business_id
-        WHERE p.slug = ? AND p.is_active = 1 AND c.active_channel = 'native_shop'
+        WHERE p.slug = ? AND p.is_active = 1 AND c.native_shop_enabled = 1
           AND b.deleted_at IS NULL
         LIMIT 1`,
       [slug],

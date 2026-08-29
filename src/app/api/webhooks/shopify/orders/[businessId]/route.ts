@@ -21,6 +21,7 @@ import { toBusinessDate, toBusinessDateTime } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { createNotification } from '@/lib/ims/createNotification';
 import { runImsForBusiness, getImsDbNameStrict } from '@/lib/db/BusinessRegistry';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { triggerCNXeroSync } from '@/lib/ims/xeroHooks';
 import { getOrCreateShopifyFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { getShopifyApiCreds, ingestShopifyPayout } from '@/lib/ims/shopifyPayoutIngestion';
@@ -158,6 +159,9 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
     valid = hmac.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch { valid = false; }
   if (!valid) return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+
+  const capabilities = await getOnlineChannelCapabilities(businessId);
+  if (!capabilities.shopifyEnabled) return NextResponse.json({ ok: true });
 
   let payload: any;
   try { payload = JSON.parse(rawBody); } catch {

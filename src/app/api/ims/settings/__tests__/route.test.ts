@@ -1,16 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockGetImsSession, mockImsQuery, mockImsExecute, mockGetConnection } = vi.hoisted(() => ({
+const { mockGetImsSession, mockImsQuery, mockImsExecute, mockGetConnection, mockGetCapabilities, mockSetCapabilities } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockImsQuery: vi.fn(),
   mockImsExecute: vi.fn(),
   mockGetConnection: vi.fn(),
+  mockGetCapabilities: vi.fn(),
+  mockSetCapabilities: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery, imsExecute: mockImsExecute }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
   ConnectionsRepository: { get: mockGetConnection },
+}));
+vi.mock('@/lib/onlineShop/onlineShopProfile', () => ({
+  OnlineSalesChannelRepository: { getCapabilities: mockGetCapabilities, setCapabilities: mockSetCapabilities },
 }));
 
 import { GET, PUT } from '../route';
@@ -23,6 +28,14 @@ function putRequest(settings: Record<string, string>): Request {
   });
 }
 
+function putOnlineChannels(shopifyEnabled: boolean, nativeShopEnabled: boolean): Request {
+  return new Request('http://localhost/api/ims/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ onlineChannels: { shopifyEnabled, nativeShopEnabled } }),
+  });
+}
+
 describe('/api/ims/settings loyalty settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -30,6 +43,8 @@ describe('/api/ims/settings loyalty settings', () => {
     mockImsQuery.mockResolvedValue([]);
     mockImsExecute.mockResolvedValue({ affectedRows: 1 });
     mockGetConnection.mockResolvedValue(null);
+    mockGetCapabilities.mockResolvedValue({ shopifyEnabled: false, nativeShopEnabled: false });
+    mockSetCapabilities.mockResolvedValue(undefined);
   });
 
   it('returns loyalty switched off when the tenant has no loyalty settings', async () => {
@@ -46,7 +61,12 @@ describe('/api/ims/settings loyalty settings', () => {
       loyalty_started_at: '',
       sales_document_show_logo: '1',
     });
-    expect(body.capabilities).toEqual({ hasPosLocations: false, xeroAccountingEnabled: false });
+    expect(body.capabilities).toEqual({
+      hasPosLocations: false,
+      xeroAccountingEnabled: false,
+      shopifyEnabled: false,
+      nativeShopEnabled: false,
+    });
   });
 
   it('reports existing POS location evidence separately from editable settings', async () => {
@@ -57,7 +77,12 @@ describe('/api/ims/settings loyalty settings', () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(body.capabilities).toEqual({ hasPosLocations: true, xeroAccountingEnabled: false });
+    expect(body.capabilities).toEqual({
+      hasPosLocations: true,
+      xeroAccountingEnabled: false,
+      shopifyEnabled: false,
+      nativeShopEnabled: false,
+    });
     expect(body.data).not.toHaveProperty('has_pos_locations');
   });
 
@@ -75,6 +100,32 @@ describe('/api/ims/settings loyalty settings', () => {
     const body = await response.json();
 
     expect(body.capabilities.xeroAccountingEnabled).toBe(true);
+  });
+
+  it('returns both online channel capabilities and hides a disabled Shopify domain', async () => {
+    mockGetCapabilities.mockResolvedValue({ shopifyEnabled: false, nativeShopEnabled: true });
+    mockGetConnection.mockResolvedValue({ shopify_shop_id: 'hidden.myshopify.com' });
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.capabilities).toMatchObject({ shopifyEnabled: false, nativeShopEnabled: true });
+    expect(body.shopDomain).toBe('');
+    expect(mockGetConnection).not.toHaveBeenCalled();
+  });
+
+  it('persists both online channel capabilities independently', async () => {
+    const response = await PUT(putOnlineChannels(true, true));
+
+    expect(response.status).toBe(200);
+    expect(mockSetCapabilities).toHaveBeenCalledWith({
+      businessId: 'business-1',
+      shopifyEnabled: true,
+      nativeShopEnabled: true,
+      actorUserId: null,
+      actorName: null,
+    });
+    expect(mockImsExecute).not.toHaveBeenCalled();
   });
 
   it('validates sales document settings before writing', async () => {

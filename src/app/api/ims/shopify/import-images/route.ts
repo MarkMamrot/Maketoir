@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
@@ -16,6 +17,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 export async function POST() {
   const session = await getImsSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  const disabled = await shopifyDisabledResponse(session.businessId); if (disabled) return disabled;
 
   try {
     const credentials = await getShopifyAdminCredentials(session.businessId);

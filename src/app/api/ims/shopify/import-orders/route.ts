@@ -10,6 +10,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId: string = session.businessId ?? '';
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   await imsExecute(
     `ALTER TABLE ims_sales_orders

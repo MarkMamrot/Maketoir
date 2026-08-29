@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
 import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   if (session.tier === 'Advisor') return NextResponse.json({ error: 'Advisor accounts are read-only.' }, { status: 403 });
   const businessId = String(session.businessId);
+  const disabled = await shopifyDisabledResponse(businessId); if (disabled) return disabled;
 
   try {
     const body = await req.json().catch(() => ({}));

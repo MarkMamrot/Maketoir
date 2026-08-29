@@ -1,6 +1,7 @@
 import assistantIndex from '@/generated/solvantis-assistant-index.json';
 
 import type { AssistantAudience } from './policy';
+import type { AvailableOperationCapabilities, OperationCapability } from '@/lib/help/types';
 
 export interface AssistantKnowledgeResult {
   id: string;
@@ -18,6 +19,7 @@ interface IndexedChunk {
   heading: string;
   audiences: AssistantAudience[];
   capability: string;
+  requiresCapabilities?: OperationCapability[];
   screen: string;
   contexts?: string[];
   content: string;
@@ -52,14 +54,18 @@ export function retrieveAssistantKnowledge(input: {
   currentView?: string | null;
   limit?: number;
   xeroAccountingEnabled?: boolean;
+  availableCapabilities?: AvailableOperationCapabilities;
 }): AssistantKnowledgeResult[] {
   const queryTerms = new Set(terms(input.query));
   if (queryTerms.size === 0) return [];
   const currentView = input.currentView?.trim().toLowerCase() ?? '';
+  const availableCapabilities = input.availableCapabilities
+    ?? (input.xeroAccountingEnabled === undefined ? undefined : { xero: input.xeroAccountingEnabled });
 
   const ranked = (assistantIndex.chunks as IndexedChunk[])
     .filter(chunk => chunk.audiences.includes(input.audience))
-    .filter(chunk => input.xeroAccountingEnabled !== false || !/\bxero\b/i.test(`${chunk.title} ${chunk.heading} ${chunk.screen} ${chunk.content}`))
+    .filter(chunk => !chunk.requiresCapabilities?.some(capability => availableCapabilities?.[capability] === false))
+    .filter(chunk => availableCapabilities?.xero !== false || !/\bxero\b/i.test(`${chunk.title} ${chunk.heading} ${chunk.screen} ${chunk.content}`))
     .map(chunk => {
       const titleTerms = terms(`${chunk.title} ${chunk.heading}`);
       const bodyTerms = terms(chunk.content);

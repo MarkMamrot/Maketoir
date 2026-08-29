@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 
 import { retrieveAssistantKnowledge } from './knowledge';
-import { isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
+import { getOnlineChannelCapabilities, isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 import { loadAssistantPrompt } from './promptManifest';
 import { getAssistantToolDefinitions, executeAssistantTool, type AssistantPrincipal } from './tools';
 import type { WorkflowFindingCategory } from './policy';
@@ -164,12 +164,20 @@ export async function runAssistant(input: {
   const xeroAccountingEnabled = input.principal.audience === 'ims' || input.principal.audience === 'pos'
     ? await isXeroAccountingEnabled(input.principal.businessId).catch(() => false)
     : undefined;
+  const onlineChannels = input.principal.audience === 'ims' || input.principal.audience === 'pos'
+    ? await getOnlineChannelCapabilities(input.principal.businessId).catch(() => ({ shopifyEnabled: false, nativeShopEnabled: false }))
+    : undefined;
   const knowledge = retrieveAssistantKnowledge({
     query: input.message,
     audience: input.principal.audience,
     currentView: input.currentView,
     limit: 5,
     xeroAccountingEnabled,
+    availableCapabilities: onlineChannels ? {
+      xero: xeroAccountingEnabled,
+      shopify: onlineChannels.shopifyEnabled,
+      native_shop: onlineChannels.nativeShopEnabled,
+    } : undefined,
   });
   const tools = getAssistantToolDefinitions(input.principal.audience);
   const ai = new GoogleGenAI({ apiKey });

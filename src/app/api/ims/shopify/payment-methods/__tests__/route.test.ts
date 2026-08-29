@@ -19,6 +19,10 @@ const {
 vi.mock('@/lib/auth/imsSession', () => ({
   getImsSession: mockGetImsSession,
 }));
+vi.mock('@/lib/ims/businessOperations', () => ({
+  getOnlineChannelCapabilities: vi.fn().mockResolvedValue({ shopifyEnabled: true, nativeShopEnabled: false }),
+}));
+vi.mock('@/lib/shopifyCapability', () => ({ shopifyDisabledResponse: vi.fn().mockResolvedValue(null) }));
 
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
   ConnectionsRepository: {
