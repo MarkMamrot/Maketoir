@@ -22,6 +22,8 @@ Review the applicant, company relationship, intended customer account, and reque
 
 Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.
 
+When Xero accounting is enabled for the business, **Online Sales** also shows daily Xero posting guidance and a sync action for eligible trading days. These accounting controls are hidden when Xero accounting is disabled; the underlying online sales history remains available.
+
 Shopify lines that cannot be matched to an IMS variant appear as **Shopify Misc Charge** with SKU **SHOPIFY-MISC**. The Shopify item title remains visible underneath. This preserves the order value without moving stock for the wrong product; it is not an added fee.
 
 If a normal product appears this way, check that its Shopify product and variant link is current. Repairing the link prevents later orders from using the fallback, but an existing import may need to be processed again.

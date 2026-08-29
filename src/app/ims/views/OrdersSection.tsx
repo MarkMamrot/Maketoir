@@ -13,6 +13,7 @@ interface OrdersSectionProps {
   view: ImsView;
   isAdvisor: boolean;
   businessId: string;
+  xeroAccountingEnabled: boolean;
   pendingOpenPO: number | null;
   pendingOpenSO: number | null;
   pendingOpenCN: number | null;
@@ -47,6 +48,7 @@ export function OrdersSection({
   view,
   isAdvisor,
   businessId,
+  xeroAccountingEnabled,
   pendingOpenPO,
   pendingOpenSO,
   pendingOpenCN,
@@ -147,6 +149,7 @@ export function OrdersSection({
       {view === 'online-sales' && (
         <OnlineSalesView
           businessId={businessId}
+          xeroAccountingEnabled={xeroAccountingEnabled}
           onReturnOrder={(p: any) => { setCnPrefill(p); setView('credit-notes'); }}
         />
       )}

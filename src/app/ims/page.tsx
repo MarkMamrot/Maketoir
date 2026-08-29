@@ -16356,7 +16356,7 @@ function SummaryCard({ label, value }: { label: string; value: string }) {
 // Online Sales View — sales orders from Cin7, grouped by day
 // ─────────────────────────────────────────────────────────────────────────────
 
-function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; onReturnOrder?: (prefill: any) => void }) {
+function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: { businessId: string; xeroAccountingEnabled: boolean; onReturnOrder?: (prefill: any) => void }) {
   const [locationId, setLocationId] = useState<number | ''>('');
   const [locations, setLocations]   = useState<{ id: number; name: string }[]>([]);
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
@@ -16539,17 +16539,18 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
         <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 6, background: importResult.startsWith('✓') ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', color: importResult.startsWith('✓') ? 'var(--sv-mint)' : 'var(--sv-red)', fontSize: 13 }}>{importResult}</div>
       )}
 
-      {/* Xero sync info banner */}
-      <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
-        <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
-        {' · '}
-        <strong style={{ color: '#34d399' }}>Daily sales</strong>: one combined Xero invoice after each completed business day.
-        {' · '}
-        <strong style={{ color: '#60a5fa' }}>Settlement</strong>: other gateways pay immediately when mapped; Shopify Payments is allocated from the actual paid payout and posted from Xero Sync History. Configure accounts in{' '}
-        <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
-        {' · '}
-        <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify — they sync back automatically.
-      </div>
+      {xeroAccountingEnabled && (
+        <div style={{ marginBottom: 18, padding: '9px 14px', borderRadius: 8, background: 'rgba(96,165,250,.07)', border: '1px solid rgba(96,165,250,.15)', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.7 }}>
+          <strong style={{ color: 'var(--sv-text-main)' }}>How online sales reach Xero</strong>
+          {' · '}
+          <strong style={{ color: '#34d399' }}>Daily sales</strong>: one combined Xero invoice after each completed business day.
+          {' · '}
+          <strong style={{ color: '#60a5fa' }}>Settlement</strong>: other gateways pay immediately when mapped; Shopify Payments is allocated from the actual paid payout and posted from Xero Sync History. Configure accounts in{' '}
+          <span style={{ fontStyle: 'italic' }}>Xero → Mapping → Online Gateway Clearing Accounts</span>.
+          {' · '}
+          <strong style={{ color: '#fbbf24' }}>Returns</strong>: initiate in Shopify — they sync back automatically.
+        </div>
+      )}
 
       {/* Summary strip */}
       {!daysLoading && filteredDays.length > 0 && (
@@ -16618,29 +16619,28 @@ function OnlineSalesView({ businessId, onReturnOrder }: { businessId: string; on
               <span style={{ flex: 1 }} />
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(dayTotal)}</span>
-              {/* Xero sync button — only for days with syncable (non-historical) orders */}
-              {Number(day.syncable_count ?? 0) > 0 ? (
-                <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    setXeroSyncing(day.day);
-                    try {
-                      const r = await apiFetch('/api/xero/sync/daily-sales', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
-                      });
-                      setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
-                    } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
-                    setXeroSyncing(null);
-                  }}
-                  disabled={xeroSyncing === day.day}
-                  title="Post this day's online orders to Xero as a daily sales invoice."
-                  style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
-              ) : (
-                <span title="Historical Cin7 orders — already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
-              )}
+              {xeroAccountingEnabled && (Number(day.syncable_count ?? 0) > 0 ? (
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setXeroSyncing(day.day);
+                      try {
+                        const r = await apiFetch('/api/xero/sync/daily-sales', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online' }),
+                        });
+                        setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
+                      } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
+                      setXeroSyncing(null);
+                    }}
+                    disabled={xeroSyncing === day.day}
+                    title="Post this day's online orders to Xero as a daily sales invoice."
+                    style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                  >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
+                ) : (
+                  <span title="Historical Cin7 orders — already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
+                ))}
               <span style={{ fontSize: 10, color: 'var(--sv-text-dim)', width: 14, textAlign: 'center', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
             </div>
 

@@ -242,6 +242,7 @@ export function MainSections(props: MainSectionsProps) {
         view={view}
         isAdvisor={isAdvisor}
         businessId={businessId}
+        xeroAccountingEnabled={xeroAccountingEnabled}
         pendingOpenPO={pendingOpenPO}
         pendingOpenSO={pendingOpenSO}
         pendingOpenCN={pendingOpenCN}
