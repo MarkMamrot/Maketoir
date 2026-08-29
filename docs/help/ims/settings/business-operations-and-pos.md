@@ -31,6 +31,8 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 
 The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.
 
+Once the full checklist is finished, onboarding is complete for the whole business and does not reopen when Solvantis adds steps for future new businesses. An explicitly reopened step makes the checklist available again for that business.
+
 1. Complete Business identity, Operations, Tax settings, and Integrations.
 2. Add additional users and locations.
 3. Add brands.

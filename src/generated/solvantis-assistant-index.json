@@ -6669,7 +6669,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-27",
-      "content": "The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.\n\n1. Complete Business identity, Operations, Tax settings, and Integrations.\n2. Add additional users and locations.\n3. Add brands.\n4. Add supplier contacts.\n5. Import products.\n6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.\n\nEach action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step."
+      "content": "The onboarding checklist starts with business, tax, integration, user, and location decisions. Before importing products, add the brands and suppliers that the catalogue will reference.\n\nOnce the full checklist is finished, onboarding is complete for the whole business and does not reopen when Solvantis adds steps for future new businesses. An explicitly reopened step makes the checklist available again for that business.\n\n1. Complete Business identity, Operations, Tax settings, and Integrations.\n2. Add additional users and locations.\n3. Add brands.\n4. Add supplier contacts.\n5. Import products.\n6. Continue with sales orders, purchase orders, opening stock, and the POS readiness review.\n\nEach action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step."
     },
     {
       "id": "ims-business-operations-pos-settings:6",

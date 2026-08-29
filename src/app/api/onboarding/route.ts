@@ -6,7 +6,9 @@ import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const PROGRESS_KEY = 'onboarding_completed_steps';
-const ONBOARDING_STEP_IDS = [
+const COMPLETE_KEY = 'onboarding_complete';
+// Do not add future steps here: this frozen baseline grandfathers tenants that completed before the terminal marker existed.
+const INITIAL_ONBOARDING_STEP_IDS = [
   'business_profile',
   'operations',
   'tax',
@@ -21,6 +23,11 @@ const ONBOARDING_STEP_IDS = [
   'opening_stock',
   'pos_ready',
 ] as const;
+const ONBOARDING_STEP_IDS = [
+  ...INITIAL_ONBOARDING_STEP_IDS,
+  // Add future new-tenant onboarding steps here.
+] as const;
+const INITIAL_ONBOARDING_STEP_ID_SET = new Set<string>(INITIAL_ONBOARDING_STEP_IDS);
 const ONBOARDING_STEP_ID_SET = new Set<string>(ONBOARDING_STEP_IDS);
 const ONBOARDING_SETTING_KEYS = new Set([
   'business_name',
@@ -130,6 +137,14 @@ export async function GET() {
     { id: 'opening_stock', title: 'Set opening stock' },
     { id: 'pos_ready', title: 'Review POS setup' },
     ].map(step => ({ ...step, autoCompleted: false, completed: completed.has(step.id) }));
+    const baselineComplete = [...INITIAL_ONBOARDING_STEP_ID_SET].every(step => completed.has(step));
+    const complete = settings[COMPLETE_KEY] === '1' || baselineComplete;
+    if (baselineComplete && settings[COMPLETE_KEY] !== '1') {
+      await imsExecute(
+        'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+        [businessId, COMPLETE_KEY, '1'],
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -137,7 +152,7 @@ export async function GET() {
       counts: { users: userCount, locations: locationCount, brands: brandCount, suppliers: supplierCount, products: productCount, salesOrders: salesOrderCount, purchaseOrders: purchaseOrderCount, stockRows: stockCount },
       completedSteps: Array.from(completed),
       steps,
-      complete: steps.every(s => s.completed),
+      complete,
     });
   } catch (error) {
     await reportRuntimeIssue({
@@ -201,6 +216,12 @@ export async function PUT(req: Request) {
       'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
       [businessId, PROGRESS_KEY, JSON.stringify(Array.from(completed))],
     );
+    if (reopenStep || [...ONBOARDING_STEP_ID_SET].every(step => completed.has(step))) {
+      await imsExecute(
+        'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+        [businessId, COMPLETE_KEY, reopenStep ? '0' : '1'],
+      );
+    }
   }
 
   return NextResponse.json({ success: true });

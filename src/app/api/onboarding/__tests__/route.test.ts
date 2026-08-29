@@ -103,6 +103,36 @@ describe('GET /api/onboarding', () => {
     );
   });
 
+  it('shares onboarding progress across users in the same tenant', async () => {
+    mocks.getSession.mockResolvedValueOnce({ businessId: 'business-1', userId: 11 });
+    mocks.imsQuery.mockResolvedValueOnce([{ value: '["business_profile"]' }]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+
+    const updateResponse = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completeStep: 'operations' }),
+    }));
+
+    expect(updateResponse.status).toBe(200);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'onboarding_completed_steps', '["business_profile","operations"]'],
+    );
+
+    mocks.getSession.mockResolvedValueOnce({ businessId: 'business-1', userId: 22 });
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT `key`, value')
+        ? [{ key: 'onboarding_completed_steps', value: '["business_profile","operations"]' }]
+        : [{ c: 0 }],
+    ));
+
+    const loadResponse = await GET();
+    const body = await loadResponse.json();
+    expect(body.completedSteps).toEqual(['business_profile', 'operations']);
+    expect(body.steps.find((step: { id: string }) => step.id === 'operations').completed).toBe(true);
+  });
+
   it('persists allowlisted onboarding settings before completing a step', async () => {
     mocks.imsQuery.mockResolvedValue([]);
     mocks.imsExecute.mockResolvedValue(undefined);
@@ -172,6 +202,10 @@ describe('GET /api/onboarding', () => {
       expect.stringContaining('INSERT INTO ims_settings'),
       ['business-1', 'onboarding_completed_steps', '["operations","tax"]'],
     );
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'onboarding_complete', '0'],
+    );
   });
 
   it('rejects unknown step IDs without writing progress', async () => {
@@ -205,5 +239,24 @@ describe('GET /api/onboarding', () => {
     expect(body.complete).toBe(true);
     expect(body.steps).toHaveLength(completedSteps.length);
     expect(body.steps.every((step: { completed: boolean }) => step.completed)).toBe(true);
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO ims_settings'),
+      ['business-1', 'onboarding_complete', '1'],
+    );
+  });
+
+  it('keeps a tenant complete when a later checklist contains unfinished steps', async () => {
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT `key`, value')
+        ? [{ key: 'onboarding_complete', value: '1' }]
+        : [{ c: 0 }],
+    ));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.steps.some((step: { completed: boolean }) => !step.completed)).toBe(true);
+    expect(body.complete).toBe(true);
   });
 });
