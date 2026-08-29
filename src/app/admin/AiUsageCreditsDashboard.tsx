@@ -30,6 +30,9 @@ export default function AiUsageCreditsDashboard() {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [googlePreview, setGooglePreview] = useState<any>(null);
+  const [googleSelected, setGoogleSelected] = useState<string[]>([]);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -68,6 +71,31 @@ export default function AiUsageCreditsDashboard() {
     const result = await response.json();
     if (!response.ok) { setIsError(true); setMessage(result.error || 'Rate creation failed.'); return; }
     setMessage('Rate added.'); setRateForm(initialRate()); await load();
+  };
+
+  const previewGoogleRates = async () => {
+    setGoogleLoading(true); setMessage(''); setIsError(false);
+    try {
+      const response = await fetch('/api/admin/ai-billing/rates/google');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Google rate preview failed.');
+      setGooglePreview(result);
+      setGoogleSelected(result.candidates.filter((candidate: any) => candidate.status !== 'unchanged').map((candidate: any) => candidate.id));
+    } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Google rate preview failed.'); }
+    finally { setGoogleLoading(false); }
+  };
+
+  const approveGoogleRates = async () => {
+    if (!googleSelected.length || !window.confirm(`Activate ${googleSelected.length} Google provider rate${googleSelected.length === 1 ? '' : 's'}?`)) return;
+    setGoogleLoading(true); setMessage(''); setIsError(false);
+    try {
+      const response = await fetch('/api/admin/ai-billing/rates/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateIds: googleSelected }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Google rate import failed.');
+      setMessage(`${result.imported} Google rate${result.imported === 1 ? '' : 's'} activated${result.skipped ? `; ${result.skipped} unchanged` : ''}.`);
+      await load(); await previewGoogleRates();
+    } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Google rate import failed.'); }
+    finally { setGoogleLoading(false); }
   };
 
   const exportCsv = () => {
@@ -117,8 +145,17 @@ export default function AiUsageCreditsDashboard() {
     </section>
 
     <section className={styles.panel}>
-      <div className={styles.panelHeader}><div className={styles.sectionHeading}><h2 className={styles.sectionTitle}>Rate cards</h2><p className={styles.sectionDescription}>Create a new effective rate. Existing historical rates remain unchanged.</p></div></div>
-      <div className={styles.rateBody}><div className={styles.rateGrid}>
+      <div className={styles.panelHeader}><div className={styles.sectionHeader}><div className={styles.sectionHeading}><h2 className={styles.sectionTitle}>Rate cards</h2><p className={styles.sectionDescription}>Review Google account prices or create a manual effective rate. Historical rates remain unchanged.</p></div><button className={styles.secondaryButton} onClick={() => void previewGoogleRates()} disabled={googleLoading}><RefreshCw size={14} />{googleLoading ? 'Checking Google' : 'Sync Google rates'}</button></div></div>
+      <div className={styles.rateBody}>
+      {googlePreview && <div className={styles.syncPreview}>
+        <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>Approve {googleSelected.length || ''} selected</button></div>
+        {googlePreview.candidates.length > 0 ? <div className={styles.syncTableWrap}><table className={styles.syncTable}><thead><tr><th aria-label="Select rate"></th><th>Model</th><th>Metric</th><th className={styles.numeric}>Current</th><th className={styles.numeric}>Google</th><th>Status</th><th>Google SKU</th></tr></thead><tbody>{googlePreview.candidates.map((candidate: any) => <tr key={candidate.id}>
+          <td><input type="checkbox" aria-label={`Select ${candidate.modelId} ${candidate.metric}`} checked={googleSelected.includes(candidate.id)} disabled={candidate.status === 'unchanged'} onChange={event => setGoogleSelected(event.target.checked ? [...googleSelected, candidate.id] : googleSelected.filter(id => id !== candidate.id))} /></td>
+          <td><strong>{candidate.modelId}</strong></td><td>{title(candidate.metric)}</td><td className={styles.numeric}>{candidate.currentPriceAud == null ? 'Not set' : money(candidate.currentPriceAud)}</td><td className={styles.numeric}>{money(candidate.priceAud)} <span className={styles.muted}>/ {candidate.unitScale.toLocaleString()}</span></td><td><span className={`${styles.pill} ${styles[candidate.status] || ''}`}>{candidate.status}</span></td><td className={styles.sku} title={candidate.skuName}>{candidate.skuId}</td>
+        </tr>)}</tbody></table></div> : <div className={styles.syncEmpty}>Google returned no standard token rates that can be represented safely.</div>}
+        {googlePreview.warnings.length > 0 && <details className={styles.syncWarnings}><summary>{googlePreview.warnings.length} Google SKU{googlePreview.warnings.length === 1 ? '' : 's'} need manual review</summary>{googlePreview.warnings.map((warning: any) => <div className={styles.warningRow} key={warning.skuId}><strong>{warning.skuName}</strong><span>{warning.reason}</span><code>{warning.skuId}</code></div>)}</details>}
+      </div>}
+      <div className={styles.manualRateHeading}><strong>Manual effective rate</strong><span>Use for plan sell rates or unsupported Google pricing shapes.</span></div><div className={styles.rateGrid}>
         <Field label="Rate type"><select className={styles.select} value={rateForm.kind} onChange={event => setRateForm({ ...rateForm, kind: event.target.value })}><option value="provider">Provider cost</option><option value="plan">Plan sell rate</option></select></Field>
         {rateForm.kind === 'plan' && <Field label="Plan"><select className={styles.select} value={rateForm.planKey} onChange={event => setRateForm({ ...rateForm, planKey: event.target.value })}>{['starter','core','scale','enterprise','platform'].map(value => <option key={value}>{title(value)}</option>)}</select></Field>}
         <Field label="Model ID" wide><input className={styles.input} placeholder="gemini-2.5-flash" value={rateForm.modelId} onChange={event => setRateForm({ ...rateForm, modelId: event.target.value })} /></Field>

@@ -21,10 +21,12 @@ export function calculateRateCharge(units: AiUsageUnits, rates: RateRow[]): bigi
 }
 
 export function normalizeUsageMetadata(metadata: any): AiUsageUnits {
+  const promptTokens = Number(metadata?.promptTokenCount ?? metadata?.prompt_tokens ?? 0);
+  const cachedInputTokens = Number(metadata?.cachedContentTokenCount ?? metadata?.cachedContentInputTokenCount ?? 0);
   return {
     ...EMPTY_UNITS,
-    inputTokens: Number(metadata?.promptTokenCount ?? metadata?.prompt_tokens ?? 0),
-    cachedInputTokens: Number(metadata?.cachedContentTokenCount ?? metadata?.cachedContentInputTokenCount ?? 0),
+    inputTokens: Math.max(0, promptTokens - cachedInputTokens),
+    cachedInputTokens,
     outputTokens: Number(metadata?.candidatesTokenCount ?? metadata?.output_tokens ?? 0),
     thinkingTokens: Number(metadata?.thoughtsTokenCount ?? metadata?.thinking_tokens ?? 0),
   };

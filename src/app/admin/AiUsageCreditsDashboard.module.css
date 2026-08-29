@@ -156,6 +156,28 @@
 .empty { padding: 36px 20px; text-align: center; color: var(--ai-muted); }
 
 .rateBody { padding: 16px; }
+.syncPreview { margin-bottom: 18px; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
+.syncHeader { display: flex; align-items: center; gap: 16px; padding: 12px; background: var(--ai-surface-subtle); }
+.syncHeader > div { flex: 1; min-width: 0; font-size: 12px; }
+.syncTableWrap { overflow-x: auto; }
+.syncTable { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 11px; }
+.syncTable th { padding: 8px 10px; border-bottom: 1px solid var(--ai-border); color: var(--ai-muted); font-size: 9px; text-align: left; text-transform: uppercase; }
+.syncTable td { padding: 9px 10px; border-bottom: 1px solid var(--ai-border); }
+.syncTable tbody tr:last-child td { border-bottom: 0; }
+.syncTable input { width: 15px; height: 15px; accent-color: var(--ai-accent); }
+.sku { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ai-muted); font-family: ui-monospace, monospace; }
+.new { background: #e7f2ff; color: #175a91; }
+.changed { background: #fff6db; color: #805d00; }
+.unchanged { background: #e4f5ef; color: #176b50; }
+.syncEmpty { padding: 18px; color: var(--ai-muted); font-size: 12px; text-align: center; }
+.syncWarnings { border-top: 1px solid var(--ai-border); padding: 10px 12px; font-size: 11px; }
+.syncWarnings summary { cursor: pointer; color: #805d00; font-weight: 750; }
+.warningRow { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr) auto; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--ai-border); align-items: center; }
+.warningRow:last-child { border-bottom: 0; }
+.warningRow span { color: var(--ai-muted); }
+.warningRow code { color: var(--ai-faint); }
+.manualRateHeading { display: flex; gap: 8px; align-items: baseline; margin-bottom: 12px; font-size: 12px; }
+.manualRateHeading span { color: var(--ai-muted); font-size: 11px; }
 .rateGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -203,6 +225,9 @@
   .fieldWide { grid-column: auto; }
   .rateFooter { align-items: stretch; flex-direction: column; }
   .rateFooter .primaryButton { width: 100%; }
+  .syncHeader { align-items: stretch; flex-direction: column; }
+  .warningRow { grid-template-columns: 1fr; gap: 3px; }
+  .manualRateHeading { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 430px) {

@@ -1,17 +1,49 @@
 import { getPool, query } from '@/services/MySQLService';
 import { audToMicros, microsToAud } from './money';
 import { AI_PLAN_KEYS, AI_RATE_METRICS } from './types';
+import type { GoogleRateCandidate } from './googlePricing';
 
 export const AiRateRepository = {
   async list() {
     const [provider, plans] = await Promise.all([
-      query<any>(`SELECT id,provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,effective_from,effective_to,created_at FROM ai_provider_rates ORDER BY model_id,metric,effective_from DESC`),
+      query<any>(`SELECT id,provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,source_sku_id,source_price_name,effective_from,effective_to,created_at FROM ai_provider_rates ORDER BY model_id,metric,effective_from DESC`),
       query<any>(`SELECT id,plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,effective_to,created_at FROM ai_plan_rates ORDER BY plan_key,model_id,metric,effective_from DESC`),
     ]);
     return {
       provider: provider.map(row => ({ ...row, priceAud: microsToAud(BigInt(row.price_per_unit_micros)), price_per_unit_micros: undefined })),
       plans: plans.map(row => ({ ...row, priceAud: microsToAud(BigInt(row.price_per_unit_micros)), price_per_unit_micros: undefined })),
     };
+  },
+
+  async compareGoogle(candidates: GoogleRateCandidate[]) {
+    const active = await query<any>(`SELECT model_id,metric,price_per_unit_micros,unit_scale FROM ai_provider_rates WHERE provider='google' AND effective_to IS NULL`);
+    const current = new Map(active.map(row => [`${row.model_id}:${row.metric}`, row]));
+    return candidates.map(candidate => {
+      const row = current.get(`${candidate.modelId}:${candidate.metric}`);
+      const currentPriceAud = row ? microsToAud(BigInt(row.price_per_unit_micros)) : null;
+      const unchanged = !!row && currentPriceAud === candidate.priceAud && Number(row.unit_scale) === candidate.unitScale;
+      return { ...candidate, currentPriceAud, status: unchanged ? 'unchanged' : row ? 'changed' : 'new' };
+    });
+  },
+
+  async importGoogle(candidates: GoogleRateCandidate[], actorUserId: number) {
+    const connection = await getPool().getConnection();
+    let imported = 0; let skipped = 0;
+    try {
+      await connection.beginTransaction();
+      const effectiveFrom = new Date();
+      for (const candidate of candidates) {
+        const [rows] = await connection.execute<any[]>(`SELECT price_per_unit_micros,unit_scale FROM ai_provider_rates WHERE provider='google' AND model_id=? AND metric=? AND effective_to IS NULL ORDER BY effective_from DESC LIMIT 1 FOR UPDATE`, [candidate.modelId, candidate.metric]);
+        const price = audToMicros(candidate.priceAud);
+        if (rows[0] && BigInt(rows[0].price_per_unit_micros) === price && Number(rows[0].unit_scale) === candidate.unitScale) { skipped++; continue; }
+        await connection.execute(`UPDATE ai_provider_rates SET effective_to=? WHERE provider='google' AND model_id=? AND metric=? AND effective_from < ? AND effective_to IS NULL`, [effectiveFrom, candidate.modelId, candidate.metric, effectiveFrom]);
+        await connection.execute(`INSERT INTO ai_provider_rates (provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,source_sku_id,source_price_name,effective_from,created_by) VALUES ('google',?,?,?,?,?,?,?,?,?,?,?)`, [candidate.modelId, candidate.metric, price.toString(), candidate.unitScale, candidate.sourceCurrency, candidate.sourcePriceDecimal, candidate.audFxRate, candidate.skuId, candidate.priceName, effectiveFrom, actorUserId]);
+        imported++;
+      }
+      await connection.commit();
+      return { imported, skipped };
+    } catch (error) { await connection.rollback(); throw error; }
+    finally { connection.release(); }
   },
 
   async add(input: any, actorUserId: number) {

@@ -1409,6 +1409,34 @@
       "filename": "docs/help/setup/business-brand-and-appearance.md"
     },
     {
+      "id": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "product": "setup",
+      "format": "task",
+      "parentId": "setup-connections",
+      "contexts": [
+        "businesses"
+      ],
+      "contextSections": {
+        "businesses": "Step-by-step"
+      },
+      "relatedTopics": [
+        "ims-settings-account-ai-credits",
+        "setup-feature-rollouts",
+        "setup-team-access-security"
+      ],
+      "order": 4,
+      "summary": "Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.",
+      "lastReviewed": "2026-08-30",
+      "owner": "platform",
+      "filename": "docs/help/setup/businesses-and-ai-plans.md"
+    },
+    {
       "id": "setup-connections",
       "title": "Connections and Setup",
       "audiences": [
@@ -9185,6 +9213,132 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-29",
       "content": "### Update a returns policy\n\nThe business now allows returns within 30 days instead of 14. Update the reviewed policy in Brand Profile, save it, then regenerate any draft that used the old wording. Existing published content is not changed automatically.\n\n### Correct branch hours\n\nChange Saturday hours for the Fitzroy branch and save. Reopen the relevant content or service draft and check that the updated hours appear before sending anything to a customer."
+    },
+    {
+      "id": "setup-businesses-ai-plans:1",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Businesses and AI Plans",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "Use Businesses to onboard and administer each Solvantis business. Business Settings contains module access, environment safeguards, operating limits, billing values, and the business's Solvantis AI plan."
+    },
+    {
+      "id": "setup-businesses-ai-plans:2",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "- Open a business's settings and change its Solvantis AI plan.\n- Enable or disable Intel & Automation, IMS, and POS access.\n- Identify sandbox businesses and pause their scheduled automation when required.\n- Set location and user limits and the monthly cost per location.\n- Open AI Usage & Credits for funding, enforcement, usage, and rate controls.\n- Compare supported Google Billing prices with current provider rates before approving changes."
+    },
+    {
+      "id": "setup-businesses-ai-plans:3",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "| Control | Where to manage it | Effect |\n| --- | --- | --- |\n| Solvantis AI plan | **Businesses > Settings** | Selects the sell-rate plan for future AI usage |\n| Module access | **Businesses > Settings** | Controls access to Intel & Automation, IMS, and POS |\n| Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |\n| AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |\n| Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |\n| Manual AI rates | **AI Usage & Credits > Rate cards** | Adds effective provider-cost and plan sell rates without changing rate history |"
+    },
+    {
+      "id": "setup-businesses-ai-plans:4",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "- Sign in with SuperAdmin access.\n- Confirm the requested plan and commercial arrangement before saving it.\n- Check the business name carefully, especially when a sandbox has a similar name.\n- For Google rate synchronization, confirm the billing connection is available before starting.\n\n> **Important:** Changing the Solvantis AI plan changes the rates used for future AI usage. It does not add prepaid credit, reset current-cycle usage, or alter funding and enforcement settings."
+    },
+    {
+      "id": "setup-businesses-ai-plans:5",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "1. Open **Admin > Businesses**.\n2. Find the business and select **Settings**.\n3. Review the business name and module access.\n4. Under **Plan Limits & Billing**, choose the **Solvantis AI Plan**.\n5. Review location, user, and cost-per-location values.\n6. Select **Save Changes**.\n7. Open **AI Usage & Credits** only when funding, enforcement, cycle, credit, or rate controls also need attention.\n\n### Review Google provider rates\n\n1. Open **Admin > AI Usage & Credits**.\n2. In **Rate cards**, select **Sync Google rates**.\n3. Review each supported rate's current value, Google value, status, model, metric, and SKU.\n4. Expand the manual-review list and assess any unsupported tier, threshold, storage, tool, or modality prices separately.\n5. Clear the checkbox for any supported change that should not be activated.\n6. Select **Approve selected** and confirm the change.\n7. Refresh the preview and confirm approved rows now show **Unchanged**.\n\n> **Important:** Synchronization does not activate prices automatically. Google prices are retrieved again during approval, and approval stops when a selected price no longer matches the reviewed proposal."
+    },
+    {
+      "id": "setup-businesses-ai-plans:6",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| The AI plan is still loading | AI account details have not returned yet | Wait briefly and reopen Settings if loading does not finish |\n| The plan cannot be changed | The business does not have an available AI account | Review AI Usage & Credits and contact platform support |\n| Saving reports that only the AI plan failed | Business settings saved but the AI account update did not | Verify the plan and retry after checking the reported error |\n| AI remains unavailable after a plan change | Funding is exhausted, enforcement is active, or the account is suspended | Review the business in AI Usage & Credits |\n| A deleted business is missing | Deleted rows are hidden by default | Enable **Show deleted** for historical review |\n| Google rate preview cannot connect | The billing account, billing connection, access permission, or Cloud Billing API is unavailable | Ask a platform administrator to restore the Google Billing connection, then retry |\n| A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or another shape that cannot be applied as one standard token rate | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear |\n| Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |"
+    },
+    {
+      "id": "setup-businesses-ai-plans:7",
+      "documentId": "setup-businesses-ai-plans",
+      "title": "Businesses and AI Plans",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "SuperAdmin > Businesses",
+      "topicId": "setup-businesses-ai-plans",
+      "contexts": [
+        "businesses"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "### Move a business to a different AI plan\n\nA business is approved to move from Starter to Core. A SuperAdmin opens that business's Settings, changes **Solvantis AI Plan** to **Core**, and saves. Existing prepaid credit or current-cycle usage remains unchanged. Future AI usage is valued using the applicable Core rates.\n\n### Keep plan and funding controls separate\n\nA business remains on Scale but needs additional prepaid value. The SuperAdmin leaves its plan unchanged in Business Settings, opens **AI Usage & Credits**, and records the approved credit adjustment with its reference and reason.\n\n### Approve a changed Google token rate\n\nThe preview shows a changed standard Gemini Flash input-token price and an unsupported long-context Gemini Pro SKU. The SuperAdmin approves only the checked Flash rate. Solvantis keeps the earlier Flash rate for historical usage and applies the newly approved rate to future calls. The Pro SKU remains listed for manual review and is not activated."
     },
     {
       "id": "setup-connections:1",
