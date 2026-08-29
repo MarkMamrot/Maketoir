@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-planning-workspace-lifecycle","title":"Planning Workspace Lifecycle","audiences":["ims"],"capability":"navigation","screen":"Foresight > Planning Workspace","product":"foresight","format":"task","parentId":"foresight-planning","contexts":["planning-workspace"],"contextSections":{"planning-workspace":"Step-by-step"},"relatedTopics":["foresight-planning","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":21,"summary":"Create a planning thread, draft a checked plan, and submit the exact version for review.","lastReviewed":"2026-08-23","owner":"foresight"}
+{"id":"foresight-planning-workspace-lifecycle","title":"Planning Workspace Lifecycle","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation > Planning Workspace","product":"foresight","format":"task","parentId":"foresight-planning","contexts":["planning-workspace"],"contextSections":{"planning-workspace":"Step-by-step"},"relatedTopics":["foresight-planning","foresight-recommendations-creative-review-audits","foresight-experiments-outcomes-learning"],"order":21,"summary":"Create a planning thread, draft a checked plan, and submit the exact version for review.","lastReviewed":"2026-08-29","owner":"foresight"}
 ---
 # Planning Workspace Lifecycle
 

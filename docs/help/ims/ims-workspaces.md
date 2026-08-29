@@ -8,7 +8,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 ## Main operations
 
 - Use the Dashboard to spot work that needs attention.
-- Sign in to IMS, then select **Foresight** in the top bar when you need analytics, planning, content, or customer-service work. Foresight is not a separate option on the login menu.
+- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.
 - Open the workspace that owns the product, order, customer, stock movement, report, or connection.
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.

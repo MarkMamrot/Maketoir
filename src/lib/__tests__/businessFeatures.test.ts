@@ -16,6 +16,6 @@ describe('business feature registry', () => {
   });
 
   it('keeps the initial Marketing rollout in the Foresight product', () => {
-    expect(BUSINESS_FEATURES[0]).toMatchObject({ key: 'foresight.marketing', product: 'Foresight' });
+    expect(BUSINESS_FEATURES[0]).toMatchObject({ key: 'foresight.marketing', product: 'Intel & Automation' });
   });
 });

@@ -1,7 +1,7 @@
 ---
-{"id":"foresight-workspaces","title":"Foresight and Dashboard","audiences":["ims"],"capability":"navigation","screen":"Foresight","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Foresight workspace and understand what each area can change.","lastReviewed":"2026-08-25","owner":"foresight"}
+{"id":"foresight-workspaces","title":"Intel & Automation","audiences":["ims"],"capability":"navigation","screen":"Intel & Automation","product":"foresight","format":"overview","contexts":["home","ai-helper"],"contextSections":{"home":"Dashboard","ai-helper":"AI Helper"},"relatedTopics":["foresight-business-intelligence","foresight-planning","foresight-content-service"],"order":1,"summary":"Find the right Intel & Automation workspace and understand what each area can change.","lastReviewed":"2026-08-29","owner":"foresight"}
 ---
-# Foresight and Dashboard
+# Intel & Automation
 
 Use this page to choose the right workspace before you start reviewing data, planning work, or preparing customer-facing content.
 
@@ -14,7 +14,7 @@ Use this page to choose the right workspace before you start reviewing data, pla
 - Use Planning and Review to move a recommendation through a recorded human decision.
 - Use Content and Service to prepare assets, product content, and customer replies for review.
 
-Some developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Foresight menu.
+Some developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu.
 
 ## Choose a workspace
 

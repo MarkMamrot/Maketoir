@@ -4,101 +4,6 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 
-type UISkin = 'dark' | 'default';
-const UI_SKIN_STORAGE_KEY = 'solvantis_ui_skin';
-
-function applyUISkin(skin: UISkin) {
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-skin', skin);
-  }
-}
-
-export function AppearanceTab() {
-  const [skin, setSkin] = useState<UISkin>('dark');
-  const [notice, setNotice] = useState('');
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(UI_SKIN_STORAGE_KEY);
-      const resolved = stored === 'default' ? 'default' : 'dark';
-      setSkin(resolved);
-      applyUISkin(resolved);
-    } catch {
-      setSkin('dark');
-      applyUISkin('dark');
-    }
-  }, []);
-
-  const chooseSkin = (next: UISkin) => {
-    setSkin(next);
-    applyUISkin(next);
-    setNotice('');
-  };
-
-  const saveSkin = () => {
-    try {
-      localStorage.setItem(UI_SKIN_STORAGE_KEY, skin);
-      setNotice(`Saved. ${skin === 'dark' ? 'Dark' : 'Default'} skin is now your preference.`);
-    } catch {
-      setNotice('Could not save this preference in your browser.');
-    }
-  };
-
-  return (
-    <div className="w-full max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-1">Appearance</h2>
-        <p className="text-sm text-gray-500">Choose the Solvantis interface skin used across the app.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          type="button"
-          onClick={() => chooseSkin('dark')}
-          className={`text-left p-4 rounded-xl border transition-colors ${skin === 'dark' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-gray-800">Dark</span>
-            {skin === 'dark' && <span className="text-xs font-semibold text-blue-700">Active</span>}
-          </div>
-          <p className="text-xs text-gray-500 mb-3">Operational High-Performance. Calm, Exact, Strategic.</p>
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="h-6 bg-gray-900 border-b border-gray-700" />
-            <div className="h-12 bg-gray-800" />
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => chooseSkin('default')}
-          className={`text-left p-4 rounded-xl border transition-colors ${skin === 'default' ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-gray-800">Default</span>
-            {skin === 'default' && <span className="text-xs font-semibold text-blue-700">Active</span>}
-          </div>
-          <p className="text-xs text-gray-500 mb-3">Strategic Blueprint. Calm, Intelligent, Unified.</p>
-          <div className="rounded-lg border border-gray-200 overflow-hidden">
-            <div className="h-6 bg-gray-100 border-b border-gray-200" />
-            <div className="h-12 bg-white" />
-          </div>
-        </button>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={saveSkin}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Save Appearance
-        </button>
-        {notice && <span className="text-xs text-gray-500">{notice}</span>}
-      </div>
-    </div>
-  );
-}
-
 // --- Embedded Business Info Component ---
 export function BusinessInfoTab({ business }: { business: { name: string; userId: string; databaseId: string } | null }) {
   const [brandName, setBrandName] = useState('');
@@ -2440,8 +2345,6 @@ function SetupPageContent() {
     ? 'business'
     : searchParams.get('tab') === 'profile'
     ? 'profile'
-    : searchParams.get('tab') === 'appearance'
-    ? 'appearance'
     : searchParams.get('tab') === 'data-source'
     ? 'data-source'
     : 'connections';
@@ -2547,16 +2450,6 @@ function SetupPageContent() {
               Step 3: AI Brand Profile
             </button>
             <button
-              onClick={() => setActiveTab('appearance')}
-              className={`${
-                activeTab === 'appearance'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-lg transition-colors font-nav`}
-            >
-              Appearance
-            </button>
-            <button
               onClick={() => setActiveTab('pos')}
               className={`${
                 activeTab === 'pos'
@@ -2594,7 +2487,6 @@ function SetupPageContent() {
           {activeTab === 'connections' && <ConnectionsTab business={selectedBusiness} onHelp={context => { setHelpContext(context); setHelpOpen(true); }} />}
           {activeTab === 'business' && <BusinessInfoTab business={selectedBusiness} />}
           {activeTab === 'profile' && <BrandProfileTab business={selectedBusiness} />}
-          {activeTab === 'appearance' && <AppearanceTab />}
           {activeTab === 'pos' && <PosSettingsTab />}
           {activeTab === 'data-source' && <DataSourceTab business={selectedBusiness} />}
           {activeTab === 'team' && <TeamTab business={selectedBusiness} />}

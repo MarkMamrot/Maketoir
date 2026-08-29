@@ -21919,7 +21919,7 @@ export default function ImsPage() {
             <span style={{ color: '#f8fafc', fontWeight: 800, fontSize: 17, letterSpacing: -.3 }}>Solvantis</span>
             <span style={{ fontWeight: 800, fontSize: 17, letterSpacing: -.3, color: '#35bfd6', marginLeft: 6 }}>IMS</span>
             <span style={{ color: 'rgba(255,255,255,.45)', margin: '0 9px', fontSize: 13 }}>|</span>
-            {!isAdvisor && <a href="/dashboard" style={{ fontSize: 13, color: 'rgba(255,255,255,.72)', textDecoration: 'none', fontWeight: 600, opacity: .82, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.82')}>Foresight</a>}
+            {!isAdvisor && <a href="/dashboard" style={{ fontSize: 13, color: 'rgba(255,255,255,.72)', textDecoration: 'none', fontWeight: 600, opacity: .82, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.82')}>Intel &amp; Automation</a>}
             {!isAdvisor && <span style={{ color: 'rgba(255,255,255,.45)', margin: '0 9px', fontSize: 13 }}>|</span>}
             {!isAdvisor && <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'rgba(255,255,255,.72)', textDecoration: 'none', fontWeight: 600, opacity: .82, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.82')}>POS</a>}
             {user && (user as any).tier === 'SuperAdmin' && (

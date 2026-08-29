@@ -10,7 +10,7 @@ import { MarketingRecommendationsView } from './MarketingRecommendationsView';
 import { ForesightPlannerWorkspace } from './ForesightPlannerWorkspace';
 import { CreativeReviewView } from './CreativeReviewView';
 import { dashboardHashView } from './dashboardHandoff';
-import { AppearanceTab, BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
+import { BusinessInfoTab, BrandProfileTab, ConnectionsTab, DataSourceTab } from '../setup/page';
 import { AI_DATA_SOURCES } from '@/lib/aiDataSources';
 import { dedupeProductPhotoUrls } from '@/lib/website/productPhotoCandidates';
 import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/lib/website/recentWebsiteAttempts';
@@ -101,7 +101,6 @@ const NAV: NavItem[] = [
 const SETTINGS_NAV: NavItem = {
   id: 'settings', label: 'Settings', icon: 'settings',
   children: [
-    { id: 'appearance',         label: 'Appearance' },
     { id: 'connections',        label: 'Connections' },
     { id: 'marketing-settings', label: 'Marketing Settings' },
     { id: 'data-source',        label: 'Data Source' },
@@ -213,9 +212,9 @@ function Sidebar({
 
   return (
     <aside style={{ width: collapsed ? 52 : 224, flexShrink: 0, transition: 'width .2s ease' }} className="flex flex-col solvantis-sidebar overflow-hidden border-r border-gray-200 bg-white">
-      {/* Header row: Foresight label + collapse toggle */}
+      {/* Header row: workspace label + collapse toggle */}
       <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between'} border-b border-gray-200 mb-2 py-4 px-2`}>
-        {!collapsed && <div className="text-xs font-bold tracking-widest text-gray-400 uppercase whitespace-nowrap ml-2">Foresight</div>}
+        {!collapsed && <div className="text-xs font-bold tracking-widest text-gray-400 uppercase whitespace-nowrap ml-2">Intel &amp; Automation</div>}
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -2849,7 +2848,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
       </div>
 
       <p className="text-xs text-gray-500 mb-4">
-        Pulls the last <strong>90 days</strong> into the database and refreshes Foresight recommendations and Weekly Performance.
+        Pulls the last <strong>90 days</strong> into the database and refreshes Intel &amp; Automation recommendations and Weekly Performance.
       </p>
 
       {/* Tab progress list */}
@@ -9049,7 +9048,7 @@ export default function DashboardPage() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [activeSettingView, setActiveSettingView] = useState('appearance');
+  const [activeSettingView, setActiveSettingView] = useState('connections');
   const [marketingEnabled, setMarketingEnabled] = useState(false);
   const [shopifyEnabled, setShopifyEnabled] = useState(false);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
@@ -9080,7 +9079,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!featuresLoaded || marketingEnabled || !MARKETING_VIEW_IDS.has(activeView)) return;
     setActiveView('home');
-    setActiveSettingView('appearance');
+    setActiveSettingView('connections');
     setSettingsOpen(false);
   }, [activeView, featuresLoaded, marketingEnabled]);
 
@@ -9125,7 +9124,7 @@ export default function DashboardPage() {
     'lost-candidates': 'Possible Losses',
     'sync-ads': 'Sync Marketing Data',
     'marketing-assistant': 'Marketing Assistant',
-    'planning-workspace': 'Foresight Planning Workspace',
+    'planning-workspace': 'Intel & Automation Planning Workspace',
     'marketing-recommendations': 'Recommendation Inbox',
     'creative-review': 'Creative Review',
     'campaign-audit':       'Campaign Architecture Audit',
@@ -9134,7 +9133,6 @@ export default function DashboardPage() {
     'cs-inbox':     'Customer Service — Inbox',
     'cs-compose':   'Customer Service — Compose Email',
     'cs-templates': 'Customer Service — Email Templates',
-    appearance: 'Appearance',
     connections: 'Connections',
     'marketing-settings': 'Marketing Settings',
     'business-info': 'Business Info',
@@ -9163,7 +9161,7 @@ export default function DashboardPage() {
           <SolvantisMark size={24} variant="reversed" className="mr-2" />
           {/* App switcher */}
           <span style={{ color: '#1ea8c2', fontWeight: 700, fontSize: 16, letterSpacing: -.3 }}>Solvantis</span>
-          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: 'var(--sv-topbar-text, white)', marginLeft: 4 }}>Foresight</span>
+          <span style={{ fontWeight: 700, fontSize: 15, letterSpacing: -.3, color: 'var(--sv-topbar-text, white)', marginLeft: 4 }}>Intel &amp; Automation</span>
           <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
           <a href="/ims" style={{ fontSize: 13, color: 'rgba(255,255,255,.45)', textDecoration: 'none', fontWeight: 500, transition: 'color .15s' }} onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,.85)')} onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,.45)')}>IMS</a>
           <span style={{ color: 'rgba(255,255,255,.25)', margin: '0 8px', fontSize: 13 }}>|</span>
@@ -9328,7 +9326,6 @@ export default function DashboardPage() {
               {/* Settings Content */}
               <div className="flex-1 overflow-y-auto p-6 bg-white">
                 <h1 className="text-xl font-bold text-gray-900 mb-5">{titles[activeSettingView] ?? 'Settings'}</h1>
-                {activeSettingView === 'appearance' && <AppearanceTab />}
                 {activeSettingView === 'connections' && (
                   <ConnectionsTab business={databaseId ? { name: businessName, userId: '', databaseId } : null} />
                 )}

@@ -168,7 +168,7 @@ export function CreativeReviewView({ userTier }: { userTier: string }) {
                 <p className="mt-3 text-sm leading-6 text-gray-700"><strong>Hypothesis:</strong> {review.latestBrief.document_json.hypothesis}</p>
                 <p className="mt-2 text-sm leading-6 text-gray-700"><strong>Proposition:</strong> {review.latestBrief.document_json.singleMindedProposition}</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">{review.latestBrief.document_json.variants.map((variant) => <div key={variant.id} className="border-l-2 border-cyan-600 pl-3"><div className="text-xs font-bold text-gray-900">{variant.id}</div><p className="mt-1 text-xs leading-5 text-gray-600">{variant.change}</p></div>)}</div>
-                <p className="mt-4 text-xs text-gray-500">Draft only · Not publishable from Foresight · Hash {review.latestBrief.document_hash.slice(0, 12)}</p>
+                <p className="mt-4 text-xs text-gray-500">Draft only · Not publishable from Intel &amp; Automation · Hash {review.latestBrief.document_hash.slice(0, 12)}</p>
                 {review.latestReview?.note && <p className="mt-2 border-l-2 border-gray-300 pl-3 text-xs leading-5 text-gray-600">{review.latestReview.note}</p>}
               </div>}
             </div>

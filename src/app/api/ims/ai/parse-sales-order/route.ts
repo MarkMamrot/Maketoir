@@ -23,7 +23,7 @@ function aiErrorMessage(error: unknown, modelId: string): string {
   if (detail.includes('RESOURCE_EXHAUSTED')) return 'AI quota exceeded - try again in a moment.';
   if (detail.includes('INVALID_ARGUMENT') || detail.includes('400')) return `AI rejected the request: ${detail.slice(0, 120)}`;
   if (detail.includes('404') || detail.toLowerCase().includes('not found')) {
-    return `Model "${modelId}" not found - update your AI model in Foresight settings.`;
+    return `Model "${modelId}" not found - update your AI model in Intel & Automation settings.`;
   }
   return `AI error: ${detail.slice(0, 200)}`;
 }

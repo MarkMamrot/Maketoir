@@ -19,22 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-skin="default" suppressHydrationWarning>
+    <html lang="en">
       <body>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function () {
-                try {
-                  var skin = localStorage.getItem('solvantis_ui_skin') || 'default';
-                  document.documentElement.setAttribute('data-skin', skin === 'dark' ? 'dark' : 'default');
-                } catch (e) {
-                  document.documentElement.setAttribute('data-skin', 'default');
-                }
-              })();
-            `,
-          }}
-        />
         {children}
       </body>
     </html>

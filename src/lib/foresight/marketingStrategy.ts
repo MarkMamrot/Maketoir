@@ -40,7 +40,7 @@ export const DEFAULT_FORESIGHT_MARKETING_STRATEGY: ForesightMarketingStrategy = 
 
 export class MarketingStrategyValidationError extends Error {
   constructor(public readonly issues: string[]) {
-    super('Invalid Foresight marketing strategy.');
+    super('Invalid Intel & Automation marketing strategy.');
     this.name = 'MarketingStrategyValidationError';
   }
 }
@@ -163,7 +163,7 @@ export function parseMarketingStrategy(value: unknown): ForesightMarketingStrate
 export function renderMarketingStrategyMarkdown(strategy: ForesightMarketingStrategy): string {
   const objective = strategy.objective.replaceAll('_', ' ');
   return [
-    '# Foresight Marketing Strategy',
+    '# Intel & Automation Marketing Strategy',
     '',
     `- Objective: ${objective}`,
     `- Target blended MER: ${strategy.paidMedia.targetMer}`,

@@ -179,7 +179,7 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
         <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} style={{ ...S.input, marginBottom: 18 }} />
 
         <label style={S.label}>Module Access</label>
-        <AccessCheck label="Foresight (BI Dashboard)" field="has_foresight" />
+        <AccessCheck label="Intel & Automation" field="has_foresight" />
         <AccessCheck label="IMS (Inventory Management)" field="has_ims" />
         <AccessCheck label="POS (Point of Sale)" field="has_pos" />
 
@@ -325,7 +325,7 @@ function OnboardBusinessModal({ onClose, onDone }: { onClose: () => void; onDone
 
         <label style={S.label}>Module Access</label>
         <div style={{ marginBottom: 12 }}>
-          <Toggle label="Foresight (BI Dashboard)" field="hasForesight" />
+          <Toggle label="Intel & Automation" field="hasForesight" />
           <Toggle label="IMS (Inventory Management)" field="hasIms" />
           <Toggle label="POS (Point of Sale)" field="hasPos" />
         </div>
@@ -425,7 +425,7 @@ function BusinessesView() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr>
-                  {['Name','Foresight','IMS','POS','Created','Status','Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  {['Name','Intel & Automation','IMS','POS','Created','Status','Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -685,7 +685,7 @@ export default function AdminPage() {
         <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
         <a href="/ims" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>IMS</a>
         <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
-        <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Foresight</a>
+        <a href="/dashboard" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>Intel &amp; Automation</a>
         <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
         <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
         <span style={{ flex: 1 }} />

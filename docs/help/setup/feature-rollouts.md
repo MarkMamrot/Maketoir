@@ -39,9 +39,9 @@ A missing rollout setting is treated as **Off**. This keeps newly registered bus
 
 > **Important:** Feature Rollouts controls product availability for a business. It does not replace staff roles or permissions inside an enabled feature.
 
-## Foresight Marketing
+## Intel & Automation Marketing
 
-When **Foresight Marketing** is off, the business does not see Marketing Activities or Marketing Settings in Foresight. Old Marketing links return the user to the main Dashboard. Turning it on restores marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings according to the user's normal permissions.
+When **Intel & Automation Marketing** is off, the business does not see Marketing Activities or Marketing Settings in Intel & Automation. Old Marketing links return the user to the main Dashboard. Turning it on restores marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings according to the user's normal permissions.
 
 ## Troubleshooting
 
@@ -54,4 +54,4 @@ When **Foresight Marketing** is off, the business does not see Marketing Activit
 
 ## Worked examples
 
-Monsterthreads is participating in the initial Foresight Marketing rollout. Its switch is On, while other businesses remain Off. Those other businesses continue to use the rest of Foresight without seeing the Marketing Activities menu.
+Monsterthreads is participating in the initial Intel & Automation Marketing rollout. Its switch is On, while other businesses remain Off. Those other businesses continue to use the rest of Intel & Automation without seeing the Marketing Activities menu.

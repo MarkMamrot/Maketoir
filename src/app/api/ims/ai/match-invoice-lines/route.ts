@@ -121,7 +121,7 @@ Important: variant_id MUST be one of the variant_ids from the IMS catalogue abov
     const detail = e?.message ?? String(e);
     console.error('[match-invoice-lines] AI error:', detail);
     const msg = detail.includes('404') || detail.includes('not found')
-      ? `Model "${modelId}" not found — update your AI model in Foresight settings.`
+      ? `Model "${modelId}" not found — update your AI model in Intel & Automation settings.`
       : `AI matching failed: ${detail.slice(0, 150)}`;
     return NextResponse.json({ error: msg }, { status: 500 });
   }

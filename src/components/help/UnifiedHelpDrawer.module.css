@@ -40,8 +40,8 @@
 .searchBox input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; }
 .topicList { margin-top: 10px; display: grid; gap: 3px; }
 .topicGroup { display: grid; gap: 3px; }
-.topicGroup + .topicGroup { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
-.topicList .groupToggle { min-height: 32px; padding: 5px 8px; color: var(--sv-text-dim, #64736f); font-size: 10px; font-weight: 800; line-height: 1.3; text-transform: uppercase; }
+.topicGroup + .topicGroup { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--sv-etch, #dfe5e2); }
+.topicList .groupToggle { min-height: 36px; padding: 7px 8px; color: var(--sv-text-strong, #14211f); font-size: 12px; font-weight: 800; line-height: 1.3; }
 .groupToggle svg { transition: transform 160ms ease; }
 .groupToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .groupTopics { display: grid; gap: 3px; }

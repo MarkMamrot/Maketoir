@@ -488,7 +488,7 @@ function MetaExperimentPackagePanel({ value, confirmation, executionPreflight, e
         {value && <span className={`text-xs font-bold uppercase ${value.ready ? 'text-emerald-700' : 'text-amber-800'}`}>{value.ready ? 'Ready for confirmation' : 'Mapping required'}</span>}
       </div>
       {!value ? <button type="button" onClick={() => onRefresh()} disabled={loading} className="mt-3 inline-flex h-9 items-center gap-2 bg-cyan-700 px-3 text-sm font-semibold text-white disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Discover Meta campaigns</button> : <>
-        <p className="mt-2 text-xs leading-5 text-gray-600">Live read from account {value.accountId}. Foresight recommends mappings from names, but campaign identity remains an explicit human confirmation.</p>
+        <p className="mt-2 text-xs leading-5 text-gray-600">Live read from account {value.accountId}. Intel &amp; Automation recommends mappings from names, but campaign identity remains an explicit human confirmation.</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold text-gray-700">Control campaign<select value={confirmation?.control_campaign_id ?? value.controlCampaignId ?? ''} onChange={(event) => onRefresh(event.target.value, value.treatmentCampaignId ?? undefined)} disabled={loading || confirmation != null} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="">Select live campaign</option>{selectable.map((campaign) => <option key={campaign.campaignId} value={campaign.campaignId}>{campaign.campaignName} ({campaign.effectiveStatus})</option>)}</select>{!value.controlCampaignId && value.recommendedControlCampaignId && <span className="mt-1 block font-normal text-cyan-800">Suggested: {selectable.find(({ campaignId }) => campaignId === value.recommendedControlCampaignId)?.campaignName}</span>}</label>
           <label className="text-xs font-semibold text-gray-700">Treatment campaign<select value={confirmation?.treatment_campaign_id ?? value.treatmentCampaignId ?? ''} onChange={(event) => onRefresh(value.controlCampaignId ?? undefined, event.target.value)} disabled={loading || confirmation != null} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="">Select live campaign</option>{selectable.map((campaign) => <option key={campaign.campaignId} value={campaign.campaignId}>{campaign.campaignName} ({campaign.effectiveStatus})</option>)}</select>{!value.treatmentCampaignId && value.recommendedTreatmentCampaignId && <span className="mt-1 block font-normal text-cyan-800">Suggested: {selectable.find(({ campaignId }) => campaignId === value.recommendedTreatmentCampaignId)?.campaignName}</span>}</label>
@@ -1704,7 +1704,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           <div>
                             <h3 className="text-base font-bold text-gray-950">{planningContext.latestPlan.deliverable.document.title}</h3>
                             <p className="mt-1 text-sm leading-6 text-gray-700">{planningContext.latestPlan.deliverable.document.objective}</p>
-                            <p className="mt-1 text-xs text-gray-500">Version {planningContext.latestPlan.deliverable.version} · Not publishable from Foresight</p>
+                            <p className="mt-1 text-xs text-gray-500">Version {planningContext.latestPlan.deliverable.version} · Not publishable from Intel &amp; Automation</p>
                           </div>
                           {planningContext.latestPlan.deliverable.document.productSelection.length > 0 && (
                             <div>
@@ -2252,7 +2252,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                                     collection
                                                   </div>
                                                   <p className="mt-2 text-xs leading-5 text-gray-600">
-                                                    Foresight collects exact
+                                                    Intel &amp; Automation collects exact
                                                     variant evidence after the
                                                     scheduled end date and
                                                     records the deterministic
@@ -2298,7 +2298,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                                                     matching the exact accepted
                                                     channel, dates, allocation,
                                                     and minimum sample.
-                                                    Foresight does not launch
+                                                    Intel &amp; Automation does not launch
                                                     it.
                                                   </p>
                                                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2476,7 +2476,7 @@ export function MarketingRecommendationsView({ userTier }: { userTier: string })
                           {isAdmin && planningContext.latestPlan.deliverable.review?.action === 'accepted' && !planningContext.latestPlan.deliverable.activation && (
                             <div className="border-t border-emerald-200 pt-4">
                               <div className="text-xs font-bold uppercase text-gray-500">Record manual activation</div>
-                              <p className="mt-1 text-xs leading-5 text-gray-600">Attest what was launched outside Foresight. This does not publish, schedule, or send anything.</p>
+                              <p className="mt-1 text-xs leading-5 text-gray-600">Attest what was launched outside Intel &amp; Automation. This does not publish, schedule, or send anything.</p>
                               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                 <label className="text-xs font-semibold text-gray-700">Channel<select value={activationChannel} onChange={(event) => { setActivationChannel(event.target.value as typeof activationChannel); setActivationAssetIds([]); }} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal"><option value="meta">Meta</option><option value="google_ads">Google Ads</option><option value="klaviyo">Klaviyo</option></select></label>
                                 <label className="text-xs font-semibold text-gray-700">Launch date<input type="date" value={activationDate} max={businessToday} onChange={(event) => setActivationDate(event.target.value)} className="mt-1 block h-9 w-full border border-gray-300 bg-white px-2 text-sm font-normal" /></label>

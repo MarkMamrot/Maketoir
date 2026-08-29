@@ -1,3 +1,9 @@
+## 2026-08-29 - Unified Help, Intel & Automation, and single global appearance
+
+- The Help drawer now lists every topic allowed to the signed-in audience and enabled capabilities in one browsable system, grouped into IMS, Intel & Automation, POS, Wholesale, Setup, and Reference. Opening Help selects the exact contextual topic and expands only its major section; search, citations, related topics, and direct browsing can open another section.
+- The user-facing Foresight product name is now **Intel & Automation** across workspace navigation, planning and recommendation copy, Admin access, feature rollout labels, IMS links, model-setting guidance, and canonical Help. Compatibility-sensitive `/api/foresight` routes, `src/lib/foresight` names, `foresight_*` tables, feature keys, login destinations, fact/version IDs, and stable Help topic IDs remain unchanged.
+- The global Dark/Default skin system and Appearance settings were removed. The former light Default tokens are now the sole global Solvantis palette, with no `data-skin` or `solvantis_ui_skin` runtime. POS terminal themes and customer-facing wholesale, online-shop, loyalty, and payment customisation remain independent and unchanged.
+
 ## 2026-08-28 - Shopify Dev Dashboard authentication
 
 - Setup Shopify connections now support existing permanent legacy Admin API tokens and new Dev Dashboard client credentials per business. Client secrets and generated tokens are encrypted; 24-hour tokens are cached and renewed five minutes before expiry through one shared credential resolver used by active catalogue, order, customer, inventory, gift-card, loyalty, webhook, payout, and website paths.

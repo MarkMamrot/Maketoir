@@ -67,7 +67,7 @@ export const FORESIGHT_PLANNER_TOOL_DECLARATIONS = [
   },
   {
     name: 'get_marketing_strategy',
-    description: 'Get the current deterministic Foresight marketing strategy and guardrails.',
+    description: 'Get the current deterministic Intel & Automation marketing strategy and guardrails.',
     required: [],
     optional: [],
   },

@@ -3,9 +3,9 @@ import { execute, query } from '@/services/MySQLService';
 export const BUSINESS_FEATURES = [
   {
     key: 'foresight.marketing',
-    label: 'Foresight Marketing',
+    label: 'Intel & Automation Marketing',
     description: 'Marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings.',
-    product: 'Foresight',
+    product: 'Intel & Automation',
   },
 ] as const;
 

@@ -28,10 +28,10 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
       'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit',
       'brand-assets', 'brand-assets-models', 'brand-assets-backdrops', 'brand-assets-poses', 'brand-assets-scenes',
       'brand-assets-templates', 'website', 'pending-online', 'product-description-template', 'bulk-edit-listings',
-      'customer-service', 'cs-inbox', 'cs-compose', 'cs-templates', 'appearance', 'connections', 'marketing-settings', 'data-source',
+      'customer-service', 'cs-inbox', 'cs-compose', 'cs-templates', 'connections', 'marketing-settings', 'data-source',
     ],
   },
-  { audience: 'ims', product: 'setup', ids: ['connections', 'business', 'profile', 'appearance', 'pos', 'data-source', 'team'] },
+  { audience: 'ims', product: 'setup', ids: ['connections', 'business', 'profile', 'pos', 'data-source', 'team'] },
 ];
 
 describe('canonical Help context coverage', () => {

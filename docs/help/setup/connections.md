@@ -17,7 +17,7 @@ Use Setup to maintain business information, team access, POS payment options, da
 
 | Need | Open | Result |
 | --- | --- | --- |
-| Update business facts, brand details, or interface appearance | Business, Brand Profile, or Appearance | Reviewed information or a saved visual preference |
+| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |
 | Invite a colleague or choose a role | Team | An invitation for User or Admin access |
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
 | Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |

@@ -8,7 +8,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
@@ -42,7 +42,7 @@
       ],
       "order": 10,
       "summary": "Keep business information current and investigate performance or inventory signals before acting.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/business-intelligence.md"
     },
@@ -53,7 +53,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
@@ -64,7 +64,6 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
@@ -76,7 +75,6 @@
         "brand-assets-poses": "Brand assets",
         "brand-assets-scenes": "Brand assets",
         "brand-assets-templates": "Brand assets",
-        "appearance": "Supporting settings",
         "connections": "Supporting settings",
         "marketing-settings": "Supporting settings",
         "data-source": "Supporting settings"
@@ -88,7 +86,7 @@
       ],
       "order": 30,
       "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "commerce",
       "filename": "docs/help/foresight/content-and-service.md"
     },
@@ -99,7 +97,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-content-service",
@@ -130,7 +128,7 @@
       ],
       "order": 31,
       "summary": "Prepare product content and customer replies, then check every customer-facing detail before use.",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "owner": "commerce",
       "filename": "docs/help/foresight/content-production-and-customer-service.md"
     },
@@ -141,7 +139,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-planning",
@@ -157,7 +155,7 @@
       ],
       "order": 23,
       "summary": "Review an experiment design, record or perform its launch, and decide how its measured conclusion may be used.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/experiments-outcomes-and-learning.md"
     },
@@ -168,7 +166,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-planning",
@@ -185,18 +183,18 @@
       ],
       "order": 21,
       "summary": "Create a planning thread, draft a checked plan, and submit the exact version for review.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/planning-workspace-lifecycle.md"
     },
     {
       "id": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "product": "foresight",
       "format": "overview",
       "parentId": "foresight-workspaces",
@@ -217,7 +215,7 @@
       ],
       "order": 20,
       "summary": "Move current evidence through planning, review, implementation, and learning without confusing one stage for another.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/planning.md"
     },
@@ -228,7 +226,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "product": "foresight",
       "format": "task",
       "parentId": "foresight-planning",
@@ -249,18 +247,18 @@
       ],
       "order": 22,
       "summary": "Review evidence, decide on the exact recommendation or creative version, and record what happened next.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/recommendations-creative-review-and-audits.md"
     },
     {
       "id": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "product": "foresight",
       "format": "overview",
       "contexts": [
@@ -277,8 +275,8 @@
         "foresight-content-service"
       ],
       "order": 1,
-      "summary": "Find the right Foresight workspace and understand what each area can change.",
-      "lastReviewed": "2026-08-25",
+      "summary": "Find the right Intel & Automation workspace and understand what each area can change.",
+      "lastReviewed": "2026-08-29",
       "owner": "foresight",
       "filename": "docs/help/foresight/workspaces.md"
     },
@@ -1321,7 +1319,7 @@
     },
     {
       "id": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "audiences": [
         "ims"
       ],
@@ -1332,13 +1330,11 @@
       "parentId": "setup-connections",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "contextSections": {
         "business": "Step-by-step",
-        "profile": "Maintain Brand Profile",
-        "appearance": "Change appearance"
+        "profile": "Maintain Brand Profile"
       },
       "relatedTopics": [
         "foresight-business-intelligence",
@@ -1346,8 +1342,8 @@
         "setup-team-access-security"
       ],
       "order": 2,
-      "summary": "Keep business facts and brand information accurate, then choose the supported workspace appearance.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Keep business facts and reviewed brand information accurate for reporting, planning, content, and customer service.",
+      "lastReviewed": "2026-08-29",
       "owner": "setup",
       "filename": "docs/help/setup/business-brand-and-appearance.md"
     },
@@ -1501,7 +1497,7 @@
       ],
       "order": 3,
       "summary": "Invite the right person with the least access they need and handle sign-in security safely.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "owner": "security",
       "filename": "docs/help/setup/team-access-and-security.md"
     },
@@ -1766,7 +1762,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1781,7 +1777,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use Business Intelligence to check the information behind a result before changing stock, pricing, marketing, or merchandising."
     },
     {
@@ -1793,7 +1789,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1808,7 +1804,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Keep Business Key Information and Brand Profile accurate.\n- Refresh the relevant source before using time-sensitive results.\n- Match date ranges and locations when comparing figures.\n- Open the source records behind an inventory candidate before acting."
     },
     {
@@ -1820,7 +1816,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1835,7 +1831,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Business Key Information records practical facts about the business. Brand Profile records reviewed information such as audience, voice, products, policies, and positioning. These details can shape generated analysis, so a person should correct anything that is old or unsupported.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Saved business facts and brand information | Which facts are correct and current | Context used by supported analysis and drafting | None |\n\n> **Important:** Generated or imported profile text is a draft until someone who knows the business checks it."
     },
     {
@@ -1847,7 +1843,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1862,7 +1858,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Sync Data refreshes the supported source selected by the screen. Check the displayed status and time before refreshing. Wait for one refresh to finish before starting another.\n\n| Before refresh | After refresh | What to check |\n| --- | --- | --- |\n| Source is connected and the intended account is selected | A success, warning, or failure result is shown | Account, date, record count where shown, and warnings |"
     },
     {
@@ -1874,7 +1870,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1889,7 +1885,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Calculated views turn available source records into summaries. A result is only comparable when its date range, location, source freshness, and definition match the result beside it.\n\n| Result | Check before deciding | Human decision |\n| --- | --- | --- |\n| Sales or marketing trend | Same dates and current source data | Whether the movement needs investigation |\n| Stock turnover | Sales period, current stock, incoming stock, and seasonality | Whether ordering or merchandising should change |\n| Space efficiency | Product range and location context | Whether space use should be reviewed |"
     },
     {
@@ -1901,7 +1897,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1916,7 +1912,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Inactive Candidates, Possible Losses, Space Efficiency, and Stock Turnover are investigation lists. They do not automatically change a product or prove why a result occurred.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product, sales, stock, and selected period | Whether the signal makes sense for this product and season | A candidate or comparison to investigate | None |"
     },
     {
@@ -1928,7 +1924,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1943,7 +1939,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Two views disagree | Dates, locations, definitions, or refresh times differ | Align those settings before comparing again |\n| A candidate seems wrong | Recent receipts, seasonality, or product history changes the picture | Inspect the product and source records |\n| Results are empty | The source is not ready or the chosen period has no records | Check source status and widen the period only when appropriate |\n| Refresh fails twice | The connection or source needs attention | Stop retrying and check Setup connection status |"
     },
     {
@@ -1955,7 +1951,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Business Intelligence",
+      "screen": "Intel & Automation > Business Intelligence",
       "topicId": "foresight-business-intelligence",
       "contexts": [
         "business-intelligence",
@@ -1970,7 +1966,7 @@
         "stock-turnover"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Review a slow-moving jacket\n\nStock Turnover flags a jacket with 18 units on hand and two sales in the selected period. Check that the period includes the relevant winter weeks, inspect stock by location and incoming orders, then decide whether to move stock, change ordering, or leave it for the season.\n\n### Compare two sales summaries\n\nOne view uses the last seven complete days and another includes today. Set both to the same complete dates and confirm the source refresh time before treating the difference as a business change."
     },
     {
@@ -1982,7 +1978,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -1991,13 +1987,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use this overview to prepare reliable brand inputs and choose the right content or customer-service workflow."
     },
     {
@@ -2009,7 +2004,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2018,13 +2013,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Check source rights and intended use before saving a reusable asset.\n- Keep models, backdrops, poses, scenes, and templates clearly named.\n- Review generated product content against the real product and brand.\n- Check customer, order, recipients, and claims before sending a reply.\n- Fix required settings or connections before repeating failed work."
     },
     {
@@ -2036,7 +2030,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2045,13 +2039,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Brand Assets stores reusable references for creative work. A generated image is a candidate, not an automatic replacement for an existing image or an approved advertisement.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Source image, instructions, and chosen asset type | Are the source rights, quality, and intended use acceptable? | A reusable model, backdrop, pose, scene, or template | None |\n\n> **Warning:** Do not use an asset when you cannot confirm that the business has the right to use its source image."
     },
     {
@@ -2063,7 +2056,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2072,13 +2065,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Asset | Use it for | Check before reuse |\n| --- | --- | --- |\n| Model | A consistent person reference | Consent, source rights, and appearance |\n| Backdrop | An empty setting for product placement | Space, lighting, and brand fit |\n| Pose | A body-position reference | Clear position and suitability |\n| Scene | A reusable environment | No unintended products, logos, or claims |\n| Template | A repeatable composition | Layout, required text, and intended channel |"
     },
     {
@@ -2090,7 +2082,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2099,14 +2091,13 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Appearance changes supported visual preferences. Connections and Data Source control which supported services and information are available. Marketing Settings controls the options shown for applicable Foresight work.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |"
+      "lastReviewed": "2026-08-29",
+      "content": "Connections and Data Source control which supported services and information are available. Marketing Settings controls the options shown for applicable Intel & Automation work.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |"
     },
     {
       "id": "foresight-content-service:6",
@@ -2117,7 +2108,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2126,13 +2117,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| An asset does not fit the product | The wrong asset type or instructions were used | Start a new candidate with the correct input; keep the original until reviewed |\n| Content lacks brand detail | Business or Brand Profile information is incomplete | Update and review the source information first |\n| A connected action is unavailable | Access expired or required setup is incomplete | Check Setup and reconnect only the intended account |\n| A retry produces another poor result | The input or template still needs correction | Stop generating and correct the source material |"
     },
     {
@@ -2144,7 +2134,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Content and Service",
+      "screen": "Intel & Automation > Content and Service",
       "topicId": "foresight-content-service",
       "contexts": [
         "brand-assets",
@@ -2153,13 +2143,12 @@
         "brand-assets-poses",
         "brand-assets-scenes",
         "brand-assets-templates",
-        "appearance",
         "connections",
         "marketing-settings",
         "data-source"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Prepare a reusable backdrop\n\nChoose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.\n\n### Decide where to fix missing context\n\nA product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft."
     },
     {
@@ -2171,7 +2160,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2184,7 +2173,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "Use content and service tools to prepare drafts that a person checks before publishing or sending."
     },
     {
@@ -2196,7 +2185,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2209,7 +2198,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "- Keep business, brand, product, and policy information current.\n- Choose the correct product and field template.\n- Review generated descriptions, titles, tags, and candidate images.\n- Check customer, order, recipients, tone, and claims before sending a reply.\n- Keep existing content or images until a replacement is approved."
     },
     {
@@ -2221,7 +2210,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2234,7 +2223,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Product data, reviewed brand information, templates, customer message, and order context | Is the draft accurate, suitable, and ready to use? | Product-content or customer-reply draft | Only the separate send or publish action changes what a customer sees |"
     },
     {
@@ -2246,7 +2235,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2259,7 +2248,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm the correct product, customer, and business.\n- Check Brand Profile, shipping, returns, and other customer-facing facts.\n- Select the intended template and channel.\n- Confirm any connected service required by the workflow is ready.\n\n> **Important:** Generated text and images can be wrong. Check product facts, price, availability, policy wording, claims, spelling, links, recipients, and tone before use."
     },
     {
@@ -2271,7 +2260,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2284,7 +2273,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "1. Open **Website Content Studio** or the relevant pending or bulk listing view.\n2. Select the product and check its source data.\n3. Choose the intended field template and inputs.\n4. Generate a draft or edit the existing proposal.\n5. Compare every product fact and policy statement with the source information.\n6. Review candidate images separately and keep existing images until a replacement is approved.\n7. Approve only the fields ready for the next supported publication step.\n8. Check the destination after publication rather than assuming it succeeded."
     },
     {
@@ -2296,7 +2285,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2309,7 +2298,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Input | Check | Why it matters |\n| --- | --- | --- |\n| Product record | Name, variant, features, material, price, and availability | Prevents claims about the wrong item |\n| Brand Profile | Voice, audience, positioning, and approved claims | Keeps wording consistent |\n| Product description template | Required fields and channel purpose | Gives drafts a repeatable structure |\n| Business policies | Shipping, returns, and contact details | Prevents outdated customer promises |"
     },
     {
@@ -2321,7 +2310,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2334,7 +2323,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Item | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Generated title, description, or tags | Accept, edit, or leave unchanged | Reviewed field proposal | Not until published |\n| Candidate image | Approve, reject, or keep the current image | Reviewed image choice | Not until explicitly changed |\n| Bulk listing set | Which products and fields are ready | Approved batch | Only the later publication step |"
     },
     {
@@ -2346,7 +2335,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2359,7 +2348,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "The Inbox synchronises messages currently in Gmail's Inbox across Primary, Promotions, Updates, Social, and Forums. Gmail Spam, Trash, and messages already archived out of the Gmail Inbox are not included.\n\nAI marks messages as customer enquiries, junk, other, or unclassified. These categories affect priority and whether a reply draft is prepared; they do not delete or hide messages from **All categories**. By default, starred conversations appear first, followed by likely customer enquiries and then the remaining recent mail. Enable **Put all unread emails at the top** under Settings to show unread conversations newest to oldest, followed by read conversations newest to oldest. **Refresh emails** synchronises Gmail and shows when the Inbox was last refreshed. The loaded count appears only when more conversations are available; select **Load more** to retrieve them. Set the 7, 14, 30, 60, or 90-day **Email refresh window** under Settings.\n\nUse **Compose email** to start a new conversation. In To, enter an email address directly or type at least two characters of a contact's name or email, then choose the matching IMS contact. Check the selected address, add optional Cc recipients, enter a subject and message, then send once. The sent email appears as a new Inbox conversation.\n\n1. Open the Inbox item, or select **Compose email** for a new conversation.\n2. Confirm the customer, subject, and related order.\n3. Read the chronological conversation before using a template or draft. Opening a conversation aligns the top of the latest email directly below the subject bar.\n4. Check **Other conversations with this customer** when earlier subjects may contain useful context.\n5. Correct factual claims, tone, recipients, links, and promised actions.\n6. Select **Send reply** once and wait for its status to change.\n7. When the customer sends another message, run or wait for inbox processing to prepare a fresh draft for that latest message. Clear the suggestion to start again, edit it in place, or send the reviewed reply.\n8. Each email shows its From, To, Cc, and sent time. Use **Reply** for the sender, **Reply all** for the sender and the other original recipients, or **Forward** for a new recipient. Check and edit the To and Cc fields before sending. Forwarded content includes the original From, To, Cc, date, and subject. After a message is sent, its completed AI draft panel is removed while the message remains in the conversation.\n9. For unwanted mail, use **Report spam** and confirm. Gmail moves the conversation to Spam, takes it out of the Inbox, and uses the report as a spam signal. This does not guarantee that Gmail will block every future message from the sender.\n10. When a sender provides a standard secure unsubscribe link, use **Unsubscribe** to open the sender's page in a new tab and complete its confirmation. Solvantis does not use links found only in the email body and does not submit unsubscribe requests automatically.\n\n> **Important:** **Sending** and **Confirming send** mean the action is still blocked. Do not click Send again or create another reply in Gmail while confirmation is pending. **Sent** means Gmail accepted the reply and it is recorded in the conversation.\n\nCached conversation history is kept until the retention setting is changed. A 90, 180, or 365-day limit removes only inactive cached conversations from Solvantis; it does not delete mail from Gmail.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Customer message, order context, template, and draft | Is this accurate and safe to send to these recipients? | Reviewed reply | Yes, when sent successfully |"
     },
     {
@@ -2371,7 +2360,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2384,7 +2373,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Draft contains a wrong fact | Source product, profile, or policy is wrong or missing | Correct the source, then create a fresh draft |\n| Bulk action is unavailable | Required fields, selection, role, or connection is missing | Read the page status and complete the missing item |\n| Reply lacks order context | The wrong customer or order is selected | Reopen the source item and verify identifiers shown to staff |\n| A promotional or automated email is not near the top | AI prioritised likely customer enquiries first | Use All categories, search, or the category filter; the message is not removed by its AI category |\n| Only the first set of conversations is visible | More matching conversations are available than currently loaded | Select Load more and check the loaded and total counts |\n| A previous customer subject is missing from the open thread | Gmail keeps different subjects as separate conversations | Check Other conversations with this customer |\n| Reply shows Confirming send | Gmail may have accepted the message but confirmation is incomplete | Do not resend; refresh after processing or ask an administrator to check delivery status |\n| Unsubscribe is not shown | The email did not publish a standard secure HTTPS unsubscribe method, or it has not been refreshed since this feature was enabled | Refresh emails; if the action is still absent, use Report spam or manage the sender in Gmail |\n| Send or publish fails | Access expired or the destination definitively rejected the action | Read the displayed status before retrying; do not repeat blindly |"
     },
     {
@@ -2396,7 +2385,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Dashboard > Website and Customer Service",
+      "screen": "Intel & Automation > Website and Customer Service",
       "topicId": "foresight-content-production-customer-service",
       "contexts": [
         "website",
@@ -2409,7 +2398,7 @@
         "cs-templates"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "### Prepare a boot listing\n\nSelect the exact boot variant, check its leather, colour, size range, tax-inclusive price, and current images, then use the approved description template. Remove any unsupported waterproof claim and approve only the reviewed fields.\n\n### Reply about a delayed order\n\nOpen the customer message and linked order. Confirm what has shipped and what remains outstanding. Edit the draft to give only the timing shown by the order information, check the recipient, and send once."
     },
     {
@@ -2421,13 +2410,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use the experiment workflow to compare a control and treatment under an accepted design, then review the measured conclusion."
     },
     {
@@ -2439,13 +2428,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Draft an experiment from accepted planning work.\n- Review the exact design, dates, metric, and safety checks.\n- Record a manual launch or use a supported launch action only when offered.\n- Wait until the scheduled end date for results.\n- Acknowledge or reject the conclusion for future planning use."
     },
     {
@@ -2457,13 +2446,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Accepted plan, deliverable, launch information, and measured variant results | Accept or revise the design; later acknowledge or reject the conclusion | An exact experiment design, launch record, and conclusion | Only a successful supported launch or a separately completed manual launch changes a platform |"
     },
     {
@@ -2475,13 +2464,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm the linked plan and deliverable are accepted.\n- Choose one clear treatment and a valid control.\n- Use a metric that can be collected for both variants over the same complete period.\n- Check the dates, audience, budget, and stop conditions.\n\n> **Warning:** Accepting an experiment design does not launch, schedule, send, or change a campaign. A separate launch step is required."
     },
     {
@@ -2493,14 +2482,14 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open the selected recommendation and its planning details.\n2. Draft the experiment design.\n3. Check the hypothesis, control, treatment, metric, dates, and safety checks.\n4. Accept the exact design, request revision, or reject it.\n5. For a manual launch, make the external changes and record the launch against that accepted design.\n6. When a supported Meta launch package is available, select the exact control and treatment, confirm the read-only package, complete the final confirmation, and launch.\n7. Check the execution result. If it fails, verify external state before retrying.\n8. Wait until the scheduled end date. Foresight then collects the supported result information.\n9. Review the conclusion and choose **Acknowledge** or **Reject**."
+      "lastReviewed": "2026-08-29",
+      "content": "1. Open the selected recommendation and its planning details.\n2. Draft the experiment design.\n3. Check the hypothesis, control, treatment, metric, dates, and safety checks.\n4. Accept the exact design, request revision, or reject it.\n5. For a manual launch, make the external changes and record the launch against that accepted design.\n6. When a supported Meta launch package is available, select the exact control and treatment, confirm the read-only package, complete the final confirmation, and launch.\n7. Check the execution result. If it fails, verify external state before retrying.\n8. Wait until the scheduled end date. Intel & Automation then collects the supported result information.\n9. Review the conclusion and choose **Acknowledge** or **Reject**."
     },
     {
       "id": "foresight-experiments-outcomes-learning:6",
@@ -2511,13 +2500,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Stage | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Draft design | Is the comparison fair and useful? | Reviewable design | None |\n| Accepted design | Is this exact version suitable to launch? | Accepted version | None |\n| Launch | Is the live setup correct? | Launch record or execution result | Yes, only when launch succeeds or is completed manually |\n| Measurement | Has the complete period ended? | Collected result | None |\n| Conclusion review | Is the conclusion suitable as future planning evidence? | Acknowledged or rejected conclusion | None |"
     },
     {
@@ -2529,13 +2518,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Conclusion | Plain meaning | What not to claim |\n| --- | --- | --- |\n| Treatment won | Treatment met the design rules better than control | That it will always win in every audience or period |\n| Control won | Control performed better under this design | That all future changes should stop |\n| No significant difference | The design did not find a reliable difference | That both variants are identical |\n| Safety check failed | A protected measure crossed its limit | That the treatment caused every observed change |\n| Inconclusive | Available evidence could not decide | That the treatment succeeded or failed |"
     },
     {
@@ -2547,13 +2536,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Launch controls are unavailable | The design is not accepted or required setup is incomplete | Finish review and check the shown readiness items |\n| Launch reports failure | Live campaign state changed or access failed | Inspect the external platform before retrying |\n| No result appears on the end date | The complete measurement period or collection has not finished | Wait for complete-day processing, then refresh once |\n| The conclusion looks misleading | Metric, dates, or safety checks do not answer the business question | Reject it and record the reason |"
     },
     {
@@ -2565,13 +2554,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox > Experiments",
+      "screen": "Intel & Automation > Recommendation Inbox > Experiments",
       "topicId": "foresight-experiments-outcomes-learning",
       "contexts": [
         "experiments-outcomes-learning"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Test two Meta creative variants\n\nUse the current advert as control and a new approved image as treatment. Run both for the accepted dates with the same audience conditions and compare the selected metric. If the treatment wins under the design, acknowledge that result as planning evidence, not as proof it will win everywhere.\n\n### Stop after a failed launch\n\nThe launch reports failure after the external campaign was edited. Open Meta and check whether either variant or study exists before trying again. Rebuild the package only after the live state and selected campaigns are clear."
     },
     {
@@ -2583,13 +2572,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use Planning Workspace to turn a business question or linked recommendation into a saved plan that a person can review."
     },
     {
@@ -2601,13 +2590,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Create a strategy, initiative, or recommendation thread.\n- Ask questions and check the cited business information.\n- Draft a structured plan and resolve validation issues.\n- Submit the exact plan version for a human decision.\n- Create a new version when revision is requested."
     },
     {
@@ -2619,13 +2608,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Thread title, conversation, cited business facts, and any linked recommendation | Whether the plan is complete enough to submit | A saved plan version and review status | None |"
     },
     {
@@ -2637,13 +2626,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm you are working in the intended business.\n- Refresh time-sensitive source information before relying on it.\n- Open the linked recommendation when one exists and read its evidence.\n- Decide whether the thread is a broad strategy, a specific initiative, or work for one recommendation.\n\n> **Important:** Conversation text cannot approve a recommendation or make an external change. Only the dedicated review and implementation stages record those events."
     },
     {
@@ -2655,13 +2644,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "1. Open **Planning Workspace**.\n2. Select an existing thread, or create a new thread with a clear title and type.\n3. Describe the decision, dates, limits, and unanswered questions in the conversation.\n4. Open citations and confirm the information supports the statement beside it.\n5. Draft the structured plan.\n6. Read any validation result and correct missing or conflicting details.\n7. Check the plan version, objectives, actions, measures, and limits.\n8. Select **Submit for review** when the exact version is ready.\n9. Open Recommendation Inbox for the human accept, reject, or revision decision."
     },
     {
@@ -2673,13 +2662,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Stage | What you do | What it means | External change |\n| --- | --- | --- | --- |\n| Conversation | Explore the problem and evidence | Working notes only | None |\n| Draft plan | Create a structured version | A version is ready for checks | None |\n| Submitted | Lock the exact version for review | A reviewer can decide on it | None |\n| Accepted | Record that the plan is suitable | Later work may continue | None |\n| Revision requested | Create a corrected version | The earlier version remains part of the history | None |\n| Rejected | Stop that version | Recommendation status is unchanged | None |"
     },
     {
@@ -2691,13 +2680,13 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Submit for review is unavailable | No plan exists or validation has not passed | Draft the plan and resolve the shown issues |\n| A cited fact looks wrong | Its source or date no longer matches the question | Check the source view and update the plan |\n| The reviewer cannot see the latest wording | A newer draft was not submitted | Confirm the revision number and submit the intended version |\n| Drafting fails twice | Required information or a service is unavailable | Keep the thread, stop retrying, and return after checking the message or connection |"
     },
     {
@@ -2709,25 +2698,25 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning Workspace",
+      "screen": "Intel & Automation > Planning Workspace",
       "topicId": "foresight-planning-workspace-lifecycle",
       "contexts": [
         "planning-workspace"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Plan an end-of-season jacket campaign\n\nCreate an initiative called \"August jacket sell-through\". Ask for current jacket sales, stock, incoming purchase orders, and accepted past lessons. Draft a plan that names the date range, selected products, discount limits, and success measure. Submit revision 2 only after those details pass validation.\n\n### Respond to a revision request\n\nThe reviewer asks for a lower discount limit. Return to the thread, explain the change, draft a new version, check the revision number, and submit it. Do not edit or describe the accepted version as though it changed."
     },
     {
       "id": "foresight-planning:1",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
-      "heading": "Foresight Planning and Review",
+      "title": "Planning and Review",
+      "heading": "Planning and Review",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2735,19 +2724,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use this overview to choose the next planning or review step and understand whether that step changes anything outside Solvantis."
     },
     {
       "id": "foresight-planning:2",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Main operations",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2755,19 +2744,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "- Refresh marketing information before reviewing a time-sensitive recommendation.\n- Separate source facts from Foresight suggestions.\n- Draft and submit the exact plan version you want reviewed.\n- Record implementation separately from plan or recommendation approval.\n- Review experiment results before accepting them as future planning evidence."
+      "lastReviewed": "2026-08-29",
+      "content": "- Refresh marketing information before reviewing a time-sensitive recommendation.\n- Separate source facts from Intel & Automation suggestions.\n- Draft and submit the exact plan version you want reviewed.\n- Record implementation separately from plan or recommendation approval.\n- Review experiment results before accepting them as future planning evidence."
     },
     {
       "id": "foresight-planning:3",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Refresh marketing information",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2775,19 +2764,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Sync Marketing Data updates supported information from connected services. Check the selected account and status, then wait for the refresh to finish before starting another.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Connected marketing sources | Whether the sources and accounts are ready | Refreshed information or a clear failure | No campaign change |"
     },
     {
       "id": "foresight-planning:4",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Evidence and recommendations",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2795,19 +2784,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Foresight can combine source facts, business information, assumptions, and suggestions. Read the evidence and dates before deciding whether a recommendation deserves planning work.\n\n> **Important:** Evidence describes what the system can support. A recommendation says what may be worth doing. Neither proves that the suggested action is correct or already completed.\n\n| Stage | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Review evidence | Is the information current and relevant? | A decision to investigate, dismiss, or plan | None |\n| Draft plan | Does the proposed approach fit the business? | A versioned plan | None |\n| Review plan or creative | Accept, reject, or request revision | A recorded decision on that exact version | None |\n| Implement | What was actually changed and when? | An implementation record or supported execution result | Only when the external action succeeds |\n| Measure | What happened after the change? | An outcome, conclusion, or lesson | None |"
+      "lastReviewed": "2026-08-29",
+      "content": "Intel & Automation can combine source facts, business information, assumptions, and suggestions. Read the evidence and dates before deciding whether a recommendation deserves planning work.\n\n> **Important:** Evidence describes what the system can support. A recommendation says what may be worth doing. Neither proves that the suggested action is correct or already completed.\n\n| Stage | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Review evidence | Is the information current and relevant? | A decision to investigate, dismiss, or plan | None |\n| Draft plan | Does the proposed approach fit the business? | A versioned plan | None |\n| Review plan or creative | Accept, reject, or request revision | A recorded decision on that exact version | None |\n| Implement | What was actually changed and when? | An implementation record or supported execution result | Only when the external action succeeds |\n| Measure | What happened after the change? | An outcome, conclusion, or lesson | None |"
     },
     {
       "id": "foresight-planning:5",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Choose the next guide",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2815,19 +2804,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Current need | Read |\n| --- | --- |\n| Create a thread, draft a plan, or submit it | Planning Workspace Lifecycle |\n| Review a recommendation, creative item, or campaign audit | Recommendations, Creative Review, and Audits |\n| Design an experiment or review its result | Experiments, Outcomes, and Learning |"
     },
     {
       "id": "foresight-planning:6",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Troubleshooting",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2835,19 +2824,19 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A recommendation uses old information | The supporting source has not refreshed | Refresh once and recheck its evidence dates |\n| A plan cannot be reviewed | It is still drafting or has not passed its checks | Complete the plan and submit the exact version |\n| Approval is shown but no external change exists | Approval and implementation are separate stages | Check for an implementation or execution result |\n| A repeated action fails | The connection, review state, or required confirmation is unresolved | Stop and read the specific message before retrying |"
     },
     {
       "id": "foresight-planning:7",
       "documentId": "foresight-planning",
-      "title": "Foresight Planning and Review",
+      "title": "Planning and Review",
       "heading": "Worked examples",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Planning",
+      "screen": "Intel & Automation > Planning",
       "topicId": "foresight-planning",
       "contexts": [
         "marketing",
@@ -2855,7 +2844,7 @@
         "marketing-assistant"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Review a paid-media recommendation\n\nConfirm the evidence period and connected account, then decide whether the recommendation needs a plan. Accepting the plan records a decision about that version. Record the actual campaign change separately, or use a supported execution control and confirm its result.\n\n### Reject weak evidence\n\nA recommendation refers to a partial day of results. Do not approve it because the headline looks urgent. Refresh after a complete reporting period or reject the recommendation with a short reason."
     },
     {
@@ -2867,7 +2856,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2875,7 +2864,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use Recommendation Inbox and review screens to make a clear human decision without mistaking approval for completed work."
     },
     {
@@ -2887,7 +2876,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2895,7 +2884,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Read the evidence period, source, assumptions, risks, and proposed action.\n- Request approval, approve, reject, or continue planning as appropriate.\n- Review the exact creative or deliverable version submitted.\n- Use campaign audits as prompts for investigation.\n- Record implementation and later outcomes separately."
     },
     {
@@ -2907,7 +2896,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2915,7 +2904,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Evidence, recommendation, linked plan, creative version, or audit finding | Approve, reject, request revision, investigate, or take no action | A recorded review state and next step | Not by review alone |"
     },
     {
@@ -2927,7 +2916,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2935,7 +2924,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm the evidence dates and connected account.\n- Open the linked plan when the recommendation has one.\n- Check that the item on screen is the exact version you intend to decide on.\n- Make sure the proposed action names what a person must check before any external change.\n\n> **Important:** Strong evidence can support a decision, but a recommendation is still a suggestion. Approval records permission to continue; it does not prove that a campaign, budget, message, or listing changed."
     },
     {
@@ -2947,7 +2936,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2955,7 +2944,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "1. Open **Recommendation Inbox** and select the item.\n2. Read the evidence, dates, assumptions, risks, and proposed action.\n3. Open or create the linked Planning Workspace thread when more planning is needed.\n4. Review the plan decision and any submitted deliverables.\n5. Choose the available action: request approval, approve, reject, accept, or request revision.\n6. If work happens manually, record what actually changed and when.\n7. If a supported execution action is offered, review its preview and confirmation before using it.\n8. Confirm the execution result rather than assuming a click succeeded.\n9. Return later to record or review the measured outcome."
     },
     {
@@ -2967,7 +2956,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2975,7 +2964,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| State | Meaning | Safe next action |\n| --- | --- | --- |\n| Shadow | Visible for review but not submitted | Check evidence or dismiss it |\n| Pending approval | Waiting for a human decision | Approve or reject after review |\n| Approved | Approved to continue | Implement through the shown method |\n| Executing | A supported action is in progress | Wait and refresh status once |\n| Executed | The supported action reported success | Verify the external result and monitor it |\n| Execution failed | The action did not complete successfully | Read the error and verify external state before retrying |\n| Rejected | The recommendation will not continue | Record a reason where useful |"
     },
     {
@@ -2987,7 +2976,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -2995,7 +2984,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Check the brief, audience, product, claims, channel, and exact submitted version. Accepting a deliverable makes that version available for manual use; it does not publish or send it.\n\n| Review choice | Output | External change |\n| --- | --- | --- |\n| Accept | Exact version is accepted for later use | None |\n| Request revision | Feedback is recorded and a new version can be prepared | None |\n| Reject | Exact version is not approved | None |"
     },
     {
@@ -3007,7 +2996,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -3015,7 +3004,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Campaign Audit highlights supported structure and performance concerns. Open the named campaign or account, check current settings and complete-day results, then decide whether the finding needs a plan or no action.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current supported campaign information | Whether the finding is valid in the live account | An investigation note or planning task | None |"
     },
     {
@@ -3027,7 +3016,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -3035,7 +3024,7 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Evidence is missing or old | The source is not ready | Refresh once, then check the connection if it fails |\n| The wrong creative appears accepted | You are looking at a different version | Compare the version and review date before using it |\n| Approved shows but nothing changed | Implementation is a later stage | Find the implementation or execution status |\n| Execution failed | External state or confirmation no longer matches | Inspect the live account and error before any retry |"
     },
     {
@@ -3047,7 +3036,7 @@
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight > Recommendation Inbox",
+      "screen": "Intel & Automation > Recommendation Inbox",
       "topicId": "foresight-recommendations-creative-review-audits",
       "contexts": [
         "marketing-recommendations",
@@ -3055,159 +3044,159 @@
         "campaign-audit"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Review a budget recommendation\n\nThe recommendation suggests moving budget after a weak week. Check complete-day delivery, conversion tracking, current budgets, and the evidence period. Approve only when the proposal fits the business. After a manual change, record the campaign names, date, and actual amounts.\n\n### Request a creative revision\n\nA submitted email draft uses an unapproved shipping claim. Select **Request revision**, name the exact claim to remove, and review the new version separately. The original remains rejected for use."
     },
     {
       "id": "foresight-workspaces:1",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
-      "heading": "Foresight and Dashboard",
+      "title": "Intel & Automation",
+      "heading": "Intel & Automation",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "Use this page to choose the right workspace before you start reviewing data, planning work, or preparing customer-facing content."
     },
     {
       "id": "foresight-workspaces:2",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "Main operations",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
-      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Foresight menu."
+      "lastReviewed": "2026-08-29",
+      "content": "- Check Dashboard for a summary, then open the detailed view behind a figure.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Ask AI Helper for an explanation or a starting point without treating its reply as approval.\n- Use Business Intelligence to check business facts, source freshness, and inventory signals.\n- Use Planning and Review to move a recommendation through a recorded human decision.\n- Use Content and Service to prepare assets, product content, and customer replies for review.\n\nSome developing workspaces are introduced to selected businesses first. If a rollout is off for the active business, that workspace and its related settings do not appear in the Intel & Automation menu."
     },
     {
       "id": "foresight-workspaces:3",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "Choose a workspace",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| You need to | Open | What you get | Does opening it change anything outside Solvantis? |\n| --- | --- | --- | --- |\n| Understand a headline result | Dashboard, then its detailed report | A summary followed by the source view | No |\n| Ask a question about available business information | AI Helper | A reply based on information available to that tool | No |\n| Check business, sales, stock, or marketing information | Business Intelligence | Current source information and calculated views | No |\n| Review an idea and decide what to do | Planning Workspace or Recommendation Inbox | A saved plan, review decision, or next step | Not by itself |\n| Prepare product content or a customer reply | Website or Customer Service | A draft for a person to check | Not until a person uses the available send or publish action |\n\n> **Important:** A suggestion, draft, accepted plan, and completed external change are different things. Read the stage shown on screen before assuming work has happened."
     },
     {
       "id": "foresight-workspaces:4",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "Dashboard",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "Dashboard brings important figures and recent activity together. Use it to spot something worth investigating, then open the detailed report or workspace before making a decision.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Available reporting and activity | Which result needs investigation | A summary and links to detail | None |"
     },
     {
       "id": "foresight-workspaces:5",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "AI Helper",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "AI Helper can explain information available to its workflow and help you form the next question. Its conversation does not accept a plan, send content, publish a listing, or change an advertising account.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Your question and the business information available to the helper | Whether the answer is useful and what to inspect next | A written answer | None |"
     },
     {
       "id": "foresight-workspaces:6",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "What happens next",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Area | Typical next step | Where the result is checked |\n| --- | --- | --- |\n| Business Intelligence | Confirm dates, source freshness, and the underlying records | The detailed analysis or source screen |\n| Planning and Review | Submit the exact plan or item for a human decision | Planning Workspace or Recommendation Inbox |\n| Experiments | Accept a design, record or perform the launch, then review the result | Recommendation Inbox |\n| Content and Service | Check accuracy, audience, tone, and recipients | Website, Brand Assets, or Customer Service |"
     },
     {
       "id": "foresight-workspaces:7",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "Troubleshooting",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A figure looks old | Its source has not refreshed or the date range differs | Check the source status and date range before refreshing once |\n| A suggestion looks like completed work | You are viewing a draft or review stage | Check the status and open the page that records implementation or sending |\n| An action is unavailable | The item is at the wrong stage or your role cannot perform it | Read the status, complete the earlier step, or ask an administrator |\n| A whole workspace is missing from the menu | It has not been enabled for the active business | Ask a SuperAdmin to review **Feature Rollouts**; reloading applies an approved change |\n| A retry gives the same error | A connection or required field still needs attention | Stop repeated retries and inspect the specific connection or validation message |"
     },
     {
       "id": "foresight-workspaces:8",
       "documentId": "foresight-workspaces",
-      "title": "Foresight and Dashboard",
+      "title": "Intel & Automation",
       "heading": "Worked examples",
       "audiences": [
         "ims"
       ],
       "capability": "navigation",
-      "screen": "Foresight",
+      "screen": "Intel & Automation",
       "topicId": "foresight-workspaces",
       "contexts": [
         "home",
         "ai-helper"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-29",
       "content": "### Investigate a sales concern\n\nDashboard shows online sales below the previous period. Open the detailed view, use the same dates for both periods, and check whether source data is current. The dashboard result starts the investigation; it does not decide that a campaign or product caused the change.\n\n### Move from a question to a decision\n\nAsk AI Helper why winter jackets may be moving slowly. Use the reply to open the relevant inventory and sales views. If a marketing idea follows, create or open a Planning Workspace thread and submit the exact plan for review rather than treating the chat reply as approval."
     },
     {
@@ -3704,7 +3693,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-25",
-      "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Foresight** in the top bar when you need analytics, planning, content, or customer-service work. Foresight is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
+      "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
     },
     {
       "id": "ims-workspaces:3",
@@ -8682,8 +8671,8 @@
     {
       "id": "setup-business-brand-appearance:1",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
-      "heading": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
+      "heading": "Business and Brand",
       "audiences": [
         "ims"
       ],
@@ -8692,17 +8681,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Use these Setup tabs to maintain facts that support reporting and drafting, and to choose the workspace look."
+      "lastReviewed": "2026-08-29",
+      "content": "Use these Setup tabs to maintain facts that support reporting and drafting."
     },
     {
       "id": "setup-business-brand-appearance:2",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Main operations",
       "audiences": [
         "ims"
@@ -8712,17 +8700,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "- Update business identity and operating information.\n- Build, import, or edit Brand Profile details.\n- Review every generated statement before saving it as a business fact.\n- Maintain branch, policy, voice, audience, and brand-colour information.\n- Change appearance without changing transactions or access."
+      "lastReviewed": "2026-08-29",
+      "content": "- Update business identity and operating information.\n- Build, import, or edit Brand Profile details.\n- Review every generated statement before saving it as a business fact.\n- Maintain branch, policy, voice, audience, and brand-colour information."
     },
     {
       "id": "setup-business-brand-appearance:3",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "At a glance",
       "audiences": [
         "ims"
@@ -8732,17 +8719,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Area | Input | Human decision | Output | External change |\n| --- | --- | --- | --- | --- |\n| Business | Business name, website, contact, and operating details | Are these current and customer-safe? | Saved business information | None |\n| Brand Profile | Mission, audience, products, policies, voice, colours, and research | Which statements are accurate and approved? | Saved brand context | None |\n| Appearance | Available interface skin | Which look suits this browser? | Saved workspace preference | None |"
+      "lastReviewed": "2026-08-29",
+      "content": "| Area | Input | Human decision | Output | External change |\n| --- | --- | --- | --- | --- |\n| Business | Business name, website, contact, and operating details | Are these current and customer-safe? | Saved business information | None |\n| Brand Profile | Mission, audience, products, policies, voice, colours, and research | Which statements are accurate and approved? | Saved brand context | None |"
     },
     {
       "id": "setup-business-brand-appearance:4",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Before you begin",
       "audiences": [
         "ims"
@@ -8752,17 +8738,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Select the intended business.\n- Gather current customer-facing policies and branch details.\n- Ask someone responsible for the brand to review generated or researched text.\n- Keep private account access details out of descriptive fields.\n\n> **Important:** Brand Profile can generate or import useful starting text, but it cannot know whether every claim, policy, branch detail, or market statement is current."
     },
     {
       "id": "setup-business-brand-appearance:5",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Step-by-step",
       "audiences": [
         "ims"
@@ -8772,17 +8757,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "1. Open **Business** in Setup.\n2. Review identity, website, contact, and operating information.\n3. Correct outdated fields and save.\n4. Open **Brand Profile**.\n5. Build, import, or edit the profile sections you need.\n6. Check mission, audience, product, pricing, policy, branch, loyalty, and visual details.\n7. Remove unsupported statements and save the reviewed profile.\n8. Reopen a dependent report or content workflow and confirm the updated context is suitable."
     },
     {
       "id": "setup-business-brand-appearance:6",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Maintain Brand Profile",
       "audiences": [
         "ims"
@@ -8792,37 +8776,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Section | Check before saving | Used for |\n| --- | --- | --- |\n| Voice and audience | Real customer language and approved positioning | Draft tone and marketing planning |\n| Products and pricing | Current ranges and tax-inclusive customer pricing where shown | Product and performance context |\n| Shipping and returns | Current customer-facing policy | Content and service drafts |\n| Branches | Name, address, contact, and opening hours | Local business context |\n| Colours and logo | Approved assets and readable colour choices | Supported brand and appearance work |"
+      "lastReviewed": "2026-08-29",
+      "content": "| Section | Check before saving | Used for |\n| --- | --- | --- |\n| Voice and audience | Real customer language and approved positioning | Draft tone and marketing planning |\n| Products and pricing | Current ranges and tax-inclusive customer pricing where shown | Product and performance context |\n| Shipping and returns | Current customer-facing policy | Content and service drafts |\n| Branches | Name, address, contact, and opening hours | Local business context |\n| Colours and logo | Approved assets and readable colour choices | Supported brand and content work |"
     },
     {
       "id": "setup-business-brand-appearance:7",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
-      "heading": "Change appearance",
-      "audiences": [
-        "ims"
-      ],
-      "capability": "navigation",
-      "screen": "Setup > Business and Brand",
-      "topicId": "setup-business-brand-appearance",
-      "contexts": [
-        "business",
-        "profile",
-        "appearance"
-      ],
-      "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open **Appearance**.\n2. Choose an available interface skin.\n3. Check navigation, tables, and forms for readability.\n\nAppearance changes presentation only. It does not change stock, sales, accounting, connection access, or team roles."
-    },
-    {
-      "id": "setup-business-brand-appearance:8",
-      "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Troubleshooting",
       "audiences": [
         "ims"
@@ -8832,17 +8795,16 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Generated content repeats an old policy | Brand or business information is outdated | Correct the source information, then create a new draft |\n| Imported profile text is inaccurate | Research or source material was incomplete | Edit it and ask a knowledgeable person to review |\n| A colour is hard to read | The chosen palette has weak contrast | Choose a clearer supported colour or appearance option |\n| A save fails twice | A required field or service is unavailable | Keep a local note of the intended change and stop retrying until the error is resolved |"
+      "lastReviewed": "2026-08-29",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Generated content repeats an old policy | Brand or business information is outdated | Correct the source information, then create a new draft |\n| Imported profile text is inaccurate | Research or source material was incomplete | Edit it and ask a knowledgeable person to review |\n| A save fails twice | A required field or service is unavailable | Keep a local note of the intended change and stop retrying until the error is resolved |"
     },
     {
-      "id": "setup-business-brand-appearance:9",
+      "id": "setup-business-brand-appearance:8",
       "documentId": "setup-business-brand-appearance",
-      "title": "Business, Brand, and Appearance",
+      "title": "Business and Brand",
       "heading": "Worked examples",
       "audiences": [
         "ims"
@@ -8852,11 +8814,10 @@
       "topicId": "setup-business-brand-appearance",
       "contexts": [
         "business",
-        "profile",
-        "appearance"
+        "profile"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Update a returns policy\n\nThe business now allows returns within 30 days instead of 14. Update the reviewed policy in Brand Profile, save it, then regenerate any draft that used the old wording. Existing published content is not changed automatically.\n\n### Correct branch hours\n\nChange Saturday hours for the Fitzroy branch and save. Reopen the relevant content or service draft and check that the updated hours appear before sending anything to a customer."
     },
     {
@@ -8935,7 +8896,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-28",
-      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts, brand details, or interface appearance | Business, Brand Profile, or Appearance | Reviewed information or a saved visual preference |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
+      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
     },
     {
       "id": "setup-connections:4",
@@ -9187,7 +9148,7 @@
       "id": "setup-feature-rollouts:6",
       "documentId": "setup-feature-rollouts",
       "title": "Feature Rollouts",
-      "heading": "Foresight Marketing",
+      "heading": "Intel & Automation Marketing",
       "audiences": [
         "ims"
       ],
@@ -9199,7 +9160,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-26",
-      "content": "When **Foresight Marketing** is off, the business does not see Marketing Activities or Marketing Settings in Foresight. Old Marketing links return the user to the main Dashboard. Turning it on restores marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings according to the user's normal permissions."
+      "content": "When **Intel & Automation Marketing** is off, the business does not see Marketing Activities or Marketing Settings in Intel & Automation. Old Marketing links return the user to the main Dashboard. Turning it on restores marketing data sync, assistant, planning, recommendations, creative review, campaign audit, and Marketing Settings according to the user's normal permissions."
     },
     {
       "id": "setup-feature-rollouts:7",
@@ -9235,7 +9196,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-26",
-      "content": "Monsterthreads is participating in the initial Foresight Marketing rollout. Its switch is On, while other businesses remain Off. Those other businesses continue to use the rest of Foresight without seeing the Marketing Activities menu."
+      "content": "Monsterthreads is participating in the initial Intel & Automation Marketing rollout. Its switch is On, while other businesses remain Off. Those other businesses continue to use the rest of Intel & Automation without seeing the Marketing Activities menu."
     },
     {
       "id": "setup-integration-readiness-troubleshooting:1",
@@ -9585,7 +9546,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "Use Team to invite a colleague as a User or Admin, then let them complete their own secure account setup."
     },
     {
@@ -9603,7 +9564,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm the selected business and email address.\n- Choose User unless the person needs full access and invitation rights.\n- Send one invitation and check the result.\n- Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.\n- Keep passwords, authenticator codes, and recovery codes private.\n- Export business data only when authorised to handle the file."
     },
     {
@@ -9621,7 +9582,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Role | Can use the app | Can invite team members | Suitable for |\n| --- | --- | --- | --- |\n| User | Yes | No | Day-to-day work that does not require full administration |\n| Admin | Yes, with full access | Yes | Trusted people responsible for setup and team access |"
     },
     {
@@ -9639,7 +9600,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "- Select the intended business.\n- Confirm the colleague's current work email directly with them.\n- Decide whether they truly need Admin access.\n- Make sure they can receive the invitation and complete their own sign-in setup.\n\n> **Warning:** Never ask a colleague to share their password, authenticator code, or recovery code. Support and administrators should not need those values."
     },
     {
@@ -9657,7 +9618,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "1. Open **Team** in Setup.\n2. Confirm the business named on the page.\n3. Enter the colleague's email address.\n4. Choose **User** or **Admin** from the role list.\n5. Select **Send Invite Email** once.\n6. Read the success or error message before trying again.\n7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.\n8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.\n\nThe user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving."
     },
     {
@@ -9675,7 +9636,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "| Decision | Choose | Reason |\n| --- | --- | --- |\n| Person only needs normal application work | User | Limits team-management access |\n| Person must manage setup and invite others | Admin | Grants full application access and invitation rights |\n| Email address may be wrong | Stop | Confirm it before sending an invitation |\n| Someone asks for a sign-in or recovery code | Do not share | Codes belong only to the account holder |\n| Business export is needed | Use Data Export only when authorised | The downloaded file contains business information even though protected connection details are excluded |"
     },
     {
@@ -9693,8 +9654,8 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Invitation email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before resending once |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |"
+      "lastReviewed": "2026-08-29",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Invitation email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before resending once |\n| Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |\n| User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |\n| Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |\n| Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |\n| Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |"
     },
     {
       "id": "setup-team-access-security:8",
@@ -9711,7 +9672,7 @@
         "team"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-29",
       "content": "### Invite a store coordinator\n\nThe coordinator needs products, reports, and normal workflows but will not manage users. Invite their confirmed work email as **User** and ask them to complete their own sign-in setup.\n\n### Invite an operations administrator\n\nThe operations lead is responsible for connections and team invitations. After confirming that responsibility, invite them as **Admin**. Do not send them another person's password or recovery codes."
     },
     {
@@ -9912,7 +9873,7 @@
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
-      "content": "| Symptom | First checks | Safe recovery | Stop and seek help when |\n| --- | --- | --- | --- |\n| Button is missing or disabled | Role, record status, required fields, selected location | Complete the earlier step or ask an administrator | The status appears eligible but the action remains unavailable |\n| Data is old or missing | Business, date range, filters, connection, source update time | Correct filters or refresh the source once | Source refresh fails twice |\n| Quantity differs from the shelf | Location, commitments, open transfers, recent receipts or sales | Follow stocktake or adjustment guidance after investigating | A sale, return, receipt, or transfer may be duplicated |\n| Order status seems wrong | Line quantities, shipment or receipt history, remaining quantity | Reopen the owning order workflow | Real-world goods and recorded status disagree |\n| Connection reports expired | Intended external account and connection status | Reconnect through Setup, then test once | The wrong account appears or access still fails |\n| Payment failed | Sale status, terminal message, offline queue, provider result | Use the payment recovery offered by POS | Customer may have been charged but no sale is confirmed |\n| Customer did not receive a message | Sent state, recipient, filtered mail, delivery result | Resend only when no sent record exists and the address is confirmed | A duplicate message could cause harm or confusion |\n| Report totals differ | Dates, locations, tax basis, status, and source update time | Align settings and compare source records | Definitions match but the unexplained difference remains |\n| Foresight says approved but nothing changed | Plan, recommendation, implementation, and execution stages | Open the implementation or execution result | External state cannot be confirmed |"
+      "content": "| Symptom | First checks | Safe recovery | Stop and seek help when |\n| --- | --- | --- | --- |\n| Button is missing or disabled | Role, record status, required fields, selected location | Complete the earlier step or ask an administrator | The status appears eligible but the action remains unavailable |\n| Data is old or missing | Business, date range, filters, connection, source update time | Correct filters or refresh the source once | Source refresh fails twice |\n| Quantity differs from the shelf | Location, commitments, open transfers, recent receipts or sales | Follow stocktake or adjustment guidance after investigating | A sale, return, receipt, or transfer may be duplicated |\n| Order status seems wrong | Line quantities, shipment or receipt history, remaining quantity | Reopen the owning order workflow | Real-world goods and recorded status disagree |\n| Connection reports expired | Intended external account and connection status | Reconnect through Setup, then test once | The wrong account appears or access still fails |\n| Payment failed | Sale status, terminal message, offline queue, provider result | Use the payment recovery offered by POS | Customer may have been charged but no sale is confirmed |\n| Customer did not receive a message | Sent state, recipient, filtered mail, delivery result | Resend only when no sent record exists and the address is confirmed | A duplicate message could cause harm or confusion |\n| Report totals differ | Dates, locations, tax basis, status, and source update time | Align settings and compare source records | Definitions match but the unexplained difference remains |\n| Intel & Automation says approved but nothing changed | Plan, recommendation, implementation, and execution stages | Open the implementation or execution result | External state cannot be confirmed |"
     },
     {
       "id": "shared-troubleshooting-by-symptom:5",

@@ -92,7 +92,7 @@ function ConversationMessage({ message }: { message: PlanningMessage }) {
           <p className="whitespace-pre-wrap break-words">{message.content}</p>
         </div>
         <div className={`mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-400 ${assistant ? '' : 'justify-end'}`}>
-          <span>{assistant ? 'Foresight' : 'You'}</span>
+          <span>{assistant ? 'Intel & Automation' : 'You'}</span>
           <span>{formatTime(message.created_at)}</span>
           {citations.length > 0 && <span>{citations.length} cited fact{citations.length === 1 ? '' : 's'}</span>}
         </div>
@@ -223,11 +223,11 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
           await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
           return;
         }
-        throw new Error(String(body.error || 'Foresight could not complete this turn.'));
+        throw new Error(String(body.error || 'Intel & Automation could not complete this turn.'));
       }
       await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
     } catch (error) {
-      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Foresight could not complete this turn.' });
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Intel & Automation could not complete this turn.' });
       await loadDetail(detail.thread.id);
     } finally {
       setSending(false);
@@ -252,12 +252,12 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
         }
         const validation = body.validation as { findings?: { blocking?: string[] } } | undefined;
         const blocking = validation?.findings?.blocking?.[0];
-        throw new Error(blocking || String(body.error || 'Foresight could not draft this plan.'));
+        throw new Error(blocking || String(body.error || 'Intel & Automation could not draft this plan.'));
       }
       setNotice({ kind: 'success', text: detail.latestPlan ? 'A new immutable plan version was drafted.' : 'The first structured plan version was drafted.' });
       await Promise.all([loadThreads(detail.thread.id), loadDetail(detail.thread.id)]);
     } catch (error) {
-      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Foresight could not draft this plan.' });
+      setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Intel & Automation could not draft this plan.' });
     } finally {
       setDraftingPlan(false);
     }
@@ -300,7 +300,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
   const recommendationLink = detail?.links.find((link) => link.link_type === 'recommendation') ?? null;
 
   return (
-    <section className="min-h-[680px] overflow-hidden rounded-t-2xl border border-gray-200 bg-white" aria-label="Foresight planning workspace">
+    <section className="min-h-[680px] overflow-hidden rounded-t-2xl border border-gray-200 bg-white" aria-label="Intel & Automation planning workspace">
       <div className="grid min-h-[680px] grid-cols-1 lg:grid-cols-[250px_minmax(0,1fr)_280px]">
         <aside className="border-b border-gray-200 bg-gray-50/70 lg:border-b-0 lg:border-r" aria-label="Planning threads">
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
@@ -387,7 +387,7 @@ export function ForesightPlannerWorkspace({ userTier }: { userTier: string }) {
               <div className="mx-auto flex min-h-72 max-w-xl flex-col items-center justify-center text-center">
                 <Bot size={31} className="text-cyan-700" />
                 <h3 className="mt-4 text-lg font-bold text-gray-900">Start with the decision, not the data request</h3>
-                <p className="mt-2 text-sm leading-6 text-gray-600">Describe the goal, concern, or opportunity. Foresight can inspect governed sales, contribution, stock, inbound supply, strategy, and recommendation facts as needed.</p>
+                <p className="mt-2 text-sm leading-6 text-gray-600">Describe the goal, concern, or opportunity. Intel &amp; Automation can inspect reviewed sales, contribution, stock, inbound supply, strategy, and recommendation facts as needed.</p>
               </div>
             ) : (
               <div className="mx-auto max-w-4xl space-y-6">

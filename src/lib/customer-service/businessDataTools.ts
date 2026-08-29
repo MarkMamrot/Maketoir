@@ -217,7 +217,7 @@ async function getBusinessPolicies(businessId: string): Promise<CsToolResult> {
       physicalBranches: profile.physical_branches ?? '',
       tone: profile.tone ?? '',
     } : null,
-    source: 'Foresight > Brand Profile',
+    source: 'Intel & Automation > Brand Profile',
   };
 }
 

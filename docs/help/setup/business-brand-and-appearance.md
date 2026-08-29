@@ -1,9 +1,9 @@
 ---
-{"id":"setup-business-brand-appearance","title":"Business, Brand, and Appearance","audiences":["ims"],"capability":"navigation","screen":"Setup > Business and Brand","product":"setup","format":"task","parentId":"setup-connections","contexts":["business","profile","appearance"],"contextSections":{"business":"Step-by-step","profile":"Maintain Brand Profile","appearance":"Change appearance"},"relatedTopics":["foresight-business-intelligence","foresight-content-production-customer-service","setup-team-access-security"],"order":2,"summary":"Keep business facts and brand information accurate, then choose the supported workspace appearance.","lastReviewed":"2026-08-23","owner":"setup"}
+{"id":"setup-business-brand-appearance","title":"Business and Brand","audiences":["ims"],"capability":"navigation","screen":"Setup > Business and Brand","product":"setup","format":"task","parentId":"setup-connections","contexts":["business","profile"],"contextSections":{"business":"Step-by-step","profile":"Maintain Brand Profile"},"relatedTopics":["foresight-business-intelligence","foresight-content-production-customer-service","setup-team-access-security"],"order":2,"summary":"Keep business facts and reviewed brand information accurate for reporting, planning, content, and customer service.","lastReviewed":"2026-08-29","owner":"setup"}
 ---
-# Business, Brand, and Appearance
+# Business and Brand
 
-Use these Setup tabs to maintain facts that support reporting and drafting, and to choose the workspace look.
+Use these Setup tabs to maintain facts that support reporting and drafting.
 
 ## Main operations
 
@@ -11,7 +11,6 @@ Use these Setup tabs to maintain facts that support reporting and drafting, and 
 - Build, import, or edit Brand Profile details.
 - Review every generated statement before saving it as a business fact.
 - Maintain branch, policy, voice, audience, and brand-colour information.
-- Change appearance without changing transactions or access.
 
 ## At a glance
 
@@ -19,7 +18,6 @@ Use these Setup tabs to maintain facts that support reporting and drafting, and 
 | --- | --- | --- | --- | --- |
 | Business | Business name, website, contact, and operating details | Are these current and customer-safe? | Saved business information | None |
 | Brand Profile | Mission, audience, products, policies, voice, colours, and research | Which statements are accurate and approved? | Saved brand context | None |
-| Appearance | Available interface skin | Which look suits this browser? | Saved workspace preference | None |
 
 ## Before you begin
 
@@ -49,15 +47,7 @@ Use these Setup tabs to maintain facts that support reporting and drafting, and 
 | Products and pricing | Current ranges and tax-inclusive customer pricing where shown | Product and performance context |
 | Shipping and returns | Current customer-facing policy | Content and service drafts |
 | Branches | Name, address, contact, and opening hours | Local business context |
-| Colours and logo | Approved assets and readable colour choices | Supported brand and appearance work |
-
-## Change appearance
-
-1. Open **Appearance**.
-2. Choose an available interface skin.
-3. Check navigation, tables, and forms for readability.
-
-Appearance changes presentation only. It does not change stock, sales, accounting, connection access, or team roles.
+| Colours and logo | Approved assets and readable colour choices | Supported brand and content work |
 
 ## Troubleshooting
 
@@ -65,7 +55,6 @@ Appearance changes presentation only. It does not change stock, sales, accountin
 | --- | --- | --- |
 | Generated content repeats an old policy | Brand or business information is outdated | Correct the source information, then create a new draft |
 | Imported profile text is inaccurate | Research or source material was incomplete | Edit it and ask a knowledgeable person to review |
-| A colour is hard to read | The chosen palette has weak contrast | Choose a clearer supported colour or appearance option |
 | A save fails twice | A required field or service is unavailable | Keep a local note of the intended change and stop retrying until the error is resolved |
 
 ## Worked examples

@@ -37,7 +37,7 @@ Use these lookup tables to recover safely without repeating payments, stock move
 | Payment failed | Sale status, terminal message, offline queue, provider result | Use the payment recovery offered by POS | Customer may have been charged but no sale is confirmed |
 | Customer did not receive a message | Sent state, recipient, filtered mail, delivery result | Resend only when no sent record exists and the address is confirmed | A duplicate message could cause harm or confusion |
 | Report totals differ | Dates, locations, tax basis, status, and source update time | Align settings and compare source records | Definitions match but the unexplained difference remains |
-| Foresight says approved but nothing changed | Plan, recommendation, implementation, and execution stages | Open the implementation or execution result | External state cannot be confirmed |
+| Intel & Automation says approved but nothing changed | Plan, recommendation, implementation, and execution stages | Open the implementation or execution result | External state cannot be confirmed |
 
 ## What to capture for support
 

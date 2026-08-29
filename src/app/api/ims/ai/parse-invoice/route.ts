@@ -252,7 +252,7 @@ ${JSON.stringify(suppliers.map(s => ({ id: s.id, name: s.name })))}`;
       : detail.includes('INVALID_ARGUMENT') || detail.includes('400')
       ? `AI rejected the request: ${detail.slice(0, 120)}`
       : detail.includes('404') || detail.includes('not found')
-      ? `Model "${modelId}" not found — update your AI model in Foresight settings.`
+      ? `Model "${modelId}" not found — update your AI model in Intel & Automation settings.`
       : `AI error: ${detail.slice(0, 200)}`;
     return NextResponse.json({ error: msg }, { status: 500 });
   }

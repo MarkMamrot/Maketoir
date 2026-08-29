@@ -60,4 +60,13 @@ describe('resolveHelpContext', () => {
       topic: expect.objectContaining({ product: 'pos' }),
     }));
   });
+
+  it('lists every topic available to an IMS audience when no product filter is supplied', () => {
+    const topics = listHelpTopics('ims');
+    expect(topics.every(topic => topic.audiences.includes('ims'))).toBe(true);
+    expect(topics.some(topic => topic.product === 'ims')).toBe(true);
+    expect(topics.some(topic => topic.product === 'foresight')).toBe(true);
+    expect(topics.some(topic => topic.product === 'setup')).toBe(true);
+    expect(topics.some(topic => topic.product === 'pos')).toBe(true);
+  });
 });

@@ -5,16 +5,13 @@ import { BookOpen, ChevronDown, ChevronRight, HelpCircle, MessageCircle, Search,
 
 import type { AssistantAudience } from '@/lib/assistant/policy';
 import { listHelpTopics, resolveHelpContext } from '@/lib/help/resolveHelpContext';
+import { groupHelpTopics, helpSectionForProduct, initialHelpSection } from '@/lib/help/helpNavigation';
 import { searchHelpTopics } from '@/lib/help/searchHelpTopics';
 import type { AvailableOperationCapabilities, HelpProduct, HelpTopic } from '@/lib/help/types';
 import { SolvantisAssistantPanel } from '@/components/assistant/SolvantisAssistantPanel';
 import { WarehouseTeamChat } from './WarehouseTeamChat';
 import { HelpMarkdown } from './HelpMarkdown';
 import styles from './UnifiedHelpDrawer.module.css';
-
-function topicGroupLabel(topic: HelpTopic): string {
-  return topic.screen.split(' > ')[0];
-}
 
 function topicGroupId(label: string): string {
   return `help-topic-group-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -56,14 +53,14 @@ export function UnifiedHelpDrawer({
     [audience, product, currentContext, xeroAccountingEnabled, availableCapabilities],
   );
   const topics = useMemo(
-    () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
-    [audience, product, availableCapabilities, xeroAccountingEnabled],
+    () => listHelpTopics(audience, undefined, availableCapabilities ?? xeroAccountingEnabled),
+    [audience, availableCapabilities, xeroAccountingEnabled],
   );
   const [mode, setMode] = useState<'help' | 'ask' | 'team'>('help');
   const [teamUnread, setTeamUnread] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(contextual?.topic.id ?? null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    () => new Set(contextual?.topic ? [topicGroupLabel(contextual.topic)] : []),
+    () => new Set(initialHelpSection(contextual?.topic)),
   );
   const [query, setQuery] = useState('');
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -75,7 +72,7 @@ export function UnifiedHelpDrawer({
   useEffect(() => {
     if (!open) return;
     setSelectedId(contextual?.topic.id ?? null);
-    setExpandedGroups(new Set(contextual?.topic ? [topicGroupLabel(contextual.topic)] : []));
+    setExpandedGroups(new Set(initialHelpSection(contextual?.topic)));
     closeButtonRef.current?.focus();
     if (contextual?.sectionId) {
       requestAnimationFrame(() => document.getElementById(contextual.sectionId!)?.scrollIntoView({ block: 'start' }));
@@ -98,27 +95,20 @@ export function UnifiedHelpDrawer({
   const selected = topics.find(topic => topic.id === selectedId) ?? contextual?.topic ?? topics[0] ?? null;
   const normalizedQuery = query.trim().toLowerCase();
   const searchResults = useMemo(() => searchHelpTopics(topics, normalizedQuery), [topics, normalizedQuery]);
-  const filtered = normalizedQuery ? [] : topics;
-  const topicGroups = filtered.reduce<Array<{ label: string; topics: HelpTopic[] }>>((groups, topic) => {
-    const label = topicGroupLabel(topic);
-    const existing = groups.find(group => group.label === label);
-    if (existing) existing.topics.push(topic);
-    else groups.push({ label, topics: [topic] });
-    return groups;
-  }, []);
+  const topicGroups = normalizedQuery ? [] : groupHelpTopics(topics);
 
   const selectTopic = (topic: HelpTopic, sectionId?: string) => {
     setSelectedId(topic.id);
-    setExpandedGroups(current => new Set(current).add(topicGroupLabel(topic)));
+    setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
     setQuery('');
     if (sectionId) requestAnimationFrame(() => document.getElementById(sectionId)?.scrollIntoView({ block: 'start' }));
   };
 
-  const toggleGroup = (label: string) => {
+  const toggleGroup = (groupId: string) => {
     setExpandedGroups(current => {
       const next = new Set(current);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   };
@@ -184,7 +174,7 @@ export function UnifiedHelpDrawer({
                   const topic = topics.find(candidate => candidate.id === citation.topicId);
                   if (!topic) return;
                   setSelectedId(topic.id);
-                  setExpandedGroups(current => new Set(current).add(topicGroupLabel(topic)));
+                  setExpandedGroups(current => new Set(current).add(helpSectionForProduct(topic.product).id));
                   setMode('help');
                   if (citation.sectionId) requestAnimationFrame(() => document.getElementById(citation.sectionId!)?.scrollIntoView({ block: 'start' }));
                 }}
@@ -205,18 +195,18 @@ export function UnifiedHelpDrawer({
                     </button>
                   ))}
                   {topicGroups.map(group => (
-                    <div className={styles.topicGroup} key={group.label}>
+                    <div className={styles.topicGroup} key={group.id}>
                       <button
                         type="button"
                         className={styles.groupToggle}
-                        aria-expanded={expandedGroups.has(group.label)}
+                        aria-expanded={expandedGroups.has(group.id)}
                         aria-controls={topicGroupId(group.label)}
-                        onClick={() => toggleGroup(group.label)}
+                        onClick={() => toggleGroup(group.id)}
                       >
                         <span>{group.label}</span>
                         <ChevronDown size={14} aria-hidden="true" />
                       </button>
-                      {expandedGroups.has(group.label) && (
+                      {expandedGroups.has(group.id) && (
                         <div id={topicGroupId(group.label)} className={styles.groupTopics}>
                           {group.topics.map(topic => (
                             <button key={topic.id} className={`${topic.id === selected?.id ? styles.selectedTopic : ''} ${topic.parentId && topics.some(candidate => candidate.id === topic.parentId) ? styles.childTopic : ''}`} onClick={() => selectTopic(topic)}>
