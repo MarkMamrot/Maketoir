@@ -1,3 +1,10 @@
+## 2026-08-29 - Per-function AI model settings
+
+- IMS Settings now includes an AI Models section populated from the live Gemini text-model list. Businesses can choose separate models for document extraction, catalogue matching, business intelligence/content, and customer service fallback work.
+- Supplier invoice and customer-order extraction default to Gemini 2.5 Pro; catalogue matching defaults to Gemini 2.5 Flash. Existing dedicated Website Content, Product Creative, and Customer Service light/capable selectors remain authoritative in their workflows.
+- The shared `connections` schema now stores four nullable per-function model choices. The idempotent setup migration was applied twice: four columns were added, three existing connection rows received the recommended document defaults, and the second run changed zero rows.
+- Canonical AI Model Settings Help and contextual mapping were added. Validation passed 452 Vitest files / one skipped, 2,176 tests / one skipped, Help compilation with 55 topics / 449 Assistant chunks, the production build, and touched-file diagnostics. Two unrelated existing IMS page `OrderStatus` diagnostics remain.
+
 ## 2026-08-29 - Shopify capability outage order recovery
 
 - A missing main-schema online-channel migration made Shopify appear disabled and blocked webhook processing. After channel restoration, an all-day comparison found one absent paid Monsterthreads order and two absent Sage orders; the Sage audit then exposed nine additional Shopify orders present only as unconfirmed Drafts.
