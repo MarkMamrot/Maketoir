@@ -1,3 +1,10 @@
+## 2026-08-30 - Guarded Google AI provider-rate synchronization
+
+- SuperAdmin AI Usage & Credits can now retrieve account-specific Gemini prices from the Google Cloud Billing Pricing API in AUD, compare supported standard token SKUs with active provider rates, and explicitly approve selected new or changed rates. Approval re-fetches Google server-side, accepts candidate identities rather than browser-supplied prices, skips exact matches, and preserves effective-dated history.
+- The importer prefers account contract prices, records Google SKU/price provenance, and refuses non-AUD, tiered, threshold, service-tier, storage, tool, and modality pricing shapes for manual review. Handled Google connection/import failures create sanitized Runtime Issues.
+- Deployment requires `GOOGLE_CLOUD_BILLING_ACCOUNT_ID` (legacy `GOOGLE_BILLING_ACCOUNT_ID` also resolves), valid Google service-account credentials, Cloud Billing API access, and billing-account permissions equivalent to Billing Account Viewer. The Pricing API is Preview. Local live retrieval remains unverified because the current account ID is absent and the local JSON credential is malformed/restricted; fixture and route tests cover the documented API contract.
+- `scripts/setup-ai-billing.mjs` added nullable `source_sku_id` and `source_price_name` columns successfully and verified all six shared AI billing tables. Validation passed 458 Vitest files / one skipped, 2,193 tests / one skipped, Help compilation with 57 topics / 464 Assistant chunks, production build, and touched-file diagnostics.
+
 ## 2026-08-29 - Cross-tenant AI usage, credits, and enforcement
 
 - The main database now owns AI plans, tenant accounts, effective-dated provider/plan rates, physical provider-call usage, and an append-only account ledger. Prepaid and cycle account-limit funding use exact AUD micros with atomic reservation and settlement; submitted calls with uncertain outcomes remain held until a SuperAdmin explicitly releases them.
