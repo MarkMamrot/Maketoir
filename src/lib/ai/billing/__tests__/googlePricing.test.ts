@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest';
-import { buildGoogleRatePreview } from '../googlePricing';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('googleapis', () => ({ google: { auth: { GoogleAuth: class { getClient() { return Promise.resolve({ getRequestHeaders: () => Promise.resolve(new Headers({ Authorization: 'Bearer test' })) }); } } } } }));
+
+import { buildGoogleRatePreview, fetchGoogleRatePreview } from '../googlePricing';
+
+const originalEnvironment = { ...process.env };
+
+afterEach(() => {
+  process.env = { ...originalEnvironment };
+  vi.unstubAllGlobals();
+});
 
 describe('Google pricing preview', () => {
   it('maps one standard contract token rate and duplicates output for thinking', () => {
@@ -30,5 +40,36 @@ describe('Google pricing preview', () => {
     );
     expect(preview.candidates).toHaveLength(0);
     expect(preview.warnings[0]?.reason).toContain('AUD');
+  });
+
+  it('requires a configured billing account before authentication', async () => {
+    delete process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID;
+    delete process.env.GOOGLE_BILLING_ACCOUNT_ID;
+    await expect(fetchGoogleRatePreview()).rejects.toThrow('GOOGLE_CLOUD_BILLING_ACCOUNT_ID');
+  });
+
+  it('rejects malformed inline credentials with an actionable error', async () => {
+    process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID = 'ABC-123';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = '{bad';
+    delete process.env.GOOGLE_CLIENT_EMAIL;
+    delete process.env.GOOGLE_PRIVATE_KEY;
+    await expect(fetchGoogleRatePreview()).rejects.toThrow('not valid JSON');
+  });
+
+  it('follows pagination and uses the Gemini API service filter', async () => {
+    process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID = 'billingAccounts/ABC-123';
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    const fetchMock = vi.fn(async (request: string) => {
+      const url = String(request);
+      if (url.includes('/services') && !url.includes('pageToken=')) return Response.json({ billingAccountServices: [], nextPageToken: 'next' });
+      if (url.includes('/services')) return Response.json({ billingAccountServices: [{ name: 'billingAccounts/ABC-123/services/gemini', displayName: 'Gemini API' }] });
+      if (url.includes('/skus?')) return Response.json({ billingAccountSkus: [{ skuId: 'SKU-4', displayName: 'Gemini 2.5 Flash Input Tokens' }] });
+      return Response.json({ billingAccountPrices: [{ name: 'billingAccounts/ABC-123/skus/SKU-4/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '1' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const preview = await fetchGoogleRatePreview();
+    expect(preview.candidates[0]).toEqual(expect.objectContaining({ id: 'SKU-4:input_tokens' }));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('billingAccountService'))).toBe(true);
   });
 });
