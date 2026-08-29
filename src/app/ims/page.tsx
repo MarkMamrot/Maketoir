@@ -11327,7 +11327,7 @@ function SoAccountingSection({ so, settings, xeroAccountingEnabled, onVoided }: 
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
-  const { capabilities } = useBusinessOperationsCapabilities();
+  const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const cnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const cnBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -12195,7 +12195,7 @@ function CreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed,
 
 // ── Supplier Credit Notes View (credits received FROM suppliers → Xero ACCPAY) ──
 function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillConsumed, pendingOpenId, onPendingHandled }: { isAdvisor?: boolean; prefill?: any; onPrefillConsumed?: () => void; pendingOpenId?: number | null; onPendingHandled?: () => void } = {}) {
-  const { capabilities } = useBusinessOperationsCapabilities();
+  const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const scnHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const scnBodyScrollRef = useRef<HTMLDivElement | null>(null);
@@ -13304,7 +13304,7 @@ function ImportSOsModal({ locations, onClose, onDone }: {
 }
 
 function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, onReturnOrder, onOpenActivityDocument, pendingOpenPosSaleId, onPendingPosSaleHandled }: { pendingOpenId?: number | null; onPendingHandled?: () => void; isAdvisor?: boolean; onReturnOrder?: (prefill: any) => void; onOpenActivityDocument?: (entry: any) => void; pendingOpenPosSaleId?: number | null; onPendingPosSaleHandled?: () => void } = {}) {
-  const { capabilities } = useBusinessOperationsCapabilities();
+  const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const SO_CHANNEL_FILTER_KEY = 'marketoir:imsSalesOrdersChannel';
   const soHeaderScrollRef = useRef<HTMLDivElement | null>(null);
@@ -15711,7 +15711,7 @@ function GiftCardsView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function PosSalesView({ pendingOpenDay, onPendingHandled }: { pendingOpenDay?: string | null; onPendingHandled?: () => void } = {}) {
-  const { capabilities } = useBusinessOperationsCapabilities();
+  const { capabilities } = useImsSettings();
   const xeroAccountingEnabled = capabilities.xeroAccountingEnabled;
   const [tab, setTab] = useState<'sales' | 'banking'>('sales');
   return (
