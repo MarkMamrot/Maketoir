@@ -134,6 +134,22 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [aiAccount, setAiAccount] = useState<any>(null);
+  const [aiPlanKey, setAiPlanKey] = useState('starter');
+  const [aiPlanLoading, setAiPlanLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/admin/ai-billing/${encodeURIComponent(biz.business_id)}`)
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load the AI plan.');
+        if (active) { setAiAccount(data.account); setAiPlanKey(data.account.planKey); }
+      })
+      .catch(error => { if (active) setErr(error instanceof Error ? error.message : 'Could not load the AI plan.'); })
+      .finally(() => { if (active) setAiPlanLoading(false); });
+    return () => { active = false; };
+  }, [biz.business_id]);
 
   const save = async () => {
     setSaving(true); setErr('');
@@ -149,8 +165,22 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
       }),
     });
     const d = await res.json();
-    if (d.success) { onSaved(); onClose(); }
-    else { setErr(d.error ?? 'Failed'); setSaving(false); }
+    if (!d.success) { setErr(d.error ?? 'Failed'); setSaving(false); return; }
+    if (aiAccount && aiPlanKey !== aiAccount.planKey) {
+      const aiResponse = await fetch(`/api/admin/ai-billing/${encodeURIComponent(biz.business_id)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command: 'configure', idempotencyKey: crypto.randomUUID(), reason: 'Plan changed in Business Settings',
+          planKey: aiPlanKey, fundingMode: aiAccount.fundingMode, enforcementMode: aiAccount.enforcementMode,
+          cycleMode: aiAccount.cycleMode, cycleAnchorDay: aiAccount.cycleAnchorDay,
+          cycleTimezone: aiAccount.cycleTimezone, limitAud: aiAccount.limitAud,
+          warningPercent: aiAccount.warningPercent,
+        }),
+      });
+      const aiResult = await aiResponse.json();
+      if (!aiResponse.ok) { setErr(aiResult.error || 'Business saved, but the AI plan could not be updated.'); setSaving(false); return; }
+    }
+    onSaved(); onClose();
   };
 
   const toggle = (field: 'has_foresight' | 'has_ims' | 'has_pos') =>
@@ -210,6 +240,21 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
 
         <div style={{ height: 1, background: 'var(--sv-etch,rgba(255,255,255,.1))', margin: '18px 0' }} />
         <label style={S.label}>Plan Limits & Billing</label>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ ...S.label, marginBottom: 4 }}>Solvantis AI Plan</label>
+          <select
+            value={aiPlanKey}
+            onChange={e => setAiPlanKey(e.target.value)}
+            disabled={aiPlanLoading || !aiAccount}
+            style={S.input}
+          >
+            <option value="starter">Starter</option>
+            <option value="core">Core</option>
+            <option value="scale">Scale</option>
+            <option value="enterprise">Enterprise</option>
+            {biz.business_id === '__solvantis_platform__' && <option value="platform">Solvantis Platform</option>}
+          </select>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 4 }}>
           <div>
             <label style={{ ...S.label, marginBottom: 4 }}>Max Locations</label>
@@ -246,7 +291,7 @@ function BusinessSettingsModal({ biz, onClose, onSaved }: { biz: Business; onClo
         {err && <p style={{ color: '#ef4444', fontSize: 12, margin: '12px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
           <button onClick={onClose} style={S.btn('ghost')}>Cancel</button>
-          <button onClick={save} disabled={saving} style={{ ...S.btn('action'), opacity: saving ? .6 : 1 }}>{saving ? 'Saving…' : 'Save Changes'}</button>
+          <button onClick={save} disabled={saving || aiPlanLoading} style={{ ...S.btn('action'), opacity: saving || aiPlanLoading ? .6 : 1 }}>{saving ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </div>
     </div>
@@ -423,10 +468,19 @@ function BusinessesView() {
           <p style={{ padding: 24, color: 'var(--sv-text-dim,#94a3b8)', margin: 0 }}>No businesses.</p>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <table style={{ width: '100%', minWidth: 980, tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 13 }}>
+              <colgroup>
+                <col style={{ width: '34%' }} />
+                <col style={{ width: '12%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '11%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '13%' }} />
+              </colgroup>
               <thead>
                 <tr>
-                  {['Name','Intel & Automation','IMS','POS','Created','Status','Actions'].map(h => <th key={h} style={S.th}>{h}</th>)}
+                  {['Name','Intel & Automation','IMS','POS','Created','Status','Actions'].map((h, index) => <th key={h} style={{ ...S.th, textAlign: index >= 1 && index <= 3 ? 'center' : index === 6 ? 'right' : 'left' }}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -455,8 +509,8 @@ function BusinessesView() {
                         : <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(34,197,94,.12)', color: '#86efac' }}>Active</span>
                       }
                     </td>
-                    <td style={{ ...S.td, whiteSpace: 'nowrap' }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                    <td style={{ ...S.td, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         <button onClick={() => setSettingsBiz(b)} style={{ ...S.btn('ghost'), fontSize: 12, padding: '4px 10px' }}>⚙️ Settings</button>
                         {!b.deleted_at && (
                           <button onClick={() => setDeletingBiz(b)} style={{ ...S.btn('red'), fontSize: 12, padding: '4px 10px' }}>🗑 Delete</button>

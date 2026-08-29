@@ -112,6 +112,8 @@
 .search { width: 220px; }
 .statusFilter { width: 135px; }
 .input:focus, .select:focus { outline: 2px solid color-mix(in srgb, var(--ai-accent) 24%, transparent); border-color: var(--ai-accent); }
+.readOnlyValue { min-height: 36px; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--ai-border); border-radius: 5px; background: var(--ai-surface-subtle); font-size: 12px; font-weight: 700; }
+.readOnlyValue span { display: block; margin-top: 1px; color: var(--ai-muted); font-size: 9px; font-weight: 500; }
 
 .tableWrap { width: 100%; overflow-x: auto; }
 .table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 12px; }
