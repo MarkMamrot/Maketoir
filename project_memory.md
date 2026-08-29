@@ -1,3 +1,11 @@
+## 2026-08-29 - Shopify capability outage order recovery
+
+- A missing main-schema online-channel migration made Shopify appear disabled and blocked webhook processing. After channel restoration, an all-day comparison found one absent paid Monsterthreads order and two absent Sage orders; the Sage audit then exposed nine additional Shopify orders present only as unconfirmed Drafts.
+- Monsterthreads order #47835 was replayed through its signed `orders/paid` webhook and verified once as Confirmed/Paid with three units. Sage orders #10642-#10652 were replayed as `orders/create`, preserving their Authorized financial state; all 11 are Confirmed, 12 units are committed, each line has one `so_confirmed` movement, and no Shopify order ID is duplicated.
+- Sage confirmation initially failed because `ims_stock_movements.channel` was absent even though runtime writes it. The canonical IMS schema and all-tenant catch-up now add nullable `VARCHAR(20)` channel after `movement_type`; the migration added it only to Sage and Solvantis and verified all four tenant schemas.
+- Shopify order recovery scripts now renew and persist expiring Dev Dashboard client-credential tokens. Recovery detects both absent Shopify IDs and existing interrupted Drafts, and chooses `orders/paid` only for paid orders while replaying other financial states as `orders/create`.
+- The webhook existing-order path now resumes a Draft through normal confirmation, preserving idempotency for already Confirmed/Fulfilled/Cancelled orders. Validation included signed live replay, zero remaining same-day gaps/Drafts, per-order stock commitment and movement readback, 18 focused tests, and a production build.
+
 ## 2026-08-29 - Unified Help, Intel & Automation, and single global appearance
 
 - The Help drawer now lists every topic allowed to the signed-in audience and enabled capabilities in one browsable system, grouped into IMS, Intel & Automation, POS, Wholesale, Setup, and Reference. Opening Help selects the exact contextual topic and expands only its major section; search, citations, related topics, and direct browsing can open another section.

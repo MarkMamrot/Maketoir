@@ -20,6 +20,42 @@ function decrypt(value) {
   return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');
 }
 
+function encrypt(value) {
+  const keyHex = process.env.ENCRYPTION_KEY || '';
+  if (keyHex.length !== 64) throw new Error('ENCRYPTION_KEY must be configured to refresh Shopify credentials');
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+async function resolveShopifyToken(mainDb, businessId, connection) {
+  if (connection.shopify_auth_mode !== 'client_credentials') return decrypt(connection.shopify_access_token);
+  const cachedToken = decrypt(connection.shopify_access_token).trim();
+  const expiresAt = Number(connection.shopify_token_expires_at || 0);
+  if (cachedToken && expiresAt > Date.now() + 5 * 60 * 1000) return cachedToken;
+
+  const clientId = String(connection.shopify_client_id || '').trim();
+  const clientSecret = decrypt(connection.shopify_client_secret).trim();
+  if (!clientId || !clientSecret) throw new Error('Shopify client credentials are incomplete');
+  const shopDomain = String(connection.shopify_shop_id).replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.access_token || !(Number(payload.expires_in) > 0)) {
+    throw new Error(`Shopify token refresh failed with HTTP ${response.status}`);
+  }
+  const tokenExpiresAt = Date.now() + Number(payload.expires_in) * 1000;
+  await mainDb.execute(
+    'UPDATE connections SET shopify_access_token = ?, shopify_token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE business_id = ?',
+    [encrypt(payload.access_token), tokenExpiresAt, businessId],
+  );
+  return payload.access_token;
+}
+
 function toAESTDateString(v) {
   const d = new Date(v);
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -88,7 +124,9 @@ async function main() {
       const fromDate = argFrom || cfg.shopify_order_sync_from || new Date().toISOString().slice(0, 10);
 
       const [connRows] = await mainDb.execute(
-        'SELECT shopify_shop_id, shopify_access_token FROM connections WHERE business_id = ? LIMIT 1',
+        `SELECT shopify_shop_id, shopify_auth_mode, shopify_access_token, shopify_client_id,
+                shopify_client_secret, shopify_token_expires_at
+           FROM connections WHERE business_id = ? LIMIT 1`,
         [businessId],
       );
       const conn = connRows[0];
@@ -97,7 +135,7 @@ async function main() {
       }
 
       const shopName = String(conn.shopify_shop_id).replace(/\.myshopify\.com$/i, '');
-      const accessToken = decrypt(conn.shopify_access_token);
+      const accessToken = await resolveShopifyToken(mainDb, businessId, conn);
       const shopify = new Shopify({
         shopName,
         accessToken,

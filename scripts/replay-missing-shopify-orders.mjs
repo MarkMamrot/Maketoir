@@ -22,6 +22,42 @@ function decrypt(value) {
   return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');
 }
 
+function encrypt(value) {
+  const keyHex = process.env.ENCRYPTION_KEY || '';
+  if (keyHex.length !== 64) throw new Error('ENCRYPTION_KEY must be configured to refresh Shopify credentials');
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), iv);
+  const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+  return `${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted.toString('hex')}`;
+}
+
+async function resolveShopifyToken(mainDb, businessId, connection) {
+  if (connection.shopify_auth_mode !== 'client_credentials') return decrypt(connection.shopify_access_token);
+  const cachedToken = decrypt(connection.shopify_access_token).trim();
+  const expiresAt = Number(connection.shopify_token_expires_at || 0);
+  if (cachedToken && expiresAt > Date.now() + 5 * 60 * 1000) return cachedToken;
+
+  const clientId = String(connection.shopify_client_id || '').trim();
+  const clientSecret = decrypt(connection.shopify_client_secret).trim();
+  if (!clientId || !clientSecret) throw new Error('Shopify client credentials are incomplete');
+  const shopDomain = String(connection.shopify_shop_id).replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.access_token || !(Number(payload.expires_in) > 0)) {
+    throw new Error(`Shopify token refresh failed with HTTP ${response.status}`);
+  }
+  const tokenExpiresAt = Date.now() + Number(payload.expires_in) * 1000;
+  await mainDb.execute(
+    'UPDATE connections SET shopify_access_token = ?, shopify_token_expires_at = ?, updated_at = CURRENT_TIMESTAMP WHERE business_id = ?',
+    [encrypt(payload.access_token), tokenExpiresAt, businessId],
+  );
+  return payload.access_token;
+}
+
 async function openMainDb() {
   return mysql.createConnection({
     host: process.env.MYSQL_HOST,
@@ -84,7 +120,9 @@ async function main() {
       }
 
       const [connRows] = await mainDb.execute(
-        'SELECT shopify_shop_id, shopify_access_token FROM connections WHERE business_id = ? LIMIT 1',
+        `SELECT shopify_shop_id, shopify_auth_mode, shopify_access_token, shopify_client_id,
+                shopify_client_secret, shopify_token_expires_at
+           FROM connections WHERE business_id = ? LIMIT 1`,
         [businessId],
       );
       const conn = connRows[0];
@@ -93,7 +131,7 @@ async function main() {
       }
 
       const shopName = String(conn.shopify_shop_id).replace(/\.myshopify\.com$/i, '');
-      const accessToken = decrypt(conn.shopify_access_token);
+      const accessToken = await resolveShopifyToken(mainDb, businessId, conn);
       const shopify = new Shopify({
         shopName,
         accessToken,
@@ -105,11 +143,11 @@ async function main() {
         status: 'any',
         limit: 250,
         created_at_min: `${argFrom}T00:00:00+10:00`,
-        fields: 'id,name',
+        fields: 'id,name,financial_status',
       });
 
       const [imsRows] = await imsDb.execute(
-        `SELECT shopify_order_id
+        `SELECT shopify_order_id, status
            FROM ims_sales_orders
           WHERE business_id = ?
             AND so_type = 'online'
@@ -117,9 +155,13 @@ async function main() {
             AND shopify_order_id <> ''`,
         [businessId],
       );
-      const imsIds = new Set(imsRows.map((r) => String(r.shopify_order_id)));
+      const imsStatusById = new Map(imsRows.map((r) => [String(r.shopify_order_id), String(r.status)]));
 
-      const missing = orders.filter((o) => !imsIds.has(String(o.id)));
+      const missing = orders.filter((o) => {
+        const existingStatus = imsStatusById.get(String(o.id));
+        return existingStatus === undefined || existingStatus === 'draft';
+      });
+      const interruptedDrafts = missing.filter((o) => imsStatusById.get(String(o.id)) === 'draft').length;
       console.table([
         {
           businessId,
@@ -128,6 +170,7 @@ async function main() {
           endpoint: argEndpoint,
           shopifyOrders: orders.length,
           missingOrders: missing.length,
+          interruptedDrafts,
           apply: APPLY,
         },
       ]);
@@ -138,7 +181,12 @@ async function main() {
       }
 
       console.log('Missing order IDs:');
-      console.table(missing.map((o) => ({ id: String(o.id), name: o.name || null })));
+      console.table(missing.map((o) => ({
+        id: String(o.id),
+        name: o.name || null,
+        financialStatus: o.financial_status || null,
+        replayTopic: o.financial_status === 'paid' ? 'orders/paid' : 'orders/create',
+      })));
       if (!APPLY) {
         console.log('Dry-run only. Re-run with --apply to POST signed webhook replays.');
         return;
@@ -148,23 +196,24 @@ async function main() {
       let okCount = 0;
       for (const m of missing) {
         const fullOrder = await shopify.order.get(m.id);
+        const topic = fullOrder.financial_status === 'paid' ? 'orders/paid' : 'orders/create';
         const raw = JSON.stringify(fullOrder);
         const hmac = crypto.createHmac('sha256', webhookSecret).update(raw, 'utf8').digest('base64');
         const res = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-shopify-topic': 'orders/paid',
+            'x-shopify-topic': topic,
             'x-shopify-hmac-sha256': hmac,
           },
           body: raw,
         });
         const text = await res.text();
         if (!res.ok) {
-          console.error(`Replay failed for ${m.id} (${m.name}): ${res.status} ${text}`);
+          console.error(`Replay failed for ${m.id} (${m.name}, ${topic}): ${res.status} ${text}`);
         } else {
           okCount++;
-          console.log(`Replayed ${m.id} (${m.name}) -> ${res.status}`);
+          console.log(`Replayed ${m.id} (${m.name}, ${topic}) -> ${res.status}`);
         }
       }
       console.log(`Replay complete: ${okCount}/${missing.length} succeeded`);

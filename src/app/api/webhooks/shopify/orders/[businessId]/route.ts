@@ -205,8 +205,8 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       onlineCustomerId,
       { createIfMissing: true },
     );
-    const existing = await imsQuery<{ id: number; customer_id: number | null }>(
-      `SELECT id, customer_id FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
+    const existing = await imsQuery<{ id: number; customer_id: number | null; status: string }>(
+      `SELECT id, customer_id, status FROM ims_sales_orders WHERE shopify_order_id = ? AND business_id = ? LIMIT 1`,
       [orderIdStr, businessId],
     );
     if (existing.length > 0) {
@@ -215,6 +215,12 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           'UPDATE ims_sales_orders SET customer_id = ? WHERE id = ? AND business_id = ?',
           [customerId, existing[0].id, businessId],
         );
+      }
+      if (existing[0].status === 'draft') {
+        await ImsSORepo.changeStatus(existing[0].id, 'confirmed');
+        if (payload.fulfillment_status === 'fulfilled') {
+          await ImsSORepo.changeStatus(existing[0].id, 'fulfilled');
+        }
       }
       if (topic === 'orders/paid') {
         await imsExecute(

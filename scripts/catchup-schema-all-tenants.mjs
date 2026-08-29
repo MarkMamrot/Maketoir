@@ -1166,6 +1166,8 @@ const COLUMNS = [
   ['ims_sales_orders', 'refunded_amount',     'DECIMAL(12,2) NOT NULL DEFAULT 0.00'],
   ['ims_sales_orders', 'financial_status',    'VARCHAR(50) NULL'],
   ['ims_sales_orders', 'returned_at',         'DATETIME NULL'],
+  // ── ims_stock_movements ─────────────────────────────────────────────────
+  ['ims_stock_movements', 'channel', 'VARCHAR(20) NULL AFTER movement_type'],
   // ── pos_eod_reconciliations ─────────────────────────────────────────────
   ['pos_eod_reconciliations', 'xero_payment_required',      'TINYINT(1) NOT NULL DEFAULT 0'],
   ['pos_eod_reconciliations', 'xero_payment_id',            'VARCHAR(100) NULL'],
@@ -1832,6 +1834,7 @@ async function verifyInventoryDocumentCorrectionSchema(schema) {
     ims_supplier_credit_notes: ['reversed_at', 'reversal_reason', 'reversed_by', 'xero_correction_status', 'xero_correction_reference', 'xero_correction_error'],
     ims_stocktakes: ['reverted_at', 'reversal_reason', 'reversed_by', 'xero_reversal_journal_id', 'xero_reversal_synced_at', 'xero_reversal_sync_status', 'xero_reversal_error', 'updated_at'],
     ims_stocktake_items: ['soh_at_apply', 'applied_delta', 'unit_cost_at_apply'],
+    ims_stock_movements: ['channel'],
   };
   const [columnRows] = await conn.query(
     `SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE

@@ -1476,6 +1476,7 @@ CREATE TABLE IF NOT EXISTS ims_stock_movements (
     'adjustment','transfer_in','transfer_out',
     'pos_sale','pos_return','stocktake','stocktake_reverted'
   ) NOT NULL,
+  channel        VARCHAR(20) NULL,
   reference_type ENUM('purchase_order','sales_order','credit_note','supplier_credit_note','manual','pos_sale','stocktake','branch_transfer') NOT NULL,
   reference_id   INT,
   qty_change     DECIMAL(12,4) NOT NULL,

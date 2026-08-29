@@ -122,6 +122,7 @@ The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shop
 | Several sync actions fail | Authorization or required Shopify access changed | Reconnect or correct access before retrying individual items |
 | One product remains unlinked | Variant linkage is absent or points to another item | Inspect every variant and repair the intended match |
 | Inventory differs between systems | Queued update, location mapping, webhook failure, or manual change | Trace sync history and source stock before correcting anything |
+| A Shopify order is missing or remains Draft after a sync interruption | The order event was not received, or processing stopped before confirmation | Correct the connection or reported configuration issue, then retry the Shopify order sync; existing Drafts resume without creating a duplicate order |
 | An old order still shows the fallback after mapping is fixed | Existing import has not been reprocessed | Use the supported Shopify update or retry and verify the order |
 | Payout status is missing here | Payout accounting is handled in Xero activity | Open **Xero > Shopify Payouts** |
 
