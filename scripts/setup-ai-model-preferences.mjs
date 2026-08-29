@@ -35,6 +35,14 @@ try {
     }
   }
 
+  const [seedResult] = await connection.query(
+    `UPDATE connections
+        SET ai_document_extraction_model = COALESCE(ai_document_extraction_model, 'gemini-2.5-pro'),
+            ai_catalogue_matching_model = COALESCE(ai_catalogue_matching_model, 'gemini-2.5-flash')
+      WHERE ai_document_extraction_model IS NULL OR ai_catalogue_matching_model IS NULL`,
+  );
+  console.log(`Seeded recommended document models for ${seedResult.affectedRows} connection row(s).`);
+
   const [verified] = await connection.query(
     `SELECT COLUMN_NAME
        FROM information_schema.COLUMNS

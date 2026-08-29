@@ -2208,6 +2208,78 @@
       ]
     },
     {
+      "id": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-settings-business-operations-pos",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "contextSections": {
+        "ims-settings-ai-models": "Step-by-step",
+        "ai-models": "Choose models by function"
+      },
+      "relatedTopics": [
+        "ims-purchase-orders",
+        "foresight-business-intelligence",
+        "foresight-content-production-customer-service"
+      ],
+      "order": 3,
+      "summary": "Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.",
+      "lastReviewed": "2026-08-29",
+      "owner": "ims",
+      "filename": "docs/help/ims/settings/ai-models.md",
+      "sections": [
+        {
+          "id": "ims-settings-ai-models:1",
+          "heading": "AI Model Settings",
+          "content": "Use AI Models to choose the Gemini text model used for different types of Solvantis work."
+        },
+        {
+          "id": "ims-settings-ai-models:2",
+          "heading": "Main operations",
+          "content": "- Choose a capable model for invoice and customer-order document extraction.\n- Choose a faster model for catalogue matching when exact codes do most of the work.\n- Set the model used for business intelligence, analysis, and content assistance.\n- Set the fallback model used by customer service AI.\n- Review model availability and save changes for future requests."
+        },
+        {
+          "id": "ims-settings-ai-models:3",
+          "heading": "At a glance",
+          "content": "| Function | Typical work | Recommended starting point | Main trade-off |\n| --- | --- | --- | --- |\n| Document extraction | Supplier invoices and customer order documents | Gemini 2.5 Pro | Better handling of difficult scans and tables, with higher latency and cost |\n| Catalogue matching | Match extracted lines to products | Gemini 2.5 Flash | Faster and lower cost for code and name matching |\n| Business intelligence and content | Analysis, audits, estimates, schemas, and business AI requests | Gemini 2.5 Flash | Increase capability when the work needs deeper reasoning |\n| Customer service | Enquiry classification and assisted replies | Gemini 2.5 Flash | Dedicated Customer Service choices can override this fallback |"
+        },
+        {
+          "id": "ims-settings-ai-models:4",
+          "heading": "Before you begin",
+          "content": "- Confirm the intended business is selected.\n- Consider accuracy, response time, and usage cost for each function.\n- Keep human review in place for financial documents and customer-facing text.\n- Confirm a model remains available in the displayed list before changing a working configuration.\n\n> **Important:** A more capable model can reduce difficult extraction errors, but it does not guarantee correct quantities, prices, tax, discounts, freight, product matches, or customer-facing statements."
+        },
+        {
+          "id": "ims-settings-ai-models:5",
+          "heading": "Step-by-step",
+          "content": "1. Open **IMS Settings**.\n2. Select **AI Models**.\n3. Review the current model for each function.\n4. Choose a model from the available list.\n5. Select **Save AI Models**.\n6. Run a representative document or AI task.\n7. Review the result before saving an order, changing stock, or sending customer-facing content."
+        },
+        {
+          "id": "ims-settings-ai-models:6",
+          "heading": "Choose models by function",
+          "content": "Use **Document extraction** for the first pass that reads invoice and customer-order PDFs or images. Pro is the recommended default because dense tables, low-quality scans, backorders, tax, freight, and discount layouts require stronger document reasoning.\n\nUse **Catalogue matching** for the later pass that maps extracted lines to existing SKUs, barcodes, and product names. Flash is the recommended default because exact identifiers handle much of this work. Low-confidence matches still require review.\n\nUse **Business intelligence and content** for brand analysis, campaign audits, marketing missions, estimates, schemas, and general business AI requests.\n\nUse **Customer service** as the general fallback for customer enquiry and reply work. Customer Service also has dedicated light-classification and capable-reply choices in its own Settings area. Those dedicated choices remain authoritative where shown.\n\nWebsite content and Product Creative retain their own model controls. Changing this page does not replace those dedicated selections."
+        },
+        {
+          "id": "ims-settings-ai-models:7",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A saved model is no longer listed | Google has renamed, retired, or restricted the model | Choose a current model from the list and save again |\n| Invoice lines or totals are wrong | The document is difficult or the extraction model misread its layout | Correct the draft, try Document extraction with a more capable model, and verify totals before saving |\n| Product matches are uncertain | Codes are absent or catalogue descriptions differ | Review low-confidence lines manually; do not create or select a product based only on the suggestion |\n| Responses are slow | The selected model prioritises capability over speed | Use Flash for lower-risk work where its output is consistently adequate |\n| Saving fails twice | Model availability or settings storage is unavailable | Stop retrying and keep the current configuration until the displayed error is resolved |"
+        },
+        {
+          "id": "ims-settings-ai-models:8",
+          "heading": "Worked examples",
+          "content": "### Improve a difficult invoice import\n\nA multi-page supplier invoice contains small type, freight discounts, and a separate backorder table. Keep **Document extraction** on Gemini 2.5 Pro and **Catalogue matching** on Gemini 2.5 Flash. Upload the invoice, compare every supplied quantity and line total with the source, exclude backorders, and confirm the invoice total before saving the purchase order.\n\n### Reduce latency for routine matching\n\nMost supplier invoices are clean PDFs with exact IMS SKUs. Keep extraction on Pro for the financial reading step and matching on Flash. Review unmatched and low-confidence rows manually; existing saved orders are not changed when the model setting changes."
+        }
+      ]
+    },
+    {
       "id": "ims-business-operations-pos-settings",
       "title": "Business Operations and POS Settings",
       "audiences": [
@@ -3203,11 +3275,12 @@
       "relatedTopics": [
         "setup-business-brand-appearance",
         "setup-team-access-security",
-        "setup-integration-readiness-troubleshooting"
+        "setup-integration-readiness-troubleshooting",
+        "ims-settings-ai-models"
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "owner": "integrations",
       "filename": "docs/help/setup/connections.md",
       "sections": [
@@ -3224,7 +3297,7 @@
         {
           "id": "setup-connections:3",
           "heading": "Choose a Setup area",
-          "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
+          "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
         },
         {
           "id": "setup-connections:4",

@@ -958,6 +958,36 @@
       "filename": "docs/help/ims/sales/stock-allocation-and-customer-backorders.md"
     },
     {
+      "id": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-settings-business-operations-pos",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "contextSections": {
+        "ims-settings-ai-models": "Step-by-step",
+        "ai-models": "Choose models by function"
+      },
+      "relatedTopics": [
+        "ims-purchase-orders",
+        "foresight-business-intelligence",
+        "foresight-content-production-customer-service"
+      ],
+      "order": 3,
+      "summary": "Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.",
+      "lastReviewed": "2026-08-29",
+      "owner": "ims",
+      "filename": "docs/help/ims/settings/ai-models.md"
+    },
+    {
       "id": "ims-business-operations-pos-settings",
       "title": "Business Operations and POS Settings",
       "audiences": [
@@ -1382,11 +1412,12 @@
       "relatedTopics": [
         "setup-business-brand-appearance",
         "setup-team-access-security",
-        "setup-integration-readiness-troubleshooting"
+        "setup-integration-readiness-troubleshooting",
+        "ims-settings-ai-models"
       ],
       "order": 1,
       "summary": "Choose the right Setup area and understand when a connection is ready for real work.",
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "owner": "integrations",
       "filename": "docs/help/setup/connections.md"
     },
@@ -6613,6 +6644,158 @@
       "content": "### Split sourced and unsourced demand\n\nSO-1042 has 10 backpacks outstanding. PO-781 has 6 free incoming backpacks at the same location. Allocate 6. The line now shows **Outstanding 10**, **Protected 6**, **Incoming 6**, and **Unsourced 4**. No stock on hand changes yet.\n\n### Receive protected supply\n\nFive of the 6 protected backpacks arrive. After the PO receipt, the customer line can show **Ready 5**, **Incoming 1**, and **Unsourced 4**. Ship up to the quantity physically available; allocation itself is not a shipment."
     },
     {
+      "id": "ims-settings-ai-models:1",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "AI Model Settings",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "Use AI Models to choose the Gemini text model used for different types of Solvantis work."
+    },
+    {
+      "id": "ims-settings-ai-models:2",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "- Choose a capable model for invoice and customer-order document extraction.\n- Choose a faster model for catalogue matching when exact codes do most of the work.\n- Set the model used for business intelligence, analysis, and content assistance.\n- Set the fallback model used by customer service AI.\n- Review model availability and save changes for future requests."
+    },
+    {
+      "id": "ims-settings-ai-models:3",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "| Function | Typical work | Recommended starting point | Main trade-off |\n| --- | --- | --- | --- |\n| Document extraction | Supplier invoices and customer order documents | Gemini 2.5 Pro | Better handling of difficult scans and tables, with higher latency and cost |\n| Catalogue matching | Match extracted lines to products | Gemini 2.5 Flash | Faster and lower cost for code and name matching |\n| Business intelligence and content | Analysis, audits, estimates, schemas, and business AI requests | Gemini 2.5 Flash | Increase capability when the work needs deeper reasoning |\n| Customer service | Enquiry classification and assisted replies | Gemini 2.5 Flash | Dedicated Customer Service choices can override this fallback |"
+    },
+    {
+      "id": "ims-settings-ai-models:4",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "- Confirm the intended business is selected.\n- Consider accuracy, response time, and usage cost for each function.\n- Keep human review in place for financial documents and customer-facing text.\n- Confirm a model remains available in the displayed list before changing a working configuration.\n\n> **Important:** A more capable model can reduce difficult extraction errors, but it does not guarantee correct quantities, prices, tax, discounts, freight, product matches, or customer-facing statements."
+    },
+    {
+      "id": "ims-settings-ai-models:5",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "1. Open **IMS Settings**.\n2. Select **AI Models**.\n3. Review the current model for each function.\n4. Choose a model from the available list.\n5. Select **Save AI Models**.\n6. Run a representative document or AI task.\n7. Review the result before saving an order, changing stock, or sending customer-facing content."
+    },
+    {
+      "id": "ims-settings-ai-models:6",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Choose models by function",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "Use **Document extraction** for the first pass that reads invoice and customer-order PDFs or images. Pro is the recommended default because dense tables, low-quality scans, backorders, tax, freight, and discount layouts require stronger document reasoning.\n\nUse **Catalogue matching** for the later pass that maps extracted lines to existing SKUs, barcodes, and product names. Flash is the recommended default because exact identifiers handle much of this work. Low-confidence matches still require review.\n\nUse **Business intelligence and content** for brand analysis, campaign audits, marketing missions, estimates, schemas, and general business AI requests.\n\nUse **Customer service** as the general fallback for customer enquiry and reply work. Customer Service also has dedicated light-classification and capable-reply choices in its own Settings area. Those dedicated choices remain authoritative where shown.\n\nWebsite content and Product Creative retain their own model controls. Changing this page does not replace those dedicated selections."
+    },
+    {
+      "id": "ims-settings-ai-models:7",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A saved model is no longer listed | Google has renamed, retired, or restricted the model | Choose a current model from the list and save again |\n| Invoice lines or totals are wrong | The document is difficult or the extraction model misread its layout | Correct the draft, try Document extraction with a more capable model, and verify totals before saving |\n| Product matches are uncertain | Codes are absent or catalogue descriptions differ | Review low-confidence lines manually; do not create or select a product based only on the suggestion |\n| Responses are slow | The selected model prioritises capability over speed | Use Flash for lower-risk work where its output is consistently adequate |\n| Saving fails twice | Model availability or settings storage is unavailable | Stop retrying and keep the current configuration until the displayed error is resolved |"
+    },
+    {
+      "id": "ims-settings-ai-models:8",
+      "documentId": "ims-settings-ai-models",
+      "title": "AI Model Settings",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > AI Models",
+      "topicId": "ims-settings-ai-models",
+      "contexts": [
+        "ims-settings-ai-models",
+        "ai-models"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-29",
+      "content": "### Improve a difficult invoice import\n\nA multi-page supplier invoice contains small type, freight discounts, and a separate backorder table. Keep **Document extraction** on Gemini 2.5 Pro and **Catalogue matching** on Gemini 2.5 Flash. Upload the invoice, compare every supplied quantity and line total with the source, exclude backorders, and confirm the invoice total before saving the purchase order.\n\n### Reduce latency for routine matching\n\nMost supplier invoices are clean PDFs with exact IMS SKUs. Keep extraction on Pro for the financial reading step and matching on Flash. Review unmatched and low-confidence rows manually; existing saved orders are not changed when the model setting changes."
+    },
+    {
       "id": "ims-business-operations-pos-settings:1",
       "documentId": "ims-business-operations-pos-settings",
       "title": "Business Operations and POS Settings",
@@ -8843,7 +9026,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "Use Setup to maintain business information, team access, POS payment options, data sources, and supported external connections."
     },
     {
@@ -8869,7 +9052,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "- Confirm the selected business before saving anything.\n- Connect the intended external account and check its displayed identity.\n- Test access, then complete the product-specific mappings or settings.\n- Add only the POS payment methods the business accepts.\n- Reconnect expired access before repeating dependent work."
     },
     {
@@ -8895,8 +9078,8 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
-      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
+      "lastReviewed": "2026-08-29",
+      "content": "| Need | Open | Result |\n| --- | --- | --- |\n| Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |\n| Invite a colleague or choose a role | Team | An invitation for User or Admin access |\n| Add or rename POS payment options | POS Settings | Payment methods shown at checkout |\n| Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |\n| Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |\n| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |\n| Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |\n\n> **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages."
     },
     {
       "id": "setup-connections:4",
@@ -8921,7 +9104,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "| Connection | Purpose | Connected means | Still check before real work |\n| --- | --- | --- | --- |\n| Shopify | Product, order, customer, and stock workflows | The intended store can be reached | Product mapping, stock ownership, webhooks, and sync result |\n| Solvantis Online Store | Native catalogue, checkout, fulfilment, and customer account workflows | Online shop is enabled with Solvantis Online Store selected | Store profile, products, locations, shipping, Stripe, and activation readiness |\n| Xero | Supported accounting workflows | The intended organisation is authorised | Accounts, tax, tracking, payment routing, and workflow policy |\n| Cin7 | Product, stock, sales, and purchasing information | The intended account can be reached | Data Source selection, ownership, and first sync result |\n| Meta | Advertising information and supported actions | The intended advertising account is selected | Permissions, live campaign state, and any action preview |\n| Google | Google Ads and Analytics information | The intended Ads account and Analytics property are selected | Both status results, dates, and downstream settings |\n| Klaviyo | Supported marketing information and workflows | Access test succeeds | Audience, consent, campaign, and flow choices |\n\nA green or successful connection status confirms access at that moment. It does not prove every dependent workflow is mapped, configured, or ready to post."
     },
     {
@@ -8947,7 +9130,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "Use **Dev Dashboard** for Shopify apps created from 1 January 2026 onward. Use **Legacy token** only for an existing admin-created custom app that still supplies a permanent Admin API access token.\n\n1. In Shopify, create and release a custom app version in the Dev Dashboard with the access required for the Solvantis workflows you will use.\n2. Install that app on the intended store.\n3. In **Setup > Connections > Shopify**, select **Dev Dashboard**.\n4. Enter the permanent `myshopify.com` store domain, Client ID, and Client secret from the app's Settings area.\n5. Select **Save**, then **Test Connection**.\n6. Open **IMS > Shopify > Orders & Webhooks** and register or verify the required webhooks.\n\nSolvantis securely retains the client credentials and renews Shopify's short-lived access token automatically. After a secret has been saved, leave the secret field blank to retain it. Releasing a Shopify app version with changed scopes does not update an installed store automatically; approve the new access in Shopify, then test the connection again.\n\n> **Important:** The Client ID and Client secret are not Admin API access tokens. Enter them only in Dev Dashboard mode. Do not paste a manually generated short-lived token into Legacy token mode."
     },
     {
@@ -8973,7 +9156,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "POS Settings controls the payment-method names shown on the POS payment screen.\n\n1. Review the current list.\n2. Add, rename, or remove a method.\n3. Select **Save Methods**.\n4. Open POS and confirm the expected choices before taking a sale.\n\n| Change | Effect | External change |\n| --- | --- | --- |\n| Save payment methods | Updates payment choices shown in POS | No external service is changed |"
     },
     {
@@ -8999,7 +9182,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "1. Select the intended business.\n2. Start the connection or enter details only in its protected fields.\n3. Confirm the external organisation, store, account, or property.\n4. Save and use the available status or test action.\n5. Complete downstream mappings and settings in the owning product area.\n6. Run one controlled sync or test and review its result."
     },
     {
@@ -9025,7 +9208,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| Connected to the wrong account | The wrong organisation or account was selected during sign-in | Disconnect and reconnect the intended account |\n| Connected but a workflow is unavailable | Required mapping, permission, or product setup is incomplete | Open Integration Readiness and complete the shown dependency |\n| Access expired | The external service no longer accepts the saved authorisation | Reconnect through the normal connection flow |\n| A test fails twice | Account access or setup still needs attention | Stop retries and read the specific status or error |"
     },
     {
@@ -9051,7 +9234,7 @@
         "klaviyo"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-28",
+      "lastReviewed": "2026-08-29",
       "content": "### Prepare Xero for POS accounting\n\nConnect the intended Xero organisation, confirm its name, then open IMS Xero Setup to complete the required revenue and payment mappings. Run one controlled end-of-day sync and review the Xero result before relying on automation.\n\n### Add a POS payment method\n\nOpen POS Settings, add \"Afterpay\", save the list, and open POS to confirm it appears. This changes the available POS label; it does not create or configure an Afterpay account."
     },
     {
