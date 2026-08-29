@@ -5,6 +5,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 const SHEET_NAME = 'Shopify_Products';
 const LAST_SYNC_CONFIG_KEY = 'WebsiteProductsLastSync';
@@ -68,6 +69,8 @@ export async function POST(req: Request) {
   if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
 
   try {
     // ── 1. Read Shopify credentials ─────────────────────────────────────────
@@ -140,6 +143,12 @@ export async function GET(req: Request) {
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  const user = JSON.parse(session.value);
+  if (databaseId !== user.businessId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
 
   try {
     const conn = await ConnectionsRepository.get(databaseId);

@@ -114,6 +114,7 @@ const DASHBOARD_VIEW_IDS = new Set<string>([
 ]);
 
 const MARKETING_VIEW_IDS = new Set(['marketing', 'sync-ads', 'marketing-assistant', 'planning-workspace', 'marketing-recommendations', 'creative-review', 'campaign-audit', 'marketing-settings']);
+const SHOPIFY_VIEW_IDS = new Set(['website', 'pending-online', 'product-description-template', 'bulk-edit-listings', 'website-products']);
 
 function parseDashboardViewFromHash(hash: string): string | null {
   const decoded = dashboardHashView(hash);
@@ -126,10 +127,12 @@ function Sidebar({
   active,
   onSelect,
   marketingEnabled,
+  shopifyEnabled,
 }: {
   active: string;
   onSelect: (id: string) => void;
   marketingEnabled: boolean;
+  shopifyEnabled: boolean;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     inventory: false, marketing: false, website: false, 'ai-helper': false, 'business-intelligence': false, 'brand-assets': false, settings: false,
@@ -225,7 +228,7 @@ function Sidebar({
       </div>
 
       <nav className="solv-nav flex-1 space-y-0.5 px-2 font-nav overflow-y-auto overflow-x-hidden">
-        {NAV.filter(item => item.id !== 'marketing' || marketingEnabled).map(item => renderItem(item))}
+        {NAV.filter(item => (item.id !== 'marketing' || marketingEnabled) && (item.id !== 'website' || shopifyEnabled)).map(item => renderItem(item))}
       </nav>
     </aside>
   );
@@ -851,14 +854,18 @@ function SyncWebsiteDataView({ databaseId, initialSection = 'products' }: { data
   );
 }
 
-function SyncDataView({ databaseId, initialSection = 'inventory' }: { databaseId: string; initialSection?: SyncDataSection }) {
+function SyncDataView({ databaseId, initialSection = 'inventory', shopifyEnabled = false }: { databaseId: string; initialSection?: SyncDataSection; shopifyEnabled?: boolean }) {
   const [section, setSection] = useState<SyncDataSection>(initialSection);
 
   const sections: { key: SyncDataSection; label: string; description: string }[] = [
     { key: 'inventory', label: 'Sync Inventory Data', description: 'Cin7 products, branches, suppliers, sales, and purchase orders.' },
-    { key: 'website', label: 'Sync Website Data', description: 'Shopify products and collections for website operations.' },
+    ...(shopifyEnabled ? [{ key: 'website' as const, label: 'Sync Website Data', description: 'Shopify products and collections for website operations.' }] : []),
     { key: 'ads', label: 'Sync Ads Data', description: 'Google Ads, Meta Ads, and GA4 performance data.' },
   ];
+
+  useEffect(() => {
+    if (!shopifyEnabled && section === 'website') setSection('inventory');
+  }, [section, shopifyEnabled]);
 
   return (
     <div className="space-y-6">
@@ -889,7 +896,7 @@ function SyncDataView({ databaseId, initialSection = 'inventory' }: { databaseId
 
       {section === 'inventory' && <InventorySyncTile databaseId={databaseId} />}
       {section === 'ads' && <SyncAdsView databaseId={databaseId} />}
-      {section === 'website' && <SyncWebsiteDataView databaseId={databaseId} />}
+      {shopifyEnabled && section === 'website' && <SyncWebsiteDataView databaseId={databaseId} />}
     </div>
   );
 }
@@ -9044,6 +9051,7 @@ export default function DashboardPage() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [activeSettingView, setActiveSettingView] = useState('appearance');
   const [marketingEnabled, setMarketingEnabled] = useState(false);
+  const [shopifyEnabled, setShopifyEnabled] = useState(false);
   const [featuresLoaded, setFeaturesLoaded] = useState(false);
 
   useEffect(() => {
@@ -9076,6 +9084,11 @@ export default function DashboardPage() {
     setSettingsOpen(false);
   }, [activeView, featuresLoaded, marketingEnabled]);
 
+  useEffect(() => {
+    if (!featuresLoaded || shopifyEnabled || !SHOPIFY_VIEW_IDS.has(activeView)) return;
+    setActiveView('home');
+  }, [activeView, featuresLoaded, shopifyEnabled]);
+
   // Load first business and current user on mount; redirect to /login if session expired
   useEffect(() => {
     fetch('/api/user/businesses')
@@ -9099,6 +9112,7 @@ export default function DashboardPage() {
       .then(d => {
         if (d?.name) { setUserName(d.name); setUserTier(d.tier ?? ''); }
         setMarketingEnabled(Boolean(d?.features?.['foresight.marketing']));
+        setShopifyEnabled(d?.onlineChannels?.shopifyEnabled === true);
         setFeaturesLoaded(true);
       })
       .catch(() => setFeaturesLoaded(true));
@@ -9216,7 +9230,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex flex-1 min-h-0">
-        <Sidebar active={activeView} onSelect={setActiveView} marketingEnabled={marketingEnabled} />
+        <Sidebar active={activeView} onSelect={setActiveView} marketingEnabled={marketingEnabled} shopifyEnabled={shopifyEnabled} />
 
         {/* Content */}
         <main className="flex-1 p-6 overflow-y-auto">
@@ -9235,6 +9249,7 @@ export default function DashboardPage() {
           {(activeView === 'sync-data' || activeView === 'inventory-sync' || (activeView === 'sync-ads' && marketingEnabled) || activeView === 'website-products') && (
             <SyncDataView
               databaseId={databaseId}
+              shopifyEnabled={shopifyEnabled}
               initialSection={
                 activeView === 'sync-ads'
                   ? 'ads'

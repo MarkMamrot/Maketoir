@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { ShopifyService } from '@/services/ShopifyService';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 const SHEET_NAME = 'Shopify_Orders';
 const LAST_SYNC_CONFIG_KEY = 'WebsiteOrdersLastSync';
@@ -56,6 +57,8 @@ export async function POST(req: Request) {
   if (databaseId !== _u.businessId) {
     return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
   }
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
 
   try {
     const sheets = new GoogleSheetsService();
@@ -120,6 +123,10 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const databaseId = searchParams.get('databaseId');
   if (!databaseId) return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
+  const user = JSON.parse(session.value);
+  if (databaseId !== user.businessId) return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
 
   try {
     const sheets = new GoogleSheetsService();

@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       if (row?.shopify_auth_mode === 'client_credentials') data.ShopifyAccessToken = '';
       data.ShopifyClientSecretConfigured = row?.shopify_client_secret ? 'true' : 'false';
     }
-    return NextResponse.json({ success: true, connections: data });
+    return NextResponse.json({ success: true, connections: data, onlineChannels: capabilities });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

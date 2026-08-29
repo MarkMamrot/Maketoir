@@ -12,6 +12,8 @@ import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
+import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 const REVIEW_SHEET  = 'BulkEdit_Review';
 const HISTORY_SHEET = 'BulkEdit_History';
@@ -47,6 +49,16 @@ export async function POST(req: Request) {
   if (!databaseId) {
     return new Response(JSON.stringify({ error: 'databaseId is required.' }), { status: 400 });
   }
+  const user = JSON.parse(session.value);
+  if (databaseId !== user.businessId) {
+    return new Response(JSON.stringify({ error: 'Not authorised.' }), { status: 403 });
+  }
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
+  const credentials = await getShopifyAdminCredentials(databaseId);
+  if (!credentials) {
+    return new Response(JSON.stringify({ error: 'Shopify credentials not configured.' }), { status: 400 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -68,22 +80,7 @@ export async function POST(req: Request) {
           return;
         }
 
-        // ── Read Shopify credentials ──────────────────────────────────────
-        const connRows = await sheets.getData(databaseId, 'Connections') as string[][];
-        if (!connRows || connRows.length < 2) {
-          emit({ status: 'error', error: 'Shopify credentials not configured.' });
-          controller.close();
-          return;
-        }
-        const [hdrs, vals] = connRows;
-        const get = (k: string) => vals[hdrs.indexOf(k)] ?? '';
-        const shopName = get('ShopifyShopId').replace(/\.myshopify\.com$/, '');
-        if (!shopName || !/^[a-zA-Z0-9-]+$/.test(shopName)) {
-          emit({ status: 'error', error: 'Invalid Shopify shop name in Connections.' });
-          controller.close();
-          return;
-        }
-        const shopify = new ShopifyService(shopName, decrypt(get('ShopifyAccessToken')));
+        const shopify = new ShopifyService(credentials.shopDomain, credentials.token);
 
         // ── Read review sheet ─────────────────────────────────────────────
         let reviewData: string[][];

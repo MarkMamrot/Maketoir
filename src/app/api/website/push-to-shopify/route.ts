@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ShopifyService } from '@/services/ShopifyService';
 import { decrypt } from '@/lib/encryption';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 export async function POST(req: Request) {
   try {
@@ -31,6 +32,12 @@ export async function POST(req: Request) {
     if (!databaseId || !sku) {
       return NextResponse.json({ error: 'Missing databaseId or sku' }, { status: 400 });
     }
+    const user = JSON.parse(session.value);
+    if (databaseId !== user.businessId) {
+      return NextResponse.json({ error: 'Not authorised.' }, { status: 403 });
+    }
+    const disabled = await shopifyDisabledResponse(databaseId);
+    if (disabled) return disabled;
 
     const sheets = new GoogleSheetsService();
 

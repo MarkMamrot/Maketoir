@@ -96,17 +96,46 @@ try {
       [database],
     );
     const channelColumns = new Set(channelColumnRows.map(row => row.COLUMN_NAME));
-    if (!channelColumns.has('shopify_enabled')) {
+    const addedShopifyEnabled = !channelColumns.has('shopify_enabled');
+    const addedNativeShopEnabled = !channelColumns.has('native_shop_enabled');
+    if (addedShopifyEnabled) {
       await connection.query(`ALTER TABLE business_online_channels
         ADD COLUMN shopify_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER active_channel`);
     }
-    if (!channelColumns.has('native_shop_enabled')) {
+    if (addedNativeShopEnabled) {
       await connection.query(`ALTER TABLE business_online_channels
         ADD COLUMN native_shop_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER shopify_enabled`);
     }
     await connection.query(`UPDATE business_online_channels
       SET shopify_enabled = CASE WHEN active_channel = 'shopify' THEN 1 ELSE shopify_enabled END,
           native_shop_enabled = CASE WHEN active_channel = 'native_shop' THEN 1 ELSE native_shop_enabled END`);
+    await connection.query(`INSERT INTO business_online_channels
+      (business_id, active_channel, shopify_enabled, native_shop_enabled)
+      SELECT b.business_id,
+             CASE
+               WHEN c.shopify_shop_id IS NOT NULL AND TRIM(c.shopify_shop_id) <> '' THEN 'shopify'
+               WHEN p.is_active = 1 THEN 'native_shop'
+               ELSE 'none'
+             END,
+             CASE WHEN c.shopify_shop_id IS NOT NULL AND TRIM(c.shopify_shop_id) <> '' THEN 1 ELSE 0 END,
+             CASE WHEN p.is_active = 1 THEN 1 ELSE 0 END
+        FROM businesses b
+        LEFT JOIN connections c ON c.business_id = b.business_id
+        LEFT JOIN online_shop_profiles p ON p.business_id = b.business_id
+        LEFT JOIN business_online_channels channels ON channels.business_id = b.business_id
+       WHERE channels.business_id IS NULL`);
+    if (addedShopifyEnabled) {
+      await connection.query(`UPDATE business_online_channels channels
+        JOIN connections c ON c.business_id = channels.business_id
+         SET channels.shopify_enabled = 1
+       WHERE c.shopify_shop_id IS NOT NULL AND TRIM(c.shopify_shop_id) <> ''`);
+    }
+    if (addedNativeShopEnabled) {
+      await connection.query(`UPDATE business_online_channels channels
+        JOIN online_shop_profiles p ON p.business_id = channels.business_id
+         SET channels.native_shop_enabled = 1
+       WHERE p.is_active = 1`);
+    }
     const [channelIndexRows] = await connection.query(
       `SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'business_online_channels'`,

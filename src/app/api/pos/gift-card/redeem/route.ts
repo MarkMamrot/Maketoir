@@ -7,6 +7,7 @@ import { decrypt } from '@/lib/encryption';
 import { ShopifyService } from '@/services/ShopifyService';
 import { syncGiftCardRedemptionReclass } from '@/services/XeroSyncService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -22,8 +23,10 @@ async function getShopify(businessId: string): Promise<ShopifyService | null> {
   } catch { return null; }
 }
 
-async function getGcMode(): Promise<string> {
+async function getGcMode(businessId: string): Promise<string> {
   try {
+    const capabilities = await getOnlineChannelCapabilities(businessId);
+    if (!capabilities.shopifyEnabled) return 'off';
     const rows = await imsQuery<{ value: string }>(
       "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",
     );
@@ -49,7 +52,7 @@ export async function POST(req: Request) {
   if (!debitAmt || debitAmt <= 0)
     return NextResponse.json({ error: 'A positive amount is required.' }, { status: 400 });
 
-  const gcMode = await getGcMode();
+  const gcMode = await getGcMode(session.businessId);
 
   // ── Resolve card — IMS first ──────────────────────────────────────────────
   let card: { id: number; balance: number; status: string; shopify_gc_id: number | null } | null = null;
@@ -122,9 +125,11 @@ export async function POST(req: Request) {
         duplicate: true,
         balance_after: Number(existingTransactions[0].balance_after),
         status: Number(existingTransactions[0].balance_after) <= 0 ? 'redeemed' : 'active',
-        shopify_synced: existingTransactions[0].sync_state === 'synced'
-          ? true
-          : existingTransactions[0].sync_state === 'error' ? false : null,
+        shopify_synced: gcMode === 'combined'
+          ? existingTransactions[0].sync_state === 'synced'
+            ? true
+            : existingTransactions[0].sync_state === 'error' ? false : null
+          : null,
         xero_synced: null,
         xero_warning: null,
       });

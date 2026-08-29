@@ -5,6 +5,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ShopifyService } from '@/services/ShopifyService';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import {
   findUniqueUnusedShopifyGiftCard,
   isShopifyGiftCardCodeTakenError,
@@ -23,8 +24,10 @@ async function getShopify(businessId: string): Promise<ShopifyService | null> {
   } catch { return null; }
 }
 
-async function getGcMode(): Promise<string> {
+async function getGcMode(businessId: string): Promise<string> {
   try {
+    const capabilities = await getOnlineChannelCapabilities(businessId);
+    if (!capabilities.shopifyEnabled) return 'off';
     const rows = await imsQuery<{ value: string }>(
       "SELECT value FROM ims_settings WHERE `key` = 'shopify_gc_mode' LIMIT 1",
     );
@@ -44,7 +47,7 @@ export async function GET(req: Request) {
   const code = searchParams.get('code')?.trim();
   if (!code) return NextResponse.json({ error: 'code is required.' }, { status: 400 });
 
-  const gcMode = await getGcMode();
+  const gcMode = await getGcMode(session.businessId);
 
   // ── Local IMS lookup ──────────────────────────────────────────────────────
   const rows = await imsQuery<{ id: number; code: string; balance: string; status: string; shopify_gc_id: number | null }>(
@@ -128,7 +131,7 @@ export async function POST(req: Request) {
   if (!amt || amt <= 0)
     return NextResponse.json({ error: 'A positive amount is required.' }, { status: 400 });
 
-  const gcMode   = await getGcMode();
+  const gcMode   = await getGcMode(session.businessId);
   const inputCode = rawCode?.trim() ?? null;
 
   if (inputCode) {

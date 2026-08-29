@@ -1048,6 +1048,7 @@ export interface Business { name: string; userId: string; databaseId: string; }
 
 export function ConnectionsTab({ business, onHelp }: { business: Business | null; onHelp: (context: string) => void }) {
   // Per-business credential state
+  const [shopifyEnabled, setShopifyEnabled] = useState(false);
   const [shopId, setShopId] = useState('');
   const [shopifyAuthMode, setShopifyAuthMode] = useState<'legacy_token' | 'client_credentials'>('legacy_token');
   const [accessToken, setAccessToken] = useState('');
@@ -1217,6 +1218,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     setSyncResult(null); setGaResult(null); setAdsResult(null);
       setMetaResult(null); setCin7Result(null); setGmailResult(null); setKlaviyoResult(null);
       setXeroStatus(null); setGoogleStatus(null); setGoogleMessage('');
+      setShopifyEnabled(false);
 
     const databaseId = business.databaseId;
 
@@ -1226,7 +1228,10 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
       try {
         const res = await fetch(`/api/user/business-connections?databaseId=${encodeURIComponent(databaseId)}`);
         const data = await res.json();
-        if (data.success) creds = data.connections;
+        if (data.success) {
+          creds = data.connections;
+          setShopifyEnabled(data.onlineChannels?.shopifyEnabled === true);
+        }
       } catch {}
 
       const sid  = creds.ShopifyShopId       || '';
@@ -1608,7 +1613,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
     <div className="w-full max-w-2xl mx-auto space-y-6">
       <p className="text-sm text-gray-500">Credentials for <span className="font-semibold text-gray-700">{business.name}</span> — loaded from their database sheet.</p>
 
-      {/* Shopify */}
+      {shopifyEnabled && (
       <div className="bg-white text-black p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col items-start gap-4">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
@@ -1671,6 +1676,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
         </div>
         {syncResult && <pre className="w-full p-4 bg-gray-100 rounded text-xs overflow-auto">{JSON.stringify(syncResult, null, 2)}</pre>}
       </div>
+      )}
 
       {/* 3. Others */}
       <div className="grid grid-cols-2 gap-4 w-full">

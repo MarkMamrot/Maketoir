@@ -4,6 +4,7 @@ import { ShopifyService } from '@/services/ShopifyService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { decrypt } from '@/lib/encryption';
+import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 
 /**
  * POST /api/website/update-product
@@ -30,6 +31,12 @@ export async function POST(req: Request) {
   if (!databaseId) {
     return NextResponse.json({ success: false, error: 'databaseId is required.' }, { status: 400 });
   }
+  const user = JSON.parse(session.value);
+  if (databaseId !== user.businessId) {
+    return NextResponse.json({ success: false, error: 'Not authorised.' }, { status: 403 });
+  }
+  const disabled = await shopifyDisabledResponse(databaseId);
+  if (disabled) return disabled;
   if (!productId) {
     return NextResponse.json({ success: false, error: 'productId is required.' }, { status: 400 });
   }
