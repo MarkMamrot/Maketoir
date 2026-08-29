@@ -95,7 +95,7 @@ export default function AiModelSettingsSection() {
           const selected = preferences[key];
           const options = models.some(model => model.id === selected) ? models : [{ id: selected }, ...models];
           return (
-            <div key={key} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(240px, 320px)', gap: 24, alignItems: 'center', padding: '18px 0', borderBottom: '1px solid var(--sv-etch)' }}>
+            <div key={key} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, alignItems: 'center', padding: '18px 0', borderBottom: '1px solid var(--sv-etch)' }}>
               <div>
                 <label htmlFor={`ai-model-${key}`} style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{FUNCTION_DETAILS[key].label}</label>
                 <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.5 }}>{FUNCTION_DETAILS[key].description}</p>

@@ -1,5 +1,5 @@
 ---
-{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-08-28","owner":"integrations"}
+{"id":"setup-connections","title":"Connections and Setup","audiences":["ims"],"capability":"integrations","screen":"Setup > Connections","product":"setup","format":"overview","contexts":["setup","connections","pos","shopify","xero","cin7","meta","google","klaviyo"],"contextSections":{"setup":"Choose a Setup area","connections":"Connection readiness","pos":"POS setup","shopify":"Connect Shopify","xero":"Connection readiness","cin7":"Connection readiness","meta":"Connection readiness","google":"Connection readiness","klaviyo":"Connection readiness"},"relatedTopics":["setup-business-brand-appearance","setup-team-access-security","setup-integration-readiness-troubleshooting","ims-settings-ai-models"],"order":1,"summary":"Choose the right Setup area and understand when a connection is ready for real work.","lastReviewed":"2026-08-29","owner":"integrations"}
 ---
 # Connections and Setup
 
@@ -22,6 +22,7 @@ Use Setup to maintain business information, team access, POS payment options, da
 | Add or rename POS payment options | POS Settings | Payment methods shown at checkout |
 | Choose where product, stock, and sales information comes from | Data Source | Selected inventory source |
 | Use the native Solvantis Online Store | IMS Settings, then Integrations > Online Shop | Native store selected and ready for storefront setup |
+| Choose Gemini models for different AI functions | IMS Settings > AI Models | Saved choices for future document, matching, analysis, and customer service requests |
 | Connect Shopify, Xero, Cin7, Meta, Google, or Klaviyo | Connections | Saved connection and displayed status |
 
 > **Warning:** Enter passwords, access details, and recovery codes only in the protected fields intended for them. Never place them in Help, Ask Solvantis, notes, or support messages.
