@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import {
   CS_BUSINESS_TOOL_DECLARATIONS,
@@ -227,7 +227,7 @@ export async function processCustomerServiceInbox(businessId: string): Promise<{
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   const settings = await getCustomerServiceSettings(businessId);
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId, area: 'customer_service', operation: 'process_customer_service_inbox', actorType: 'cron' });
   const { customerThreads, classified } = await classifyPendingThreads(ai, businessId, settings.lightModelId);
   let drafted = 0;
   for (const thread of customerThreads) {

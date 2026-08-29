@@ -6,10 +6,8 @@ const { mockGenerateContent, mockImsExecute, mockImsQuery } = vi.hoisted(() => (
   mockImsQuery: vi.fn(),
 }));
 
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: class {
-    models = { generateContent: mockGenerateContent };
-  },
+vi.mock('@/lib/ai/billing/googleGateway', () => ({
+  createTrackedGoogleGenAI: vi.fn(() => ({ models: { generateContent: mockGenerateContent } })),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: mockImsExecute, imsQuery: mockImsQuery }));
 vi.mock('../repository', () => ({

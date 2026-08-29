@@ -107,7 +107,7 @@ export async function POST(request: Request, context: { params: { creativeId: st
       const brief = await ForesightCreativeBriefService.generate({
         businessId: user.businessId, creativeId, threadId, expectedRevision,
         diagnosticsThrough: body.diagnosticsThrough, actorUserId: user.userId,
-        modelId, model: createGeminiPlannerModelGateway(apiKey),
+        modelId, model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'review_creative', actorType: 'user', actorUserId: user.userId, referenceType: 'creative', referenceId: creativeId }),
         changeReason: typeof body.changeReason === 'string' ? body.changeReason : null,
       });
       return NextResponse.json({ success: true, brief }, { status: 201 });

@@ -1,4 +1,5 @@
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
+import type { AiBillingContext } from '@/lib/ai/billing/types';
 
 export interface PlannerModelGateway {
   generateJson(input: {
@@ -18,8 +19,8 @@ function parseJsonObject(raw: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-export function createGeminiPlannerModelGateway(apiKey: string): PlannerModelGateway {
-  const ai = new GoogleGenAI({ apiKey });
+export function createGeminiPlannerModelGateway(apiKey: string, context: AiBillingContext): PlannerModelGateway {
+  const ai = createTrackedGoogleGenAI(apiKey, context);
   return {
     async generateJson(input) {
       const contents = input.media

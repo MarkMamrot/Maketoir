@@ -8,7 +8,7 @@
  */
 import { NextResponse }          from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { GoogleGenAI }           from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository }from '@/lib/db/BrandProfileRepository';
@@ -455,7 +455,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const productId  = params.id;
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, {
+    businessId,
+    area: mode === 'video' ? 'product_creative_video' : mode === 'image' ? 'product_creative_image' : 'product_creative_text',
+    operation: String(mode || 'generate'),
+    actorType: 'user',
+    referenceType: 'product',
+    referenceId: productId,
+  });
 
   // ── SEARCH-PRODUCTS: type-to-filter list of same-brand products ────────────
   if (mode === 'search-products') {

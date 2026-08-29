@@ -33,7 +33,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
       const lesson = await ForesightCampaignLessonService.generate({
         businessId: user.businessId, threadId: id, actorUserId: user.userId,
         modelId: process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash',
-        model: createGeminiPlannerModelGateway(apiKey),
+        model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'generate_campaign_lesson', actorType: 'user', actorUserId: user.userId, referenceType: 'planning_thread', referenceId: id }),
         changeReason: typeof body.changeReason === 'string' ? body.changeReason : null,
       });
       return NextResponse.json({ success: true, lesson }, { status: 201 });

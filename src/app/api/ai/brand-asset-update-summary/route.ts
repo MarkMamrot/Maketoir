@@ -7,7 +7,7 @@
  * the buffer. Otherwise just stores the buffer — no Gemini call, no cost.
  */
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { query, execute } from '@/services/MySQLService';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
   ].join('\n\n---\n\n');
 
   try {
-    const ai     = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'update_brand_asset_summary', actorType: 'user' });
     const result = await (ai as any).models.generateContent({
       model:             'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,

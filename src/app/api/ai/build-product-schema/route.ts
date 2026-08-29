@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
@@ -437,7 +437,7 @@ export async function POST(req: Request) {
         ? buildTitlePrompt(brandName, profile, sampleProducts)
         : buildTagsPrompt(brandName, profile, sampleProducts);
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_product_schema', actorType: 'user' });
       const response = await ai.models.generateContent({ model: modelId, contents: promptText });
       const text = response.text?.trim() ?? '';
       const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -463,7 +463,7 @@ export async function POST(req: Request) {
       }
       const sampleProducts = await readSampleProducts(databaseId);
       const promptText = buildRegenExamplePrompt(existingSchema as ProductDescriptionTemplate, sampleProducts);
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_product_schema', actorType: 'user' });
       const response = await ai.models.generateContent({ model: modelId, contents: promptText });
       const text = response.text?.trim() ?? '';
       const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -513,7 +513,7 @@ export async function POST(req: Request) {
     }
 
     // ── 4. Call Gemini for description ───────────────────────────────────────
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_product_schema', actorType: 'user' });
     const response = await ai.models.generateContent({ model: modelId, contents: promptText });
     const text = response.text?.trim() ?? '';
     const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();

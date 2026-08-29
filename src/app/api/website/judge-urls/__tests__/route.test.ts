@@ -7,6 +7,12 @@ vi.mock('@/lib/auth/imsSession', () => ({
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn().mockResolvedValue([]) }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue }));
+vi.mock('@/lib/ai/billing/googleGateway', () => ({
+  trackedGenerateContentRest: vi.fn((apiKey: string, modelId: string, body: unknown, _context: unknown, signal?: AbortSignal) => fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal },
+  )),
+}));
 
 import { POST } from '../route';
 

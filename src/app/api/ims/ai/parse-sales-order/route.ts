@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
@@ -125,7 +125,12 @@ Rules:
     const base64Data = Buffer.from(await file.arrayBuffer()).toString('base64');
     let rawParsed: unknown;
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createTrackedGoogleGenAI(apiKey, {
+        businessId,
+        area: 'document_extraction',
+        operation: 'parse_customer_order',
+        actorType: 'user',
+      });
       const result = await ai.models.generateContent({
         model: modelId,
         contents: [{

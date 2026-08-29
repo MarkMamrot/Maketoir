@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 
 import { retrieveAssistantKnowledge } from './knowledge';
 import { getOnlineChannelCapabilities, isXeroAccountingEnabled } from '@/lib/ims/businessOperations';
@@ -180,7 +180,7 @@ export async function runAssistant(input: {
     } : undefined,
   });
   const tools = getAssistantToolDefinitions(input.principal.audience);
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: input.principal.businessId, area: 'assistant', operation: 'answer_private_assistant', actorType: 'user' });
   const request = async (toolResults: AssistantToolResult[], mustAnswer: boolean) => {
     const response = await ai.models.generateContent({
       model,

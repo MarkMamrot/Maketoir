@@ -3,7 +3,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { MetaAdsService } from '@/services/MetaAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
@@ -546,7 +546,7 @@ export async function POST(req: Request) {
     }
 
     // Upload large CSVs to Gemini File API; inline small ones
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'generate_marketing_mission', actorType: 'user' });
     const toInline = classified.filter(c => c.mode === 'inline');
     const toUpload = classified.filter(c => c.mode === 'file');
 

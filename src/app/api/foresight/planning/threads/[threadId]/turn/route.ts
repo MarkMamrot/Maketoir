@@ -31,7 +31,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
       actorUserId: user.userId,
       content,
       modelId,
-      model: createGeminiPlannerModelGateway(apiKey),
+      model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'planning_turn', actorType: 'user', actorUserId: user.userId, referenceType: 'planning_thread', referenceId: threadId }),
     });
     return NextResponse.json({ success: true, turn });
   } catch (error) {

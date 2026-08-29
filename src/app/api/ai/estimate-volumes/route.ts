@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
@@ -156,7 +156,7 @@ INSTRUCTIONS:
 
 PRODUCTS TO ESTIMATE:`;
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'estimate_product_volumes', actorType: 'user' });
   const allResults: { rowIndex: number; optionId: string; code: string; name: string; brand: string; estimatedVolume: number | null }[] = [];
 
   // Process all unset rows in batches of BATCH_SIZE

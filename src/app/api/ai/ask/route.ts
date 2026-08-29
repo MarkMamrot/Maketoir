@@ -3,7 +3,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { MetaAdsService } from '@/services/MetaAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { decrypt } from '@/lib/encryption';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
@@ -603,7 +603,7 @@ export async function POST(req: Request) {
   }
 
   // Execute: upload file-API CSVs + JSON API specs in parallel
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'business_advisory_chat', actorType: 'user' });
   const toInline = classified.filter(c => c.mode === 'inline');
   const toUpload = classified.filter(c => c.mode === 'file');
 

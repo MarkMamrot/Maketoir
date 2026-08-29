@@ -34,7 +34,7 @@ export async function POST(_request: Request, context: { params: { creativeId: s
   try {
     const assessment = await ForesightCreativeAssessmentService.assess({
       businessId: user.businessId, creativeId: id, actorUserId: user.userId,
-      modelId, model: createGeminiPlannerModelGateway(apiKey),
+      modelId, model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'assess_creative', actorType: 'user', actorUserId: user.userId, referenceType: 'creative', referenceId: id }),
     });
     return NextResponse.json({ success: true, assessment }, { status: 201 });
   } catch (error) {

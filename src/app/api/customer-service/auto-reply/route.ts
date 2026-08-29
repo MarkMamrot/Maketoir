@@ -21,7 +21,7 @@
  */
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
@@ -354,7 +354,7 @@ async function runAutoReply(databaseId: string, force = false): Promise<{ proces
   const dataContext = await gatherDataContext(databaseId, inventorySystemId, sourceIds);
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'customer_service', operation: 'draft_auto_reply', actorType: 'user' });
 
   // Phase 1: Triage
   const triagePrompt = `Identify which emails below are genuine customer enquiries vs suppliers, outreach, or automated notifications.

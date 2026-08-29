@@ -1,3 +1,10 @@
+## 2026-08-29 - Cross-tenant AI usage, credits, and enforcement
+
+- The main database now owns AI plans, tenant accounts, effective-dated provider/plan rates, physical provider-call usage, and an append-only account ledger. Prepaid and cycle account-limit funding use exact AUD micros with atomic reservation and settlement; submitted calls with uncertain outcomes remain held until a SuperAdmin explicitly releases them.
+- All application Google text, document, image, video, retry, Foresight, Customer Service, private Assistant, public Sales Assistant, and direct REST generation paths now pass through one tracked gateway. A source test blocks future raw Google generation outside that gateway; public prospect usage is assigned to the internal Solvantis Platform account.
+- IMS Settings includes read-only Account & AI Credits visibility. SuperAdmin includes cross-business usage/cost/margin reporting, account configuration, credit commands, cycle reset, reviewed unknown release, CSV export, and append-only effective rate creation. Existing and newly onboarded businesses start in observe mode; no commercial rates, balances, or enforced limits were guessed.
+- `scripts/setup-ai-billing.mjs` was applied twice successfully: six tables were created on the first run and verified as already present on the second. Validation passed 456 Vitest files / one skipped, 2,186 tests / one skipped, Help compilation with 56 topics / 457 Assistant chunks, the production build, and final diff checks. Authenticated browser validation remains pending because the shared browser had no signed-in session.
+
 ## 2026-08-29 - Per-function AI model settings
 
 - IMS Settings now includes an AI Models section populated from the live Gemini text-model list. Businesses can choose separate models for document extraction, catalogue matching, business intelligence/content, and customer service fallback work.

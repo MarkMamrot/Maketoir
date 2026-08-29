@@ -10,7 +10,7 @@
  * Body: { databaseId: string }
  */
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
@@ -280,7 +280,7 @@ export async function POST(req: Request) {
         // ── Phase 2: Run AI analysis ───────────────────────────────────────
         controller.enqueue(emit({ phase: 'analyzing', message: 'Running AI campaign audit — this may take 30–60 seconds…' }));
 
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'audit_campaign', actorType: 'user' });
         const prompt = `Please audit the following marketing data and return your analysis as a JSON object exactly matching the schema in your instructions.\n\n${context}`;
 
         const response = await ai.models.generateContent({

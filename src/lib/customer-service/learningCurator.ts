@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCustomerServiceKnowledge, getCustomerServiceSettings, saveCustomerServiceKnowledge } from './repository';
 
@@ -44,7 +44,7 @@ export async function curateCustomerServiceLearnings(businessId: string): Promis
   if (evidence.length < 3) return { processed: 0, candidates: 0, activated: 0 };
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId, area: 'customer_service', operation: 'curate_reply_learnings', actorType: 'cron' });
   const prompt = `Curate repeated customer-service reply-edit patterns into compact reusable rules.
 Evidence has been PII-redacted. Ignore customer-specific facts and one-off wording.
 Return JSON only: {"candidates":[{"ruleKey":"stable-key","ruleType":"style|fact|policy","title":"short title","markdown":"one actionable sentence","evidenceIndexes":[0,1,2],"confidence":0.9}]}.

@@ -49,7 +49,9 @@ describe('creative assessment route', () => {
     const response = await POST(new Request('http://localhost', { method: 'POST', body: JSON.stringify({ businessId: 'other', modelId: 'other' }) }), context);
 
     expect(response.status).toBe(201);
-    expect(mocks.gateway).toHaveBeenCalledWith('server-key');
+    expect(mocks.gateway).toHaveBeenCalledWith('server-key', expect.objectContaining({
+      businessId: 'business-1', area: 'foresight', operation: 'assess_creative', actorUserId: 7,
+    }));
     expect(mocks.assess).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business-1', creativeId: 44, actorUserId: 7, modelId: 'gemini-creative',
     }));

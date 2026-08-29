@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
@@ -134,7 +134,14 @@ export async function POST(req: Request) {
     modelId = resolveBusinessAiModel(conn, 'documentExtraction');
   } catch { /* use default */ }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, {
+    businessId: biz,
+    area: 'document_extraction',
+    operation: 'parse_supplier_invoice',
+    actorType: 'user',
+    referenceType: 'purchase_order',
+    referenceId: poId,
+  });
 
   // Read file as base64 for inline Gemini data (faster + more reliable than File API for invoices)
   const buffer = Buffer.from(await invoiceFile.arrayBuffer());

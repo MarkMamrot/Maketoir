@@ -66,6 +66,12 @@ export async function POST(req: Request) {
     );
     businessCreated = true;
     steps.push(`Created business "${name}"`);
+    await execute(
+      `INSERT INTO business_ai_accounts (business_id, plan_key, funding_mode, enforcement_mode, cycle_mode)
+       VALUES (?, 'starter', 'prepaid', 'observe', 'manual')`,
+      [businessId],
+    );
+    steps.push('Created observe-mode AI account');
 
     // 2. IMS schema.
     let imsResult: { imsDbName: string } | null = null;
@@ -109,6 +115,7 @@ export async function POST(req: Request) {
       provisionedDbName = err.imsDbName;
       schemaCreated = err.schemaCreated;
     }
+    await execute('DELETE FROM business_ai_accounts WHERE business_id = ?', [businessId]).catch(() => {});
     const cleanup = await cleanupFailedBusinessProvision({
       businessId,
       imsDbName: provisionedDbName,

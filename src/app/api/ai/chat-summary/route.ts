@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ChatsRepository } from '@/lib/db/ChatsRepository';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     .map(m => `${m.role === 'assistant' ? 'Professor KnowItAll' : 'The Business'}: ${m.content}`)
     .join('\n');
 
-  const ai = new GoogleGenAI({ apiKey: geminiKey });
+  const ai = createTrackedGoogleGenAI(geminiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'summarize_advisory_chat', actorType: 'user' });
   let summary: SummaryPayload;
   try {
     const result = await ai.models.generateContent({

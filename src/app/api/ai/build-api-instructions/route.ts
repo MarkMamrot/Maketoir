@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
   const globalSpecsId = await getGlobalSpecsSheetId(sheets);
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_api_instructions', actorType: 'user' });
     const response = await ai.models.generateContent({
       model: modelId,
       contents: PROMPT(apiLabel, api),

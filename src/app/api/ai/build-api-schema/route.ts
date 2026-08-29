@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
@@ -456,7 +456,7 @@ export async function POST(req: Request) {
     // Dynamically call all stored endpoints to gather real field samples
     const realData = await fetchFromAllEndpoints(api, storedEndpoints, creds);
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_api_schema', actorType: 'user' });
     const response = await ai.models.generateContent({
       model: modelId,
       contents: SCHEMA_PROMPT(apiLabel, summary, realData),

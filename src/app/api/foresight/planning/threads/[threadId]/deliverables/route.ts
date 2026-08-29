@@ -59,7 +59,7 @@ export async function POST(request: Request, context: { params: { threadId: stri
       const modelId = process.env.FORESIGHT_PLANNER_MODEL?.trim() || 'gemini-2.5-flash';
       const deliverable = await ForesightDeliverableService.generate({
         businessId: user.businessId, threadId: id, actorUserId: user.userId, modelId,
-        model: createGeminiPlannerModelGateway(apiKey), channels, changeReason: changeReason || null,
+        model: createGeminiPlannerModelGateway(apiKey, { businessId: user.businessId, area: 'foresight', operation: 'generate_deliverables', actorType: 'user', actorUserId: user.userId, referenceType: 'planning_thread', referenceId: id }), channels, changeReason: changeReason || null,
       });
       return NextResponse.json({ success: true, deliverable }, { status: 201 });
     }

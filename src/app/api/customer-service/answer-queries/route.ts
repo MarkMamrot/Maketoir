@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
@@ -486,7 +486,7 @@ export async function POST(req: Request) {
   ]);
   const bizContext = [businessInfo, brandProfile].filter(Boolean).join('\n\n');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'customer_service', operation: 'answer_customer_queries', actorType: 'user' });
   const candidateById = new Map(candidates.map(c => [`${c.threadId}::${c.messageId}`, c]));
 
   // ── Phase 1: Triage ─────────────────────────────────────────────────────────

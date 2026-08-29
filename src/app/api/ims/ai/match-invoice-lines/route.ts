@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
@@ -62,7 +62,14 @@ export async function POST(req: Request) {
     modelId = resolveBusinessAiModel(conn, 'catalogueMatching');
   } catch { /* use default */ }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, {
+    businessId: biz,
+    area: 'catalogue_matching',
+    operation: 'match_supplier_invoice_lines',
+    actorType: 'user',
+    referenceType: 'supplier',
+    referenceId: supplier_id,
+  });
 
   // Format variant list compactly for the prompt
   const variantList = variants.map(v => ({

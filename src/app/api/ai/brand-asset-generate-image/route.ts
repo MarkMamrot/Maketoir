@@ -4,9 +4,9 @@
  * Returns { success, imageData (base64), mimeType } or { error }.
  */
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { requireAdminSession } from '@/lib/sessionUtils';
 
 // Nano Banana models that support image output via Interactions API
 const IMAGE_MODELS = new Set([
@@ -35,13 +35,9 @@ const REFERENCE_INSTRUCTIONS: Record<string, string> = {
 };
 
 export async function POST(req: Request) {
-  const sessionCookie = cookies().get('marketoir_session');
-  if (!sessionCookie?.value) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  let businessId = '';
-  try {
-    const session = JSON.parse(sessionCookie.value);
-    businessId = session.businessId ?? session.databaseId ?? '';
-  } catch {}
+  const auth = requireAdminSession();
+  if (auth.response) return auth.response;
+  const businessId = auth.user.businessId;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 });
@@ -71,7 +67,7 @@ export async function POST(req: Request) {
   const model = IMAGE_MODELS.has(imageModel) ? imageModel : 'gemini-3.1-flash-image';
   const normalizedCategory = String(category ?? '').toLowerCase();
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId, area: 'product_creative_image', operation: 'generate_brand_asset_image', actorType: 'user' });
 
   // Build multimodal input when a reference image is supplied
   const inputPayload: any = (referenceImageData && referenceImageMime)

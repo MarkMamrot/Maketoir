@@ -75,7 +75,9 @@ describe('Creative Review route', () => {
       modelId: 'browser-model', actorUserId: 999,
     }) }), context);
     expect(response.status).toBe(201);
-    expect(mocks.gateway).toHaveBeenCalledWith('server-key');
+    expect(mocks.gateway).toHaveBeenCalledWith('server-key', expect.objectContaining({
+      businessId: 'business-1', area: 'foresight', operation: 'review_creative', actorUserId: 7,
+    }));
     expect(mocks.generate).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business-1', creativeId: 44, threadId: 12, expectedRevision: 3,
       actorUserId: 7, modelId: 'gemini-creative', diagnosticsThrough: '2026-08-01',

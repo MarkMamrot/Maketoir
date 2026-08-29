@@ -28,7 +28,7 @@
  */
 import { cookies } from 'next/headers';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 
 const REVIEW_SHEET = 'BulkEdit_Review';
 const REVIEW_HEADERS = [
@@ -329,7 +329,7 @@ export async function POST(req: Request) {
 
       try {
         const sheets = new GoogleSheetsService();
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'website_content', operation: 'preview_bulk_product_edits', actorType: 'user' });
 
         // Resolve Gemini model preference
         let modelId = 'gemini-2.5-flash-preview-04-17';

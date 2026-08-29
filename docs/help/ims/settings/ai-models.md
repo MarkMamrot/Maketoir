@@ -1,5 +1,5 @@
 ---
-{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-08-29","owner":"ims"}
+{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-settings-account-ai-credits","ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-08-30","owner":"ims"}
 ---
 # AI Model Settings
 
@@ -28,6 +28,7 @@ Use AI Models to choose the Gemini text model used for different types of Solvan
 - Consider accuracy, response time, and usage cost for each function.
 - Keep human review in place for financial documents and customer-facing text.
 - Confirm a model remains available in the displayed list before changing a working configuration.
+- Review **Account & AI Credits** to understand the current available AI usage value before choosing a higher-cost model.
 
 > **Important:** A more capable model can reduce difficult extraction errors, but it does not guarantee correct quantities, prices, tax, discounts, freight, product matches, or customer-facing statements.
 
@@ -52,6 +53,8 @@ Use **Business intelligence and content** for brand analysis, campaign audits, m
 Use **Customer service** as the general fallback for customer enquiry and reply work. Customer Service also has dedicated light-classification and capable-reply choices in its own Settings area. Those dedicated choices remain authoritative where shown.
 
 Website content and Product Creative retain their own model controls. Changing this page does not replace those dedicated selections.
+
+Different models can have different input, output, image, and video prices. A model change can therefore alter how quickly prepaid credit or an account limit is consumed, even when staff run the same number of tasks.
 
 ## Troubleshooting
 

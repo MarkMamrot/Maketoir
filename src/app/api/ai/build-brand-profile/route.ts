@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { SalesRepository } from '@/lib/db/SalesRepository';
@@ -780,7 +780,7 @@ ${shippingContext}${returnsContext}${brandHistoryContext}${physicalBranchesConte
 Return a JSON object with ONLY the key "${fieldKey}" and its new value. No other keys, no markdown, no explanation.
 Example: { "${fieldKey}": "new value here" }`;
 
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'regenerate_brand_profile_field', actorType: 'user' });
       const resp = await ai.models.generateContent({ model: modelId, contents: fieldPrompt });
       const raw = resp.text?.trim() ?? '';
       const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -874,7 +874,7 @@ ${heroList}
     }
 
     // ── 6. Build Gemini request ─────────────────────────────────────────────────
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'build_brand_profile', actorType: 'user' });
     const basePrompt = isRefine
       ? REFINE_PROMPT(brandName, existingProfile, userComments, salesContext, connectionsContext, !!effectiveLogoBase64)
       : PROMPT(brandName, brandUrl, salesContext, connectionsContext, !!effectiveLogoBase64);

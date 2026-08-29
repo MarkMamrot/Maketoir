@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { trackedGenerateContentRest } from '@/lib/ai/billing/googleGateway';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { PRODUCT_RESEARCH_RULES } from '@/lib/website/productResearchRules';
@@ -227,21 +228,15 @@ async function discoverProductUrls(
   apiKey: string,
   modelId: string,
   product: { name: string; brand: string },
+  businessId: string,
 ): Promise<string[]> {
   try {
     // Use a stable model for URL discovery — gemini-2.5-flash returns groundingChunks in REST
     const discoveryModel = 'gemini-2.5-flash';
-    const restUrl = `https://generativelanguage.googleapis.com/v1beta/models/${discoveryModel}:generateContent?key=${apiKey}`;
-
-    const restRes = await fetch(restUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const restRes = await trackedGenerateContentRest(apiKey, discoveryModel, {
         contents: [{ role: 'user', parts: [{ text: `Find the official product page and top major retailer listings for "${product.name}" by ${product.brand}. I need accurate URLs to specific product pages (not category or search result pages). List up to 6 page URLs.` }] }],
         tools: [{ google_search: {} }],
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
+      }, { businessId, area: 'website_content', operation: 'discover_product_urls', actorType: 'user' }, AbortSignal.timeout(30000));
 
     if (!restRes.ok) {
       console.warn(`[URL Discovery] REST call failed: ${restRes.status}`);
@@ -390,18 +385,10 @@ export async function POST(req: Request) {
     for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
       let genRes: Response;
       try {
-        genRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        genRes = await trackedGenerateContentRest(apiKey, modelId, {
               ...restBody,
               generationConfig: { ...restBody.generationConfig, temperature: attempt === 0 ? 0.2 : 0 },
-            }),
-            signal: AbortSignal.timeout(attempt === 0 ? 30000 : 15000),
-          },
-        );
+            }, { businessId: databaseId, area: 'website_content', operation: 'generate_product_content', actorType: 'user', referenceType: 'product', referenceId: product?.id ?? product?.product_id ?? null }, AbortSignal.timeout(attempt === 0 ? 30000 : 15000));
       } catch (error) {
         lastError = error instanceof Error && error.name === 'TimeoutError'
           ? 'AI content generation timed out.'

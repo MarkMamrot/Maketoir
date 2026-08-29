@@ -958,6 +958,36 @@
       "filename": "docs/help/ims/sales/stock-allocation-and-customer-backorders.md"
     },
     {
+      "id": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "product": "ims",
+      "format": "task",
+      "parentId": "ims-settings-business-operations-pos",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "contextSections": {
+        "ims-settings-ai-account": "Step-by-step",
+        "ai-account": "Understand available AI value"
+      },
+      "relatedTopics": [
+        "ims-settings-ai-models",
+        "foresight-business-intelligence",
+        "foresight-content-production-customer-service"
+      ],
+      "order": 4,
+      "summary": "View your Solvantis AI plan, available usage value, reservations, recent usage, and account status.",
+      "lastReviewed": "2026-08-30",
+      "owner": "ims",
+      "filename": "docs/help/ims/settings/account-and-ai-credits.md"
+    },
+    {
       "id": "ims-settings-ai-models",
       "title": "AI Model Settings",
       "audiences": [
@@ -977,13 +1007,14 @@
         "ai-models": "Choose models by function"
       },
       "relatedTopics": [
+        "ims-settings-account-ai-credits",
         "ims-purchase-orders",
         "foresight-business-intelligence",
         "foresight-content-production-customer-service"
       ],
       "order": 3,
       "summary": "Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "owner": "ims",
       "filename": "docs/help/ims/settings/ai-models.md"
     },
@@ -6644,6 +6675,158 @@
       "content": "### Split sourced and unsourced demand\n\nSO-1042 has 10 backpacks outstanding. PO-781 has 6 free incoming backpacks at the same location. Allocate 6. The line now shows **Outstanding 10**, **Protected 6**, **Incoming 6**, and **Unsourced 4**. No stock on hand changes yet.\n\n### Receive protected supply\n\nFive of the 6 protected backpacks arrive. After the PO receipt, the customer line can show **Ready 5**, **Incoming 1**, and **Unsourced 4**. Ship up to the quantity physically available; allocation itself is not a shipment."
     },
     {
+      "id": "ims-settings-account-ai-credits:1",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Account & AI Credits",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "Use Account & AI Credits to see whether AI is available, how much AI usage value remains, and which areas have consumed value recently."
+    },
+    {
+      "id": "ims-settings-account-ai-credits:2",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Main operations",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "- Check the current Solvantis plan and AI account type.\n- View available, reserved, used, or prepaid AI value in AUD.\n- Review recent usage by area, model, operation, and status.\n- Confirm when a cycle-based account resets.\n- Identify an exhausted or suspended account before starting AI work."
+    },
+    {
+      "id": "ims-settings-account-ai-credits:3",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "At a glance",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "| Display | Meaning | What to do |\n| --- | --- | --- |\n| Available | Value that can still be reserved for new AI work | Contact your administrator before it reaches zero if more work is expected |\n| Reserved | Value held for requests that are running or awaiting final usage details | Wait for active work to finish; contact support if a reservation remains unexpectedly |\n| Credit balance | Prepaid AI usage value remaining | Ask an administrator to add credit when required |\n| Cycle used and limit | AI usage value consumed in the current account period | Plan work within the remaining value or request a limit change |\n| Observe | Usage is recorded but the account is not blocked at zero | Treat the figures as live usage information while commercial settings are finalised |\n| Enforce | New AI work stops when available value reaches zero | Restore credit, raise the limit, or wait for the next eligible reset |\n| Suspended | New AI work is disabled by an administrator | Contact your administrator |"
+    },
+    {
+      "id": "ims-settings-account-ai-credits:4",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Before you begin",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "- Open IMS with an authenticated back-office account.\n- Remember that the displayed amount is AI usage value in AUD, not a count of interchangeable tokens.\n- Different models and different input, output, image, or video work can consume different amounts.\n- Keep financial documents, stock changes, and customer-facing outputs under human review regardless of available credit.\n\n> **Important:** Reaching zero on an enforced account stops new billable AI work before it is sent for generation. Existing non-AI IMS work remains available."
+    },
+    {
+      "id": "ims-settings-account-ai-credits:5",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Step-by-step",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "1. Open **IMS Settings**.\n2. Select **Account & AI Credits**.\n3. Check **Available** and **Status**.\n4. Review **Reserved** if work is already running.\n5. Review the last 30 days by area to see where value was consumed.\n6. Review recent usage for the model, operation, status, and charge.\n7. Contact your administrator when credit, a limit change, a reset, or restoration is required."
+    },
+    {
+      "id": "ims-settings-account-ai-credits:6",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Understand available AI value",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "A prepaid account spends from a credit balance. An account-limit account records usage against a limit for its configured cycle. Calendar cycles reset at the start of a month in the account timezone. Anniversary cycles reset on the configured day, with shorter months ending on their last day. Manual cycles reset only when an administrator performs the reset.\n\nSolvantis reserves a conservative amount before generation starts so simultaneous requests cannot exceed an enforced account. After a successful request, the actual usage charge replaces the reservation. A request whose final provider status is uncertain can remain reserved for review instead of being treated as free usage."
+    },
+    {
+      "id": "ims-settings-account-ai-credits:7",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| AI says credits have run out | An enforced prepaid balance has no available value | Ask a SuperAdmin to add prepaid credit |\n| AI says the account limit was reached | Current-cycle usage and reservations reached the limit | Ask a SuperAdmin to raise or reset the limit, or wait for the next automatic cycle |\n| AI says pricing is unavailable | The selected model does not have complete active pricing | Choose a configured model or ask a SuperAdmin to complete its rates |\n| Available is lower than the balance | Value is reserved by running or unresolved requests | Wait for current work to finish; report a long-lived reservation for review |\n| AI remains unavailable after an adjustment | The account is suspended or the page is stale | Refresh Account & AI Credits and ask the administrator to confirm the account status |"
+    },
+    {
+      "id": "ims-settings-account-ai-credits:8",
+      "documentId": "ims-settings-account-ai-credits",
+      "title": "Account & AI Credits",
+      "heading": "Worked examples",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS Settings > Account & AI Credits",
+      "topicId": "ims-settings-account-ai-credits",
+      "contexts": [
+        "ims-settings-ai-account",
+        "ai-account"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-30",
+      "content": "### Prepaid account reaches zero\n\nA team uses document extraction, catalogue matching, and website content during a product intake. The available value reaches zero while enforcement is active. New AI requests stop before generation, but staff can continue ordinary IMS work. A SuperAdmin records a prepaid credit adjustment with its payment or approval reference. AI becomes available immediately after the account has positive available value.\n\n### Account limit with reserved work\n\nA business has a monthly account limit. Two large document requests are running, so their estimated value appears under Reserved. The available amount reflects cycle usage plus those reservations. When each request finishes, Solvantis replaces its reservation with the actual charge. The cycle resets at the configured local boundary, while unresolved requests remain visible for administrator review."
+    },
+    {
       "id": "ims-settings-ai-models:1",
       "documentId": "ims-settings-ai-models",
       "title": "AI Model Settings",
@@ -6659,7 +6842,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "Use AI Models to choose the Gemini text model used for different types of Solvantis work."
     },
     {
@@ -6678,7 +6861,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "- Choose a capable model for invoice and customer-order document extraction.\n- Choose a faster model for catalogue matching when exact codes do most of the work.\n- Set the model used for business intelligence, analysis, and content assistance.\n- Set the fallback model used by customer service AI.\n- Review model availability and save changes for future requests."
     },
     {
@@ -6697,7 +6880,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "| Function | Typical work | Recommended starting point | Main trade-off |\n| --- | --- | --- | --- |\n| Document extraction | Supplier invoices and customer order documents | Gemini 2.5 Pro | Better handling of difficult scans and tables, with higher latency and cost |\n| Catalogue matching | Match extracted lines to products | Gemini 2.5 Flash | Faster and lower cost for code and name matching |\n| Business intelligence and content | Analysis, audits, estimates, schemas, and business AI requests | Gemini 2.5 Flash | Increase capability when the work needs deeper reasoning |\n| Customer service | Enquiry classification and assisted replies | Gemini 2.5 Flash | Dedicated Customer Service choices can override this fallback |"
     },
     {
@@ -6716,8 +6899,8 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
-      "content": "- Confirm the intended business is selected.\n- Consider accuracy, response time, and usage cost for each function.\n- Keep human review in place for financial documents and customer-facing text.\n- Confirm a model remains available in the displayed list before changing a working configuration.\n\n> **Important:** A more capable model can reduce difficult extraction errors, but it does not guarantee correct quantities, prices, tax, discounts, freight, product matches, or customer-facing statements."
+      "lastReviewed": "2026-08-30",
+      "content": "- Confirm the intended business is selected.\n- Consider accuracy, response time, and usage cost for each function.\n- Keep human review in place for financial documents and customer-facing text.\n- Confirm a model remains available in the displayed list before changing a working configuration.\n- Review **Account & AI Credits** to understand the current available AI usage value before choosing a higher-cost model.\n\n> **Important:** A more capable model can reduce difficult extraction errors, but it does not guarantee correct quantities, prices, tax, discounts, freight, product matches, or customer-facing statements."
     },
     {
       "id": "ims-settings-ai-models:5",
@@ -6735,7 +6918,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "1. Open **IMS Settings**.\n2. Select **AI Models**.\n3. Review the current model for each function.\n4. Choose a model from the available list.\n5. Select **Save AI Models**.\n6. Run a representative document or AI task.\n7. Review the result before saving an order, changing stock, or sending customer-facing content."
     },
     {
@@ -6754,8 +6937,8 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
-      "content": "Use **Document extraction** for the first pass that reads invoice and customer-order PDFs or images. Pro is the recommended default because dense tables, low-quality scans, backorders, tax, freight, and discount layouts require stronger document reasoning.\n\nUse **Catalogue matching** for the later pass that maps extracted lines to existing SKUs, barcodes, and product names. Flash is the recommended default because exact identifiers handle much of this work. Low-confidence matches still require review.\n\nUse **Business intelligence and content** for brand analysis, campaign audits, marketing missions, estimates, schemas, and general business AI requests.\n\nUse **Customer service** as the general fallback for customer enquiry and reply work. Customer Service also has dedicated light-classification and capable-reply choices in its own Settings area. Those dedicated choices remain authoritative where shown.\n\nWebsite content and Product Creative retain their own model controls. Changing this page does not replace those dedicated selections."
+      "lastReviewed": "2026-08-30",
+      "content": "Use **Document extraction** for the first pass that reads invoice and customer-order PDFs or images. Pro is the recommended default because dense tables, low-quality scans, backorders, tax, freight, and discount layouts require stronger document reasoning.\n\nUse **Catalogue matching** for the later pass that maps extracted lines to existing SKUs, barcodes, and product names. Flash is the recommended default because exact identifiers handle much of this work. Low-confidence matches still require review.\n\nUse **Business intelligence and content** for brand analysis, campaign audits, marketing missions, estimates, schemas, and general business AI requests.\n\nUse **Customer service** as the general fallback for customer enquiry and reply work. Customer Service also has dedicated light-classification and capable-reply choices in its own Settings area. Those dedicated choices remain authoritative where shown.\n\nWebsite content and Product Creative retain their own model controls. Changing this page does not replace those dedicated selections.\n\nDifferent models can have different input, output, image, and video prices. A model change can therefore alter how quickly prepaid credit or an account limit is consumed, even when staff run the same number of tasks."
     },
     {
       "id": "ims-settings-ai-models:7",
@@ -6773,7 +6956,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| A saved model is no longer listed | Google has renamed, retired, or restricted the model | Choose a current model from the list and save again |\n| Invoice lines or totals are wrong | The document is difficult or the extraction model misread its layout | Correct the draft, try Document extraction with a more capable model, and verify totals before saving |\n| Product matches are uncertain | Codes are absent or catalogue descriptions differ | Review low-confidence lines manually; do not create or select a product based only on the suggestion |\n| Responses are slow | The selected model prioritises capability over speed | Use Flash for lower-risk work where its output is consistently adequate |\n| Saving fails twice | Model availability or settings storage is unavailable | Stop retrying and keep the current configuration until the displayed error is resolved |"
     },
     {
@@ -6792,7 +6975,7 @@
         "ai-models"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-30",
       "content": "### Improve a difficult invoice import\n\nA multi-page supplier invoice contains small type, freight discounts, and a separate backorder table. Keep **Document extraction** on Gemini 2.5 Pro and **Catalogue matching** on Gemini 2.5 Flash. Upload the invoice, compare every supplied quantity and line total with the source, exclude backorders, and confirm the invoice total before saving the purchase order.\n\n### Reduce latency for routine matching\n\nMost supplier invoices are clean PDFs with exact IMS SKUs. Keep extraction on Pro for the financial reading step and matching on Flash. Review unmatched and low-confidence rows manually; existing saved orders are not changed when the model setting changes."
     },
     {

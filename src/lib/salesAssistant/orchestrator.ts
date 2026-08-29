@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { AI_PLATFORM_ACCOUNT_ID, createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { retrieveProspectKnowledge, type RankedProspectKnowledgeSource } from './knowledge';
@@ -91,7 +91,7 @@ const defaultDependencies: SalesAssistantDependencies = {
   generateJson: async input => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error('Sales assistant provider is not configured.');
-    const response = await new GoogleGenAI({ apiKey }).models.generateContent({
+    const response = await createTrackedGoogleGenAI(apiKey, { businessId: AI_PLATFORM_ACCOUNT_ID, area: 'prospect_sales', operation: 'answer_prospect', actorType: 'public' }).models.generateContent({
       model: SALES_MODEL,
       contents: input.context,
       config: { systemInstruction: input.systemInstruction, responseMimeType: 'application/json', temperature: 0.15, maxOutputTokens: 1000 },

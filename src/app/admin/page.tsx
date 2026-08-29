@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import AiUsageCreditsView from './AiUsageCreditsView';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import IntegrationOfferingsView from './IntegrationOfferingsView';
 import ProspectInsightsView from './ProspectInsightsView';
@@ -23,7 +24,7 @@ interface User {
   created_at?: string;
 }
 
-type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'runtime-issues' | 'workflow-findings';
+type View = 'businesses' | 'users' | 'features' | 'integration-offerings' | 'prospect-leads' | 'prospect-insights' | 'ai-billing' | 'runtime-issues' | 'workflow-findings';
 
 // ── Styles (IMS-style) ────────────────────────────────────────────────────────
 const S = {
@@ -703,6 +704,7 @@ export default function AdminPage() {
             { id: 'integration-offerings', label: 'Integration Offerings' },
             { id: 'prospect-leads', label: 'Prospect Leads' },
             { id: 'prospect-insights', label: 'Prospect Insights' },
+            { id: 'ai-billing', label: 'AI Usage & Credits' },
             { id: 'runtime-issues', label: `Runtime Issues${openIssueCount ? ` (${openIssueCount})` : ''}` },
             { id: 'workflow-findings', label: 'Workflow Findings' },
           ] as { id: View; label: string }[]).map(item => (
@@ -718,6 +720,7 @@ export default function AdminPage() {
           {view === 'integration-offerings' && <IntegrationOfferingsView />}
           {view === 'prospect-leads' && <ProspectLeadsView />}
           {view === 'prospect-insights' && <ProspectInsightsView />}
+          {view === 'ai-billing' && <AiUsageCreditsView />}
           {view === 'runtime-issues' && <RuntimeIssuesView />}
           {view === 'workflow-findings' && <WorkflowFindingsView />}
         </div>

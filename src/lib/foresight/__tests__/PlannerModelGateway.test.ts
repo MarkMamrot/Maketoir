@@ -1,10 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const { mockGenerateContent } = vi.hoisted(() => ({ mockGenerateContent: vi.fn() }));
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: class GoogleGenAI {
-    models = { generateContent: mockGenerateContent };
-  },
+vi.mock('@/lib/ai/billing/googleGateway', () => ({
+  createTrackedGoogleGenAI: vi.fn(() => ({ models: { generateContent: mockGenerateContent } })),
 }));
 
 import { createGeminiPlannerModelGateway } from '../assistant/PlannerModelGateway';
@@ -12,7 +10,9 @@ import { createGeminiPlannerModelGateway } from '../assistant/PlannerModelGatewa
 describe('PlannerModelGateway', () => {
   it('requests JSON using the versioned system prompt and parses fenced fallback output', async () => {
     mockGenerateContent.mockResolvedValue({ text: '```json\n{"toolCalls":[]}\n```' });
-    const gateway = createGeminiPlannerModelGateway('test-key');
+    const gateway = createGeminiPlannerModelGateway('test-key', {
+      businessId: 'business-1', area: 'foresight', operation: 'plan', actorType: 'user',
+    });
 
     await expect(gateway.generateJson({
       modelId: 'gemini-test', systemInstruction: 'Governed prompt', prompt: '{"task":"plan"}',
@@ -27,7 +27,9 @@ describe('PlannerModelGateway', () => {
 
   it('places bounded media before the JSON assessment prompt', async () => {
     mockGenerateContent.mockResolvedValue({ text: '{"schemaVersion":1}' });
-    const gateway = createGeminiPlannerModelGateway('test-key');
+    const gateway = createGeminiPlannerModelGateway('test-key', {
+      businessId: 'business-1', area: 'foresight', operation: 'assess', actorType: 'user',
+    });
 
     await gateway.generateJson({ modelId: 'gemini-test', systemInstruction: 'Governed prompt',
       prompt: '{"task":"assess"}', media: { mimeType: 'image/jpeg', data: 'base64-data' } });

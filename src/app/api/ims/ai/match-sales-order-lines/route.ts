@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
@@ -79,7 +79,12 @@ Use high confidence for clear SKU/barcode identity and medium for a uniquely con
 
     let rawMatches: any[];
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = createTrackedGoogleGenAI(apiKey, {
+        businessId,
+        area: 'catalogue_matching',
+        operation: 'match_customer_order_lines',
+        actorType: 'user',
+      });
       const result = await ai.models.generateContent({
         model: modelId,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { trackedGenerateContentRest } from '@/lib/ai/billing/googleGateway';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { parseAiJsonResponse } from '@/lib/website/aiJsonResponse';
@@ -183,15 +184,12 @@ Return ONLY valid JSON — no markdown fences, no extra text:
         : { ...body, generationConfig: { ...body.generationConfig, temperature: 0 } };
       let res: Response;
       try {
-        res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-            signal: AbortSignal.timeout(attempt === 0 ? 8000 : 5000),
-          },
-        );
+        res = await trackedGenerateContentRest(apiKey, modelId, requestBody, {
+          businessId: session.businessId,
+          area: 'website_content',
+          operation: 'judge_product_urls',
+          actorType: 'user',
+        }, AbortSignal.timeout(attempt === 0 ? 8000 : 5000));
       } catch (error) {
         finishReason = error instanceof Error ? error.name : 'FETCH_FAILED';
         break;

@@ -6,7 +6,7 @@
  */
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { GoogleGenAI } from '@google/genai';
+import { createTrackedGoogleGenAI } from '@/lib/ai/billing/googleGateway';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
   // Add current prompt
   contents.push({ role: 'user', parts: [{ text: fullPrompt }] });
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = createTrackedGoogleGenAI(apiKey, { businessId: databaseId, area: 'business_intelligence', operation: 'brand_asset_chat', actorType: 'user' });
 
   try {
     const result = await ai.models.generateContent({

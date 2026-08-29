@@ -43,7 +43,9 @@ describe('/api/foresight/planning/threads/[threadId]/turn', () => {
   it('uses session tenancy and the server-controlled model', async () => {
     const response = await POST(request({ expectedRevision: 2, content: 'Help plan retention.', modelId: 'attacker-model' }), { params: { threadId: '12' } });
     expect(response.status).toBe(200);
-    expect(mockCreateGateway).toHaveBeenCalledWith('test-key');
+    expect(mockCreateGateway).toHaveBeenCalledWith('test-key', expect.objectContaining({
+      businessId: 'business-1', area: 'foresight', operation: 'planning_turn', actorUserId: 7, referenceId: 12,
+    }));
     expect(mockRunTurn).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'business-1', threadId: 12, expectedRevision: 2, actorUserId: 7,
       content: 'Help plan retention.', modelId: 'gemini-test-model',

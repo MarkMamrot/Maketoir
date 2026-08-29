@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
+import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, WalletCards, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
+import AccountAiCreditsSection from './components/AccountAiCreditsSection';
 import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
@@ -21396,7 +21397,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'ai-models' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -26205,6 +26206,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'ai-models',       label: 'AI Models',       icon: <BrainCircuit size={15} /> },
+    { id: 'ai-account',      label: 'Account & AI Credits', icon: <WalletCards size={15} /> },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
@@ -26247,6 +26249,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
         )}
 
         {active === 'ai-models' && <AiModelSettingsSection />}
+        {active === 'ai-account' && <AccountAiCreditsSection />}
 
         {/* ── Purchase Orders ── */}
         {active === 'purchase-orders' && (
