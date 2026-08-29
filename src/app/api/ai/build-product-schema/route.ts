@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
@@ -415,10 +416,10 @@ export async function POST(req: Request) {
     }
 
     // ── 1. Look up Gemini model ──────────────────────────────────────────────
-    let modelId = 'gemini-2.5-pro-preview';
+    let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
     try {
       const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-      if (conn?.gemini_model) modelId = conn.gemini_model;
+      modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
     } catch { /* use default */ }
 
     // ── 2. Handle title / tags types (simpler — always fresh generation) ────

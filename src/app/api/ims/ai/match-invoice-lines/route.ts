@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { GoogleGenAI } from '@google/genai';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -55,10 +56,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No active products found for this supplier in IMS.' }, { status: 404 });
   }
 
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'catalogueMatching');
   try {
     const conn = await ConnectionsRepository.get(biz);
-    if ((conn as any)?.gemini_model) modelId = (conn as any).gemini_model;
+    modelId = resolveBusinessAiModel(conn, 'catalogueMatching');
   } catch { /* use default */ }
 
   const ai = new GoogleGenAI({ apiKey });

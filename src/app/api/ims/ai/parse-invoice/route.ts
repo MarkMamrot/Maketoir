@@ -3,6 +3,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { GoogleGenAI } from '@google/genai';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { normalizeParsedInvoice } from '@/lib/ims/invoiceImportParser';
 
 export const runtime = 'nodejs';
@@ -127,10 +128,10 @@ export async function POST(req: Request) {
   }
 
   // Get configured Gemini model
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'documentExtraction');
   try {
     const conn = await ConnectionsRepository.get(biz);
-    if ((conn as any)?.gemini_model) modelId = (conn as any).gemini_model;
+    modelId = resolveBusinessAiModel(conn, 'documentExtraction');
   } catch { /* use default */ }
 
   const ai = new GoogleGenAI({ apiKey });

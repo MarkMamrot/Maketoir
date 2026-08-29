@@ -10,6 +10,7 @@ import { NextResponse }          from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { GoogleGenAI }           from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository }from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository }from '@/lib/db/BusinessInfoRepository';
 import { ImsImagesRepo }         from '@/lib/ims/ImsRepository';
@@ -491,10 +492,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
 
   if (mode === 'chat') {
-    let modelId = 'gemini-2.5-flash';
+    let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
     try {
-      const conn = await ConnectionsRepository.get(businessId) as any;
-      if (conn?.gemini_model) modelId = conn.gemini_model;
+      const conn = await ConnectionsRepository.get(businessId);
+      modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
     } catch {}
 
     const sections: string[] = [];
@@ -850,10 +851,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       includeExistingText = false,
       includeWebTemplates = true,
     } = body;
-    let textModelId = textModel || 'gemini-2.5-flash';
+    let textModelId = textModel || resolveBusinessAiModel(null, 'businessIntelligence');
     try {
-      const conn = await ConnectionsRepository.get(businessId) as any;
-      if (conn?.gemini_model) textModelId = textModel || conn.gemini_model;
+      const conn = await ConnectionsRepository.get(businessId);
+      textModelId = textModel || resolveBusinessAiModel(conn, 'businessIntelligence');
     } catch {}
 
     const sections: string[] = [];

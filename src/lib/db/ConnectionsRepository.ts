@@ -27,6 +27,10 @@ export interface ConnectionsRow {
   website_sheet_id:         string | null;
   inventory_sheet_id:       string | null;
   gemini_model:             string | null;
+  ai_document_extraction_model: string | null;
+  ai_catalogue_matching_model: string | null;
+  ai_business_intelligence_model: string | null;
+  ai_customer_service_model: string | null;
   ga4_property_id:          string | null;
   xero_tenant_id:           string | null;
   xero_tenant_name:         string | null;

@@ -4,6 +4,7 @@ import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { decrypt } from '@/lib/encryption';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
@@ -37,9 +38,9 @@ ${summary}
 async function getGeminiModel(databaseId: string): Promise<string> {
   try {
     const conn = await ConnectionsRepository.get(databaseId);
-    if (conn?.gemini_model) return conn.gemini_model;
+    return resolveBusinessAiModel(conn, 'businessIntelligence');
   } catch { /* use default */ }
-  return 'gemini-2.5-pro-preview';
+  return resolveBusinessAiModel(null, 'businessIntelligence');
 }
 
 async function getStoredSummary(sheets: GoogleSheetsService, inventorySystemId: string, api: string): Promise<string> {

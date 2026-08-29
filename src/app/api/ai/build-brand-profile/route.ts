@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { SalesRepository } from '@/lib/db/SalesRepository';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { decrypt } from '@/lib/encryption';
@@ -322,11 +323,11 @@ export async function POST(req: Request) {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) return NextResponse.json({ error: 'Gemini API key not configured.' }, { status: 500 });
 
-      let modelId = 'gemini-2.5-pro-preview';
+      let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
       if (databaseId) {
         try {
           const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-          if (conn?.gemini_model) modelId = conn.gemini_model;
+          modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
         } catch { /* use default */ }
       }
 
@@ -807,12 +808,12 @@ Example: { "${fieldKey}": "new value here" }`;
     }
 
     // ── 1. Look up configured Gemini model + inventory system ID ───────────
-    let modelId = 'gemini-2.5-pro-preview';
+    let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
     let inventorySystemId = databaseId;
     if (databaseId) {
       try {
         const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-        if (conn?.gemini_model) modelId = conn.gemini_model;
+        modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
         inventorySystemId = await resolveInventorySystemId(databaseId).catch(() => databaseId);
       } catch { /* use defaults */ }
     }

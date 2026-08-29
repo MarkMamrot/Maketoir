@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
 import { getIMSPool } from '@/services/IMSMySQLService';
@@ -32,12 +33,12 @@ export async function POST(req: Request) {
   }
 
   let inventorySystemId = databaseId;
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
   let source = 'cin7';
 
   try {
     const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-    if (conn?.gemini_model) modelId = conn.gemini_model;
+    modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
     inventorySystemId = await resolveInventorySystemId(databaseId).catch(() => databaseId);
     source = await getInventorySource(databaseId).catch(() => 'cin7');
   } catch { /* use defaults */ }

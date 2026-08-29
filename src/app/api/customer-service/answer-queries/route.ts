@@ -8,6 +8,7 @@ import { MetaAdsService } from '@/services/MetaAdsService';
 import { decrypt } from '@/lib/encryption';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
@@ -340,7 +341,7 @@ export async function POST(req: Request) {
   let refreshToken = '';
   let gmailClientId     = ENV_CLIENT_ID;
   let gmailClientSecret = ENV_CLIENT_SECRET;
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'customerService');
   let inventorySystemId = databaseId;
   let ga4PropertyId = '';
   let metaToken = '';
@@ -369,7 +370,7 @@ export async function POST(req: Request) {
       try { gmailClientSecret = decrypt((conn as any).gmail_client_secret); }
       catch { gmailClientSecret = (conn as any).gmail_client_secret; }
     }
-    if (conn.gemini_model) modelId = conn.gemini_model;
+    modelId = resolveBusinessAiModel(conn, 'customerService');
     ga4PropertyId = conn.ga4_property_id ?? '';
     metaAccountId = conn.meta_ad_account_id ?? '';
     if (conn.meta_access_token) {

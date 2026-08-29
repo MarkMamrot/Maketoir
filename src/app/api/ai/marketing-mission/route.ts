@@ -6,6 +6,7 @@ import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
 import { GoogleGenAI } from '@google/genai';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
@@ -461,7 +462,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured.' }, { status: 500 });
 
-    let modelId = 'gemini-2.5-flash-preview-04-17';
+    let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
     let metaToken = '';
     let metaAccountId = '';
     let ga4PropertyId = '';
@@ -474,7 +475,7 @@ export async function POST(req: Request) {
         resolveInventorySystemId(databaseId).catch(() => databaseId),
       ]);
       if (conn) {
-        if (conn.gemini_model)           modelId       = conn.gemini_model;
+        modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
         if (conn.ga4_property_id)        ga4PropertyId = conn.ga4_property_id;
         if (conn.meta_ad_account_id)     metaAccountId = conn.meta_ad_account_id;
         if (conn.meta_access_token)      { try { metaToken     = decrypt(conn.meta_access_token); } catch { metaToken     = conn.meta_access_token; } }

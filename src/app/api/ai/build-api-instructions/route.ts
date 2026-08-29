@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { getGlobalSpecsSheetId } from '@/lib/globalApiSpecs';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { requireAdminSession, assertBusinessAccess } from '@/lib/sessionUtils';
 
@@ -88,11 +89,11 @@ export async function POST(req: Request) {
   const sheets = new GoogleSheetsService();
 
   // Look up the configured Gemini model + inventory system ID from MySQL
-  let modelId = 'gemini-2.5-pro-preview';
+  let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
   let inventorySystemId = databaseId;
   try {
     const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-    if (conn?.gemini_model) modelId = conn.gemini_model;
+    modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
     inventorySystemId = await resolveInventorySystemId(databaseId).catch(() => databaseId);
   } catch { /* use defaults */ }
 

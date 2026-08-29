@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
@@ -50,10 +51,10 @@ export async function POST(req: Request) {
     );
     if (variants.length === 0) return NextResponse.json({ error: 'No active products are available in IMS.' }, { status: 404 });
 
-    let modelId = 'gemini-2.5-flash-preview-04-17';
+    let modelId = resolveBusinessAiModel(null, 'catalogueMatching');
     try {
       const connection = await ConnectionsRepository.get(businessId);
-      if ((connection as any)?.gemini_model) modelId = (connection as any).gemini_model;
+      modelId = resolveBusinessAiModel(connection, 'catalogueMatching');
     } catch {
       // Use the default model when optional connection settings are unavailable.
     }

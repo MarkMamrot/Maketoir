@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
 import { getImsSession } from '@/lib/auth/imsSession';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import {
   matchSalesOrderCustomer,
@@ -53,10 +54,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'File too large (max 20 MB).' }, { status: 400 });
   }
 
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'documentExtraction');
   try {
     const connection = await ConnectionsRepository.get(businessId);
-    if ((connection as any)?.gemini_model) modelId = (connection as any).gemini_model;
+    modelId = resolveBusinessAiModel(connection, 'documentExtraction');
   } catch {
     // Use the default model when optional connection settings are unavailable.
   }

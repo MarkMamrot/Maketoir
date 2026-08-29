@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
+import { BrainCircuit, ChevronDown, ClipboardCopy, FileDown, Link2, Link2Off, Mail, RefreshCw, Search, Wrench } from 'lucide-react';
 import ShopifyView from './components/ShopifyView';
 import ProductImageGallery from './components/ProductImageGallery';
+import AiModelSettingsSection from './components/AiModelSettingsSection';
 import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
@@ -21395,7 +21396,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'ai-models' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -26198,11 +26199,12 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
   if (!isOpen) return null;
 
-  const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: string }[] = [
+  const NAV_ITEMS_DRAWER: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
     { id: 'general',          label: 'General',          icon: '⚙' },
     { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
     { id: 'users',           label: 'Users',           icon: '👥' },
+    { id: 'ai-models',       label: 'AI Models',       icon: <BrainCircuit size={15} /> },
     { id: 'purchase-orders', label: 'Purchase Orders', icon: '📦' },
     { id: 'sales-orders',    label: 'Sales Orders',    icon: '🧾' },
     { id: 'inventory-documents', label: 'Credits & Stocktakes', icon: '📋' },
@@ -26243,6 +26245,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             <UsersListView />
           </div>
         )}
+
+        {active === 'ai-models' && <AiModelSettingsSection />}
 
         {/* ── Purchase Orders ── */}
         {active === 'purchase-orders' && (

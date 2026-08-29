@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { query as dbQuery } from '@/services/MySQLService';
@@ -87,11 +88,10 @@ export async function POST(req: Request) {
   }
 
   // Get Gemini model preference
-  let modelId = 'gemini-2.5-flash';
+  let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
   try {
-    const conn = await ConnectionsRepository.get(databaseId) as any;
-    if (conn?.gemini_model) modelId = conn.gemini_model;
-    else if (conn?.GeminiModel) modelId = conn.GeminiModel;
+    const conn = await ConnectionsRepository.get(databaseId);
+    modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
   } catch {}
 
   // Assemble context sections

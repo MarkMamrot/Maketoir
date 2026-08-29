@@ -24,6 +24,7 @@ import { cookies } from 'next/headers';
 import { GoogleGenAI } from '@google/genai';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
@@ -347,7 +348,7 @@ async function runAutoReply(databaseId: string, force = false): Promise<{ proces
   if (!candidates.length) return { processed: 0, drafted: 0, sent: 0, forwarded: 0, skipped: 'No unanswered threads' };
 
   // Resolve Gemini model + inventory system
-  const modelId = conn.gemini_model || 'gemini-2.5-flash-preview-04-17';
+  const modelId = resolveBusinessAiModel(conn, 'customerService');
   const inventorySystemId = await resolveInventorySystemId(databaseId).catch(() => databaseId);
   const bizContext = await gatherBizContext(databaseId);
   const dataContext = await gatherDataContext(databaseId, inventorySystemId, sourceIds);

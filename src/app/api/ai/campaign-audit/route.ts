@@ -12,6 +12,7 @@
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleGenAI } from '@google/genai';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { CalcReportsRepository } from '@/lib/db/CalcReportsRepository';
@@ -266,12 +267,12 @@ export async function POST(req: Request) {
         controller.enqueue(emit({ phase: 'loading_data', message: 'Reading campaign and inventory data…' }));
 
         const sheets = new GoogleSheetsService();
-        let modelId = 'gemini-2.5-flash-preview-04-17';
+        let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
 
         // Resolve model from Connections
         try {
           const conn = await ConnectionsRepository.get(databaseId).catch(() => null);
-          if (conn?.gemini_model) modelId = conn.gemini_model;
+          modelId = resolveBusinessAiModel(conn, 'businessIntelligence');
         } catch { /* use default */ }
 
         const context = await buildAuditContext(sheets, databaseId);

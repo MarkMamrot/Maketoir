@@ -10,6 +10,7 @@ import { resolveInventorySystemId } from '@/lib/cin7Helpers';
 import { BusinessInfoRepository } from '@/lib/db/BusinessInfoRepository';
 import { BrandProfileRepository } from '@/lib/db/BrandProfileRepository';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { resolveBusinessAiModel } from '@/lib/ai/businessModelPreferences';
 import { ConfigRepository } from '@/lib/db/ConfigRepository';
 import { CalcReportsRepository, YearlyRevenueRepository } from '@/lib/db/CalcReportsRepository';
 import { ProductsRepository } from '@/lib/db/ProductsRepository';
@@ -488,7 +489,7 @@ export async function POST(req: Request) {
 
   const sheets = new GoogleSheetsService();
   let inventorySystemId = databaseId;
-  let modelId = 'gemini-2.5-flash-preview-04-17';
+  let modelId = resolveBusinessAiModel(null, 'businessIntelligence');
   let metaToken = '';
   let metaAccountId = '';
   let ga4PropertyId = '';
@@ -502,7 +503,7 @@ export async function POST(req: Request) {
     const getConfig = (key: string) => (configAll as any[]).find((r: any) => r.key === key)?.value ?? '';
     if (conn) {
       const c = conn as any;
-      if (c.gemini_model)       modelId       = c.gemini_model;
+      modelId = resolveBusinessAiModel(c, 'businessIntelligence');
       if (c.ga4_property_id)    ga4PropertyId = c.ga4_property_id;
       if (c.meta_ad_account_id) metaAccountId = c.meta_ad_account_id;
       if (c.meta_access_token)  { try { metaToken = decrypt(c.meta_access_token); } catch { metaToken = c.meta_access_token; } }
