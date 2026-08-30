@@ -11,23 +11,13 @@ async function requireAdminOrSuperAdmin() {
   if (!session) {
     return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
   }
-  // If tier is already in session, use it
   if (session.tier === 'SuperAdmin' || session.tier === 'Admin') return null;
-  // Tier may be missing from old sessions — look up from DB
-  if (session.userId) {
-    const dbUser = await UsersRepository.findById(Number(session.userId)).catch(() => null);
-    if (dbUser && (dbUser.tier === 'SuperAdmin' || dbUser.tier === 'Admin')) return null;
-  }
   return NextResponse.json({ error: 'Admin access required.' }, { status: 403 });
 }
 
-async function resolveEffectiveTier(): Promise<UserTier> {
+function resolveEffectiveTier(): UserTier {
   const session = getAdminSession();
   if (session?.tier) return session.tier as UserTier;
-  if (session?.userId) {
-    const dbUser = await UsersRepository.findById(Number(session.userId)).catch(() => null);
-    if (dbUser?.tier) return dbUser.tier;
-  }
   return 'StandardUser';
 }
 
@@ -96,10 +86,10 @@ export async function POST(req: Request) {
     }
 
     // Determine valid tiers based on requester's tier
-    const effectiveTier = await resolveEffectiveTier();
+    const effectiveTier = resolveEffectiveTier();
     let validTiers: UserTier[] = ['StandardUser', 'PosManager', 'PosUser'];
     if (effectiveTier === 'SuperAdmin') {
-      validTiers = ['SuperAdmin', 'Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
+      validTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     } else if (effectiveTier === 'Admin') {
       validTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     }
@@ -166,10 +156,10 @@ export async function PATCH(req: Request) {
     const updates: string[] = [];
     const values: any[] = [];
     
-    const effectiveTier = await resolveEffectiveTier();
+    const effectiveTier = resolveEffectiveTier();
     let validUpdateTiers: UserTier[] = ['StandardUser', 'PosManager', 'PosUser'];
     if (effectiveTier === 'SuperAdmin') {
-      validUpdateTiers = ['SuperAdmin', 'Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
+      validUpdateTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     } else if (effectiveTier === 'Admin') {
       validUpdateTiers = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
     }
