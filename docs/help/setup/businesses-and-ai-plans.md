@@ -88,7 +88,7 @@ When POS was configured for a different business, it returns to Device Setup aft
 | AI remains unavailable after a plan change | Funding is exhausted, enforcement is active, or the account is suspended | Review the business in AI Usage & Credits |
 | A deleted business is missing | Deleted rows are hidden by default | Enable **Show deleted** for historical review |
 | Google rate preview cannot connect | The billing account, billing connection, access permission, or Cloud Billing API is unavailable | Ask a platform administrator to restore the Google Billing connection, then retry |
-| A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or another shape that cannot be applied as one standard token rate | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear |
+| A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or conflicts with another SKU mapped to the same model and metric | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear. Equivalent SKUs with the same price are consolidated automatically |
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
 
 ## Worked examples

@@ -94,7 +94,7 @@ function metricsFromSku(name: string): AiRateMetric[] {
 
 export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetchedAt = new Date().toISOString()): GoogleRatePreview {
   const priceBySku = new Map(prices.map(price => [price.name?.match(/\/skus\/([^/]+)\//)?.[1], price]));
-  const candidates: GoogleRateCandidate[] = [];
+  const mappedCandidates: GoogleRateCandidate[] = [];
   const warnings: GoogleRatePreview['warnings'] = [];
   for (const sku of skus) {
     const skuName = String(sku.displayName || sku.description || 'Unnamed Gemini SKU');
@@ -114,10 +114,23 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
       continue;
     }
     const priceAud = moneyDecimal(amount);
-    for (const metric of metrics) candidates.push({
+    for (const metric of metrics) mappedCandidates.push({
       id: `${skuId}:${metric}`, skuId, skuName, priceName: String(price?.name || ''), modelId, metric,
       priceAud, unitScale, sourceCurrency: 'AUD', sourcePriceDecimal: priceAud, audFxRate: '1',
     });
+  }
+  const candidates: GoogleRateCandidate[] = [];
+  const groups = Map.groupBy(mappedCandidates, candidate => `${candidate.modelId}:${candidate.metric}`);
+  for (const group of groups.values()) {
+    if (group.length === 1) { candidates.push(group[0]); continue; }
+    const distinctRates = new Set(group.map(candidate => `${candidate.priceAud}:${candidate.unitScale}`));
+    if (distinctRates.size === 1) {
+      const [candidate, ...duplicates] = group.sort((left, right) => left.skuId.localeCompare(right.skuId));
+      candidates.push(candidate);
+      warnings.push(...duplicates.map(duplicate => ({ skuId: duplicate.skuId, skuName: duplicate.skuName, reason: `Equivalent to Google SKU ${candidate.skuId}; one provider rate will be used.` })));
+      continue;
+    }
+    warnings.push(...group.map(candidate => ({ skuId: candidate.skuId, skuName: candidate.skuName, reason: `Conflicts with another Google SKU mapped to ${candidate.modelId} ${candidate.metric}; review manually.` })));
   }
   return { fetchedAt, candidates, warnings };
 }

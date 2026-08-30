@@ -42,6 +42,34 @@ describe('Google pricing preview', () => {
     expect(preview.warnings[0]?.reason).toContain('AUD');
   });
 
+  it('collapses equivalent SKUs mapped to one provider rate', () => {
+    const preview = buildGoogleRatePreview(
+      [
+        { skuId: 'SKU-B', displayName: 'Gemini 2.5 Pro Input Tokens' },
+        { skuId: 'SKU-A', displayName: 'Gemini 2.5 Pro Input Tokens' },
+      ],
+      ['SKU-B', 'SKU-A'].map(skuId => ({ name: `billingAccounts/a/skus/${skuId}/price`, currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } })),
+    );
+    expect(preview.candidates).toEqual([expect.objectContaining({ id: 'SKU-A:input_tokens' })]);
+    expect(preview.warnings).toEqual([expect.objectContaining({ skuId: 'SKU-B', reason: expect.stringContaining('Equivalent') })]);
+  });
+
+  it('withholds conflicting SKUs mapped to one provider rate', () => {
+    const preview = buildGoogleRatePreview(
+      [
+        { skuId: 'SKU-A', displayName: 'Gemini 2.5 Pro Input Tokens' },
+        { skuId: 'SKU-B', displayName: 'Gemini 2.5 Pro Input Tokens' },
+      ],
+      [
+        { name: 'billingAccounts/a/skus/SKU-A/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+        { name: 'billingAccounts/a/skus/SKU-B/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '3' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+      ],
+    );
+    expect(preview.candidates).toHaveLength(0);
+    expect(preview.warnings).toHaveLength(2);
+    expect(preview.warnings[0]?.reason).toContain('Conflicts');
+  });
+
   it('requires a configured billing account before authentication', async () => {
     delete process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID;
     delete process.env.GOOGLE_BILLING_ACCOUNT_ID;

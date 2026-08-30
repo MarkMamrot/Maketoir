@@ -27,6 +27,8 @@ export const AiRateRepository = {
   },
 
   async importGoogle(candidates: GoogleRateCandidate[], actorUserId: number) {
+    const rateKeys = candidates.map(candidate => `${candidate.modelId}:${candidate.metric}`);
+    if (new Set(rateKeys).size !== rateKeys.length) throw new Error('Google rate selection contains duplicate model metrics. Refresh and review the preview.');
     const connection = await getPool().getConnection();
     let imported = 0; let skipped = 0;
     try {
