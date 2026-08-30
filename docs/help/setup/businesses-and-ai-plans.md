@@ -67,6 +67,7 @@ When POS was configured for a different business, it returns to Device Setup aft
 1. Open **Admin > AI Usage & Credits**.
 2. In **Rate cards**, select **Sync Google rates**.
 3. Review each supported rate's current value, Google value, status, model, metric, and SKU.
+	**Active and current** means every supported Google price already matches its active provider rate. **Ready for approval** means one or more supported changes are selected but not yet active.
 4. Expand the manual-review list and assess any unsupported tier, threshold, storage, tool, or modality prices separately.
 5. Clear the checkbox for any supported change that should not be activated.
 6. Select **Approve selected** and confirm the change.

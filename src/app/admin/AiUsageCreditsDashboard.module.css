@@ -159,6 +159,10 @@
 .syncPreview { margin-bottom: 18px; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
 .syncHeader { display: flex; align-items: center; gap: 16px; padding: 12px; background: var(--ai-surface-subtle); }
 .syncHeader > div { flex: 1; min-width: 0; font-size: 12px; }
+.syncStatus { display: flex; align-items: baseline; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--ai-border); border-bottom: 1px solid var(--ai-border); font-size: 11px; }
+.syncStatus span { color: var(--ai-muted); }
+.syncStatusCurrent { background: #e8f6f0; color: #176b50; }
+.syncStatusAction { background: #fff6db; color: #805d00; }
 .syncTableWrap { overflow-x: auto; }
 .syncTable { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 11px; }
 .syncTable th { padding: 8px 10px; border-bottom: 1px solid var(--ai-border); color: var(--ai-muted); font-size: 9px; text-align: left; text-transform: uppercase; }
@@ -226,6 +230,7 @@
   .rateFooter { align-items: stretch; flex-direction: column; }
   .rateFooter .primaryButton { width: 100%; }
   .syncHeader { align-items: stretch; flex-direction: column; }
+  .syncStatus { align-items: flex-start; flex-direction: column; gap: 2px; }
   .warningRow { grid-template-columns: 1fr; gap: 3px; }
   .manualRateHeading { align-items: flex-start; flex-direction: column; }
 }

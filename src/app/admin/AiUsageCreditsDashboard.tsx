@@ -92,8 +92,9 @@ export default function AiUsageCreditsDashboard() {
       const response = await fetch('/api/admin/ai-billing/rates/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateIds: googleSelected }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Google rate import failed.');
-      setMessage(`${result.imported} Google rate${result.imported === 1 ? '' : 's'} activated${result.skipped ? `; ${result.skipped} unchanged` : ''}.`);
       await load(); await previewGoogleRates();
+      setIsError(false);
+      setMessage(`${result.imported} Google rate${result.imported === 1 ? '' : 's'} activated${result.skipped ? `; ${result.skipped} unchanged` : ''}.`);
     } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Google rate import failed.'); }
     finally { setGoogleLoading(false); }
   };
@@ -149,11 +150,15 @@ export default function AiUsageCreditsDashboard() {
       <div className={styles.rateBody}>
       {googlePreview && <div className={styles.syncPreview}>
         <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>Approve {googleSelected.length || ''} selected</button></div>
+        <div className={`${styles.syncStatus} ${googleSelected.length ? styles.syncStatusAction : styles.syncStatusCurrent}`}>
+          <strong>{googleSelected.length ? `${googleSelected.length} supported rate${googleSelected.length === 1 ? '' : 's'} ready for approval` : `${googlePreview.candidates.length} supported Google rate${googlePreview.candidates.length === 1 ? '' : 's'} active and current`}</strong>
+          <span>{googleSelected.length ? 'Review the selected changes before activation.' : 'Every supported Google price matches the active provider rate.'}</span>
+        </div>
         {googlePreview.candidates.length > 0 ? <div className={styles.syncTableWrap}><table className={styles.syncTable}><thead><tr><th aria-label="Select rate"></th><th>Model</th><th>Metric</th><th className={styles.numeric}>Current</th><th className={styles.numeric}>Google</th><th>Status</th><th>Google SKU</th></tr></thead><tbody>{googlePreview.candidates.map((candidate: any) => <tr key={candidate.id}>
           <td><input type="checkbox" aria-label={`Select ${candidate.modelId} ${candidate.metric}`} checked={googleSelected.includes(candidate.id)} disabled={candidate.status === 'unchanged'} onChange={event => setGoogleSelected(event.target.checked ? [...googleSelected, candidate.id] : googleSelected.filter(id => id !== candidate.id))} /></td>
           <td><strong>{candidate.modelId}</strong></td><td>{title(candidate.metric)}</td><td className={styles.numeric}>{candidate.currentPriceAud == null ? 'Not set' : money(candidate.currentPriceAud)}</td><td className={styles.numeric}>{money(candidate.priceAud)} <span className={styles.muted}>/ {candidate.unitScale.toLocaleString()}</span></td><td><span className={`${styles.pill} ${styles[candidate.status] || ''}`}>{candidate.status}</span></td><td className={styles.sku} title={candidate.skuName}>{candidate.skuId}</td>
         </tr>)}</tbody></table></div> : <div className={styles.syncEmpty}>Google returned no standard token rates that can be represented safely.</div>}
-        {googlePreview.warnings.length > 0 && <details className={styles.syncWarnings}><summary>{googlePreview.warnings.length} Google SKU{googlePreview.warnings.length === 1 ? '' : 's'} need manual review</summary>{googlePreview.warnings.map((warning: any) => <div className={styles.warningRow} key={warning.skuId}><strong>{warning.skuName}</strong><span>{warning.reason}</span><code>{warning.skuId}</code></div>)}</details>}
+        {googlePreview.warnings.length > 0 && <details className={styles.syncWarnings}><summary>{googlePreview.warnings.length} Google SKU mapping{googlePreview.warnings.length === 1 ? '' : 's'} excluded from automatic rates</summary>{googlePreview.warnings.map((warning: any, index: number) => <div className={styles.warningRow} key={`${warning.skuId}-${index}`}><strong>{warning.skuName}</strong><span>{warning.reason}</span><code>{warning.skuId}</code></div>)}</details>}
       </div>}
       <div className={styles.manualRateHeading}><strong>Manual effective rate</strong><span>Use for plan sell rates or unsupported Google pricing shapes.</span></div><div className={styles.rateGrid}>
         <Field label="Rate type"><select className={styles.select} value={rateForm.kind} onChange={event => setRateForm({ ...rateForm, kind: event.target.value })}><option value="provider">Provider cost</option><option value="plan">Plan sell rate</option></select></Field>
