@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { signAdminSession, verifyAdminSession } from '../adminSessionToken';
+import { signAdminSession, verifyAdminSession, verifyAdminSessionDetails } from '../adminSessionToken';
 
 const NOW_MS = Date.UTC(2026, 7, 16, 10, 0, 0);
 const SESSION = {
@@ -23,6 +23,16 @@ describe('adminSessionToken', () => {
 
     expect(verifyAdminSession(token, { nowMs: NOW_MS })).toEqual(SESSION);
     expect(JSON.parse(token)).toMatchObject(SESSION);
+  });
+
+  it('exposes verified timing metadata for expiry-preserving reissue', () => {
+    const token = signAdminSession(SESSION, { maxAgeSeconds: 60 * 60 * 8, nowMs: NOW_MS });
+
+    expect(verifyAdminSessionDetails(token, { nowMs: NOW_MS + 60_000 })).toEqual({
+      data: SESSION,
+      issuedAt: Math.floor(NOW_MS / 1000),
+      expiresAt: Math.floor(NOW_MS / 1000) + 60 * 60 * 8,
+    });
   });
 
   it('rejects a session whose payload was modified without resigning', () => {

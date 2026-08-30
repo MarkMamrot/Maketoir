@@ -17,6 +17,7 @@ import { isRecentInvalidUrlAttempt, normalizeInvalidUrlExclusionDays } from '@/l
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant, type ProductResearchVariant } from '@/lib/website/productResearchRules';
 import { SolvantisMark } from '@/components/SolvantisMark';
+import { BusinessContextSwitcher } from '@/components/BusinessContextSwitcher';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
 import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
@@ -275,6 +276,10 @@ async function callSyncRoute(
 
 type SyncLogEntry = { text: string; type: 'info' | 'ok' | 'error' };
 
+function businessStorageKey(key: string, businessId: string): string {
+  return businessId ? `${key}:${businessId}` : key;
+}
+
 function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element {
   const [selected, setSelected] = useState<Set<string>>(
     new Set(['products', 'branches', 'suppliers', 'sales', 'sales-by-branch'])
@@ -300,11 +305,12 @@ function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element 
   // Load last-sync dates — localStorage first (fast), then hydrate sales
   // timestamp from the server (source of truth: Config tab in Google Sheets).
   useEffect(() => {
-    const stored = localStorage.getItem('marketoir_last_sync');
+    setLastSync({});
+    const stored = localStorage.getItem(businessStorageKey('marketoir_last_sync', databaseId));
     if (stored) {
       try { setLastSync(JSON.parse(stored)); } catch {}
     }
-  }, []);
+  }, [databaseId]);
 
   useEffect(() => {
     if (!databaseId) return;
@@ -315,7 +321,7 @@ function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element 
           const formatted = new Date(d.lastSalesSync).toLocaleString();
           setLastSync(prev => {
             const next = { ...prev, sales: formatted };
-            localStorage.setItem('marketoir_last_sync', JSON.stringify(next));
+            localStorage.setItem(businessStorageKey('marketoir_last_sync', databaseId), JSON.stringify(next));
             return next;
           });
         }
@@ -362,7 +368,7 @@ function InventorySyncTile({ databaseId }: { databaseId: string }): JSX.Element 
         if (result.success) {
           updatedDates[option.id] = now;
           setLastSync({ ...updatedDates });
-          localStorage.setItem('marketoir_last_sync', JSON.stringify(updatedDates));
+          localStorage.setItem(businessStorageKey('marketoir_last_sync', databaseId), JSON.stringify(updatedDates));
           setLog(p => [...p, { text: `✅ ${option.label}: ${result.message ?? 'Done'}`, type: 'ok' }]);
           // Automatically run sales-by-branch right after products sync completes
           // (products writes the Stock sheet first, which sales-by-branch depends on)
@@ -641,9 +647,9 @@ function SyncWebsiteDataView({ databaseId, initialSection = 'products' }: { data
           setOrdersLastSync(ordersData.lastSync ?? (ordersData.hasData ? 'Synced' : null));
         }
       } catch {
-        const productsSync = localStorage.getItem('marketoir_last_sync_shopify');
-        const collectionsSync = localStorage.getItem('marketoir_last_sync_shopify_collections');
-        const ordersSync = localStorage.getItem('marketoir_last_sync_shopify_orders');
+        const productsSync = localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify', databaseId));
+        const collectionsSync = localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify_collections', databaseId));
+        const ordersSync = localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify_orders', databaseId));
         if (!ignore) {
           if (productsSync) setProductLastSync(productsSync);
           if (collectionsSync) setCollectionsLastSync(collectionsSync);
@@ -2724,9 +2730,8 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
   const [errorModal, setErrorModal] = useState<{ label: string; error: string } | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem('marketoir_last_sync_marketing');
-    if (stored) setLastSync(stored);
-  }, []);
+    setLastSync(localStorage.getItem(businessStorageKey('marketoir_last_sync_marketing', databaseId)));
+  }, [databaseId]);
 
   const toggleSource = (key: string) => {
     setSources(prev => {
@@ -2787,7 +2792,7 @@ function SyncAdsView({ databaseId }: { databaseId: string }) {
             if (evt.status === 'complete') {
               const now = new Date().toLocaleString();
               setLastSync(now);
-              localStorage.setItem('marketoir_last_sync_marketing', now);
+              localStorage.setItem(businessStorageKey('marketoir_last_sync_marketing', databaseId), now);
               setDigestRefreshed(Boolean(evt.weeklyDigestDate) && !evt.weeklyDigestError);
               if (evt.weeklyDigestError) {
                 setGlobalError(`Data synced, but Weekly Performance could not refresh: ${evt.weeklyDigestError}`);
@@ -2974,9 +2979,8 @@ const ShopifyProductsView = forwardRef<WebsiteSyncHandle, {
   const [saveMsgs, setSaveMsgs]     = useState<Record<number, string>>({});
 
   useEffect(() => {
-    const s = localStorage.getItem('marketoir_last_sync_shopify');
-    if (s) setLastSync(s);
-  }, []);
+    setLastSync(localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify', databaseId)));
+  }, [databaseId]);
 
   const handleSync = async (): Promise<WebsiteSyncResult> => {
     if (!databaseId) {
@@ -3000,7 +3004,7 @@ const ShopifyProductsView = forwardRef<WebsiteSyncHandle, {
       setSpreadsheetUrl(data.spreadsheetUrl ?? null);
       const now = new Date().toLocaleString();
       setLastSync(now);
-      localStorage.setItem('marketoir_last_sync_shopify', now);
+      localStorage.setItem(businessStorageKey('marketoir_last_sync_shopify', databaseId), now);
       return {
         success: true,
         lastSync: now,
@@ -4551,9 +4555,8 @@ const ShopifyCollectionsSync = forwardRef<WebsiteSyncHandle, {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    const s = localStorage.getItem('marketoir_last_sync_shopify_collections');
-    if (s) setLastSync(s);
-  }, []);
+    setLastSync(localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify_collections', databaseId)));
+  }, [databaseId]);
 
   const handleSync = async (): Promise<WebsiteSyncResult> => {
     if (!databaseId) {
@@ -4576,7 +4579,7 @@ const ShopifyCollectionsSync = forwardRef<WebsiteSyncHandle, {
       setSpreadsheetUrl(data.spreadsheetUrl ?? null);
       const now = new Date().toLocaleString();
       setLastSync(now);
-      localStorage.setItem('marketoir_last_sync_shopify_collections', now);
+      localStorage.setItem(businessStorageKey('marketoir_last_sync_shopify_collections', databaseId), now);
       return {
         success: true,
         lastSync: now,
@@ -4679,9 +4682,8 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
   const [lastSync, setLastSync] = useState<string | null>(null);
 
   useEffect(() => {
-    const s = localStorage.getItem('marketoir_last_sync_shopify_orders');
-    if (s) setLastSync(s);
-  }, []);
+    setLastSync(localStorage.getItem(businessStorageKey('marketoir_last_sync_shopify_orders', databaseId)));
+  }, [databaseId]);
 
   const handleSync = async (): Promise<WebsiteSyncResult> => {
     if (!databaseId) {
@@ -4704,7 +4706,7 @@ const ShopifyOrdersSync = forwardRef<WebsiteSyncHandle, {
       setSpreadsheetUrl(data.spreadsheetUrl ?? null);
       const now = new Date().toLocaleString();
       setLastSync(now);
-      localStorage.setItem('marketoir_last_sync_shopify_orders', now);
+      localStorage.setItem(businessStorageKey('marketoir_last_sync_shopify_orders', databaseId), now);
       return {
         success: true,
         lastSync: now,
@@ -9098,8 +9100,11 @@ export default function DashboardPage() {
       .then(d => {
         if (!d) return;
         if (d.success && d.businesses?.length > 0) {
-          setDatabaseId(d.businesses[0].databaseId);
-          setBusinessName(d.businesses[0].name);
+          const activeBusiness = d.businesses.find((business: { databaseId: string; active?: boolean }) => business.active)
+            ?? d.businesses.find((business: { databaseId: string }) => business.databaseId === d.activeBusinessId);
+          if (!activeBusiness) return;
+          setDatabaseId(activeBusiness.databaseId);
+          setBusinessName(activeBusiness.name);
         }
       })
       .catch(() => {});
@@ -9175,6 +9180,7 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="relative flex items-center gap-2">
+          <BusinessContextSwitcher destination="/dashboard" enabled={userTier === 'SuperAdmin'} />
           {businessName && (
             <span className="hidden sm:inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full shrink-0 topbar-badge">
               {businessName}

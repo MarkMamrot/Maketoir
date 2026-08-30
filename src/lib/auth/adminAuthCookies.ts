@@ -7,14 +7,14 @@ export const MFA_TRUST_COOKIE = 'marketoir_mfa_trust';
 
 const secure = process.env.NODE_ENV === 'production';
 
-export function setAdminSessionCookie(session: AdminSession): void {
+export function setAdminSessionCookie(session: AdminSession, maxAgeSeconds = ADMIN_SESSION_MAX_AGE_SECONDS): void {
   cookies().set(ADMIN_SESSION_COOKIE, signAdminSession(session, {
-    maxAgeSeconds: ADMIN_SESSION_MAX_AGE_SECONDS,
+    maxAgeSeconds,
   }), {
     httpOnly: true,
     secure,
     sameSite: 'lax',
-    maxAge: ADMIN_SESSION_MAX_AGE_SECONDS,
+    maxAge: maxAgeSeconds,
     path: '/',
   });
 }

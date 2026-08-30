@@ -417,6 +417,16 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
   INDEX idx_auth_rate_limits_locked (locked_until)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS super_admin_business_context_events (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  actor_user_id        INT NOT NULL,
+  previous_business_id VARCHAR(100) NULL,
+  target_business_id   VARCHAR(100) NOT NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_super_admin_context_actor (actor_user_id, created_at, id),
+  INDEX idx_super_admin_context_target (target_business_id, created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- invites  (email invite tokens for adding users to a business)
 -- ---------------------------------------------------------

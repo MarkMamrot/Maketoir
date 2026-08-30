@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
-import { query } from '@/services/MySQLService';
 import { getAdminSession } from '@/lib/sessionUtils';
+import { findAccessibleBusiness, getAccessibleBusinesses } from '@/lib/auth/businessAccess';
 
 /**
  * GET /api/auth/me
@@ -23,27 +23,27 @@ export async function GET() {
     return NextResponse.json({ error: 'Account not found. Please log in again.' }, { status: 403 });
   }
 
-  // Fetch business flags (has_foresight etc.) from the businesses table
-  let hasForesight = false;
-  if (dbUser.business_id) {
-    const bizRows = await query<{ has_foresight: number }>(
-      'SELECT has_foresight FROM businesses WHERE business_id = ? AND deleted_at IS NULL LIMIT 1',
-      [dbUser.business_id],
-    ).catch(() => []);
-    hasForesight = !!(bizRows[0]?.has_foresight);
+  const activeBusiness = findAccessibleBusiness(
+    await getAccessibleBusinesses(dbUser),
+    sessionUser.businessId,
+  );
+  if (!activeBusiness) {
+    cookies().set('marketoir_session', '', { maxAge: 0, path: '/' });
+    return NextResponse.json({ error: 'Business access is no longer available. Please log in again.' }, { status: 403 });
   }
 
   return NextResponse.json({
     valid: true,
     user: {
       name:              dbUser.name ?? '',
-      company:           dbUser.company ?? '',
+      company:           activeBusiness.name,
       email:             dbUser.email,
-      businessId: dbUser.business_id ?? '',
+      businessId:        activeBusiness.businessId,
       role:              dbUser.role,
       tier:              dbUser.tier,
       userId:            dbUser.id,
-      hasForesight,
+      hasForesight:      activeBusiness.hasForesight,
+      activeBusiness,
     },
   });
 }

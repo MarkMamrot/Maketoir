@@ -2,6 +2,8 @@
 {"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance"],"order":3,"summary":"Invite the right person with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-29","owner":"security"}
 ---
 # Team Access and Security
+SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
+
 
 Use Team to invite a colleague as a User or Admin, then let them complete their own secure account setup.
 

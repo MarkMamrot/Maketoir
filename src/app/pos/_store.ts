@@ -29,21 +29,46 @@ export function clearDeviceConfig(): void {
   localStorage.removeItem(KEYS.deviceConfig);
 }
 
+function tenantStorageKey(key: string): string {
+  const businessId = loadDeviceConfig()?.business_id;
+  return businessId ? `${key}:${businessId}` : key;
+}
+
+function getTenantItem(key: string): string | null {
+  const scopedKey = tenantStorageKey(key);
+  const scoped = localStorage.getItem(scopedKey);
+  if (scoped != null || scopedKey === key) return scoped;
+  const legacy = localStorage.getItem(key);
+  if (legacy != null) {
+    localStorage.setItem(scopedKey, legacy);
+    localStorage.removeItem(key);
+  }
+  return legacy;
+}
+
+function setTenantItem(key: string, value: string): void {
+  localStorage.setItem(tenantStorageKey(key), value);
+}
+
+function removeTenantItem(key: string): void {
+  localStorage.removeItem(tenantStorageKey(key));
+}
+
 // ── Local Session Cache (offline startup recovery) ─────────────────────────────
 
 export function saveLocalSession(session: unknown): void {
-  localStorage.setItem(KEYS.sessionLocal, JSON.stringify(session));
+  setTenantItem(KEYS.sessionLocal, JSON.stringify(session));
 }
 
 export function loadLocalSession(): unknown | null {
   try {
-    const raw = localStorage.getItem(KEYS.sessionLocal);
+    const raw = getTenantItem(KEYS.sessionLocal);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
 
 export function clearLocalSession(): void {
-  localStorage.removeItem(KEYS.sessionLocal);
+  removeTenantItem(KEYS.sessionLocal);
 }
 
 // ── Products Cache ───────────────────────────────────────────
@@ -69,7 +94,7 @@ interface ProductsCacheEnvelope {
 
 function readProductsEnvelope(): ProductsCacheEnvelope | null {
   try {
-    const raw = localStorage.getItem(KEYS.products);
+    const raw = getTenantItem(KEYS.products);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     // Backward compatibility: older builds stored a bare array with no timestamp.
@@ -92,7 +117,7 @@ export function saveProductsCache(products: CachedProduct[]): void {
     last_full_sync_at:  existing?.last_full_sync_at,
     products,
   };
-  localStorage.setItem(KEYS.products, JSON.stringify(envelope));
+  setTenantItem(KEYS.products, JSON.stringify(envelope));
 }
 
 /** Merge an incremental delta into an existing product list (upsert by variant_id, drop `removed`). */
@@ -116,7 +141,7 @@ export function markProductsSynced(serverTime: number, isFullSync: boolean): voi
     last_full_sync_at:  isFullSync ? serverTime : existing?.last_full_sync_at,
     products:           existing?.products ?? [],
   };
-  localStorage.setItem(KEYS.products, JSON.stringify(envelope));
+  setTenantItem(KEYS.products, JSON.stringify(envelope));
 }
 
 /** The `since` watermark to pass to the next incremental products fetch, or null if a full fetch is needed. */
@@ -159,7 +184,7 @@ interface ImageCacheEnvelope {
 
 function readImageEnvelope(): ImageCacheEnvelope | null {
   try {
-    const raw = localStorage.getItem(KEYS.productImages);
+    const raw = getTenantItem(KEYS.productImages);
     if (!raw) return null;
     return JSON.parse(raw) as ImageCacheEnvelope;
   } catch { return null; }
@@ -173,7 +198,7 @@ export function loadImageCache(): Record<string, string> | null {
 export function saveImageCache(images: Record<string, string>, serverTime?: number): void {
   try {
     const existing = readImageEnvelope();
-    localStorage.setItem(KEYS.productImages, JSON.stringify({
+    setTenantItem(KEYS.productImages, JSON.stringify({
       cached_at:      Date.now(),
       last_synced_at: serverTime ?? existing?.last_synced_at,
       images,
@@ -215,26 +240,26 @@ export function mergeProductImages<T extends { product_id: string; image_url: st
 
 export function loadCurrentCart(): CartItem[] {
   try {
-    const raw = localStorage.getItem(KEYS.currentCart);
+    const raw = getTenantItem(KEYS.currentCart);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 export function saveCurrentCart(items: CartItem[]): void {
-  localStorage.setItem(KEYS.currentCart, JSON.stringify(items));
+  setTenantItem(KEYS.currentCart, JSON.stringify(items));
 }
 
 // ── Parked Sales ─────────────────────────────────────────────
 
 export function loadParkedSales(): ParkedSale[] {
   try {
-    const raw = localStorage.getItem(KEYS.parkedSales);
+    const raw = getTenantItem(KEYS.parkedSales);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 export function saveParkedSales(sales: ParkedSale[]): void {
-  localStorage.setItem(KEYS.parkedSales, JSON.stringify(sales));
+  setTenantItem(KEYS.parkedSales, JSON.stringify(sales));
 }
 
 // ── Offline Queue ─────────────────────────────────────────────
@@ -248,7 +273,7 @@ export interface OfflineQueueEntry {
 
 export function loadOfflineQueue(): OfflineQueueEntry[] {
   try {
-    const raw = localStorage.getItem(KEYS.offlineQueue);
+    const raw = getTenantItem(KEYS.offlineQueue);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
@@ -256,11 +281,11 @@ export function loadOfflineQueue(): OfflineQueueEntry[] {
 export function addToOfflineQueue(payload: unknown): void {
   const queue = loadOfflineQueue();
   queue.push({ payload, queued_at: new Date().toISOString(), attempts: 0 });
-  localStorage.setItem(KEYS.offlineQueue, JSON.stringify(queue));
+  setTenantItem(KEYS.offlineQueue, JSON.stringify(queue));
 }
 
 export function saveOfflineQueue(queue: OfflineQueueEntry[]): void {
-  localStorage.setItem(KEYS.offlineQueue, JSON.stringify(queue));
+  setTenantItem(KEYS.offlineQueue, JSON.stringify(queue));
 }
 
 /** Remove a single offline queue entry by its payload's local_id. */
@@ -275,13 +300,13 @@ export function removeFromOfflineQueue(localId: string): void {
 
 export function loadFailedQueue(): OfflineQueueEntry[] {
   try {
-    const raw = localStorage.getItem(KEYS.failedQueue);
+    const raw = getTenantItem(KEYS.failedQueue);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 export function saveFailedQueue(queue: OfflineQueueEntry[]): void {
-  localStorage.setItem(KEYS.failedQueue, JSON.stringify(queue));
+  setTenantItem(KEYS.failedQueue, JSON.stringify(queue));
 }
 
 /** Remove a single failed queue entry by its payload's local_id. */

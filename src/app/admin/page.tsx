@@ -10,6 +10,7 @@ import ProspectLeadsView from './ProspectLeadsView';
 import RuntimeIssuesView from './RuntimeIssuesView';
 import WorkflowFindingsView from './WorkflowFindingsView';
 import BusinessFeaturesView from './BusinessFeaturesView';
+import { BusinessContextSwitcher, switchBusinessContext } from '@/components/BusinessContextSwitcher';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Business {
@@ -428,6 +429,7 @@ function BusinessesView() {
   const [settingsBiz, setSettingsBiz] = useState<Business | null>(null);
   const [onboarding, setOnboarding]   = useState(false);
   const [flash, setFlash]           = useState('');
+  const [openingBusinessId, setOpeningBusinessId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -511,6 +513,19 @@ function BusinessesView() {
                     </td>
                     <td style={{ ...S.td, whiteSpace: 'nowrap', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                        {!b.deleted_at && b.business_id !== '__solvantis_platform__' && (
+                          <button
+                            onClick={async () => {
+                              setOpeningBusinessId(b.business_id);
+                              try { await switchBusinessContext(b.business_id, '/ims'); }
+                              catch (error) { showFlash(error instanceof Error ? error.message : 'Business could not be opened.'); setOpeningBusinessId(null); }
+                            }}
+                            disabled={openingBusinessId !== null}
+                            style={{ ...S.btn('action'), fontSize: 12, padding: '4px 10px', opacity: openingBusinessId && openingBusinessId !== b.business_id ? .5 : 1 }}
+                          >
+                            {openingBusinessId === b.business_id ? 'Opening...' : 'Open IMS'}
+                          </button>
+                        )}
                         <button onClick={() => setSettingsBiz(b)} style={{ ...S.btn('ghost'), fontSize: 12, padding: '4px 10px' }}>⚙️ Settings</button>
                         {!b.deleted_at && (
                           <button onClick={() => setDeletingBiz(b)} style={{ ...S.btn('red'), fontSize: 12, padding: '4px 10px' }}>🗑 Delete</button>
@@ -744,6 +759,7 @@ export default function AdminPage() {
         <span style={{ color: 'var(--sv-text-muted,rgba(255,255,255,.2))', margin: '0 8px', fontSize: 13, opacity: .4 }}>|</span>
         <a href="/pos" target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: 'var(--sv-text-dim,#94a3b8)', textDecoration: 'none', fontWeight: 500, opacity: .6, transition: 'opacity .15s' }} onMouseEnter={e => (e.currentTarget.style.opacity = '1')} onMouseLeave={e => (e.currentTarget.style.opacity = '.6')}>POS</a>
         <span style={{ flex: 1 }} />
+        <BusinessContextSwitcher destination="/admin" />
         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 99, background: 'rgba(224,82,82,.2)', color: '#fca5a5', fontWeight: 700 }}>SUPER ADMIN</span>
       </div>
 

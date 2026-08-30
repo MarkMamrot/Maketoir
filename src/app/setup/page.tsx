@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { UnifiedHelpDrawer } from '@/components/help/UnifiedHelpDrawer';
+import { switchBusinessContext } from '@/components/BusinessContextSwitcher';
 
 // --- Embedded Business Info Component ---
 export function BusinessInfoTab({ business }: { business: { name: string; userId: string; databaseId: string } | null }) {
@@ -2364,7 +2365,9 @@ function SetupPageContent() {
         const data = await res.json();
         if (data.success && data.businesses.length > 0) {
           setBusinesses(data.businesses);
-          setSelectedBusiness(data.businesses[0]);
+          setSelectedBusiness(data.businesses.find((business: Business & { active?: boolean }) => business.active)
+            ?? data.businesses.find((business: Business) => business.databaseId === data.activeBusinessId)
+            ?? data.businesses[0]);
         }
       } catch {}
       finally { setBizLoading(false); }
@@ -2398,9 +2401,12 @@ function SetupPageContent() {
           ) : (
             <select
               value={selectedBusiness?.databaseId || ''}
-              onChange={e => {
-                const biz = businesses.find(b => b.databaseId === e.target.value) || null;
-                setSelectedBusiness(biz);
+              onChange={async e => {
+                const businessId = e.target.value;
+                if (!businessId || businessId === selectedBusiness?.databaseId) return;
+                setBizLoading(true);
+                try { await switchBusinessContext(businessId, `/setup?tab=${encodeURIComponent(activeTab)}`); }
+                catch { setBizLoading(false); }
               }}
               className="text-sm font-semibold text-gray-800 border border-gray-200 rounded-md px-3 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >

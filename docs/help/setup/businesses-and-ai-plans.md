@@ -8,6 +8,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 ## Main operations
 
 - Open a business's settings and change its Solvantis AI plan.
+- Select any active business and administer it with your own SuperAdmin account.
 - Enable or disable Intel & Automation, IMS, and POS access.
 - Identify sandbox businesses and pause their scheduled automation when required.
 - Set location and user limits and the monthly cost per location.
@@ -18,6 +19,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 
 | Control | Where to manage it | Effect |
 | --- | --- | --- |
+| Active business | Top bar or **Businesses > Open IMS** | Changes which business's IMS, POS, integrations, settings, and operational data are active |
 | Solvantis AI plan | **Businesses > Settings** | Selects the sell-rate plan for future AI usage |
 | Module access | **Businesses > Settings** | Controls access to Intel & Automation, IMS, and POS |
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
@@ -28,11 +30,14 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 ## Before you begin
 
 - Sign in with SuperAdmin access.
+- Finish or park any POS sale before changing businesses.
 - Confirm the requested plan and commercial arrangement before saving it.
 - Check the business name carefully, especially when a sandbox has a similar name.
 - For Google rate synchronization, confirm the billing connection is available before starting.
 
 > **Important:** Changing the Solvantis AI plan changes the rates used for future AI usage. It does not add prepaid credit, reset current-cycle usage, or alter funding and enforcement settings.
+
+> **Important:** Selecting a business does not sign in as one of its staff. You remain the same SuperAdmin with full administrator permissions; only the active business and its data change.
 
 ## Step-by-step
 
@@ -43,6 +48,19 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 5. Review location, user, and cost-per-location values.
 6. Select **Save Changes**.
 7. Open **AI Usage & Credits** only when funding, enforcement, cycle, credit, or rate controls also need attention.
+
+### Work in a business
+
+1. Open **Admin > Businesses**.
+2. Find the active business you need to administer.
+3. Use **Open IMS**, or choose the business with the top-bar **Business** selector.
+4. Wait for the workspace to reload and confirm the selected business name in the top bar before viewing or changing data.
+5. Move between IMS, Intel & Automation, Setup, and POS as needed. Your SuperAdmin permissions remain available.
+6. To return, choose another business, including your usual business, from the same selector.
+
+When POS was configured for a different business, it returns to Device Setup after the change. Select a location and register belonging to the newly active business. Carts, parked sales, product caches, and offline queues remain separated by business.
+
+> **Warning:** Always confirm the active business before changing stock, orders, payments, integrations, or accounting settings. Changing the active business reloads the workspace and closes any unsaved screen state.
 
 ### Review Google provider rates
 
@@ -60,6 +78,10 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 
 | Symptom | Likely cause | Safe action |
 | --- | --- | --- |
+| A business is missing from the selector | The business was deleted or is an internal platform account | Check **Admin > Businesses** and select an active operating business |
+| The workspace returns to sign-in while switching | The original signed-in session expired | Sign in again; changing businesses does not extend the session |
+| POS returns to Device Setup | Its saved location belongs to the previously active business | Select a location and register for the current business before continuing |
+| The expected features or connections are missing | The selected business has different module access, rollout settings, or connections | Confirm the active business, then review its Business Settings and Connections |
 | The AI plan is still loading | AI account details have not returned yet | Wait briefly and reopen Settings if loading does not finish |
 | The plan cannot be changed | The business does not have an available AI account | Review AI Usage & Credits and contact platform support |
 | Saving reports that only the AI plan failed | Business settings saved but the AI account update did not | Verify the plan and retry after checking the reported error |
@@ -70,6 +92,10 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
 
 ## Worked examples
+
+### Resolve an issue in another business
+
+A SuperAdmin is signed in under Solvantis and needs to correct a purchase order for Sage. They choose **Sage** in the top bar, wait for IMS to reload, and confirm Sage is displayed before opening the order. They remain the same SuperAdmin throughout. After finishing, they choose **Solvantis** to return to their usual workspace.
 
 ### Move a business to a different AI plan
 

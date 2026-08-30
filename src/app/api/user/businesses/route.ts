@@ -1,33 +1,43 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { query } from '@/services/MySQLService';
+import { getAdminSession } from '@/lib/sessionUtils';
+import { resolveActorBusinessAccess } from '@/lib/auth/businessAccess';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET() {
+  let activeBusinessId: string | undefined;
   try {
-    const session = cookies().get('marketoir_session');
+    const session = getAdminSession();
     if (!session) {
       return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
     }
+    activeBusinessId = session.businessId;
 
-    const user = JSON.parse(session.value);
-    const businessId = user.businessId;
-    if (!businessId) {
-      return NextResponse.json({ success: true, businesses: [] });
+    const access = await resolveActorBusinessAccess(session.userId);
+    if (!access) {
+      return NextResponse.json({ success: false, error: 'Account not found.' }, { status: 403 });
     }
 
-    const rows = await query<{ business_id: string; name: string; drive_folder_id: string | null }>(
-      'SELECT business_id, name, drive_folder_id FROM businesses WHERE business_id = ? AND deleted_at IS NULL',
-      [businessId],
-    );
-
-    const businesses = rows.map(r => ({
-      name:       r.name       || '',
-      databaseId: r.business_id,
-      folderId:   r.drive_folder_id || '',
+    const businesses = access.businesses.map(business => ({
+      name: business.name,
+      databaseId: business.businessId,
+      folderId: business.driveFolderId ?? '',
+      active: business.businessId === session.businessId,
+      hasForesight: business.hasForesight,
+      hasIms: business.hasIms,
+      hasPos: business.hasPos,
+      isSandbox: business.isSandbox,
     }));
 
-    return NextResponse.json({ success: true, businesses });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, activeBusinessId: session.businessId, businesses });
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId: activeBusinessId,
+      source: 'auth',
+      operation: 'accessible_businesses_load',
+      severity: 'error',
+      title: 'Accessible businesses could not be loaded',
+      error,
+    }).catch(() => null);
+    return NextResponse.json({ success: false, error: 'Businesses could not be loaded.' }, { status: 500 });
   }
 }

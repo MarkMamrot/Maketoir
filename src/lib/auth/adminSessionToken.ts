@@ -22,6 +22,12 @@ interface VerifySessionOptions {
   nowMs?: number;
 }
 
+export interface VerifiedAdminSession<T extends object> {
+  data: T;
+  issuedAt: number;
+  expiresAt: number;
+}
+
 function getSigningSecret(): string {
   const secret = process.env.AUTH_SESSION_SECRET;
   if (!secret || Buffer.byteLength(secret, 'utf8') < MIN_SECRET_BYTES) {
@@ -51,7 +57,7 @@ export function signAdminSession<T extends object>(data: T, options: SignSession
   return JSON.stringify({ ...data, __session: envelope, __signature: signature });
 }
 
-export function verifyAdminSession<T extends object>(token: string, options: VerifySessionOptions = {}): T | null {
+export function verifyAdminSessionDetails<T extends object>(token: string, options: VerifySessionOptions = {}): VerifiedAdminSession<T> | null {
   let parsed: T & { __session?: SignedSessionEnvelope<T>; __signature?: string };
   try {
     parsed = JSON.parse(token) as T & { __session?: SignedSessionEnvelope<T>; __signature?: string };
@@ -95,5 +101,13 @@ export function verifyAdminSession<T extends object>(token: string, options: Ver
   const now = Math.floor((options.nowMs ?? Date.now()) / 1000);
   if (envelope.exp <= now || envelope.iat > now + MAX_CLOCK_SKEW_SECONDS) return null;
 
-  return envelope.data;
+  return {
+    data: envelope.data,
+    issuedAt: envelope.iat,
+    expiresAt: envelope.exp,
+  };
+}
+
+export function verifyAdminSession<T extends object>(token: string, options: VerifySessionOptions = {}): T | null {
+  return verifyAdminSessionDetails<T>(token, options)?.data ?? null;
 }
