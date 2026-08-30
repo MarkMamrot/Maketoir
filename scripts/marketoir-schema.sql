@@ -427,6 +427,33 @@ CREATE TABLE IF NOT EXISTS super_admin_business_context_events (
   INDEX idx_super_admin_context_target (target_business_id, created_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS user_business_memberships (
+  user_id             INT NOT NULL,
+  business_id         VARCHAR(100) NOT NULL,
+  tier                ENUM('SuperAdmin','Admin','StandardUser','PosManager','PosUser','Advisor') NOT NULL DEFAULT 'StandardUser',
+  is_default          TINYINT(1) NOT NULL DEFAULT 0,
+  last_active_at      DATETIME(3) NULL,
+  enrolled_by_user_id INT NULL,
+  created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  deleted_at          DATETIME(3) NULL,
+  PRIMARY KEY (user_id, business_id),
+  INDEX idx_user_business_memberships_business (business_id, deleted_at, user_id),
+  INDEX idx_user_business_memberships_recent (user_id, deleted_at, last_active_at),
+  CONSTRAINT fk_user_business_memberships_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_business_context_events (
+  id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id              INT NOT NULL,
+  previous_business_id VARCHAR(100) NULL,
+  target_business_id   VARCHAR(100) NOT NULL,
+  created_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  INDEX idx_user_context_actor (user_id, created_at, id),
+  INDEX idx_user_context_target (target_business_id, created_at, id),
+  CONSTRAINT fk_user_context_actor FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- invites  (email invite tokens for adding users to a business)
 -- ---------------------------------------------------------
@@ -437,6 +464,7 @@ CREATE TABLE IF NOT EXISTS invites (
   business_id VARCHAR(100) NOT NULL,
   invited_by  INT NOT NULL,
   role        ENUM('admin','user') NOT NULL DEFAULT 'user',
+  tier        ENUM('Admin','StandardUser','PosManager','PosUser','Advisor') NULL,
   expires_at  DATETIME NOT NULL,
   accepted_at DATETIME,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP

@@ -26,6 +26,7 @@ export async function GET() {
       hasIms: business.hasIms,
       hasPos: business.hasPos,
       isSandbox: business.isSandbox,
+      tier: business.tier,
     }));
 
     return NextResponse.json({ success: true, activeBusinessId: session.businessId, businesses });

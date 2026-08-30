@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { query, execute } from '@/services/MySQLService';
 import { UsersRepository } from '@/lib/db/UsersRepository';
+import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
+import type { UserTier } from '@/lib/sessionUtils';
 
 interface InviteRow {
   id: number;
@@ -9,6 +11,7 @@ interface InviteRow {
   business_id: string;
   invited_by: number;
   role: 'admin' | 'user';
+  tier: Exclude<UserTier, 'SuperAdmin'> | null;
   expires_at: string;
   accepted_at: string | null;
 }
@@ -49,6 +52,7 @@ export async function GET(req: Request) {
       email: invite.email,
       businessName: businesses[0]?.name ?? 'Solvantis',
       role: invite.role,
+      tier: invite.tier ?? (invite.role === 'admin' ? 'Admin' : 'StandardUser'),
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: 'Failed to load invite.' }, { status: 500 });
@@ -83,13 +87,8 @@ export async function POST(req: Request) {
     const rows = await query<InviteRow>('SELECT * FROM invites WHERE token = ? LIMIT 1', [token]);
     const invite = rows[0];
 
-    // Check email not already taken (race condition guard)
     const existing = await UsersRepository.findByEmail(invite.email);
-    if (existing) {
-      // Un-claim the invite so it can be retried or re-investigated
-      await execute('UPDATE invites SET accepted_at = NULL WHERE id = ?', [invite.id]);
-      return NextResponse.json({ success: false, error: 'An account with this email already exists. Try logging in instead.' }, { status: 409 });
-    }
+    const tier = invite.tier ?? (invite.role === 'admin' ? 'Admin' : 'StandardUser');
 
     // Look up business company name
     const businesses = await query<{ name: string }>(
@@ -99,13 +98,21 @@ export async function POST(req: Request) {
     const company = businesses[0]?.name;
 
     try {
-      await UsersRepository.create({
-        email: invite.email,
-        password,
-        name: name || undefined,
-        company,
+      const userId = existing?.id ?? await UsersRepository.create({
+          email: invite.email,
+          password,
+          name: name || undefined,
+          company,
+          businessId: invite.business_id,
+          role: invite.role,
+          tier,
+        });
+      await enrollUserInBusiness({
+        userId,
         businessId: invite.business_id,
-        role: invite.role,
+        tier,
+        enrolledByUserId: invite.invited_by,
+        isDefault: !existing,
       });
     } catch (createErr: any) {
       // User creation failed — un-claim the invite so it remains usable
@@ -113,7 +120,7 @@ export async function POST(req: Request) {
       throw createErr;
     }
 
-    return NextResponse.json({ success: true, message: 'Account created. You can now log in.' });
+    return NextResponse.json({ success: true, message: existing ? 'Business access added. You can now log in.' : 'Account created. You can now log in.' });
   } catch (error: any) {
     console.error('Accept invite error:', error);
     return NextResponse.json({ success: false, error: 'Failed to create account. Please try again.' }, { status: 500 });

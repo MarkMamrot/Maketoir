@@ -1,16 +1,16 @@
 ---
-{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance"],"order":3,"summary":"Invite the right person with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-29","owner":"security"}
+{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Setup > Team","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance"],"order":3,"summary":"Enroll people in one or more businesses with the least access they need and handle sign-in security safely.","lastReviewed":"2026-08-30","owner":"security"}
 ---
 # Team Access and Security
-SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
+SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. Other users who are enrolled in more than one business use the same selector for their enrolled businesses. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
 
 
-Use Team to invite a colleague as a User or Admin, then let them complete their own secure account setup.
+Use Team to invite a colleague with the appropriate tier, then let them complete their own secure account setup. The same email address can be enrolled in multiple businesses without creating another account.
 
 ## Main operations
 
 - Confirm the selected business and email address.
-- Choose User unless the person needs full access and invitation rights.
+- Choose the least privileged tier that covers the person's work in this business.
 - Send one invitation and check the result.
 - Finish the user form with its action button, or leave it with **Cancel** or Escape; clicking outside does not discard it.
 - Keep passwords, authenticator codes, and recovery codes private.
@@ -22,6 +22,12 @@ Use Team to invite a colleague as a User or Admin, then let them complete their 
 | --- | --- | --- | --- |
 | User | Yes | No | Day-to-day work that does not require full administration |
 | Admin | Yes, with full access | Yes | Trusted people responsible for setup and team access |
+
+Access tiers are assigned separately for each business. For example, a person can be an Admin in one business and a Standard User in another. Changing or removing their access in one business does not alter their other enrollments.
+
+## Switching businesses
+
+Users enrolled in two or more businesses can choose the active business from the top bar. The page reloads into that business and applies the tier assigned there. On the next sign-in, Solvantis opens the most recently active business; if none has been used yet, it opens the default enrollment.
 
 ## Before you begin
 
@@ -43,6 +49,8 @@ Use Team to invite a colleague as a User or Admin, then let them complete their 
 7. Ask the colleague to use their own invitation link and complete the sign-in steps shown to them.
 8. If multi-factor authentication is requested, the colleague must enrol their own authenticator and store their own recovery codes securely.
 
+If the email already belongs to a Solvantis account, accepting the invitation adds this business to that account. It does not replace the person's other business access.
+
 The user form stays open if you click outside it. Select **Cancel** or press Escape when you intentionally want to leave without saving.
 
 ## Role and security decisions
@@ -62,6 +70,9 @@ The user form stays open if you click outside it. Select **Cancel** or press Esc
 | Invitation email does not arrive | Address is wrong, delayed, or filtered | Confirm the address and ask the recipient to check filtered mail before resending once |
 | Invite reports an error | The address, role, or invitation state needs attention | Read the exact message and correct it before retrying |
 | User cannot invite others | They have the User role | Ask an existing Admin to perform the invitation or review the role need |
+| User cannot see a business in the selector | They are not actively enrolled in that business | Ask a SuperAdmin or an Admin of that business to review the enrollment |
+| User has different permissions after switching | Their tier differs between businesses | Review the tier assigned in the currently selected business |
+| User loses access to one business | Their enrollment in that business was removed | They can continue using any other business where they remain enrolled |
 | Sign-in requests an authenticator code | Multi-factor authentication is active | The account holder enters their own code or uses their own recovery route |
 | Sign-in could not be completed | A temporary connection or service response interrupted verification | Keep the code private, wait a moment, and try signing in again |
 | Export fails | Access or file preparation failed | Do not repeat rapidly; confirm authorisation and retry once later |

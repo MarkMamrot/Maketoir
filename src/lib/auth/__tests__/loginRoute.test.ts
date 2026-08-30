@@ -17,6 +17,8 @@ const mocks = vi.hoisted(() => ({
   refreshVariantCache: vi.fn(() => Promise.resolve()),
   primeImsDbMap: vi.fn(() => Promise.resolve()),
   reportRuntimeIssue: vi.fn(() => Promise.resolve(null)),
+  resolveLoginMembership: vi.fn(),
+  recordActiveBusiness: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/lib/db/UsersRepository', () => ({
@@ -45,6 +47,10 @@ vi.mock('@/lib/auth/authRateLimit', () => ({
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: mocks.refreshVariantCache }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ primeImsDbMap: mocks.primeImsDbMap }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/auth/businessMemberships', () => ({
+  resolveLoginMembership: mocks.resolveLoginMembership,
+  recordActiveBusiness: mocks.recordActiveBusiness,
+}));
 
 import { POST } from '@/app/api/auth/login/route';
 
@@ -82,6 +88,14 @@ describe('POST /api/auth/login MFA gate', () => {
     mocks.createPreauthSession.mockResolvedValue({
       token: 'preauth-token',
       expiresAt: new Date('2026-08-16T10:10:00.000Z'),
+    });
+    mocks.resolveLoginMembership.mockResolvedValue({
+      userId: 42,
+      businessId: 'business-42',
+      businessName: 'Example Co',
+      tier: 'Admin',
+      isDefault: true,
+      lastActiveAt: null,
     });
   });
 
@@ -142,6 +156,7 @@ describe('POST /api/auth/login MFA gate', () => {
 
     expect(body).toMatchObject({ success: true, nextRoute: '/ims' });
     expect(mocks.setAdminSessionCookie).toHaveBeenCalledOnce();
+    expect(mocks.recordActiveBusiness).toHaveBeenCalledWith(42, 'business-42');
     expect(mocks.setMfaTrustCookie).toHaveBeenCalledWith('rotated-token', expiry);
     expect(mocks.createPreauthSession).not.toHaveBeenCalled();
   });

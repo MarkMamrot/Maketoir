@@ -17,6 +17,7 @@ import {
   recordAuthFailure,
 } from '@/lib/auth/authRateLimit';
 import { completeAdminLogin } from '@/lib/auth/adminLoginCompletion';
+import { resolveLoginMembership } from '@/lib/auth/businessMemberships';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getClientIp(req: Request): string {
@@ -87,13 +88,18 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'Account not found.' }, { status: 401 });
     }
-    businessId = user.business_id;
+    const membership = await resolveLoginMembership(user);
+    if (!membership) {
+      return NextResponse.json({ success: false, error: 'Your account is not enrolled in an active business.' }, { status: 403 });
+    }
+    businessId = membership.businessId;
     const trustedBrowser = rememberBrowser === true
       ? await issueTrustedBrowser({ userId: user.id, displayLabel: getBrowserLabel(req) })
       : null;
     await clearAuthRateLimit('mfa-challenge', subject);
     const completed = completeAdminLogin({
       user,
+      membership,
       destination: preauth.destination,
       trustedBrowser,
     });

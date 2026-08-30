@@ -22,6 +22,7 @@ import {
   getAuthRateLimit,
   recordAuthFailure,
 } from '@/lib/auth/authRateLimit';
+import { resolveLoginMembership, recordActiveBusiness } from '@/lib/auth/businessMemberships';
 
 function getClientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -54,17 +55,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
 
-    if (!canAccessLoginDestination(user.tier, destination)) {
+    const membership = await resolveLoginMembership(user);
+    if (!membership) {
+      return NextResponse.json({ success: false, error: 'Your account is not enrolled in an active business.' }, { status: 403 });
+    }
+    const effectiveTier = user.tier === 'SuperAdmin' ? 'SuperAdmin' : membership.tier;
+    if (!canAccessLoginDestination(effectiveTier, destination)) {
       return NextResponse.json({ success: false, error: 'Your account cannot access that destination.' }, { status: 403 });
     }
 
     const userData = {
       name:              user.name ?? '',
-      company:           user.company ?? '',
+      company:           membership.businessName,
       email:             user.email,
-      businessId: user.business_id ?? '',
+      businessId:        membership.businessId,
       role:              user.role ?? 'user',
-      tier:              user.tier ?? 'StandardUser',
+      tier:              effectiveTier,
       userId:            user.id,
     };
 
@@ -76,6 +82,7 @@ export async function POST(req: Request) {
 
     if (rotatedTrust) {
       setAdminSessionCookie(userData);
+      if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
       setMfaTrustCookie(rotatedTrust.token, rotatedTrust.expiresAt);
       await clearAuthRateLimit('password-login', rateLimitSubject);
 

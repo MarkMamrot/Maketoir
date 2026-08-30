@@ -21936,7 +21936,7 @@ export default function ImsPage() {
             )}
           </div>
           <div style={{ flex: 1 }} />
-          <BusinessContextSwitcher destination="/ims" enabled={user.tier === 'SuperAdmin'} />
+          <BusinessContextSwitcher destination="/ims" enabled />
           {(user.company || user.name) && (
             <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 999, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(148,163,184,.25)', color: '#e2e8f0', flexShrink: 0 }}>
               {user.company || user.name}

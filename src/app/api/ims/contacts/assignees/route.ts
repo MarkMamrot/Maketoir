@@ -9,8 +9,9 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   try {
     const data = await query<{ id: number; name: string | null; email: string | null }>(
-      `SELECT id, name, email FROM users
-        WHERE business_id = ? AND deleted_at IS NULL ORDER BY COALESCE(name, email) LIMIT 200`,
+      `SELECT u.id, u.name, u.email FROM user_business_memberships m
+        JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+        WHERE m.business_id = ? AND m.deleted_at IS NULL ORDER BY COALESCE(u.name, u.email) LIMIT 200`,
       [session.businessId],
     );
     return NextResponse.json({

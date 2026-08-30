@@ -30,10 +30,10 @@ export async function GET(req: Request) {
     const businessId = locRows[0].business_id;
 
     const users = await query<{ id: number; name: string | null; username: string | null; pos_pin_hash: string | null }>(
-      businessId
-        ? `SELECT id, name, username, pos_pin_hash FROM users WHERE business_id = ? AND deleted_at IS NULL ORDER BY name`
-        : `SELECT id, name, username, pos_pin_hash FROM users WHERE deleted_at IS NULL ORDER BY name`,
-      businessId ? [businessId] : [],
+      `SELECT u.id, u.name, u.username, u.pos_pin_hash
+         FROM user_business_memberships m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+        WHERE m.business_id = ? AND m.deleted_at IS NULL ORDER BY u.name`,
+      [businessId],
     );
 
     return NextResponse.json({

@@ -1,20 +1,14 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { query } from '@/services/MySQLService';
+import { getAdminSession } from '@/lib/sessionUtils';
 
 export async function GET() {
-  const session = cookies().get('marketoir_session');
-  if (!session) {
+  const user = getAdminSession();
+  if (!user) {
     return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
   }
 
-  let user: any;
-  try {
-    user = JSON.parse(session.value);
-  } catch {
-    return NextResponse.json({ success: false, error: 'Invalid session.' }, { status: 401 });
-  }
-  if (user.role !== 'admin') {
+  if (user.tier !== 'Admin' && user.tier !== 'SuperAdmin') {
     return NextResponse.json({ success: false, error: 'Only admins can export data.' }, { status: 403 });
   }
 
@@ -32,7 +26,9 @@ export async function GET() {
       productSchema, productVolumes, orderPlannerDrafts,
     ] = await Promise.all([
       query('SELECT business_id, name, drive_folder_id, created_at FROM businesses WHERE business_id = ? AND deleted_at IS NULL', [businessId]).catch(() => []),
-      query('SELECT id, name, company, email, phone, role, registered_at, created_at FROM users WHERE business_id = ? AND deleted_at IS NULL', [businessId]).catch(() => []),
+      query(`SELECT u.id, u.name, u.company, u.email, u.phone, u.role, m.tier, u.registered_at, m.created_at
+           FROM user_business_memberships m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+          WHERE m.business_id = ? AND m.deleted_at IS NULL`, [businessId]).catch(() => []),
       query('SELECT `key`, value, updated_at FROM config WHERE business_id = ?', [businessId]).catch(() => []),
       // Omit encrypted credential values — just export which connections are configured
       query('SELECT business_id, cin7_tenant, shopify_shop_domain, updated_at FROM connections WHERE business_id = ?', [businessId]).catch(() => []),

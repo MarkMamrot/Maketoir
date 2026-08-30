@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { execute, query } from '@/services/MySQLService';
+import { getAdminSession, type UserTier } from '@/lib/sessionUtils';
 
 export async function POST(req: Request) {
   try {
@@ -11,25 +11,18 @@ export async function POST(req: Request) {
     }
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    const session = cookies().get('marketoir_session');
-    if (!session) {
+    const user = getAdminSession();
+    if (!user) {
       return NextResponse.json({ success: false, error: 'Not authenticated.' }, { status: 401 });
     }
-
-    let user: any;
-    try {
-      user = JSON.parse(session.value);
-    } catch {
-      return NextResponse.json({ success: false, error: 'Invalid session.' }, { status: 401 });
-    }
-    if (user.role !== 'admin') {
+    if (user.tier !== 'Admin' && user.tier !== 'SuperAdmin') {
       return NextResponse.json({ success: false, error: 'Only admins can invite users.' }, { status: 403 });
     }
     if (!user.businessId) {
       return NextResponse.json({ success: false, error: 'No business associated with your account.' }, { status: 400 });
     }
 
-    const { email, role = 'user' } = await req.json();
+    const { email, role = 'user', tier: requestedTier } = await req.json();
     if (!email) {
       return NextResponse.json({ success: false, error: 'Email is required.' }, { status: 400 });
     }
@@ -37,10 +30,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Invalid email address.' }, { status: 400 });
     }
 
-    // Check if user already exists
-    const existing = await query('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1', [email.toLowerCase()]);
-    if (existing.length > 0) {
-      return NextResponse.json({ success: false, error: 'A user with this email already exists.' }, { status: 409 });
+    const allowedTiers: UserTier[] = ['Admin', 'Advisor', 'StandardUser', 'PosManager', 'PosUser'];
+    const tier: UserTier = allowedTiers.includes(requestedTier) ? requestedTier : role === 'admin' ? 'Admin' : 'StandardUser';
+
+    const existing = await query<{ id: number }>('SELECT id FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1', [email.toLowerCase()]);
+    if (existing[0]) {
+      const membership = await query(
+        'SELECT 1 FROM user_business_memberships WHERE user_id = ? AND business_id = ? AND deleted_at IS NULL LIMIT 1',
+        [existing[0].id, user.businessId],
+      );
+      if (membership.length) {
+        return NextResponse.json({ success: false, error: 'This user is already enrolled in the business.' }, { status: 409 });
+      }
     }
 
     // Check for an already-active (unused, not expired) invite for this email+business
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
     const cap = bizRows[0]?.max_users ?? null;
     if (cap !== null) {
       const [countRow] = await query<{ cnt: number }>(
-        'SELECT COUNT(*) AS cnt FROM users WHERE business_id = ? AND deleted_at IS NULL',
+        'SELECT COUNT(*) AS cnt FROM user_business_memberships WHERE business_id = ? AND deleted_at IS NULL',
         [user.businessId],
       );
       if ((countRow?.cnt ?? 0) >= cap) {
@@ -79,9 +80,9 @@ export async function POST(req: Request) {
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     await execute(
-      `INSERT INTO invites (token, email, business_id, invited_by, role, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [token, email.toLowerCase(), user.businessId, user.userId, role, expiresAt],
+      `INSERT INTO invites (token, email, business_id, invited_by, role, tier, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [token, email.toLowerCase(), user.businessId, user.userId, role, tier, expiresAt],
     );
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://maketoir.vercel.app';

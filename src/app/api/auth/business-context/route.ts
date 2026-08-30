@@ -6,6 +6,7 @@ import { findAccessibleBusiness, resolveActorBusinessAccess } from '@/lib/auth/b
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import type { AdminSession } from '@/lib/sessionUtils';
 import { execute } from '@/services/MySQLService';
+import { recordActiveBusiness } from '@/lib/auth/businessMemberships';
 
 export async function POST(request: Request) {
   const raw = cookies().get('marketoir_session')?.value;
@@ -25,10 +26,6 @@ export async function POST(request: Request) {
   try {
     const access = await resolveActorBusinessAccess(verified.data.userId);
     if (!access) return NextResponse.json({ error: 'Account not found.' }, { status: 403 });
-    if (access.actor.tier !== 'SuperAdmin') {
-      return NextResponse.json({ error: 'SuperAdmin access required.' }, { status: 403 });
-    }
-
     const target = findAccessibleBusiness(access.businesses, requestedBusinessId);
     if (!target) return NextResponse.json({ error: 'Business is not available.' }, { status: 404 });
 
@@ -40,11 +37,14 @@ export async function POST(request: Request) {
 
     if (verified.data.businessId !== target.businessId) {
       await execute(
-        `INSERT INTO super_admin_business_context_events
-           (actor_user_id, previous_business_id, target_business_id)
+        `INSERT INTO user_business_context_events
+           (user_id, previous_business_id, target_business_id)
          VALUES (?, ?, ?)`,
         [verified.data.userId, verified.data.businessId || null, target.businessId],
       );
+    }
+    if (access.actor.tier !== 'SuperAdmin') {
+      await recordActiveBusiness(access.actor.id, target.businessId);
     }
 
     const session: AdminSession = {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       company: target.name,
       email: access.actor.email,
       role: access.actor.role,
-      tier: 'SuperAdmin',
+      tier: access.actor.tier === 'SuperAdmin' ? 'SuperAdmin' : target.tier,
       userId: access.actor.id,
       businessId: target.businessId,
     };
@@ -64,9 +64,9 @@ export async function POST(request: Request) {
     await reportRuntimeIssue({
       businessId: verified.data.businessId || undefined,
       source: 'auth',
-      operation: 'super_admin_business_context_switch',
+      operation: 'business_context_switch',
       severity: 'error',
-      title: 'SuperAdmin business switch failed',
+      title: 'Business switch failed',
       error,
       context: {
         actorUserId: verified.data.userId,

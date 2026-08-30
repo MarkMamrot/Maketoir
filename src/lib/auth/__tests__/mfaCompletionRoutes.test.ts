@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   recordAuthFailure: vi.fn(),
   completeAdminLogin: vi.fn(),
   reportRuntimeIssue: vi.fn(),
+  resolveLoginMembership: vi.fn(),
 }));
 
 vi.mock('@/lib/db/UsersRepository', () => ({
@@ -45,6 +46,7 @@ vi.mock('@/lib/auth/adminLoginCompletion', () => ({
   completeAdminLogin: mocks.completeAdminLogin,
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/auth/businessMemberships', () => ({ resolveLoginMembership: mocks.resolveLoginMembership }));
 
 import { POST as verifyEnrollment } from '@/app/api/auth/mfa/enroll/verify/route';
 import { POST as verifyChallenge } from '@/app/api/auth/mfa/challenge/route';
@@ -62,6 +64,14 @@ const PREAUTH = {
   attemptCount: 0,
   expiresAt: new Date('2026-08-16T10:10:00.000Z'),
 };
+const MEMBERSHIP = {
+  userId: 42,
+  businessId: 'business-42',
+  businessName: 'Example Business',
+  tier: 'Admin',
+  isDefault: true,
+  lastActiveAt: null,
+};
 
 function request(path: string, body: Record<string, unknown>): Request {
   return new Request(`http://localhost${path}`, {
@@ -77,6 +87,7 @@ describe('MFA completion routes', () => {
     mocks.getAuthRateLimit.mockResolvedValue({ locked: false, retryAfterSeconds: 0, failureCount: 0 });
     mocks.getActivePreauthSession.mockResolvedValue({ ...PREAUTH });
     mocks.findById.mockResolvedValue({ ...USER });
+    mocks.resolveLoginMembership.mockResolvedValue({ ...MEMBERSHIP });
     mocks.completeAdminLogin.mockReturnValue({ nextRoute: '/ims', session: {} });
   });
 
@@ -100,6 +111,7 @@ describe('MFA completion routes', () => {
     );
     expect(mocks.completeAdminLogin).toHaveBeenCalledWith({
       user: USER,
+      membership: MEMBERSHIP,
       destination: 'ims',
     });
   });
@@ -147,6 +159,7 @@ describe('MFA completion routes', () => {
     });
     expect(mocks.completeAdminLogin).toHaveBeenCalledWith({
       user: USER,
+      membership: MEMBERSHIP,
       destination: 'ims',
       trustedBrowser,
     });

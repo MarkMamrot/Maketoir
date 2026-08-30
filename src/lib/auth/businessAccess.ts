@@ -1,5 +1,6 @@
 import { UsersRepository, type UserRow } from '@/lib/db/UsersRepository';
 import { query } from '@/services/MySQLService';
+import type { UserTier } from '@/lib/sessionUtils';
 
 export const INTERNAL_PLATFORM_BUSINESS_ID = '__solvantis_platform__';
 
@@ -11,6 +12,7 @@ export interface AccessibleBusiness {
   hasIms: boolean;
   hasPos: boolean;
   isSandbox: boolean;
+  tier: UserTier;
 }
 
 interface BusinessRow {
@@ -21,9 +23,10 @@ interface BusinessRow {
   has_ims: number;
   has_pos: number;
   is_sandbox: number;
+  membership_tier?: UserTier;
 }
 
-function mapBusiness(row: BusinessRow): AccessibleBusiness {
+function mapBusiness(row: BusinessRow, tier: UserTier): AccessibleBusiness {
   return {
     businessId: row.business_id,
     name: row.name || row.business_id,
@@ -32,23 +35,33 @@ function mapBusiness(row: BusinessRow): AccessibleBusiness {
     hasIms: Boolean(row.has_ims),
     hasPos: Boolean(row.has_pos),
     isSandbox: Boolean(row.is_sandbox),
+    tier,
   };
 }
 
 export async function getAccessibleBusinesses(actor: UserRow): Promise<AccessibleBusiness[]> {
   const superAdmin = actor.tier === 'SuperAdmin';
-  if (!superAdmin && !actor.business_id) return [];
+  if (superAdmin) {
+    const rows = await query<BusinessRow>(
+      `SELECT business_id, name, drive_folder_id, has_foresight, has_ims, has_pos, is_sandbox
+         FROM businesses
+        WHERE deleted_at IS NULL AND business_id <> ?
+        ORDER BY name, business_id`,
+      [INTERNAL_PLATFORM_BUSINESS_ID],
+    );
+    return rows.map(row => mapBusiness(row, 'SuperAdmin'));
+  }
 
   const rows = await query<BusinessRow>(
-    `SELECT business_id, name, drive_folder_id, has_foresight, has_ims, has_pos, is_sandbox
-       FROM businesses
-      WHERE deleted_at IS NULL
-        AND business_id <> ?
-        ${superAdmin ? '' : 'AND business_id = ?'}
-      ORDER BY name, business_id`,
-    superAdmin ? [INTERNAL_PLATFORM_BUSINESS_ID] : [INTERNAL_PLATFORM_BUSINESS_ID, actor.business_id],
+    `SELECT b.business_id, b.name, b.drive_folder_id, b.has_foresight, b.has_ims, b.has_pos,
+            b.is_sandbox, m.tier AS membership_tier
+       FROM user_business_memberships m
+       JOIN businesses b ON b.business_id = m.business_id AND b.deleted_at IS NULL
+      WHERE m.user_id = ? AND m.deleted_at IS NULL AND b.business_id <> ?
+      ORDER BY b.name, b.business_id`,
+    [actor.id, INTERNAL_PLATFORM_BUSINESS_ID],
   );
-  return rows.map(mapBusiness);
+  return rows.map(row => mapBusiness(row, row.membership_tier ?? 'StandardUser'));
 }
 
 export async function resolveActorBusinessAccess(userId: number): Promise<{

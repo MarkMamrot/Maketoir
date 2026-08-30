@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   setSessionCookie: vi.fn(),
   execute: vi.fn(),
   reportRuntimeIssue: vi.fn(),
+  recordActiveBusiness: vi.fn(),
 }));
 
 vi.mock('next/headers', () => ({ cookies: () => ({ get: mocks.cookieGet }) }));
@@ -18,6 +19,7 @@ vi.mock('@/lib/auth/businessAccess', () => ({
 }));
 vi.mock('@/services/MySQLService', () => ({ execute: mocks.execute }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/auth/businessMemberships', () => ({ recordActiveBusiness: mocks.recordActiveBusiness }));
 
 import { POST } from '../route';
 
@@ -30,7 +32,7 @@ const session = {
   company: 'Alpha',
   email: 'platform@example.com',
 };
-const target = { businessId: 'beta', name: 'Beta', driveFolderId: null, hasForesight: false, hasIms: true, hasPos: true, isSandbox: false };
+const target = { businessId: 'beta', name: 'Beta', driveFolderId: null, hasForesight: false, hasIms: true, hasPos: true, isSandbox: false, tier: 'Admin' };
 
 function request(businessId: string) {
   return new Request('http://localhost/api/auth/business-context', {
@@ -58,7 +60,7 @@ describe('POST /api/auth/business-context', () => {
     const response = await POST(request('beta'));
 
     expect(response.status).toBe(200);
-    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('super_admin_business_context_events'), [42, 'alpha', 'beta']);
+    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('user_business_context_events'), [42, 'alpha', 'beta']);
     expect(mocks.setSessionCookie).toHaveBeenCalledWith(expect.objectContaining({
       userId: 42,
       email: 'platform@example.com',
@@ -68,14 +70,14 @@ describe('POST /api/auth/business-context', () => {
     }), 300);
   });
 
-  it('rejects a user whose current database tier is not SuperAdmin', async () => {
-    mocks.resolveAccess.mockResolvedValue({ actor: { tier: 'Admin' }, businesses: [target] });
+  it('uses the target membership tier for an enrolled ordinary user', async () => {
+    mocks.resolveAccess.mockResolvedValue({ actor: { id: 42, name: 'User', email: 'user@example.com', role: 'admin', tier: 'StandardUser' }, businesses: [target] });
 
     const response = await POST(request('beta'));
 
-    expect(response.status).toBe(403);
-    expect(mocks.execute).not.toHaveBeenCalled();
-    expect(mocks.setSessionCookie).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.recordActiveBusiness).toHaveBeenCalledWith(42, 'beta');
+    expect(mocks.setSessionCookie).toHaveBeenCalledWith(expect.objectContaining({ tier: 'Admin', businessId: 'beta' }), 300);
   });
 
   it('rejects an unavailable business without writing an audit event', async () => {

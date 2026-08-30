@@ -1,15 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { UsersRepository } from '@/lib/db/UsersRepository';
 import { query, execute } from '@/services/MySQLService';
 import { UserTier } from '@/lib/sessionUtils';
 import bcrypt from 'bcryptjs';
-
-function getAdminSession() {
-  const raw = cookies().get('marketoir_session')?.value;
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
-}
+import { getAdminSession } from '@/lib/sessionUtils';
+import { enrollUserInBusiness } from '@/lib/auth/businessMemberships';
 
 async function requireAdminOrSuperAdmin() {
   const session = getAdminSession();
@@ -50,10 +45,13 @@ export async function GET() {
 
   try {
     const users = await query<any>(
-      businessId
-        ? `SELECT id, username, name, email, company, role, tier, deleted_at, created_at, CASE WHEN pos_pin_hash IS NOT NULL THEN 1 ELSE 0 END AS has_pos_pin FROM users WHERE business_id = ? ORDER BY created_at DESC`
-        : `SELECT id, username, name, email, company, role, tier, deleted_at, created_at, CASE WHEN pos_pin_hash IS NOT NULL THEN 1 ELSE 0 END AS has_pos_pin FROM users ORDER BY created_at DESC`,
-      businessId ? [businessId] : [],
+      `SELECT u.id, u.username, u.name, u.email, u.company, u.role, m.tier,
+              m.deleted_at, m.created_at, CASE WHEN u.pos_pin_hash IS NOT NULL THEN 1 ELSE 0 END AS has_pos_pin
+         FROM user_business_memberships m
+         JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+        WHERE m.business_id = ? AND m.deleted_at IS NULL
+        ORDER BY m.created_at DESC`,
+      [businessId],
     );
     return NextResponse.json({ success: true, users });
   } catch (err: any) {
@@ -75,25 +73,19 @@ export async function POST(req: Request) {
   try {
     const { email, password, name, username, company, tier } = await req.json();
 
-    if (!email || !password) {
+    if (!email) {
       return NextResponse.json(
-        { error: 'email and password are required.' },
+        { error: 'email is required.' },
         { status: 400 },
       );
     }
 
     const existing = await UsersRepository.findByEmail(email);
-    if (existing) {
-      return NextResponse.json(
-        { error: 'A user with this email already exists.' },
-        { status: 409 },
-      );
-    }
 
     if (username) {
       const existingUsername = await query<any>(
-        'SELECT id FROM users WHERE username = ? AND deleted_at IS NULL LIMIT 1',
-        [username],
+        'SELECT id FROM users WHERE username = ? AND (? IS NULL OR id <> ?) AND deleted_at IS NULL LIMIT 1',
+        [username, existing?.id ?? null, existing?.id ?? null],
       );
       if (existingUsername.length > 0) {
         return NextResponse.json(
@@ -117,16 +109,19 @@ export async function POST(req: Request) {
     const session = getAdminSession();
     const businessId = session?.businessId as string | undefined;
 
-    const userId = await UsersRepository.create({
-      email,
-      password,
-      username: username ?? undefined,
-      name: name ?? undefined,
-      company: company ?? undefined,
-      businessId: businessId ?? undefined,
-      role: userTier === 'PosUser' ? 'user' : 'admin',
-      tier: userTier,
-    });
+    if (!businessId) return NextResponse.json({ error: 'No active business.' }, { status: 400 });
+    if (!existing && !password) return NextResponse.json({ error: 'password is required for a new user.' }, { status: 400 });
+    const userId = existing?.id ?? await UsersRepository.create({
+        email,
+        password,
+        username: username ?? undefined,
+        name: name ?? undefined,
+        company: company ?? undefined,
+        businessId,
+        role: userTier === 'PosUser' ? 'user' : 'admin',
+        tier: userTier,
+      });
+    await enrollUserInBusiness({ userId, businessId, tier: userTier, enrolledByUserId: session?.userId });
 
     return NextResponse.json({
       success: true,
@@ -180,8 +175,11 @@ export async function PATCH(req: Request) {
     }
 
     if (tier && validUpdateTiers.includes(tier)) {
-      updates.push('tier = ?');
-      values.push(tier);
+      const session = getAdminSession();
+      await execute(
+        'UPDATE user_business_memberships SET tier = ? WHERE user_id = ? AND business_id = ? AND deleted_at IS NULL',
+        [tier, userId, session?.businessId],
+      );
     }
 
     if (name !== undefined) {
@@ -220,6 +218,9 @@ export async function PATCH(req: Request) {
     }
 
     if (updates.length === 0) {
+      if (tier && validUpdateTiers.includes(tier)) {
+        return NextResponse.json({ success: true, message: 'User updated.' });
+      }
       return NextResponse.json(
         { error: 'No valid fields to update.' },
         { status: 400 },
@@ -264,8 +265,19 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'User not found.' }, { status: 404 });
     }
 
+    const session = getAdminSession();
+    if (Number(userId) === session?.userId) {
+      return NextResponse.json({ error: 'You cannot remove your own active business access.' }, { status: 400 });
+    }
     await execute(
-      'UPDATE users SET deleted_at = NOW() WHERE id = ?',
+      'UPDATE user_business_memberships SET deleted_at = NOW() WHERE user_id = ? AND business_id = ? AND deleted_at IS NULL',
+      [userId, session?.businessId],
+    );
+    await execute(
+      `UPDATE users u SET u.deleted_at = NOW()
+        WHERE u.id = ? AND NOT EXISTS (
+          SELECT 1 FROM user_business_memberships m WHERE m.user_id = u.id AND m.deleted_at IS NULL
+        )`,
       [userId],
     );
 

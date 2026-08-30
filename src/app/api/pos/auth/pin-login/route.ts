@@ -42,7 +42,9 @@ export async function POST(req: Request) {
       pos_pin_hash: string | null;
       tier: string | null;
     }>(
-      'SELECT id, name, username, email, business_id, pos_pin_hash, tier FROM users WHERE (username = ? OR email = ?) AND business_id = ? AND deleted_at IS NULL LIMIT 1',
+      `SELECT u.id, u.name, u.username, u.email, m.business_id, u.pos_pin_hash, m.tier
+         FROM user_business_memberships m JOIN users u ON u.id = m.user_id AND u.deleted_at IS NULL
+        WHERE (u.username = ? OR u.email = ?) AND m.business_id = ? AND m.deleted_at IS NULL LIMIT 1`,
       [uname, uname, String(business_id)],
     );
     const user = users[0];

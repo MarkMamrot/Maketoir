@@ -40,7 +40,7 @@ export async function GET() {
       email:             dbUser.email,
       businessId:        activeBusiness.businessId,
       role:              dbUser.role,
-      tier:              dbUser.tier,
+      tier:              dbUser.tier === 'SuperAdmin' ? 'SuperAdmin' : activeBusiness.tier,
       userId:            dbUser.id,
       hasForesight:      activeBusiness.hasForesight,
       activeBusiness,

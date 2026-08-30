@@ -23,17 +23,19 @@ describe('SuperAdmin business access', () => {
     ]);
 
     await expect(getAccessibleBusinesses(actor)).resolves.toEqual([
-      { businessId: 'alpha', name: 'Alpha', driveFolderId: 'folder-alpha', hasForesight: true, hasIms: true, hasPos: false, isSandbox: false },
-      { businessId: 'beta', name: 'Beta', driveFolderId: null, hasForesight: false, hasIms: true, hasPos: true, isSandbox: true },
+      { businessId: 'alpha', name: 'Alpha', driveFolderId: 'folder-alpha', hasForesight: true, hasIms: true, hasPos: false, isSandbox: false, tier: 'SuperAdmin' },
+      { businessId: 'beta', name: 'Beta', driveFolderId: null, hasForesight: false, hasIms: true, hasPos: true, isSandbox: true, tier: 'SuperAdmin' },
     ]);
     expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('business_id <> ?'), [INTERNAL_PLATFORM_BUSINESS_ID]);
   });
 
   it('keeps ordinary users restricted to their assigned business', async () => {
-    mocks.query.mockResolvedValue([]);
+    mocks.query.mockResolvedValue([{ business_id: 'home', name: 'Home', drive_folder_id: null, has_foresight: 0, has_ims: 1, has_pos: 1, is_sandbox: 0, membership_tier: 'Advisor' }]);
 
-    await getAccessibleBusinesses({ ...actor, tier: 'Admin' });
+    await expect(getAccessibleBusinesses({ ...actor, tier: 'Admin' })).resolves.toEqual([
+      expect.objectContaining({ businessId: 'home', tier: 'Advisor' }),
+    ]);
 
-    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('business_id = ?'), [INTERNAL_PLATFORM_BUSINESS_ID, 'home']);
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining('user_business_memberships'), [7, INTERNAL_PLATFORM_BUSINESS_ID]);
   });
 });

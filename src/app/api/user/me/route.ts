@@ -37,7 +37,7 @@ export async function GET() {
       name:         access.actor.name ?? '',
       email:        access.actor.email,
       company:      activeBusiness.name,
-      tier:         access.actor.tier,
+      tier:         access.actor.tier === 'SuperAdmin' ? 'SuperAdmin' : activeBusiness.tier,
       businessId,
       activeBusiness,
       hasForesight,
