@@ -81,6 +81,10 @@ When POS was configured for a different business, it returns to Device Setup aft
 
 > **Important:** Synchronization does not activate prices automatically. Google prices are retrieved again during approval, and approval stops when a selected price no longer matches the reviewed proposal.
 
+Solvantis represents Gemini Pro prices at their published context boundary. Metrics ending in **Over 200k** apply when the prompt, including cached input, exceeds 200,000 tokens. Standard token metrics apply at or below that boundary.
+
+Nano Banana models use **Output image tokens** because Google prices generated images by token consumption and resolution. The provider and sell-rate tables therefore show image-output token rates separately from flat **Output image** rates used by providers that charge per generated image.
+
 ### Apply standard plan markups
 
 1. Open **Admin > AI Usage & Credits**.

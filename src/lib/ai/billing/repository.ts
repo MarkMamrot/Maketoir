@@ -121,7 +121,7 @@ export const AiBillingRepository = {
       );
       await connection.execute(
         `UPDATE ai_usage_calls SET status = 'settled', input_tokens = ?, cached_input_tokens = ?, output_tokens = ?, thinking_tokens = ?, output_images = ?, video_seconds = ?, provider_cost_micros = ?, tenant_charge_micros = ?, provider_rate_snapshot = ?, plan_rate_snapshot = ?, settled_at = NOW(3) WHERE id = ?`,
-        [input.units.inputTokens, input.units.cachedInputTokens, input.units.outputTokens, input.units.thinkingTokens, input.units.outputImages, input.units.videoSeconds, input.providerCostMicros.toString(), charged.toString(), JSON.stringify(input.providerRates), JSON.stringify(input.planRates), input.callId],
+        [input.units.inputTokens, input.units.cachedInputTokens, input.units.outputTokens + input.units.outputImageTokens, input.units.thinkingTokens, input.units.outputImages, input.units.videoSeconds, input.providerCostMicros.toString(), charged.toString(), JSON.stringify(input.providerRates), JSON.stringify(input.planRates), input.callId],
       );
       await connection.execute(
         `INSERT IGNORE INTO ai_account_ledger (business_id, idempotency_key, entry_type, amount_micros, balance_after_micros, cycle_used_after_micros, usage_call_id, reason)

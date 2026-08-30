@@ -79,17 +79,25 @@ function moneyDecimal(money: GoogleMoney): string {
 }
 
 function modelIdFromSku(name: string): string | null {
-  const match = name.match(/gemini\s+(\d+(?:\.\d+)?)\s+(flash[ -]?lite|flash|pro)\b/i);
-  return match ? `gemini-${match[1]}-${match[2].toLowerCase().replace(' ', '-').replace('flash-lite', 'flash-lite')}` : null;
+  const match = name.match(/gemini\s+(\d+(?:\.\d+)?)\s+(flash[ -]?lite|flash|pro)(?:\s+(image))?(?:\s+(preview))?\b/i);
+  if (!match) return null;
+  const family = match[2].toLowerCase().replace(' ', '-');
+  return `gemini-${match[1]}-${family}${match[3] ? '-image' : ''}${match[4] ? '-preview' : ''}`;
 }
 
 function metricsFromSku(name: string): AiRateMetric[] {
   const value = name.toLowerCase();
+  const imageModel = /gemini\s+\d+(?:\.\d+)?\s+(?:flash[ -]?lite|flash|pro)\s+image\b/.test(value);
   if (/cached/.test(value) && /input|token/.test(value)) return ['cached_input_tokens'];
   if (/thinking|thought/.test(value)) return ['thinking_tokens'];
+  if (imageModel && /output|completion|response/.test(value) && !/text\s+(?:output|completion|response)/.test(value)) return ['output_image_tokens'];
   if (/output|completion|response/.test(value)) return ['output_tokens', 'thinking_tokens'];
   if (/input|prompt/.test(value)) return ['input_tokens'];
   return [];
+}
+
+function longContextMetric(metric: AiRateMetric): AiRateMetric {
+  return `${metric}_over_200k` as AiRateMetric;
 }
 
 export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetchedAt = new Date().toISOString()): GoogleRatePreview {
@@ -102,22 +110,34 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
     const modelId = modelIdFromSku(skuName);
     if (!modelId) continue;
     const price = priceBySku.get(skuId);
-    const excluded = /batch|flex|priority|storage|grounding|search|maps|audio|video|image|live|embedding|tuning|(?:>|over|up to|less than|more than)\s*\d/i.test(skuName);
+    const excluded = /batch|flex|priority|storage|grounding|search|maps|audio|video|live|embedding|tuning/i.test(skuName);
     const tiers = price?.rate?.tiers || [];
     const metrics = metricsFromSku(skuName);
     const unitScale = Number(price?.rate?.unitInfo?.unitQuantity?.value || 0);
-    const tier = tiers[0];
-    const amount = tier?.contractPrice || tier?.listPrice;
-    const currency = amount?.currencyCode || price?.currencyCode;
-    if (excluded || currency !== 'AUD' || price?.valueType !== 'rate' || tiers.length !== 1 || Number(tier?.startAmount?.value || 0) !== 0 || !amount || !metrics.length || !Number.isSafeInteger(unitScale) || unitScale < 1) {
-      warnings.push({ skuId, skuName, reason: excluded ? 'Unsupported service tier, threshold, storage, tool, or modality pricing.' : currency !== 'AUD' ? 'Google did not return this price in AUD.' : 'Pricing shape cannot be represented safely.' });
+    const tierStarts = tiers.map(tier => Number(tier?.startAmount?.value || 0));
+    const validTiers = tiers.length === 1 || (tiers.length === 2 && tierStarts[0] === 0 && tierStarts[1] === 200_000);
+    const currency = (tiers[0]?.contractPrice || tiers[0]?.listPrice)?.currencyCode || price?.currencyCode;
+    if (excluded || currency !== 'AUD' || price?.valueType !== 'rate' || !validTiers || tierStarts[0] !== 0 || !metrics.length || !Number.isSafeInteger(unitScale) || unitScale < 1) {
+      warnings.push({ skuId, skuName, reason: excluded ? 'Unsupported service tier, storage, tool, or modality pricing.' : currency !== 'AUD' ? 'Google did not return this price in AUD.' : 'Pricing shape cannot be represented safely.' });
       continue;
     }
-    const priceAud = moneyDecimal(amount);
-    for (const metric of metrics) mappedCandidates.push({
-      id: `${skuId}:${metric}`, skuId, skuName, priceName: String(price?.name || ''), modelId, metric,
-      priceAud, unitScale, sourceCurrency: 'AUD', sourcePriceDecimal: priceAud, audFxRate: '1',
-    });
+    for (const [tierIndex, tier] of tiers.entries()) {
+      const amount = tier?.contractPrice || tier?.listPrice;
+      if (!amount || (amount.currencyCode || price?.currencyCode) !== 'AUD') {
+        warnings.push({ skuId, skuName, reason: 'Pricing shape cannot be represented safely.' });
+        continue;
+      }
+      const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k/i.test(skuName);
+      const useLongContext = tierIndex === 1 || explicitLongContext;
+      const priceAud = moneyDecimal(amount);
+      for (const baseMetric of metrics) {
+        const metric = useLongContext && ['input_tokens', 'cached_input_tokens', 'output_tokens', 'thinking_tokens'].includes(baseMetric) ? longContextMetric(baseMetric) : baseMetric;
+        mappedCandidates.push({
+          id: `${skuId}:${metric}`, skuId, skuName, priceName: String(price?.name || ''), modelId, metric,
+          priceAud, unitScale, sourceCurrency: 'AUD', sourcePriceDecimal: priceAud, audFxRate: '1',
+        });
+      }
+    }
   }
   const candidates: GoogleRateCandidate[] = [];
   const groups = Map.groupBy(mappedCandidates, candidate => `${candidate.modelId}:${candidate.metric}`);

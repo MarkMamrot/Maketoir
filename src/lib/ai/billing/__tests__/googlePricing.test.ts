@@ -24,13 +24,55 @@ describe('Google pricing preview', () => {
     ]));
   });
 
-  it('refuses threshold and multi-tier prices', () => {
+  it('preserves preview model identities', () => {
     const preview = buildGoogleRatePreview(
-      [{ skuId: 'SKU-2', displayName: 'Gemini 2.5 Pro Input Tokens up to 200000' }],
+      [{ skuId: 'SKU-PRO', displayName: 'Gemini 3.1 Pro Preview Input Tokens' }],
+      [{ name: 'billingAccounts/a/skus/SKU-PRO/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }],
+    );
+    expect(preview.candidates).toEqual([
+      expect.objectContaining({ modelId: 'gemini-3.1-pro-preview', metric: 'input_tokens' }),
+    ]);
+  });
+
+  it('maps standard and over-200k Pro price tiers', () => {
+    const preview = buildGoogleRatePreview(
+      [{ skuId: 'SKU-2', displayName: 'Gemini 2.5 Pro Input Tokens' }],
       [{ name: 'billingAccounts/a/skus/SKU-2/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '1' } }, { startAmount: { value: '200000' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }],
     );
+    expect(preview.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ modelId: 'gemini-2.5-pro', metric: 'input_tokens', priceAud: '1' }),
+      expect.objectContaining({ modelId: 'gemini-2.5-pro', metric: 'input_tokens_over_200k', priceAud: '2' }),
+    ]));
+  });
+
+  it('maps a separately labelled over-200k Pro SKU', () => {
+    const preview = buildGoogleRatePreview(
+      [{ skuId: 'SKU-PRO-LONG', displayName: 'Gemini 3.1 Pro Preview Output Tokens over 200K' }],
+      [{ name: 'billingAccounts/a/skus/SKU-PRO-LONG/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '18' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }],
+    );
+    expect(preview.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ modelId: 'gemini-3.1-pro-preview', metric: 'output_tokens_over_200k', priceAud: '18' }),
+      expect.objectContaining({ modelId: 'gemini-3.1-pro-preview', metric: 'thinking_tokens_over_200k', priceAud: '18' }),
+    ]));
+  });
+
+  it('continues to reject unsupported arbitrary tier boundaries', () => {
+    const preview = buildGoogleRatePreview(
+      [{ skuId: 'SKU-TIERS', displayName: 'Gemini 2.5 Pro Input Tokens' }],
+      [{ name: 'billingAccounts/a/skus/SKU-TIERS/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '1' } }, { startAmount: { value: '100000' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }],
+    );
     expect(preview.candidates).toHaveLength(0);
-    expect(preview.warnings[0]?.reason).toContain('Unsupported');
+    expect(preview.warnings[0]?.reason).toContain('cannot be represented safely');
+  });
+
+  it('maps Nano Banana image output token pricing', () => {
+    const preview = buildGoogleRatePreview(
+      [{ skuId: 'SKU-IMAGE', displayName: 'Gemini 3.1 Flash Image Output Tokens' }],
+      [{ name: 'billingAccounts/a/skus/SKU-IMAGE/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '60' } }], unitInfo: { unitQuantity: { value: '1000000' } } } }],
+    );
+    expect(preview.candidates).toEqual([
+      expect.objectContaining({ modelId: 'gemini-3.1-flash-image', metric: 'output_image_tokens', priceAud: '60' }),
+    ]);
   });
 
   it('does not label a non-AUD response as AUD', () => {

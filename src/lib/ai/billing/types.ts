@@ -19,7 +19,9 @@ export type AiUsageArea = typeof AI_USAGE_AREAS[number];
 
 export const AI_RATE_METRICS = [
   'input_tokens', 'cached_input_tokens', 'output_tokens', 'thinking_tokens',
-  'output_image', 'video_second',
+  'input_tokens_over_200k', 'cached_input_tokens_over_200k',
+  'output_tokens_over_200k', 'thinking_tokens_over_200k',
+  'output_image_tokens', 'output_image', 'video_second',
 ] as const;
 export type AiRateMetric = typeof AI_RATE_METRICS[number];
 
@@ -31,6 +33,7 @@ export interface AiUsageUnits {
   cachedInputTokens: number;
   outputTokens: number;
   thinkingTokens: number;
+  outputImageTokens: number;
   outputImages: number;
   videoSeconds: number;
 }

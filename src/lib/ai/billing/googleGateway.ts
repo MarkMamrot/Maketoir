@@ -4,17 +4,26 @@ import { AiBillingRepository } from './repository';
 import { AiUsageService, normalizeUsageMetadata } from './service';
 import type { AiBillingContext, AiUsageUnits } from './types';
 
-const EMPTY: AiUsageUnits = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, thinkingTokens: 0, outputImages: 0, videoSeconds: 0 };
+const EMPTY: AiUsageUnits = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, thinkingTokens: 0, outputImageTokens: 0, outputImages: 0, videoSeconds: 0 };
+
+function estimatedImageOutputTokens(modelId: string): number {
+  if (modelId.includes('3.1-flash-lite-image')) return 1120;
+  if (modelId.includes('3.1-flash-image')) return 2520;
+  if (modelId.includes('3-pro-image')) return 2000;
+  if (modelId.includes('2.5-flash-image')) return 1290;
+  return 0;
+}
 
 function estimateTextUnits(request: any): AiUsageUnits {
   let serialized = '';
   try { serialized = JSON.stringify(request?.contents ?? ''); } catch {}
   const responseModalities = request?.config?.responseModalities ?? request?.generationConfig?.responseModalities ?? [];
+  const imageOutput = Array.isArray(responseModalities) && responseModalities.some((value: unknown) => String(value).toLowerCase() === 'image');
   return {
     ...EMPTY,
     inputTokens: Math.max(1, Math.ceil(serialized.length / 4)),
     outputTokens: Number(request?.generationConfig?.maxOutputTokens ?? request?.config?.maxOutputTokens ?? 8192),
-    outputImages: Array.isArray(responseModalities) && responseModalities.some((value: unknown) => String(value).toLowerCase() === 'image') ? 1 : 0,
+    outputImages: imageOutput ? 1 : 0,
   };
 }
 
@@ -63,7 +72,7 @@ export function createTrackedGoogleGenAI(apiKey: string, context: AiBillingConte
   models.generateContent = (request: any) => trackedCall(
     context,
     String(request.model),
-    estimateTextUnits(request),
+    { ...estimateTextUnits(request), outputImageTokens: estimatedImageOutputTokens(String(request.model)) },
     () => generateContent(request),
     response => ({ ...normalizeUsageMetadata((response as any)?.usageMetadata), outputImages: countOutputImages(response) }),
   );
@@ -95,9 +104,12 @@ export function createTrackedGoogleGenAI(apiKey: string, context: AiBillingConte
     interactions.create = (request: any) => trackedCall(
       { ...context, area: 'product_creative_image' },
       String(request.model),
-      { ...estimateTextUnits({ contents: request.input }), outputImages: 1 },
+      { ...estimateTextUnits({ contents: request.input }), outputImageTokens: estimatedImageOutputTokens(String(request.model)), outputImages: 1 },
       () => createInteraction(request),
-      response => ({ ...normalizeUsageMetadata((response as any)?.usageMetadata), outputImages: Math.max(1, Number((response as any)?.outputs?.length ?? 1)) }),
+      response => {
+        const usage = normalizeUsageMetadata((response as any)?.usageMetadata);
+        return { ...usage, outputImageTokens: usage.outputImageTokens || estimatedImageOutputTokens(String(request.model)), outputImages: Math.max(1, Number((response as any)?.outputs?.length ?? 1)) };
+      },
     );
   }
 
