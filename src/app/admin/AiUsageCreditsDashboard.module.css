@@ -156,6 +156,18 @@
 .empty { padding: 36px 20px; text-align: center; color: var(--ai-muted); }
 
 .rateBody { padding: 16px; }
+.rateSection { margin-bottom: 18px; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
+.rateSectionHeader { display: flex; align-items: center; gap: 12px; padding: 11px 12px; background: var(--ai-surface-subtle); }
+.rateSectionHeader > div { flex: 1; min-width: 0; font-size: 12px; }
+.rateSectionHeader span:not(.pill) { display: block; margin-top: 2px; color: var(--ai-muted); font-size: 11px; }
+.savedRatesWrap { max-height: 420px; overflow: auto; }
+.savedRatesWrap .syncTable thead { position: sticky; top: 0; z-index: 1; background: var(--ai-surface); }
+.markupSection { margin-bottom: 18px; padding: 0 12px 12px; border: 1px solid var(--ai-border); border-radius: 6px; }
+.markupSection .rateSectionHeader { margin: 0 -12px 12px; }
+.markupGrid { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; }
+.percentageInput { position: relative; }
+.percentageInput .input { padding-right: 28px; }
+.percentageInput > span { position: absolute; right: 10px; top: 10px; color: var(--ai-muted); font-size: 11px; pointer-events: none; }
 .syncPreview { margin-bottom: 18px; border: 1px solid var(--ai-border); border-radius: 6px; overflow: hidden; }
 .syncHeader { display: flex; align-items: center; gap: 16px; padding: 12px; background: var(--ai-surface-subtle); }
 .syncHeader > div { flex: 1; min-width: 0; font-size: 12px; }
@@ -216,6 +228,7 @@
 @media (max-width: 1050px) {
   .summaryGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .rateGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .markupGrid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
 }
 
 @media (max-width: 700px) {
@@ -227,6 +240,7 @@
   .search { flex: 1; width: auto; }
   .summaryGrid { grid-template-columns: 1fr 1fr; }
   .rateGrid, .formGrid { grid-template-columns: 1fr; }
+  .markupGrid { grid-template-columns: 1fr 1fr; }
   .fieldWide { grid-column: auto; }
   .rateFooter { align-items: stretch; flex-direction: column; }
   .rateFooter .primaryButton { width: 100%; }
@@ -242,4 +256,5 @@
   .summaryGrid { grid-template-columns: 1fr; }
   .filters { align-items: stretch; flex-direction: column; }
   .search, .statusFilter { width: 100%; }
+  .markupGrid { grid-template-columns: 1fr; }
 }

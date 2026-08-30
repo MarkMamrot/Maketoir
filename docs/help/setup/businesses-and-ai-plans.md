@@ -14,6 +14,8 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Set location and user limits and the monthly cost per location.
 - Open AI Usage & Credits for funding, enforcement, usage, and rate controls.
 - Compare supported Google Billing prices with current provider rates before approving changes.
+- Review saved active provider rates whenever the AI Usage & Credits page opens.
+- Apply a different standard markup percentage to each AI plan without entering every model rate individually.
 
 ## At a glance
 
@@ -25,6 +27,8 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
 | Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |
+| Active provider rates | **AI Usage & Credits > Rate cards** | Shows the provider-cost rates currently used for future AI calls without requiring a new Google sync |
+| Plan markups | **AI Usage & Credits > Rate cards** | Creates customer sell rates from active provider costs using a separate percentage for each selected plan |
 | Manual AI rates | **AI Usage & Credits > Rate cards** | Adds effective provider-cost and plan sell rates without changing rate history |
 
 ## Before you begin
@@ -75,6 +79,19 @@ When POS was configured for a different business, it returns to Device Setup aft
 
 > **Important:** Synchronization does not activate prices automatically. Google prices are retrieved again during approval, and approval stops when a selected price no longer matches the reviewed proposal.
 
+### Apply standard plan markups
+
+1. Open **Admin > AI Usage & Credits**.
+2. Under **Active provider rates**, confirm the saved provider costs and effective dates.
+3. Under **Plan markups**, enter the percentage for each plan that should change. Leave a plan blank to retain its current sell rates.
+4. Review the displayed number of sell rates that will be created.
+5. Select **Apply plan markups** and confirm the change.
+6. Check the success message and the configured plan-rate count.
+
+The calculation is **customer sell rate = active provider cost × (1 + markup percentage)**. For example, a 25% markup changes a $1.00 provider rate to a $1.25 customer sell rate. The amount is rounded up to the nearest AUD micro where required.
+
+> **Important:** Applying plan markups updates every active provider model and metric for each selected plan. Earlier plan rates remain in history, while the newly calculated rates apply to future usage. A markup percentage is not the same as a target gross-margin percentage.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Safe action |
@@ -91,6 +108,8 @@ When POS was configured for a different business, it returns to Device Setup aft
 | Google rate preview cannot connect | The billing account, billing connection, access permission, or Cloud Billing API is unavailable | Ask a platform administrator to restore the Google Billing connection, then retry |
 | A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or conflicts with another SKU mapped to the same model and metric | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear. Equivalent SKUs with the same price are consolidated automatically |
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
+| Saved provider rates disappear after leaving the page | The page did not finish loading or the rate request failed | Refresh AI Usage & Credits; active provider rates should appear without running Google sync |
+| Apply plan markups is unavailable | No active provider rates exist or every plan percentage is blank | Sync or add provider rates, then enter at least one plan markup |
 
 ## Worked examples
 

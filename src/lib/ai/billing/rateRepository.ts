@@ -3,6 +3,19 @@ import { audToMicros, microsToAud } from './money';
 import { AI_PLAN_KEYS, AI_RATE_METRICS } from './types';
 import type { GoogleRateCandidate } from './googlePricing';
 
+export function parseMarkupBasisPoints(value: unknown): bigint {
+  const normalized = String(value ?? '').trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) throw new Error('Markup must be a non-negative percentage with at most two decimal places.');
+  const [whole, fraction = ''] = normalized.split('.');
+  const basisPoints = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0'));
+  if (basisPoints > 100_000n) throw new Error('Markup cannot exceed 1,000%.');
+  return basisPoints;
+}
+
+export function applyMarkup(providerPriceMicros: bigint, markupBasisPoints: bigint): bigint {
+  return (providerPriceMicros * (10_000n + markupBasisPoints) + 9_999n) / 10_000n;
+}
+
 export const AiRateRepository = {
   async list() {
     const [provider, plans] = await Promise.all([
@@ -44,6 +57,34 @@ export const AiRateRepository = {
       }
       await connection.commit();
       return { imported, skipped };
+    } catch (error) { await connection.rollback(); throw error; }
+    finally { connection.release(); }
+  },
+
+  async applyPlanMarkups(markups: Partial<Record<(typeof AI_PLAN_KEYS)[number], unknown>>, actorUserId: number) {
+    const selected = Object.entries(markups || {}).filter(([, value]) => String(value ?? '').trim() !== '');
+    if (!selected.length) throw new Error('Enter a markup for at least one plan.');
+    const parsed = selected.map(([planKey, value]) => {
+      if (!AI_PLAN_KEYS.includes(planKey as (typeof AI_PLAN_KEYS)[number])) throw new Error('Invalid plan.');
+      return { planKey, basisPoints: parseMarkupBasisPoints(value) };
+    });
+    const connection = await getPool().getConnection();
+    try {
+      await connection.beginTransaction();
+      const [providerRates] = await connection.execute<any[]>(`SELECT model_id,metric,price_per_unit_micros,unit_scale FROM ai_provider_rates WHERE provider='google' AND effective_to IS NULL ORDER BY model_id,metric FOR UPDATE`);
+      if (!providerRates.length) throw new Error('No active provider rates are available.');
+      const effectiveFrom = new Date();
+      let created = 0;
+      for (const { planKey, basisPoints } of parsed) {
+        for (const providerRate of providerRates) {
+          const price = applyMarkup(BigInt(providerRate.price_per_unit_micros), basisPoints);
+          await connection.execute(`UPDATE ai_plan_rates SET effective_to=? WHERE plan_key=? AND model_id=? AND metric=? AND effective_from < ? AND effective_to IS NULL`, [effectiveFrom, planKey, providerRate.model_id, providerRate.metric, effectiveFrom]);
+          await connection.execute(`INSERT INTO ai_plan_rates (plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,created_by) VALUES (?,?,?,?,?,?,?)`, [planKey, providerRate.model_id, providerRate.metric, price.toString(), Number(providerRate.unit_scale), effectiveFrom, actorUserId]);
+          created++;
+        }
+      }
+      await connection.commit();
+      return { plans: parsed.length, rates: created, providerRates: providerRates.length };
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
   },

@@ -13,6 +13,7 @@ type AccountRow = {
 const money = (value: string | number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 }).format(Number(value || 0));
 const title = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, character => character.toUpperCase());
 const initialRate = () => ({ kind: 'provider', planKey: 'starter', modelId: '', metric: 'input_tokens', priceAud: '', unitScale: 1000000, sourceCurrency: 'USD', sourcePriceDecimal: '', audFxRate: '', effectiveFrom: new Date().toISOString().slice(0, 16) });
+const initialMarkups = () => ({ starter: '', core: '', scale: '', enterprise: '', platform: '' });
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
   return <div className={`${styles.field} ${wide ? styles.fieldWide : ''}`}><label>{label}</label>{children}</div>;
@@ -33,6 +34,8 @@ export default function AiUsageCreditsDashboard() {
   const [googlePreview, setGooglePreview] = useState<any>(null);
   const [googleSelected, setGoogleSelected] = useState<string[]>([]);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [markups, setMarkups] = useState<Record<string, string>>(initialMarkups);
+  const [markupLoading, setMarkupLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -99,6 +102,22 @@ export default function AiUsageCreditsDashboard() {
     finally { setGoogleLoading(false); }
   };
 
+  const applyPlanMarkups = async () => {
+    const selectedPlans = Object.entries(markups).filter(([, value]) => value.trim() !== '');
+    if (!selectedPlans.length) { setIsError(true); setMessage('Enter a markup for at least one plan.'); return; }
+    const affectedRates = activeProviderRates.length * selectedPlans.length;
+    if (!window.confirm(`Create ${affectedRates} customer sell rates across ${selectedPlans.length} plan${selectedPlans.length === 1 ? '' : 's'}? Existing active rates for those plans will end when the new rates begin.`)) return;
+    setMarkupLoading(true); setMessage(''); setIsError(false);
+    try {
+      const response = await fetch('/api/admin/ai-billing/rates/markup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markups }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Plan markup update failed.');
+      await load(); setMarkups(initialMarkups());
+      setMessage(`${result.rates} customer sell rates activated across ${result.plans} plan${result.plans === 1 ? '' : 's'}, based on ${result.providerRates} active provider rates.`);
+    } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Plan markup update failed.'); }
+    finally { setMarkupLoading(false); }
+  };
+
   const exportCsv = () => {
     const columns = ['businessName','businessId','planKey','fundingMode','enforcementMode','balanceAud','limitAud','usedAud','reservedAud','providerCostAud','tenantChargeAud','marginAud','calls','unknownCalls'];
     const csv = [columns.join(','), ...rows.map(row => columns.map(column => JSON.stringify(row[column as keyof AccountRow] ?? '')).join(','))].join('\n');
@@ -108,6 +127,8 @@ export default function AiUsageCreditsDashboard() {
   const query = search.trim().toLowerCase();
   const visibleRows = rows.filter(row => (!query || row.businessName.toLowerCase().includes(query) || row.businessId.toLowerCase().includes(query)) && (status === 'all' || row.enforcementMode === status));
   const totals = rows.reduce((result, row) => ({ provider: result.provider + Number(row.providerCostAud), charged: result.charged + Number(row.tenantChargeAud), calls: result.calls + Number(row.calls), unknown: result.unknown + Number(row.unknownCalls) }), { provider: 0, charged: 0, calls: 0, unknown: 0 });
+  const activeProviderRates = rates.provider.filter((rate: any) => !rate.effective_to);
+  const selectedMarkupPlans = Object.values(markups).filter(value => value.trim() !== '').length;
 
   return <div className={styles.root}>
     <header className={styles.header}>
@@ -148,6 +169,17 @@ export default function AiUsageCreditsDashboard() {
     <section className={styles.panel}>
       <div className={styles.panelHeader}><div className={styles.sectionHeader}><div className={styles.sectionHeading}><h2 className={styles.sectionTitle}>Rate cards</h2><p className={styles.sectionDescription}>Review Google account prices or create a manual effective rate. Historical rates remain unchanged.</p></div><button className={styles.secondaryButton} onClick={() => void previewGoogleRates()} disabled={googleLoading}><RefreshCw size={14} />{googleLoading ? 'Checking Google' : 'Sync Google rates'}</button></div></div>
       <div className={styles.rateBody}>
+      <section className={styles.rateSection}>
+        <div className={styles.rateSectionHeader}><div><strong>Active provider rates</strong><span>Loaded from the saved rate card whenever this page opens.</span></div><span className={styles.pill}>{activeProviderRates.length} active</span></div>
+        {activeProviderRates.length > 0 ? <div className={styles.savedRatesWrap}><table className={styles.syncTable}><thead><tr><th>Model</th><th>Metric</th><th className={styles.numeric}>Provider cost</th><th>Source</th><th>Effective from</th></tr></thead><tbody>{activeProviderRates.map((rate: any) => <tr key={rate.id}><td><strong>{rate.model_id}</strong></td><td>{title(rate.metric)}</td><td className={styles.numeric}>{money(rate.priceAud)} <span className={styles.muted}>/ {Number(rate.unit_scale).toLocaleString()}</span></td><td className={styles.sku} title={rate.source_sku_id || rate.source_currency}>{rate.source_sku_id || rate.source_currency}</td><td>{new Date(rate.effective_from).toLocaleString('en-AU')}</td></tr>)}</tbody></table></div> : <div className={styles.syncEmpty}>No active provider rates are configured. Sync Google rates or add one manually.</div>}
+      </section>
+
+      <section className={styles.markupSection}>
+        <div className={styles.rateSectionHeader}><div><strong>Plan markups</strong><span>Customer rate = active provider cost × (1 + markup percentage). Leave a plan blank to keep its current rates.</span></div></div>
+        <div className={styles.markupGrid}>{Object.keys(markups).map(planKey => <Field key={planKey} label={title(planKey)}><div className={styles.percentageInput}><input className={styles.input} type="number" min="0" max="1000" step="0.01" inputMode="decimal" placeholder="Leave unchanged" value={markups[planKey]} onChange={event => setMarkups({ ...markups, [planKey]: event.target.value })} /><span>%</span></div></Field>)}</div>
+        <div className={styles.rateFooter}><div className={styles.rateCount}>{selectedMarkupPlans ? `${activeProviderRates.length * selectedMarkupPlans} sell rates will be created across ${selectedMarkupPlans} plan${selectedMarkupPlans === 1 ? '' : 's'}` : 'Enter one or more plan percentages'}</div><button className={styles.primaryButton} disabled={markupLoading || !selectedMarkupPlans || !activeProviderRates.length} onClick={() => void applyPlanMarkups()}>{markupLoading ? 'Applying markups' : 'Apply plan markups'}</button></div>
+      </section>
+
       {googlePreview && <div className={styles.syncPreview}>
         <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>{googleSelected.length ? `Approve ${googleSelected.length} selected` : 'No changes to approve'}</button></div>
         <div className={`${styles.syncStatus} ${googleSelected.length ? styles.syncStatusAction : styles.syncStatusCurrent}`}>
