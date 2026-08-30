@@ -160,6 +160,8 @@
 .rateSectionHeader { display: flex; align-items: center; gap: 12px; padding: 11px 12px; background: var(--ai-surface-subtle); }
 .rateSectionHeader > div { flex: 1; min-width: 0; font-size: 12px; }
 .rateSectionHeader span:not(.pill) { display: block; margin-top: 2px; color: var(--ai-muted); font-size: 11px; }
+.rateSectionControls { display: flex !important; flex: 0 0 auto !important; align-items: center; gap: 8px; }
+.rateSectionControls .select { width: 140px; }
 .savedRatesWrap { max-height: 420px; overflow: auto; }
 .savedRatesWrap .syncTable thead { position: sticky; top: 0; z-index: 1; background: var(--ai-surface); }
 .markupSection { margin-bottom: 18px; padding: 0 12px 12px; border: 1px solid var(--ai-border); border-radius: 6px; }
@@ -182,6 +184,8 @@
 .syncTable tbody tr:last-child td { border-bottom: 0; }
 .syncTable input { width: 15px; height: 15px; accent-color: var(--ai-accent); }
 .activeRate { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; color: #176b50; }
+.tableAction { min-height: 28px; border: 1px solid var(--ai-border); border-radius: 5px; padding: 0 8px; display: inline-flex; align-items: center; gap: 5px; background: var(--ai-surface); color: var(--ai-text); font: inherit; font-size: 10px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.tableAction:hover { border-color: var(--ai-accent); color: var(--ai-accent); }
 .sku { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ai-muted); font-family: ui-monospace, monospace; }
 .new { background: #e7f2ff; color: #175a91; }
 .changed { background: #fff6db; color: #805d00; }
@@ -246,6 +250,9 @@
   .rateFooter .primaryButton { width: 100%; }
   .syncHeader { align-items: stretch; flex-direction: column; }
   .syncStatus { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .rateSectionHeader { align-items: flex-start; flex-direction: column; }
+  .rateSectionControls { width: 100%; }
+  .rateSectionControls .select { flex: 1; width: auto; }
   .warningRow { grid-template-columns: 1fr; gap: 3px; }
   .manualRateHeading { align-items: flex-start; flex-direction: column; }
 }

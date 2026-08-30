@@ -16,6 +16,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Compare supported Google Billing prices with current provider rates before approving changes.
 - Review saved active provider rates whenever the AI Usage & Credits page opens.
 - Apply a different standard markup percentage to each AI plan without entering every model rate individually.
+- Review active customer sell rates by plan and replace an individual rate without rewriting history.
 
 ## At a glance
 
@@ -29,6 +30,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |
 | Active provider rates | **AI Usage & Credits > Rate cards** | Shows the provider-cost rates currently used for future AI calls without requiring a new Google sync |
 | Plan markups | **AI Usage & Credits > Rate cards** | Creates customer sell rates from active provider costs using a separate percentage for each selected plan |
+| Active plan sell rates | **AI Usage & Credits > Rate cards** | Shows current customer rates, implied markup, effective time, and an edit action for each plan/model/metric |
 | Manual AI rates | **AI Usage & Credits > Rate cards** | Adds effective provider-cost and plan sell rates without changing rate history |
 
 ## Before you begin
@@ -92,6 +94,16 @@ The calculation is **customer sell rate = active provider cost × (1 + markup pe
 
 > **Important:** Applying plan markups updates every active provider model and metric for each selected plan. Earlier plan rates remain in history, while the newly calculated rates apply to future usage. A markup percentage is not the same as a target gross-margin percentage.
 
+### Review or edit a sell rate
+
+1. Under **Active plan sell rates**, choose a plan or leave **All plans** selected.
+2. Review the model, metric, sell rate, implied markup, and effective time.
+3. Select **Edit** on the required row.
+4. In **Edit sell rate**, change the AUD price or effective time and verify the plan, model, metric, and unit scale.
+5. Select **Save new effective rate**.
+
+> **Important:** Editing does not alter the rate used by historical AI calls. It ends the previous active rate at the selected effective time and creates a replacement for future usage.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Safe action |
@@ -110,6 +122,7 @@ The calculation is **customer sell rate = active provider cost × (1 + markup pe
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
 | Saved provider rates disappear after leaving the page | The page did not finish loading or the rate request failed | Refresh AI Usage & Credits; active provider rates should appear without running Google sync |
 | Apply plan markups is unavailable | No active provider rates exist or every plan percentage is blank | Sync or add provider rates, then enter at least one plan markup |
+| A newly created sell rate is not visible | A different plan filter is selected or the rates have not reloaded | Choose **All plans** and refresh AI Usage & Credits |
 
 ## Worked examples
 

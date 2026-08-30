@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Download, RefreshCw, Search, X } from 'lucide-react';
+import { Check, Download, Pencil, RefreshCw, Search, X } from 'lucide-react';
 import styles from './AiUsageCreditsDashboard.module.css';
 
 type AccountRow = {
@@ -12,7 +12,8 @@ type AccountRow = {
 
 const money = (value: string | number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', minimumFractionDigits: 2 }).format(Number(value || 0));
 const title = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, character => character.toUpperCase());
-const initialRate = () => ({ kind: 'provider', planKey: 'starter', modelId: '', metric: 'input_tokens', priceAud: '', unitScale: 1000000, sourceCurrency: 'USD', sourcePriceDecimal: '', audFxRate: '', effectiveFrom: new Date().toISOString().slice(0, 16) });
+const localDateTimeValue = (date = new Date()) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+const initialRate = () => ({ kind: 'provider', planKey: 'starter', modelId: '', metric: 'input_tokens', priceAud: '', unitScale: 1000000, sourceCurrency: 'USD', sourcePriceDecimal: '', audFxRate: '', effectiveFrom: localDateTimeValue() });
 const initialMarkups = () => ({ starter: '', core: '', scale: '', enterprise: '', platform: '' });
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
@@ -36,6 +37,8 @@ export default function AiUsageCreditsDashboard() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [markups, setMarkups] = useState<Record<string, string>>(initialMarkups);
   const [markupLoading, setMarkupLoading] = useState(false);
+  const [planRateFilter, setPlanRateFilter] = useState('all');
+  const [editingRateLabel, setEditingRateLabel] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -70,10 +73,11 @@ export default function AiUsageCreditsDashboard() {
 
   const addRate = async () => {
     setMessage(''); setIsError(false);
-    const response = await fetch('/api/admin/ai-billing/rates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(rateForm) });
+    const response = await fetch('/api/admin/ai-billing/rates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...rateForm, effectiveFrom: new Date(rateForm.effectiveFrom).toISOString() }) });
     const result = await response.json();
     if (!response.ok) { setIsError(true); setMessage(result.error || 'Rate creation failed.'); return; }
-    setMessage('Rate added.'); setRateForm(initialRate()); await load();
+    setMessage(editingRateLabel ? 'Updated sell rate activated. The previous rate remains in history.' : 'Rate added.');
+    setEditingRateLabel(''); setRateForm(initialRate()); await load();
   };
 
   const previewGoogleRates = async () => {
@@ -124,10 +128,20 @@ export default function AiUsageCreditsDashboard() {
     const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); link.download = 'ai-usage-credits.csv'; link.click(); URL.revokeObjectURL(link.href);
   };
 
+  const editPlanRate = (rate: any) => {
+    setRateForm({ kind: 'plan', planKey: rate.plan_key, modelId: rate.model_id, metric: rate.metric, priceAud: rate.priceAud, unitScale: Number(rate.unit_scale), sourceCurrency: 'AUD', sourcePriceDecimal: '', audFxRate: '', effectiveFrom: localDateTimeValue() });
+    setEditingRateLabel(`${title(rate.plan_key)} · ${rate.model_id} · ${title(rate.metric)}`);
+    setMessage(''); setIsError(false);
+    window.setTimeout(() => document.getElementById('manual-rate-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  };
+
   const query = search.trim().toLowerCase();
   const visibleRows = rows.filter(row => (!query || row.businessName.toLowerCase().includes(query) || row.businessId.toLowerCase().includes(query)) && (status === 'all' || row.enforcementMode === status));
   const totals = rows.reduce((result, row) => ({ provider: result.provider + Number(row.providerCostAud), charged: result.charged + Number(row.tenantChargeAud), calls: result.calls + Number(row.calls), unknown: result.unknown + Number(row.unknownCalls) }), { provider: 0, charged: 0, calls: 0, unknown: 0 });
   const activeProviderRates = rates.provider.filter((rate: any) => !rate.effective_to);
+  const activePlanRates = rates.plans.filter((rate: any) => !rate.effective_to);
+  const visiblePlanRates = activePlanRates.filter((rate: any) => planRateFilter === 'all' || rate.plan_key === planRateFilter);
+  const providerRateByKey = new Map(activeProviderRates.map((rate: any) => [`${rate.model_id}:${rate.metric}`, rate]));
   const selectedMarkupPlans = Object.values(markups).filter(value => value.trim() !== '').length;
 
   return <div className={styles.root}>
@@ -180,6 +194,15 @@ export default function AiUsageCreditsDashboard() {
         <div className={styles.rateFooter}><div className={styles.rateCount}>{selectedMarkupPlans ? `${activeProviderRates.length * selectedMarkupPlans} sell rates will be created across ${selectedMarkupPlans} plan${selectedMarkupPlans === 1 ? '' : 's'}` : 'Enter one or more plan percentages'}</div><button className={styles.primaryButton} disabled={markupLoading || !selectedMarkupPlans || !activeProviderRates.length} onClick={() => void applyPlanMarkups()}>{markupLoading ? 'Applying markups' : 'Apply plan markups'}</button></div>
       </section>
 
+      <section className={styles.rateSection}>
+        <div className={styles.rateSectionHeader}><div><strong>Active plan sell rates</strong><span>Customer rates currently applied to future AI usage. Editing creates a new effective rate and retains history.</span></div><div className={styles.rateSectionControls}><select className={styles.select} value={planRateFilter} onChange={event => setPlanRateFilter(event.target.value)} aria-label="Filter sell rates by plan"><option value="all">All plans</option>{['starter','core','scale','enterprise','platform'].map(planKey => <option key={planKey} value={planKey}>{title(planKey)}</option>)}</select><span className={styles.pill}>{visiblePlanRates.length} shown</span></div></div>
+        {visiblePlanRates.length > 0 ? <div className={styles.savedRatesWrap}><table className={styles.syncTable}><thead><tr><th>Plan</th><th>Model</th><th>Metric</th><th className={styles.numeric}>Sell rate</th><th className={styles.numeric}>Markup</th><th>Effective from</th><th aria-label="Actions"></th></tr></thead><tbody>{visiblePlanRates.map((rate: any) => {
+          const providerRate: any = providerRateByKey.get(`${rate.model_id}:${rate.metric}`);
+          const markup = providerRate && Number(providerRate.priceAud) > 0 ? ((Number(rate.priceAud) / Number(providerRate.priceAud) - 1) * 100) : null;
+          return <tr key={rate.id}><td><span className={styles.pill}>{title(rate.plan_key)}</span></td><td><strong>{rate.model_id}</strong></td><td>{title(rate.metric)}</td><td className={styles.numeric}>{money(rate.priceAud)} <span className={styles.muted}>/ {Number(rate.unit_scale).toLocaleString()}</span></td><td className={styles.numeric}>{markup == null ? '—' : `${markup.toFixed(2)}%`}</td><td>{new Date(rate.effective_from).toLocaleString('en-AU')}</td><td className={styles.numeric}><button className={styles.tableAction} title="Edit rate" onClick={() => editPlanRate(rate)}><Pencil size={13} />Edit</button></td></tr>;
+        })}</tbody></table></div> : <div className={styles.syncEmpty}>{activePlanRates.length ? 'No active sell rates match this plan.' : 'No active plan sell rates are configured. Apply plan markups or add one manually.'}</div>}
+      </section>
+
       {googlePreview && <div className={styles.syncPreview}>
         <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>{googleSelected.length ? `Approve ${googleSelected.length} selected` : 'No changes to approve'}</button></div>
         <div className={`${styles.syncStatus} ${googleSelected.length ? styles.syncStatusAction : styles.syncStatusCurrent}`}>
@@ -192,15 +215,15 @@ export default function AiUsageCreditsDashboard() {
         </tr>)}</tbody></table></div> : <div className={styles.syncEmpty}>Google returned no standard token rates that can be represented safely.</div>}
         {googlePreview.warnings.length > 0 && <details className={styles.syncWarnings}><summary>{googlePreview.warnings.length} Google SKU mapping{googlePreview.warnings.length === 1 ? '' : 's'} excluded from automatic rates</summary>{googlePreview.warnings.map((warning: any, index: number) => <div className={styles.warningRow} key={`${warning.skuId}-${index}`}><strong>{warning.skuName}</strong><span>{warning.reason}</span><code>{warning.skuId}</code></div>)}</details>}
       </div>}
-      <div className={styles.manualRateHeading}><strong>Manual effective rate</strong><span>Use for plan sell rates or unsupported Google pricing shapes.</span></div><div className={styles.rateGrid}>
-        <Field label="Rate type"><select className={styles.select} value={rateForm.kind} onChange={event => setRateForm({ ...rateForm, kind: event.target.value })}><option value="provider">Provider cost</option><option value="plan">Plan sell rate</option></select></Field>
+      <div id="manual-rate-editor" className={styles.manualRateHeading}><strong>{editingRateLabel ? 'Edit sell rate' : 'Manual effective rate'}</strong><span>{editingRateLabel || 'Use for plan sell rates or unsupported Google pricing shapes.'}</span></div><div className={styles.rateGrid}>
+        <Field label="Rate type"><select className={styles.select} value={rateForm.kind} onChange={event => { setEditingRateLabel(''); setRateForm({ ...rateForm, kind: event.target.value }); }}><option value="provider">Provider cost</option><option value="plan">Plan sell rate</option></select></Field>
         {rateForm.kind === 'plan' && <Field label="Plan"><select className={styles.select} value={rateForm.planKey} onChange={event => setRateForm({ ...rateForm, planKey: event.target.value })}>{['starter','core','scale','enterprise','platform'].map(value => <option key={value}>{title(value)}</option>)}</select></Field>}
         <Field label="Model ID" wide><input className={styles.input} placeholder="gemini-2.5-flash" value={rateForm.modelId} onChange={event => setRateForm({ ...rateForm, modelId: event.target.value })} /></Field>
         <Field label="Metric"><select className={styles.select} value={rateForm.metric} onChange={event => setRateForm({ ...rateForm, metric: event.target.value })}>{['input_tokens','cached_input_tokens','output_tokens','thinking_tokens','output_image','video_second'].map(value => <option key={value} value={value}>{title(value)}</option>)}</select></Field>
         <Field label="AUD price"><input className={styles.input} inputMode="decimal" placeholder="0.00" value={rateForm.priceAud} onChange={event => setRateForm({ ...rateForm, priceAud: event.target.value })} /></Field>
         {rateForm.kind === 'provider' && <><Field label="Source price"><input className={styles.input} inputMode="decimal" placeholder="0.00" value={rateForm.sourcePriceDecimal} onChange={event => setRateForm({ ...rateForm, sourcePriceDecimal: event.target.value })} /></Field><Field label="AUD exchange rate"><input className={styles.input} inputMode="decimal" placeholder="1.00" value={rateForm.audFxRate} onChange={event => setRateForm({ ...rateForm, audFxRate: event.target.value })} /></Field></>}
         <Field label="Effective from"><input className={styles.input} type="datetime-local" value={rateForm.effectiveFrom} onChange={event => setRateForm({ ...rateForm, effectiveFrom: event.target.value })} /></Field>
-      </div><div className={styles.rateFooter}><div className={styles.rateCount}>{rates.provider.length} provider rates · {rates.plans.length} plan rates configured</div><button className={styles.primaryButton} onClick={() => void addRate()}>Add effective rate</button></div>
+      </div><div className={styles.rateFooter}><div className={styles.rateCount}>{activeProviderRates.length} active provider rates · {activePlanRates.length} active plan rates</div><button className={styles.primaryButton} onClick={() => void addRate()}>{editingRateLabel ? 'Save new effective rate' : 'Add effective rate'}</button></div>
       {message && !selected && <div className={`${styles.message} ${isError ? styles.error : ''}`}>{message}</div>}</div>
     </section>
 

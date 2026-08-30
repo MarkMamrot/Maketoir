@@ -1,3 +1,10 @@
+## 2026-08-30 - Persistent AI rates and bulk plan markups
+
+- SuperAdmin AI Usage & Credits now shows saved active provider rates whenever the page opens; Google synchronization is only needed to check for provider changes. The table is bounded, retains source SKU and effective-date visibility, and no longer depends on transient Google preview state.
+- Plan sell rates can be generated atomically from all active provider rates with a separate optional markup percentage for Starter, Core, Scale, Enterprise, and Platform. Blank plans remain unchanged. The server re-reads provider costs, calculates exact AUD micros as provider cost × (1 + markup percentage), rounds up to one micro, closes prior active rates for selected plans, and retains history.
+- The markup endpoint is SuperAdmin-only, validates 0%-1,000% with up to two decimal places, reports operational failures through Runtime Issues, and does not accept browser-calculated prices. No live plan rates were created during implementation or validation.
+- Validation passed 18 focused rate-card tests, 465 Vitest files / one skipped, 2,220 tests / one skipped, Help compilation with 57 topics / 464 Assistant chunks, production build, touched-file diagnostics, and final diff checks.
+
 ## 2026-08-30 - Guarded Google AI provider-rate synchronization
 
 - SuperAdmin AI Usage & Credits can now retrieve account-specific Gemini prices from the Google Cloud Billing Pricing API in AUD, compare supported standard token SKUs with active provider rates, and explicitly approve selected new or changed rates. Approval re-fetches Google server-side, accepts candidate identities rather than browser-supplied prices, skips exact matches, and preserves effective-dated history.
