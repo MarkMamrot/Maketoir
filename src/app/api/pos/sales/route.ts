@@ -7,6 +7,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
+import { buildPosStockNotificationMessage } from '@/lib/ims/notificationPresentation';
 import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
 import { allowsIncomingTransferSales, posLocationSettingsKey } from '@/lib/pos/locationSettings';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -231,8 +232,8 @@ export async function POST(req: Request) {
         createNotification(
           bizId,
           'pos_stock',
-          'POS Stock Deduction Failed',
-          stockError,
+          `POS sale #${saleId} was saved but stock did not update`,
+          `The sale was recorded successfully, but stock could not be updated for ${(body.items ?? []).map((item: any) => item.name).filter(Boolean).join(', ') || 'one or more products'}. Review the sale and current location stock before making a correction.\n\nTechnical reason: ${stockError}`,
           {
             sale_id:     saleId ?? null,
             local_id:    body.local_id ?? null,
@@ -250,15 +251,11 @@ export async function POST(req: Request) {
 
     const generalStockWarnings = stockWarnings.filter(warning => warning.reason !== 'incoming_transfer_stock');
     if (generalStockWarnings.length > 0) {
-      const adjustedQuantity = generalStockWarnings.reduce((sum, warning) => sum + Number(warning.automaticAdjustmentQuantity ?? 0), 0);
-      const warningDetail = adjustedQuantity > 0
-        ? `required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction or reduced stock below committed customer demand`
-        : 'reduced stock below committed customer demand';
       createNotification(
         businessId,
         'pos_stock_availability',
-        'POS sale needs a stock check',
-        `Sale #${saleId} ${warningDetail}. Check the items and perform a stocktake or adjustment if required.`,
+        `Check stock after POS sale #${saleId}`,
+        buildPosStockNotificationMessage(saleId, generalStockWarnings),
         { sale_id: saleId, location_id: locationId, warnings: generalStockWarnings },
         'warning',
       ).catch(err => console.error('[notifications] POS availability warning failed:', err));

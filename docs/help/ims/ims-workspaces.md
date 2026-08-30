@@ -1,5 +1,5 @@
 ---
-{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.","lastReviewed":"2026-08-25","owner":"operations"}
+{"id":"ims-workspaces","title":"IMS Workspaces","audiences":["ims"],"capability":"navigation","screen":"IMS","product":"ims","format":"overview","contexts":["dashboard"],"contextSections":{"dashboard":"Choose a workspace"},"order":1,"summary":"Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.","lastReviewed":"2026-08-30","owner":"operations"}
 ---
 # IMS Workspaces
 
@@ -13,6 +13,7 @@ IMS brings day-to-day retail operations into one workspace. Start with the busin
 - When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.
 - Follow a source link when reviewing a summary instead of recreating the transaction.
 - Use Team Chat to communicate with POS locations as the configured default warehouse.
+- Open Notifications in the top bar to review stock, order, and integration actions that need attention.
 - Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work.
 
 ## Choose a workspace
@@ -39,6 +40,8 @@ Paste a JPG, PNG, or WebP screenshot directly into the message box before sendin
 
 Team Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.
 
+Notifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.
+
 > **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit.
 
 ## Troubleshooting
@@ -49,6 +52,7 @@ Team Chat sends as the active business's **Default Warehouse Location** from **S
 | An action is unavailable | Your access and the record's current status | Use the action offered on the source record |
 | A total needs explaining | The detailed report or source links | Trace representative transactions |
 | Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |
+| A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |
 | Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |
 
 ## Worked examples

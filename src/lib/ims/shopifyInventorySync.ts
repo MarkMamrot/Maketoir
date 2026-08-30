@@ -269,8 +269,8 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
         createNotification(
           businessId,
           'shopify_inventory',
-          `Shopify Inventory Sync Errors (${res.errors.length})`,
-          res.errors[0],
+          `${res.errors.length} Shopify inventory ${res.errors.length === 1 ? 'update needs' : 'updates need'} review`,
+          [`Solvantis attempted to update ${variantIds.length} products in Shopify, but ${res.errors.length} updates reported an issue:`, ...res.errors.slice(0, 10).map(error => `- ${error}`), 'Check the affected products and their Shopify links before retrying.'].join('\n'),
           { errors: res.errors, variant_ids: variantIds },
         ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
       } else {
@@ -284,8 +284,8 @@ export async function drainInventoryQueue(limit = 250): Promise<{ processed: num
       createNotification(
         businessId,
         'shopify_inventory',
-        'Shopify Inventory Sync Failed',
-        msg,
+        `Shopify inventory update stopped for ${variantIds.length} ${variantIds.length === 1 ? 'product' : 'products'}`,
+        `Solvantis could not finish sending inventory for these products to Shopify. Check the connection and product links before retrying.\n\nTechnical reason: ${msg}`,
         { errors: [msg], variant_ids: variantIds },
       ).catch(err => console.error('[notifications] inventory sync notify failed:', err));
     }

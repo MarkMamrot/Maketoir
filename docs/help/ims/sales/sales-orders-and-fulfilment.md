@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.","lastReviewed":"2026-08-23","owner":"sales"}
+{"id":"ims-sales-orders-fulfilment","title":"Sales Orders and Fulfilment","audiences":["ims"],"capability":"orders","screen":"Sales > Sales Orders","product":"ims","format":"task","parentId":"ims-customer-orders","relatedTopics":["ims-stock-allocation-backorders","ims-customer-returns-refunds","ims-purchase-orders"],"contexts":["sales-orders"],"contextSections":{"sales-orders":"Step-by-step"},"order":31,"summary":"Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.","lastReviewed":"2026-08-30","owner":"sales"}
 ---
 # Sales Orders and Fulfilment
 
@@ -41,7 +41,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 6. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.
 7. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.
 
-> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received, and staff receive an incoming-stock warning to complete the receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
+> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.
 8. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.
 
 | Resolve Outstanding choice | Use it when | Result |
@@ -56,6 +56,7 @@ Use Sales Orders to record customer demand and reduce stock only when goods are 
 |---|---|---|
 | Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |
 | A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |
+| Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |
 | The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |
 | Resolve Outstanding is blocked | Payments or accounting records need a controlled value decision | Read the preview and choose the offered settlement; do not alter shipped quantities |
 

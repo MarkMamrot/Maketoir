@@ -8,6 +8,7 @@ import { GiftCardVoidBlockedError } from '@/lib/pos/giftCardSaleVoid';
 import { LoyaltyVoidBlockedError } from '@/lib/ims/LoyaltyRepository';
 import { syncGiftCardRedemptionReversal } from '@/services/XeroSyncService';
 import { createNotification } from '@/lib/ims/createNotification';
+import { buildPosStockNotificationMessage } from '@/lib/ims/notificationPresentation';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -79,12 +80,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
         refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for POS sale void:', err));
       }
       if (stockWarnings.length > 0) {
-        const adjustedQuantity = stockWarnings.reduce((sum, warning) => sum + warning.automaticAdjustmentQuantity, 0);
         createNotification(
           existing.sale.business_id,
           'pos_stock_availability',
-          'Voided POS return needs a stock check',
-          `Voiding sale #${id} required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction. Check the items and perform a stocktake or adjustment if required.`,
+          `Check stock after voiding POS sale #${id}`,
+          buildPosStockNotificationMessage(id, stockWarnings, 'Voided sale'),
           { sale_id: id, location_id: existing.sale.location_id, warnings: stockWarnings },
           'warning',
         ).catch(err => console.error('[notifications] voided POS stock warning failed:', err));

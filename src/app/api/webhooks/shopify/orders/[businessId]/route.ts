@@ -314,8 +314,8 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       createNotification(
         businessId,
         'shopify_webhook',
-        `Shopify Webhook Failed — ${topic}`,
-        msg,
+        `Shopify order ${payload.name ?? payload.id ?? ''} could not update in IMS`,
+        `Solvantis could not process Shopify event ${topic} for order ${payload.name ?? payload.id ?? 'unknown'}. Shopify will retry this event. Review the order in Shopify and IMS before making manual changes.\n\nTechnical reason: ${msg}`,
         {
           topic,
           shopify_order_id:   String(payload.id ?? ''),
@@ -346,8 +346,8 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
         createNotification(
           businessId,
           'shopify_webhook',
-          'Shopify Webhook Failed — orders/cancelled',
-          msg,
+          `Shopify cancellation needs review for order ${payload.name ?? orderIdStr}`,
+          `Shopify cancelled order ${payload.name ?? orderIdStr}, but IMS sales order ${existing[0].id} could not be cancelled. Review both orders before changing stock or payments.\n\nTechnical reason: ${msg}`,
           {
             topic,
             shopify_order_id: orderIdStr,
@@ -412,12 +412,16 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
           finalizeWhenComplete: true,
         });
         if (fulfilmentResult.incomingCoveredShortfalls?.length) {
+          const shortfalls = fulfilmentResult.incomingCoveredShortfalls.map(shortfall => {
+            const item = orderItems.find(orderItem => Number(orderItem.id) === Number(shortfall.itemId));
+            return { ...shortfall, product_name: item?.product_name ?? 'Unknown product', sku: item?.sku ?? null };
+          });
           const incomingContext = {
             shopify_order_id: orderId,
             shopify_order_name: order.shopify_order_name,
             so_id: order.id,
             fulfilment_location: order.location_name,
-            shortfalls: fulfilmentResult.incomingCoveredShortfalls,
+            shortfalls,
           };
           await reportRuntimeIssue({
             businessId,
@@ -429,13 +433,29 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
             context: incomingContext,
             reference: { type: 'sales_order', id: String(order.id) },
           });
-          createNotification(
-            businessId,
-            'shopify_webhook',
-            `Incoming Stock Used — ${order.shopify_order_name || orderId}`,
-            'Shopify marked this order fulfilled before incoming stock was received. Solvantis completed the fulfilment and allowed stock to go negative temporarily. Receive the pending supply and verify the location stock.',
-            incomingContext,
-          ).catch(console.error);
+          const itemLines = shortfalls.map(shortfall =>
+            `- ${shortfall.product_name}${shortfall.sku ? ` (${shortfall.sku})` : ''}: fulfilled ${shortfall.requestedQuantity}; stock ${shortfall.quantityOnHand} to ${shortfall.resultingQuantityOnHand}; incoming PO ${shortfall.purchaseOrderIncomingQuantity}; incoming transfer ${shortfall.branchTransferIncomingQuantity}.`
+          );
+          try {
+            await createNotification(
+              businessId,
+              'shopify_webhook',
+              `Shopify order ${order.shopify_order_name || orderId} used incoming stock`,
+              [`Shopify reported this order as fulfilled before its incoming stock was received at ${order.location_name || 'the fulfilment location'}.`, ...itemLines, 'Receive the pending supply and verify the location stock.'].join('\n'),
+              incomingContext,
+              'warning',
+            );
+          } catch (notificationError) {
+            await reportRuntimeIssue({
+              businessId,
+              source: 'shopify_webhook',
+              operation: 'create_incoming_stock_notification',
+              title: 'Shopify incoming-stock notification failed',
+              error: notificationError,
+              context: incomingContext,
+              reference: { type: 'sales_order', id: String(order.id) },
+            }).catch(() => {});
+          }
         }
         if (shipment) await persistShopifyShipment({ businessId, soId: order.id, shipment });
       } catch (e: any) {
@@ -684,8 +704,8 @@ async function handleWebhook(req: Request, { params }: { params: { businessId: s
       createNotification(
         businessId,
         'shopify_webhook',
-        `Shopify Webhook Failed — ${topic}`,
-        msg,
+        `Shopify payout ${payoutId} could not be processed`,
+        `Solvantis could not import or post Shopify payout ${payoutId}. Review the payout and Xero sync status before reconciling it manually.\n\nTechnical reason: ${msg}`,
         {
           topic,
           payout_id: payoutId,

@@ -325,8 +325,8 @@ export async function POST(req: Request) {
     createNotification(
       businessId,
       'shopify_import',
-      `Shopify Import Errors (${errors.length})`,
-      errors[0],
+      `${errors.length} Shopify ${errors.length === 1 ? 'order needs' : 'orders need'} import review`,
+      [`Solvantis imported ${imported} orders, but ${errors.length} could not be completed:`, ...errors.slice(0, 10).map(error => `- ${error}`), errors.length > 10 ? `- ${errors.length - 10} more issues are listed in the details.` : '', 'Review the affected Shopify orders before importing again.'].filter(Boolean).join('\n'),
       { errors },
     ).catch(err => console.error('[notifications] import notify failed:', err));
   }

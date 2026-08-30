@@ -707,12 +707,14 @@ export const PosSalesRepo = {
           }
           const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
           if (incomingStockWarnings.length > 0) {
-            const itemNames = incomingStockWarnings.map(warning => warning.itemName).slice(0, 3).join(', ');
+            const itemLines = incomingStockWarnings.map(warning =>
+              `- ${warning.itemName}: stock ${warning.previousOnHand} to ${warning.resultingOnHand}; ${warning.incomingTransferQuantity ?? 0} incoming on matching transfers.`
+            );
             await stockConn.execute(
               `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
                VALUES (?, 'warning', 'pos_incoming_stock', 'POS sale used incoming transfer stock', ?, ?)`,
               [data.business_id,
-                `Sale #${saleId} sold ${itemNames || 'stock'} before its branch transfer was received. Complete the transfer receipt and verify location stock.`,
+                [`Sale #${saleId} sold stock before its branch transfer was received:`, ...itemLines, 'Confirm the goods arrived, complete the matching transfer receipt, and verify location stock.'].join('\n'),
                 JSON.stringify({ sale_id: saleId, location_id: data.location_id, warnings: incomingStockWarnings })],
             );
           }

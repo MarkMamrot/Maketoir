@@ -389,7 +389,7 @@
       },
       "order": 1,
       "summary": "Find the right IMS workspace for products, orders, customers, stock, reports, and integrations.",
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-30",
       "owner": "operations",
       "filename": "docs/help/ims/ims-workspaces.md"
     },
@@ -922,7 +922,7 @@
       },
       "order": 31,
       "summary": "Create customer sales orders, ship actual quantities, continue partial fulfilment, and resolve an unshipped remainder.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "owner": "sales",
       "filename": "docs/help/ims/sales/sales-orders-and-fulfilment.md"
     },
@@ -3764,7 +3764,7 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-30",
       "content": "IMS brings day-to-day retail operations into one workspace. Start with the business question, then open the area that owns the record or action."
     },
     {
@@ -3782,8 +3782,8 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
-      "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
+      "lastReviewed": "2026-08-30",
+      "content": "- Use the Dashboard to spot work that needs attention.\n- Sign in to IMS, then select **Intel & Automation** in the top bar when you need analytics, planning, content, or customer-service work. Intel & Automation is not a separate option on the login menu.\n- Open the workspace that owns the product, order, customer, stock movement, report, or connection.\n- When the sidebar is collapsed, select a section icon to expand the full sidebar and open that section; select a standalone icon to open its page.\n- Follow a source link when reviewing a summary instead of recreating the transaction.\n- Use Team Chat to communicate with POS locations as the configured default warehouse.\n- Open Notifications in the top bar to review stock, order, and integration actions that need attention.\n- Use Ask Solvantis for an explanation or read-only lookup; it cannot approve or change work."
     },
     {
       "id": "ims-workspaces:3",
@@ -3800,7 +3800,7 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-30",
       "content": "| What you need to do | Start here | Typical work |\n|---|---|---|\n| Maintain products, prices, variants, brands, or stock | **Products** | Catalogue setup, stock levels, gift cards, bulk edit |\n| Buy from suppliers | **Purchasing** | Purchase orders, backorders, returns, supplier credits, order planning |\n| Sell and fulfil customer orders | **Sales** | Sales Orders, allocation, backorders, returns, POS and online sales |\n| Manage customer relationships | **Contacts** | Contacts, profiles, tasks, segments, pipeline, data quality |\n| Move or count physical stock | **Locations** | Branch transfers, receiving, stocktakes, location setup |\n| Answer a business question | **Reports** | Sales, margin, valuation, registers, banking, availability |\n| Manage connected services | **Integrations** | Xero, Shopify, and the native Online Shop |"
     },
     {
@@ -3818,8 +3818,8 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
-      "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
+      "lastReviewed": "2026-08-30",
+      "content": "Dashboard cards, CRM profiles, and reports help you find and understand activity. They do not replace the source sale, order, credit note, receipt, transfer, or accounting sync. Open the source record before correcting anything.\n\nAsk Solvantis can use the current screen and supported read-only lookups to explain visible information. It does not see hidden form values, credentials, or arbitrary records, and it cannot edit data or run a workflow.\n\nSelect the Team Chat icon at the bottom right to open the all-locations group conversation. Choose a location for a direct message. New direct messages sent to the warehouse appear as a badge on the icon and beside the sending location. The Help icon in the top bar opens the same drawer directly to Help; Ask Solvantis remains available in its own tab.\n\nPaste a JPG, PNG, or WebP screenshot directly into the message box before sending. Up to three screenshots can be attached to one message, with a maximum size of 10 MB each. Staged screenshots are shown above the message box and can be removed before sending.\n\nTeam Chat sends as the active business's **Default Warehouse Location** from **Settings > IMS Settings > Locations**. POS staff can reply by selecting that Warehouse location in Team Communications.\n\nNotifications show a plain-language title and action summary. Open one to see labelled product, order, location, and quantity facts. **Technical payload** stays collapsed and is intended for support or deeper diagnosis; normal operational review should use the readable summary above it.\n\n> **Important:** If an integration step fails after an IMS operation succeeds, retry the unfinished integration step. Do not repeat the sale, receipt, fulfilment, transfer, or credit."
     },
     {
       "id": "ims-workspaces:5",
@@ -3836,8 +3836,8 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
-      "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |"
+      "lastReviewed": "2026-08-30",
+      "content": "| Symptom | Check first | Next step |\n|---|---|---|\n| A list is empty | Search text, date range, location, and status | Clear one filter at a time |\n| An action is unavailable | Your access and the record's current status | Use the action offered on the source record |\n| A total needs explaining | The detailed report or source links | Trace representative transactions |\n| Accounting shows a warning | Xero Sync History | Repair the connection or mapping, then retry the posting |\n| A notification reports stock used before receipt | The named products, location, and quantities | Complete the matching receipt, then verify stock; do not add a duplicate adjustment |\n| Team Chat says no chat location is configured | The Default Warehouse Location is missing or inactive | Select an active warehouse under **Settings > IMS Settings > Locations**, then reopen Team Chat |"
     },
     {
       "id": "ims-workspaces:6",
@@ -3854,7 +3854,7 @@
         "dashboard"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-25",
+      "lastReviewed": "2026-08-30",
       "content": "### Trace unavailable stock\n\nOpen **Products > Stock Levels** to compare stock on hand, committed, incoming, and available. Follow committed demand to Sales Orders or Stock Allocation and incoming supply to Purchase Orders. This explains the quantity without changing it.\n\n### Follow up a customer\n\nOpen **Contacts > CRM**, find the customer, review the profile timeline, and create a task for the next action. Use the linked sale, order, or credit note when the underlying transaction needs attention."
     },
     {
@@ -6451,7 +6451,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "content": "Use Sales Orders to record customer demand and reduce stock only when goods are actually shipped."
     },
     {
@@ -6469,7 +6469,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "content": "- Create and review a Draft order.\n- Confirm the order when customer demand is real.\n- Fulfil only the quantities sent to the customer.\n- Continue a partial fulfilment or resolve the remainder."
     },
     {
@@ -6487,7 +6487,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "content": "| Stage or choice | What it means | Stock effect |\n|---|---|---|\n| Draft | The order is still being prepared | No shipment; stock is not reduced |\n| Confirmed | Customer demand is active | Quantity can be committed, but stock on hand is unchanged |\n| Partially fulfil now | Ship entered quantities and leave the balance on this order | Only the shipped quantity reduces stock |\n| Create backorder for remainder | Ship entered quantities and move the balance to a held child order | Only the shipped quantity reduces stock |\n| Complete | All intended shipments or remainder decisions are finished | No extra movement beyond recorded shipments |"
     },
     {
@@ -6505,7 +6505,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "content": "- [ ] Confirm the customer, delivery location, stock location, products, quantities, and tax-inclusive selling prices.\n- [ ] Check whether incoming stock is already protected for this order.\n- [ ] Count or verify the goods being dispatched.\n- [ ] Make sure you are not using an advisor account, which is read-only.\n\n> **Important:** Record what physically ships. If a shipment succeeds but a later accounting action fails, retry the unfinished accounting action; do not fulfil the goods again."
     },
     {
@@ -6523,8 +6523,8 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "1. Open **Sales > Sales Orders** and select **New Sales Order**.\n2. Choose the customer and location, then add the products and ordered quantities.\n3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.\n4. Confirm the order when the customer demand is ready to proceed.\n5. Select **Fulfil** and enter only the quantity in this shipment for each line.\n6. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.\n7. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.\n\n> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received, and staff receive an incoming-stock warning to complete the receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.\n8. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.\n\n| Resolve Outstanding choice | Use it when | Result |\n|---|---|---|\n| Leave partially open | A short delay is expected | The remainder stays on the current order |\n| Cancel outstanding remainder | The customer no longer wants the balance | The source order closes at the quantity already shipped |\n| Create held backorder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a held child order |"
+      "lastReviewed": "2026-08-30",
+      "content": "1. Open **Sales > Sales Orders** and select **New Sales Order**.\n2. Choose the customer and location, then add the products and ordered quantities.\n3. Review prices, tax treatment, discounts, freight, dates, and notes. Save the order as Draft while it is still being prepared.\n4. Confirm the order when the customer demand is ready to proceed.\n5. Select **Fulfil** and enter only the quantity in this shipment for each line.\n6. Choose **Partially fulfil now** when the balance should stay on the order, or **Create backorder for remainder** when the balance needs a separate held child order.\n7. Confirm the fulfilment. Reopen a partial order and use **Continue Fulfilment** for a later shipment.\n\n> **Important:** Shopify remains the authority for whether its order was physically fulfilled. If Shopify reports fulfilment before stock reaches the selected Solvantis location, Solvantis completes it only when recorded incoming purchase-order or branch-transfer stock fully covers the shortage. Stock may temporarily become negative until that supply is received. IMS Notifications names each affected product, fulfilled quantity, stock change, and incoming coverage so staff can complete the pending receipt and verify location stock. An unexplained or only partly covered shortage remains blocked for review.\n8. If the remaining quantity will not be shipped as planned, select **Resolve Outstanding** and review the choices below.\n\n| Resolve Outstanding choice | Use it when | Result |\n|---|---|---|\n| Leave partially open | A short delay is expected | The remainder stays on the current order |\n| Cancel outstanding remainder | The customer no longer wants the balance | The source order closes at the quantity already shipped |\n| Create held backorder | The balance still needs supply and separate follow-up | Only the unshipped balance moves to a held child order |"
     },
     {
       "id": "ims-sales-orders-fulfilment:6",
@@ -6541,8 +6541,8 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |\n| A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |\n| The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |\n| Resolve Outstanding is blocked | Payments or accounting records need a controlled value decision | Read the preview and choose the offered settlement; do not alter shipped quantities |"
+      "lastReviewed": "2026-08-30",
+      "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| Fulfil is unavailable | The order is Draft, cancelled, complete, or read-only | Confirm the order and review the available action list |\n| A negative-stock warning appears | The entered shipment is greater than stock on hand | Recount the goods and correct the quantity; continue only if the physical shipment truly occurred |\n| Shopify incoming-stock notification appears | Shopify fulfilled an order before recorded incoming supply was received | Review every named product, receive the pending PO or branch transfer, and verify the fulfilment location stock |\n| The first shipment appears twice | Fulfilment was repeated instead of continued | Stop and review order activity before making another change |\n| Resolve Outstanding is blocked | Payments or accounting records need a controlled value decision | Read the preview and choose the offered settlement; do not alter shipped quantities |"
     },
     {
       "id": "ims-sales-orders-fulfilment:7",
@@ -6559,7 +6559,7 @@
         "sales-orders"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-30",
       "content": "### Ship an order in two deliveries\n\nA customer orders 10 shirts at $49.95 each, total $499.50 including GST. Ship 6 now, leaving 4 outstanding. The first fulfilment reduces stock by 6. When the last 4 arrive, use **Continue Fulfilment** and ship 4; the first 6 are not moved again.\n\n### Move the balance to a held backorder\n\nAn order contains 8 lamps. You dispatch 5 and choose **Create backorder for remainder**. Stock reduces by 5, the source order records that shipment, and a held child order carries the remaining 3 without another stock movement."
     },
     {

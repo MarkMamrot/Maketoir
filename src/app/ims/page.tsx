@@ -17,6 +17,7 @@ import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
@@ -21969,7 +21970,7 @@ export default function ImsPage() {
             {notifOpen && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setNotifOpen(false)} />
-                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 380, maxHeight: 520, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 'min(380px, calc(100vw - 16px))', maxHeight: 'min(520px, calc(100vh - 64px))', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,.14)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                   {/* Panel header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid var(--sv-etch)', flexShrink: 0 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)', flex: 1 }}>
@@ -21997,15 +21998,19 @@ export default function ImsPage() {
                     )}
                     {notifications.map(n => {
                       const isExpanded = notifExpanded === n.id;
+                      const detailSections = buildNotificationDetailSections(n.detail);
                       const sourceLabel: Record<string, string> = {
                         pos_stock: 'POS Stock', shopify_webhook: 'Webhook',
                         shopify_import: 'Shopify Import', shopify_inventory: 'Inventory Sync',
-                        stock_allocation: 'Stock Allocation',
+                        stock_allocation: 'Stock Allocation', pos_stock_availability: 'POS Stock',
+                        pos_incoming_stock: 'POS Incoming Stock', wholesale_order: 'Wholesale Order',
                       };
                       const srcLabel = sourceLabel[n.source] ?? n.source;
                       const isSuccess = n.type === 'success';
-                      const notificationColor = isSuccess ? '#16a34a' : 'var(--sv-red, #ef4444)';
-                      const notificationTint = isSuccess ? 'rgba(22,163,74,.08)' : 'var(--sv-red-tint, rgba(239,68,68,.04))';
+                      const isWarning = n.type === 'warning';
+                      const isInfo = n.type === 'info';
+                      const notificationColor = isSuccess ? '#16a34a' : isWarning ? '#d97706' : isInfo ? 'var(--sv-action)' : 'var(--sv-red, #ef4444)';
+                      const notificationTint = isSuccess ? 'rgba(22,163,74,.08)' : isWarning ? 'rgba(217,119,6,.09)' : isInfo ? 'rgba(30,168,194,.08)' : 'var(--sv-red-tint, rgba(239,68,68,.04))';
                       const timeAgo = (() => {
                         const secs = Math.floor((Date.now() - new Date(n.created_at).getTime()) / 1000);
                         if (secs < 60) return 'just now';
@@ -22050,7 +22055,7 @@ export default function ImsPage() {
                           </div>
                           {isExpanded && (
                             <div style={{ padding: '0 14px 12px 46px' }}>
-                              <div style={{ fontSize: 12, color: 'var(--sv-text-main)', marginBottom: 8, lineHeight: 1.5 }}>{n.message}</div>
+                              <div style={{ fontSize: 12, color: 'var(--sv-text-main)', marginBottom: 10, lineHeight: 1.5, whiteSpace: 'pre-line' }}>{n.message}</div>
                               {n.detail?.action === 'open_sales_order' && Number(n.detail?.so_id) > 0 && (
                                 <button
                                   onClick={() => {
@@ -22064,10 +22069,27 @@ export default function ImsPage() {
                                   Open sales order
                                 </button>
                               )}
-                              <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600 }}>Detail</div>
-                              <pre style={{ fontSize: 10, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--sv-text-main)', margin: 0, maxHeight: 200, overflowY: 'auto' }}>
-                                {n.detail ? JSON.stringify(n.detail, null, 2) : '(no detail)'}
-                              </pre>
+                              {detailSections.map((section, sectionIndex) => (
+                                <div key={`${n.id}:detail:${sectionIndex}`} style={{ marginBottom: 10 }}>
+                                  <div style={{ fontSize: 11, color: 'var(--sv-text-strong)', marginBottom: 5, fontWeight: 700 }}>{section.heading}</div>
+                                  <div style={{ display: 'grid', gap: 4 }}>
+                                    {section.facts.map((fact, factIndex) => (
+                                      <div key={`${n.id}:fact:${sectionIndex}:${factIndex}`} style={{ display: 'grid', gridTemplateColumns: 'minmax(110px, .8fr) minmax(0, 1.2fr)', gap: 8, fontSize: 11, lineHeight: 1.4 }}>
+                                        <span style={{ color: 'var(--sv-text-dim)' }}>{fact.label}</span>
+                                        <span style={{ color: 'var(--sv-text-main)', overflowWrap: 'anywhere' }}>{fact.value}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                              {n.detail && (
+                                <details style={{ marginTop: 8 }}>
+                                  <summary style={{ fontSize: 10, color: 'var(--sv-text-dim)', cursor: 'pointer', fontWeight: 600 }}>Technical payload</summary>
+                                  <pre style={{ fontSize: 10, background: 'var(--sv-bg-2)', border: '1px solid var(--sv-etch)', borderRadius: 6, padding: '8px 10px', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: 'var(--sv-text-main)', margin: '6px 0 0', maxHeight: 200, overflowY: 'auto' }}>
+                                    {JSON.stringify(n.detail, null, 2)}
+                                  </pre>
+                                </details>
+                              )}
                               <div style={{ fontSize: 10, color: 'var(--sv-text-dim)', marginTop: 6 }}>
                                 {new Date(n.created_at).toLocaleString('en-AU', { dateStyle: 'medium', timeStyle: 'short', timeZone: notifTz })}
                               </div>
