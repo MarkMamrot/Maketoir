@@ -1,3 +1,10 @@
+## 2026-08-31 - Gemini Pro and Nano Banana commercial rates
+
+- Google provider-rate synchronization now preserves real preview/image model IDs and supports Gemini 3.1 Pro Preview, Gemini 2.5 Pro, Gemini 3.1 Flash Image (Nano Banana 2), Gemini 3.1 Flash Lite Image, Gemini 3 Pro Image (Nano Banana Pro), and Gemini 2.5 Flash Image (Nano Banana).
+- Pro rates use separate `*_over_200k` metrics; runtime charging switches at more than 200,000 prompt tokens including cached input and falls back per metric when Google has no long-context replacement. Nano Banana image output is charged from image output tokens, separated from text output through Gemini usage modality details, with conservative model-specific reservation estimates.
+- SuperAdmin Google approval idempotently widens the shared provider/plan metric ENUMs only when required, before opening the effective-rate import transaction. Existing rates and historical usage remain unchanged; plan markup creation automatically includes the newly approved metrics.
+- Validation passed 28 focused AI billing tests, 466 Vitest files / one skipped, 2,230 tests / one skipped, Help compilation with 57 topics / 465 Assistant chunks, production build, touched-file diagnostics, and diff checks. Account-specific live SKU approval remains a SuperAdmin action because Google prices are re-fetched at approval time.
+
 ## 2026-08-30 - Persistent AI rates and bulk plan markups
 
 - SuperAdmin AI Usage & Credits now shows saved active provider rates whenever the page opens; Google synchronization is only needed to check for provider changes. The table is bounded, retains source SKU and effective-date visibility, and no longer depends on transient Google preview state.
