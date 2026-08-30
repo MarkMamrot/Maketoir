@@ -30,6 +30,24 @@ describe('AI rate repository', () => {
     expect(mocks.getPool).not.toHaveBeenCalled();
   });
 
+  it('widens legacy rate metric enums before importing new Google metrics', async () => {
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute: vi.fn(),
+    };
+    connection.execute.mockResolvedValueOnce([[]]).mockResolvedValue([{}]);
+    const pool = {
+      execute: vi.fn()
+        .mockResolvedValueOnce([[{ TABLE_NAME: 'ai_provider_rates', COLUMN_TYPE: "enum('input_tokens')" }, { TABLE_NAME: 'ai_plan_rates', COLUMN_TYPE: "enum('input_tokens')" }]])
+        .mockResolvedValue([{}]),
+      getConnection: vi.fn().mockResolvedValue(connection),
+    };
+    mocks.getPool.mockReturnValue(pool);
+    await expect(AiRateRepository.importGoogle([candidate('SKU-A')], 7)).resolves.toEqual({ imported: 1, skipped: 0 });
+    expect(pool.execute).toHaveBeenCalledWith(expect.stringContaining('ALTER TABLE ai_provider_rates MODIFY metric'));
+    expect(pool.execute).toHaveBeenCalledWith(expect.stringContaining('ALTER TABLE ai_plan_rates MODIFY metric'));
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
   it('calculates decimal percentage markups exactly and rounds up to one micro', () => {
     expect(parseMarkupBasisPoints('27.50')).toBe(2_750n);
     expect(applyMarkup(1_000_001n, 2_750n)).toBe(1_275_002n);

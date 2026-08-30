@@ -16,6 +16,16 @@ export function applyMarkup(providerPriceMicros: bigint, markupBasisPoints: bigi
   return (providerPriceMicros * (10_000n + markupBasisPoints) + 9_999n) / 10_000n;
 }
 
+const RATE_METRIC_DEFINITION = `ENUM('input_tokens','cached_input_tokens','output_tokens','thinking_tokens','input_tokens_over_200k','cached_input_tokens_over_200k','output_tokens_over_200k','thinking_tokens_over_200k','output_image_tokens','output_image','video_second') NOT NULL`;
+
+async function ensureRateMetricSchema(pool: ReturnType<typeof getPool>) {
+  const [columns] = await pool.execute<any[]>(`SELECT TABLE_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('ai_provider_rates','ai_plan_rates') AND COLUMN_NAME='metric'`);
+  for (const tableName of ['ai_provider_rates', 'ai_plan_rates']) {
+    const column = columns.find(row => row.TABLE_NAME === tableName);
+    if (!String(column?.COLUMN_TYPE || '').includes('output_image_tokens')) await pool.execute(`ALTER TABLE ${tableName} MODIFY metric ${RATE_METRIC_DEFINITION}`);
+  }
+}
+
 export const AiRateRepository = {
   async list() {
     const [provider, plans] = await Promise.all([
@@ -42,7 +52,9 @@ export const AiRateRepository = {
   async importGoogle(candidates: GoogleRateCandidate[], actorUserId: number) {
     const rateKeys = candidates.map(candidate => `${candidate.modelId}:${candidate.metric}`);
     if (new Set(rateKeys).size !== rateKeys.length) throw new Error('Google rate selection contains duplicate model metrics. Refresh and review the preview.');
-    const connection = await getPool().getConnection();
+    const pool = getPool();
+    await ensureRateMetricSchema(pool);
+    const connection = await pool.getConnection();
     let imported = 0; let skipped = 0;
     try {
       await connection.beginTransaction();
