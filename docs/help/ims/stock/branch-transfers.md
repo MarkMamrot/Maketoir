@@ -1,5 +1,5 @@
 ---
-{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-08-30","owner":"inventory"}
 ---
 # Branch Transfers
 
@@ -33,6 +33,8 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 
 > **Important:** Sending and receiving are separate stages. Do not make matching manual adjustments at either branch for goods already covered by the transfer.
 
+When the destination allows POS sales from incoming transfers, POS can sell the same variant before receipt up to the transfer's outstanding quantity. The destination may temporarily show negative stock, and IMS Notifications identifies the sale for warehouse review. Receiving the transfer adds the confirmed arrival against that balance; do not create a separate adjustment.
+
 ## Step-by-step
 
 ### Create and send
@@ -59,6 +61,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 |---|---|---|
 | Transfer is missing from Receive Transfers | It is Draft, Received, Cancelled, or for another destination | Search the transfer number in Branch Transfers and check status and route |
 | Destination quantity is still 0 | The transfer was sent but not received | Count the goods and complete the destination receipt |
+| IMS reports a POS sale used incoming transfer stock | The destination sold goods before recording this transfer's receipt | Confirm the goods arrived, complete the matching receipt, and verify destination stock |
 | Fewer goods arrived than sent | The shipment is short or still split | Enter only what arrived and save partial, or finalise the reviewed short quantity |
 | A barcode does not match | The scanned SKU is not on this transfer | Stop and identify the item; do not add it as a different line casually |
 

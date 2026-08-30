@@ -8,12 +8,13 @@ export type PosStockChangePlan = {
   resultingOnHand: number;
 };
 
-export function planPosStockChange(currentOnHand: number, requestedChange: number): PosStockChangePlan {
+export function planPosStockChange(currentOnHand: number, requestedChange: number, minimumOnHand = 0): PosStockChangePlan {
   const current = roundQuantity(currentOnHand);
   const change = roundQuantity(requestedChange);
+  const minimum = Math.min(0, roundQuantity(minimumOnHand));
   const uncappedResultingOnHand = roundQuantity(current + change);
-  const automaticAdjustmentQuantity = change < 0 && uncappedResultingOnHand < 0
-    ? roundQuantity(-uncappedResultingOnHand)
+  const automaticAdjustmentQuantity = change < 0 && uncappedResultingOnHand < minimum
+    ? roundQuantity(minimum - uncappedResultingOnHand)
     : 0;
   const afterAdjustmentOnHand = roundQuantity(current + automaticAdjustmentQuantity);
 

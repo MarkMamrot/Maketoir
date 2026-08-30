@@ -521,10 +521,11 @@ interface PosLocationSettings {
   bgOpacity:          number;
   bgPosition:         'center' | 'bottom';
   bgScale:            'fit' | 'original';
+  allowIncomingTransferSales: boolean;
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit',
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit', allowIncomingTransferSales: true,
 };
 
 const POS_AVATAR_FILES = [
@@ -952,11 +953,12 @@ function PosSettingsModal({
   const [bgOpacity,          setBgOpacity]          = useState(initialSettings.bgOpacity ?? 10);
   const [bgPosition,         setBgPosition]         = useState<'center' | 'bottom'>(initialSettings.bgPosition ?? 'center');
   const [bgScale,            setBgScale]            = useState<'fit' | 'original'>(initialSettings.bgScale ?? 'fit');
+  const [allowIncomingTransferSales, setAllowIncomingTransferSales] = useState(initialSettings.allowIncomingTransferSales !== false);
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale };
+    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales };
   }
 
   function previewTheme(overrides: Partial<PosLocationSettings> = {}) {
@@ -1047,6 +1049,15 @@ function PosSettingsModal({
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Default to In Stock</div>
                     <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Show available products by default on this device. The In Stock button beside search can still change this at any time.</div>
+                  </div>
+                </label>
+              </div>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={allowIncomingTransferSales} onChange={event => setAllowIncomingTransferSales(event.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }} />
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Allow sales from incoming transfers</div>
+                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Lets stock go negative only when a matching Sent or Partially Received transfer to this location covers the shortage. IMS always receives a stock-check notification.</div>
                   </div>
                 </label>
               </div>
@@ -2083,12 +2094,16 @@ function MainPos({
           if (res.ok) {
             serverId = trainingMode ? data.training_id : data.id;
             if (Array.isArray(data.stockWarnings) && data.stockWarnings.length > 0) {
-              const names = data.stockWarnings
+              const incomingWarnings = data.stockWarnings.filter((warning: { reason?: unknown }) => warning.reason === 'incoming_transfer_stock');
+              const displayedWarnings = incomingWarnings.length > 0 ? incomingWarnings : data.stockWarnings;
+              const names = displayedWarnings
                 .map((warning: { itemName?: unknown }) => typeof warning.itemName === 'string' ? warning.itemName : '')
                 .filter(Boolean)
                 .slice(0, 3);
               setStockAvailabilityWarning(
-                `${names.length > 0 ? names.join(', ') : `${data.stockWarnings.length} item${data.stockWarnings.length === 1 ? '' : 's'}`} sold below available stock. Check the item${data.stockWarnings.length === 1 ? '' : 's'} and perform a stocktake or adjustment if required.`,
+                incomingWarnings.length > 0
+                  ? `${names.length > 0 ? names.join(', ') : `${incomingWarnings.length} item${incomingWarnings.length === 1 ? '' : 's'}`} sold from incoming transfer stock. Complete the transfer receipt and verify the location stock.`
+                  : `${names.length > 0 ? names.join(', ') : `${data.stockWarnings.length} item${data.stockWarnings.length === 1 ? '' : 's'}`} sold below available stock. Check the item${data.stockWarnings.length === 1 ? '' : 's'} and perform a stocktake or adjustment if required.`,
               );
             }
           }

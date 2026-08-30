@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","customer-search","parked"],"contextSections":{"pos":"Step-by-step","customer-search":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-28","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","customer-search","parked"],"contextSections":{"pos":"Step-by-step","customer-search":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-30","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -19,7 +19,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Checkout item | Current behaviour |
 |---|---|
 | Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |
-| Stock | A completed stock-item sale reduces stock at the active POS location |
+| Stock | A completed stock-item sale reduces stock at the active POS location; recorded incoming transfers can cover a temporary negative quantity when enabled |
 | Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |
 | Split tender | Add payment lines until **Remaining** is zero |
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
@@ -55,6 +55,8 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 9. Choose **Charge** and choose a payment method.
 10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.
 11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
+
+When **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.
 
 When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
 
@@ -92,6 +94,7 @@ Parked carts are stored on that browser. They are not completed sales and do not
 | New customer cannot be created | The email or phone already belongs to an active or inactive customer, required details are missing, or the connection is offline | Search for the existing customer, enter a first name plus email or phone, and retry while online |
 | Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |
 | Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |
+| Sale says incoming transfer stock was used | Recorded stock was insufficient but a matching transfer is still awaiting receipt | Complete the matching transfer receipt and verify the location quantity; do not create another stock adjustment |
 | A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |
 | A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |
 

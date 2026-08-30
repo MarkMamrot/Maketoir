@@ -179,6 +179,45 @@ describe('PosSalesRepo loyalty earning', () => {
       ['business-1', 'variant-1', 3, 101, -3, 0, 20, null]);
   });
 
+  it('uses matching incoming transfer stock and atomically creates an IMS notification', async () => {
+    const data = saleData();
+    data.customer_id = null;
+    data.items[0].variant_id = 'variant-1';
+    const { stockConnection } = setupConnections([]);
+    stockConnection.execute
+      .mockResolvedValueOnce([[{ stock_variant_id: 'variant-1', qty_on_hand: 0, qty_committed: 0, avg_cost: 20, is_stock_item: 1 }]])
+      .mockResolvedValueOnce([[{ incoming_quantity: 1 }]])
+      .mockResolvedValue({ affectedRows: 1 });
+
+    const result = await PosSalesRepo.complete({ ...data, allow_incoming_transfer_sales: true });
+
+    expect(result.stockWarnings).toEqual([expect.objectContaining({
+      variantId: 'variant-1',
+      previousOnHand: 0,
+      resultingOnHand: -1,
+      automaticAdjustmentQuantity: 0,
+      incomingTransferQuantity: 1,
+      reason: 'incoming_transfer_stock',
+    })]);
+    expect(stockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("bt.status IN ('sent', 'partial')"),
+      ['business-1', 3, 'variant-1'],
+    );
+    expect(stockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_stock SET qty_on_hand = ?'),
+      [-1, 'variant-1', 3],
+    );
+    expect(stockConnection.execute).not.toHaveBeenCalledWith(
+      expect.stringContaining("'adjustment', 'pos', 'pos_sale'"),
+      expect.anything(),
+    );
+    expect(stockConnection.execute).toHaveBeenCalledWith(
+      expect.stringContaining("'pos_incoming_stock'"),
+      ['business-1', expect.stringContaining('Sale #101'), expect.stringContaining('incoming_transfer_stock')],
+    );
+    expect(stockConnection.execute.mock.invocationCallOrder.at(-1)).toBeLessThan(stockConnection.commit.mock.invocationCallOrder[0]);
+  });
+
   it('skips earning when the business program is disabled', async () => {
     setupConnections([{ key: 'loyalty_enabled', value: '0' }]);
 

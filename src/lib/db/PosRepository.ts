@@ -28,7 +28,8 @@ export type PosStockWarning = {
   uncappedResultingOnHand: number;
   automaticAdjustmentQuantity: number;
   quantityCommitted: number;
-  reason: 'negative_stock' | 'committed_stock_at_risk';
+  incomingTransferQuantity?: number;
+  reason: 'negative_stock' | 'committed_stock_at_risk' | 'incoming_transfer_stock';
 };
 
 async function applyPosStockMovementWithFloor(connection: any, input: {
@@ -38,11 +39,12 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
   saleId: number;
   currentOnHand: number;
   requestedChange: number;
+  minimumOnHand?: number;
   averageCost: number;
   hasStockRow: boolean;
   movementNote?: string | null;
 }) {
-  const plan = planPosStockChange(input.currentOnHand, input.requestedChange);
+  const plan = planPosStockChange(input.currentOnHand, input.requestedChange, input.minimumOnHand);
   if (plan.automaticAdjustmentQuantity > 0) {
     if (input.hasStockRow) {
       await connection.execute(
@@ -311,6 +313,7 @@ export const PosSalesRepo = {
     notes?:            string | null;
     parked_label?:     string | null;
     return_of_sale_id?: number | null;
+    allow_incoming_transfer_sales?: boolean;
     items: Array<{
       return_of_sale_item_id?: number | null;
       variant_id:      string | null;
@@ -648,8 +651,21 @@ export const PosSalesRepo = {
             const currentSoh = Number(stockRows[0]?.qty_on_hand ?? 0);
             const quantityCommitted = Number(stockRows[0]?.qty_committed ?? 0);
             const avgCostAtTime = Number(stockRows[0]?.avg_cost ?? 0);
-            const stockPlan = planPosStockChange(currentSoh, qtyChange);
+            let incomingTransferQuantity = 0;
+            if (data.allow_incoming_transfer_sales === true && qtyChange < 0 && currentSoh + qtyChange < 0) {
+              const [incomingRows]: any = await stockConn.execute(
+                `SELECT COALESCE(SUM(GREATEST(bti.qty_sent - COALESCE(bti.qty_received, 0), 0)), 0) AS incoming_quantity
+                   FROM ims_branch_transfers bt
+                   JOIN ims_branch_transfer_items bti ON bti.transfer_id = bt.id
+                  WHERE bt.business_id = ? AND bt.to_location_id = ?
+                    AND bt.status IN ('sent', 'partial') AND bti.variant_id = ?`,
+                [data.business_id, data.location_id, item.variant_id],
+              );
+              incomingTransferQuantity = Math.max(0, Number(incomingRows[0]?.incoming_quantity ?? 0));
+            }
+            const stockPlan = planPosStockChange(currentSoh, qtyChange, -incomingTransferQuantity);
             if (qtyChange < 0 && (stockPlan.uncappedResultingOnHand < 0 || stockPlan.resultingOnHand < quantityCommitted)) {
+              const usesIncomingTransferStock = stockPlan.resultingOnHand < 0 && incomingTransferQuantity > 0;
               stockWarnings.push({
                 variantId: item.variant_id,
                 itemName: item.name,
@@ -658,7 +674,10 @@ export const PosSalesRepo = {
                 uncappedResultingOnHand: stockPlan.uncappedResultingOnHand,
                 automaticAdjustmentQuantity: stockPlan.automaticAdjustmentQuantity,
                 quantityCommitted,
-                reason: stockPlan.uncappedResultingOnHand < 0 ? 'negative_stock' : 'committed_stock_at_risk',
+                ...(incomingTransferQuantity > 0 ? { incomingTransferQuantity } : {}),
+                reason: usesIncomingTransferStock
+                  ? 'incoming_transfer_stock'
+                  : stockPlan.uncappedResultingOnHand < 0 ? 'negative_stock' : 'committed_stock_at_risk',
               });
               if (stockPlan.resultingOnHand < quantityCommitted) {
                 await stockConn.execute(
@@ -683,7 +702,19 @@ export const PosSalesRepo = {
               requestedChange: qtyChange,
               averageCost: avgCostAtTime,
               hasStockRow,
+              minimumOnHand: -incomingTransferQuantity,
             });
+          }
+          const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
+          if (incomingStockWarnings.length > 0) {
+            const itemNames = incomingStockWarnings.map(warning => warning.itemName).slice(0, 3).join(', ');
+            await stockConn.execute(
+              `INSERT INTO ims_notifications (business_id, type, source, title, message, detail)
+               VALUES (?, 'warning', 'pos_incoming_stock', 'POS sale used incoming transfer stock', ?, ?)`,
+              [data.business_id,
+                `Sale #${saleId} sold ${itemNames || 'stock'} before its branch transfer was received. Complete the transfer receipt and verify location stock.`,
+                JSON.stringify({ sale_id: saleId, location_id: data.location_id, warnings: incomingStockWarnings })],
+            );
           }
           await stockConn.commit();
         } catch (stockErr: any) {

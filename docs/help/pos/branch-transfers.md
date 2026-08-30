@@ -1,5 +1,5 @@
 ---
-{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Step-by-step"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Step-by-step"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-08-30","owner":"retail"}
 ---
 # POS Branch Transfers
 
@@ -62,6 +62,8 @@ Use POS Branch Transfers to record stock leaving one branch and arriving at anot
 
 Receiving is limited to Sent or Partial transfers addressed to the active POS location. A completed Received transfer remains available in the source history and the full IMS Branch Transfers history.
 
+By default, **POS Settings > Misc > Allow sales from incoming transfers** lets the destination sell a matching variant before receipt, up to the outstanding quantity on its Sent or Partial transfers. Stock may temporarily be negative. Each such sale creates an IMS notification so warehouse staff can complete the receipt and verify the resulting stock. Turning the setting off restores the normal zero floor for that location.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | What to do |
@@ -71,6 +73,7 @@ Receiving is limited to Sent or Partial transfers addressed to the active POS lo
 | Incoming transfer is not listed | It is for another destination, is still Draft, or is already Received/Cancelled | Check destination and status in the transfer history |
 | An item cannot be found by scan | The barcode/SKU is wrong or the variant lookup needs a connection | Search by name or reconnect and retry the scan |
 | Destination stock is still missing | The transfer was sent but not received | Complete **Receive Transfers** at the destination; do not add a separate positive adjustment |
+| IMS reports a POS sale used incoming transfer stock | The destination sold transferred goods before recording receipt | Confirm the physical goods, complete the matching receipt, and verify the location stock returns to the expected quantity |
 
 ## Worked examples
 

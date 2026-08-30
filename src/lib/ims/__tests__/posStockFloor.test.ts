@@ -24,4 +24,16 @@ describe('planPosStockChange', () => {
     expect(planPosStockChange(3, -2)).toMatchObject({ automaticAdjustmentQuantity: 0, resultingOnHand: 1 });
     expect(planPosStockChange(0, 2)).toMatchObject({ automaticAdjustmentQuantity: 0, resultingOnHand: 2 });
   });
+
+  it('allows stock to fall only as far as matching incoming transfer quantity', () => {
+    expect(planPosStockChange(0, -1, -1)).toMatchObject({
+      automaticAdjustmentQuantity: 0,
+      resultingOnHand: -1,
+    });
+    expect(planPosStockChange(-3, -3, -5)).toMatchObject({
+      automaticAdjustmentQuantity: 1,
+      afterAdjustmentOnHand: -2,
+      resultingOnHand: -5,
+    });
+  });
 });

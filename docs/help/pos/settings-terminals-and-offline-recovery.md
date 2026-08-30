@@ -1,5 +1,5 @@
 ---
-{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover queued sales safely.","lastReviewed":"2026-08-26","owner":"retail"}
+{"id":"pos-settings-terminals-offline-recovery","title":"Settings, Terminals, and Offline Recovery","audiences":["pos","ims"],"capability":"pos","screen":"POS Settings and Offline Queue","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-selling-payments-manager-approval","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":50,"summary":"Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.","lastReviewed":"2026-08-30","owner":"retail"}
 ---
 # Settings, Terminals, and Offline Recovery
 
@@ -9,6 +9,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 
 - Open POS Settings with a permitted staff role.
 - Choose whether this device groups the catalogue by product or shows every variant, whether it defaults to in-stock products, and where its cart appears.
+- Choose whether the current location can sell against recorded incoming branch-transfer stock.
 - Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
 - Continue supported ordinary sales from cached products while offline.
@@ -51,7 +52,8 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 3. Under **Product display**, choose **Products** to group variants and ask for the exact variant when a product is selected, or **Variants** to show every variant separately. Scanning a barcode still adds that exact variant in either mode.
 4. Turn **Default to In Stock** on to hide unavailable products in the normal catalogue, or off to show all products by default.
 5. Choose **Left side** or **Right side** under **Cart position**.
-6. Close POS Settings when finished. These choices apply immediately and are remembered by this POS device.
+6. Leave **Allow sales from incoming transfers** on when POS may sell goods from a matching Sent or Partially Received transfer before destination receipt. Turn it off when every sale must remain at zero until receipt.
+7. Save POS Settings. The incoming-transfer setting applies to the current location; the catalogue and cart choices remain device preferences.
 
 The **In Stock** button beside search remains available during selling. Selecting it changes the current filter and the remembered default for this device.
 
@@ -101,6 +103,7 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Zeller terminal is paired but unavailable | Check power, internet, and Integrated Payments mode on the terminal |
 | Payment completed outside the integration | Use manual entry only after independently confirming the approved payment |
 | Product cache is stale | Verify prices with the customer and sync as soon as possible |
+| POS reports incoming transfer stock was used | Complete the matching transfer receipt and verify the location quantity; do not add a separate positive adjustment |
 | A queued sale reaches repeated failures | Inspect its error, correct the cause, then retry from the failed queue |
 | You are unsure whether a queued sale happened | Check the payment evidence and Reports; do not discard or duplicate it |
 
@@ -116,6 +119,7 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |
 | A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |
 | Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |
+| An offline sale used incoming transfer stock | The transfer check occurred when the queued sale uploaded | Open IMS Notifications, complete the matching receipt, and verify location stock |
 | One reprint produces several physical copies | Chrome has remembered a copy count above 1, or Windows/printer firmware duplicated one submitted job | Set **Copies** to `1`, cancel the printer queue, and restart Chrome and the printer before retrying one receipt |
 
 ## Worked examples

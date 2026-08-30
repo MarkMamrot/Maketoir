@@ -8,7 +8,8 @@ import { ImsCNRepo } from '@/lib/ims/ImsRepository';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { buildPosReturnCreditNoteItems, isPosExchange } from '@/lib/ims/posReturnCreditNote';
 import { LoyaltyRepository, LoyaltyReturnBlockedError, LoyaltyValidationError } from '@/lib/ims/LoyaltyRepository';
-import { imsExecute } from '@/services/IMSMySQLService';
+import { allowsIncomingTransferSales, posLocationSettingsKey } from '@/lib/pos/locationSettings';
+import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 
 function getPosSession() {
   const raw = cookies().get('pos_session')?.value;
@@ -182,6 +183,10 @@ export async function POST(req: Request) {
       registerSessionId = openSession?.id ?? null;
     }
 
+    const locationSettings = await imsQuery<{ value: string }>(
+      'SELECT `value` FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
+      [businessId, posLocationSettingsKey(locationId)],
+    );
     const { saleId, stockError, stockWarnings, loyalty, loyaltyPoints, loyaltyRedemption } = await PosSalesRepo.complete({
       business_id:       businessId,
       local_id:          body.local_id ?? null,
@@ -205,6 +210,7 @@ export async function POST(req: Request) {
       notes:             body.notes        ?? null,
       parked_label:      body.parked_label ?? null,
       return_of_sale_id: body.return_of_sale_id ?? null,
+      allow_incoming_transfer_sales: allowsIncomingTransferSales(locationSettings[0]?.value),
       items:             (body.items ?? []).map((item: any) => ({ ...item, is_gift_card: Boolean(item.is_gift_card) })),
       payments:          body.payments ?? [],
     });
@@ -242,8 +248,9 @@ export async function POST(req: Request) {
       }
     }
 
-    if (stockWarnings.length > 0) {
-      const adjustedQuantity = stockWarnings.reduce((sum, warning) => sum + Number(warning.automaticAdjustmentQuantity ?? 0), 0);
+    const generalStockWarnings = stockWarnings.filter(warning => warning.reason !== 'incoming_transfer_stock');
+    if (generalStockWarnings.length > 0) {
+      const adjustedQuantity = generalStockWarnings.reduce((sum, warning) => sum + Number(warning.automaticAdjustmentQuantity ?? 0), 0);
       const warningDetail = adjustedQuantity > 0
         ? `required ${adjustedQuantity} unit${adjustedQuantity === 1 ? '' : 's'} of automatic stock correction or reduced stock below committed customer demand`
         : 'reduced stock below committed customer demand';
@@ -252,7 +259,7 @@ export async function POST(req: Request) {
         'pos_stock_availability',
         'POS sale needs a stock check',
         `Sale #${saleId} ${warningDetail}. Check the items and perform a stocktake or adjustment if required.`,
-        { sale_id: saleId, location_id: locationId, warnings: stockWarnings },
+        { sale_id: saleId, location_id: locationId, warnings: generalStockWarnings },
         'warning',
       ).catch(err => console.error('[notifications] POS availability warning failed:', err));
     }
