@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Download, RefreshCw, Search, X } from 'lucide-react';
+import { Check, Download, RefreshCw, Search, X } from 'lucide-react';
 import styles from './AiUsageCreditsDashboard.module.css';
 
 type AccountRow = {
@@ -149,13 +149,13 @@ export default function AiUsageCreditsDashboard() {
       <div className={styles.panelHeader}><div className={styles.sectionHeader}><div className={styles.sectionHeading}><h2 className={styles.sectionTitle}>Rate cards</h2><p className={styles.sectionDescription}>Review Google account prices or create a manual effective rate. Historical rates remain unchanged.</p></div><button className={styles.secondaryButton} onClick={() => void previewGoogleRates()} disabled={googleLoading}><RefreshCw size={14} />{googleLoading ? 'Checking Google' : 'Sync Google rates'}</button></div></div>
       <div className={styles.rateBody}>
       {googlePreview && <div className={styles.syncPreview}>
-        <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>Approve {googleSelected.length || ''} selected</button></div>
+        <div className={styles.syncHeader}><div><strong>Google Billing preview</strong><div className={styles.muted}>Fetched {new Date(googlePreview.fetchedAt).toLocaleString('en-AU')}. Prices are rechecked before activation.</div></div><button className={styles.primaryButton} disabled={googleLoading || !googleSelected.length} onClick={() => void approveGoogleRates()}>{googleSelected.length ? `Approve ${googleSelected.length} selected` : 'No changes to approve'}</button></div>
         <div className={`${styles.syncStatus} ${googleSelected.length ? styles.syncStatusAction : styles.syncStatusCurrent}`}>
           <strong>{googleSelected.length ? `${googleSelected.length} supported rate${googleSelected.length === 1 ? '' : 's'} ready for approval` : `${googlePreview.candidates.length} supported Google rate${googlePreview.candidates.length === 1 ? '' : 's'} active and current`}</strong>
           <span>{googleSelected.length ? 'Review the selected changes before activation.' : 'Every supported Google price matches the active provider rate.'}</span>
         </div>
         {googlePreview.candidates.length > 0 ? <div className={styles.syncTableWrap}><table className={styles.syncTable}><thead><tr><th aria-label="Select rate"></th><th>Model</th><th>Metric</th><th className={styles.numeric}>Current</th><th className={styles.numeric}>Google</th><th>Status</th><th>Google SKU</th></tr></thead><tbody>{googlePreview.candidates.map((candidate: any) => <tr key={candidate.id}>
-          <td><input type="checkbox" aria-label={`Select ${candidate.modelId} ${candidate.metric}`} checked={googleSelected.includes(candidate.id)} disabled={candidate.status === 'unchanged'} onChange={event => setGoogleSelected(event.target.checked ? [...googleSelected, candidate.id] : googleSelected.filter(id => id !== candidate.id))} /></td>
+          <td>{candidate.status === 'unchanged' ? <span className={styles.activeRate} title="Already active" aria-label="Already active"><Check size={14} /></span> : <input type="checkbox" aria-label={`Select ${candidate.modelId} ${candidate.metric}`} checked={googleSelected.includes(candidate.id)} onChange={event => setGoogleSelected(event.target.checked ? [...googleSelected, candidate.id] : googleSelected.filter(id => id !== candidate.id))} />}</td>
           <td><strong>{candidate.modelId}</strong></td><td>{title(candidate.metric)}</td><td className={styles.numeric}>{candidate.currentPriceAud == null ? 'Not set' : money(candidate.currentPriceAud)}</td><td className={styles.numeric}>{money(candidate.priceAud)} <span className={styles.muted}>/ {candidate.unitScale.toLocaleString()}</span></td><td><span className={`${styles.pill} ${styles[candidate.status] || ''}`}>{candidate.status}</span></td><td className={styles.sku} title={candidate.skuName}>{candidate.skuId}</td>
         </tr>)}</tbody></table></div> : <div className={styles.syncEmpty}>Google returned no standard token rates that can be represented safely.</div>}
         {googlePreview.warnings.length > 0 && <details className={styles.syncWarnings}><summary>{googlePreview.warnings.length} Google SKU mapping{googlePreview.warnings.length === 1 ? '' : 's'} excluded from automatic rates</summary>{googlePreview.warnings.map((warning: any, index: number) => <div className={styles.warningRow} key={`${warning.skuId}-${index}`}><strong>{warning.skuName}</strong><span>{warning.reason}</span><code>{warning.skuId}</code></div>)}</details>}

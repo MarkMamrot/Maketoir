@@ -169,6 +169,7 @@
 .syncTable td { padding: 9px 10px; border-bottom: 1px solid var(--ai-border); }
 .syncTable tbody tr:last-child td { border-bottom: 0; }
 .syncTable input { width: 15px; height: 15px; accent-color: var(--ai-accent); }
+.activeRate { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; color: #176b50; }
 .sku { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ai-muted); font-family: ui-monospace, monospace; }
 .new { background: #e7f2ff; color: #175a91; }
 .changed { background: #fff6db; color: #805d00; }
