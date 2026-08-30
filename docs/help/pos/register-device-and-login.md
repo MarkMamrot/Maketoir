@@ -1,5 +1,5 @@
 ---
-{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":5,"summary":"Assign a POS device to a branch and register, sign in, and open the register with a counted float.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":5,"summary":"Assign a POS device to a branch and register, sign in, and open the register with a counted float.","lastReviewed":"2026-08-31","owner":"retail"}
 ---
 # Register, Device, and Login
 
@@ -69,6 +69,7 @@ If the location has no active registers, setup explains that a register is requi
 | No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |
 | Products are missing after signing into a different business in the same browser | The saved POS device or session belongs to the previously used business | POS clears the stale session and returns to Device Setup; select a branch and register for the currently signed-in business |
 | Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |
+| Browser storage or product-cache warning appears during sign-in | The browser could not retain the refreshed catalogue for offline recovery | Sign-in can continue while online. Do not clear browser data while queued or failed sales exist; ask a manager to review the offline queue and device storage first |
 | Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |
 | A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |
 

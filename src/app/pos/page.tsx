@@ -358,11 +358,24 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     let products = prodData.products ?? [];
     const imgCache = loadImageCache();
     if (imgCache && products.length) products = mergeProductImages(products, imgCache);
-    saveProductsCache(products);
+    const productsCached = saveProductsCache(products);
     // Login always does a full fetch — record it as the full-sync watermark
     // too, so the 12h safety-net timer doesn't also fire right afterwards.
-    markProductsSynced(prodData.server_time ?? Date.now(), true);
-    saveLocalSession(session);
+    const watermarkCached = markProductsSynced(prodData.server_time ?? Date.now(), true);
+    const sessionCached = saveLocalSession(session);
+    if (!productsCached || !watermarkCached || !sessionCached) {
+      fetch('/api/runtime-issues/client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'BrowserStorageError',
+          message: 'POS login completed but browser cache persistence failed.',
+          operation: 'pos_login_cache_write',
+          pathname: window.location.pathname,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     onLogin(session, products, methodData.methods ?? ['Cash', 'Card', 'EFT'], viewData.defaultView || 'all');
   }
 

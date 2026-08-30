@@ -1251,7 +1251,7 @@
       ],
       "order": 5,
       "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/register-device-and-login.md"
     },
@@ -8102,7 +8102,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "Use this guide to bind a POS device to the correct branch and register, sign in as the operator, and open the till for trade."
     },
     {
@@ -8123,7 +8123,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- Set up the device once with a location code, or use an existing Admin session to select a branch.\n- Select an active register for that branch.\n- Sign in with the cashier username and PIN, or use the Admin sign-in option.\n- Count and save the opening float before taking sales.\n- Resolve a register session that was left open."
     },
     {
@@ -8144,7 +8144,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Stage | What it controls | Who or what you need |\n|---|---|---|\n| Device setup | The branch and register attached to this browser | Location code, or an authenticated Admin session |\n| Operator sign-in | The staff identity recorded on POS work | Cashier username and PIN, or Admin credentials |\n| Open Register | The register session and starting cash | A physical count of the opening float |\n| Register Left Open | Whether to continue or close an existing session | Knowledge of the actual trading shift |"
     },
     {
@@ -8165,7 +8165,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm the physical device belongs at the branch you are selecting.\n- [ ] Ask a manager for the location code if the device is not already set up.\n- [ ] Confirm an active register exists for the location.\n- [ ] Have the opening cash ready to count.\n- [ ] Use your own operator identity; do not share a cashier or manager PIN.\n\n> **Important:** Changing **Branch / Register** changes where later sales and register activity are recorded. Stop if the displayed branch or till does not match the physical device."
     },
     {
@@ -8186,7 +8186,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "### Set up the device\n\n1. On **POS - Device Setup**, enter the location code supplied by a manager. If you are already signed in as an Admin, select the branch instead.\n2. Select **Next** and choose an active **Register / Till**.\n3. Select **Set Up Device**.\n4. Check the branch and register names shown on the login screen.\n\nIf the location has no active registers, setup explains that a register is required and provides **Open Locations in IMS**. In IMS, select the location and choose **Add Register**, then return to POS setup.\n\n### Sign in and open the register\n\n1. Enter your POS username and PIN, then select **Sign In**. Admins can use **Admin login** instead.\n2. If **Register Left Open** appears, choose **Continue Session** only when work genuinely belongs to that same session. Otherwise select **Close Register (Enter Counts)**.\n3. Open **Register**, select **Open Register**, and count the opening cash by denomination.\n4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.\n5. Return to POS and confirm the Charge action is available."
     },
     {
@@ -8207,7 +8207,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Situation | Correct action |\n|---|---|\n| The device shows the wrong branch or register | Select **Change Branch / Register** and set it up again before trading |\n| Today's session is already open | Continue it; do not open a second session for the same register |\n| A session from a previous day is still open | Close it through End of Day, then open a fresh session for today |\n| The register is confirmed closed | Open it and count the actual float before the first sale |\n| The device starts offline with saved session and product data | Ordinary sales can open in recovery mode; verify the register as soon as connectivity returns |"
     },
     {
@@ -8228,8 +8228,8 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |\n| No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |\n| Products are missing after signing into a different business in the same browser | The saved POS device or session belongs to the previously used business | POS clears the stale session and returns to Device Setup; select a branch and register for the currently signed-in business |\n| Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |\n| Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |\n| A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |"
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |\n| No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |\n| Products are missing after signing into a different business in the same browser | The saved POS device or session belongs to the previously used business | POS clears the stale session and returns to Device Setup; select a branch and register for the currently signed-in business |\n| Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |\n| Browser storage or product-cache warning appears during sign-in | The browser could not retain the refreshed catalogue for offline recovery | Sign-in can continue while online. Do not clear browser data while queued or failed sales exist; ask a manager to review the offline queue and device storage first |\n| Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |\n| A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |"
     },
     {
       "id": "pos-register-device-login:8",
@@ -8249,7 +8249,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "### Move a replacement tablet to the Melbourne register\n\nThe manager enters Melbourne's location code, selects **Front Till**, and completes setup. Alex signs in with their own username and PIN, counts $200 in the drawer, and opens the register with a $200 float. The header now shows Melbourne and Front Till before the first sale is charged."
     },
     {
@@ -8270,7 +8270,7 @@
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "See **Selling, Payments, and Manager Approval** for checkout and **End of Day and Xero** for closing the session."
     },
     {

@@ -50,14 +50,23 @@ function setTenantItem(key: string, value: string): void {
   localStorage.setItem(tenantStorageKey(key), value);
 }
 
+function trySetTenantItem(key: string, value: string): boolean {
+  try {
+    setTenantItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function removeTenantItem(key: string): void {
   localStorage.removeItem(tenantStorageKey(key));
 }
 
 // ── Local Session Cache (offline startup recovery) ─────────────────────────────
 
-export function saveLocalSession(session: unknown): void {
-  setTenantItem(KEYS.sessionLocal, JSON.stringify(session));
+export function saveLocalSession(session: unknown): boolean {
+  return trySetTenantItem(KEYS.sessionLocal, JSON.stringify(session));
 }
 
 export function loadLocalSession(): unknown | null {
@@ -109,7 +118,7 @@ export function loadProductsCache(): CachedProduct[] {
 }
 
 /** Replace the cached product list, preserving any existing sync watermarks. */
-export function saveProductsCache(products: CachedProduct[]): void {
+export function saveProductsCache(products: CachedProduct[]): boolean {
   const existing = readProductsEnvelope();
   const envelope: ProductsCacheEnvelope = {
     cached_at:          Date.now(),
@@ -117,7 +126,7 @@ export function saveProductsCache(products: CachedProduct[]): void {
     last_full_sync_at:  existing?.last_full_sync_at,
     products,
   };
-  setTenantItem(KEYS.products, JSON.stringify(envelope));
+  return trySetTenantItem(KEYS.products, JSON.stringify(envelope));
 }
 
 /** Merge an incremental delta into an existing product list (upsert by variant_id, drop `removed`). */
@@ -133,7 +142,7 @@ export function mergeProductsDelta(
 }
 
 /** Record that a sync just completed at the server's clock time (avoids client clock skew). */
-export function markProductsSynced(serverTime: number, isFullSync: boolean): void {
+export function markProductsSynced(serverTime: number, isFullSync: boolean): boolean {
   const existing = readProductsEnvelope();
   const envelope: ProductsCacheEnvelope = {
     cached_at:          Date.now(),
@@ -141,7 +150,7 @@ export function markProductsSynced(serverTime: number, isFullSync: boolean): voi
     last_full_sync_at:  isFullSync ? serverTime : existing?.last_full_sync_at,
     products:           existing?.products ?? [],
   };
-  setTenantItem(KEYS.products, JSON.stringify(envelope));
+  return trySetTenantItem(KEYS.products, JSON.stringify(envelope));
 }
 
 /** The `since` watermark to pass to the next incremental products fetch, or null if a full fetch is needed. */

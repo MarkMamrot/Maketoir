@@ -5,6 +5,10 @@ import {
   loadOfflineQueue,
   saveCurrentCart,
   saveDeviceConfig,
+  saveLocalSession,
+  loadProductsCache,
+  markProductsSynced,
+  saveProductsCache,
 } from '../_store';
 
 function createStorage(): Storage {
@@ -42,5 +46,28 @@ describe('POS tenant browser storage', () => {
     expect(loadCurrentCart()).toEqual([{ variant_id: 'alpha-item' }]);
     expect(loadOfflineQueue()).toHaveLength(1);
     expect(loadOfflineQueue()[0]?.payload).toEqual({ local_id: 'alpha-sale' });
+  });
+
+  it('does not block POS login when the catalogue exceeds browser storage quota', () => {
+    saveDeviceConfig(alphaDevice);
+    saveProductsCache([{ variant_id: 'existing-item' }] as any);
+    const storage = globalThis.localStorage;
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (key, value) => {
+      if (key.startsWith('pos_products_cache:')) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      setItem(key, value);
+    };
+
+    expect(saveProductsCache([{ variant_id: 'large-catalogue' }] as any)).toBe(false);
+    expect(markProductsSynced(Date.now(), true)).toBe(false);
+    expect(loadProductsCache()).toEqual([{ variant_id: 'existing-item' }]);
+  });
+
+  it('does not block POS login when the local session cannot be cached', () => {
+    saveDeviceConfig(alphaDevice);
+    const storage = globalThis.localStorage;
+    storage.setItem = () => { throw new DOMException('Quota exceeded', 'QuotaExceededError'); };
+
+    expect(saveLocalSession({ pos_user_id: 7 })).toBe(false);
   });
 });

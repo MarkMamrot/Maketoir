@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { requireAdminSession } from '@/lib/sessionUtils';
+import { getImsSession } from '@/lib/auth/imsSession';
 
 export async function POST(request: Request) {
-  const auth = requireAdminSession();
-  if (auth.response) return auth.response;
+  const session = await getImsSession(['marketoir_session', 'pos_session']);
+  if (!session?.businessId) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
 
   const body = await request.json().catch(() => null) as {
     message?: string;
@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     stack?: string;
     digest?: string;
     pathname?: string;
+    operation?: string;
   } | null;
   if (!body?.message?.trim()) {
     return NextResponse.json({ error: 'message is required.' }, { status: 400 });
@@ -22,11 +23,12 @@ export async function POST(request: Request) {
   error.name = String(body.name || 'ClientError').slice(0, 100);
   if (body.stack) error.stack = body.stack.slice(0, 16_000);
 
+  const isPosCacheFailure = body.operation === 'pos_login_cache_write';
   await reportRuntimeIssue({
-    businessId: auth.user.businessId,
+    businessId: session.businessId,
     source: 'browser',
-    operation: 'react_error_boundary',
-    title: 'Unhandled browser application error',
+    operation: isPosCacheFailure ? 'pos_login_cache_write' : 'react_error_boundary',
+    title: isPosCacheFailure ? 'POS browser cache could not be persisted' : 'Unhandled browser application error',
     error,
     context: {
       digest: body.digest?.slice(0, 255) || null,
