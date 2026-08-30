@@ -51,7 +51,10 @@ async function getHeaders(): Promise<Record<string, string>> {
     scopes: ['https://www.googleapis.com/auth/cloud-billing.readonly'],
   });
   const headers = await (await auth.getClient()).getRequestHeaders();
-  return Object.fromEntries(headers.entries());
+  if (typeof (headers as Headers).entries === 'function') {
+    return Object.fromEntries((headers as Headers).entries());
+  }
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, String(value)]));
 }
 
 async function listPages(url: string, property: string, headers: Record<string, string>): Promise<any[]> {

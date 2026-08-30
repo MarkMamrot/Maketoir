@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('googleapis', () => ({ google: { auth: { GoogleAuth: class { getClient() { return Promise.resolve({ getRequestHeaders: () => Promise.resolve(new Headers({ Authorization: 'Bearer test' })) }); } } } } }));
+vi.mock('googleapis', () => ({ google: { auth: { GoogleAuth: class { getClient() { return Promise.resolve({ getRequestHeaders: () => Promise.resolve({ Authorization: 'Bearer test' }) }); } } } } }));
 
 import { buildGoogleRatePreview, fetchGoogleRatePreview } from '../googlePricing';
 
