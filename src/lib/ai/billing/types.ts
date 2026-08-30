@@ -68,7 +68,7 @@ export class AiUsageDeniedError extends Error {
   readonly code = 'AI_USAGE_UNAVAILABLE';
   constructor(
     message: string,
-    readonly reason: 'suspended' | 'credits_exhausted' | 'account_limit_reached' | 'pricing_unavailable' | 'account_unavailable',
+    readonly reason: 'suspended' | 'credits_exhausted' | 'account_limit_reached' | 'pricing_unavailable' | 'account_unavailable' | 'model_not_allowed',
   ) {
     super(message);
     this.name = 'AiUsageDeniedError';

@@ -1,3 +1,11 @@
+## 2026-08-31 - Dynamic AI plan pricing and provider model governance
+
+- Each AI plan now independently uses either explicit active sell rates or a persisted flat markup. Markup mode stores basis points on the plan and derives each customer price from the provider rate active when the AI call starts, rounded up to an AUD micro; it creates no plan-rate rows and leaves all existing explicit rate history unchanged.
+- SuperAdmin AI Usage & Credits saves and reloads plan pricing modes and percentages. The active plan-rate table shows only explicit-rate plans, while active provider models can be globally allowed or disabled. Active means the effective window includes the current time, including future `effective_to` values.
+- Tenant text, image, video, and general Gemini model endpoints now share the priced allowed-model catalog. IMS, Intel, Customer Service, Product AI Creative, and Setup selectors reconcile stale saved values to that catalog, and the tracked Google billing service blocks direct use of a disabled or unpriced model before provider submission.
+- The shared schema adds `ai_plans.pricing_mode`, `ai_plans.markup_basis_points`, and `ai_provider_models`. Setup and canonical SQL include the changes; an idempotent runtime guard creates/backfills them for deployment because Railway schema access was unavailable locally. Existing currently priced models are allowed during rollout to preserve availability.
+- Validation passed 21 focused commercial-control tests, 469 Vitest files / one skipped, 2,237 tests / one skipped, Help compilation with 57 topics / 465 Assistant chunks, production build, touched-file diagnostics, and diff checks. No live rates, plan settings, or model permissions were changed during implementation.
+
 ## 2026-08-31 - Gemini Pro and Nano Banana commercial rates
 
 - Google provider-rate synchronization now preserves real preview/image model IDs and supports Gemini 3.1 Pro Preview, Gemini 2.5 Pro, Gemini 3.1 Flash Image (Nano Banana 2), Gemini 3.1 Flash Lite Image, Gemini 3 Pro Image (Nano Banana Pro), and Gemini 2.5 Flash Image (Nano Banana).

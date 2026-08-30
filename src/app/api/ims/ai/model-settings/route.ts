@@ -7,6 +7,7 @@ import {
 } from '@/lib/ai/businessModelPreferences';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { listAllowedModelsForBusiness } from '@/lib/ai/billing/commercialModels';
 
 export async function GET() {
   const session = await getImsSession();
@@ -35,6 +36,10 @@ export async function PUT(request: Request) {
     const models = validateBusinessAiModelPreferences(body?.models);
     if (!models) {
       return NextResponse.json({ error: 'Choose a valid Gemini text model for every AI function.' }, { status: 400 });
+    }
+    const allowed = new Set((await listAllowedModelsForBusiness(session.businessId, 'text')).map(model => model.id));
+    if (Object.values(models).some(modelId => !allowed.has(modelId))) {
+      return NextResponse.json({ error: 'Choose an allowed model with active provider pricing for every AI function.' }, { status: 400 });
     }
 
     await ConnectionsRepository.upsert(session.businessId, Object.fromEntries(

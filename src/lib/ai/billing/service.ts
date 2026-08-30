@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AiBillingRepository, type RateRow } from './repository';
 import { AiUsageDeniedError, type AiBillingContext, type AiRateMetric, type AiUsageUnits } from './types';
+import { isModelAllowedForPlan } from './commercialModels';
 
 const EMPTY_UNITS: AiUsageUnits = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0, thinkingTokens: 0, outputImageTokens: 0, outputImages: 0, videoSeconds: 0 };
 
@@ -46,6 +47,7 @@ export const AiUsageService = {
   async beginCall(context: AiBillingContext, modelId: string, estimatedUnits: AiUsageUnits = EMPTY_UNITS) {
     const accountRows = await import('@/services/MySQLService').then(({ query }) => query<any>(`SELECT plan_key FROM business_ai_accounts WHERE business_id = ?`, [context.businessId]));
     if (!accountRows[0]) throw new AiUsageDeniedError('AI account is not configured.', 'account_unavailable');
+    if (!await isModelAllowedForPlan(accountRows[0].plan_key, modelId)) throw new AiUsageDeniedError('This AI model is not available on the current plan.', 'model_not_allowed');
     const rates = await AiBillingRepository.getRates(accountRows[0].plan_key, modelId);
     const providerMetrics = new Set(rates.provider.map(rate => rate.metric));
     const planMetrics = new Set(rates.plan.map(rate => rate.metric));

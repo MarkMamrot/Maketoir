@@ -1,45 +1,20 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { getImsSession } from '@/lib/auth/imsSession';
+import { listAllowedModelsForBusiness } from '@/lib/ai/billing/commercialModels';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET() {
-  const sessionCookie = cookies().get('marketoir_session');
-  if (!sessionCookie?.value) {
+  const session = await getImsSession();
+  if (!session) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'Gemini API key not configured.' }, { status: 500 });
-  }
-
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`,
-      { next: { revalidate: 3600 } } // cache for 1 hour
-    );
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('Gemini models list error:', err);
-      return NextResponse.json({ error: 'Failed to fetch models from Gemini.' }, { status: 500 });
-    }
-
-    const data = await res.json();
-
-    const models: { id: string; name: string }[] = (data.models ?? [])
-      .filter((m: any) =>
-        Array.isArray(m.supportedGenerationMethods) &&
-        m.supportedGenerationMethods.includes('generateContent')
-      )
-      .map((m: any) => ({
-        id: m.name.replace('models/', ''),       // e.g. "gemini-2.0-flash"
-        name: m.displayName ?? m.name,           // e.g. "Gemini 2.0 Flash"
-      }))
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
-
+    const allowed = await listAllowedModelsForBusiness(session.businessId, 'text');
+    const models = allowed.map(model => ({ id: model.id, name: model.displayName }));
     return NextResponse.json({ models });
-  } catch (error: any) {
-    console.error('Gemini models route error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    await reportRuntimeIssue({ businessId: session.businessId, source: 'ai_billing', operation: 'list_allowed_gemini_models', title: 'Allowed Gemini models could not be loaded', error });
+    return NextResponse.json({ error: 'Available AI models could not be loaded.' }, { status: 500 });
   }
 }

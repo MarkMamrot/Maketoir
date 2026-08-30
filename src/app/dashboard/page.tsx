@@ -8220,7 +8220,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
     if (availableImageModels.length === 0) {
       fetch('/api/ai/image-models')
         .then(r => r.json())
-        .then(d => { if (d.models?.length) setAvailableImageModels(d.models); })
+        .then(d => { if (d.models?.length) { setAvailableImageModels(d.models); setImageModel((current: string) => d.models.some((model: any) => model.id === current) ? current : d.models[0].id); } })
         .catch(() => {});
     }
   };
@@ -8719,16 +8719,13 @@ toggles: ${JSON.stringify(contextPreviewDebug.toggles)}`}
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>🎨 Image model</p>
               <select
                 value={imageModel}
+                disabled={availableImageModels.length === 0}
                 onChange={e => setImageModel(e.target.value)}
                 style={{ flex: 1, fontSize: 11, padding: '4px 8px', borderRadius: 7, border: '1px solid var(--sv-etch, #e5e7eb)', background: 'var(--sv-bg-1, #f9fafb)', color: 'var(--sv-text-strong, #111827)', cursor: 'pointer', outline: 'none' }}
               >
-                {availableImageModels.length > 0 ? (
-                  availableImageModels.map(m => (
+                {availableImageModels.map(m => (
                     <option key={m.id} value={m.id}>{m.displayName}</option>
-                  ))
-                ) : (
-                  <option value={imageModel}>{imageModel} (loading…)</option>
-                )}
+                  ))}
               </select>
             </div>
 

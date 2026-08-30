@@ -526,6 +526,8 @@ CREATE TABLE IF NOT EXISTS ai_plans (
   description    VARCHAR(500) NULL,
   is_internal    TINYINT(1) NOT NULL DEFAULT 0,
   is_active      TINYINT(1) NOT NULL DEFAULT 1,
+  pricing_mode   ENUM('rates','markup') NOT NULL DEFAULT 'rates',
+  markup_basis_points INT UNSIGNED NOT NULL DEFAULT 0,
   created_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at     DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -584,6 +586,16 @@ CREATE TABLE IF NOT EXISTS ai_plan_rates (
   created_at             DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_ai_plan_rate (plan_key, model_id, metric, effective_from),
   INDEX idx_ai_plan_rate_lookup (plan_key, model_id, metric, effective_from, effective_to)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ai_provider_models (
+  provider              VARCHAR(32) NOT NULL DEFAULT 'google',
+  model_id              VARCHAR(150) NOT NULL,
+  is_allowed            TINYINT(1) NOT NULL DEFAULT 1,
+  created_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at            DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (provider, model_id),
+  INDEX idx_ai_provider_models_allowed (provider, is_allowed, model_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ai_usage_calls (

@@ -160,11 +160,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
   const [videoModel, setVideoModel]     = useModelPicker(LS_VIDEO_MODEL, 'veo-3.1-generate-preview');
   const [textModel,  setTextModel]      = useModelPicker(LS_TEXT_MODEL,  'gemini-2.5-flash');
   const [aspectRatio, setAspectRatio]   = useModelPicker(LS_ASPECT_RATIO, '1:1');
-  const [videoModels]                   = useState([
-    { id: 'gemini-omni-flash-preview',    displayName: 'Gemini Omni Flash (Preview)' },
-    { id: 'veo-3.1-generate-preview',      displayName: 'Veo 3.1 (Preview)' },
-    { id: 'veo-3.1-lite-generate-preview', displayName: 'Veo 3.1 Lite (Preview)' },
-  ]);
+  const [videoModels, setVideoModels]   = useState<{ id: string; displayName: string }[]>([]);
   const [includeBrandProfile, setIncludeBrandProfile] = useState(true);
   const [includeBusinessInfo, setIncludeBusinessInfo] = useState(true);
   const [includeWebTemplates, setIncludeWebTemplates] = useState(true);
@@ -218,7 +214,15 @@ export default function ProductAICreativePanel({ productId, productName, busines
       .then(r => r.json())
       .then(d => { if (d.models?.length) setTextModels(d.models); })
       .catch(() => {});
+    fetch('/api/ai/video-models')
+      .then(r => r.json())
+      .then(d => { if (d.models?.length) setVideoModels(d.models); })
+      .catch(() => {});
   }, [productId]);
+
+  useEffect(() => { if (imageModels.length && !imageModels.some(model => model.id === imageModel)) setImageModel(imageModels[0].id); }, [imageModel, imageModels, setImageModel]);
+  useEffect(() => { if (textModels.length && !textModels.some(model => model.id === textModel)) setTextModel(textModels[0].id); }, [setTextModel, textModel, textModels]);
+  useEffect(() => { if (videoModels.length && !videoModels.some(model => model.id === videoModel)) setVideoModel(videoModels[0].id); }, [setVideoModel, videoModel, videoModels]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMsgs, chatLoading]);
   useEffect(() => () => {
@@ -700,10 +704,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
     color: on ? color : textDim,
   });
 
-  const modelLabels = imageModels.length > 0 ? imageModels : [
-    { id: 'gemini-3.1-flash-image', displayName: 'Nano Banana 2' },
-    { id: 'gemini-3-pro-image', displayName: 'Nano Banana Pro' },
-  ];
+  const modelLabels = imageModels;
 
   const assetModels    = assets.filter(a => a.category === 'models');
   const assetBackdrops = assets.filter(a => a.category === 'backdrops');
@@ -1272,13 +1273,9 @@ export default function ProductAICreativePanel({ productId, productName, busines
                 {/* Text model selector */}
                 <div style={{ marginBottom: 12 }}>
                   <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }} title="Choose the language model used for product copy. Flash is usually faster; Pro may be more detailed.">Text Model</p>
-                  <select value={textModel} onChange={e => setTextModel(e.target.value)}
+                  <select value={textModel} disabled={!textModels.length} onChange={e => setTextModel(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
-                    {(textModels.length > 0 ? textModels : [
-                      { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
-                      { id: 'gemini-2.5-pro',   displayName: 'Gemini 2.5 Pro' },
-                      { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash' },
-                    ]).map(m => (
+                    {textModels.map(m => (
                       <option key={m.id} value={m.id}>{m.displayName}</option>
                     ))}
                   </select>
@@ -1347,7 +1344,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
               <p style={{ fontSize: 10, fontWeight: 700, color: textDim, textTransform: 'uppercase', letterSpacing: .5, margin: '0 0 5px' }} title={tab === 'image' ? 'Choose which image generation model to use.' : 'Choose which video generation model to use. Veo models may take longer but are designed for video.'}>
                 {tab === 'image' ? 'Image Model' : 'Video Model'}
               </p>
-              <select value={tab === 'image' ? imageModel : videoModel}
+              <select value={tab === 'image' ? imageModel : videoModel} disabled={tab === 'image' ? !modelLabels.length : !videoModels.length}
                 onChange={e => tab === 'image' ? setImageModel(e.target.value) : setVideoModel(e.target.value)}
                 style={{ width: '100%', padding: '6px 8px', borderRadius: 7, border: `1px solid ${etch}`, background: bg2, color: textMain, fontSize: 12, cursor: 'pointer', outline: 'none' }}>
                 {(tab === 'image' ? modelLabels : videoModels).map(m => (

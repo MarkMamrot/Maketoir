@@ -2,6 +2,7 @@ import { getPool, query } from '@/services/MySQLService';
 import { audToMicros, microsToAud } from './money';
 import { AI_PLAN_KEYS, AI_RATE_METRICS } from './types';
 import type { GoogleRateCandidate } from './googlePricing';
+import { ensureAiCommercialSchema } from './commercialSchema';
 
 export function parseMarkupBasisPoints(value: unknown): bigint {
   const normalized = String(value ?? '').trim();
@@ -28,13 +29,18 @@ async function ensureRateMetricSchema(pool: ReturnType<typeof getPool>) {
 
 export const AiRateRepository = {
   async list() {
-    const [provider, plans] = await Promise.all([
+    await ensureAiCommercialSchema();
+    const [provider, plans, planSettings, models] = await Promise.all([
       query<any>(`SELECT id,provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,source_sku_id,source_price_name,effective_from,effective_to,created_at FROM ai_provider_rates ORDER BY model_id,metric,effective_from DESC`),
       query<any>(`SELECT id,plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,effective_to,created_at FROM ai_plan_rates ORDER BY plan_key,model_id,metric,effective_from DESC`),
+      query<any>(`SELECT plan_key,pricing_mode,markup_basis_points FROM ai_plans WHERE is_active=1 ORDER BY plan_key`),
+      query<any>(`SELECT m.model_id,m.is_allowed,COUNT(r.id) AS active_rate_count FROM ai_provider_models m JOIN ai_provider_rates r ON r.provider=m.provider AND r.model_id=m.model_id AND r.effective_from<=NOW(3) AND (r.effective_to IS NULL OR r.effective_to>NOW(3)) WHERE m.provider='google' GROUP BY m.model_id,m.is_allowed ORDER BY m.model_id`),
     ]);
     return {
       provider: provider.map(row => ({ ...row, priceAud: microsToAud(BigInt(row.price_per_unit_micros)), price_per_unit_micros: undefined })),
       plans: plans.map(row => ({ ...row, priceAud: microsToAud(BigInt(row.price_per_unit_micros)), price_per_unit_micros: undefined })),
+      planSettings: planSettings.map(row => ({ planKey: row.plan_key, pricingMode: row.pricing_mode, markupPercent: (Number(row.markup_basis_points) / 100).toFixed(2).replace(/\.00$/, '') })),
+      models: models.map(row => ({ modelId: row.model_id, allowed: Boolean(row.is_allowed), activeRateCount: Number(row.active_rate_count) })),
     };
   },
 
@@ -54,6 +60,7 @@ export const AiRateRepository = {
     if (new Set(rateKeys).size !== rateKeys.length) throw new Error('Google rate selection contains duplicate model metrics. Refresh and review the preview.');
     const pool = getPool();
     await ensureRateMetricSchema(pool);
+    await ensureAiCommercialSchema();
     const connection = await pool.getConnection();
     let imported = 0; let skipped = 0;
     try {
@@ -65,6 +72,7 @@ export const AiRateRepository = {
         if (rows[0] && BigInt(rows[0].price_per_unit_micros) === price && Number(rows[0].unit_scale) === candidate.unitScale) { skipped++; continue; }
         await connection.execute(`UPDATE ai_provider_rates SET effective_to=? WHERE provider='google' AND model_id=? AND metric=? AND effective_from < ? AND effective_to IS NULL`, [effectiveFrom, candidate.modelId, candidate.metric, effectiveFrom]);
         await connection.execute(`INSERT INTO ai_provider_rates (provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,source_sku_id,source_price_name,effective_from,created_by) VALUES ('google',?,?,?,?,?,?,?,?,?,?,?)`, [candidate.modelId, candidate.metric, price.toString(), candidate.unitScale, candidate.sourceCurrency, candidate.sourcePriceDecimal, candidate.audFxRate, candidate.skuId, candidate.priceName, effectiveFrom, actorUserId]);
+        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,1)`, [candidate.modelId]);
         imported++;
       }
       await connection.commit();
@@ -73,32 +81,32 @@ export const AiRateRepository = {
     finally { connection.release(); }
   },
 
-  async applyPlanMarkups(markups: Partial<Record<(typeof AI_PLAN_KEYS)[number], unknown>>, actorUserId: number) {
-    const selected = Object.entries(markups || {}).filter(([, value]) => String(value ?? '').trim() !== '');
-    if (!selected.length) throw new Error('Enter a markup for at least one plan.');
-    const parsed = selected.map(([planKey, value]) => {
+  async savePlanPricing(settings: Record<string, { pricingMode?: unknown; markupPercent?: unknown }>) {
+    const parsed = Object.entries(settings || {}).map(([planKey, value]) => {
       if (!AI_PLAN_KEYS.includes(planKey as (typeof AI_PLAN_KEYS)[number])) throw new Error('Invalid plan.');
-      return { planKey, basisPoints: parseMarkupBasisPoints(value) };
+      const pricingMode = value?.pricingMode === 'rates' ? 'rates' : value?.pricingMode === 'markup' ? 'markup' : null;
+      if (!pricingMode) throw new Error('Choose sell rates or flat markup for every changed plan.');
+      const basisPoints = parseMarkupBasisPoints(value?.markupPercent ?? '0');
+      return { planKey, pricingMode, basisPoints };
     });
+    if (!parsed.length) throw new Error('Choose at least one plan pricing change.');
+    await ensureAiCommercialSchema();
     const connection = await getPool().getConnection();
     try {
       await connection.beginTransaction();
-      const [providerRates] = await connection.execute<any[]>(`SELECT model_id,metric,price_per_unit_micros,unit_scale FROM ai_provider_rates WHERE provider='google' AND effective_to IS NULL ORDER BY model_id,metric FOR UPDATE`);
-      if (!providerRates.length) throw new Error('No active provider rates are available.');
-      const effectiveFrom = new Date();
-      let created = 0;
-      for (const { planKey, basisPoints } of parsed) {
-        for (const providerRate of providerRates) {
-          const price = applyMarkup(BigInt(providerRate.price_per_unit_micros), basisPoints);
-          await connection.execute(`UPDATE ai_plan_rates SET effective_to=? WHERE plan_key=? AND model_id=? AND metric=? AND effective_from < ? AND effective_to IS NULL`, [effectiveFrom, planKey, providerRate.model_id, providerRate.metric, effectiveFrom]);
-          await connection.execute(`INSERT INTO ai_plan_rates (plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,created_by) VALUES (?,?,?,?,?,?,?)`, [planKey, providerRate.model_id, providerRate.metric, price.toString(), Number(providerRate.unit_scale), effectiveFrom, actorUserId]);
-          created++;
-        }
-      }
+      for (const { planKey, pricingMode, basisPoints } of parsed) await connection.execute(`UPDATE ai_plans SET pricing_mode=?,markup_basis_points=? WHERE plan_key=?`, [pricingMode, Number(basisPoints), planKey]);
       await connection.commit();
-      return { plans: parsed.length, rates: created, providerRates: providerRates.length };
+      return { plans: parsed.length };
     } catch (error) { await connection.rollback(); throw error; }
     finally { connection.release(); }
+  },
+
+  async setModelAllowed(modelId: string, allowed: boolean) {
+    await ensureAiCommercialSchema();
+    const active = await query<any>(`SELECT 1 FROM ai_provider_rates WHERE provider='google' AND model_id=? AND effective_from<=NOW(3) AND (effective_to IS NULL OR effective_to>NOW(3)) LIMIT 1`, [modelId]);
+    if (!active.length) throw new Error('Only models with active provider rates can be allowed.');
+    await getPool().execute(`INSERT INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,?) ON DUPLICATE KEY UPDATE is_allowed=VALUES(is_allowed)`, [modelId, allowed ? 1 : 0]);
+    return true;
   },
 
   async add(input: any, actorUserId: number) {
@@ -118,6 +126,7 @@ export const AiRateRepository = {
       await connection.execute(`UPDATE ${table} SET effective_to=? WHERE ${scopeSql} AND model_id=? AND metric=? AND effective_from < ? AND (effective_to IS NULL OR effective_to > ?)`, [...scopeParams, effectiveFrom, input.modelId, input.metric, effectiveFrom, effectiveFrom]);
       if (table === 'ai_provider_rates') {
         await connection.execute(`INSERT INTO ai_provider_rates (provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,effective_from,created_by) VALUES ('google',?,?,?,?,?,?,?,?,?)`, [input.modelId, input.metric, price.toString(), Number(input.unitScale || 1_000_000), input.sourceCurrency || 'USD', input.sourcePriceDecimal, input.audFxRate, effectiveFrom, actorUserId]);
+        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,1)`, [input.modelId]);
       } else {
         await connection.execute(`INSERT INTO ai_plan_rates (plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,created_by) VALUES (?,?,?,?,?,?,?)`, [input.planKey, input.modelId, input.metric, price.toString(), Number(input.unitScale || 1_000_000), effectiveFrom, actorUserId]);
       }

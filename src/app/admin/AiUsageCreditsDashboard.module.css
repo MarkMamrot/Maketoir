@@ -167,6 +167,7 @@
 .markupSection { margin-bottom: 18px; padding: 0 12px 12px; border: 1px solid var(--ai-border); border-radius: 6px; }
 .markupSection .rateSectionHeader { margin: 0 -12px 12px; }
 .markupGrid { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; }
+.planPricingControl { display: grid; gap: 8px; align-content: start; padding: 10px; border: 1px solid var(--ai-border); background: var(--ai-surface-subtle); border-radius: 6px; }
 .percentageInput { position: relative; }
 .percentageInput .input { padding-right: 28px; }
 .percentageInput > span { position: absolute; right: 10px; top: 10px; color: var(--ai-muted); font-size: 11px; pointer-events: none; }

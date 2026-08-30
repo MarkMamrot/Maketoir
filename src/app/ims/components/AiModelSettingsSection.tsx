@@ -53,7 +53,8 @@ export default function AiModelSettingsSection() {
     ]).then(([availableModels, savedPreferences]) => {
       if (!active) return;
       setModels(availableModels);
-      setPreferences(savedPreferences);
+      const fallback = availableModels[0]?.id || '';
+      setPreferences(Object.fromEntries(BUSINESS_AI_MODEL_KEYS.map(key => [key, availableModels.some((model: ModelOption) => model.id === savedPreferences[key]) ? savedPreferences[key] : fallback])) as BusinessAiModelPreferences);
     }).catch(cause => {
       if (active) setError(cause instanceof Error ? cause.message : 'AI model settings could not be loaded.');
     }).finally(() => {
@@ -93,7 +94,6 @@ export default function AiModelSettingsSection() {
       <div style={{ borderTop: '1px solid var(--sv-etch)' }}>
         {BUSINESS_AI_MODEL_KEYS.map(key => {
           const selected = preferences[key];
-          const options = models.some(model => model.id === selected) ? models : [{ id: selected }, ...models];
           return (
             <div key={key} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 16, alignItems: 'center', padding: '18px 0', borderBottom: '1px solid var(--sv-etch)' }}>
               <div>
@@ -103,11 +103,11 @@ export default function AiModelSettingsSection() {
               <select
                 id={`ai-model-${key}`}
                 value={selected}
-                disabled={loading || saving}
+                disabled={loading || saving || models.length === 0}
                 onChange={event => setPreferences(current => ({ ...current, [key]: event.target.value }))}
                 style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-0)', color: 'var(--sv-text-main)', fontSize: 13 }}
               >
-                {options.map(model => <option key={model.id} value={model.id}>{model.displayName || model.name || model.id}</option>)}
+                {models.map(model => <option key={model.id} value={model.id}>{model.displayName || model.name || model.id}</option>)}
               </select>
             </div>
           );
@@ -119,7 +119,7 @@ export default function AiModelSettingsSection() {
       </p>
       {error && <p role="alert" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-red)' }}>{error}</p>}
       {message && <p role="status" style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--sv-mint)' }}>{message}</p>}
-      <button type="button" onClick={save} disabled={loading || saving || Boolean(error && models.length === 0)} style={{ padding: '8px 18px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 650, cursor: loading || saving ? 'not-allowed' : 'pointer', opacity: loading || saving ? .6 : 1 }}>
+      <button type="button" onClick={save} disabled={loading || saving || models.length === 0} style={{ padding: '8px 18px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', fontSize: 13, fontWeight: 650, cursor: loading || saving ? 'not-allowed' : 'pointer', opacity: loading || saving ? .6 : 1 }}>
         {loading ? 'Loading...' : saving ? 'Saving...' : 'Save AI Models'}
       </button>
     </div>

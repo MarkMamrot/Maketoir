@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { getPool, query } from '@/services/MySQLService';
 import { calculateCycle } from './cycles';
+import { ensureAiCommercialSchema } from './commercialSchema';
 import type { AiBillingContext, AiRateMetric, AiUsageUnits } from './types';
 
 type AccountRow = RowDataPacket & {
@@ -12,6 +13,14 @@ type AccountRow = RowDataPacket & {
 };
 
 export type RateRow = RowDataPacket & { metric: AiRateMetric; price_per_unit_micros: string; unit_scale: number };
+
+export function deriveMarkupRates(providerRates: RateRow[], markupBasisPoints: number): RateRow[] {
+  const basisPoints = BigInt(markupBasisPoints);
+  return providerRates.map(rate => ({
+    ...rate,
+    price_per_unit_micros: ((BigInt(rate.price_per_unit_micros) * (10_000n + basisPoints) + 9_999n) / 10_000n).toString(),
+  }));
+}
 
 async function lockAccount(connection: PoolConnection, businessId: string): Promise<AccountRow | null> {
   const [rows] = await connection.execute<AccountRow[]>(`SELECT * FROM business_ai_accounts WHERE business_id = ? FOR UPDATE`, [businessId]);
@@ -59,11 +68,13 @@ export const AiBillingRepository = {
   },
 
   async getRates(planKey: string, modelId: string, at = new Date()): Promise<{ provider: RateRow[]; plan: RateRow[] }> {
-    const [provider, plan] = await Promise.all([
+    await ensureAiCommercialSchema();
+    const [provider, plan, planConfig] = await Promise.all([
       query<RateRow>(`SELECT r.metric, r.price_per_unit_micros, r.unit_scale FROM ai_provider_rates r WHERE r.provider = 'google' AND r.model_id = ? AND r.effective_from = (SELECT MAX(x.effective_from) FROM ai_provider_rates x WHERE x.provider=r.provider AND x.model_id=r.model_id AND x.metric=r.metric AND x.effective_from <= ? AND (x.effective_to IS NULL OR x.effective_to > ?))`, [modelId, at, at]),
       query<RateRow>(`SELECT r.metric, r.price_per_unit_micros, r.unit_scale FROM ai_plan_rates r WHERE r.plan_key = ? AND r.model_id = ? AND r.effective_from = (SELECT MAX(x.effective_from) FROM ai_plan_rates x WHERE x.plan_key=r.plan_key AND x.model_id=r.model_id AND x.metric=r.metric AND x.effective_from <= ? AND (x.effective_to IS NULL OR x.effective_to > ?))`, [planKey, modelId, at, at]),
+      query<{ pricing_mode: 'rates' | 'markup'; markup_basis_points: number } & RowDataPacket>(`SELECT pricing_mode,markup_basis_points FROM ai_plans WHERE plan_key=?`, [planKey]),
     ]);
-    return { provider, plan };
+    return { provider, plan: planConfig[0]?.pricing_mode === 'markup' ? deriveMarkupRates(provider, Number(planConfig[0].markup_basis_points || 0)) : plan };
   },
 
   async reserve(input: AiBillingContext & { callKey: string; modelId: string; reservedMicros: bigint; rateSnapshot: unknown }): Promise<{ callId: number; enforcementMode: string }> {

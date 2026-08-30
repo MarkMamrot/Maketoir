@@ -1270,7 +1270,7 @@ export function ConnectionsTab({ business, onHelp }: { business: Business | null
   useEffect(() => {
     fetch('/api/ai/gemini-models')
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d.models)) setAvailableModels(d.models); })
+      .then(d => { if (Array.isArray(d.models)) { setAvailableModels(d.models); if (d.models.length) setGeminiModel(current => d.models.some((model: any) => model.id === current) ? current : d.models[0].id); } })
       .catch(() => {});
   }, []);
 

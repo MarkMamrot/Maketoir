@@ -1,5 +1,5 @@
 ---
-{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-08-30","owner":"platform"}
+{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-08-31","owner":"platform"}
 ---
 # Businesses and AI Plans
 
@@ -15,8 +15,8 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Open AI Usage & Credits for funding, enforcement, usage, and rate controls.
 - Compare supported Google Billing prices with current provider rates before approving changes.
 - Review saved active provider rates whenever the AI Usage & Credits page opens.
-- Apply a different standard markup percentage to each AI plan without entering every model rate individually.
-- Review active customer sell rates by plan and replace an individual rate without rewriting history.
+- Choose explicit sell rates or a persistent flat markup independently for each AI plan.
+- Select which active provider-priced models tenants can choose and use throughout Solvantis.
 
 ## At a glance
 
@@ -28,9 +28,9 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
 | Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |
-| Active provider rates | **AI Usage & Credits > Rate cards** | Shows the provider-cost rates currently used for future AI calls without requiring a new Google sync |
-| Plan markups | **AI Usage & Credits > Rate cards** | Creates customer sell rates from active provider costs using a separate percentage for each selected plan |
-| Active plan sell rates | **AI Usage & Credits > Rate cards** | Shows current customer rates, implied markup, effective time, and an edit action for each plan/model/metric |
+| Active provider rates | **AI Usage & Credits > Rate cards** | Shows current provider costs and controls which priced models tenants may select or use |
+| Plan pricing | **AI Usage & Credits > Rate cards** | Chooses explicit sell rates or a saved flat provider markup independently for each plan |
+| Active plan sell rates | **AI Usage & Credits > Rate cards** | Shows and edits current customer rates only for plans using explicit sell rates |
 | Manual AI rates | **AI Usage & Credits > Rate cards** | Adds effective provider-cost and plan sell rates without changing rate history |
 
 ## Before you begin
@@ -85,26 +85,32 @@ Solvantis represents Gemini Pro prices at their published context boundary. Metr
 
 Nano Banana models use **Output image tokens** because Google prices generated images by token consumption and resolution. The provider and sell-rate tables therefore show image-output token rates separately from flat **Output image** rates used by providers that charge per generated image.
 
-### Apply standard plan markups
+Each model under **Active provider rates** has one **Allowed** checkbox. Only checked models appear in tenant AI model selectors. Unchecking a model also blocks new direct AI requests that submit its model ID. A model must have an active provider rate before it can be allowed.
+
+### Configure plan pricing
 
 1. Open **Admin > AI Usage & Credits**.
 2. Under **Active provider rates**, confirm the saved provider costs and effective dates.
-3. Under **Plan markups**, enter the percentage for each plan that should change. Leave a plan blank to retain its current sell rates.
-4. Review the displayed number of sell rates that will be created.
-5. Select **Apply plan markups** and confirm the change.
-6. Check the success message and the configured plan-rate count.
+3. Check **Allowed** for each model tenants may select and use.
+4. Under **Plan pricing**, choose **Active sell rates** or **Flat markup** for each plan.
+5. For each **Flat markup** plan, enter its markup percentage.
+6. Select **Save plan pricing**.
+7. Refresh the page and confirm the modes and percentages remain displayed.
 
 The calculation is **customer sell rate = active provider cost × (1 + markup percentage)**. For example, a 25% markup changes a $1.00 provider rate to a $1.25 customer sell rate. The amount is rounded up to the nearest AUD micro where required.
 
-> **Important:** Applying plan markups updates every active provider model and metric for each selected plan. Earlier plan rates remain in history, while the newly calculated rates apply to future usage. A markup percentage is not the same as a target gross-margin percentage.
+> **Important:** Flat markup mode does not create plan sell-rate rows. Solvantis applies the saved percentage to the provider rate that is active whenever each AI call starts. Provider price changes therefore flow through automatically. A markup percentage is not the same as a target gross-margin percentage.
+
+> **Important:** Active sell rates and flat markup are mutually exclusive for each plan. Existing explicit rate history remains available, but explicit rates are ignored while that plan uses flat markup.
 
 ### Review or edit a sell rate
 
-1. Under **Active plan sell rates**, choose a plan or leave **All plans** selected.
-2. Review the model, metric, sell rate, implied markup, and effective time.
-3. Select **Edit** on the required row.
-4. In **Edit sell rate**, change the AUD price or effective time and verify the plan, model, metric, and unit scale.
-5. Select **Save new effective rate**.
+1. Confirm the plan uses **Active sell rates** under **Plan pricing**.
+2. Under **Active plan sell rates**, choose a plan or leave **All plans** selected.
+3. Review the model, metric, sell rate, implied markup, and effective time.
+4. Select **Edit** on the required row.
+5. In **Edit sell rate**, change the AUD price or effective time and verify the plan, model, metric, and unit scale.
+6. Select **Save new effective rate**.
 
 > **Important:** Editing does not alter the rate used by historical AI calls. It ends the previous active rate at the selected effective time and creates a replacement for future usage.
 
@@ -125,8 +131,10 @@ The calculation is **customer sell rate = active provider cost × (1 + markup pe
 | A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or conflicts with another SKU mapped to the same model and metric | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear. Equivalent SKUs with the same price are consolidated automatically |
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
 | Saved provider rates disappear after leaving the page | The page did not finish loading or the rate request failed | Refresh AI Usage & Credits; active provider rates should appear without running Google sync |
-| Apply plan markups is unavailable | No active provider rates exist or every plan percentage is blank | Sync or add provider rates, then enter at least one plan markup |
-| A newly created sell rate is not visible | A different plan filter is selected or the rates have not reloaded | Choose **All plans** and refresh AI Usage & Credits |
+| Save plan pricing is unavailable | No active provider rates exist | Sync or add provider rates, then retry |
+| A sell rate is not visible | The plan uses flat markup, a different plan filter is selected, or the rate is not currently effective | Choose **Active sell rates** for that plan, check the filter, and refresh |
+| A model is missing from tenant selectors | It is unchecked, lacks an active provider rate, or the tenant plan lacks a usable price | Check **Allowed**, confirm current provider pricing, and configure that plan's pricing mode |
+| A previously selected model stops working | A SuperAdmin disabled it or its effective provider pricing ended | Select another allowed model or restore current provider pricing and permission |
 
 ## Worked examples
 
@@ -142,6 +150,6 @@ A business is approved to move from Starter to Core. A SuperAdmin opens that bus
 
 A business remains on Scale but needs additional prepaid value. The SuperAdmin leaves its plan unchanged in Business Settings, opens **AI Usage & Credits**, and records the approved credit adjustment with its reference and reason.
 
-### Approve a changed Google token rate
+### Approve changed Google rates
 
-The preview shows a changed standard Gemini Flash input-token price and an unsupported long-context Gemini Pro SKU. The SuperAdmin approves only the checked Flash rate. Solvantis keeps the earlier Flash rate for historical usage and applies the newly approved rate to future calls. The Pro SKU remains listed for manual review and is not activated.
+The preview shows changed Gemini Flash rates and new standard and over-200k Gemini Pro rates. The SuperAdmin approves the checked rows, verifies the model is allowed under **Active provider rates**, and keeps earlier prices for historical usage. Plans using flat markup automatically value future calls from the new provider rates; plans using active sell rates continue using their explicit prices until changed.
