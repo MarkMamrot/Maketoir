@@ -130,7 +130,7 @@ export async function fetchGoogleRatePreview(): Promise<GoogleRatePreview> {
   const services = await listPages(`${root}/services?pageSize=5000`, 'billingAccountServices', headers);
   const service = services.find(item => String(item.displayName || '').toLowerCase() === 'gemini api');
   if (!service) throw new Error('The Gemini API service is not visible to this Cloud Billing account.');
-  const filter = encodeURIComponent(`billingAccountService = "${service.name}"`);
+  const filter = encodeURIComponent(`billing_account_service = "${service.name}"`);
   const [skus, prices] = await Promise.all([
     listPages(`${root}/skus?pageSize=5000&filter=${filter}`, 'billingAccountSkus', headers),
     listPages(`${root}/skus/-/prices?pageSize=5000&currencyCode=AUD`, 'billingAccountPrices', headers),

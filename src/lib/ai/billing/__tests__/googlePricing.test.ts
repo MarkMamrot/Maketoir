@@ -70,6 +70,7 @@ describe('Google pricing preview', () => {
     const preview = await fetchGoogleRatePreview();
     expect(preview.candidates[0]).toEqual(expect.objectContaining({ id: 'SKU-4:input_tokens' }));
     expect(fetchMock).toHaveBeenCalledTimes(4);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('billingAccountService'))).toBe(true);
+    const skuRequest = fetchMock.mock.calls.find(([url]) => String(url).includes('/skus?'));
+    expect(new URL(String(skuRequest?.[0])).searchParams.get('filter')).toBe('billing_account_service = "billingAccounts/ABC-123/services/gemini"');
   });
 });
