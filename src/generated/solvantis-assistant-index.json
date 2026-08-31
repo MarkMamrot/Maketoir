@@ -1263,6 +1263,35 @@
       "filename": "docs/help/pos/gift-cards.md"
     },
     {
+      "id": "pos-laybys",
+      "title": "Laybys at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-selling-payments-manager-approval",
+        "pos-reports-transactions",
+        "pos-settings-terminals-offline-recovery"
+      ],
+      "contexts": [
+        "pos-layby"
+      ],
+      "contextSections": {
+        "pos-layby": "Step-by-step"
+      },
+      "order": 22,
+      "summary": "Mark the current cart as a layby and save the currently supported fully allocated layby transaction.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/laybys.md"
+    },
+    {
       "id": "pos-loyalty-rewards",
       "title": "Loyalty Rewards at POS",
       "audiences": [
@@ -1290,6 +1319,35 @@
       "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/loyalty-rewards.md"
+    },
+    {
+      "id": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-end-of-day-xero",
+        "pos-reports-transactions",
+        "pos-settings-terminals-offline-recovery"
+      ],
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "contextSections": {
+        "pos-petty-cash": "Step-by-step"
+      },
+      "order": 34,
+      "summary": "Record a purchase paid from the open till with its GST treatment, reason, and receipt evidence.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/petty-cash.md"
     },
     {
       "id": "pos-workspaces",
@@ -1341,6 +1399,35 @@
       "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/register-device-and-login.md"
+    },
+    {
+      "id": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-returns-exchanges-customer-credit",
+        "pos-selling-payments-manager-approval",
+        "pos-end-of-day-xero"
+      ],
+      "contexts": [
+        "reports"
+      ],
+      "contextSections": {
+        "reports": "Step-by-step"
+      },
+      "order": 32,
+      "summary": "Review location totals and transactions, reprint receipts, start returns, and perform permitted corrections.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/reports-and-transactions.md"
     },
     {
       "id": "pos-returns-exchanges-customer-credit",
@@ -1494,6 +1581,34 @@
       "lastReviewed": "2026-08-27",
       "owner": "retail",
       "filename": "docs/help/pos/store-daybook.md"
+    },
+    {
+      "id": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-store-daybook",
+        "pos-selling-payments-manager-approval"
+      ],
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "contextSections": {
+        "pos-team-chat": "Step-by-step"
+      },
+      "order": 36,
+      "summary": "Read and send branch or Warehouse messages from POS, including supported screenshot attachments.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/team-communications.md"
     },
     {
       "id": "setup-business-brand-appearance",
@@ -8335,6 +8450,139 @@
       "content": "### Split a sale after verification\n\nA verified card has $50 available and the sale total is $79.95. Staff add $50 as Gift Card, then add $29.95 by Card. POS completes only when the payment lines cover the full $79.95."
     },
     {
+      "id": "pos-laybys:1",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Laybys at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Use Layby mode only after confirming that the current POS workflow matches the customer's arrangement."
+    },
+    {
+      "id": "pos-laybys:2",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Mark the current positive cart as a layby.\n- Review the tax-inclusive layby total.\n- Allocate payment lines to the full displayed amount.\n- Save the transaction with active layby status.\n- Recognise that later instalment collection is not available in the current POS workflow."
+    },
+    {
+      "id": "pos-laybys:3",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Current behavior | Available? |\n|---|---|\n| Mark a cart as Layby | Yes |\n| Save after payment lines cover the full displayed amount | Yes |\n| Save with an unallocated remaining balance | No |\n| Collect later partial instalments against the layby in POS | No |\n| Apply a loyalty reward | No |\n| Use Layby in Training Mode | No |"
+    },
+    {
+      "id": "pos-laybys:4",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm the register is open and POS is online.\n- [ ] Confirm the cart contains ordinary positive-quantity merchandise.\n- [ ] Explain the store's layby terms to the customer.\n- [ ] Confirm the customer understands the current payment requirement before proceeding.\n\n> **Important:** The current POS layby screen does not support saving an unpaid balance for later instalments. **Save Layby** becomes available only after payment lines allocate the full displayed amount."
+    },
+    {
+      "id": "pos-laybys:5",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Build and check the cart.\n2. Open **More** and choose **Layby: Off** so it changes to **Layby: ON**.\n3. Confirm the main checkout button now says **Layby**.\n4. Choose the Layby button to open **Layby Deposit**.\n5. Add one or more payment lines until **Remaining** is zero.\n6. Choose **Save Layby**.\n7. Keep the receipt and transaction reference according to store procedure.\n8. Open **More > Layby: ON** again to turn Layby mode off before starting an ordinary sale."
+    },
+    {
+      "id": "pos-laybys:6",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Layby is unavailable | Training Mode is active | Leave Training Mode before handling a live layby |\n| **Save Layby** is disabled | Payment lines do not cover the full displayed amount | Correct the payment allocation until **Remaining** is zero |\n| A loyalty reward cannot be selected | Rewards are unavailable on layby carts | Remove the reward and follow the business's layby policy |\n| Staff need to take a later instalment | The current POS workflow has no instalment collection action | Stop and follow the business's approved manual process; do not enter a second sale as the same layby |\n| The next cart still says Layby | Layby mode remained on | Turn **Layby: ON** off before building the next sale |"
+    },
+    {
+      "id": "pos-laybys:7",
+      "documentId": "pos-laybys",
+      "title": "Laybys at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > More > Layby",
+      "topicId": "pos-laybys",
+      "contexts": [
+        "pos-layby"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Do not promise a later POS instalment\n\nA customer asks to pay $50 now against a $200 cart and return next week. The payment window cannot save while $150 remains. Staff stop and follow the store's approved alternative rather than completing a misleading second transaction or promising that POS can collect the later balance."
+    },
+    {
       "id": "pos-loyalty-rewards:1",
       "documentId": "pos-loyalty-rewards",
       "title": "Loyalty Rewards at POS",
@@ -8466,6 +8714,139 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
       "content": "### Apply a $10 reward\n\nTaylor has enough points for a $10 reward and buys $65 of eligible merchandise. Staff link Taylor, choose **Use** beside the reward, and confirm the total falls by $10. They complete the sale online so the redemption and sale are recorded together."
+    },
+    {
+      "id": "pos-petty-cash:1",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Petty Cash at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Record money removed from the open till for a business purchase at the time it occurs."
+    },
+    {
+      "id": "pos-petty-cash:2",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Enter the exact amount paid from the till.\n- Record the purchase or supplier reason.\n- Choose **GST on Expenses** or **BAS Excluded**.\n- Attach a receipt photo or PDF.\n- Record the entry and open the till.\n- Use the entry when explaining the cash count at End of Day."
+    },
+    {
+      "id": "pos-petty-cash:3",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Field | Requirement |\n|---|---|\n| Amount | Positive amount greater than $0.00 |\n| Purchase / Supplier | Required, up to the displayed field limit |\n| GST | Choose the treatment shown on the source document |\n| Receipt | Required JPG, PNG, WebP, image capture, or PDF |\n| Register | Must be an open active register session |\n| Training/offline use | Unavailable |"
+    },
+    {
+      "id": "pos-petty-cash:4",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm the purchase was paid from this register's till.\n- [ ] Confirm the register is open and POS is online.\n- [ ] Keep the readable receipt or tax invoice ready.\n- [ ] Determine whether the purchase has GST on expenses or is BAS excluded.\n\n> **Important:** Choose the GST treatment from the supplier document. Do not add 10% to the amount entered; record the amount actually paid."
+    },
+    {
+      "id": "pos-petty-cash:5",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Choose **Petty Cash** from the POS toolbar.\n2. Enter the amount removed from the till.\n3. Enter the purchase or supplier reason.\n4. Choose **GST on Expenses** when the source document supports that treatment, otherwise choose **BAS Excluded** where appropriate.\n5. Under **Receipt**, take a photo or choose the receipt file.\n6. Check the amount, reason, treatment, and attachment.\n7. Choose **Record & open till**.\n8. Confirm POS reports **Petty cash recorded** before closing the dialog or entering it again."
+    },
+    {
+      "id": "pos-petty-cash:6",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Amount is rejected | It is empty, zero, negative, or invalid | Enter the positive amount actually paid |\n| Entry cannot be recorded | The reason or receipt is missing | Complete both required fields |\n| Petty Cash is unavailable | The register is not open, POS is offline, or Training Mode is active | Restore the required live register state |\n| Receipt upload fails | The file is unsupported or unreadable | Use a clear supported image or PDF and retry online |\n| End of Day cash is lower than sales suggest | Cash was removed for the recorded purchase | Compare the petty-cash entry and receipt before recording an unexplained variance |"
+    },
+    {
+      "id": "pos-petty-cash:7",
+      "documentId": "pos-petty-cash",
+      "title": "Petty Cash at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Petty Cash",
+      "topicId": "pos-petty-cash",
+      "contexts": [
+        "pos-petty-cash"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Record cleaning supplies\n\nStaff pay $22 from the till for cleaning supplies and receive a tax invoice showing GST. They enter $22, name the supplier and purpose, choose **GST on Expenses**, attach the receipt, and record the entry. At End of Day, the $22 explains why physical cash is lower than cash sales alone."
     },
     {
       "id": "pos-workspaces:1",
@@ -8788,6 +9169,139 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
       "content": "See **Selling, Payments, and Manager Approval** for checkout and **End of Day and Xero** for closing the session."
+    },
+    {
+      "id": "pos-reports-transactions:1",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "POS Reports and Transactions",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Use Reports to review one trading date for the active POS location and open the transaction that owns any follow-up action."
+    },
+    {
+      "id": "pos-reports-transactions:2",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Select a date and review revenue, transaction count, and payment totals.\n- Compare the selected day with the 30-day revenue chart.\n- Expand a transaction to inspect items, payments, and order notes.\n- Reprint a receipt or start a linked return.\n- Reallocate a fixed sale total between payment methods.\n- Use a manager PIN for current-register transaction edits or deletion."
+    },
+    {
+      "id": "pos-reports-transactions:3",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Action | What it changes | Manager PIN? |\n|---|---|---|\n| Expand transaction | Nothing; displays lines, payments, and notes | No |\n| Print | Recreates the receipt view | No |\n| Return | Starts an eligible return from the original completed sale | No universal PIN prompt |\n| Edit payment split | Reallocates the existing fixed total between methods | No |\n| Edit current-register transaction | Protected sale details | Yes |\n| Delete current-register transaction | Voids the transaction | Yes |"
+    },
+    {
+      "id": "pos-reports-transactions:4",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm the POS device is assigned to the location being reviewed.\n- [ ] Choose the correct trading date.\n- [ ] Locate the original transaction before entering any correction.\n- [ ] Have the authorised location manager available for protected actions.\n\n> **Warning:** Do not delete a transaction merely to correct its payment mix. Use **Edit payment split** when the sale total and merchandise are already correct."
+    },
+    {
+      "id": "pos-reports-transactions:5",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Open **More > Reports**.\n2. Choose the required date. Reports loads that date for the active POS location.\n3. Review **Total Revenue**, **Transactions**, and the payment-method totals.\n4. Select a transaction row to expand its products, payment lines, and order notes.\n5. Choose **Print** to recreate its receipt.\n6. Choose **Return** on an eligible completed sale to start a linked return with the original quantities and values.\n7. Choose **Edit** to change only the payment allocation. Ensure the new lines still total the fixed sale amount.\n8. For an eligible transaction from the current open register session, choose **Transaction** or **Delete** and ask the authorised manager to enter their PIN.\n9. Reload or reselect the date after a correction and confirm the expected totals."
+    },
+    {
+      "id": "pos-reports-transactions:6",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No transactions appear | The wrong date or location is selected, or the sale is still queued | Check the header and date; reconnect and sync queued sales |\n| Return is not shown | The record is not an eligible completed sale | Confirm status and use the owning correction workflow |\n| Transaction edit/delete is missing | The sale is outside the current open register session | Do not bypass the boundary; review it through the appropriate back-office workflow |\n| Payment split cannot save | Lines do not equal the fixed transaction total | Correct methods and amounts until the remaining difference is zero |\n| Receipt has unexpected location details | The device or receipt settings are assigned differently | Confirm the active location and ask an authorised user to review receipt settings |"
+    },
+    {
+      "id": "pos-reports-transactions:7",
+      "documentId": "pos-reports-transactions",
+      "title": "POS Reports and Transactions",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Reports",
+      "topicId": "pos-reports-transactions",
+      "contexts": [
+        "reports"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Correct the payment mix without changing the sale\n\nA $120 sale was recorded entirely as Card, but the customer paid $20 Cash and $100 Card. Staff open the transaction, choose **Edit**, replace the payment lines with $20 Cash and $100 Card, and save. The products and $120 sale total remain unchanged."
     },
     {
       "id": "pos-returns-exchanges-customer-credit:1",
@@ -9710,6 +10224,139 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-27",
       "content": "See **Register, Device, and Login** for POS identity and location, **End of Day and Xero** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need."
+    },
+    {
+      "id": "pos-team-communications:1",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Team Communications at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Use Team Communications for operational messages between the active POS location, other available branches, and Warehouse."
+    },
+    {
+      "id": "pos-team-communications:2",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Open Team Chat from the POS toolbar.\n- Read unread messages for the active location.\n- Send a message to the shared team conversation.\n- Select an available branch or Warehouse avatar for a direct message.\n- Paste or attach supported screenshots and images.\n- Keep Help questions in Help or Ask Solvantis rather than operational chat."
+    },
+    {
+      "id": "pos-team-communications:3",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Need | Where to start |\n|---|---|\n| Open the shared conversation | **Team Chat** in the top toolbar |\n| Message a specific destination | Select its branch or Warehouse avatar |\n| See pending activity | Check the unread count on Team Chat |\n| Attach evidence | Paste or choose up to three JPG, PNG, or WebP images |\n| Ask how Solvantis works | Open **Help** or **Ask Solvantis** |\n| Record a structured daily task or issue | Open **Store Daybook** |"
+    },
+    {
+      "id": "pos-team-communications:4",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm the POS header shows the location you are speaking from.\n- [ ] Choose the intended shared or direct conversation.\n- [ ] Remove sensitive or unrelated information from screenshots.\n- [ ] Keep each attachment at or below 10 MB.\n\n> **Note:** Team Communications is for staff messages. It does not replace the structured acknowledgements, tasks, requests, needs, and incidents recorded in Store Daybook."
+    },
+    {
+      "id": "pos-team-communications:5",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Choose **Team Chat** in the top toolbar.\n2. Read the recent messages and confirm the conversation or destination.\n3. For a direct message, select the appropriate branch or **Warehouse** avatar.\n4. Enter a concise operational message.\n5. If evidence helps, paste or choose up to three JPG, PNG, or WebP images, each no larger than 10 MB.\n6. Review the message and attachments, then send.\n7. Confirm the message appears in the conversation before closing Team Communications.\n8. Use **Help** for maintained procedures or **Ask Solvantis** for a product question."
+    },
+    {
+      "id": "pos-team-communications:6",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Intended branch is not available | The destination is not enabled for the current communication list | Confirm the correct POS location and use the approved alternative channel |\n| Attachment is rejected | It is unsupported, too large, or exceeds the three-file limit | Use JPG, PNG, or WebP; reduce size or attachment count |\n| Message does not appear | The connection failed before it was accepted | Reconnect and check the conversation before sending again |\n| Unread count remains | More messages have not been viewed | Open Team Chat and review the current conversation |\n| A task needs ownership or acknowledgement | Free-form chat is not the owning workflow | Record it in Store Daybook instead |"
+    },
+    {
+      "id": "pos-team-communications:7",
+      "documentId": "pos-team-communications",
+      "title": "Team Communications at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Team Chat",
+      "topicId": "pos-team-communications",
+      "contexts": [
+        "pos-team-chat"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Send receiving evidence to Warehouse\n\nA carton arrives damaged. Staff open Team Chat, select **Warehouse**, write the transfer reference and a short description, attach two clear JPG photos, and send. They use Store Daybook as well when the issue requires tracked follow-up at the location."
     },
     {
       "id": "setup-business-brand-appearance:1",
