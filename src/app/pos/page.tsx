@@ -540,10 +540,11 @@ interface PosLocationSettings {
   bgPosition:         'center' | 'bottom';
   bgScale:            'fit' | 'original';
   allowIncomingTransferSales: boolean;
+  defaultProductView: string | null;
 }
 
 const DEFAULT_POS_SETTINGS: PosLocationSettings = {
-  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit', allowIncomingTransferSales: true,
+  receiptFooter: '', giftReceiptMessage: '', theme: 'midnight', customMode: 'dark', backgroundColor: '', topbarColor: '', searchbarColor: '', chargeButtonColor: '', headingTextColor: '', avatar: '', bgImage: '', bgOpacity: 10, bgPosition: 'center', bgScale: 'fit', allowIncomingTransferSales: true, defaultProductView: null,
 };
 
 const POS_AVATAR_FILES = [
@@ -935,7 +936,7 @@ function PosSettingsModal({
   locationId, initialSettings, onSave, onCancel, onPreview,
   activeRegister, zellerEnabled, onZellerToggle,
   trainingMode, onTrainingModeChange,
-  inStockOnly, onInStockOnlyChange,
+  businessDefaultView, products,
   productViewMode, onProductViewModeChange,
   cartLeft, onCartLeftChange,
 }: {
@@ -949,8 +950,8 @@ function PosSettingsModal({
   onZellerToggle?: (enabled: boolean) => void;
   trainingMode: boolean;
   onTrainingModeChange: (enabled: boolean) => void;
-  inStockOnly: boolean;
-  onInStockOnlyChange: (enabled: boolean) => void;
+  businessDefaultView: string;
+  products: CachedProduct[];
   productViewMode: 'variants' | 'products';
   onProductViewModeChange: (mode: 'variants' | 'products') => void;
   cartLeft: boolean;
@@ -972,11 +973,13 @@ function PosSettingsModal({
   const [bgPosition,         setBgPosition]         = useState<'center' | 'bottom'>(initialSettings.bgPosition ?? 'center');
   const [bgScale,            setBgScale]            = useState<'fit' | 'original'>(initialSettings.bgScale ?? 'fit');
   const [allowIncomingTransferSales, setAllowIncomingTransferSales] = useState(initialSettings.allowIncomingTransferSales !== false);
+  const [defaultProductView, setDefaultProductView] = useState<string | null>(initialSettings.defaultProductView ?? null);
+  const [defaultProductSearch, setDefaultProductSearch] = useState('');
   const [saving,             setSaving]             = useState(false);
   const [saveError,          setSaveError]          = useState('');
 
   function buildSettings(): PosLocationSettings {
-    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales };
+    return { receiptFooter, giftReceiptMessage, theme, customMode, backgroundColor, topbarColor, searchbarColor, chargeButtonColor, headingTextColor, avatar, bgImage, bgOpacity, bgPosition, bgScale, allowIncomingTransferSales, defaultProductView };
   }
 
   function previewTheme(overrides: Partial<PosLocationSettings> = {}) {
@@ -998,6 +1001,10 @@ function PosSettingsModal({
   }
 
   async function handleSave() {
+    if (defaultProductView === 'brand:' || defaultProductView === 'variants:') {
+      setSaveError('Choose a brand or at least one product variant.');
+      return;
+    }
     setSaving(true); setSaveError('');
     try {
       const body = { location_id: locationId, ...buildSettings() };
@@ -1012,6 +1019,24 @@ function PosSettingsModal({
     } catch { setSaveError('Network error.'); }
     setSaving(false);
   }
+
+  const defaultViewKind = defaultProductView?.startsWith('brand:')
+    ? 'brand'
+    : defaultProductView?.startsWith('variants:')
+      ? 'variants'
+      : defaultProductView ?? 'inherit';
+  const brands = Array.from(new Set(products.map(product => product.brand?.trim()).filter((brand): brand is string => Boolean(brand)))).sort((a, b) => a.localeCompare(b));
+  const selectedVariantIds = defaultProductView?.startsWith('variants:')
+    ? defaultProductView.slice(9).split(',').filter(Boolean)
+    : [];
+  const selectedVariants = selectedVariantIds.map(id => products.find(product => product.variant_id === id)).filter((product): product is CachedProduct => Boolean(product));
+  const defaultProductMatches = defaultProductSearch.trim().length >= 2
+    ? products.filter(product => {
+        const query = defaultProductSearch.trim().toLowerCase();
+        return !selectedVariantIds.includes(product.variant_id)
+          && [product.name, product.code, product.barcode].some(value => String(value ?? '').toLowerCase().includes(query));
+      }).slice(0, 8)
+    : [];
 
   const mdlBase: React.CSSProperties = {
     position: 'fixed', inset: 0, zIndex: 9000, display: 'flex',
@@ -1054,21 +1079,71 @@ function PosSettingsModal({
           {tab === 'misc' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Default product view</div>
+                <select
+                  value={defaultViewKind}
+                  onChange={event => {
+                    const kind = event.target.value;
+                    if (kind === 'inherit') setDefaultProductView(null);
+                    else if (kind === 'brand') setDefaultProductView(brands[0] ? `brand:${brands[0]}` : 'brand:');
+                    else if (kind === 'variants') setDefaultProductView('variants:');
+                    else setDefaultProductView(kind);
+                  }}
+                  style={{ width: '100%', minHeight: 36, padding: '6px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}
+                >
+                  <option value="inherit">Use IMS business default ({businessDefaultView === 'in_stock' ? 'In Stock Only' : businessDefaultView.startsWith('brand:') ? `Brand: ${businessDefaultView.slice(6)}` : businessDefaultView.startsWith('variants:') ? 'Specific Products' : 'All Products'})</option>
+                  <option value="all">All Products</option>
+                  <option value="in_stock">In Stock Only</option>
+                  <option value="brand">By Brand</option>
+                  <option value="variants">Specific Products</option>
+                </select>
+                {defaultViewKind === 'brand' && (
+                  <select
+                    value={defaultProductView?.slice(6) ?? ''}
+                    onChange={event => setDefaultProductView(`brand:${event.target.value}`)}
+                    style={{ width: '100%', minHeight: 36, marginTop: 8, padding: '6px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}
+                  >
+                    {!brands.length && <option value="">No product brands available</option>}
+                    {brands.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+                  </select>
+                )}
+                {defaultViewKind === 'variants' && (
+                  <div style={{ marginTop: 8 }}>
+                    <input
+                      value={defaultProductSearch}
+                      onChange={event => setDefaultProductSearch(event.target.value)}
+                      placeholder="Search product, SKU, or barcode"
+                      style={{ width: '100%', boxSizing: 'border-box', minHeight: 36, padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}
+                    />
+                    {defaultProductMatches.length > 0 && (
+                      <div style={{ marginTop: 4, border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
+                        {defaultProductMatches.map(product => (
+                          <button key={product.variant_id} type="button" onClick={() => { setDefaultProductView(`variants:${[...selectedVariantIds, product.variant_id].join(',')}`); setDefaultProductSearch(''); }} style={{ display: 'block', width: '100%', padding: '7px 9px', border: 0, borderBottom: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', textAlign: 'left', cursor: 'pointer', fontSize: 12 }}>
+                            {product.name}{product.code ? ` · ${product.code}` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {selectedVariants.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                        {selectedVariants.map(product => (
+                          <button key={product.variant_id} type="button" title="Remove" onClick={() => { const next = selectedVariantIds.filter(id => id !== product.variant_id); setDefaultProductView(`variants:${next.join(',')}`); }} style={{ padding: '4px 7px', borderRadius: 5, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', cursor: 'pointer', fontSize: 11 }}>
+                            {product.name} ×
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 7, lineHeight: 1.45 }}>Applies to every POS device at this location and takes precedence over the IMS business default.</div>
+              </div>
+              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', marginBottom: 8 }}>Product display</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, padding: 3, borderRadius: 7, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)' }} role="group" aria-label="Product display">
                   <button type="button" onClick={() => onProductViewModeChange('products')} aria-pressed={productViewMode === 'products'} style={{ minHeight: 34, border: 0, borderRadius: 5, background: productViewMode === 'products' ? 'var(--sv-action)' : 'transparent', color: productViewMode === 'products' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Products</button>
                   <button type="button" onClick={() => onProductViewModeChange('variants')} aria-pressed={productViewMode === 'variants'} style={{ minHeight: 34, border: 0, borderRadius: 5, background: productViewMode === 'variants' ? 'var(--sv-action)' : 'transparent', color: productViewMode === 'variants' ? '#fff' : 'var(--sv-text-dim)', fontWeight: 700, cursor: 'pointer' }}>Variants</button>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 7, lineHeight: 1.45 }}>Products groups the catalogue and asks for a variant before adding it. Barcode scans always add the exact scanned variant.</div>
-              </div>
-              <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={inStockOnly} onChange={event => onInStockOnlyChange(event.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--sv-action)' }} />
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Default to In Stock</div>
-                    <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginTop: 3, lineHeight: 1.45 }}>Show available products by default on this device. The In Stock button beside search can still change this at any time.</div>
-                  </div>
-                </label>
               </div>
               <div style={{ padding: '14px 16px', background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -1472,7 +1547,7 @@ function MainPos({
   const [failedCount, setFailedCount] = useState(() => loadFailedQueue().length);
   const [queueInspectOpen, setQueueInspectOpen] = useState(false);
   const [cartLeft, setCartLeft] = useState(() => { try { return localStorage.getItem('pos_cart_left') === '1'; } catch { return false; } });
-  const [inStockOnly, setInStockOnly] = useState(() => { try { const value = localStorage.getItem('pos_in_stock_only'); return value === null ? true : value === '1'; } catch { return true; } });
+  const [inStockOnly, setInStockOnly] = useState(defaultView === 'in_stock');
   const [productViewMode, setProductViewMode] = useState<'variants' | 'products'>(() => {
     try { return localStorage.getItem('pos_product_view_mode') === 'products' ? 'products' : 'variants'; } catch { return 'variants'; }
   });
@@ -1527,6 +1602,7 @@ function MainPos({
         if (d.settings) {
           setPosSettings(d.settings);
           setPosTheme(computeThemeVars(d.settings));
+          setInStockOnly((d.settings.defaultProductView ?? defaultView) === 'in_stock');
         }
       })
       .catch(() => {});
@@ -2597,7 +2673,7 @@ function MainPos({
       <div style={{ flex: 1, display: 'flex', flexDirection: cartLeft ? 'row-reverse' : 'row', overflow: 'hidden' }}>
         {/* Product Panel — only render once defaultView is known to avoid flash */}
         {defaultView !== null ? (
-          <ProductPanel products={products} onAdd={addToCart} defaultView={defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }} productViewMode={productViewMode} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
+          <ProductPanel products={products} onAdd={addToCart} defaultView={posSettings.defaultProductView ?? defaultView} focusScanTick={scanFocusTick} bgImage={posSettings.bgImage ?? ''} bgOpacity={posSettings.bgOpacity ?? 10} bgPosition={posSettings.bgPosition ?? 'center'} bgScale={posSettings.bgScale ?? 'fit'} cartLeft={cartLeft} inStockOnly={inStockOnly} onInStockOnlyChange={setInStockOnly} productViewMode={productViewMode} onChargeEnter={() => { if (cart.length && !showPayment && !mustOpenRegister) setShowPayment(true); }} />
         ) : (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sv-text-dim)', fontSize: '.9rem' }}>Loading products…</div>
         )}
@@ -2947,13 +3023,13 @@ function MainPos({
               setSaleSubmitError(null);
             }
           }}
-          inStockOnly={inStockOnly}
-          onInStockOnlyChange={enabled => { setInStockOnly(enabled); try { localStorage.setItem('pos_in_stock_only', enabled ? '1' : '0'); } catch {} }}
+          businessDefaultView={defaultView ?? 'all'}
+          products={products}
           productViewMode={productViewMode}
           onProductViewModeChange={mode => { setProductViewMode(mode); try { localStorage.setItem('pos_product_view_mode', mode); } catch {} }}
           cartLeft={cartLeft}
           onCartLeftChange={left => { setCartLeft(left); try { localStorage.setItem('pos_cart_left', left ? '1' : '0'); } catch {} }}
-          onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
+          onSave={saved => { setPosSettings(saved); setPosTheme(computeThemeVars(saved)); setInStockOnly((saved.defaultProductView ?? defaultView) === 'in_stock'); setPosSettingsOpen(false); onReceiptSettingsSaved?.(saved.receiptFooter, saved.giftReceiptMessage); }}
           onCancel={() => { setPosTheme(computeThemeVars(posSettings)); setPosSettingsOpen(false); }}
           onPreview={vars => setPosTheme(vars)}
         />
@@ -4068,6 +4144,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
   const [variantPicker, setVariantPicker] = useState<CachedProduct[] | null>(null);
 
   useEffect(() => { setVariantPicker(null); }, [productViewMode]);
+  useEffect(() => { setBrand(defaultView.startsWith('brand:') ? defaultView.slice(6) : ''); }, [defaultView]);
 
   // Pinned variant IDs from the "Specific Products" setting
   const pinnedIds = useMemo(() => {

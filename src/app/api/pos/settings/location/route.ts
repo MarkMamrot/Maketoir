@@ -39,6 +39,7 @@ export interface PosLocationSettings {
   bgPosition:         'center' | 'bottom';
   bgScale:            'fit' | 'original';
   allowIncomingTransferSales: boolean;
+  defaultProductView: string | null;
 }
 
 const DEFAULTS: PosLocationSettings = {
@@ -57,11 +58,21 @@ const DEFAULTS: PosLocationSettings = {
   bgPosition: 'center',
   bgScale: 'fit',
   allowIncomingTransferSales: true,
+  defaultProductView: null,
 };
 
 function colorSetting(value: unknown): string {
   const color = String(value ?? '').trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(color) ? color : '';
+}
+
+function defaultProductViewSetting(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  const view = String(value);
+  if (view === 'all' || view === 'in_stock') return view;
+  if (view.startsWith('brand:') && view.slice(6).trim()) return `brand:${view.slice(6).trim().slice(0, 200)}`;
+  if (view.startsWith('variants:') && /^variants:[^,]+(?:,[^,]+)*$/.test(view)) return view.slice(0, 5000);
+  return null;
 }
 
 // GET /api/pos/settings/location?location_id=X
@@ -143,6 +154,7 @@ export async function PUT(req: Request) {
     bgPosition:         body.bgPosition === 'bottom' ? 'bottom' : 'center',
     bgScale:            body.bgScale === 'original' ? 'original' : 'fit',
     allowIncomingTransferSales: body.allowIncomingTransferSales !== false,
+    defaultProductView: defaultProductViewSetting(body.defaultProductView),
   };
 
   await imsExecute(

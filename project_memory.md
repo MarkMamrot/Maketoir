@@ -1,5 +1,11 @@
 ## 2026-08-31 - Dynamic AI plan pricing and provider model governance
 
+## 2026-08-31 - Sage Shopify SKU suffix rollback
+
+- Reverted 3,481 Sage variant SKUs from Solvantis uniqueness-suffixed values to their exact pre-import Shopify export values in both Shopify and Sage IMS. The guarded maintenance matched by live Solvantis variant UUID and revalidated Shopify product, variant, and inventory-item IDs before writing; final readback verified all 3,481 values in both systems.
+- Leading apostrophes used as spreadsheet text markers were removed for 17 qualifying suffixed variants. The 244 variants with no populated original export SKU were left on their newer assigned SKU, and unsuffixed variants were not changed.
+- Exact-ID before/after evidence is retained in `tmp/sage-shopify-sku-revert-result.csv`. Restoring duplicate original SKUs means legacy SKU-only reconciliation remains ambiguous; stable Shopify IDs remain authoritative.
+
 - Each AI plan now independently uses either explicit active sell rates or a persisted flat markup. Markup mode stores basis points on the plan and derives each customer price from the provider rate active when the AI call starts, rounded up to an AUD micro; it creates no plan-rate rows and leaves all existing explicit rate history unchanged.
 - SuperAdmin AI Usage & Credits saves and reloads plan pricing modes and percentages. The active plan-rate table shows only explicit-rate plans, while active provider models can be globally allowed or disabled. Active means the effective window includes the current time, including future `effective_to` values.
 - Tenant text, image, video, and general Gemini model endpoints now share the priced allowed-model catalog. IMS, Intel, Customer Service, Product AI Creative, and Setup selectors reconcile stale saved values to that catalog, and the tracked Google billing service blocks direct use of a disabled or unpriced model before provider submission.
