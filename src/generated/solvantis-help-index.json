@@ -1201,12 +1201,14 @@
       "contexts": [
         "brands",
         "gift-cards",
-        "bulk-edit"
+        "bulk-edit",
+        "bulk-add-edit"
       ],
       "contextSections": {
         "brands": "Brands",
         "gift-cards": "Gift cards",
-        "bulk-edit": "Bulk edit"
+        "bulk-edit": "Bulk edit",
+        "bulk-add-edit": "Bulk Add/Edit"
       },
       "relatedTopics": [
         "ims-product-setup-variants",
@@ -1215,7 +1217,7 @@
       ],
       "order": 15,
       "summary": "Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.",
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-09-01",
       "owner": "inventory",
       "filename": "docs/help/ims/products/catalogue-and-stock.md",
       "sections": [
@@ -1227,12 +1229,12 @@
         {
           "id": "ims-catalogue-stock:2",
           "heading": "Main operations",
-          "content": "| I need to... | Open | What it changes |\n|---|---|---|\n| Create an item or add sizes and colours | **Products > All Products** | Product and variant details |\n| Check quantity at a store | **Products > Stock Levels** | Nothing; this is a read-only view |\n| Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |\n| Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |\n| Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |\n| Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |\n| Repair a Shopify product link | Open the product, then **Sync status > Advanced** | Shopify product and exact variant links only |\n\n> **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive."
+          "content": "| I need to... | Open | What it changes |\n|---|---|---|\n| Create an item or add sizes and colours | **Products > All Products** | Product and variant details |\n| Check quantity at a store | **Products > Stock Levels** | Nothing; this is a read-only view |\n| Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |\n| Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |\n| Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |\n| Add or change product and variant details in a grid | **Products > Bulk Add/Edit** | Catalogue fields shared across locations |\n| Change minimums, reorder levels, zones or bins at one branch | **Products > Bulk Edit** | Stock settings for the selected location |\n| Repair a Shopify product link | Open the product, then **Sync status > Advanced** | Shopify product and exact variant links only |\n\n> **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive."
         },
         {
           "id": "ims-catalogue-stock:3",
           "heading": "Choosing a workspace",
-          "content": "| Question | Best place to start |\n|---|---|\n| Is the SKU, barcode, price or variant wrong? | All Products |\n| Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |\n| Did a delivery arrive? | Purchase Orders and Receive |\n| Does the shelf count differ from the system? | Stocktakes |\n| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Edit |\n\nDo not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change."
+          "content": "| Question | Best place to start |\n|---|---|\n| Is the SKU, barcode, price or variant wrong? | All Products |\n| Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |\n| Did a delivery arrive? | Purchase Orders and Receive |\n| Does the shelf count differ from the system? | Stocktakes |\n| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Add/Edit |\n\nDo not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change."
         },
         {
           "id": "ims-catalogue-stock:4",
@@ -1252,15 +1254,20 @@
         {
           "id": "ims-catalogue-stock:7",
           "heading": "Bulk edit",
-          "content": "Bulk Edit is useful when the same supported change applies to a known group. Before applying it:\n\n- [ ] Clear old filters.\n- [ ] Filter to the intended products or variants.\n- [ ] Review the full selection, not only the first rows.\n- [ ] Check whether the value is tax-inclusive or tax-exclusive.\n- [ ] Reopen a few affected products after the change.\n\nStop and narrow the selection if unrelated products appear. Use the individual product screen when exceptions need different values."
+          "content": "Bulk Edit is the location-based workspace for minimum quantity, reorder quantity, zone and bin changes. Select the intended location before editing and review variant rows before saving."
         },
         {
           "id": "ims-catalogue-stock:8",
-          "heading": "Troubleshooting",
-          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |\n| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |\n| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |\n| Bulk Edit includes too many items | The selection is broader than intended | Stop before applying, refine the filters and review again |"
+          "heading": "Bulk Add/Edit",
+          "content": "Bulk Add/Edit is the location-independent catalogue grid. Use it to add several products, generate variants, or change fields such as brand, supplier, barcode, price and cost across existing products.\n\nUse **Add fields** to choose visible columns. Solvantis remembers those choices in this browser for the active business. Use the small fill handle on a supported cell to copy its value through compatible visible rows in that column. Product values copy only to product rows, and variant values copy only to visible variant rows; fill-down does not cross pages or collapsed rows.\n\n**Auto Generate Product SKU** fills blank Product SKU cells only. It does not replace a Product SKU already entered. Expand a product, enter up to three option names and comma-separated values, then use **Generate variants** to create the combinations. Existing matching variants and their edits are preserved.\n\nSaving is all-or-nothing. Solvantis checks every changed Product SKU, variant SKU and non-blank barcode before writing any product. If one row conflicts, no products in that save are changed and the affected field is identified.\n\nBulk Add/Edit does not change opening quantity, minimum quantity, reorder quantity, zone or bin because those values belong to a location. Use the appropriate stock, receipt, stocktake or location-based Bulk Edit workflow for those values.\n\nBefore either bulk workflow:\n\n- [ ] Clear old filters.\n- [ ] Filter to the intended products or variants.\n- [ ] Review the full selection, not only the first rows.\n- [ ] Check whether the value is tax-inclusive or tax-exclusive.\n- [ ] Reopen a few affected products after the change.\n\nStop and narrow the selection if unrelated products appear. Use the individual product screen when exceptions need different values."
         },
         {
           "id": "ims-catalogue-stock:9",
+          "heading": "Troubleshooting",
+          "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |\n| Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |\n| A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |\n| A bulk workspace includes too many items | The selection is broader than intended | Stop before saving, refine the filters and review again |\n| Save is unavailable in Bulk Add/Edit | A changed product is missing Product Name, Product SKU, a variant or Variant SKU | Complete the required cells in every changed product |\n| Bulk Add/Edit reports an identifier conflict | A Product SKU, variant SKU or barcode is already used | Correct the identified cell; no rows from that save were applied |"
+        },
+        {
+          "id": "ims-catalogue-stock:10",
           "heading": "Worked examples",
           "content": "### Update a winter price group\n\nA retailer needs to change 24 winter jackets to a tax-inclusive retail price of $220. They filter by the exact brand and product type, review all 24 products, apply the supported price change, then open three products to confirm the new price. The $220 price already contains $20 GST; GST is not added again at the register.\n\n### Investigate a stock question\n\nStock Levels shows 10 candles on hand and 3 committed, so 7 are available. The retailer checks the customer orders behind the committed quantity instead of increasing stock to 10 again."
         }
@@ -1347,10 +1354,12 @@
       "format": "task",
       "parentId": "ims-catalogue-stock",
       "contexts": [
-        "products"
+        "products",
+        "bulk-add-edit"
       ],
       "contextSections": {
-        "products": "Step-by-step"
+        "products": "Step-by-step",
+        "bulk-add-edit": "Bulk Add/Edit products"
       },
       "relatedTopics": [
         "ims-catalogue-stock",
@@ -1360,7 +1369,7 @@
       ],
       "order": 16,
       "summary": "Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.",
-      "lastReviewed": "2026-08-31",
+      "lastReviewed": "2026-09-01",
       "owner": "inventory",
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md",
       "sections": [
@@ -1372,7 +1381,7 @@
         {
           "id": "ims-product-setup-variants:2",
           "heading": "Main operations",
-          "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Optionally generate a Product SKU from the brand and current date and time.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Choose which optional product and variant fields appear under **Settings > Products**.\n- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.\n- Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+          "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Optionally generate a Product SKU from the brand and current date and time.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Choose which optional product and variant fields appear under **Settings > Products**.\n- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.\n- Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
         },
         {
           "id": "ims-product-setup-variants:3",
@@ -1396,21 +1405,26 @@
         },
         {
           "id": "ims-product-setup-variants:7",
+          "heading": "Bulk Add/Edit products",
+          "content": "1. Open **Products > Bulk Add/Edit** and filter existing products when needed.\n2. Use **Add products** to add one or more new product rows. New products begin expanded with one default variant.\n3. Use **Add fields** to show the product and variant columns needed for this task. The selection is remembered in this browser for the active business.\n4. Enter Product Name and Product SKU. **Auto Generate Product SKU** fills only blank Product SKU cells, using each row's brand and the same format as New Product.\n5. Expand a product to edit variants. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Matching existing variants retain their saved identity and entered values.\n6. Enter a unique Variant SKU and, where used, a unique barcode for each sellable row. Selling prices remain tax-inclusive and costs remain tax-exclusive.\n7. To repeat a value, drag the small fill handle through compatible visible cells in the same column. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.\n8. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. If any row fails, nothing in that save is applied.\n\n> **Important:** Bulk Add/Edit is not a stock adjustment screen. Opening quantity, minimum quantity, reorder quantity, zone and bin are excluded because they belong to a location."
+        },
+        {
+          "id": "ims-product-setup-variants:8",
           "heading": "Variant setup matrix",
           "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |\n| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Weight | Variant | Optional kilograms used where the item needs a recorded weight |\n| Active | Product and variant | Inactive records should not be used for new work |"
         },
         {
-          "id": "ims-product-setup-variants:8",
+          "id": "ims-product-setup-variants:9",
           "heading": "Non-stock decision guide",
           "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named product with Tracks Inventory off | Sells without reservation, commitment or stock movement |\n| Repair labour | Separate product with Tracks Inventory off | Sells without an available-stock limit |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
         },
         {
-          "id": "ims-product-setup-variants:9",
+          "id": "ims-product-setup-variants:10",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
         },
         {
-          "id": "ims-product-setup-variants:10",
+          "id": "ims-product-setup-variants:11",
           "heading": "Worked examples",
           "content": "### Create a shirt with size and colour variants\n\nCreate **Harbour Linen Shirt** with Product SKU **HLS**. Add Size values **S, M, L** and Colour values **Navy, White**, then generate six variants. Assign SKUs such as **HLS-S-NAVY** and **HLS-M-WHITE**. Set the shelf price to $110 including GST and the supplier cost to $42 tax-exclusive for each applicable row.\n\n### Set up gift wrapping\n\nCreate **Gift Wrapping Service** with one default variant and a tax-inclusive selling price of $8.80, which contains $0.80 GST. Classify it clearly for staff, but do not receive ten units on a PO or include it in a physical stocktake merely because Product Type says “Service”."
         }

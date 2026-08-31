@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products"],"contextSections":{"products":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-08-31","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products","bulk-add-edit"],"contextSections":{"products":"Step-by-step","bulk-add-edit":"Bulk Add/Edit products"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-09-01","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -17,6 +17,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
 - Enter opening stock quantity by variant and location while creating a tracked product. Optionally enable **Minimum and reorder quantities** when those replenishment fields are also needed.
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
+- Use **Products > Bulk Add/Edit** to create or change several product families in one location-independent grid.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
 
 ## At a glance
@@ -74,6 +75,19 @@ Every imported row requires **Product_SKU**. A default or single variant uses Pr
 Each Product SKU must belong to only one product. Each variant SKU and each non-blank barcode must belong to only one variant. Solvantis checks all import rows before creating products, brands or suppliers. If an identifier is already used, the import stops and names both the imported product and the existing product causing the conflict. Correct the Product_SKU, option values or Barcode in the spreadsheet, then review and import it again. Rows classified as updates may retain the identifiers already assigned to that same product or variant.
 
 Before reimporting products that already use custom variant SKUs, align those SKUs with the derived Product_SKU and option pattern. A legacy custom SKU that does not match the derived value cannot identify that existing variant during import.
+
+## Bulk Add/Edit products
+
+1. Open **Products > Bulk Add/Edit** and filter existing products when needed.
+2. Use **Add products** to add one or more new product rows. New products begin expanded with one default variant.
+3. Use **Add fields** to show the product and variant columns needed for this task. The selection is remembered in this browser for the active business.
+4. Enter Product Name and Product SKU. **Auto Generate Product SKU** fills only blank Product SKU cells, using each row's brand and the same format as New Product.
+5. Expand a product to edit variants. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Matching existing variants retain their saved identity and entered values.
+6. Enter a unique Variant SKU and, where used, a unique barcode for each sellable row. Selling prices remain tax-inclusive and costs remain tax-exclusive.
+7. To repeat a value, drag the small fill handle through compatible visible cells in the same column. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.
+8. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. If any row fails, nothing in that save is applied.
+
+> **Important:** Bulk Add/Edit is not a stock adjustment screen. Opening quantity, minimum quantity, reorder quantity, zone and bin are excluded because they belong to a location.
 
 ## Variant setup matrix
 

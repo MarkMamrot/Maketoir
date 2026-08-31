@@ -7,7 +7,7 @@ import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue
 import OnlineShopView from './onlineShop/OnlineShopView';
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
+  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -55,6 +55,7 @@ interface MainSectionsProps {
   ProductsView: any;
   StockView: any;
   BulkEditView: any;
+  BulkAddEditProductsView: any;
   ContactsView: any;
   LocationsView: any;
   LocationDaybooksView: any;
@@ -133,6 +134,7 @@ export function MainSections(props: MainSectionsProps) {
     ProductsView,
     StockView,
     BulkEditView,
+    BulkAddEditProductsView,
     ContactsView,
     LocationsView,
     LocationDaybooksView,
@@ -235,6 +237,7 @@ export function MainSections(props: MainSectionsProps) {
         BrandsView={BrandsView}
         GiftCardsView={GiftCardsView}
         BulkEditView={BulkEditView}
+        BulkAddEditProductsView={BulkAddEditProductsView}
       />
 
       {/* Orders section */}

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-08-27","owner":"inventory"}
+{"id":"ims-catalogue-stock","title":"Catalogue and Stock","audiences":["ims"],"capability":"inventory","screen":"Products","product":"ims","format":"overview","parentId":"ims-products","contexts":["brands","gift-cards","bulk-edit","bulk-add-edit"],"contextSections":{"brands":"Brands","gift-cards":"Gift cards","bulk-edit":"Bulk edit","bulk-add-edit":"Bulk Add/Edit"},"relatedTopics":["ims-product-setup-variants","ims-stock-levels-adjustments","ims-inventory-costing"],"order":15,"summary":"Choose the right Products workspace for catalogue details, stock checks, brands, gift cards, and bulk changes.","lastReviewed":"2026-09-01","owner":"inventory"}
 ---
 # Catalogue and Stock
 
@@ -14,7 +14,8 @@ Use this page to choose the right Products workspace. Product details describe w
 | Correct a physical count | **Stocktakes** | Stock on hand when the count is completed |
 | Maintain a brand name | **Products > Brands** | Catalogue grouping and presentation |
 | Review an issued gift card | **Products > Gift Cards** | Nothing unless a supported card action is used |
-| Change the same field on many products | **Products > Bulk Edit** | The supported fields on the reviewed selection |
+| Add or change product and variant details in a grid | **Products > Bulk Add/Edit** | Catalogue fields shared across locations |
+| Change minimums, reorder levels, zones or bins at one branch | **Products > Bulk Edit** | Stock settings for the selected location |
 | Repair a Shopify product link | Open the product, then **Sync status > Advanced** | Shopify product and exact variant links only |
 
 > **Important:** Selling prices in the catalogue are entered tax-inclusive. A $110 retail price already includes $10 GST. Supplier costs and inventory value are normally considered tax-exclusive.
@@ -27,7 +28,7 @@ Use this page to choose the right Products workspace. Product details describe w
 | Why can only 7 of 10 units be promised? | Stock Levels, then check committed demand |
 | Did a delivery arrive? | Purchase Orders and Receive |
 | Does the shelf count differ from the system? | Stocktakes |
-| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Edit |
+| Are several products assigned to the wrong brand? | Brands or a carefully filtered Bulk Add/Edit |
 
 Do not type a new stock quantity into product details. Receipts, sales, transfers, returns and completed stocktakes provide the reason for each stock change.
 
@@ -64,7 +65,21 @@ Use **Deactivate** only when the card must no longer be accepted. Deactivation r
 
 ## Bulk edit
 
-Bulk Edit is useful when the same supported change applies to a known group. Before applying it:
+Bulk Edit is the location-based workspace for minimum quantity, reorder quantity, zone and bin changes. Select the intended location before editing and review variant rows before saving.
+
+## Bulk Add/Edit
+
+Bulk Add/Edit is the location-independent catalogue grid. Use it to add several products, generate variants, or change fields such as brand, supplier, barcode, price and cost across existing products.
+
+Use **Add fields** to choose visible columns. Solvantis remembers those choices in this browser for the active business. Use the small fill handle on a supported cell to copy its value through compatible visible rows in that column. Product values copy only to product rows, and variant values copy only to visible variant rows; fill-down does not cross pages or collapsed rows.
+
+**Auto Generate Product SKU** fills blank Product SKU cells only. It does not replace a Product SKU already entered. Expand a product, enter up to three option names and comma-separated values, then use **Generate variants** to create the combinations. Existing matching variants and their edits are preserved.
+
+Saving is all-or-nothing. Solvantis checks every changed Product SKU, variant SKU and non-blank barcode before writing any product. If one row conflicts, no products in that save are changed and the affected field is identified.
+
+Bulk Add/Edit does not change opening quantity, minimum quantity, reorder quantity, zone or bin because those values belong to a location. Use the appropriate stock, receipt, stocktake or location-based Bulk Edit workflow for those values.
+
+Before either bulk workflow:
 
 - [ ] Clear old filters.
 - [ ] Filter to the intended products or variants.
@@ -81,7 +96,9 @@ Stop and narrow the selection if unrelated products appear. Use the individual p
 | A product is missing | A filter is still active, or the search term differs | Clear filters and search by product name, SKU and barcode |
 | Available is lower than on hand | Some units are committed to customer demand | Open Stock Levels and trace the committed quantity to Sales Orders or Stock Allocation |
 | A quantity cannot be edited in All Products | Stock is changed by an operational document | Use the receipt, return, transfer or stocktake that matches what happened |
-| Bulk Edit includes too many items | The selection is broader than intended | Stop before applying, refine the filters and review again |
+| A bulk workspace includes too many items | The selection is broader than intended | Stop before saving, refine the filters and review again |
+| Save is unavailable in Bulk Add/Edit | A changed product is missing Product Name, Product SKU, a variant or Variant SKU | Complete the required cells in every changed product |
+| Bulk Add/Edit reports an identifier conflict | A Product SKU, variant SKU or barcode is already used | Correct the identified cell; no rows from that save were applied |
 
 ## Worked examples
 

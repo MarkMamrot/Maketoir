@@ -1,7 +1,7 @@
 import React from 'react';
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
+  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'locations'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -22,6 +22,7 @@ interface ProductsSectionProps {
   BrandsView: any;
   GiftCardsView: any;
   BulkEditView: any;
+  BulkAddEditProductsView: any;
 }
 
 export function ProductsSection({
@@ -37,6 +38,7 @@ export function ProductsSection({
   BrandsView,
   GiftCardsView,
   BulkEditView,
+  BulkAddEditProductsView,
 }: ProductsSectionProps) {
   return (
     <>
@@ -53,6 +55,7 @@ export function ProductsSection({
       {view === 'brands' && <BrandsView />}
       {view === 'gift-cards' && <GiftCardsView />}
       {view === 'bulk-edit' && <BulkEditView />}
+      {view === 'bulk-add-edit' && <BulkAddEditProductsView businessId={businessId} />}
     </>
   );
 }

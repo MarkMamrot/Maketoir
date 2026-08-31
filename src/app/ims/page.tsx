@@ -16,6 +16,7 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
+import { optionCombinations } from '@/lib/ims/bulkProductEditor';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
@@ -49,6 +50,7 @@ import { ReportScrollTable } from './views/reports/ReportScrollTable';
 import { PosPriceChangesView as PosPriceChangesViewComponent } from './views/reports/PosPriceChangesView';
 import { PosRegistersReportView as PosRegistersReportViewComponent } from './views/reports/PosRegistersReportView';
 import { StockAvailabilityManagementView } from './views/reports/StockAvailabilityManagementView';
+import { BulkAddEditProductsView } from './views/products/BulkAddEditProductsView';
 import { SalesOrderFulfilmentModal } from './views/orders/SalesOrderFulfilmentModal';
 import { ResolveOutstandingModal } from './views/orders/ResolveOutstandingModal';
 import { StockAllocationPanel } from './views/orders/StockAllocationPanel';
@@ -86,7 +88,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
+  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
   | 'receive-transfers'
@@ -108,6 +110,7 @@ const NAV = [
     { id: 'brands',        label: 'Brands' },
     { id: 'gift-cards',    label: 'Gift Cards' },
     { id: 'bulk-edit',     label: 'Bulk Edit' },
+    { id: 'bulk-add-edit', label: 'Bulk Add/Edit' },
   ]},
   { id: '__sales',         label: 'Sales',            section: 'sales', children: [
     { id: 'sales-orders',     label: 'Sales Orders' },
@@ -3309,15 +3312,6 @@ const blankRow = (): VariantRow => ({
   weight_kg: '', is_active: 1, foreignCosts: {},
 });
 
-function cartesian(sets: OptionSet[]): [string, string, string][] {
-  const active = sets.filter(s => s.name.trim() && s.values.trim());
-  if (!active.length) return [['', '', '']];
-  const arrays = active.map(s => s.values.split(',').map(v => v.trim()).filter(Boolean));
-  let combos: string[][] = [[]];
-  for (const arr of arrays) combos = combos.flatMap(c => arr.map(v => [...c, v]));
-  return combos.map(c => [c[0] ?? '', c[1] ?? '', c[2] ?? ''] as [string, string, string]);
-}
-
 const PAGE_SIZE = 100;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6089,7 +6083,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     }
     const baseSku = form.base_sku.trim();
     const active = optionSets.filter(s => s.name.trim() && s.values.trim());
-    const combos = cartesian(optionSets);
+    const combos = optionCombinations(optionSets);
     setVariantRows(prev => {
       // If user has actual option values, drop the default row and replace entirely
       const isDefault = (r: VariantRow) => r.option1_value === 'Default' && !r.option2_value && !r.option3_value && !r.variant_id;
@@ -21875,7 +21869,7 @@ export default function ImsPage() {
 
   // ── URL hash ↔ view sync ──────────────────────────────────────────────────
   const VALID_VIEWS = useMemo(() => new Set<string>([
-    'dashboard','products','stock','brands','bulk-edit','contacts','crm','locations',
+    'dashboard','products','stock','brands','bulk-edit','bulk-add-edit','contacts','crm','locations',
     'purchase-orders','sales-orders','stock-availability','backorders','customer-backorders','supplier-backorders','credit-notes','supplier-credit-notes',
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','online-sales','stocktakes',
@@ -22363,6 +22357,7 @@ export default function ImsPage() {
               ProductsView={ProductsView}
               StockView={StockView}
               BulkEditView={BulkEditView}
+              BulkAddEditProductsView={BulkAddEditProductsView}
               ContactsView={ContactsView}
               LocationsView={LocationsView}
               LocationDaybooksView={LocationDaybooksView}

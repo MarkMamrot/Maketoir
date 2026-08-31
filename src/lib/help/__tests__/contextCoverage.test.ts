@@ -8,7 +8,7 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
     audience: 'ims',
     product: 'ims',
     ids: [
-      'dashboard', 'products', 'stock', 'brands', 'gift-cards', 'bulk-edit', 'contacts', 'crm', 'contact-profile',
+      'dashboard', 'products', 'stock', 'brands', 'gift-cards', 'bulk-edit', 'bulk-add-edit', 'contacts', 'crm', 'contact-profile',
       'wholesale-applications', 'locations', 'purchase-orders', 'sales-orders', 'stock-availability', 'backorders',
       'customer-backorders', 'supplier-backorders', 'credit-notes', 'supplier-credit-notes', 'branch-transfers',
       'smart-device-receive', 'order-planner', 'receive-transfers', 'pos-sales', 'online-sales', 'stocktakes', 'reports',
