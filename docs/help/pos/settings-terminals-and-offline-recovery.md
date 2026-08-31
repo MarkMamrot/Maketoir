@@ -56,7 +56,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 7. Leave **Allow sales from incoming transfers** on when POS may sell goods from a matching Sent or Partially Received transfer before destination receipt. Turn it off when every sale must remain at zero until receipt.
 8. Save POS Settings. The default product view and incoming-transfer setting apply to every POS device at the current location. Product grouping and cart position remain device preferences.
 
-The **In Stock** button beside search remains available during selling as a temporary filter. It does not replace the saved location override or IMS business default.
+The **In Stock** button beside search remains available during selling as a temporary filter. While selected, it limits both the product grid and typed search suggestions to products currently available to sell at that location. It does not replace the saved location override or IMS business default.
 
 ### Practise with Training Mode
 

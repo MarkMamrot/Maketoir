@@ -10391,10 +10391,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtFx(item.unit_cost, currency)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtFx(item.unit_cost, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtFx(item.line_total, currency)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtFx(item.line_total, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                 </tr>
               ))}
             </tbody>
@@ -10402,30 +10402,30 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {(Number(viewModal.po.tax_amount) > 0 || Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Products Total</td>
-                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.subtotal, currency)}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.subtotal, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                 </tr>
               )}
               {Number(viewModal.po.freight) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtFx(viewModal.po.freight, currency)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtFx(viewModal.po.freight, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                 </tr>
               )}
               {Number(viewModal.po.tax_amount) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.tax_amount, currency)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.tax_amount, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                 </tr>
               )}
               {Number(viewModal.po.discount) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtFx(viewModal.po.discount, currency)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtFx(viewModal.po.discount, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
                 </tr>
               )}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
                 <td colSpan={7} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
-                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(viewModal.po.total_amount, currency)}</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(viewModal.po.total_amount, (viewModal.po.currency_code || 'AUD').toUpperCase())}</td>
               </tr>
             </tfoot>
           </table>

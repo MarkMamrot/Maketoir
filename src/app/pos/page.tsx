@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useDeferredValue } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, ParkedSale, CompletedSale } from './_types';
+import { isInStockAtLocation } from './_productFilters';
 import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
 import * as Zeller from '@/lib/zeller';
@@ -4301,6 +4302,7 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
     const q = deferredSearch.toLowerCase();
     const words = q.trim().split(/\s+/).filter(Boolean);
     let list = brand ? sortedProducts.filter(p => p.brand === brand) : sortedProducts;
+    if (inStockOnly) list = list.filter(isInStockAtLocation);
     const matches = list.filter(p => matchWords(p.variant_id, words));
     // Rank phrase matches first — use pre-built haystack (no extra allocations)
     matches.sort((a, b) => {
@@ -4309,14 +4311,12 @@ function ProductPanel({ products, onAdd, onChargeEnter, defaultView = 'all', foc
       return aPhrase - bPhrase;
     });
     return groupProducts(matches).slice(0, 8);
-  }, [sortedProducts, brand, deferredSearch, searchIndex, groupProducts]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortedProducts, brand, inStockOnly, deferredSearch, searchIndex, groupProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Main grid products: browse = smart-sorted full list; search = filtered
   // Uses deferredSearch/deferredMode so the grid update is low-priority — keystrokes stay instant
   const filtered = useMemo(() => {
-    let list = inStockOnly && deferredMode !== 'search'
-      ? sortedProducts.filter(p => (p.available ?? p.soh) > 0)
-      : sortedProducts;
+    let list = inStockOnly ? sortedProducts.filter(isInStockAtLocation) : sortedProducts;
     if (brand) list = list.filter(p => p.brand === brand);
     // In browse mode, if specific variants are pinned, restrict to those only
     if (deferredMode === 'browse' && !deferredSearch.trim() && pinnedIds) {
