@@ -938,7 +938,7 @@
       ],
       "order": 95,
       "summary": "Configure, publish, fulfil, and support the native Solvantis consumer storefront.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-31",
       "owner": "commerce",
       "filename": "docs/help/ims/integrations/online-shop.md",
       "sections": [
@@ -965,7 +965,7 @@
         {
           "id": "ims-online-shop:5",
           "heading": "Products and publication",
-          "content": "A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out products may remain visible but cannot be added to the cart."
+          "content": "A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out tracked products may remain visible but cannot be added to the cart. Products with **Tracks Inventory** off can be added and purchased without an available-stock limit; checkout does not reserve, commit or deduct stock for those lines."
         },
         {
           "id": "ims-online-shop:6",
@@ -1021,7 +1021,7 @@
       ],
       "order": 92,
       "summary": "Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.",
-      "lastReviewed": "2026-08-29",
+      "lastReviewed": "2026-08-31",
       "owner": "integrations",
       "filename": "docs/help/ims/integrations/shopify-sync-and-product-mapping.md",
       "sections": [
@@ -1043,7 +1043,7 @@
         {
           "id": "ims-shopify-sync:4",
           "heading": "Before you begin",
-          "content": "- [ ] Confirm the Shopify connection is active.\n- [ ] Identify the Shopify product, variant, order, or webhook involved.\n- [ ] Search IMS for an existing product before creating another one.\n- [ ] Compare the Shopify variant with the intended IMS variant.\n- [ ] Review sync history before making a manual stock change.\n\n> **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant."
+          "content": "- [ ] Confirm the Shopify connection is active.\n- [ ] Identify the Shopify product, variant, order, or webhook involved.\n- [ ] Search IMS for an existing product before creating another one.\n- [ ] Compare the Shopify variant with the intended IMS variant.\n- [ ] Review sync history before making a manual stock change.\n\n> **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.\n\nFor products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization."
         },
         {
           "id": "ims-shopify-sync:5",
@@ -1355,11 +1355,12 @@
       "relatedTopics": [
         "ims-catalogue-stock",
         "ims-stock-levels-adjustments",
-        "ims-inventory-costing"
+        "ims-inventory-costing",
+        "ims-stocktakes-adjustments"
       ],
       "order": 16,
-      "summary": "Create a product, add product photos, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.",
-      "lastReviewed": "2026-08-28",
+      "summary": "Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.",
+      "lastReviewed": "2026-08-31",
       "owner": "inventory",
       "filename": "docs/help/ims/products/product-setup-variants-and-non-stock-items.md",
       "sections": [
@@ -1371,12 +1372,12 @@
         {
           "id": "ims-product-setup-variants:2",
           "heading": "Main operations",
-          "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
+          "content": "- Create one product for the item customers recognise.\n- Add up to 10 product photos when creating or editing a product.\n- Add a default variant for a single-option item, or generate variants from Size, Colour or Style.\n- Give each variant a unique SKU and, where used, a unique barcode.\n- Enter retail, wholesale and sale prices as tax-inclusive selling prices.\n- Choose which optional product and variant fields appear under **Settings > Products**.\n- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.\n- Enter opening stock, minimum quantity and reorder quantity by location when creating a tracked product.\n- Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.\n- Use Product Type to classify an item; do not assume the wording alone switches stock tracking off."
         },
         {
           "id": "ims-product-setup-variants:3",
           "heading": "At a glance",
-          "content": "| Decision | Use | Example |\n|---|---|---|\n| One item with no choices | One default variant | Ceramic vase |\n| Same product in sizes or colours | One product with several variants | Linen shirt: S / Navy, M / Navy |\n| A fee or service that is not physically counted | A clearly named product and variant used only where supported | Gift wrapping service |\n| Different products that only look similar | Separate products | Adult raincoat and children's raincoat |\n\n> **Important:** Product Type is a catalogue label. Entering “Service” or “Non-stock” does not by itself guarantee that every sale, PO or stock workflow will ignore quantity. Keep non-stock items out of physical receiving and counting unless your business has confirmed the intended workflow."
+          "content": "| Decision | Use | Example |\n|---|---|---|\n| One item with no choices | One default variant | Ceramic vase |\n| Same product in sizes or colours | One product with several variants | Linen shirt: S / Navy, M / Navy |\n| A fee or service that is not physically counted | Turn **Tracks Inventory** off | Gift wrapping service |\n| Different products that only look similar | Separate products | Adult raincoat and children's raincoat |\n\n> **Important:** Product Type is a catalogue label. **Tracks Inventory** is the control that decides whether Solvantis checks and moves stock. An untracked product can be sold in POS, the native Online Shop and Wholesale without an available-stock limit."
         },
         {
           "id": "ims-product-setup-variants:4",
@@ -1386,7 +1387,7 @@
         {
           "id": "ims-product-setup-variants:5",
           "heading": "Step-by-step",
-          "content": "1. Open **Products > All Products** and search for the item.\n\tThe Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, tags and default supplier as needed.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n7. For a simple product, add one blank row and use the default variant.\n8. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n9. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n10. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n11. Select **Save All**, then check the uploaded photos and representative variants."
+          "content": "1. Open **Products > All Products** and search for the item.\n\tThe Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.\n2. Select **New Product** when no matching product exists.\n3. Enter the product Name and Product SKU.\n4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.\n5. Add a description and set Active to **Yes** when the item should be available.\n6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.\n7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.\n8. For a simple product, add one blank row and use the default variant.\n9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.\n10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.\n11. For a new tracked product, enter any opening quantity, Min Qty and Reorder Qty for each location. Zero is a valid value.\n12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.\n13. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.\n\nUnder **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, and opening-stock entry. Hiding a field removes it from product entry; it does not erase values already saved.\n\nOpening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice."
         },
         {
           "id": "ims-product-setup-variants:6",
@@ -1396,17 +1397,17 @@
         {
           "id": "ims-product-setup-variants:7",
           "heading": "Variant setup matrix",
-          "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Active | Product and variant | Inactive records should not be used for new work |"
+          "content": "| Field | Product or variant? | Practical rule |\n|---|---|---|\n| Name, brand, description | Product | Shared customer-facing identity |\n| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |\n| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |\n| Product SKU | Product | Groups the variants under one product |\n| Size, colour, style | Variant | Describes the exact choice |\n| SKU and barcode | Variant | Keep each sellable row unique |\n| RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |\n| Cost | Variant | Tax-exclusive buying cost used for purchasing reference |\n| Weight | Variant | Optional kilograms used where the item needs a recorded weight |\n| Active | Product and variant | Inactive records should not be used for new work |"
         },
         {
           "id": "ims-product-setup-variants:8",
           "heading": "Non-stock decision guide",
-          "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named service-style product | Do not receive or count it as a physical unit |\n| Repair labour | Separate service-style product | Keep it out of stocktakes unless a physical item is also supplied |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
+          "content": "| Item | Recommended setup | Quantity caution |\n|---|---|---|\n| Gift wrapping charged at checkout | Clearly named product with Tracks Inventory off | Sells without reservation, commitment or stock movement |\n| Repair labour | Separate product with Tracks Inventory off | Sells without an available-stock limit |\n| Display sample that can later be sold | Normal stock product | Track its physical location and count |\n| Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |"
         },
         {
           "id": "ims-product-setup-variants:9",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
+          "content": "| Symptom | Likely cause | Action |\n|---|---|---|\n| Generate Variants produces the wrong combinations | Option names or comma-separated values are wrong | Correct the option sets before saving |\n| An imported variant SKU is not what you expected | Product_SKU or an option value contains the wrong text | Correct Product_SKU and the option values; the imported SKU is derived from them |\n| Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |\n| Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |\n| Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |\n| A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |\n| Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |"
         },
         {
           "id": "ims-product-setup-variants:10",
@@ -1439,7 +1440,7 @@
       ],
       "order": 17,
       "summary": "Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "inventory",
       "filename": "docs/help/ims/products/stock-levels-and-adjustments.md",
       "sections": [
@@ -1461,7 +1462,7 @@
         {
           "id": "ims-stock-levels-adjustments:4",
           "heading": "Before you begin",
-          "content": "- [ ] Select or identify the correct location.\n- [ ] Search the exact variant, not only the product name.\n- [ ] Check for open POs, customer orders, transfers and returns.\n- [ ] Count the physical units if you suspect an on-hand error.\n- [ ] Use an account permitted to complete the required stock workflow.\n\nStock Levels is a read-only investigation view. The quantity changes when staff receive a PO, fulfil a sale, send or receive a transfer, complete a return, or complete a stocktake."
+          "content": "- [ ] Select or identify the correct location.\n- [ ] Search the exact variant, not only the product name.\n- [ ] Check for open POs, customer orders, transfers and returns.\n- [ ] Count the physical units if you suspect an on-hand error.\n- [ ] Use an account permitted to complete the required stock workflow.\n\nStock Levels is a read-only investigation view. The quantity changes when staff receive a PO, fulfil a sale, send or receive a transfer, complete a return, or complete a stocktake.\n\nProducts with **Tracks Inventory** off are not governed by on-hand, available, committed, incoming, minimum or reorder quantities. Sales of those products do not create stock movements. Turn tracking on only when the item should participate in these physical-stock workflows."
         },
         {
           "id": "ims-stock-levels-adjustments:5",
@@ -2574,7 +2575,8 @@
       "parentId": "ims-location-stock-operations",
       "relatedTopics": [
         "ims-branch-transfers",
-        "ims-inventory-costing"
+        "ims-inventory-costing",
+        "ims-product-setup-variants"
       ],
       "contexts": [
         "stocktakes"
@@ -2584,7 +2586,7 @@
       },
       "order": 52,
       "summary": "Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "inventory",
       "filename": "docs/help/ims/stock/stocktakes-and-manual-adjustments.md",
       "sections": [
@@ -2601,7 +2603,7 @@
         {
           "id": "ims-stocktakes-adjustments:3",
           "heading": "At a glance",
-          "content": "| Situation | Use | Quantity result |\n|---|---|---|\n| Periodic count of a range, brand, supplier, or product type | Stocktake | Each counted item is set to the physical quantity at completion |\n| Blank spot count built item by item | Stocktake | Only added and counted items can change |\n| One verified damaged, lost, or data-entry quantity | Stock adjustment | Increase or decrease that item by the reviewed amount |\n| Goods moving between branches | Branch transfer | Source and destination changes remain linked |\n| Uncounted line left blank | Leave uncounted | Its quantity remains unchanged |\n| Uncounted line explicitly set to 0 | Apply 0 to uncounted | Its full current quantity is removed at completion |"
+          "content": "| Situation | Use | Quantity result |\n|---|---|---|\n| Periodic count of a range, brand, supplier, or product type | Stocktake | Each counted item is set to the physical quantity at completion |\n| Blank spot count built item by item | Stocktake | Only added and counted items can change |\n| Opening balance entered during New Product | Stocktake | Each location receives an auditable completed opening-stock count |\n| One verified damaged, lost, or data-entry quantity | Stock adjustment | Increase or decrease that item by the reviewed amount |\n| Goods moving between branches | Branch transfer | Source and destination changes remain linked |\n| Uncounted line left blank | Leave uncounted | Its quantity remains unchanged |\n| Uncounted line explicitly set to 0 | Apply 0 to uncounted | Its full current quantity is removed at completion |"
         },
         {
           "id": "ims-stocktakes-adjustments:4",
@@ -2611,7 +2613,7 @@
         {
           "id": "ims-stocktakes-adjustments:5",
           "heading": "Step-by-step",
-          "content": "### Run a stocktake\n\n1. Open **Stocktakes** and choose **New Stocktake**.\n2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually.\n3. Review the number of included variants, then start the stocktake.\n4. Count physical units and enter each quantity. You can save and continue later.\n5. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.\n6. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.\n7. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.\n\n### Make a manual adjustment\n\n1. Open the stock view for the correct location and product variant.\n2. Check recent sales, receipts, transfers, returns, and stocktakes for an unfinished or duplicate movement.\n3. Enter the positive or negative correction offered by the stock adjustment action.\n4. Record a specific reason, such as “1 damaged mug removed after recount”.\n5. Save once and confirm the resulting stock on hand.\n\n### Reverse a mistaken stocktake\n\n1. Open the completed stocktake and select **Revert Mistaken Stocktake** when available.\n2. Enter a clear reason and review the confirmation.\n3. Complete the reversal. It compensates the original stocktake adjustments while preserving valid sales, receipts, or transfers recorded later.\n4. Start a new stocktake if a fresh physical count is still required."
+          "content": "### Run a stocktake\n\n1. Open **Stocktakes** and choose **New Stocktake**.\n2. Choose the location and reference. Use **Pre-populate from filters** for a defined range, or **Blank** to add items manually.\n3. Review the number of included variants, then start the stocktake.\n4. Count physical units and enter each quantity. You can save and continue later.\n5. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.\n6. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.\n7. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.\n\nWhen opening quantities are entered while creating a tracked product, Solvantis creates and completes a separate stocktake for each location. The opening quantity is the counted quantity; Min Qty and Reorder Qty are saved with that location's stock settings. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.\n\n### Make a manual adjustment\n\n1. Open the stock view for the correct location and product variant.\n2. Check recent sales, receipts, transfers, returns, and stocktakes for an unfinished or duplicate movement.\n3. Enter the positive or negative correction offered by the stock adjustment action.\n4. Record a specific reason, such as “1 damaged mug removed after recount”.\n5. Save once and confirm the resulting stock on hand.\n\n### Reverse a mistaken stocktake\n\n1. Open the completed stocktake and select **Revert Mistaken Stocktake** when available.\n2. Enter a clear reason and review the confirmation.\n3. Complete the reversal. It compensates the original stocktake adjustments while preserving valid sales, receipts, or transfers recorded later.\n4. Start a new stocktake if a fresh physical count is still required."
         },
         {
           "id": "ims-stocktakes-adjustments:6",
@@ -3452,7 +3454,7 @@
         {
           "id": "pos-selling-payments-manager-approval:3",
           "heading": "At a glance",
-          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location; recorded incoming transfers can cover a temporary negative quantity when enabled |\n| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch and Warehouse avatars; open Team Chat from the top toolbar, or select an avatar to send that location a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |\n\nPaste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each."
+          "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed tracked-product sale reduces stock at the active POS location; untracked products sell without a quantity check or stock movement |\n| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch and Warehouse avatars; open Team Chat from the top toolbar, or select an avatar to send that location a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |\n\nPaste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each."
         },
         {
           "id": "pos-selling-payments-manager-approval:4",
@@ -3462,7 +3464,7 @@
         {
           "id": "pos-selling-payments-manager-approval:5",
           "heading": "Step-by-step",
-          "content": "1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.\n2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.\n3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.\n4. Add the correct variant and set the quantity.\n5. Apply any permitted line discount, price change, or order discount before payment.\n6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.\n7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.\n8. Check the tax-inclusive total and the **GST (incl.)** amount.\n9. Choose **Charge** and choose a payment method.\n10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nWhen **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading."
+          "content": "1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.\n2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.\n3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.\n4. Add the correct variant and set the quantity.\n5. Apply any permitted line discount, price change, or order discount before payment.\n6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.\n7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.\n8. Check the tax-inclusive total and the **GST (incl.)** amount.\n9. Choose **Charge** and choose a payment method.\n10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nWhen **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.\n\nProducts with **Tracks Inventory** off can be sold in any whole quantity at any POS location. They do not reduce on-hand stock, create a stock warning, or use incoming transfer quantities.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading."
         },
         {
           "id": "pos-selling-payments-manager-approval:6",
@@ -4530,7 +4532,7 @@
       },
       "order": 20,
       "summary": "Order from the approved catalogue, reuse saved lists, and understand live stock, current prices, and indent quantities.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "wholesale",
       "filename": "docs/help/wholesale/ordering-saved-lists-and-stock-rules.md",
       "sections": [
@@ -4572,12 +4574,12 @@
         {
           "id": "wholesale-ordering-saved-lists-stock-rules:8",
           "heading": "Stock and indent decisions",
-          "content": "**Indent** means the supplier has approved that product for pre-order beyond current available stock. It is not a promise that every out-of-stock product can be ordered.\n\n| Current rule | Requested quantity | Cart result |\n|---|---:|---|\n| 10 available, indent off | 14 | Reduced to 10 |\n| 0 available, indent off | 4 | Line omitted |\n| 10 available, indent on | 14 | 14 ordered: 10 available and 4 on indent |\n| Variant retired or brand no longer approved | Any | Line omitted |\n\n> **Warning:** Stock and access are checked again at submission. If availability changed after the cart was prepared, submission can stop and ask you to correct an overstock non-indent line."
+          "content": "**Indent** means the supplier has approved that product for pre-order beyond current available stock. It is not a promise that every out-of-stock product can be ordered.\n\n| Current rule | Requested quantity | Cart result |\n|---|---:|---|\n| 10 available, indent off | 14 | Reduced to 10 |\n| 0 available, indent off | 4 | Line omitted |\n| 10 available, indent on | 14 | 14 ordered: 10 available and 4 on indent |\n| Product does not track inventory | Any valid whole quantity | Full quantity ordered with no indent units |\n| Variant retired or brand no longer approved | Any | Line omitted |\n\n> **Warning:** Stock and access are checked again at submission. If availability changed after the cart was prepared, submission can stop and ask you to correct an overstock non-indent line.\n\nProducts with inventory tracking turned off by the supplier are not capped by available stock and never create indent units. Current catalogue access, active status, pack rules and pricing still apply."
         },
         {
           "id": "wholesale-ordering-saved-lists-stock-rules:9",
           "heading": "Troubleshooting",
-          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A product or brand is absent | It is outside the account's current approved catalogue | Clear filters, then contact the supplier if approval should change |\n| Saved list loads fewer units | A non-indent item has less available stock now | Review the reduced quantity and adjust the order |\n| Saved list or reorder omits a line | The variant is retired, unapproved, or out of stock without indent | Choose an alternative or ask the supplier about availability |\n| Draft opens as read-only | It belongs to another assigned buying location or a preview session | Switch to that location, or leave preview |\n| Submission reports overstock | Live stock fell and indent is not enabled | Reduce the line to available stock or remove it |"
+          "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A product or brand is absent | It is outside the account's current approved catalogue | Clear filters, then contact the supplier if approval should change |\n| Saved list loads fewer units | A non-indent item has less available stock now | Review the reduced quantity and adjust the order |\n| Saved list or reorder omits a line | The variant is retired, unapproved, or out of stock without indent | Choose an alternative or ask the supplier about availability |\n| Draft opens as read-only | It belongs to another assigned buying location or a preview session | Switch to that location, or leave preview |\n| Submission reports overstock | Live stock fell and indent is not enabled | Reduce the line to available stock or remove it |\n| A product has no stock limit or indent quantity | The supplier has turned inventory tracking off for that product | Order the required valid quantity; stock availability does not apply |"
         },
         {
           "id": "wholesale-ordering-saved-lists-stock-rules:10",

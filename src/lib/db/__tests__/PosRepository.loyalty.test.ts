@@ -179,6 +179,25 @@ describe('PosSalesRepo loyalty earning', () => {
       ['business-1', 'variant-1', 3, 101, -3, 0, 20, null]);
   });
 
+  it('completes untracked product sales without changing inventory', async () => {
+    const data = saleData();
+    data.customer_id = null;
+    data.items[0].variant_id = 'variant-1';
+    data.items[0].qty = 25;
+    const { stockConnection } = setupConnections([]);
+    stockConnection.execute.mockResolvedValueOnce([[
+      { stock_variant_id: null, qty_on_hand: 0, qty_committed: 0, avg_cost: 0, is_stock_item: 0 },
+    ]]);
+
+    const result = await PosSalesRepo.complete(data);
+
+    expect(result.stockError).toBeUndefined();
+    expect(result.stockWarnings).toEqual([]);
+    expect(stockConnection.execute).toHaveBeenCalledTimes(1);
+    expect(stockConnection.execute).toHaveBeenCalledWith(expect.stringContaining('COALESCE(p.is_stock_item, 1)'), [3, 'variant-1']);
+    expect(stockConnection.commit).toHaveBeenCalledOnce();
+  });
+
   it('uses matching incoming transfer stock and atomically creates an IMS notification', async () => {
     const data = saleData();
     data.customer_id = null;

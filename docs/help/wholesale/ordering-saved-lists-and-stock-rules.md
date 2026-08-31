@@ -1,5 +1,5 @@
 ---
-{"id":"wholesale-ordering-saved-lists-stock-rules","title":"Ordering, Saved Lists, and Stock Rules","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Catalogue, Saved Lists, and Orders","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-getting-started-account-approval","wholesale-team-locations-permissions"],"contexts":["catalogue","lists","orders"],"contextSections":{"catalogue":"Step-by-step","lists":"Saved lists and favourites","orders":"Drafts, submitted orders, and reordering"},"order":20,"summary":"Order from the approved catalogue, reuse saved lists, and understand live stock, current prices, and indent quantities.","lastReviewed":"2026-08-23","owner":"wholesale"}
+{"id":"wholesale-ordering-saved-lists-stock-rules","title":"Ordering, Saved Lists, and Stock Rules","audiences":["wholesale"],"capability":"wholesale","screen":"Wholesale Catalogue, Saved Lists, and Orders","product":"wholesale","format":"task","parentId":"wholesale-portal","relatedTopics":["wholesale-getting-started-account-approval","wholesale-team-locations-permissions"],"contexts":["catalogue","lists","orders"],"contextSections":{"catalogue":"Step-by-step","lists":"Saved lists and favourites","orders":"Drafts, submitted orders, and reordering"},"order":20,"summary":"Order from the approved catalogue, reuse saved lists, and understand live stock, current prices, and indent quantities.","lastReviewed":"2026-08-31","owner":"wholesale"}
 ---
 # Ordering, Saved Lists, and Stock Rules
 
@@ -69,9 +69,12 @@ Drafts for another assigned buying location are read-only until you switch to th
 | 10 available, indent off | 14 | Reduced to 10 |
 | 0 available, indent off | 4 | Line omitted |
 | 10 available, indent on | 14 | 14 ordered: 10 available and 4 on indent |
+| Product does not track inventory | Any valid whole quantity | Full quantity ordered with no indent units |
 | Variant retired or brand no longer approved | Any | Line omitted |
 
 > **Warning:** Stock and access are checked again at submission. If availability changed after the cart was prepared, submission can stop and ask you to correct an overstock non-indent line.
+
+Products with inventory tracking turned off by the supplier are not capped by available stock and never create indent units. Current catalogue access, active status, pack rules and pricing still apply.
 
 ## Troubleshooting
 
@@ -82,6 +85,7 @@ Drafts for another assigned buying location are read-only until you switch to th
 | Saved list or reorder omits a line | The variant is retired, unapproved, or out of stock without indent | Choose an alternative or ask the supplier about availability |
 | Draft opens as read-only | It belongs to another assigned buying location or a preview session | Switch to that location, or leave preview |
 | Submission reports overstock | Live stock fell and indent is not enabled | Reduce the line to available stock or remove it |
+| A product has no stock limit or indent quantity | The supplier has turned inventory tracking off for that product | Order the required valid quantity; stock availability does not apply |
 
 ## Worked examples
 

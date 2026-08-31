@@ -19,7 +19,7 @@ Use this guide to build and complete an ordinary sale, including verified split 
 | Checkout item | Current behaviour |
 |---|---|
 | Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |
-| Stock | A completed stock-item sale reduces stock at the active POS location; recorded incoming transfers can cover a temporary negative quantity when enabled |
+| Stock | A completed tracked-product sale reduces stock at the active POS location; untracked products sell without a quantity check or stock movement |
 | Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |
 | Split tender | Add payment lines until **Remaining** is zero |
 | Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |
@@ -57,6 +57,8 @@ Paste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-messa
 11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.
 
 When **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.
+
+Products with **Tracks Inventory** off can be sold in any whole quantity at any POS location. They do not reduce on-hand stock, create a stock warning, or use incoming transfer quantities.
 
 When the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading.
 

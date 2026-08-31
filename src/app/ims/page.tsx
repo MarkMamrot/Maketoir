@@ -6134,7 +6134,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const doSave = async (brandOverride?: string, formOverride?: any): Promise<boolean> => {
     setSaving(true);
     try {
-      const isNewProduct = !modal.edit && !pendingProductSave;
       const isProductCreationFlow = !modal.edit;
       let productId: string = modal.edit?.product_id ?? pendingProductSave?.productId ?? '';
       let openingRequest = pendingProductSave;

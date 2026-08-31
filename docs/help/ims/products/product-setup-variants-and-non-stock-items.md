@@ -1,5 +1,5 @@
 ---
-{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products"],"contextSections":{"products":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing"],"order":16,"summary":"Create a product, add product photos, build its variants, set tax-inclusive selling prices, and handle items that are not normally counted as stock.","lastReviewed":"2026-08-28","owner":"inventory"}
+{"id":"ims-product-setup-variants","title":"Product Setup, Variants, and Non-stock Items","audiences":["ims"],"capability":"inventory","screen":"Products > All Products","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["products"],"contextSections":{"products":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-stock-levels-adjustments","ims-inventory-costing","ims-stocktakes-adjustments"],"order":16,"summary":"Create a product, choose its inventory behavior, add product photos and variants, and optionally establish opening stock by location.","lastReviewed":"2026-08-31","owner":"inventory"}
 ---
 # Product Setup, Variants, and Non-stock Items
 
@@ -12,6 +12,9 @@ Use this guide to create a clean product record and give each sellable option it
 - Add a default variant for a single-option item, or generate variants from Size, Colour or Style.
 - Give each variant a unique SKU and, where used, a unique barcode.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
+- Choose which optional product and variant fields appear under **Settings > Products**.
+- Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
+- Enter opening stock, minimum quantity and reorder quantity by location when creating a tracked product.
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
 
@@ -21,10 +24,10 @@ Use this guide to create a clean product record and give each sellable option it
 |---|---|---|
 | One item with no choices | One default variant | Ceramic vase |
 | Same product in sizes or colours | One product with several variants | Linen shirt: S / Navy, M / Navy |
-| A fee or service that is not physically counted | A clearly named product and variant used only where supported | Gift wrapping service |
+| A fee or service that is not physically counted | Turn **Tracks Inventory** off | Gift wrapping service |
 | Different products that only look similar | Separate products | Adult raincoat and children's raincoat |
 
-> **Important:** Product Type is a catalogue label. Entering “Service” or “Non-stock” does not by itself guarantee that every sale, PO or stock workflow will ignore quantity. Keep non-stock items out of physical receiving and counting unless your business has confirmed the intended workflow.
+> **Important:** Product Type is a catalogue label. **Tracks Inventory** is the control that decides whether Solvantis checks and moves stock. An untracked product can be sold in POS, the native Online Shop and Wholesale without an available-stock limit.
 
 ## Before you begin
 
@@ -43,14 +46,20 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 	The Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.
 2. Select **New Product** when no matching product exists.
 3. Enter the product Name and Product SKU.
-4. Choose or type the Product Type, brand, category, tags and default supplier as needed.
+4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.
 5. Add a description and set Active to **Yes** when the item should be available.
-6. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
-7. For a simple product, add one blank row and use the default variant.
-8. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
-9. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
-10. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
-11. Select **Save All**, then check the uploaded photos and representative variants.
+6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
+7. In Media, select **Add photos** and choose up to 10 photos. The first selected photo becomes the primary image. Photos are uploaded when the product is saved.
+8. For a simple product, add one blank row and use the default variant.
+9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
+10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
+11. For a new tracked product, enter any opening quantity, Min Qty and Reorder Qty for each location. Zero is a valid value.
+12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
+13. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
+
+Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, and opening-stock entry. Hiding a field removes it from product entry; it does not erase values already saved.
+
+Opening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
 
 ## Import products
 
@@ -67,19 +76,22 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | Field | Product or variant? | Practical rule |
 |---|---|---|
 | Name, brand, description | Product | Shared customer-facing identity |
+| Category, subcategory, tags, Product Type | Product | Optional catalogue classification controlled by Settings > Products |
+| Tracks Inventory | Product | On by default; turn off only when sales must ignore stock availability and movements |
 | Product SKU | Product | Groups the variants under one product |
 | Size, colour, style | Variant | Describes the exact choice |
 | SKU and barcode | Variant | Keep each sellable row unique |
 | RRP, wholesale and sale price | Variant | Tax-inclusive selling amounts |
 | Cost | Variant | Tax-exclusive buying cost used for purchasing reference |
+| Weight | Variant | Optional kilograms used where the item needs a recorded weight |
 | Active | Product and variant | Inactive records should not be used for new work |
 
 ## Non-stock decision guide
 
 | Item | Recommended setup | Quantity caution |
 |---|---|---|
-| Gift wrapping charged at checkout | Clearly named service-style product | Do not receive or count it as a physical unit |
-| Repair labour | Separate service-style product | Keep it out of stocktakes unless a physical item is also supplied |
+| Gift wrapping charged at checkout | Clearly named product with Tracks Inventory off | Sells without reservation, commitment or stock movement |
+| Repair labour | Separate product with Tracks Inventory off | Sells without an available-stock limit |
 | Display sample that can later be sold | Normal stock product | Track its physical location and count |
 | Gift card | Use the dedicated gift-card workflow | Do not imitate a gift-card balance with product stock |
 
@@ -92,7 +104,7 @@ Before reimporting products that already use custom variant SKUs, align those SK
 | Product save or import reports an identifier conflict | Another product or variant already uses that Product SKU, variant SKU or barcode | Search for the named existing product, then give the new product or variant a unique identifier |
 | Two variants scan as the same item | A SKU or barcode was reused | Give each sellable variant a unique identifier |
 | Price at the register is 10% too high | GST was added to an already tax-inclusive selling price | Enter the final shelf price, including GST |
-| A non-stock item appears in quantity workflows | Product Type is only a classification | Stop using it in receipts or counts and review the intended operational setup |
+| A service is blocked by zero stock | Tracks Inventory is still on | Edit the product and turn Tracks Inventory off |
 | Save is unavailable | The account may be read-only | Ask an authorised IMS user to make the change |
 
 ## Worked examples

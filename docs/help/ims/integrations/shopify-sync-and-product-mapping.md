@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Shopify","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["shopify"],"contextSections":{"shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.","lastReviewed":"2026-08-29","owner":"integrations"}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Integrations > Shopify","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["shopify"],"contextSections":{"shopify":"Step-by-step"},"relatedTopics":["ims-xero-shopify","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Monitor Shopify synchronization, maintain product linkage, and resolve unmatched order lines safely.","lastReviewed":"2026-08-31","owner":"integrations"}
 ---
 # Shopify Sync and Product Mapping
 
@@ -36,6 +36,8 @@ Use Shopify integration status and history to keep supported catalogue and order
 - [ ] Review sync history before making a manual stock change.
 
 > **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.
+
+For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
 
 ## Step-by-step
 

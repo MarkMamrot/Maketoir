@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stock-levels-adjustments","title":"Stock Levels and Adjustments","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["stock"],"contextSections":{"stock":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-inventory-costing","ims-po-receiving-resolution"],"order":17,"summary":"Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-stock-levels-adjustments","title":"Stock Levels and Adjustments","audiences":["ims"],"capability":"inventory","screen":"Products > Stock Levels","product":"ims","format":"task","parentId":"ims-catalogue-stock","contexts":["stock"],"contextSections":{"stock":"Step-by-step"},"relatedTopics":["ims-catalogue-stock","ims-inventory-costing","ims-po-receiving-resolution"],"order":17,"summary":"Read on-hand, available, incoming and committed stock, then choose the correct workflow when a quantity needs correction.","lastReviewed":"2026-08-31","owner":"inventory"}
 ---
 # Stock Levels and Adjustments
 
@@ -37,6 +37,8 @@ Use Stock Levels to explain a quantity before changing it, then use the operatio
 - [ ] Use an account permitted to complete the required stock workflow.
 
 Stock Levels is a read-only investigation view. The quantity changes when staff receive a PO, fulfil a sale, send or receive a transfer, complete a return, or complete a stocktake.
+
+Products with **Tracks Inventory** off are not governed by on-hand, available, committed, incoming, minimum or reorder quantities. Sales of those products do not create stock movements. Turn tracking on only when the item should participate in these physical-stock workflows.
 
 ## Step-by-step
 

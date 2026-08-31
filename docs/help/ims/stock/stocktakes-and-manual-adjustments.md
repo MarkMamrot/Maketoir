@@ -1,5 +1,5 @@
 ---
-{"id":"ims-stocktakes-adjustments","title":"Stocktakes and Manual Adjustments","audiences":["ims"],"capability":"inventory","screen":"Stocktakes and Stock","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-branch-transfers","ims-inventory-costing"],"contexts":["stocktakes"],"contextSections":{"stocktakes":"Step-by-step"},"order":52,"summary":"Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.","lastReviewed":"2026-08-23","owner":"inventory"}
+{"id":"ims-stocktakes-adjustments","title":"Stocktakes and Manual Adjustments","audiences":["ims"],"capability":"inventory","screen":"Stocktakes and Stock","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-branch-transfers","ims-inventory-costing","ims-product-setup-variants"],"contexts":["stocktakes"],"contextSections":{"stocktakes":"Step-by-step"},"order":52,"summary":"Count physical stock, understand the applied variance, reverse a mistaken count, and choose a manual adjustment only for a known isolated correction.","lastReviewed":"2026-08-31","owner":"inventory"}
 ---
 # Stocktakes and Manual Adjustments
 
@@ -20,6 +20,7 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 |---|---|---|
 | Periodic count of a range, brand, supplier, or product type | Stocktake | Each counted item is set to the physical quantity at completion |
 | Blank spot count built item by item | Stocktake | Only added and counted items can change |
+| Opening balance entered during New Product | Stocktake | Each location receives an auditable completed opening-stock count |
 | One verified damaged, lost, or data-entry quantity | Stock adjustment | Increase or decrease that item by the reviewed amount |
 | Goods moving between branches | Branch transfer | Source and destination changes remain linked |
 | Uncounted line left blank | Leave uncounted | Its quantity remains unchanged |
@@ -46,6 +47,8 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 5. Review blank lines. Leave them blank to keep their quantities unchanged, or choose **Apply 0 to uncounted** only when zero was physically verified.
 6. Complete the stocktake. Each counted line is compared with stock on hand at completion and adjusted to the count.
 7. Review variances and any separate accounting status. If accounting fails, retry that action without completing the count again.
+
+When opening quantities are entered while creating a tracked product, Solvantis creates and completes a separate stocktake for each location. The opening quantity is the counted quantity; Min Qty and Reorder Qty are saved with that location's stock settings. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
 
 ### Make a manual adjustment
 

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","requiresCapabilities":["native_shop"],"screen":"Integrations > Online Shop","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"contextSections":{"online-shop":"Storefront workflow","online-shop-settings":"Store settings","online-shop-templates":"Templates and pages","online-shop-pages":"Templates and pages","online-shop-products":"Products and publication","online-shop-shipping":"Shipping and fulfilment","online-shop-checkout":"Checkout and signed-in customers","online-shop-account":"Checkout and signed-in customers"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-customer-orders"],"order":95,"summary":"Configure, publish, fulfil, and support the native Solvantis consumer storefront.","lastReviewed":"2026-08-29","owner":"commerce"}
+{"id":"ims-online-shop","title":"Online Shop","audiences":["ims"],"capability":"integrations","requiresCapabilities":["native_shop"],"screen":"Integrations > Online Shop","product":"ims","format":"overview","parentId":"ims-integrations","contexts":["online-shop","online-shop-settings","online-shop-templates","online-shop-pages","online-shop-products","online-shop-shipping","online-shop-checkout","online-shop-account"],"contextSections":{"online-shop":"Storefront workflow","online-shop-settings":"Store settings","online-shop-templates":"Templates and pages","online-shop-pages":"Templates and pages","online-shop-products":"Products and publication","online-shop-shipping":"Shipping and fulfilment","online-shop-checkout":"Checkout and signed-in customers","online-shop-account":"Checkout and signed-in customers"},"relatedTopics":["ims-xero-reconciliation","ims-shopify-sync","ims-customer-orders"],"order":95,"summary":"Configure, publish, fulfil, and support the native Solvantis consumer storefront.","lastReviewed":"2026-08-31","owner":"commerce"}
 ---
 # Online Shop
 
@@ -33,7 +33,7 @@ Retail prices and delivery rates are tax-inclusive AUD amounts. At checkout the 
 
 ## Products and publication
 
-A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out products may remain visible but cannot be added to the cart.
+A product needs at least one active variant with a retail price and a unique native store address before publication. Review images, content, current sale pricing, and availability before publishing. Sold-out tracked products may remain visible but cannot be added to the cart. Products with **Tracks Inventory** off can be added and purchased without an available-stock limit; checkout does not reserve, commit or deduct stock for those lines.
 
 ## Templates and pages
 

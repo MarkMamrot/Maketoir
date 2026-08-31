@@ -5,6 +5,10 @@ import {
   normalizeProductOpeningStockLines,
   ProductOpeningStockError,
 } from '@/lib/ims/productOpeningStock';
+import { InventoryDocumentRevisionConflict } from '@/lib/ims/creditNoteStatusCommands';
+import { InventoryDocumentLifecycleConflict } from '@/lib/ims/inventoryDocumentLifecycle';
+import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
+import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 interface Context { params: { id: string } }
@@ -27,6 +31,13 @@ export async function POST(req: Request, { params }: Context) {
   } catch (error) {
     if (error instanceof ProductOpeningStockError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+    }
+    const conflict = error instanceof StocktakeOperationConflict
+      || error instanceof InventoryDocumentLifecycleConflict
+      || error instanceof InventoryDocumentOperationConflict
+      || error instanceof InventoryDocumentRevisionConflict;
+    if (conflict) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 409 });
     }
     await reportRuntimeIssue({
       businessId: session.businessId,
