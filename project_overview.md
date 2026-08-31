@@ -67,7 +67,7 @@ Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEM
 - **Auth:** Session cookies — `marketoir_session` (admin) + `pos_session` (POS cashier)
 - **Key Integrations:** Cin7 (inventory), Xero (accounting), Shopify (online sales), Google Ads, Meta Ads, Google Analytics, Google Sheets (legacy reporting)
 - **Tax:** Australian GST 10%. All POS prices stored **tax-inclusive**. GST is always extracted, never added.
-- **POS stack:** Browser-based POS at `/pos`, service worker for offline shell, localStorage for device config + product cache + offline queue
+- **POS stack:** Browser-based POS at `/pos`, service worker for offline shell, IndexedDB for tenant/location product catalogues and sync metadata, and localStorage for device configuration plus offline transaction queues
 
 ### Native Online Shop
 - The native consumer shop uses main-DB control-plane records for channel, profile, layout, pages, assets, OTP challenges, and Stripe Connect account identity. Product publication, checkout, reservation, shipping, payment-event, and order state live in each tenant IMS schema.

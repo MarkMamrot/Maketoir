@@ -13,8 +13,7 @@ import { resolveEodOpeningFloat } from '@/lib/pos/eodOpeningFloat';
 import { PosStoreDaybook } from './components/daybook/PosStoreDaybook';
 import {
   loadDeviceConfig, saveDeviceConfig, clearDeviceConfig,
-  loadProductsCache, saveProductsCache, mergeProductsDelta,
-  markProductsSynced, getProductsSyncWatermark, needsFullProductsResync,
+  mergeProductsDelta,
   loadImageCache, saveImageCache, mergeImageDelta, getImageSyncWatermark, mergeProductImages,
   loadCurrentCart, saveCurrentCart,
   loadParkedSales, saveParkedSales,
@@ -22,8 +21,12 @@ import {
   loadFailedQueue, retryFailedQueue, removeFromFailedQueue,
   saveLocalSession, loadLocalSession, clearLocalSession,
   newLocalId,
-  isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
 } from './_store';
+import {
+  loadProductsCache, saveProductsCache, getProductsSyncWatermark,
+  needsFullProductsResync, isProductsCacheStale, PRODUCTS_CACHE_TTL_MS,
+  requestProductCachePersistence,
+} from './_productCache';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -356,19 +359,23 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
     const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
     const refreshedProducts = Array.isArray(prodData.products) ? prodData.products : [];
-    const cachedProducts = loadProductsCache();
+    const cachedProducts = await loadProductsCache(deviceConfig);
     if (!prodRes.ok && !cachedProducts.length) {
       throw new Error('The product catalogue could not be loaded. Check the connection and try again.');
     }
     let products = prodRes.ok ? refreshedProducts : cachedProducts;
     const imgCache = loadImageCache();
     if (imgCache && products.length) products = mergeProductImages(products, imgCache);
-    const productsCached = saveProductsCache(products);
-    // Login always does a full fetch — record it as the full-sync watermark
-    // too, so the 12h safety-net timer doesn't also fire right afterwards.
-    const watermarkCached = markProductsSynced(prodData.server_time ?? Date.now(), true);
+    const productsCached = prodRes.ok
+      ? await saveProductsCache({
+          config: deviceConfig,
+          products,
+          serverTime: prodData.server_time ?? Date.now(),
+          isFullSync: true,
+        })
+      : true;
     const sessionCached = saveLocalSession(session);
-    if (!productsCached || !watermarkCached || !sessionCached) {
+    if (!productsCached || !sessionCached) {
       fetch('/api/runtime-issues/client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1890,11 +1897,11 @@ function MainPos({
     let cancelled = false;
     async function checkFreshness() {
       if (cancelled) return;
-      const stale = isProductsCacheStale();
+      const stale = await isProductsCacheStale(deviceConfig);
       if (stale && (typeof navigator === 'undefined' || navigator.onLine)) {
         // Online + stale → refresh silently; onSync re-stamps the cache.
         try { await onSyncRef.current(); } catch {/* keep stale cache */}
-        if (!cancelled) setCacheStale(isProductsCacheStale());
+        if (!cancelled) setCacheStale(await isProductsCacheStale(deviceConfig));
       } else {
         setCacheStale(stale);
       }
@@ -8326,7 +8333,8 @@ export default function PosPage() {
     if (cfg) {
       setDeviceConfig(cfg);
       // Check if still logged in — pass location_id so admin sessions can auto-create a POS session
-      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}&business_id=${encodeURIComponent(cfg.business_id)}`).then(r => r.json()).then(d => {
+      requestProductCachePersistence();
+      fetch(`/api/pos/auth/me?location_id=${cfg.location_id}&business_id=${encodeURIComponent(cfg.business_id)}`).then(r => r.json()).then(async d => {
         if (d.session) {
           const sess: PosSession = {
             ...d.session,
@@ -8336,7 +8344,7 @@ export default function PosPage() {
           saveLocalSession(sess);
           setOfflineMode(false);
           setSession(sess);
-          const cached = loadProductsCache();
+          const cached = await loadProductsCache(cfg);
           if (cached.length) {
             setProducts(cached);
             checkRegisterGate(sess, cfg, () => setScreen('pos'));
@@ -8363,10 +8371,10 @@ export default function PosPage() {
           clearLocalSession();
           setScreen('login');
         }
-      }).catch(() => {
+      }).catch(async () => {
         // Network error — try offline recovery from local cache
         const cachedSession = loadLocalSession() as PosSession | null;
-        const cachedProducts = loadProductsCache();
+        const cachedProducts = await loadProductsCache(cfg);
         if (cachedSession && cachedProducts.length) {
           setSession(cachedSession);
           setProducts(cachedProducts);
@@ -8443,12 +8451,12 @@ export default function PosPage() {
   async function handleSync(forceFull: boolean = false, cfgOverride?: DeviceConfig) {
     const cfg = cfgOverride ?? deviceConfig;
     if (!cfg) return;
-    const doFull = forceFull || needsFullProductsResync();
+    const doFull = forceFull || await needsFullProductsResync(cfg);
     return syncCoordinator.run(() => performSync(doFull, cfg), doFull);
   }
 
   async function performSync(doFull: boolean, cfg: DeviceConfig) {
-    const since  = doFull ? null : getProductsSyncWatermark();
+    const since  = doFull ? null : await getProductsSyncWatermark(cfg);
     const productsUrl = `/api/pos/products?location_id=${cfg.location_id}` + (since ? `&since=${since}` : '');
 
     const [prodRes, methodRes] = await Promise.all([
@@ -8466,10 +8474,10 @@ export default function PosPage() {
 
     const imgCache = loadImageCache() ?? {};
     const withImages = mergeProductImages(deltaProducts, imgCache);
-    const merged = doFull ? withImages : mergeProductsDelta(loadProductsCache(), withImages, removedIds);
-    saveProductsCache(merged);
+    const existingProducts = doFull ? [] : await loadProductsCache(cfg);
+    const merged = doFull ? withImages : mergeProductsDelta(existingProducts, withImages, removedIds);
+    await saveProductsCache({ config: cfg, products: merged, serverTime, isFullSync: doFull });
     setProducts(merged);
-    markProductsSynced(serverTime, doFull);
 
     if (Array.isArray(methodData.methods) && methodData.methods.length) setMethods(methodData.methods);
     setOfflineMode(false);
@@ -8488,7 +8496,7 @@ export default function PosPage() {
         saveImageCache(mergedImages, imageData.server_time ?? Date.now());
         setProducts(prev => {
           const updated = mergeProductImages(prev, mergedImages);
-          saveProductsCache(updated);
+          void saveProductsCache({ config: cfg, products: updated });
           return updated;
         });
       } catch { /* image sync is non-critical — keep the existing URL cache */ }
@@ -8536,7 +8544,7 @@ export default function PosPage() {
               if (!item) return p;
               return { ...p, soh: Math.max(0, p.soh - item.qty), soh_all: Math.max(0, p.soh_all - item.qty), available: Math.max(0, (p.available ?? p.soh) - item.qty), available_all: Math.max(0, (p.available_all ?? p.soh_all) - item.qty) };
             });
-            saveProductsCache(updated);
+            void saveProductsCache({ config: deviceConfig, products: updated });
             return updated;
           });
         } else {
@@ -8547,7 +8555,7 @@ export default function PosPage() {
               if (!item) return p;
               return { ...p, soh: p.soh + item.qty, soh_all: p.soh_all + item.qty, available: (p.available ?? p.soh) + item.qty, available_all: (p.available_all ?? p.soh_all) + item.qty };
             });
-            saveProductsCache(updated);
+            void saveProductsCache({ config: deviceConfig, products: updated });
             return updated;
           });
         }

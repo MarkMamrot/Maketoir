@@ -98,14 +98,14 @@ export const PRODUCTS_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 // both fire back-to-back (whichever runs first resets the other's clock).
 export const FULL_RESYNC_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
-interface ProductsCacheEnvelope {
+export interface ProductsCacheEnvelope {
   cached_at:          number;
   last_synced_at?:    number; // server_time watermark from the last sync (full OR incremental) — used as the next `since=` param
   last_full_sync_at?: number; // server_time watermark from the last FULL sync — drives the 12h safety-net check
   products:           CachedProduct[];
 }
 
-function readProductsEnvelope(): ProductsCacheEnvelope | null {
+export function readProductsEnvelope(): ProductsCacheEnvelope | null {
   try {
     const raw = getTenantItem(KEYS.products);
     if (!raw) return null;
@@ -119,6 +119,11 @@ function readProductsEnvelope(): ProductsCacheEnvelope | null {
 
 export function loadProductsCache(): CachedProduct[] {
   return readProductsEnvelope()?.products ?? [];
+}
+
+export function clearLegacyProductsCache(): void {
+  removeTenantItem(KEYS.products);
+  localStorage.removeItem(KEYS.products);
 }
 
 /** Replace the cached product list, preserving any existing sync watermarks. */

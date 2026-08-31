@@ -12,7 +12,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 - Choose whether the current location can sell against recorded incoming branch-transfer stock.
 - Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
-- Continue supported ordinary sales from cached products while offline.
+- Continue supported ordinary sales from the device's persisted product catalogue while offline.
 - Inspect queued and failed sales, retry them, and confirm they reached Reports.
 - Stop online-only workflows until connectivity returns.
 
@@ -104,6 +104,7 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Zeller terminal is paired but unavailable | Check power, internet, and Integrated Payments mode on the terminal |
 | Payment completed outside the integration | Use manual entry only after independently confirming the approved payment |
 | Product cache is stale | Verify prices with the customer and sync as soon as possible |
+| Products return after Sync but disappear after reload | Browser catalogue persistence is unavailable or was cleared | Keep the terminal online, reload once, and allow the catalogue rebuild to finish; ask a manager to review browser storage if it repeats |
 | POS reports incoming transfer stock was used | Complete the matching transfer receipt and verify the location quantity; do not add a separate positive adjustment |
 | A queued sale reaches repeated failures | Inspect its error, correct the cause, then retry from the failed queue |
 | You are unsure whether a queued sale happened | Check the payment evidence and Reports; do not discard or duplicate it |
@@ -120,6 +121,7 @@ The browser controls its copy count and the Windows printer queue. Solvantis can
 | Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |
 | A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |
 | Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |
+| Products repeatedly disappear until Sync is selected | The device could not retain its IndexedDB catalogue or site data is being cleared | Keep the device online, run Sync once, then reload and confirm products remain; escalate if they disappear again |
 | An offline sale used incoming transfer stock | The transfer check occurred when the queued sale uploaded | Open IMS Notifications, complete the matching receipt, and verify location stock |
 | One reprint produces several physical copies | Chrome has remembered a copy count above 1, or Windows/printer firmware duplicated one submitted job | Set **Copies** to `1`, cancel the printer queue, and restart Chrome and the printer before retrying one receipt |
 

@@ -1,3 +1,10 @@
+## 2026-08-31 - POS IndexedDB catalogue persistence
+
+- POS product catalogues and sync watermarks now persist in Dexie-backed IndexedDB under a business-and-location scope. Product refreshes update React memory and IndexedDB atomically, avoiding the `localStorage` size ceiling that made successful manual Sync results disappear after reload.
+- Existing tenant-scoped or legacy localStorage catalogues migrate on first read. The old product-cache key is removed only after IndexedDB readback verifies the same product count; carts, parked sales, local sessions, queued sales, and failed sales are not part of this migration.
+- POS requests persistent browser storage where supported. IndexedDB failures fall back to the existing localStorage cache without blocking online trading, and catalogue API failures cannot stamp stale data as freshly synced or replace usable products with an empty list.
+- Empty-cache session restoration waits for a full catalogue rebuild before opening the scanner. Focused IndexedDB, migration, tenant isolation, quota, and sync-coordinator tests pass.
+
 ## 2026-08-31 - Dynamic AI plan pricing and provider model governance
 
 ## 2026-08-31 - Sage Shopify SKU suffix rollback
