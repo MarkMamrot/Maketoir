@@ -5,6 +5,14 @@
 - POS requests persistent browser storage where supported. IndexedDB failures fall back to the existing localStorage cache without blocking online trading, and catalogue API failures cannot stamp stale data as freshly synced or replace usable products with an empty list.
 - Empty-cache session restoration waits for a full catalogue rebuild before opening the scanner. Focused IndexedDB, migration, tenant isolation, quota, and sync-coordinator tests pass.
 
+## 2026-08-31 - Canonical Google model discovery and billing reconciliation
+
+- Google runtime model identity now comes from the paginated Generative Language Models API, not Cloud Billing SKU text. The shared catalog retains display name, version, generation methods, supplied or conservative modalities, context limits, lifecycle, first/last seen times, and raw metadata; models absent from a successful non-empty discovery are retained as retired rather than deleted.
+- Cloud Billing reconciliation now uses versioned data mappings from billing-family text to currently discovered canonical model IDs. Seed mappings preserve supported Gemini families, while SuperAdmin can add contains/regex mappings or deactivate mappings with transactional audit records. Unknown model families, unknown metrics/capabilities, conflicts, incomplete pricing, unsupported tiers, and currency issues persist as explainable SKU observations.
+- Model availability now requires a non-retired canonical model, global approval, plan priceability, and complete provider pricing for its supported Solvantis capability. Text requires input/output/thinking plus cache when cached content is supported; if any over-200k tariff exists, the complete matching long-context set is required. Image requires input plus image output tokens; video requires per-second pricing. Unsupported embedding, TTS, live, robotics, music, and AQA models remain discoverable but cannot enter normal selectors.
+- New provider models default disabled. Discovery never activates rates or enables tenant access. Manual Google rate sync refreshes discovery/reconciliation first, and hourly authenticated AI billing maintenance performs discovery, retirement, SKU observation, cycle advancement, and billing reconciliation.
+- `scripts/setup-ai-billing.mjs` created and verified `ai_discovered_models`, `ai_billing_family_mappings`, `ai_billing_mapping_audit`, and `ai_provider_sku_observations` in the shared database. The first live run retained 63 canonical models, marked 10 legacy rate-derived IDs retired, and confirmed Gemini 2.5 Pro and Gemini 3.1 Pro Preview fully priced.
+
 ## 2026-08-31 - Dynamic AI plan pricing and provider model governance
 
 ## 2026-08-31 - Sage Shopify SKU suffix rollback

@@ -168,6 +168,14 @@
 .markupSection .rateSectionHeader { margin: 0 -12px 12px; }
 .markupGrid { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; }
 .planPricingControl { display: grid; gap: 8px; align-content: start; padding: 10px; border: 1px solid var(--ai-border); background: var(--ai-surface-subtle); border-radius: 6px; }
+.catalogSummary { display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-bottom: 1px solid var(--ai-border); color: var(--ai-muted); font-size: 11px; }
+.catalogSummary strong { color: var(--ai-text); }
+.subsectionHeading { display: flex; gap: 8px; align-items: baseline; padding: 12px; border-top: 1px solid var(--ai-border); border-bottom: 1px solid var(--ai-border); font-size: 12px; }
+.subsectionHeading span { color: var(--ai-muted); font-size: 11px; }
+.mappingEditor { display: grid; grid-template-columns: minmax(180px, 1.5fr) minmax(240px, 2fr) 120px auto; gap: 10px; align-items: end; padding: 12px; border-top: 1px solid var(--ai-border); }
+.mappingRow { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) 120px auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--ai-border); }
+.mappingRow:last-child { border-bottom: 0; }
+.mappingRow code, .mappingRow span { color: var(--ai-muted); }
 .percentageInput { position: relative; }
 .percentageInput .input { padding-right: 28px; }
 .percentageInput > span { position: absolute; right: 10px; top: 10px; color: var(--ai-muted); font-size: 11px; pointer-events: none; }
@@ -234,6 +242,7 @@
   .summaryGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .rateGrid { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
   .markupGrid { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+  .mappingEditor { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 700px) {
@@ -246,6 +255,8 @@
   .summaryGrid { grid-template-columns: 1fr 1fr; }
   .rateGrid, .formGrid { grid-template-columns: 1fr; }
   .markupGrid { grid-template-columns: 1fr 1fr; }
+  .catalogSummary { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .mappingEditor, .mappingRow { grid-template-columns: 1fr; }
   .fieldWide { grid-column: auto; }
   .rateFooter { align-items: stretch; flex-direction: column; }
   .rateFooter .primaryButton { width: 100%; }

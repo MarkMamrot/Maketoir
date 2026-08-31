@@ -14,6 +14,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Set location and user limits and the monthly cost per location.
 - Open AI Usage & Credits for funding, enforcement, usage, and rate controls.
 - Compare supported Google Billing prices with current provider rates before approving changes.
+- Discover canonical Google models and resolve blocked billing mappings.
 - Review saved active provider rates whenever the AI Usage & Credits page opens.
 - Choose explicit sell rates or a persistent flat markup independently for each AI plan.
 - Select which active provider-priced models tenants can choose and use throughout Solvantis.
@@ -28,6 +29,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
 | Google provider rates | **AI Usage & Credits > Rate cards** | Previews supported Google Billing prices and activates only selected changes |
+| Model discovery and reconciliation | **AI Usage & Credits > Rate cards** | Shows canonical Google models, lifecycle, pricing completeness, and blocked billing items |
 | Active provider rates | **AI Usage & Credits > Rate cards** | Shows current provider costs and controls which priced models tenants may select or use |
 | Plan pricing | **AI Usage & Credits > Rate cards** | Chooses explicit sell rates or a saved flat provider markup independently for each plan |
 | Active plan sell rates | **AI Usage & Credits > Rate cards** | Shows and edits current customer rates only for plans using explicit sell rates |
@@ -81,11 +83,25 @@ When POS was configured for a different business, it returns to Device Setup aft
 
 > **Important:** Synchronization does not activate prices automatically. Google prices are retrieved again during approval, and approval stops when a selected price no longer matches the reviewed proposal.
 
+### Reconcile models and billing families
+
+1. Open **Admin > AI Usage & Credits**.
+2. Under **Model discovery & reconciliation**, select **Discover models**.
+3. Review each canonical model's lifecycle, supported methods, modalities, context limit, and pricing status.
+4. Review blocked items in **Reconciliation queue**. The status identifies an unknown model, unknown metric, conflicting rates, incomplete pricing, unsupported tier, or currency issue.
+5. For an unknown billing family, choose the correct canonical model, enter identifying family text, choose **Contains** or **Regular expression**, and select **Save mapping**.
+6. Review the refreshed queue and Google Billing preview before activating any rates.
+7. Enable a model under **Active provider rates** only after its pricing is complete.
+
+Discovery records Google model identities and capabilities but does not activate rates or enable tenant access. Models that disappear from Google remain visible as **Retired** for history and cannot be newly selected. Mapping changes are versioned and retain the administrator who made the change.
+
+Pricing completeness follows the model's capability. Text models require the applicable input, cached-input, output, thinking, and long-context rates. Image models require their used input and image-output charging metrics. Video models require the duration price used by Solvantis. A model remains blocked when any required metric is missing.
+
 Solvantis represents Gemini Pro prices at their published context boundary. Metrics ending in **Over 200k** apply when the prompt, including cached input, exceeds 200,000 tokens. Standard token metrics apply at or below that boundary.
 
 Nano Banana models use **Output image tokens** because Google prices generated images by token consumption and resolution. The provider and sell-rate tables therefore show image-output token rates separately from flat **Output image** rates used by providers that charge per generated image.
 
-Each model under **Active provider rates** has one **Allowed** checkbox. Only checked models appear in tenant AI model selectors. Unchecking a model also blocks new direct AI requests that submit its model ID. A model must have an active provider rate before it can be allowed.
+Each model under **Active provider rates** has one **Allowed** checkbox. Only checked, currently discovered, fully priced models appear in tenant AI model selectors. Unchecking a model also blocks new direct AI requests that submit its model ID.
 
 ### Configure plan pricing
 
@@ -129,11 +145,14 @@ The calculation is **customer sell rate = active provider cost × (1 + markup pe
 | A deleted business is missing | Deleted rows are hidden by default | Enable **Show deleted** for historical review |
 | Google rate preview cannot connect | The billing account, billing connection, access permission, or Cloud Billing API is unavailable | Ask a platform administrator to restore the Google Billing connection, then retry |
 | A Google SKU appears under manual review | Its pricing has tiers, thresholds, storage, tools, modalities, or conflicts with another SKU mapped to the same model and metric | Verify the Google price and add an approved manual rate only when its model, metric, unit, and effective time are clear. Equivalent SKUs with the same price are consolidated automatically |
+| A billing SKU is marked Unknown model | No active billing-family mapping links its label to a current canonical model | Verify the runtime model, then create an audited mapping in **Model discovery & reconciliation** |
+| A discovered model is marked Incomplete pricing | One or more rates required for its capability are missing | Review its missing metrics and activate verified provider rates before enabling it |
+| A model is marked Retired | It was retained from an earlier discovery but is no longer returned by Google | Keep it disabled and move saved selections to a current fully priced model |
 | Approval asks for another review | Google returned a different set of supported prices during approval | Run **Sync Google rates** again and review the current proposal |
 | Saved provider rates disappear after leaving the page | The page did not finish loading or the rate request failed | Refresh AI Usage & Credits; active provider rates should appear without running Google sync |
 | Save plan pricing is unavailable | No active provider rates exist | Sync or add provider rates, then retry |
 | A sell rate is not visible | The plan uses flat markup, a different plan filter is selected, or the rate is not currently effective | Choose **Active sell rates** for that plan, check the filter, and refresh |
-| A model is missing from tenant selectors | It is unchecked, lacks an active provider rate, or the tenant plan lacks a usable price | Check **Allowed**, confirm current provider pricing, and configure that plan's pricing mode |
+| A model is missing from tenant selectors | It is unchecked, retired, incompletely priced, or the tenant plan lacks a usable price | Review discovery lifecycle and missing metrics, check **Allowed**, and configure that plan's pricing mode |
 | A previously selected model stops working | A SuperAdmin disabled it or its effective provider pricing ended | Select another allowed model or restore current provider pricing and permission |
 
 ## Worked examples

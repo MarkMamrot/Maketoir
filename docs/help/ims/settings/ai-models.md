@@ -1,5 +1,5 @@
 ---
-{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-settings-account-ai-credits","ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-08-30","owner":"ims"}
+{"id":"ims-settings-ai-models","title":"AI Model Settings","audiences":["ims"],"capability":"navigation","screen":"IMS Settings > AI Models","product":"ims","format":"task","parentId":"ims-settings-business-operations-pos","contexts":["ims-settings-ai-models","ai-models"],"contextSections":{"ims-settings-ai-models":"Step-by-step","ai-models":"Choose models by function"},"relatedTopics":["ims-settings-account-ai-credits","ims-purchase-orders","foresight-business-intelligence","foresight-content-production-customer-service"],"order":3,"summary":"Choose the Gemini text model used for document extraction, catalogue matching, business intelligence, and customer service work.","lastReviewed":"2026-08-31","owner":"ims"}
 ---
 # AI Model Settings
 
@@ -56,11 +56,13 @@ Website content and Product Creative retain their own model controls. Changing t
 
 Different models can have different input, output, image, and video prices. A model change can therefore alter how quickly prepaid credit or an account limit is consumed, even when staff run the same number of tasks.
 
+The available list contains only models that Google currently exposes, a SuperAdmin has allowed, and Solvantis can price completely for the business's plan. Newly discovered, retired, partially priced, or unresolved models do not appear until their commercial setup is complete.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Safe action |
 | --- | --- | --- |
-| A saved model is no longer listed | Google has renamed, retired, or restricted the model | Choose a current model from the list and save again |
+| A saved model is no longer listed | Google retired it, a required price is missing, or a SuperAdmin disabled it | Choose another available model and save again; ask a SuperAdmin to review model reconciliation when the model should still be current |
 | Invoice lines or totals are wrong | The document is difficult or the extraction model misread its layout | Correct the draft, try Document extraction with a more capable model, and verify totals before saving |
 | Product matches are uncertain | Codes are absent or catalogue descriptions differ | Review low-confidence lines manually; do not create or select a product based only on the suggestion |
 | Responses are slow | The selected model prioritises capability over speed | Use Flash for lower-risk work where its output is consistently adequate |

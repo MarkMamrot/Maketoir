@@ -92,3 +92,9 @@ Production requires `SALES_ASSISTANT_HMAC_SECRET` (at least 32 characters), `GEM
 - Unpaid editable Draft/Authorised Xero documents are resized. Paid/part-paid value starts with an Authorised no-restock credit note, then refund, unapplied credit, or a child-order reservation is recorded durably.
 - Reserved credit is allocated only after the held child invoice/bill is Authorised. Held orders owning reserved/allocated credit cannot be merged or cancelled casually.
 - Supplier financial correction requires a supplier credit reference or evidence note; Solvantis never invents supplier credit.
+
+### AI Model Commercial Control Plane
+- Canonical Google runtime models are discovered from the Google Models API and retained with generation methods, inferred or supplied modalities, context limits, lifecycle, first/last seen times, and retirement state.
+- Google Billing SKU labels are reconciled through versioned data mappings rather than converted into runtime IDs by regex. Unmatched or unsafe SKUs remain in a SuperAdmin queue with stable reason codes and cannot activate rates.
+- Model availability requires a current canonical model, global approval, plan priceability, and all provider metrics required for the model capability. The same policy controls dropdowns and direct runtime calls.
+- Hourly AI billing maintenance refreshes discovery, marks disappeared models retired without deleting history, records SKU observations, advances account cycles, and reports operational failures through Runtime Issues.

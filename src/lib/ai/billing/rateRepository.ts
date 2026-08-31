@@ -3,6 +3,8 @@ import { audToMicros, microsToAud } from './money';
 import { AI_PLAN_KEYS, AI_RATE_METRICS } from './types';
 import type { GoogleRateCandidate } from './googlePricing';
 import { ensureAiCommercialSchema } from './commercialSchema';
+import { pricingCompleteness } from './modelCatalog';
+import type { AiRateMetric } from './types';
 
 export function parseMarkupBasisPoints(value: unknown): bigint {
   const normalized = String(value ?? '').trim();
@@ -72,7 +74,7 @@ export const AiRateRepository = {
         if (rows[0] && BigInt(rows[0].price_per_unit_micros) === price && Number(rows[0].unit_scale) === candidate.unitScale) { skipped++; continue; }
         await connection.execute(`UPDATE ai_provider_rates SET effective_to=? WHERE provider='google' AND model_id=? AND metric=? AND effective_from < ? AND effective_to IS NULL`, [effectiveFrom, candidate.modelId, candidate.metric, effectiveFrom]);
         await connection.execute(`INSERT INTO ai_provider_rates (provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,source_sku_id,source_price_name,effective_from,created_by) VALUES ('google',?,?,?,?,?,?,?,?,?,?,?)`, [candidate.modelId, candidate.metric, price.toString(), candidate.unitScale, candidate.sourceCurrency, candidate.sourcePriceDecimal, candidate.audFxRate, candidate.skuId, candidate.priceName, effectiveFrom, actorUserId]);
-        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,1)`, [candidate.modelId]);
+        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,0)`, [candidate.modelId]);
         imported++;
       }
       await connection.commit();
@@ -103,8 +105,15 @@ export const AiRateRepository = {
 
   async setModelAllowed(modelId: string, allowed: boolean) {
     await ensureAiCommercialSchema();
-    const active = await query<any>(`SELECT 1 FROM ai_provider_rates WHERE provider='google' AND model_id=? AND effective_from<=NOW(3) AND (effective_to IS NULL OR effective_to>NOW(3)) LIMIT 1`, [modelId]);
-    if (!active.length) throw new Error('Only models with active provider rates can be allowed.');
+    const [modelRows, rates] = await Promise.all([
+      query<any>(`SELECT * FROM ai_discovered_models WHERE provider='google' AND model_id=? AND lifecycle_status<>'retired' LIMIT 1`, [modelId]),
+      query<any>(`SELECT metric FROM ai_provider_rates WHERE provider='google' AND model_id=? AND effective_from<=NOW(3) AND (effective_to IS NULL OR effective_to>NOW(3))`, [modelId]),
+    ]);
+    if (!modelRows.length) throw new Error('Only currently discovered Google models can be allowed.');
+    const row = modelRows[0];
+    const model = { provider: 'google' as const, modelId: row.model_id, displayName: row.display_name, version: row.model_version, supportedGenerationMethods: JSON.parse(row.supported_generation_methods || '[]'), inputModalities: JSON.parse(row.input_modalities || '[]'), outputModalities: JSON.parse(row.output_modalities || '[]'), inputTokenLimit: row.input_token_limit == null ? null : Number(row.input_token_limit), outputTokenLimit: row.output_token_limit == null ? null : Number(row.output_token_limit), lifecycleStatus: row.lifecycle_status };
+    const completeness = pricingCompleteness(model, rates.map(rate => rate.metric as AiRateMetric));
+    if (allowed && !completeness.complete) throw new Error(`Model pricing is incomplete: missing ${completeness.missingMetrics.join(', ')}.`);
     await getPool().execute(`INSERT INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,?) ON DUPLICATE KEY UPDATE is_allowed=VALUES(is_allowed)`, [modelId, allowed ? 1 : 0]);
     return true;
   },
@@ -126,7 +135,7 @@ export const AiRateRepository = {
       await connection.execute(`UPDATE ${table} SET effective_to=? WHERE ${scopeSql} AND model_id=? AND metric=? AND effective_from < ? AND (effective_to IS NULL OR effective_to > ?)`, [...scopeParams, effectiveFrom, input.modelId, input.metric, effectiveFrom, effectiveFrom]);
       if (table === 'ai_provider_rates') {
         await connection.execute(`INSERT INTO ai_provider_rates (provider,model_id,metric,price_per_unit_micros,unit_scale,source_currency,source_price_decimal,aud_fx_rate,effective_from,created_by) VALUES ('google',?,?,?,?,?,?,?,?,?)`, [input.modelId, input.metric, price.toString(), Number(input.unitScale || 1_000_000), input.sourceCurrency || 'USD', input.sourcePriceDecimal, input.audFxRate, effectiveFrom, actorUserId]);
-        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,1)`, [input.modelId]);
+        await connection.execute(`INSERT IGNORE INTO ai_provider_models (provider,model_id,is_allowed) VALUES ('google',?,0)`, [input.modelId]);
       } else {
         await connection.execute(`INSERT INTO ai_plan_rates (plan_key,model_id,metric,price_per_unit_micros,unit_scale,effective_from,created_by) VALUES (?,?,?,?,?,?,?)`, [input.planKey, input.modelId, input.metric, price.toString(), Number(input.unitScale || 1_000_000), effectiveFrom, actorUserId]);
       }

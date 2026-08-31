@@ -1,0 +1,18 @@
+name: AI Billing Maintenance
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile billing and discover Google models
+        run: |
+          RESPONSE=$(curl -s -L -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/ai-billing-maintenance")
+          echo "HTTP status: $RESPONSE"
+          [ "$RESPONSE" = "200" ] || exit 1

@@ -1,5 +1,7 @@
 import { google } from 'googleapis';
 import type { AiRateMetric } from './types';
+import { DEFAULT_BILLING_FAMILY_MAPPINGS, resolveBillingFamily } from './modelCatalog';
+import type { BillingFamilyMapping } from './modelCatalog';
 
 type GoogleMoney = { currencyCode?: string; units?: string; nanos?: number };
 type GoogleTier = { startAmount?: { value?: string }; listPrice?: GoogleMoney; contractPrice?: GoogleMoney };
@@ -27,8 +29,12 @@ export type GoogleRateCandidate = {
 export type GoogleRatePreview = {
   fetchedAt: string;
   candidates: GoogleRateCandidate[];
-  warnings: Array<{ skuId: string; skuName: string; reason: string }>;
+  warnings: Array<{ skuId: string; skuName: string; reason: string; reasonCode?: GoogleSkuReconciliationStatus }>;
+  observations: GoogleSkuObservation[];
 };
+
+export type GoogleSkuReconciliationStatus = 'mapped' | 'unknown_model' | 'unknown_metric' | 'conflicting_rates' | 'incomplete_pricing' | 'unsupported_tier' | 'currency_issue';
+export type GoogleSkuObservation = { skuId: string; skuName: string; priceName: string; mappedModelId: string | null; status: GoogleSkuReconciliationStatus; reason: string };
 
 function parseCredentials() {
   if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
@@ -82,14 +88,6 @@ function moneyDecimal(money: GoogleMoney): string {
   return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
-function modelIdFromSku(name: string): string | null {
-  const match = name.match(/gemini\s+(\d+(?:\.\d+)?)\s+(flash[ -]?lite|flash|pro)(?:\s+(image))?(?:\s+(preview))?\b/i);
-  if (!match) return null;
-  const family = match[2].toLowerCase().replace(' ', '-');
-  if (match[1] === '3' && family === 'pro' && !match[3]) return 'gemini-3.1-pro-preview';
-  return `gemini-${match[1]}-${family}${match[3] ? '-image' : ''}${match[4] ? '-preview' : ''}`;
-}
-
 function metricsFromSku(name: string): AiRateMetric[] {
   const value = name.toLowerCase();
   const imageModel = /gemini\s+\d+(?:\.\d+)?\s+(?:flash[ -]?lite|flash|pro)\s+image\b/.test(value);
@@ -105,16 +103,23 @@ function longContextMetric(metric: AiRateMetric): AiRateMetric {
   return `${metric}_over_200k` as AiRateMetric;
 }
 
-export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetchedAt = new Date().toISOString()): GoogleRatePreview {
+export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetchedAt = new Date().toISOString(), mappings: BillingFamilyMapping[] = DEFAULT_BILLING_FAMILY_MAPPINGS): GoogleRatePreview {
   const priceBySku = new Map(prices.map(price => [price.name?.match(/\/skus\/([^/]+)\//)?.[1], price]));
   const mappedCandidates: GoogleRateCandidate[] = [];
   const warnings: GoogleRatePreview['warnings'] = [];
+  const relevantSkus: Array<{ skuId: string; skuName: string; priceName: string; mappedModelId: string | null }> = [];
   for (const sku of skus) {
     const skuName = String(sku.displayName || sku.description || 'Unnamed Gemini SKU');
     const skuId = String(sku.skuId || sku.name?.split('/').pop() || 'unknown');
-    const modelId = modelIdFromSku(skuName);
-    if (!modelId) continue;
     const price = priceBySku.get(skuId);
+    if (!/gemini|imagen|veo/i.test(skuName)) continue;
+    const mapping = resolveBillingFamily(skuName, mappings);
+    const modelId = mapping?.modelId || null;
+    relevantSkus.push({ skuId, skuName, priceName: String(price?.name || ''), mappedModelId: modelId });
+    if (!modelId) {
+      warnings.push({ skuId, skuName, reason: 'No active billing-family mapping targets a discovered runtime model.', reasonCode: 'unknown_model' });
+      continue;
+    }
     const imageModel = /gemini\s+\d+(?:\.\d+)?\s+(?:flash[ -]?lite|flash|pro)\s+image\b/i.test(skuName);
     const excluded = /batch|flex|priority|storage|grounding|search|maps|audio|video|live|embedding|tuning|experimental|\btts\b/i.test(skuName)
       || (/\bimage\b/i.test(skuName) && !imageModel);
@@ -125,13 +130,14 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
     const validTiers = tiers.length === 1 || (tiers.length === 2 && tierStarts[0] === 0 && tierStarts[1] === 200_000);
     const currency = (tiers[0]?.contractPrice || tiers[0]?.listPrice)?.currencyCode || price?.currencyCode;
     if (excluded || currency !== 'AUD' || price?.valueType !== 'rate' || !validTiers || tierStarts[0] !== 0 || !metrics.length || !Number.isSafeInteger(unitScale) || unitScale < 1) {
-      warnings.push({ skuId, skuName, reason: excluded ? 'Unsupported service tier, storage, tool, or modality pricing.' : currency !== 'AUD' ? 'Google did not return this price in AUD.' : 'Pricing shape cannot be represented safely.' });
+      const reasonCode: GoogleSkuReconciliationStatus = excluded ? 'unsupported_tier' : currency !== 'AUD' ? 'currency_issue' : !metrics.length ? 'unknown_metric' : 'unsupported_tier';
+      warnings.push({ skuId, skuName, reason: excluded ? 'Unsupported service tier, storage, tool, or modality pricing.' : currency !== 'AUD' ? 'Google did not return this price in AUD.' : !metrics.length ? 'No supported billing metric could be identified.' : 'Pricing shape cannot be represented safely.', reasonCode });
       continue;
     }
     for (const [tierIndex, tier] of tiers.entries()) {
       const amount = tier?.contractPrice || tier?.listPrice;
       if (!amount || (amount.currencyCode || price?.currencyCode) !== 'AUD') {
-        warnings.push({ skuId, skuName, reason: 'Pricing shape cannot be represented safely.' });
+        warnings.push({ skuId, skuName, reason: 'Pricing shape cannot be represented safely.', reasonCode: 'unsupported_tier' });
         continue;
       }
       const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k|\blong\b/i.test(skuName);
@@ -154,15 +160,20 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
     if (distinctRates.size === 1) {
       const [candidate, ...duplicates] = group.sort((left, right) => left.skuId.localeCompare(right.skuId));
       candidates.push(candidate);
-      warnings.push(...duplicates.map(duplicate => ({ skuId: duplicate.skuId, skuName: duplicate.skuName, reason: `Equivalent to Google SKU ${candidate.skuId}; one provider rate will be used.` })));
+      warnings.push(...duplicates.map(duplicate => ({ skuId: duplicate.skuId, skuName: duplicate.skuName, reason: `Equivalent to Google SKU ${candidate.skuId}; one provider rate will be used.`, reasonCode: 'mapped' as const })));
       continue;
     }
-    warnings.push(...group.map(candidate => ({ skuId: candidate.skuId, skuName: candidate.skuName, reason: `Conflicts with another Google SKU mapped to ${candidate.modelId} ${candidate.metric}; review manually.` })));
+    warnings.push(...group.map(candidate => ({ skuId: candidate.skuId, skuName: candidate.skuName, reason: `Conflicts with another Google SKU mapped to ${candidate.modelId} ${candidate.metric}; review manually.`, reasonCode: 'conflicting_rates' as const })));
   }
-  return { fetchedAt, candidates, warnings };
+  const warningBySku = new Map(warnings.map(warning => [warning.skuId, warning]));
+  const observations = relevantSkus.map(sku => {
+    const warning = warningBySku.get(sku.skuId);
+    return { ...sku, status: warning?.reasonCode || 'mapped', reason: warning?.reason || 'Mapped to a supported provider-rate candidate.' };
+  });
+  return { fetchedAt, candidates, warnings, observations };
 }
 
-export async function fetchGoogleRatePreview(): Promise<GoogleRatePreview> {
+export async function fetchGoogleRatePreview(mappings: BillingFamilyMapping[] = DEFAULT_BILLING_FAMILY_MAPPINGS): Promise<GoogleRatePreview> {
   const billingAccountId = (process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID || process.env.GOOGLE_BILLING_ACCOUNT_ID || '').trim().replace(/^billingAccounts\//, '');
   if (!billingAccountId) throw new Error('GOOGLE_CLOUD_BILLING_ACCOUNT_ID is not configured.');
   const headers = await getHeaders();
@@ -175,5 +186,5 @@ export async function fetchGoogleRatePreview(): Promise<GoogleRatePreview> {
     listPages(`${root}/skus?pageSize=5000&filter=${filter}`, 'billingAccountSkus', headers),
     listPages(`${root}/skus/-/prices?pageSize=5000&currencyCode=AUD`, 'billingAccountPrices', headers),
   ]);
-  return buildGoogleRatePreview(skus, prices);
+  return buildGoogleRatePreview(skus, prices, new Date().toISOString(), mappings);
 }

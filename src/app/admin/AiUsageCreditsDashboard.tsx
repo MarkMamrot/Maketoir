@@ -41,14 +41,18 @@ export default function AiUsageCreditsDashboard() {
   const [markupLoading, setMarkupLoading] = useState(false);
   const [planRateFilter, setPlanRateFilter] = useState('all');
   const [editingRateLabel, setEditingRateLabel] = useState('');
+  const [catalog, setCatalog] = useState<any>({ models: [], mappings: [], queue: [] });
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [mappingForm, setMappingForm] = useState({ modelId: '', familyPattern: '', matchType: 'contains' });
 
   const load = async () => {
     setLoading(true);
     try {
-      const [accountsResponse, ratesResponse] = await Promise.all([fetch('/api/admin/ai-billing'), fetch('/api/admin/ai-billing/rates')]);
-      const [accounts, rateCards] = await Promise.all([accountsResponse.json(), ratesResponse.json()]);
-      if (!accountsResponse.ok || !ratesResponse.ok) throw new Error(accounts.error || rateCards.error || 'Could not load AI billing data.');
+      const [accountsResponse, ratesResponse, catalogResponse] = await Promise.all([fetch('/api/admin/ai-billing'), fetch('/api/admin/ai-billing/rates'), fetch('/api/admin/ai-billing/catalog')]);
+      const [accounts, rateCards, modelCatalog] = await Promise.all([accountsResponse.json(), ratesResponse.json(), catalogResponse.json()]);
+      if (!accountsResponse.ok || !ratesResponse.ok || !catalogResponse.ok) throw new Error(accounts.error || rateCards.error || modelCatalog.error || 'Could not load AI billing data.');
       setRows(accounts.accounts || []); setRates(rateCards);
+      setCatalog(modelCatalog);
       setPricingModes({ ...initialPricingModes(), ...Object.fromEntries((rateCards.planSettings || []).map((setting: any) => [setting.planKey, setting.pricingMode])) });
       setMarkups({ ...initialMarkups(), ...Object.fromEntries((rateCards.planSettings || []).map((setting: any) => [setting.planKey, setting.markupPercent])) });
     } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Could not load AI billing data.'); }
@@ -131,6 +135,38 @@ export default function AiUsageCreditsDashboard() {
     await load(); setMessage(`${modelId} ${allowed ? 'enabled' : 'disabled'} for tenant model selection and AI use.`);
   };
 
+  const discoverModels = async () => {
+    setCatalogLoading(true); setMessage(''); setIsError(false);
+    try {
+      const response = await fetch('/api/admin/ai-billing/catalog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'discover' }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Google model discovery failed.');
+      await load();
+      setMessage(`Discovered ${result.discovered} Google models and reconciled ${result.observed} billing SKUs.`);
+    } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Google model discovery failed.'); }
+    finally { setCatalogLoading(false); }
+  };
+
+  const saveMapping = async () => {
+    setCatalogLoading(true); setMessage(''); setIsError(false);
+    try {
+      const response = await fetch('/api/admin/ai-billing/catalog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'map', ...mappingForm }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Billing mapping could not be saved.');
+      setMappingForm({ modelId: '', familyPattern: '', matchType: 'contains' });
+      await discoverModels();
+      setMessage('Billing family mapping saved and reconciliation refreshed.');
+    } catch (error) { setIsError(true); setMessage(error instanceof Error ? error.message : 'Billing mapping could not be saved.'); setCatalogLoading(false); }
+  };
+
+  const deactivateMapping = async (mappingId: number) => {
+    if (!window.confirm('Deactivate this billing family mapping?')) return;
+    const response = await fetch('/api/admin/ai-billing/catalog', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mappingId }) });
+    const result = await response.json();
+    if (!response.ok) { setIsError(true); setMessage(result.error || 'Mapping could not be deactivated.'); return; }
+    await load(); setMessage('Billing family mapping deactivated.');
+  };
+
   const exportCsv = () => {
     const columns = ['businessName','businessId','planKey','fundingMode','enforcementMode','balanceAud','limitAud','usedAud','reservedAud','providerCostAud','tenantChargeAud','marginAud','calls','unknownCalls'];
     const csv = [columns.join(','), ...rows.map(row => columns.map(column => JSON.stringify(row[column as keyof AccountRow] ?? '')).join(','))].join('\n');
@@ -193,6 +229,15 @@ export default function AiUsageCreditsDashboard() {
     <section className={styles.panel}>
       <div className={styles.panelHeader}><div className={styles.sectionHeader}><div className={styles.sectionHeading}><h2 className={styles.sectionTitle}>Rate cards</h2><p className={styles.sectionDescription}>Review Google account prices or create a manual effective rate. Historical rates remain unchanged.</p></div><button className={styles.secondaryButton} onClick={() => void previewGoogleRates()} disabled={googleLoading}><RefreshCw size={14} />{googleLoading ? 'Checking Google' : 'Sync Google rates'}</button></div></div>
       <div className={styles.rateBody}>
+      <section className={styles.rateSection}>
+        <div className={styles.rateSectionHeader}><div><strong>Model discovery &amp; reconciliation</strong><span>Canonical model identities come from Google Models API. Discovery never activates rates or enables tenant access.</span></div><div className={styles.rateSectionControls}><span className={styles.pill}>{catalog.queue?.length || 0} blocked</span><button className={styles.secondaryButton} onClick={() => void discoverModels()} disabled={catalogLoading}><RefreshCw size={14} />{catalogLoading ? 'Discovering' : 'Discover models'}</button></div></div>
+        <div className={styles.catalogSummary}><strong>{catalog.models?.length || 0} discovered models</strong><span>{catalog.models?.filter((model: any) => model.complete).length || 0} fully priced</span><span>{catalog.models?.filter((model: any) => model.lifecycleStatus === 'retired').length || 0} retained as retired</span></div>
+        <div className={styles.savedRatesWrap}><table className={styles.syncTable}><thead><tr><th>Canonical model</th><th>Version</th><th>Lifecycle</th><th>Capability</th><th>Methods</th><th>Modalities</th><th>Context</th><th>Pricing</th></tr></thead><tbody>{(catalog.models || []).map((model: any) => <tr key={model.modelId}><td><strong>{model.displayName}</strong><div className={styles.muted}>{model.modelId}</div></td><td>{model.version || '—'}</td><td><span className={`${styles.pill} ${model.lifecycleStatus === 'retired' ? styles.suspended : ''}`}>{model.lifecycleStatus}</span></td><td>{model.capability ? title(model.capability) : 'Unsupported'}</td><td>{model.supportedGenerationMethods.join(', ') || '—'}</td><td>{[...new Set([...model.inputModalities, ...model.outputModalities])].join(', ') || '—'}</td><td>{model.inputTokenLimit ? Number(model.inputTokenLimit).toLocaleString() : '—'}</td><td>{model.complete ? <span className={`${styles.pill} ${styles.unchanged}`}>Complete</span> : model.capability ? <span className={`${styles.pill} ${styles.changed}`} title={model.missingMetrics.join(', ')}>Missing {model.missingMetrics.length}</span> : <span className={styles.pill}>Not used</span>}</td></tr>)}</tbody></table></div>
+        {(catalog.queue || []).length > 0 && <><div className={styles.subsectionHeading}><strong>Reconciliation queue</strong><span>Blocked items remain unavailable until mapping and required pricing are complete.</span></div><div className={styles.savedRatesWrap}><table className={styles.syncTable}><thead><tr><th>Status</th><th>Google SKU / model</th><th>Mapped model</th><th>Reason</th></tr></thead><tbody>{catalog.queue.map((item: any, index: number) => <tr key={`${item.sku_id || item.mapped_model_id}-${index}`}><td><span className={`${styles.pill} ${styles.changed}`}>{title(item.reconciliation_status)}</span></td><td><strong>{item.sku_name || item.mapped_model_id}</strong>{item.sku_id && <div className={styles.muted}>{item.sku_id}</div>}</td><td>{item.mapped_model_id || 'Unmapped'}</td><td>{item.reason}</td></tr>)}</tbody></table></div></>}
+        <div className={styles.mappingEditor}><Field label="Canonical model"><select className={styles.select} value={mappingForm.modelId} onChange={event => setMappingForm({ ...mappingForm, modelId: event.target.value })}><option value="">Select model</option>{(catalog.models || []).filter((model: any) => model.lifecycleStatus !== 'retired').map((model: any) => <option key={model.modelId} value={model.modelId}>{model.displayName} · {model.modelId}</option>)}</select></Field><Field label="Billing family text" wide><input className={styles.input} value={mappingForm.familyPattern} onChange={event => setMappingForm({ ...mappingForm, familyPattern: event.target.value })} placeholder="Gemini 3.0 / 3.1 Pro" /></Field><Field label="Match"><select className={styles.select} value={mappingForm.matchType} onChange={event => setMappingForm({ ...mappingForm, matchType: event.target.value })}><option value="contains">Contains</option><option value="regex">Regular expression</option></select></Field><button className={styles.primaryButton} disabled={catalogLoading || !mappingForm.modelId || !mappingForm.familyPattern.trim()} onClick={() => void saveMapping()}>Save mapping</button></div>
+        <details className={styles.syncWarnings}><summary>{(catalog.mappings || []).filter((mapping: any) => mapping.isActive).length} active billing family mappings</summary>{(catalog.mappings || []).filter((mapping: any) => mapping.isActive).map((mapping: any) => <div className={styles.mappingRow} key={mapping.id}><strong>{mapping.modelId}</strong><code>{mapping.familyPattern}</code><span>v{mapping.mappingVersion} · {mapping.matchType}</span><button className={styles.tableAction} onClick={() => void deactivateMapping(mapping.id)}><X size={12} />Deactivate</button></div>)}</details>
+      </section>
+
       <section className={styles.rateSection}>
         <div className={styles.rateSectionHeader}><div><strong>Active provider rates</strong><span>Allowed models are the only models tenants can select or use throughout Solvantis.</span></div><span className={styles.pill}>{activeProviderRates.length} active rates</span></div>
         {activeProviderRates.length > 0 ? <div className={styles.savedRatesWrap}><table className={styles.syncTable}><thead><tr><th>Allowed</th><th>Model</th><th>Metric</th><th className={styles.numeric}>Provider cost</th><th>Source</th><th>Effective from</th></tr></thead><tbody>{activeProviderRates.map((rate: any, index: number) => {

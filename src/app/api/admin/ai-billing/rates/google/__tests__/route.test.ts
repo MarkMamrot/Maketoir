@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), preview: vi.fn(), compare: vi.fn(), importRates: vi.fn(), report: vi.fn() }));
 vi.mock('@/lib/sessionUtils', () => ({ requireSuperAdminTier: mocks.auth }));
-vi.mock('@/lib/ai/billing/googlePricing', () => ({ fetchGoogleRatePreview: mocks.preview }));
+vi.mock('@/lib/ai/billing/modelCatalogSync', () => ({ refreshGoogleModelCatalog: async () => ({ preview: await mocks.preview() }) }));
 vi.mock('@/lib/ai/billing/rateRepository', () => ({ AiRateRepository: { compareGoogle: mocks.compare, importGoogle: mocks.importRates } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 
