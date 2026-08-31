@@ -8,7 +8,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 ## Main operations
 
 - Open POS Settings with a permitted staff role.
-- Choose whether this device groups the catalogue by product or shows every variant, whether it defaults to in-stock products, and where its cart appears.
+- Choose the current location's default product view, whether this device groups the catalogue by product or shows every variant, and where its cart appears.
 - Choose whether the current location can sell against recorded incoming branch-transfer stock.
 - Turn Training Mode on or off for the current POS device.
 - Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.
@@ -49,13 +49,14 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 
 1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.
 2. Open **Misc**.
-3. Under **Product display**, choose **Products** to group variants and ask for the exact variant when a product is selected, or **Variants** to show every variant separately. Scanning a barcode still adds that exact variant in either mode.
-4. Turn **Default to In Stock** on to hide unavailable products in the normal catalogue, or off to show all products by default.
-5. Choose **Left side** or **Right side** under **Cart position**.
-6. Leave **Allow sales from incoming transfers** on when POS may sell goods from a matching Sent or Partially Received transfer before destination receipt. Turn it off when every sale must remain at zero until receipt.
-7. Save POS Settings. The incoming-transfer setting applies to the current location; the catalogue and cart choices remain device preferences.
+3. Under **Default product view**, choose **Use IMS business default** to inherit the all-branch setting, or choose **All Products**, **In Stock Only**, **By Brand**, or **Specific Products** for this location.
+4. When using a location override, select the brand or search for and add the product variants that should appear.
+5. Under **Product display**, choose **Products** to group variants and ask for the exact variant when a product is selected, or **Variants** to show every variant separately. Scanning a barcode still adds that exact variant in either mode.
+6. Choose **Left side** or **Right side** under **Cart position**.
+7. Leave **Allow sales from incoming transfers** on when POS may sell goods from a matching Sent or Partially Received transfer before destination receipt. Turn it off when every sale must remain at zero until receipt.
+8. Save POS Settings. The default product view and incoming-transfer setting apply to every POS device at the current location. Product grouping and cart position remain device preferences.
 
-The **In Stock** button beside search remains available during selling. Selecting it changes the current filter and the remembered default for this device.
+The **In Stock** button beside search remains available during selling as a temporary filter. It does not replace the saved location override or IMS business default.
 
 ### Practise with Training Mode
 

@@ -11,6 +11,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.
 - Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.
 - Add, rename, activate, or set the default float for POS registers without changing location details.
+- Set the business-wide POS product-view fallback used by locations without their own override.
 
 ## At a glance
 
@@ -19,6 +20,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 | Complete the guided checklist | IMS onboarding | Core records and settings prepared in dependency order |
 | Choose operational capabilities | Settings > General | Relevant IMS workflows enabled |
 | Manage tills by location | Settings > Point of Sale > Registers | Active registers available for POS device setup |
+| Set the POS catalogue fallback | Settings > Point of Sale > POS Display | Default view for locations that do not override it in POS Settings |
 
 ## Before you begin
 
@@ -80,6 +82,15 @@ Disabling a channel hides its integration workspace and stops new connection or 
 Location names, codes, addresses, and operational flags cannot be edited from this section. Use **Locations** for those changes.
 
 > **Important:** Deactivating a register prevents it from being selected for future POS device setup. It does not remove historical sales or register sessions.
+
+## Set the business default product view
+
+1. Open **Settings > Point of Sale**.
+2. Expand **POS Display**.
+3. Choose **All Products**, **In Stock Only**, **By Brand**, or **Specific Products**.
+4. Select the required brand or product variants, then save the default view.
+
+This is the business-wide fallback for all branches. A location can choose its own value in **POS Settings > Misc > Default product view**; that location override takes precedence. Selecting **Use IMS business default** in POS Settings removes the override and follows this IMS value again.
 
 ## Troubleshooting
 

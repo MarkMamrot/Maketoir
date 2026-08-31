@@ -55,7 +55,7 @@ describe('/api/pos/settings/location', () => {
     expect(body.settings.defaultProductView).toBe('brand:Acme');
     expect(mocks.imsExecute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_settings'),
-      ['business-1', 'pos_location_settings_7', expect.any(String)],
+      ['business-1', 'pos_loc_7_settings', expect.any(String)],
     );
     const savedJson = mocks.imsExecute.mock.calls[0][1][2];
     expect(JSON.parse(savedJson).defaultProductView).toBe('brand:Acme');
