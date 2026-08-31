@@ -23,19 +23,21 @@ beforeEach(() => {
   mockImsExecute.mockResolvedValue({ affectedRows: 0 });
 });
 
-function connectionFor(destinationQty: number) {
-  const execute = vi.fn(async (sql: string) => {
+function connectionFor(destinationQty: number, items = [
+  { id: 8, transfer_id: 42, variant_id: 'variant-1', qty_sent: 5, qty_received: 4, unit_cost: 12 },
+]) {
+  const locationQty = new Map<number, number>([[1, 10], [2, destinationQty]]);
+  const execute = vi.fn(async (sql: string, params: unknown[] = []) => {
     if (sql.includes('FROM ims_branch_transfers') && sql.includes('FOR UPDATE')) {
       return [[{ id: 42, status: 'received', from_location_id: 1, to_location_id: 2 }]];
     }
     if (sql.includes('FROM ims_branch_transfer_items') && sql.includes('FOR UPDATE')) {
-      return [[{ id: 8, transfer_id: 42, variant_id: 'variant-1', qty_sent: 5, qty_received: 4, unit_cost: 12 }]];
+      return [items];
     }
     if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: destinationQty }]];
     if (sql.includes('SELECT COALESCE(avg_cost')) return [[{ avg_cost: 12 }]];
     if (sql.includes('SELECT qty_on_hand FROM ims_stock WHERE variant_id=')) {
-      const locationId = Number((arguments as unknown as { 1: unknown[] })[1]?.[1]);
-      return [[{ qty_on_hand: locationId === 2 ? destinationQty : 10 }]];
+      return [[{ qty_on_hand: locationQty.get(Number(params[1])) ?? 0 }]];
     }
     return [{ affectedRows: 1 }];
   });
@@ -79,5 +81,17 @@ describe('ImsBTRepo.undoReceipt', () => {
       expect.stringContaining("SET status = 'sent'"),
       expect.anything(),
     );
+  });
+
+  it('checks the combined received quantity for duplicate variant lines', async () => {
+    const connection = connectionFor(5, [
+      { id: 8, transfer_id: 42, variant_id: 'variant-1', qty_sent: 3, qty_received: 3, unit_cost: 12 },
+      { id: 9, transfer_id: 42, variant_id: 'variant-1', qty_sent: 3, qty_received: 3, unit_cost: 12 },
+    ]);
+
+    await expect(ImsBTRepo.undoReceipt(42, 'biz-1')).rejects.toThrow(/6 received units/);
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
   });
 });

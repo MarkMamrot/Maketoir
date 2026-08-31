@@ -4650,19 +4650,23 @@ export const ImsBTRepo = {
         [transferId],
       );
 
+      const receivedByVariant = new Map<string, number>();
       for (const item of items) {
-        const receivedQty = Number(item.qty_received ?? 0);
+        const variantId = String(item.variant_id);
+        receivedByVariant.set(variantId, (receivedByVariant.get(variantId) ?? 0) + Number(item.qty_received ?? 0));
+      }
+      for (const [variantId, receivedQty] of [...receivedByVariant].sort(([a], [b]) => a.localeCompare(b))) {
         if (receivedQty <= 0) continue;
         const [[destinationStock]] = await conn.execute<any[]>(
           `SELECT qty_on_hand FROM ims_stock
             WHERE business_id = ? AND variant_id = ? AND location_id = ?
             FOR UPDATE`,
-          [businessId, item.variant_id, bt.to_location_id],
+          [businessId, variantId, bt.to_location_id],
         );
         const available = Number(destinationStock?.qty_on_hand ?? 0);
         if (available + 0.0001 < receivedQty) {
           throw new BranchTransferUndoConflict(
-            `Cannot undo receipt for variant ${item.variant_id}: destination stock is ${available}, but ${receivedQty} received units must be reversed.`,
+            `Cannot undo receipt for variant ${variantId}: destination stock is ${available}, but ${receivedQty} received units must be reversed.`,
           );
         }
       }
