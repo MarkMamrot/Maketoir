@@ -1169,6 +1169,35 @@
       "filename": "docs/help/pos/branch-transfers.md"
     },
     {
+      "id": "pos-customers",
+      "title": "Customers at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-selling-payments-manager-approval",
+        "pos-loyalty-rewards",
+        "pos-store-credit"
+      ],
+      "contexts": [
+        "customer-search"
+      ],
+      "contextSections": {
+        "customer-search": "Step-by-step"
+      },
+      "order": 12,
+      "summary": "Find, create, reactivate, link, or remove the correct customer from a POS sale.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/customers-at-pos.md"
+    },
+    {
       "id": "pos-end-of-day-xero",
       "title": "End of Day and Xero",
       "audiences": [
@@ -1203,6 +1232,64 @@
       "lastReviewed": "2026-08-23",
       "owner": "retail",
       "filename": "docs/help/pos/end-of-day-xero.md"
+    },
+    {
+      "id": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-selling-payments-manager-approval",
+        "pos-returns-exchanges-customer-credit",
+        "pos-store-credit"
+      ],
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "contextSections": {
+        "pos-gift-cards": "Step-by-step"
+      },
+      "order": 16,
+      "summary": "Sell a gift card, verify its code and balance, or redeem it as part or all of a POS payment.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/gift-cards.md"
+    },
+    {
+      "id": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-customers",
+        "pos-selling-payments-manager-approval",
+        "pos-store-credit"
+      ],
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "contextSections": {
+        "pos-loyalty": "Step-by-step"
+      },
+      "order": 14,
+      "summary": "Check a linked customer's loyalty balance and apply an eligible reward to an ordinary online sale.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/loyalty-rewards.md"
     },
     {
       "id": "pos-workspaces",
@@ -1343,6 +1430,36 @@
       "lastReviewed": "2026-08-30",
       "owner": "retail",
       "filename": "docs/help/pos/settings-terminals-and-offline-recovery.md"
+    },
+    {
+      "id": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "product": "pos",
+      "format": "task",
+      "parentId": "pos-workspaces",
+      "relatedTopics": [
+        "pos-customers",
+        "pos-selling-payments-manager-approval",
+        "pos-returns-exchanges-customer-credit",
+        "pos-gift-cards"
+      ],
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "contextSections": {
+        "pos-store-credit": "Step-by-step"
+      },
+      "order": 18,
+      "summary": "Confirm a linked customer's available store credit and apply it safely to a POS sale.",
+      "lastReviewed": "2026-08-31",
+      "owner": "retail",
+      "filename": "docs/help/pos/store-credit.md"
     },
     {
       "id": "pos-store-daybook",
@@ -7732,6 +7849,139 @@
       "content": "See **Selling, Payments, and Manager Approval** for manager prompts and **Locations, Transfers, and Stocktakes** for the full IMS transfer history."
     },
     {
+      "id": "pos-customers:1",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Customers at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Link the correct customer before using account-bound value or recording customer details against a sale."
+    },
+    {
+      "id": "pos-customers:2",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Search active customers by name, phone number, or email address.\n- Show and reactivate an inactive matching customer.\n- Create and link a customer who does not already exist.\n- Record loyalty enrolment only with the customer's agreement.\n- Remove an incorrectly linked customer before checkout."
+    },
+    {
+      "id": "pos-customers:3",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Need | POS action | Connection required? |\n|---|---|---|\n| Find an active customer | Enter at least two characters in **Customer** | Yes |\n| Include inactive matches | Choose **Show** when inactive matches are reported | Yes |\n| Create a customer | Choose **New**, then **Create & link** | Yes |\n| Use loyalty or store credit | Link the named customer first | Yes |\n| Remove the customer | Choose the remove button beside the linked name | No new lookup until another customer is needed |"
+    },
+    {
+      "id": "pos-customers:4",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm the customer has provided enough detail to identify the correct record.\n- [ ] Ask before enrolling a new customer in loyalty.\n- [ ] Check that POS is online before searching or creating.\n- [ ] Avoid creating a second record for a customer who may be inactive.\n\n> **Important:** Loyalty enrolment is separate from marketing consent. Select the loyalty option only after the customer agrees to join under the terms shown in POS."
+    },
+    {
+      "id": "pos-customers:5",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Open **Customer** above the cart.\n2. Enter at least two characters from the customer's name, phone number, or email address.\n3. Select the matching active customer to link them to the sale.\n4. If POS reports inactive matches, choose **Show** and select the correct customer marked **Inactive**. POS reactivates and links that existing record, preserving its details and customer value.\n5. If no record exists, choose **New**.\n6. Enter the first name and at least an email address or phone number. The last name is optional.\n7. Select loyalty enrolment only when the customer agrees, then choose **Create & link**.\n8. Confirm the linked name and any displayed store-credit or loyalty details before charging.\n9. If the wrong person was selected, remove them and search again before taking payment."
+    },
+    {
+      "id": "pos-customers:6",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| No matches appear | The search is too short, the details differ, or the customer is inactive | Enter at least two accurate characters and choose **Show** for inactive matches |\n| **New** is unavailable | POS is offline | Reconnect before creating the customer |\n| Creation reports an existing email or phone | An active or inactive record already owns that detail | Search for that detail and link or reactivate the existing record |\n| Loyalty details do not load | Customer services cannot be reached | Check the connection and retry; the sale can continue without a reward |\n| Store Credit is missing at payment | The customer is not linked or has no available balance | Reopen **Customer** and verify the correct linked account and balance |"
+    },
+    {
+      "id": "pos-customers:7",
+      "documentId": "pos-customers",
+      "title": "Customers at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer",
+      "topicId": "pos-customers",
+      "contexts": [
+        "customer-search"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Reactivate instead of duplicating\n\nJordan's phone number finds no active customer, but POS reports one inactive match. Staff choose **Show**, confirm Jordan's existing details, and select the inactive record. POS reactivates and links it, keeping Jordan's existing loyalty and store-credit history."
+    },
+    {
       "id": "pos-end-of-day-xero:1",
       "documentId": "pos-end-of-day-xero",
       "title": "End of Day and Xero",
@@ -7950,6 +8200,272 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-23",
       "content": "See **Register, Device, and Login** for opening float, **Selling, Payments, and Manager Approval** for tender handling, and **Settings, Terminals, and Offline Recovery** for queued-sale recovery."
+    },
+    {
+      "id": "pos-gift-cards:1",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Gift Cards at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Gift cards are code-based value. Sell a new card from the cart or verify an existing card before using it as payment."
+    },
+    {
+      "id": "pos-gift-cards:2",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Add a new gift card with a chosen value to the cart.\n- Supply a card code or let POS generate one.\n- Verify an existing card and view its current balance.\n- Redeem no more than the card balance or amount remaining.\n- Combine gift-card value with another payment when needed.\n- Issue a gift card while completing an eligible linked return."
+    },
+    {
+      "id": "pos-gift-cards:3",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Action | Customer link required? | What identifies the value? |\n|---|---|---|\n| Sell a new gift card | No | The supplied or generated card code |\n| Redeem a gift card | No | A verified existing card code |\n| Split gift card plus another tender | No | Gift-card code plus the second payment line |\n| Issue value from a return | No | The new or supplied code on the linked return |\n| Use in Training Mode | Not available | Training sales cannot change gift-card value |"
+    },
+    {
+      "id": "pos-gift-cards:4",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm POS is online.\n- [ ] Confirm the sale or return amount.\n- [ ] Read or scan the exact card code where one already exists.\n- [ ] Keep the code private from unrelated customers.\n\n> **Important:** Do not accept a gift card until POS verifies its current balance. A printed or displayed code is not proof that value remains available."
+    },
+    {
+      "id": "pos-gift-cards:5",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Sell a new gift card\n\n1. Choose **Gift Card** beside **Clear Cart**.\n2. Enter the amount to load.\n3. Enter the card code when using a prepared physical card, or leave it blank for POS to generate a code.\n4. Choose **Add to Cart**.\n5. Check the gift-card line and complete payment for the sale.\n6. Give the customer the receipt and card code according to store procedure.\n\n### Redeem a gift card\n\n1. Build the cart and choose **Charge**.\n2. Select **Gift Card**.\n3. Enter the card code and choose **Verify**.\n4. Confirm the displayed balance.\n5. Enter the amount to use and choose **Add**. POS caps it at both the card balance and the amount remaining.\n6. Add another payment method if a balance remains, then complete the sale.\n\nFor a return, start from the original transaction in **Reports**. Choose **Gift Card (Issue)** only as settlement for that linked return."
+    },
+    {
+      "id": "pos-gift-cards:6",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Card cannot be verified | The code is wrong, inactive, exhausted, or POS is offline | Re-enter the complete code and confirm the connection |\n| **Add** is disabled | The card has not been verified | Choose **Verify** and wait for its balance |\n| Gift card covers only part of the sale | Its balance is lower than the amount due | Add the available amount, then use another tender |\n| New card was added with the wrong value | The cart has not yet been completed | Remove the gift-card line and add it again with the correct value |\n| Gift Card is unavailable | Training Mode is on | Leave Training Mode before processing live gift-card value |"
+    },
+    {
+      "id": "pos-gift-cards:7",
+      "documentId": "pos-gift-cards",
+      "title": "Gift Cards at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Gift Card",
+      "topicId": "pos-gift-cards",
+      "contexts": [
+        "pos-gift-cards"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Split a sale after verification\n\nA verified card has $50 available and the sale total is $79.95. Staff add $50 as Gift Card, then add $29.95 by Card. POS completes only when the payment lines cover the full $79.95."
+    },
+    {
+      "id": "pos-loyalty-rewards:1",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Loyalty Rewards at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Use the loyalty panel under a linked customer to confirm membership, points, and rewards before checkout."
+    },
+    {
+      "id": "pos-loyalty-rewards:2",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Link the customer whose loyalty account will be used.\n- Read the current program and points balance.\n- Select one reward when the customer has enough points and eligible merchandise.\n- Remove a selected reward before payment when required.\n- Complete the sale online so the reward and points are recorded together."
+    },
+    {
+      "id": "pos-loyalty-rewards:3",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Requirement | Reward availability |\n|---|---|\n| Customer linked and enrolled | Required |\n| Program enabled and started | Required |\n| Enough points for the reward | Required |\n| Eligible positive-value merchandise covers the reward value | Required |\n| Ordinary sale, online, outside Training Mode | Required |\n| Layby or return cart | Reward unavailable |"
+    },
+    {
+      "id": "pos-loyalty-rewards:4",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Link the correct customer.\n- [ ] Confirm POS is online.\n- [ ] Add the eligible merchandise before selecting the reward.\n- [ ] Check that the cart is an ordinary sale, not a layby or return.\n\n> **Note:** A points balance alone does not guarantee that a reward can be used. The cart must also contain enough eligible merchandise to cover the reward value."
+    },
+    {
+      "id": "pos-loyalty-rewards:5",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Open **Customer** and link the correct customer.\n2. Wait for the loyalty panel to show the program name and current points balance.\n3. Review the rewards shown beneath the balance.\n4. Add eligible merchandise until the **Use** button is available for the requested reward.\n5. Choose **Use**. The reward appears as a discount in the cart totals.\n6. Recheck the final tax-inclusive total.\n7. Take payment and complete the sale while online.\n8. To change the choice before completion, choose **Remove** and select another eligible reward if available."
+    },
+    {
+      "id": "pos-loyalty-rewards:6",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Message or symptom | Meaning | What to do |\n|---|---|---|\n| Loyalty program is switched off | The business is not currently offering POS rewards | Continue without a reward |\n| Program has not started yet | Its configured start time has not arrived | Continue without a reward |\n| Customer is not a loyalty member | The linked customer is not enrolled | Do not enrol without consent; follow the business's enrolment process |\n| **Use** is disabled despite enough points | The cart has insufficient eligible value, contains a return, or is a layby | Correct the cart or continue without the reward |\n| Loyalty details require an online connection | POS cannot validate the current balance | Reconnect; do not estimate or manually promise points |\n| Selected reward becomes invalid | The cart changed after selection | Remove the reward or restore enough eligible merchandise before completing |"
+    },
+    {
+      "id": "pos-loyalty-rewards:7",
+      "documentId": "pos-loyalty-rewards",
+      "title": "Loyalty Rewards at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS > Customer > Loyalty",
+      "topicId": "pos-loyalty-rewards",
+      "contexts": [
+        "pos-loyalty"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Apply a $10 reward\n\nTaylor has enough points for a $10 reward and buys $65 of eligible merchandise. Staff link Taylor, choose **Use** beside the reward, and confirm the total falls by $10. They complete the sale online so the redemption and sale are recorded together."
     },
     {
       "id": "pos-workspaces:1",
@@ -8851,6 +9367,139 @@
       "sourcePriority": 6,
       "lastReviewed": "2026-08-30",
       "content": "See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Xero** for reconciliation."
+    },
+    {
+      "id": "pos-store-credit:1",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Store Credit at POS",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "Store credit belongs to a named customer. Link that customer before applying any of their available balance to a sale."
+    },
+    {
+      "id": "pos-store-credit:2",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Main operations",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- Find and link the customer who owns the credit.\n- Confirm the balance displayed beside the linked customer.\n- Apply up to the available credit or amount remaining.\n- Add another tender when credit does not cover the sale.\n- Issue new store credit only through a completed linked return."
+    },
+    {
+      "id": "pos-store-credit:3",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "At a glance",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Situation | POS behavior |\n|---|---|\n| No customer linked | Store Credit does not appear as a payment method |\n| Linked balance is zero | Store Credit does not appear as a payment method |\n| Credit exceeds amount due | POS applies no more than the amount remaining |\n| Credit is less than amount due | Add the available credit, then another tender |\n| Customer wants new credit for returned goods | Start a linked return and choose **Store Credit (Issue)** |\n| Training Mode or offline validation | Live store-credit use is unavailable |"
+    },
+    {
+      "id": "pos-store-credit:4",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Before you begin",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "- [ ] Confirm POS is online.\n- [ ] Link the correct named customer.\n- [ ] Confirm the balance shown belongs to that customer.\n- [ ] Keep issuance and redemption distinct.\n\n> **Warning:** Do not use another customer's account or manually recreate credit. New store credit must come from the completed linked return that records the returned value once."
+    },
+    {
+      "id": "pos-store-credit:5",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Step-by-step",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "1. Open **Customer** and link the customer who owns the credit.\n2. Confirm the available store-credit amount displayed beside their name.\n3. Build the sale and choose **Charge**.\n4. Select **Store Credit**.\n5. Confirm the customer name and available balance shown in the payment window.\n6. Enter the amount to use and choose **Add**. POS limits the contribution to the available balance and the sale amount remaining.\n7. If a balance remains, add cash, card, or another permitted tender.\n8. Complete the sale only when **Remaining** is zero.\n\nTo add new store credit after returned goods, open the original sale in **Reports**, start **Return**, link the customer, and choose **Store Credit (Issue)**. The completed linked return records the stock and customer credit together."
+    },
+    {
+      "id": "pos-store-credit:6",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Troubleshooting",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Store Credit is missing | No eligible linked customer or the balance is zero | Verify the customer and displayed balance |\n| The expected balance is not shown | The wrong customer is linked or current value cannot be loaded | Remove the customer, search again, and retry online |\n| Credit will not cover the full sale | The available balance is lower than the amount due | Apply the available credit and add another tender |\n| Staff need to add credit manually | The customer is returning goods | Use the linked return and **Store Credit (Issue)** workflow instead |\n| Credit use is unavailable | POS is offline or Training Mode is active | Reconnect or leave Training Mode before using live customer value |"
+    },
+    {
+      "id": "pos-store-credit:7",
+      "documentId": "pos-store-credit",
+      "title": "Store Credit at POS",
+      "heading": "Worked examples",
+      "audiences": [
+        "pos",
+        "ims"
+      ],
+      "capability": "pos",
+      "screen": "POS Checkout > Customer Store Credit",
+      "topicId": "pos-store-credit",
+      "contexts": [
+        "pos-store-credit"
+      ],
+      "sourcePriority": 6,
+      "lastReviewed": "2026-08-31",
+      "content": "### Use credit with a second tender\n\nMorgan has $32 store credit and buys $50 of merchandise. Staff link Morgan, apply $32 by Store Credit, and add $18 by Card. The receipt records both tenders and the sale completes with no remaining balance."
     },
     {
       "id": "pos-store-daybook:1",

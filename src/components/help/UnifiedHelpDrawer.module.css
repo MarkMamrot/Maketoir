@@ -45,11 +45,9 @@
 .groupToggle svg { transition: transform 160ms ease; }
 .groupToggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .groupTopics { display: grid; gap: 3px; }
-.topicList button { min-height: 40px; padding: 8px 9px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 13px; cursor: pointer; }
+.topicList button { min-height: 40px; padding: 8px 9px; display: grid; grid-template-columns: 1fr; align-items: center; gap: 6px; text-align: left; border: 0; border-radius: 5px; background: transparent; color: var(--sv-text-main, #25322f); font: inherit; font-size: 13px; cursor: pointer; }
 .topicList button:hover { background: var(--sv-bg-1, #fff); }
 .topicList .selectedTopic { background: #dcefeb; color: #0e625b; font-weight: 800; }
-.topicList .childTopic { padding-left: 20px; }
-.topicList .childTopic::before { content: ''; width: 7px; height: 7px; margin-left: -10px; border-left: 1px solid #91aaa4; border-bottom: 1px solid #91aaa4; }
 .topicList .searchResult { min-height: 72px; }
 .searchResult span { min-width: 0; display: grid; gap: 2px; }
 .searchResult strong, .searchResult small, .searchResult em { overflow: hidden; text-overflow: ellipsis; }

@@ -53,8 +53,8 @@ export function UnifiedHelpDrawer({
     [audience, product, currentContext, xeroAccountingEnabled, availableCapabilities],
   );
   const topics = useMemo(
-    () => listHelpTopics(audience, undefined, availableCapabilities ?? xeroAccountingEnabled),
-    [audience, availableCapabilities, xeroAccountingEnabled],
+    () => listHelpTopics(audience, product, availableCapabilities ?? xeroAccountingEnabled),
+    [audience, product, availableCapabilities, xeroAccountingEnabled],
   );
   const [mode, setMode] = useState<'help' | 'ask' | 'team'>('help');
   const [teamUnread, setTeamUnread] = useState(0);
@@ -191,7 +191,7 @@ export function UnifiedHelpDrawer({
                 <div className={styles.topicList}>
                   {normalizedQuery && searchResults.map(({ topic, section, snippet }) => (
                     <button key={`${topic.id}:${section.id}`} className={styles.searchResult} onClick={() => selectTopic(topic, section.id)}>
-                      <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span><ChevronRight size={15} />
+                      <span><strong>{topic.title}</strong><small>{section.heading}</small><em>{snippet}</em></span>
                     </button>
                   ))}
                   {topicGroups.map(group => (
@@ -209,8 +209,8 @@ export function UnifiedHelpDrawer({
                       {expandedGroups.has(group.id) && (
                         <div id={topicGroupId(group.label)} className={styles.groupTopics}>
                           {group.topics.map(topic => (
-                            <button key={topic.id} className={`${topic.id === selected?.id ? styles.selectedTopic : ''} ${topic.parentId && topics.some(candidate => candidate.id === topic.parentId) ? styles.childTopic : ''}`} onClick={() => selectTopic(topic)}>
-                              <span>{topic.title}</span><ChevronRight size={15} />
+                            <button key={topic.id} className={topic.id === selected?.id ? styles.selectedTopic : ''} onClick={() => selectTopic(topic)}>
+                              <span>{topic.title}</span>
                             </button>
                           ))}
                         </div>

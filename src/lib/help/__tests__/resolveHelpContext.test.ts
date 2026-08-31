@@ -56,6 +56,8 @@ describe('resolveHelpContext', () => {
   it('includes shared references in product topic lists without taking over contextual routing', () => {
     const topics = listHelpTopics('pos', 'pos');
     expect(topics.some(topic => topic.id === 'shared-plain-language-glossary')).toBe(true);
+    expect(new Set(topics.map(topic => topic.product))).toEqual(new Set(['pos', 'shared']));
+    expect(topics.some(topic => topic.product === 'ims')).toBe(false);
     expect(resolveHelpContext({ audience: 'pos', product: 'pos', context: 'pos' })).toEqual(expect.objectContaining({
       topic: expect.objectContaining({ product: 'pos' }),
     }));
