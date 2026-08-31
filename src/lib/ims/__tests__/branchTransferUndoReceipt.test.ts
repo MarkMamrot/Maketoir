@@ -34,7 +34,10 @@ function connectionFor(destinationQty: number, items = [
     if (sql.includes('FROM ims_branch_transfer_items') && sql.includes('FOR UPDATE')) {
       return [items];
     }
-    if (sql.includes('SELECT qty_on_hand FROM ims_stock')) return [[{ qty_on_hand: destinationQty }]];
+    if (sql.includes('SELECT location_id, qty_on_hand FROM ims_stock')) return [[
+      { location_id: 1, qty_on_hand: 10 },
+      { location_id: 2, qty_on_hand: destinationQty },
+    ]];
     if (sql.includes('SELECT COALESCE(avg_cost')) return [[{ avg_cost: 12 }]];
     if (sql.includes('SELECT qty_on_hand FROM ims_stock WHERE variant_id=')) {
       return [[{ qty_on_hand: locationQty.get(Number(params[1])) ?? 0 }]];

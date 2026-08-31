@@ -23011,6 +23011,25 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
     } catch (e: any) { alert(e.message); }
   };
 
+  const undoReceipt = async (bt: any) => {
+    if (!confirm(
+      `Undo receipt of transfer ${bt.transfer_number}?\n\n` +
+      'Received quantities will be removed from the destination and returned to the source. ' +
+      'The source commitment will be restored and the transfer will reopen as Sent.',
+    )) return;
+    try {
+      await apiFetch(`/api/ims/branch-transfers/${bt.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'undo_receipt' }),
+      });
+      await load();
+      if (viewModal.open && viewModal.bt?.id === bt.id) {
+        const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
+        setViewModal({ open: true, bt: d.data });
+      }
+    } catch (e: any) { alert(e.message); }
+  };
+
   const openReceive = async (bt: any) => {
     const d = await apiFetch(`/api/ims/branch-transfers/${bt.id}`);
     setActiveBtForReceive(d.data);
@@ -23149,7 +23168,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
                   <td style={{ padding: '10px 12px' }}><StatusBadge status={bt.status} /></td>
                   <td style={{ padding: '10px 12px', fontSize: 13 }}>{fmtCurrency(bt.total_value)}</td>
                   <td style={{ padding: '10px 12px' }} onClick={e => e.stopPropagation()}>
-                    <BTActions isAdvisor={isAdvisor} bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onPrint={() => setBtPrintId(bt.id)} onManage={() => openManage(bt)} />
+                    <BTActions isAdvisor={isAdvisor} bt={bt} onEdit={() => openEdit(bt)} onDelete={() => handleDelete(bt)} onStatus={changeStatus} onReceive={() => openReceive(bt)} onUndoReceipt={() => undoReceipt(bt)} onPrint={() => setBtPrintId(bt.id)} onManage={() => openManage(bt)} />
                   </td>
                 </tr>
               ))}
@@ -23274,6 +23293,7 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
               onDelete={() => { setViewModal({ open: false, bt: null }); handleDelete(viewModal.bt); }}
               onStatus={changeStatus}
               onReceive={() => { setViewModal({ open: false, bt: null }); openReceive(viewModal.bt); }}
+              onUndoReceipt={() => undoReceipt(viewModal.bt)}
               onManage={() => { setViewModal({ open: false, bt: null }); openManage(viewModal.bt); }}
               onPrint={() => setBtPrintId(viewModal.bt.id)}
             />
@@ -23677,10 +23697,10 @@ function BranchTransfersView({ isAdvisor = false }: { isAdvisor?: boolean } = {}
   );
 }
 
-function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint, onManage, isAdvisor = false }: {
+function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onUndoReceipt, onPrint, onManage, isAdvisor = false }: {
   bt: any; onEdit: () => void; onDelete: () => void;
   onStatus: (bt: any, s: string) => void; onReceive: () => void; onPrint: () => void;
-  onManage?: () => void; isAdvisor?: boolean;
+  onUndoReceipt: () => void; onManage?: () => void; isAdvisor?: boolean;
 }) {
   const btns: React.ReactNode[] = [];
   btns.push(<button key="p" onClick={onPrint} style={btnStyle('secondary', 'xs')}>🖨 Print</button>);
@@ -23695,6 +23715,9 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onPrint, onManag
   }
   if (bt.status === 'partial' && onManage) {
     if (!isAdvisor) { btns.push(<button key="m" onClick={onManage} style={btnStyle('mint', 'xs')}>Manage</button>); }
+  }
+  if (bt.status === 'partial' || bt.status === 'received') {
+    if (!isAdvisor) { btns.push(<button key="u" onClick={onUndoReceipt} style={btnStyle('danger', 'xs')}>Undo Receipt</button>); }
   }
   if (bt.status === 'draft') {
     if (!isAdvisor) { btns.push(<button key="d" onClick={onDelete} style={btnStyle('danger', 'xs')}>Delete</button>); }

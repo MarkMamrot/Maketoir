@@ -4657,12 +4657,18 @@ export const ImsBTRepo = {
       }
       for (const [variantId, receivedQty] of [...receivedByVariant].sort(([a], [b]) => a.localeCompare(b))) {
         if (receivedQty <= 0) continue;
-        const [[destinationStock]] = await conn.execute<any[]>(
-          `SELECT qty_on_hand FROM ims_stock
-            WHERE business_id = ? AND variant_id = ? AND location_id = ?
-            FOR UPDATE`,
-          [businessId, variantId, bt.to_location_id],
+        await conn.execute(
+          `INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand)
+           VALUES (?, ?, ?, 0), (?, ?, ?, 0)`,
+          [businessId, variantId, bt.from_location_id, businessId, variantId, bt.to_location_id],
         );
+        const [stockRows] = await conn.execute<any[]>(
+          `SELECT location_id, qty_on_hand FROM ims_stock
+            WHERE business_id = ? AND variant_id = ? AND location_id IN (?, ?)
+            FOR UPDATE`,
+          [businessId, variantId, bt.from_location_id, bt.to_location_id],
+        );
+        const destinationStock = stockRows.find(stock => Number(stock.location_id) === Number(bt.to_location_id));
         const available = Number(destinationStock?.qty_on_hand ?? 0);
         if (available + 0.0001 < receivedQty) {
           throw new BranchTransferUndoConflict(

@@ -12,6 +12,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 - Send the transfer when goods leave the source.
 - Keep Sent goods in transit until the destination counts them.
 - Receive the actual quantities or save a partial receipt for later.
+- Undo a mistaken partial or completed receipt and reopen the transfer as Sent.
 - Find completed transfer history in Branch Transfers.
 
 ## At a glance
@@ -20,8 +21,8 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 |---|---|---|---|
 | Draft | Goods have not been dispatched | Source and destination are unchanged | Edit, send, cancel, or delete as offered |
 | Sent | Goods left the source and are in transit | Source movement is recorded; destination has not received them | Destination counts and receives |
-| Partially Received | Some quantities arrived or were confirmed | Only received quantities are at the destination; short lines remain visible | Continue receiving or finalise reviewed shorts |
-| Received | Destination receipt is finished | Actual received quantities are recorded at the destination | Review in Branch Transfers history |
+| Partially Received | Some quantities arrived or were confirmed | Only received quantities are at the destination; short lines remain visible | Continue receiving, finalise reviewed shorts, or undo a mistaken receipt |
+| Received | Destination receipt is finished | Actual received quantities are recorded at the destination | Review it or undo a mistaken receipt |
 | Cancelled | Transfer will not proceed | Retained for audit | Create a new transfer if goods move later |
 
 ## Before you begin
@@ -55,6 +56,15 @@ When the destination allows POS sales from incoming transfers, POS can sell the 
 5. Choose **Confirm Receipt & Move Stock** when the entered receipt is final.
 6. For a partial transfer, use **Manage Partial** to review received quantities and short lines before marking it Received.
 
+### Undo a mistaken receipt
+
+1. Open **Locations > Branch Transfers** and find the Partially Received or Received transfer.
+2. Select **Undo Receipt** and review the confirmation carefully.
+3. Confirm only when the receipt was recorded against the wrong transfer, branch, or quantities.
+4. The received quantities are removed from the destination and returned to the source. The transfer reopens as Sent so the destination can receive it again correctly.
+
+> **Warning:** Undo Receipt is blocked when the destination no longer has enough of a variant to reverse all quantities received on the transfer. Review later sales, adjustments, or transfers for that stock before trying again. Do not use a manual adjustment to force the reversal.
+
 ## Troubleshooting
 
 | Symptom | Likely reason | What to do |
@@ -63,6 +73,7 @@ When the destination allows POS sales from incoming transfers, POS can sell the 
 | Destination quantity is still 0 | The transfer was sent but not received | Count the goods and complete the destination receipt |
 | IMS reports a POS sale used incoming transfer stock | The destination sold goods before recording this transfer's receipt | Confirm the goods arrived, complete the matching receipt, and verify destination stock |
 | Fewer goods arrived than sent | The shipment is short or still split | Enter only what arrived and save partial, or finalise the reviewed short quantity |
+| Undo Receipt says destination stock is insufficient | Some received stock has since been sold, adjusted, or moved | Review the variant's later activity and correct that activity first; then retry Undo Receipt |
 | A barcode does not match | The scanned SKU is not on this transfer | Stop and identify the item; do not add it as a different line casually |
 
 ## Worked examples
@@ -74,3 +85,7 @@ The warehouse sends 12 mugs costing $8 each, transfer value $96. Marking the tra
 ### Receive a short shipment
 
 A transfer says 10 jackets were sent, but the branch receives 8. Enter 8 and choose **Save & Continue Later** while the other 2 are checked. If the final confirmed receipt remains 8, manage the partial transfer and mark it Received with the short quantity still visible in the transfer record.
+
+### Correct a receipt recorded against the wrong transfer
+
+A branch records 6 lamps as received, then discovers the cartons belong to another transfer. Use **Undo Receipt** before recording the correct transfer. The 6 lamps leave the destination stock, return to the source stock, and the original transfer returns to Sent with its received quantities cleared.

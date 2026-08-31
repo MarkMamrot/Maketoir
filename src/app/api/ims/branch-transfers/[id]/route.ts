@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import { ImsBTRepo } from '@/lib/ims/ImsRepository';
+import { BranchTransferUndoConflict, ImsBTRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
@@ -23,6 +24,30 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   try {
     const body = await req.json();
     const { items, status, receivedItems, action, item_id, ...btData } = body;
+    if (action === 'undo_receipt') {
+      const transferId = Number(params.id);
+      const existing = await ImsBTRepo.get(transferId, session.businessId);
+      if (!existing) return NextResponse.json({ success: false, error: 'Branch transfer not found.' }, { status: 404 });
+      try {
+        await ImsBTRepo.undoReceipt(transferId, session.businessId);
+      } catch (error) {
+        if (error instanceof BranchTransferUndoConflict) {
+          return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: 409 });
+        }
+        await reportRuntimeIssue({
+          businessId: session.businessId,
+          source: 'ims_branch_transfers',
+          operation: 'undo_receipt',
+          title: 'Branch transfer receipt could not be undone',
+          error,
+          reference: { type: 'branch_transfer', id: transferId },
+        }).catch(() => {});
+        throw error;
+      }
+      const vids = [...new Set((existing.items ?? []).map(item => item.variant_id).filter(Boolean))] as string[];
+      if (vids.length > 0) refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT receipt undo:', err));
+      return NextResponse.json({ success: true });
+    }
     if (action === 'remove_item') {
       if (!item_id) return NextResponse.json({ success: false, error: 'item_id required' }, { status: 400 });
       const existing = await ImsBTRepo.get(Number(params.id), session.businessId);
