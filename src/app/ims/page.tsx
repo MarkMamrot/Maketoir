@@ -20,6 +20,7 @@ import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
+import { buildTaxSettingsUpdate, TAX_SETTING_DEFAULTS } from '@/lib/ims/taxSettings';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
@@ -26174,11 +26175,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
   const [xeroAdvisorSaving, setXeroAdvisorSaving] = useState(false);
   useEffect(() => {
     setTaxDraft({
-      sales_tax_on_sales:       'yes',
-      sales_tax_rate:           '',
-      sales_tax_code:           '',
-      purchase_tax_rate:        '',
-      purchase_tax_code:        '',
+      ...TAX_SETTING_DEFAULTS,
       use_multiple_locations:   'yes',
       use_zones_bins:           'no',
       use_categories:           'no',
@@ -26210,9 +26207,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     setTaxSaved(false);
     try {
       if (onlineChannelsDirty) await saveOnlineChannels(onlineChannelDraft);
-      if (taxDirtyKeys.size > 0) {
-        await saveSettings(Object.fromEntries([...taxDirtyKeys].map(key => [key, taxDraft[key] ?? ''])));
-      }
+      const updates = Object.fromEntries([...taxDirtyKeys].map(key => [key, taxDraft[key] ?? '']));
+      await saveSettings({ ...updates, ...buildTaxSettingsUpdate(taxDraft) });
       setTaxSaved(true);
     } catch (error) {
       setTaxSaveError(error instanceof Error ? error.message : 'Settings could not be saved.');
@@ -26875,7 +26871,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
             {/* Tax Settings */}
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
               <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', textTransform: 'uppercase', letterSpacing: 0.6 }}>Tax Settings</h3>
-              <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)' }}>Configure sales tax codes and rates used on orders and invoices.</p>
+              <p style={{ margin: '0 0 16px', fontSize: 12.5, color: 'var(--sv-text-dim)' }}>Configure the rates and labels used on Solvantis orders and invoices. These settings remain active when Xero is off; Xero uses separate tax types.</p>
 
               <div style={{ marginBottom: 12 }}>
                 <label style={labelStyle}>Charge Sales Tax on Sales Orders</label>
@@ -26891,7 +26887,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('sales_tax_rate')} onChange={e => updateTaxDraft('sales_tax_rate', e.target.value !== '' ? String(Number(e.target.value) / 100) : '')} placeholder="e.g. 10" />
                 </div>
                 <div>
-                  <label style={labelStyle}>Sales Tax Code</label>
+                  <label style={labelStyle}>Sales Tax Label (Solvantis)</label>
                   <input style={inputStyle} value={taxDraft.sales_tax_code ?? ''} onChange={e => updateTaxDraft('sales_tax_code', e.target.value)} placeholder="e.g. GST, VAT" />
                 </div>
               </div>
@@ -26902,7 +26898,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                   <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={taxRateDisplay('purchase_tax_rate')} onChange={e => updateTaxDraft('purchase_tax_rate', e.target.value !== '' ? String(Number(e.target.value) / 100) : '')} placeholder="e.g. 10" />
                 </div>
                 <div>
-                  <label style={labelStyle}>Purchase Tax Code</label>
+                  <label style={labelStyle}>Purchase Tax Label (Solvantis)</label>
                   <input style={inputStyle} value={taxDraft.purchase_tax_code ?? ''} onChange={e => updateTaxDraft('purchase_tax_code', e.target.value)} placeholder="e.g. GST on Purchases" />
                 </div>
               </div>

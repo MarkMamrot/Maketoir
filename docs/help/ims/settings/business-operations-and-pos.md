@@ -10,6 +10,7 @@ Use IMS Settings to choose the workflows the business uses and to maintain the r
 - Complete business setup in the recommended dependency order.
 - Enable only the location, catalogue, purchasing, and sales-channel capabilities the business uses.
 - Enable Shopify, the native Solvantis Online Store, both channels, or neither channel.
+- Set the tax rates and document labels Solvantis uses for sales and purchases.
 - Add, rename, activate, or set the default float for POS registers without changing location details.
 - Set the business-wide POS product-view fallback used by locations without their own override.
 
@@ -57,6 +58,14 @@ Open **Settings > General**. Business Operations is grouped by purpose:
 Use each switch to enable or disable the capability, then select **Save Settings**. Only settings changed in the current form are updated. A **Saved** confirmation appears after the changes have been stored. If current settings cannot be loaded or a save fails, the controls remain unavailable and the error is shown without applying the draft values.
 
 These settings control available workflows; they do not move stock, create orders, or connect an external account by themselves.
+
+### Configure tax settings
+
+The sales and purchase tax rates control tax calculations on Solvantis orders and invoices. For a standard Australian GST business, both rates are 10%. Selling prices remain tax-inclusive, so Solvantis extracts GST from the total rather than adding it on top.
+
+**Sales Tax Label (Solvantis)** and **Purchase Tax Label (Solvantis)** are labels used on Solvantis documents and as defaults when creating sales and purchase records. They are not Xero tax codes. Xero posting uses its own tax types and mappings, such as `OUTPUT`, `INPUT`, or `NONE`.
+
+Tax settings belong to the business and remain stored when **Accounting software** is disabled or Xero is disconnected. Re-enabling or reconnecting Xero must not be required to restore them. Businesses without saved tax settings receive the standard Australian defaults: sales tax enabled, 10% sales and purchase rates, **GST**, and **GST on Purchases**.
 
 When **Accounting software** is off, accounting integration navigation, setup connections, document statuses, posting controls, automation, and contextual guidance are hidden. Integration requests are also blocked, so switching the capability off is more than a display preference. Turn it on and choose the supported accounting platform before connecting an organisation or configuring posting rules.
 

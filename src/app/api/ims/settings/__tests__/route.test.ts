@@ -60,6 +60,11 @@ describe('/api/ims/settings loyalty settings', () => {
       loyalty_points_label: 'Points',
       loyalty_started_at: '',
       sales_document_show_logo: '1',
+      sales_tax_on_sales: 'yes',
+      sales_tax_rate: '0.1',
+      sales_tax_code: 'GST',
+      purchase_tax_rate: '0.1',
+      purchase_tax_code: 'GST on Purchases',
     });
     expect(body.capabilities).toEqual({
       hasPosLocations: false,
@@ -84,6 +89,33 @@ describe('/api/ims/settings loyalty settings', () => {
       nativeShopEnabled: false,
     });
     expect(body.data).not.toHaveProperty('has_pos_locations');
+  });
+
+  it('preserves configured tax settings when Xero accounting is switched off', async () => {
+    mockImsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('SELECT EXISTS')
+        ? [{ has_pos_locations: 0 }]
+        : [
+            { key: 'connect_accounting_software', value: 'no' },
+            { key: 'sales_tax_on_sales', value: 'no' },
+            { key: 'sales_tax_rate', value: '0.15' },
+            { key: 'sales_tax_code', value: 'Custom sales label' },
+            { key: 'purchase_tax_rate', value: '0.125' },
+            { key: 'purchase_tax_code', value: 'Custom purchase label' },
+          ],
+    ));
+
+    const response = await GET();
+    const body = await response.json();
+
+    expect(body.capabilities.xeroAccountingEnabled).toBe(false);
+    expect(body.data).toMatchObject({
+      sales_tax_on_sales: 'no',
+      sales_tax_rate: '0.15',
+      sales_tax_code: 'Custom sales label',
+      purchase_tax_rate: '0.125',
+      purchase_tax_code: 'Custom purchase label',
+    });
   });
 
   it('reports Xero accounting only when both operation settings enable it', async () => {

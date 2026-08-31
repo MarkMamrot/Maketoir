@@ -26,6 +26,7 @@ import {
   validateWholesalePortalSetting,
 } from '@/lib/wholesale/wholesalePortalSettings';
 import { applyProductSettingDefaults, validateProductSetting } from '@/lib/ims/productSettings';
+import { applyTaxSettingDefaults } from '@/lib/ims/taxSettings';
 
 // Settings whose changes affect the inventory qty pushed to Shopify.
 // When any of these keys change we must re-enqueue every linked variant so the
@@ -72,6 +73,7 @@ export async function GET() {
     settings[SELLS_WHOLESALE_SETTING_KEY] ??= 'yes';
     settings.business_requires_pos ??= 'yes';
     applyProductSettingDefaults(settings);
+    applyTaxSettingDefaults(settings);
     applyWholesalePortalSettingDefaults(settings);
     // Include the domain only when the Shopify operation is available.
     const conn = onlineChannels.shopifyEnabled ? await ConnectionsRepository.get(businessId) : null;

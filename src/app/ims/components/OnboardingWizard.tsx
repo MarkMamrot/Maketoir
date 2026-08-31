@@ -233,13 +233,13 @@ export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccounti
             <Field label="Sales tax rate (%)" help="The GST percentage extracted from sales. The standard Australian GST rate is 10%.">
               <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={rate('sales_tax_rate')} onChange={event => onFieldChange('sales_tax_rate', event.target.value ? String(Number(event.target.value) / 100) : '')} placeholder="10" />
             </Field>
-            <Field label="Sales tax code" help="The label used for sales tax on documents and accounting mappings, usually GST.">
+            <Field label="Sales tax label (Solvantis)" help="The label shown on Solvantis sales documents, usually GST. This is not a Xero tax code.">
               <input style={inputStyle} value={draft.sales_tax_code ?? ''} onChange={event => onFieldChange('sales_tax_code', event.target.value)} placeholder="GST" />
             </Field>
             <Field label="Purchase tax rate (%)" help="The GST percentage applied to supplier purchases, normally 10% in Australia.">
               <input type="number" min="0" max="100" step="0.01" style={inputStyle} value={rate('purchase_tax_rate')} onChange={event => onFieldChange('purchase_tax_rate', event.target.value ? String(Number(event.target.value) / 100) : '')} placeholder="10" />
             </Field>
-            <Field label="Purchase tax code" help="The accounting label for GST on supplier purchases, such as GST on Purchases.">
+            <Field label="Purchase tax label (Solvantis)" help="The label shown on Solvantis purchase documents, such as GST on Purchases. This is not a Xero tax code.">
               <input style={inputStyle} value={draft.purchase_tax_code ?? ''} onChange={event => onFieldChange('purchase_tax_code', event.target.value)} placeholder="GST on Purchases" />
             </Field>
           </div>
