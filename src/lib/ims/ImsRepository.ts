@@ -4164,6 +4164,15 @@ export interface ImsBTItem {
   sku?: string; barcode?: string; product_name?: string; variant_label?: string; price_rrp?: string;
 }
 
+export class BranchTransferUndoConflict extends Error {
+  readonly code = 'branch_transfer_undo_conflict';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'BranchTransferUndoConflict';
+  }
+}
+
 async function nextBTNumber(businessId: string): Promise<string> {
   await ensureBranchTransferTenantTables();
   const year = new Date().getFullYear();
@@ -4619,6 +4628,79 @@ export const ImsBTRepo = {
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }
+  },
+
+  async undoReceipt(transferId: number, businessId: string): Promise<void> {
+    await ensureBranchTransferTenantTables();
+    const pool = getIMSPool();
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[bt]] = await conn.execute<any[]>(
+        `SELECT * FROM ims_branch_transfers WHERE id = ? AND business_id = ? FOR UPDATE`,
+        [transferId, businessId],
+      );
+      if (!bt) throw new BranchTransferUndoConflict('Branch transfer not found.');
+      if (bt.status !== 'received' && bt.status !== 'partial') {
+        throw new BranchTransferUndoConflict('Only received or partially received transfers can have their receipt undone.');
+      }
+
+      const [items] = await conn.execute<any[]>(
+        `SELECT * FROM ims_branch_transfer_items WHERE transfer_id = ? FOR UPDATE`,
+        [transferId],
+      );
+
+      for (const item of items) {
+        const receivedQty = Number(item.qty_received ?? 0);
+        if (receivedQty <= 0) continue;
+        const [[destinationStock]] = await conn.execute<any[]>(
+          `SELECT qty_on_hand FROM ims_stock
+            WHERE business_id = ? AND variant_id = ? AND location_id = ?
+            FOR UPDATE`,
+          [businessId, item.variant_id, bt.to_location_id],
+        );
+        const available = Number(destinationStock?.qty_on_hand ?? 0);
+        if (available + 0.0001 < receivedQty) {
+          throw new BranchTransferUndoConflict(
+            `Cannot undo receipt for variant ${item.variant_id}: destination stock is ${available}, but ${receivedQty} received units must be reversed.`,
+          );
+        }
+      }
+
+      for (const item of items) {
+        const receivedQty = Number(item.qty_received ?? 0);
+        if (receivedQty > 0) await _btMove(conn, bt, transferId, item, -receivedQty, businessId);
+        const qtySent = Number(item.qty_sent ?? 0);
+        if (qtySent > 0) {
+          await conn.execute(
+            `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+            [businessId, item.variant_id, bt.from_location_id, qtySent],
+          );
+        }
+      }
+
+      await conn.execute(
+        `UPDATE ims_branch_transfer_items
+            SET qty_received = NULL, line_value = qty_sent * unit_cost
+          WHERE transfer_id = ?`,
+        [transferId],
+      );
+      await conn.execute(
+        `UPDATE ims_branch_transfers
+            SET status = 'sent', received_date = NULL,
+                total_value = (SELECT COALESCE(SUM(line_value), 0) FROM ims_branch_transfer_items WHERE transfer_id = ?)
+          WHERE id = ? AND business_id = ?`,
+        [transferId, transferId, businessId],
+      );
+      await conn.commit();
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
   },
 
   /**
