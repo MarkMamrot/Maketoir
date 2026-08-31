@@ -20,7 +20,7 @@ Review the applicant, company relationship, intended customer account, and reque
 
 ## POS and online sales
 
-Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.
+Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Daily POS payment badges show only methods with a non-zero total, so zero-dollar methods such as **No Charge $0.00** do not clutter the summary. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.
 
 When Xero accounting is enabled for the business, **Online Sales** also shows daily Xero posting guidance and a sync action for eligible trading days. These accounting controls are hidden when Xero accounting is disabled; the underlying online sales history remains available.
 

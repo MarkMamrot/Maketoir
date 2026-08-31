@@ -51,7 +51,8 @@ export async function GET(req: NextRequest) {
          WHERE ps.location_id = ?
          GROUP BY COALESCE(ps.register_id, 0),
                   DATE_FORMAT(ps.completed_at, '%Y-%m-%d'),
-                  pp.payment_method`,
+                  pp.payment_method
+         HAVING ROUND(SUM(pp.amount), 2) <> 0`,
         [locId],
       );
 
@@ -147,7 +148,8 @@ export async function GET(req: NextRequest) {
        FROM pos_payments pp
        JOIN pos_sales ps ON ps.id = pp.sale_id
        ${locationId ? 'WHERE ps.location_id = ?' : ''}
-       GROUP BY DATE_FORMAT(ps.completed_at, '%Y-%m-%d'), pp.payment_method`,
+      GROUP BY DATE_FORMAT(ps.completed_at, '%Y-%m-%d'), pp.payment_method
+      HAVING ROUND(SUM(pp.amount), 2) <> 0`,
       payParams,
     );
 

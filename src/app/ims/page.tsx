@@ -19,6 +19,7 @@ import { deriveVariantSku } from '@/lib/ims/importSku';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
+import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
 import { buildTaxSettingsUpdate, TAX_SETTING_DEFAULTS } from '@/lib/ims/taxSettings';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
@@ -16221,6 +16222,7 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
     const sales     = dayData[key] ?? [];
     const dayTotal  = Number(day.total);
     const returns   = Number(day.returns);
+    const paymentTotals = visiblePosPaymentTotals(day.payments ?? {});
 
     return (
       <div key={key} style={{ marginBottom: 4, border: '1px solid var(--sv-etch)', borderRadius: 8, overflow: 'hidden' }}>
@@ -16235,11 +16237,11 @@ function PosSalesLedgerView({ pendingOpenDay, onPendingHandled }: { pendingOpenD
             {Number(day.tax ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>GST <strong style={{ color: 'var(--sv-text-main)', fontWeight: 600 }}>{fmtMoney(Number(day.tax))}</strong></span>}
             {Number(day.discount ?? 0) > 0 && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Disc <strong style={{ color: 'var(--sv-red)', fontWeight: 600 }}>−{fmtMoney(Number(day.discount))}</strong></span>}
           </div>
-          {Object.keys(day.payments ?? {}).length > 0 && (
+          {paymentTotals.length > 0 && (
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {Object.entries(day.payments ?? {}).map(([method, total]) => (
+              {paymentTotals.map(([method, total]) => (
                 <span key={method} style={{ fontSize: 11, padding: '1px 7px', borderRadius: 99, border: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', background: 'var(--sv-bg-2)' }}>
-                  {method}: {fmtMoney(total as number)}
+                  {method}: {fmtMoney(total)}
                 </span>
               ))}
             </div>
