@@ -53,9 +53,10 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 8. For a simple product, add one blank row and use the default variant.
 9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
 10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
-11. If **Add stock with new products** is enabled, enter any opening quantity, Min Qty and Reorder Qty for each location. Zero is a valid value.
-12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
-13. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
+11. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
+12. After creating and reviewing the variants, use Inventory to choose whether the product tracks inventory.
+13. If **Add stock with new products** is enabled, enter any opening quantity, Min Qty and Reorder Qty for each variant and location. Zero is a valid value.
+14. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
 
 Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, and **Add stock with new products**. Add stock is off by default because most product creation does not need opening, minimum or reorder quantities. Hiding a field removes it from product entry; it does not erase values already saved.
 

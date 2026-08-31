@@ -7131,62 +7131,6 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Inventory</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
-          </div>
-          <div style={{ marginBottom: 20, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Tracks inventory</div>
-              <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>When off, this product can be sold without stock checks. Existing stock balances are preserved.</div>
-            </div>
-            <button type="button" role="switch" aria-checked={Number(form.is_stock_item ?? 1) === 1} onClick={() => setForm((previous: any) => ({ ...previous, is_stock_item: Number(previous.is_stock_item ?? 1) === 1 ? 0 : 1 }))} title={`${Number(form.is_stock_item ?? 1) === 1 ? 'Disable' : 'Enable'} inventory tracking`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: Number(form.is_stock_item ?? 1) === 1 ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-              <span style={{ position: 'absolute', top: 3, left: Number(form.is_stock_item ?? 1) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
-            </button>
-          </div>
-          {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
-              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock, minimum quantity and reorder quantity for each variant and location. Saving records a completed stocktake at each location.</div>
-              {productLocations.length === 0 ? (
-                <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
-              ) : (
-                <div ref={openingStockScrollRef} tabIndex={0} aria-label="Opening stock by variant and location. Use arrow keys to scroll." style={{ overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 360 }}>
-                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: Math.max(720, 180 + productLocations.length * 300), width: '100%', fontSize: 12 }}>
-                    <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--sv-bg-2)' }}>
-                      <tr>
-                        <th rowSpan={2} style={{ width: 180, minWidth: 180, padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)' }}>Variant</th>
-                        {productLocations.map(location => <th key={location.id} colSpan={3} style={{ width: 300, padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>{location.name}</th>)}
-                      </tr>
-                      <tr>
-                        {productLocations.flatMap(location => ['Qty', 'Min qty', 'Reorder qty'].map(label => <th key={`${location.id}:${label}`} style={{ width: 100, padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{label}</th>))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {variantRows.filter(row => !row._delete).map(row => {
-                        const variantLabel = [row.option1_value, row.option2_value, row.option3_value].filter(Boolean).join(' / ') || row.sku || 'Default';
-                        return (
-                          <tr key={row._tempId}>
-                            <td style={{ padding: '7px 10px', borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontWeight: 600 }}>{variantLabel}</td>
-                            {productLocations.flatMap(location => {
-                              const value = openingStock[`${row._tempId}:${location.id}`] ?? { quantity: '', minQty: '', reorderQty: '' };
-                              return ([['quantity', value.quantity], ['minQty', value.minQty], ['reorderQty', value.reorderQty]] as const).map(([field, fieldValue]) => (
-                                <td key={`${location.id}:${field}`} style={{ padding: 4, borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>
-                                  <input type="number" min="0" step="0.0001" value={fieldValue} onChange={event => updateOpeningStock(row._tempId, location.id, field, event.target.value)} style={{ ...cellInput, width: 92, boxSizing: 'border-box' }} placeholder="0" />
-                                </td>
-                              ));
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* ── Media ── */}
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -7366,6 +7310,62 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           ) : (
             <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet — define options above and click ⚡ Generate Variants, or add a Blank Row.</p>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Inventory</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+          </div>
+          <div style={{ marginBottom: 20, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Tracks inventory</div>
+              <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>When off, this product can be sold without stock checks. Existing stock balances are preserved.</div>
+            </div>
+            <button type="button" role="switch" aria-checked={Number(form.is_stock_item ?? 1) === 1} onClick={() => setForm((previous: any) => ({ ...previous, is_stock_item: Number(previous.is_stock_item ?? 1) === 1 ? 0 : 1 }))} title={`${Number(form.is_stock_item ?? 1) === 1 ? 'Disable' : 'Enable'} inventory tracking`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: Number(form.is_stock_item ?? 1) === 1 ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+              <span style={{ position: 'absolute', top: 3, left: Number(form.is_stock_item ?? 1) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+            </button>
+          </div>
+          {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && variantRows.some(row => !row._delete) && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
+              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock, minimum quantity and reorder quantity for each variant and location. Saving records a completed stocktake at each location.</div>
+              {productLocations.length === 0 ? (
+                <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
+              ) : (
+                <div ref={openingStockScrollRef} tabIndex={0} aria-label="Opening stock by variant and location. Use arrow keys to scroll." style={{ overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 360 }}>
+                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: Math.max(720, 180 + productLocations.length * 300), width: '100%', fontSize: 12 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--sv-bg-2)' }}>
+                      <tr>
+                        <th rowSpan={2} style={{ width: 180, minWidth: 180, padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)' }}>Variant</th>
+                        {productLocations.map(location => <th key={location.id} colSpan={3} style={{ width: 300, padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>{location.name}</th>)}
+                      </tr>
+                      <tr>
+                        {productLocations.flatMap(location => ['Qty', 'Min qty', 'Reorder qty'].map(label => <th key={`${location.id}:${label}`} style={{ width: 100, padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{label}</th>))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variantRows.filter(row => !row._delete).map(row => {
+                        const variantLabel = [row.option1_value, row.option2_value, row.option3_value].filter(Boolean).join(' / ') || row.sku || 'Default';
+                        return (
+                          <tr key={row._tempId}>
+                            <td style={{ padding: '7px 10px', borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontWeight: 600 }}>{variantLabel}</td>
+                            {productLocations.flatMap(location => {
+                              const value = openingStock[`${row._tempId}:${location.id}`] ?? { quantity: '', minQty: '', reorderQty: '' };
+                              return ([['quantity', value.quantity], ['minQty', value.minQty], ['reorderQty', value.reorderQty]] as const).map(([field, fieldValue]) => (
+                                <td key={`${location.id}:${field}`} style={{ padding: 4, borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>
+                                  <input type="number" min="0" step="0.0001" value={fieldValue} onChange={event => updateOpeningStock(row._tempId, location.id, field, event.target.value)} style={{ ...cellInput, width: 92, boxSizing: 'border-box' }} placeholder="0" />
+                                </td>
+                              ));
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── Online Store ── */}
