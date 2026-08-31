@@ -1,5 +1,5 @@
 ---
-{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","reports","parked"],"order":5,"summary":"Assign a POS device to a branch and register, sign in, and open the register with a counted float.","lastReviewed":"2026-08-31","owner":"retail"}
+{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos-register"],"contextSections":{"pos-register":"Step-by-step"},"order":5,"summary":"Assign a POS device to a branch and register, sign in, and open the register with a counted float.","lastReviewed":"2026-08-31","owner":"retail"}
 ---
 # Register, Device, and Login
 

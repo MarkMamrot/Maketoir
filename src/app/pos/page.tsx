@@ -2922,7 +2922,7 @@ function MainPos({
         onOpenChange={setHelpOpen}
         audience="pos"
         product="pos"
-        currentContext={customerOpen ? 'customer-search' : screen}
+        currentContext={linkedReturnSaleId != null ? 'pos-return' : isLayby ? 'pos-layby' : customerOpen ? 'customer-search' : screen}
         chatEndpoint="/api/pos/assistant/chat"
         escalationEndpoint="/api/pos/assistant/escalate"
         xeroAccountingEnabled={xeroAccountingEnabled}

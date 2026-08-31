@@ -1,5 +1,5 @@
 ---
-{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","customer-search","parked"],"contextSections":{"pos":"Step-by-step","customer-search":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-30","owner":"retail"}
+{"id":"pos-selling-payments-manager-approval","title":"Selling, Payments, and Manager Approval","audiences":["pos","ims"],"capability":"pos","screen":"POS Checkout and Parked Sales","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-register-device-login","pos-customers","pos-loyalty-rewards","pos-gift-cards","pos-store-credit","pos-returns-exchanges-customer-credit","pos-settings-terminals-offline-recovery","pos-end-of-day-xero"],"contexts":["pos","parked"],"contextSections":{"pos":"Step-by-step","parked":"Park and resume a sale"},"order":10,"summary":"Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.","lastReviewed":"2026-08-31","owner":"retail"}
 ---
 # Selling, Payments, and Manager Approval
 
@@ -110,4 +110,4 @@ A jacket is displayed at $110.00. That price already includes $10.00 GST. The cu
 
 ## Related tasks
 
-See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures.
+See **Customers at POS**, **Loyalty Rewards at POS**, **Gift Cards at POS**, and **Store Credit at POS** for customer-value procedures. See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures.

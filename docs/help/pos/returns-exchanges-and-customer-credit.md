@@ -1,5 +1,5 @@
 ---
-{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-end-of-day-xero","ims-customer-orders"],"contexts":["reports","pos"],"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-returns-exchanges-customer-credit","title":"Returns, Exchanges, and Customer Credit","audiences":["pos","ims"],"capability":"pos","screen":"POS Reports > Return","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-reports-transactions","pos-selling-payments-manager-approval","pos-gift-cards","pos-store-credit","pos-end-of-day-xero","ims-customer-orders"],"contexts":["pos-return"],"contextSections":{"pos-return":"Step-by-step"},"order":20,"summary":"Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.","lastReviewed":"2026-08-31","owner":"retail"}
 ---
 # Returns, Exchanges, and Customer Credit
 
@@ -77,4 +77,4 @@ A customer returns a $70.00 item and chooses a $95.00 replacement. Staff complet
 
 ## Related tasks
 
-See **Selling, Payments, and Manager Approval** for tender entry and **End of Day and Xero** for how return payments affect the counted day.
+See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day.

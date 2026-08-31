@@ -1,5 +1,5 @@
 ---
-{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["reports"],"contextSections":{"reports":"POS reports"},"order":1,"summary":"Find the right POS guide for selling, payments, returns, transfers, register work, and recovery.","lastReviewed":"2026-08-23","owner":"retail"}
+{"id":"pos-workspaces","title":"Point of Sale","audiences":["pos","ims"],"capability":"pos","screen":"Point of Sale","product":"pos","format":"overview","contexts":["pos-overview"],"contextSections":{"pos-overview":"Main operations"},"order":1,"summary":"Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.","lastReviewed":"2026-08-31","owner":"retail"}
 ---
 # Point of Sale
 
@@ -11,9 +11,17 @@ Use this overview to choose the POS guide for the job in front of you.
 |---|---|
 | Set up a device, select its branch and register, or sign in | Register, Device, and Login |
 | Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |
+| Find, create, reactivate, link, or remove a customer | Customers at POS |
+| Check points or apply an eligible customer reward | Loyalty Rewards at POS |
+| Sell, verify, redeem, or issue code-based value | Gift Cards at POS |
+| Spend customer-bound value or understand how new credit is issued | Store Credit at POS |
 | Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |
+| Save a currently supported layby transaction | Laybys at POS |
 | Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |
 | Send stock or receive an incoming transfer | POS Branch Transfers |
+| Review transactions, reprint receipts, start returns, or make permitted corrections | POS Reports and Transactions |
+| Record a purchase paid from the open till | Petty Cash at POS |
+| Message another branch or Warehouse | Team Communications at POS |
 | Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |
 | Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |
 
@@ -21,9 +29,7 @@ Use this overview to choose the POS guide for the job in front of you.
 
 ## POS reports
 
-Open **Reports** to review daily totals and completed transactions for the active location. Expand a transaction to inspect its products, payment lines, notes, and receipt, or start a linked return from an eligible completed sale.
-
-Editing or deleting a transaction from the current open register session requires the location manager PIN. **Edit payment split** only reallocates the fixed sale total between payment methods.
+Open **POS Reports and Transactions** for the complete procedure covering daily totals, transaction detail, receipt reprints, linked returns, payment-split correction, and manager-protected changes.
 
 ## Daily operating checklist
 
@@ -50,4 +56,4 @@ A cashier can still see products but the header says **Offline** and shows two q
 
 ## Related tasks
 
-Open the related task guides below for complete procedures, decision tables, and examples.
+Choose a topic in the POS list for its complete procedure, decision table, troubleshooting, and worked examples.

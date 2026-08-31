@@ -2778,6 +2778,8 @@
       "relatedTopics": [
         "pos-register-device-login",
         "pos-selling-payments-manager-approval",
+        "pos-reports-transactions",
+        "pos-petty-cash",
         "pos-settings-terminals-offline-recovery",
         "ims-xero-shopify"
       ],
@@ -2795,7 +2797,7 @@
       },
       "order": 60,
       "summary": "Count and close a register, explain variances, and understand the separate Xero posting result.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/end-of-day-xero.md",
       "sections": [
@@ -3127,14 +3129,14 @@
       "product": "pos",
       "format": "overview",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "contextSections": {
-        "reports": "POS reports"
+        "pos-overview": "Main operations"
       },
       "order": 1,
-      "summary": "Find the right POS guide for selling, payments, returns, transfers, register work, and recovery.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/pos-workspaces.md",
       "sections": [
@@ -3146,12 +3148,12 @@
         {
           "id": "pos-workspaces:2",
           "heading": "Main operations",
-          "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout."
+          "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Find, create, reactivate, link, or remove a customer | Customers at POS |\n| Check points or apply an eligible customer reward | Loyalty Rewards at POS |\n| Sell, verify, redeem, or issue code-based value | Gift Cards at POS |\n| Spend customer-bound value or understand how new credit is issued | Store Credit at POS |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Save a currently supported layby transaction | Laybys at POS |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Review transactions, reprint receipts, start returns, or make permitted corrections | POS Reports and Transactions |\n| Record a purchase paid from the open till | Petty Cash at POS |\n| Message another branch or Warehouse | Team Communications at POS |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout."
         },
         {
           "id": "pos-workspaces:3",
           "heading": "POS reports",
-          "content": "Open **Reports** to review daily totals and completed transactions for the active location. Expand a transaction to inspect its products, payment lines, notes, and receipt, or start a linked return from an eligible completed sale.\n\nEditing or deleting a transaction from the current open register session requires the location manager PIN. **Edit payment split** only reallocates the fixed sale total between payment methods."
+          "content": "Open **POS Reports and Transactions** for the complete procedure covering daily totals, transaction detail, receipt reprints, linked returns, payment-split correction, and manager-protected changes."
         },
         {
           "id": "pos-workspaces:4",
@@ -3171,7 +3173,7 @@
         {
           "id": "pos-workspaces:7",
           "heading": "Related tasks",
-          "content": "Open the related task guides below for complete procedures, decision tables, and examples."
+          "content": "Choose a topic in the POS list for its complete procedure, decision table, troubleshooting, and worked examples."
         }
       ]
     },
@@ -3193,10 +3195,11 @@
         "pos-end-of-day-xero"
       ],
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
+      "contextSections": {
+        "pos-register": "Step-by-step"
+      },
       "order": 5,
       "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
       "lastReviewed": "2026-08-31",
@@ -3329,17 +3332,22 @@
       "format": "task",
       "parentId": "pos-workspaces",
       "relatedTopics": [
+        "pos-reports-transactions",
         "pos-selling-payments-manager-approval",
+        "pos-gift-cards",
+        "pos-store-credit",
         "pos-end-of-day-xero",
         "ims-customer-orders"
       ],
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
+      "contextSections": {
+        "pos-return": "Step-by-step"
+      },
       "order": 20,
       "summary": "Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/returns-exchanges-and-customer-credit.md",
       "sections": [
@@ -3386,7 +3394,7 @@
         {
           "id": "pos-returns-exchanges-customer-credit:9",
           "heading": "Related tasks",
-          "content": "See **Selling, Payments, and Manager Approval** for tender entry and **End of Day and Xero** for how return payments affect the counted day."
+          "content": "See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day."
         }
       ]
     },
@@ -3404,23 +3412,25 @@
       "parentId": "pos-workspaces",
       "relatedTopics": [
         "pos-register-device-login",
+        "pos-customers",
+        "pos-loyalty-rewards",
+        "pos-gift-cards",
+        "pos-store-credit",
         "pos-returns-exchanges-customer-credit",
         "pos-settings-terminals-offline-recovery",
         "pos-end-of-day-xero"
       ],
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "contextSections": {
         "pos": "Step-by-step",
-        "customer-search": "Step-by-step",
         "parked": "Park and resume a sale"
       },
       "order": 10,
-      "summary": "Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.",
-      "lastReviewed": "2026-08-30",
+      "summary": "Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/selling-payments-and-manager-approval.md",
       "sections": [
@@ -3472,7 +3482,7 @@
         {
           "id": "pos-selling-payments-manager-approval:10",
           "heading": "Related tasks",
-          "content": "See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures."
+          "content": "See **Customers at POS**, **Loyalty Rewards at POS**, **Gift Cards at POS**, and **Store Credit at POS** for customer-value procedures. See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures."
         }
       ]
     },
@@ -3491,16 +3501,23 @@
       "relatedTopics": [
         "pos-register-device-login",
         "pos-selling-payments-manager-approval",
+        "pos-loyalty-rewards",
+        "pos-gift-cards",
+        "pos-store-credit",
+        "pos-petty-cash",
         "pos-end-of-day-xero"
       ],
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
+      "contextSections": {
+        "pos-settings": "Step-by-step",
+        "pos-offline": "Settings and recovery decisions"
+      },
       "order": 50,
       "summary": "Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.",
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/settings-terminals-and-offline-recovery.md",
       "sections": [
@@ -3632,6 +3649,7 @@
       "parentId": "pos-workspaces",
       "relatedTopics": [
         "pos-register-device-login",
+        "pos-team-communications",
         "pos-end-of-day-xero",
         "pos-branch-transfers",
         "ims-business-operations-pos-settings"
@@ -3648,7 +3666,7 @@
       },
       "order": 25,
       "summary": "Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.",
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/store-daybook.md",
       "sections": [

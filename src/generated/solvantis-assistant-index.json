@@ -1212,6 +1212,8 @@
       "relatedTopics": [
         "pos-register-device-login",
         "pos-selling-payments-manager-approval",
+        "pos-reports-transactions",
+        "pos-petty-cash",
         "pos-settings-terminals-offline-recovery",
         "ims-xero-shopify"
       ],
@@ -1229,7 +1231,7 @@
       },
       "order": 60,
       "summary": "Count and close a register, explain variances, and understand the separate Xero posting result.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/end-of-day-xero.md"
     },
@@ -1361,14 +1363,14 @@
       "product": "pos",
       "format": "overview",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "contextSections": {
-        "reports": "POS reports"
+        "pos-overview": "Main operations"
       },
       "order": 1,
-      "summary": "Find the right POS guide for selling, payments, returns, transfers, register work, and recovery.",
-      "lastReviewed": "2026-08-23",
+      "summary": "Find the POS guide for checkout, customers, customer value, reports, register work, transfers, communications, and recovery.",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/pos-workspaces.md"
     },
@@ -1390,10 +1392,11 @@
         "pos-end-of-day-xero"
       ],
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
+      "contextSections": {
+        "pos-register": "Step-by-step"
+      },
       "order": 5,
       "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
       "lastReviewed": "2026-08-31",
@@ -1442,17 +1445,22 @@
       "format": "task",
       "parentId": "pos-workspaces",
       "relatedTopics": [
+        "pos-reports-transactions",
         "pos-selling-payments-manager-approval",
+        "pos-gift-cards",
+        "pos-store-credit",
         "pos-end-of-day-xero",
         "ims-customer-orders"
       ],
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
+      "contextSections": {
+        "pos-return": "Step-by-step"
+      },
       "order": 20,
       "summary": "Return eligible items from an original POS sale and choose a refund, gift card, or customer store credit.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/returns-exchanges-and-customer-credit.md"
     },
@@ -1470,23 +1478,25 @@
       "parentId": "pos-workspaces",
       "relatedTopics": [
         "pos-register-device-login",
+        "pos-customers",
+        "pos-loyalty-rewards",
+        "pos-gift-cards",
+        "pos-store-credit",
         "pos-returns-exchanges-customer-credit",
         "pos-settings-terminals-offline-recovery",
         "pos-end-of-day-xero"
       ],
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "contextSections": {
         "pos": "Step-by-step",
-        "customer-search": "Step-by-step",
         "parked": "Park and resume a sale"
       },
       "order": 10,
-      "summary": "Build a tax-inclusive sale, find, create, or reactivate customers, park safely, take split tender, and respond to manager approval prompts.",
-      "lastReviewed": "2026-08-30",
+      "summary": "Build a tax-inclusive sale, park safely, take split tender, and respond to manager approval prompts.",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/selling-payments-and-manager-approval.md"
     },
@@ -1505,16 +1515,23 @@
       "relatedTopics": [
         "pos-register-device-login",
         "pos-selling-payments-manager-approval",
+        "pos-loyalty-rewards",
+        "pos-gift-cards",
+        "pos-store-credit",
+        "pos-petty-cash",
         "pos-end-of-day-xero"
       ],
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
+      "contextSections": {
+        "pos-settings": "Step-by-step",
+        "pos-offline": "Settings and recovery decisions"
+      },
       "order": 50,
       "summary": "Manage permitted POS settings, pair Zeller, understand offline limits, and recover sales saved on the device during a connection failure.",
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/settings-terminals-and-offline-recovery.md"
     },
@@ -1562,6 +1579,7 @@
       "parentId": "pos-workspaces",
       "relatedTopics": [
         "pos-register-device-login",
+        "pos-team-communications",
         "pos-end-of-day-xero",
         "pos-branch-transfers",
         "ims-business-operations-pos-settings"
@@ -1578,7 +1596,7 @@
       },
       "order": 25,
       "summary": "Complete daily store tasks, acknowledge notices, and manage requests, needs, discrepancies, incidents, references, and product guidance.",
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "owner": "retail",
       "filename": "docs/help/pos/store-daybook.md"
     },
@@ -8115,7 +8133,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "Use End of Day to compare physical takings with recorded sales, close the register session, and start the configured Xero posting."
     },
     {
@@ -8137,7 +8155,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- Count every payment method for the open register session.\n- Separate the cash opening float from cash sales.\n- Review and confirm any till variance before saving.\n- Close the register even when a separate Xero action needs repair.\n- Review Xero Sync History and retry only the unfinished accounting action."
     },
     {
@@ -8159,7 +8177,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Value | How Solvantis treats it |\n|---|---|\n| Expected | Completed sales linked to this register session, grouped by payment method |\n| Counted cash | All physical cash in the drawer, including the opening float |\n| Cash sales | Counted cash minus opening float |\n| Counted non-cash | The counted amount for that payment method |\n| Variance | Cash sales or counted non-cash minus the expected amount |\n| Petty cash | A separately recorded purchase paid from the open till |"
     },
     {
@@ -8181,7 +8199,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm you are closing the correct branch and register.\n- [ ] Allow queued sales to sync so they can be linked to the register session.\n- [ ] Count the drawer and each non-cash settlement source independently.\n- [ ] Keep petty-cash receipts with the corresponding entries.\n- [ ] Add useful notes for any confirmed difference.\n\n> **Warning:** End of Day cannot be saved offline. If saving fails because the connection is down, the register remains open; reconnect and complete the count again."
     },
     {
@@ -8203,7 +8221,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "1. Open **Register**, then select **End of Day**.\n2. Check the trading date and the expected amount for each payment method.\n3. For cash, enter the opening float and count the full drawer. The screen calculates cash sales as counted cash minus the float.\n4. Enter the counted total for each other payment method.\n5. Review the variance column. If a variance exists, recheck the count and add a note where useful.\n6. Select the save action. Confirm the variance warning if the difference is genuine.\n7. Print or retain the reconciliation summary as required by the business.\n8. Confirm the register is closed. The configured Xero sync starts in the background when at least one counted amount was saved."
     },
     {
@@ -8225,7 +8243,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Situation | Expected result | What to check |\n|---|---|---|\n| Counted cash equals float plus recorded cash sales | Zero cash variance | No correction is needed |\n| Counted cash is higher | Positive variance | Recount, check change and tender selection, then record a note |\n| Counted cash is lower | Negative variance | Recount, check refunds and petty cash, then record a note |\n| Petty cash was recorded | Cash left the drawer for a documented purchase | Confirm the amount, reason, GST treatment, expense category, and receipt |\n| Sales were queued without an open session | Expected totals can be incomplete until those sales sync | Reconnect, open the register when prompted, sync, and review before closing |"
     },
     {
@@ -8247,7 +8265,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "POS sales are not posted one by one at checkout. For each counted payment method, the configured EOD process can create one Authorised sales invoice using the mapped location revenue account. If clearing payments are enabled, it then applies the invoice payment to that method's mapped clearing account.\n\nThe invoice is tax-inclusive, so Xero extracts GST from the total instead of adding GST. Cash rounding, till variance, and petty cash are handled separately using their configured mappings.\n\n| Xero result | Register result | Next action |\n|---|---|---|\n| Invoice and payment complete | Closed | No action |\n| Invoice complete, payment failed | Closed | Repair the clearing mapping or connection, then retry |\n| Posting blocked by a missing mapping | Closed | Ask an Admin to complete the mapping, then retry |\n| POS batch posting disabled or invoice-only | Closed | Follow the business's accounting policy; do not recreate sales |\n\n> **Important:** Register closure and Xero posting are separate outcomes. A Xero failure does not reopen the register, and retrying should continue the unfinished accounting work rather than create another day of sales."
     },
     {
@@ -8269,7 +8287,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Counted cash appears too high | Opening float was not subtracted, petty cash was missed, or a sale used the wrong tender | Recount and compare the float, petty-cash entries, and transaction payments |\n| Expected totals omit recent sales | Sales are still queued or were uploaded without an open register session | Resolve the queue and review Reports before finalising the variance |\n| One payment method does not post to Xero | Its clearing mapping is missing or stale | Correct the mapping and retry that EOD posting |\n| Invoice exists but its payment does not | The clearing step failed after invoice creation | Retry; Solvantis reuses the recorded invoice rather than intentionally creating another |\n| EOD saved but Xero shows an error | Operational close succeeded before accounting finished | Leave the register closed and repair the accounting action separately |"
     },
     {
@@ -8291,7 +8309,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "### Cash count with float and petty cash\n\nThe drawer opens with $200. Recorded cash sales are $640, and a $22 GST-inclusive cleaning purchase was recorded through **Petty Cash**. Staff count $818 in the drawer. Cash sales from the count are $818 minus $200, or $618; the separate $22 petty-cash record explains the difference from $640 before any unexplained till variance is considered.\n\n### Card invoice awaiting payment\n\nThe counted card total is $1,100. Solvantis creates the tax-inclusive Authorised sales invoice, but the clearing payment fails. The register remains closed. After an Admin repairs the card clearing mapping, staff retry the unfinished sync instead of entering the $1,100 again."
     },
     {
@@ -8313,7 +8331,7 @@
         "xero-pos-eod"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "See **Register, Device, and Login** for opening float, **Selling, Payments, and Manager Approval** for tender handling, and **Settings, Terminals, and Offline Recovery** for queued-sale recovery."
     },
     {
@@ -8861,10 +8879,10 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "Use this overview to choose the POS guide for the job in front of you."
     },
     {
@@ -8880,11 +8898,11 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout."
+      "lastReviewed": "2026-08-31",
+      "content": "| What you need to do | Open this Help topic |\n|---|---|\n| Set up a device, select its branch and register, or sign in | Register, Device, and Login |\n| Build a cart, park a sale, take one or more payments, or respond to a manager prompt | Selling, Payments, and Manager Approval |\n| Find, create, reactivate, link, or remove a customer | Customers at POS |\n| Check points or apply an eligible customer reward | Loyalty Rewards at POS |\n| Sell, verify, redeem, or issue code-based value | Gift Cards at POS |\n| Spend customer-bound value or understand how new credit is issued | Store Credit at POS |\n| Return items, exchange goods, or issue customer value | Returns, Exchanges, and Customer Credit |\n| Save a currently supported layby transaction | Laybys at POS |\n| Complete daily tasks, acknowledge notices, or log store follow-up | Store Daybook |\n| Send stock or receive an incoming transfer | POS Branch Transfers |\n| Review transactions, reprint receipts, start returns, or make permitted corrections | POS Reports and Transactions |\n| Record a purchase paid from the open till | Petty Cash at POS |\n| Message another branch or Warehouse | Team Communications at POS |\n| Pair Zeller, understand offline limits, or recover queued sales | Settings, Terminals, and Offline Recovery |\n| Open the till, count takings, investigate a variance, or review Xero posting | End of Day and Xero |\n\n> **Important:** POS prices already include GST. Solvantis shows the GST contained in the total; it does not add another 10% at checkout."
     },
     {
       "id": "pos-workspaces:3",
@@ -8899,11 +8917,11 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Open **Reports** to review daily totals and completed transactions for the active location. Expand a transaction to inspect its products, payment lines, notes, and receipt, or start a linked return from an eligible completed sale.\n\nEditing or deleting a transaction from the current open register session requires the location manager PIN. **Edit payment split** only reallocates the fixed sale total between payment methods."
+      "lastReviewed": "2026-08-31",
+      "content": "Open **POS Reports and Transactions** for the complete procedure covering daily totals, transaction detail, receipt reprints, linked returns, payment-split correction, and manager-protected changes."
     },
     {
       "id": "pos-workspaces:4",
@@ -8918,10 +8936,10 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm the device shows the correct branch and register before signing in.\n- [ ] Open the register and count the opening float before the first sale.\n- [ ] Watch the online, queued, and failed-sale indicators during trade.\n- [ ] Record petty cash while the register is open and keep its receipt.\n- [ ] Complete End of Day with physical counts before leaving the register closed."
     },
     {
@@ -8937,10 +8955,10 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Products or actions differ from expectation | The device is assigned to another branch or register | Check the branch and register shown at sign-in before continuing. |\n| A completed sale is not in Reports yet | It is still queued on this device | Reconnect, use **Sync**, and confirm the queue clears before entering the sale again. |\n| An action asks for a manager PIN | The current workflow is protected | Ask an authorised manager to enter the location manager PIN. Do not share PINs. |\n| Stock or customer credit looks doubled after a return | The return may have been entered more than once | Stop and review the original sale and linked credit note before making another correction. |"
     },
     {
@@ -8956,10 +8974,10 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "### Choose the correct recovery path\n\nA cashier can still see products but the header says **Offline** and shows two queued sales. They continue only with supported ordinary sales, keep the device open, reconnect, select **Sync**, and confirm both transactions appear in Reports. They do not recreate either sale."
     },
     {
@@ -8975,11 +8993,11 @@
       "screen": "Point of Sale",
       "topicId": "pos-workspaces",
       "contexts": [
-        "reports"
+        "pos-overview"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "Open the related task guides below for complete procedures, decision tables, and examples."
+      "lastReviewed": "2026-08-31",
+      "content": "Choose a topic in the POS list for its complete procedure, decision table, troubleshooting, and worked examples."
     },
     {
       "id": "pos-register-device-login:1",
@@ -8994,9 +9012,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9015,9 +9031,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9036,9 +9050,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9057,9 +9069,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9078,9 +9088,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9099,9 +9107,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9120,9 +9126,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9141,9 +9145,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9162,9 +9164,7 @@
       "screen": "POS Device Setup and Login",
       "topicId": "pos-register-device-login",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-register"
       ],
       "sourcePriority": 6,
       "lastReviewed": "2026-08-31",
@@ -9316,11 +9316,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "Use a linked return from POS Reports so the original quantities, refund value, stock movement, and customer credit record stay connected."
     },
     {
@@ -9336,11 +9335,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- Find the completed original sale in **Reports**.\n- Start **Return** and choose only the eligible quantity being returned.\n- Add replacement goods to make an exchange when appropriate.\n- Refund to cash or card, issue a gift card, or issue store credit to a linked customer.\n- Let the completed linked customer credit note add returned stock back once."
     },
     {
@@ -9356,11 +9354,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Customer outcome | What POS records | Customer required? | Store-credit balance changes? |\n|---|---|---|---|\n| Cash or card refund | Negative payment plus a completed linked credit note | No | No |\n| Gift Card (Issue) | A new or supplied gift-card code plus a completed linked credit note | No | No |\n| Store Credit (Issue) | A completed linked credit note settled to store credit | Yes | Yes, credit is added once |\n| Exchange | A linked return followed by a separate sale for the replacement goods | Depends on the return settlement | Only when Store Credit (Issue) is selected |"
     },
     {
@@ -9376,11 +9373,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Use the original completed sale, not a new unlinked negative cart.\n- [ ] Confirm how many units remain eligible to return.\n- [ ] Inspect the physical goods and follow the retailer's return policy.\n- [ ] Confirm the customer wants a refund, gift card, store credit, or exchange.\n- [ ] Connect to the internet; linked returns cannot complete offline.\n\n> **Important:** Every completed POS return creates and completes a linked customer credit note. That linked credit note adds returned stock back once. Do not also create a manual stock adjustment or a second credit note for the same goods."
     },
     {
@@ -9396,11 +9392,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "1. Open **Reports**, choose the date, and find the original completed sale.\n2. Select **Return**. POS loads the original eligible lines into a linked return cart.\n3. Set each returned line to the physical quantity received. POS prevents returning more than the remaining eligible quantity.\n4. For an exchange, complete the linked return first, then start a separate sale for the replacement merchandise.\n5. Link the customer before choosing **Store Credit (Issue)**.\n6. Select **Refund**, choose the agreed settlement method, and complete the transaction online.\n7. Confirm the return appears in Reports and retain the receipt or new gift-card code as required."
     },
     {
@@ -9416,11 +9411,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Choose | Use when | Important distinction |\n|---|---|---|\n| Cash or Card | Money is being returned through that tender | This does not create customer store credit |\n| Gift Card (Issue) | The customer receives transferable value represented by a code | Gift-card value is redeemed by code, not by linking a customer account |\n| Store Credit (Issue) | The named customer receives account-bound credit | A customer must be linked; the credit note updates that customer's balance |\n| Exchange | Returned goods are processed first and replacement goods are sold separately | Compare the return value with the new sale so the customer understands the net difference |\n\nGift cards and store credit are not interchangeable. A gift card is code-based value. Store credit belongs to a linked customer and should only be issued through the completed credit-note flow.\n\nWhen Shopify gift cards are connected, a supplied code may already represent a card created in Shopify. If Shopify reports that the code already exists, Solvantis links it only when there is one enabled, unused Shopify card with matching ending characters, currency and value. An ambiguous or value-mismatched card remains unlinked and is sent for operational review."
     },
     {
@@ -9436,11 +9430,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Return says internet is required | POS cannot validate and complete the linked return offline | Reconnect and restart from the original sale |\n| No items are available to return | Every original unit has already been returned | Review prior returns; do not create another return |\n| Store Credit (Issue) is unavailable | No customer is linked | Search for and link the correct customer before payment |\n| The refund amount is unexpected | The original sale included discounts or prior returns | Review the loaded linked lines and remaining eligible quantities |\n| Stock appears to have increased twice | A manual correction may duplicate the linked credit note | Stop and review the POS return and its linked credit note before changing stock |"
     },
     {
@@ -9456,11 +9449,10 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-08-31",
       "content": "### Return one discounted shirt to store credit\n\nThe original sale contains two shirts, and the returned shirt's share of the paid total is $54.00 including GST. Staff start **Return** from that sale, leave one shirt at quantity `-1`, link Priya's customer account, and choose **Store Credit (Issue)** for $54.00. POS completes the return, the linked credit note adds one shirt back to stock, and Priya receives $54.00 store credit once.\n\n### Exchange for a higher-priced item\n\nA customer returns a $70.00 item and chooses a $95.00 replacement. Staff complete the linked $70.00 return using the agreed settlement, then ring up the replacement as a separate $95.00 sale. The two receipts show a net $25.00 difference without mixing the stock movements."
     },
     {
@@ -9476,12 +9468,11 @@
       "screen": "POS Reports > Return",
       "topicId": "pos-returns-exchanges-customer-credit",
       "contexts": [
-        "reports",
-        "pos"
+        "pos-return"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-23",
-      "content": "See **Selling, Payments, and Manager Approval** for tender entry and **End of Day and Xero** for how return payments affect the counted day."
+      "lastReviewed": "2026-08-31",
+      "content": "See **POS Reports and Transactions** to find the original sale, **Gift Cards at POS** and **Store Credit at POS** for later redemption, and **End of Day and Xero** for how return payments affect the counted day."
     },
     {
       "id": "pos-selling-payments-manager-approval:1",
@@ -9497,11 +9488,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "Use this guide to build and complete an ordinary sale, including verified split payments and protected follow-up actions."
     },
     {
@@ -9518,11 +9508,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "- Search, scan, or browse for the correct product variant.\n- Adjust quantities, prices, item discounts, or the order discount before payment.\n- Find, create, or reactivate and link a retail customer when using store credit or loyalty.\n- Park an unfinished cart on this device and resume it later.\n- Add more than one tender when the customer splits payment.\n- Ask a manager to authorise an action only when POS displays the manager PIN prompt."
     },
     {
@@ -9539,11 +9528,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Checkout item | Current behaviour |\n|---|---|\n| Prices | Tax-inclusive; the displayed **GST (incl.)** is extracted from the total |\n| Stock | A completed stock-item sale reduces stock at the active POS location; recorded incoming transfers can cover a temporary negative quantity when enabled |\n| Product display | **Variants** shows every variant separately; **Products** groups variants and asks which one to add |\n| Split tender | Add payment lines until **Remaining** is zero |\n| Cash | The remaining balance is rounded to the nearest 5 cents and change is shown |\n| Parked sale | Saved in this browser and removed from Parked Sales when resumed |\n| Zero total | Completes as a No Charge sale after discounts reduce the total to $0.00 |\n| Today's Mission | Shows the location's current sales progress beside Team Communications, away from Charge and payment controls |\n| Team Communications | Contains the available branch and Warehouse avatars; open Team Chat from the top toolbar, or select an avatar to send that location a direct message |\n| Help and Ask Solvantis | Open both from the Help button in the top toolbar |\n| Training Mode | Prints a clearly marked training receipt without changing live sales, stock, customer value, EOD, reports, or accounting |\n\nPaste a JPG, PNG, or WebP screenshot directly into the Team Chat or direct-message box before sending. A message can include up to three attachments of 10 MB each."
     },
     {
@@ -9560,11 +9548,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm the header shows the correct location and register.\n- [ ] Confirm the register is open.\n- [ ] Check the online and queue indicators.\n- [ ] Identify the exact size, colour, or other variant before adding it.\n- [ ] Link the customer before selecting store credit or loyalty.\n\n> **Note:** There is no documented discount percentage that automatically triggers manager approval. Apply the business's discount policy, and use the manager PIN whenever POS explicitly asks for it."
     },
     {
@@ -9581,11 +9568,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "1. Ask an authorised manager to choose **Variants** or **Products** under **POS Settings > Misc > Product display**. Variants shows each variant separately; Products shows one result for each product. The choice is remembered by this POS device.\n2. Scan a barcode or search by product name, SKU, or barcode. Scanning any variant barcode adds that exact variant, even in Products mode.\n3. In Products mode, select a product and then choose the correct size, colour, or other variant. Use its **i** button to see every variant's stock at each location.\n4. Add the correct variant and set the quantity.\n5. Apply any permitted line discount, price change, or order discount before payment.\n6. Open **Customer** and use the single search field to type at least two characters of the customer's name, phone number, or email address. Choose the active customer from the narrowing results when the sale uses store credit or a loyalty reward. When matching inactive customers exist, choose **Show** and select the customer marked **Inactive** to reactivate and link them directly. Reactivation keeps the customer's existing details, store credit, and loyalty balance.\n7. If the customer does not exist, choose **New**. Enter their first name and at least an email address or phone number; last name is optional. Tick the loyalty option only after the customer agrees to join under the displayed terms, then choose **Create & link**. Loyalty enrolment is separate from marketing consent.\n8. Check the tax-inclusive total and the **GST (incl.)** amount.\n9. Choose **Charge** and choose a payment method.\n10. For split tender, enter the first amount and choose **Add**, then choose the next method and add the remaining amount.\n11. Complete the sale only when **Remaining** is zero. Print or provide the receipt as required.\n\nWhen **Allow sales from incoming transfers** is enabled, a sale can take location stock below zero only up to the outstanding quantity of the same variant on Sent or Partially Received transfers to that location. POS shows an incoming-stock warning and creates an IMS notification for warehouse review. The normal transfer receipt then adds the arriving quantity against the negative balance.\n\nWhen the POS header shows **TRAINING MODE**, the payment is simulated and the receipt is marked **TRAINING**. Do not treat it as a real payment or customer receipt. Switch Training Mode off in **POS Settings > Misc** before normal trading."
     },
     {
@@ -9602,11 +9588,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "1. With products in the cart, choose **Park current sale**.\n2. Enter a useful label, such as the customer's name, or accept the time-based label.\n3. Open **Parked Sales** from the POS menu.\n4. Choose the saved cart to retrieve it. Retrieval removes that entry from Parked Sales.\n5. Recheck the cart, customer, price, stock, and payment before charging.\n\nParked carts are stored on that browser. They are not completed sales and do not reduce stock until checkout finishes."
     },
     {
@@ -9623,11 +9608,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Action | Manager PIN behaviour |\n|---|---|\n| Edit a transaction from the current open register session | Required |\n| Delete or void a transaction from the current open register session | Required |\n| Send a branch transfer when POS transfer access is set to Manager | Required |\n| Reactivate an inactive customer from customer search | Not required |\n| Ordinary cart discount or price edit | Follow local policy; POS does not document a universal approval threshold |\n| Change POS appearance or terminal settings | Available only to POS Manager, Standard User, Admin, or SuperAdmin roles |\n\n> **Warning:** A manager should enter their own location manager PIN at the prompt. Do not disclose it to the cashier or leave it written at the till."
     },
     {
@@ -9644,11 +9628,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Charge is disabled | The cart is empty or the register is confirmed closed | Add an item or open the register |\n| Split payment cannot complete | The payment lines do not equal the amount due | Check **Remaining**, correct or remove a line, and add the exact balance |\n| Store Credit is missing from payment choices | No eligible customer is linked or the balance is zero | Link the correct customer and confirm their available balance |\n| Customer search has no matches | No active retail or business customer matches the entered name, email, or phone | Check the details, choose **Show** for inactive matches, or choose **New** to create and link a customer |\n| New customer cannot be created | The email or phone already belongs to an active or inactive customer, required details are missing, or the connection is offline | Search for the existing customer, enter a first name plus email or phone, and retry while online |\n| Customer search is unavailable | POS could not reach the customer search service | Check the connection and retry; if it continues, ask an administrator to review Runtime Issues |\n| Selecting a product does not add it immediately | **Products** mode is active and the product has multiple variants | Choose the correct variant from the picker; use **Variants** mode when separate results are faster |\n| Sale says incoming transfer stock was used | Recorded stock was insufficient but a matching transfer is still awaiting receipt | Complete the matching transfer receipt and verify the location quantity; do not create another stock adjustment |\n| A parked sale is missing on another device | Parked carts are local to the browser that saved them | Return to the original device and resume it there |\n| A protected action cannot continue | The manager PIN is unavailable or incorrect | Cancel the action and ask an authorised manager to approve it |"
     },
     {
@@ -9665,11 +9648,10 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "### Split a $149.95 sale between gift card and card\n\nVerify the customer's gift card and add $50.00 as the first payment. **Remaining** becomes $99.95. Choose Card and add $99.95. POS completes the sale only after the two payment lines total $149.95, and the receipt records both tenders.\n\n### Read GST correctly\n\nA jacket is displayed at $110.00. That price already includes $10.00 GST. The customer pays $110.00, not $121.00."
     },
     {
@@ -9686,12 +9668,11 @@
       "topicId": "pos-selling-payments-manager-approval",
       "contexts": [
         "pos",
-        "customer-search",
         "parked"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
-      "content": "See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures."
+      "lastReviewed": "2026-08-31",
+      "content": "See **Customers at POS**, **Loyalty Rewards at POS**, **Gift Cards at POS**, and **Store Credit at POS** for customer-value procedures. See **Returns, Exchanges, and Customer Credit** for negative carts and **Settings, Terminals, and Offline Recovery** for payment-terminal or queue failures."
     },
     {
       "id": "pos-settings-terminals-offline-recovery:1",
@@ -9706,12 +9687,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "Use this guide to change permitted POS presentation and device settings, use Training Mode, operate a paired Zeller terminal, and recover sales saved on the device during a connection failure."
     },
     {
@@ -9727,12 +9707,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "- Open POS Settings with a permitted staff role.\n- Choose whether this device groups the catalogue by product or shows every variant, whether it defaults to in-stock products, and where its cart appears.\n- Choose whether the current location can sell against recorded incoming branch-transfer stock.\n- Turn Training Mode on or off for the current POS device.\n- Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.\n- Continue supported ordinary sales from cached products while offline.\n- Inspect queued and failed sales, retry them, and confirm they reached Reports.\n- Stop online-only workflows until connectivity returns."
     },
     {
@@ -9748,12 +9727,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Workflow | Works offline? | What happens |\n|---|---|---|\n| Browse cached products and build a cart | Yes | Cached names, prices, and stock are shown; stale data is flagged |\n| Complete an ordinary sale with a manual tender | Yes | The sale is saved in this device's queue for later upload |\n| Park or resume a cart on this device | Yes | The cart remains in this browser only |\n| Linked return | No | The original sale and credit-note flow require the server |\n| Loyalty balance or reward | No | Current balance and redemption must be validated online |\n| Gift-card verification or store-credit lookup | No | Current value cannot be safely confirmed offline |\n| Zeller terminal payment | No | The browser and terminal both need working internet |\n| Petty cash | No | The register entry and receipt upload require an open online session |\n| Branch transfer, Reports, register open/close, or End of Day | No | These workflows require current shared records |\n| Ask Solvantis | No | Assistant questions are not queued |\n| Complete a Training Mode sale | No | A separate training audit is recorded online; no live sale, stock, customer value, EOD, report, or accounting record is created |\n| Reprint a receipt from Reports | No | One print request is allowed from each receipt preview; close and reopen the receipt for a deliberate additional copy |"
     },
     {
@@ -9769,12 +9747,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm this browser has previously signed in and cached products before relying on offline mode.\n- [ ] Check whether the product-cache warning says prices may be out of date.\n- [ ] Know which card methods are configured to route to Zeller.\n- [ ] Keep the browser and device storage intact until every queued sale is resolved.\n- [ ] Use **Discard** only when a queued sale definitely never happened or was already recorded another way.\n\n> **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue."
     },
     {
@@ -9790,12 +9767,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "### Set the catalogue and cart defaults\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Open **Misc**.\n3. Under **Product display**, choose **Products** to group variants and ask for the exact variant when a product is selected, or **Variants** to show every variant separately. Scanning a barcode still adds that exact variant in either mode.\n4. Turn **Default to In Stock** on to hide unavailable products in the normal catalogue, or off to show all products by default.\n5. Choose **Left side** or **Right side** under **Cart position**.\n6. Leave **Allow sales from incoming transfers** on when POS may sell goods from a matching Sent or Partially Received transfer before destination receipt. Turn it off when every sale must remain at zero until receipt.\n7. Save POS Settings. The incoming-transfer setting applies to the current location; the catalogue and cart choices remain device preferences.\n\nThe **In Stock** button beside search remains available during selling. Selecting it changes the current filter and the remembered default for this device.\n\n### Practise with Training Mode\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Open **Misc** and switch on **Training Mode**. The setting applies only to the current browser and register.\n3. Confirm the amber **TRAINING MODE** marker remains visible in the POS header.\n4. Build an ordinary positive-quantity sale and use a simulated configured tender. Training Mode does not contact a live card terminal.\n5. Complete the sale and print the receipt. The receipt is marked **TRAINING** and must not be given as proof of a real payment.\n6. Return to **POS Settings > Misc** and switch Training Mode off before serving customers.\n\nTraining Mode does not create a live sale or affect inventory, Reports, End of Day, Xero, loyalty, gift cards, or store credit. Returns, laybys, loyalty rewards, gift cards, store credit, and offline completion are unavailable while it is active.\n\n### Pair or recover Zeller\n\n1. A POS Manager, Standard User, Admin, or SuperAdmin opens **POS Settings**.\n2. Confirm the active register is configured for Zeller.\n3. Select **Pair / Re-pair Terminal** and sign in to the correct Zeller account.\n4. Select the terminal and complete pairing. Pairing persists across sessions.\n5. Leave **Terminal active this session** on when configured card methods should route to Zeller.\n6. At payment, wait for terminal approval. Use **manual entry instead** only when the business has separately completed or authorised the payment.\n\n### Recover queued sales\n\n1. Keep the same browser open and restore connectivity.\n2. If POS says queued sales have no open register session, open the register first so recent sales can link to it. If you upload without doing so, End of Day expected totals may omit them.\n3. Select **Sync** and wait for the queued count to fall.\n4. Open the queue panel to inspect anything still queued or marked Failed.\n5. Select the failed-sales retry action after correcting the connection or validation problem.\n6. Confirm each sale appears once in **Reports** before discarding any local entry.\n\n### Reprint an old receipt\n\n1. Open **Reports**, find the completed transaction, and select **Print**.\n2. In the browser print dialog, confirm **Copies** is `1` and the intended receipt printer is selected.\n3. Print once. The receipt preview prevents another request from that same normal-receipt view.\n4. To deliberately print another copy, close the preview, reopen the transaction's receipt, and print again.\n\nThe browser controls its copy count and the Windows printer queue. Solvantis cannot override a saved multi-copy setting in Chrome or cancel duplicate jobs already held by the printer."
     },
     {
@@ -9811,12 +9787,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Situation | Safe action |\n|---|---|\n| Zeller says Setup Required | Open Settings and pair the terminal |\n| Zeller terminal is paired but unavailable | Check power, internet, and Integrated Payments mode on the terminal |\n| Payment completed outside the integration | Use manual entry only after independently confirming the approved payment |\n| Product cache is stale | Verify prices with the customer and sync as soon as possible |\n| POS reports incoming transfer stock was used | Complete the matching transfer receipt and verify the location quantity; do not add a separate positive adjustment |\n| A queued sale reaches repeated failures | Inspect its error, correct the cause, then retry from the failed queue |\n| You are unsure whether a queued sale happened | Check the payment evidence and Reports; do not discard or duplicate it |\n\n> **Note:** Zeller connects through its cloud service. The POS device and terminal both require internet access; being on the same local network is not the deciding factor."
     },
     {
@@ -9832,12 +9807,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| POS Settings cannot be opened | The signed-in tier does not have settings access | Ask a POS Manager, Standard User, Admin, or SuperAdmin |\n| Training sale cannot complete | The device is offline or the cart uses a restricted workflow | Reconnect and use an ordinary sale without returns, laybys, rewards, gift cards, or store credit |\n| Terminal payment cannot start | Pairing, terminal availability, or internet is missing | Check the exact terminal message, then pair or reconnect |\n| Queued count does not clear | Upload is failing or the register/session needs attention | Open the queue panel, read the error, correct it, and retry |\n| A sale is in Failed | It reached the retry limit but remains saved locally | Correct the cause and use the failed-sales retry action |\n| Offline POS has no products | This browser has no usable cached catalogue | Reconnect and sign in to refresh products before trading |\n| An offline sale used incoming transfer stock | The transfer check occurred when the queued sale uploaded | Open IMS Notifications, complete the matching receipt, and verify location stock |\n| One reprint produces several physical copies | Chrome has remembered a copy count above 1, or Windows/printer firmware duplicated one submitted job | Set **Copies** to `1`, cancel the printer queue, and restart Chrome and the printer before retrying one receipt |"
     },
     {
@@ -9853,12 +9827,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "### Recover three sales after an outage\n\nThe shop takes three ordinary manual-card sales while offline. When the connection returns, POS warns that the register is not open. Staff open the register, let the three queued sales upload, and confirm all three appear once in Reports. They then complete End of Day using the updated expected amount."
     },
     {
@@ -9874,12 +9847,11 @@
       "screen": "POS Settings and Offline Queue",
       "topicId": "pos-settings-terminals-offline-recovery",
       "contexts": [
-        "pos",
-        "reports",
-        "parked"
+        "pos-settings",
+        "pos-offline"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-30",
+      "lastReviewed": "2026-08-31",
       "content": "See **Register, Device, and Login** for register sessions, **Selling, Payments, and Manager Approval** for checkout, and **End of Day and Xero** for reconciliation."
     },
     {
@@ -10033,7 +10005,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "Store Daybook is the shared daily workspace for the branch shown in POS. It keeps routine tasks, store notices and operational follow-up together without changing sales or stock records."
     },
     {
@@ -10054,7 +10026,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "- Choose the staff member using Daybook for the current day.\n- Complete and sign opening, throughout-the-day, weekly and closing tasks.\n- Read and acknowledge store communications.\n- See the names and initials of everyone who has acknowledged each communication.\n- Record customer requests, store needs, stock discrepancies and incidents.\n- Build one clipboard from selected Requests and Store needs for pasting into branch transfer notes.\n- Follow warehouse requests through packing, sending and receipt.\n- Search approved reference information and product storage guidance.\n- Add new items from the tab where they belong and choose an optional card colour.\n- Let managers schedule tasks, publish store content and control who may edit existing items."
     },
     {
@@ -10075,7 +10047,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "| Section | Use it for | Completion |\n|---|---|---|\n| Today | Opening, daily, weekly and closing tasks grouped by their scheduled day, with compact seven-day sign-off history | Staff name, initials, signed-in account and time are retained |\n| Comms | Manager notices for selected stores | Each staff member selects **Mark as read** |\n| Requests | Customer products and follow-up | Contacted, fulfilled or cancelled |\n| Store needs | Consumables or stock needed from a warehouse | Requested, approved, packed, sent and received |\n| Discrepancies | Differences between system and physical quantities | A manager records the stocktake outcome |\n| Incidents | Factual safety, security, loss or damage reports | Staff sign on submission; managers review and close |\n| References and Product guide | Approved store information, product photos, shelf and box locations | Managers maintain the content |"
     },
     {
@@ -10096,7 +10068,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "- [ ] Confirm the POS header shows the store where the work is taking place.\n- [ ] Open the POS menu and select **Store Daybook**.\n- [ ] Choose your staff name or enter your name and initials.\n- [ ] Check unread communications before beginning store tasks.\n- [ ] Use the displayed date for the work being completed.\n\n> **Important:** On a shared POS account, always choose the person doing the work. Solvantis also retains the signed-in account so the store has a complete audit history."
     },
     {
@@ -10117,7 +10089,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "### Complete today's work\n\n1. Open **Today** and use the clearly separated **Open the store**, **Keep the day moving**, or **Close with confidence** panels across the top.\n2. Read tasks in the **Every day** or weekday group where they are scheduled. Weekly daytime work appears together under Monday, Tuesday and the other relevant weekdays.\n3. Read the complete wrapping task text, then use the compact date headings to read across the row for signed initials, a task that was not signed, or a day when that task was not scheduled. The selected and latest date is closest to the task list; progressively older dates continue to the right. Weekday names appear in the date headings and schedule group headings rather than repeating in every sign-off cell.\n4. In the highlighted current-day column, select **Sign off** only after the work is complete.\n5. Check that your initials appear in the cell. Hover or focus the cell to identify the signer and sign-off time.\n6. After all opening tasks are signed, Daybook moves to **Keep the day moving**. After all of those tasks are signed, it moves to **Close with confidence**.\n7. Select any phase across the top whenever you need to review it. Ask a manager to reopen a task if it was signed accidentally or needs to be repeated.\n8. Any Daybook staff member can use the pencil or bin icon beside every active task in Open the store, Keep the day moving, or Close with confidence. The bin always shows a warning before deletion; deleting stops future occurrences but retains existing sign-off history.\n\n> **Note:** The seven-day table follows the date selected in the Daybook header. That date appears first beside the task list, followed to the right by the six days leading up to it."
     },
     {
@@ -10138,7 +10110,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "1. Open **Locations > Location Daybooks** in IMS.\n2. Select an active location.\n3. Use the location's full Daybook. Reads, edits and sign-offs retain both the selected staff identity and the signed-in IMS account for audit history.\n4. Select the back arrow in the Daybook header to choose another location.\n\nLocation Daybooks is available when **Business requires POS** is enabled or when an active location already has POS configuration.\n\n### Read a communication\n\n1. Open **Comms**. Important and urgent notices are visually highlighted, with the newest notices first.\n2. Review the names and initials below the notice to see who has already acknowledged it.\n3. Read the full notice and select **Mark as read**.\n4. Confirm your name and initials appear. Another staff member using the same register must acknowledge it under their own Daybook identity.\n\n### Add operational follow-up\n\n1. Open the relevant section: **Requests**, **Store needs**, **Discrepancies**, or **Incidents**.\n2. Select **Add new** at the top of the tab.\n3. Complete the popup fields, enter concise factual notes and optionally choose one of the seven card colours.\n4. Submit the entry. Your staff identity and the signed-in account are recorded automatically.\n5. Use the available status actions as work progresses. Receiving stores confirm a Store Need after the delivery arrives.\n\n### Build branch transfer notes\n\n1. Open **Requests** or **Store needs**.\n2. Select **Add to clipboard** at the bottom-right of each card that should be included. Requests and Store needs share the same location clipboard, and adding the same card again updates its existing entry.\n3. Review the combined text in **Transfer notes clipboard** at the bottom of either tab.\n4. Open the branch transfer, place the cursor in the multiline **Notes** field, and paste. Each selected card appears as a labelled block with blank space and a divider between it and the next request.\n5. Select **Clear clipboard** beside **Add new** or at the bottom of the list when the transfer note is complete. The saved Daybook clipboard is kept for that location until it is cleared.\n\n> **Important:** A copied customer request includes the contact details entered on its card. Include a request only when those details are needed for the transfer, and clear the clipboard after use on a shared device.\n\n> **Warning:** A stock discrepancy is a manager stocktake queue, not a stock adjustment. Do not assume recording or closing it changes stock on hand.\n\n### Report an incident\n\n1. Enter the incident date and time, staff present and a factual description of what happened.\n2. Record any loss or damage, whether emergency services were contacted, and whether management was told.\n3. Include only personal details needed to identify and follow up the incident.\n4. Select **Sign and submit report**. Managers control later review and closure.\n\n### Add and edit Daybook content\n\nManagers use **Add new** in Today, Comms, References and Product guide to add daily, weekly or one-date tasks, publish communications to selected stores, and maintain approved reference and product information. Staff use **Add new** in Requests, Store needs, Discrepancies and Incidents.\n\nTo add or edit a Product guide, search the active product list by product name, SKU or barcode and choose the matching variant. Daybook uses that catalogue product's primary photo automatically. A placeholder is shown when the product does not have a primary photo. The guide cannot be saved until a matching result is chosen.\n\nSome imported storage-map entries may initially contain a shelf or storage description without a linked catalogue product. Edit the entry and select the exact product when one specific product applies; do not guess between similar variants.\n\nWhen an item can be edited under the current policy, select **Edit** beside a daily task or at the bottom-right of a Request or Store need, or use the pencil button on other supported cards, to open the same popup with the existing content. Four pastel and three light fluorescent backgrounds are available for communications, operational records, references and product guides. The default background remains available.\n\nTo remove a task, Request or Store need, select **Delete** beside it and confirm the warning. For other editable items, open the edit popup and select **Delete**. A deleted task stops appearing on future scheduled dates. The item leaves the active Daybook, but its deletion audit and any existing task sign-offs, communication acknowledgments, incident history or workflow events are retained. Delete follows the same tenant-wide editing policy as other changes.\n\nManagers open **Settings** and choose one tenant-wide editing policy:\n\n| Policy | Who can revise an existing item |\n|---|---|\n| Original author only | The signed-in account or selected staff identity recorded when the item was created; checklist tasks remain maintainable by all Daybook staff |\n| Managers only | POS managers and administrators; this is the default and permits maintenance of imported content |\n| Any staff member | Any staff member with access to Store Daybook |\n\nStatus changes and incident visibility still follow their separate operational permissions. Editing changes descriptive content; it does not rewrite sign-off or acknowledgment history."
     },
     {
@@ -10159,7 +10131,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "| Information | Access and handling |\n|---|---|\n| Task sign-off | Visible to store staff and includes staff identity, account and time |\n| Customer request | Use only the contact information needed for follow-up |\n| Incident report | Treat as sensitive; managers control review and closure |\n| Reference information | Store approved operational information only |\n| Passwords, PINs and access keys | Never enter them in Daybook references, guides, tasks or communications |"
     },
     {
@@ -10180,7 +10152,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| A task expected today is missing | Its recurrence, weekday or effective date does not include today | Ask a manager to review the task schedule |\n| A previous-day cell says **Not signed** | The task was scheduled but no completion was recorded for that day | Confirm the work with the store team and follow the manager's process for missed checks |\n| A sign-off has the wrong staff member | The shared-register identity was not changed | Ask a manager to reopen it, select the correct staff identity and complete it again |\n| A notice still appears unread | It was acknowledged under another staff identity | Select your identity and use **Mark as read** |\n| Pencil or bin is missing from a task | The task is historical and no longer active | Add a new active task if the work needs to resume |\n| Edit or Delete is missing from a Request or Store need | The current editing policy does not permit this staff member to change the card | Ask an allowed editor or manager to make the change |\n| Clipboard text is not available to paste | Browser clipboard permission was denied or the clipboard was replaced by another copy action | Select **Add to clipboard** on any included card again, then paste; the saved location list remains visible at the bottom |\n| A Store Need cannot move to the next stage | An earlier warehouse stage is incomplete | Complete requested, approved, packed and sent in order |\n| A discrepancy did not change stock | Daybook deliberately does not adjust inventory | A manager must stocktake and use the approved stock correction workflow |\n| Product photo is blank | The linked catalogue product has no primary photo, or an imported entry is not linked yet | Add a primary product photo in the catalogue, or edit the imported entry and select the exact product |\n| A Product guide cannot be saved | No active catalogue product has been selected | Search by product name, SKU or barcode and select a result before saving |"
     },
     {
@@ -10201,7 +10173,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "### Weekly cleaning in the daily flow\n\nA Tuesday cleaning task appears under **Keep the day moving** alongside any one-off task scheduled for that date. Lucinda completes both and signs once for each. Wednesday's tasks do not appear early, and the completed Tuesday records remain available in that date's Daybook.\n\n### Store supply sent by the warehouse\n\nNewtown requests large receipt rolls and selects the warehouse. Warehouse staff approve, pack and mark the request sent. Newtown confirms **Received** only after checking the physical delivery. Notes and times remain on the same request.\n\n### Quantity difference for manager review\n\nStaff find one item while the system shows three, so Daybook displays a variance of minus two. The manager plans a stocktake, verifies the quantity and records the outcome. The Daybook entry itself does not alter stock."
     },
     {
@@ -10222,7 +10194,7 @@
         "location-daybooks"
       ],
       "sourcePriority": 6,
-      "lastReviewed": "2026-08-27",
+      "lastReviewed": "2026-08-31",
       "content": "See **Register, Device, and Login** for POS identity and location, **End of Day and Xero** for till reconciliation, and **POS Branch Transfers** when the work requires an inventory transfer rather than a Store Need."
     },
     {
