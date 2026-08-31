@@ -4290,8 +4290,8 @@ export const ImsBTRepo = {
               v.price_rrp_sale, v.discount_start_date, v.discount_end_date,
               p.name AS product_name,
               p.brand,
-              p.zone,
-              p.bin,
+              COALESCE(NULLIF(TRIM(src.zone), ''), NULLIF(TRIM(p.zone), '')) AS zone,
+              COALESCE(NULLIF(TRIM(src.bin), ''), NULLIF(TRIM(p.bin), '')) AS bin,
               CONCAT_WS(' / ',
                 NULLIF(v.option1_value,''), NULLIF(v.option2_value,''),
                 NULLIF(v.option3_value,'')) AS variant_label
@@ -4299,10 +4299,12 @@ export const ImsBTRepo = {
          JOIN ims_branch_transfers bt ON bt.id = bti.transfer_id
          JOIN ims_product_variants v ON v.variant_id = bti.variant_id AND v.business_id = bt.business_id
          JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = bt.business_id
+         LEFT JOIN ims_stock src ON src.variant_id = bti.variant_id
+           AND src.location_id = bt.from_location_id AND src.business_id = bt.business_id
          WHERE bti.transfer_id = ? AND bt.business_id = ?
          ORDER BY
-           COALESCE(NULLIF(TRIM(p.zone),''), '~~~'),
-           COALESCE(NULLIF(TRIM(p.bin),''),  '~~~'),
+           COALESCE(NULLIF(TRIM(src.zone),''), NULLIF(TRIM(p.zone),''), '~~~'),
+           COALESCE(NULLIF(TRIM(src.bin),''), NULLIF(TRIM(p.bin),''), '~~~'),
            COALESCE(NULLIF(TRIM(p.brand),''), '~~~'),
            p.name`,
       [id, businessId]

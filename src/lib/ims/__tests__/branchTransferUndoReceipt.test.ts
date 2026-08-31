@@ -51,6 +51,23 @@ function connectionFor(destinationQty: number, items = [
   return connection;
 }
 
+describe('ImsBTRepo.get', () => {
+  it('loads zone and bin from the transfer source location with legacy fallback', async () => {
+    mockImsQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT bt.*')) return [{ id: 42, business_id: 'biz-1', from_location_id: 1 }];
+      return [];
+    });
+
+    await ImsBTRepo.get(42, 'biz-1');
+
+    const itemSql = String(mockImsQuery.mock.calls.find(([sql]) => String(sql).includes('FROM ims_branch_transfer_items bti'))?.[0]);
+    expect(itemSql).toContain('LEFT JOIN ims_stock src');
+    expect(itemSql).toContain('src.location_id = bt.from_location_id');
+    expect(itemSql).toContain("COALESCE(NULLIF(TRIM(src.zone), ''), NULLIF(TRIM(p.zone), '')) AS zone");
+    expect(itemSql).toContain("COALESCE(NULLIF(TRIM(src.bin), ''), NULLIF(TRIM(p.bin), '')) AS bin");
+  });
+});
+
 describe('ImsBTRepo.undoReceipt', () => {
   it('reverses destination receipt stock and reopens the transfer as sent', async () => {
     const connection = connectionFor(9);

@@ -45,6 +45,7 @@ When the destination allows POS sales from incoming transfers, POS can sell the 
 2. Choose the source, destination, transfer date, and any useful packing notes. Notes support multiple lines. You can paste the combined clipboard built from Store Daybook Requests and Store needs; each copied request is separated by blank space and a divider.
 3. Add each product variant and quantity to send, then save the Draft.
 4. Review the transfer number, route, items, quantities, and value.
+	The Zone and Bin shown for each line are the storage coordinates at the transfer's source location, normally the warehouse. They are not the destination branch coordinates.
 5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.
 6. Mark the transfer **Sent** only when the goods physically leave the source.
 7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.
