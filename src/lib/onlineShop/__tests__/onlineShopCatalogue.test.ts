@@ -18,4 +18,12 @@ describe('online shop catalogue projection', () => {
       option2_value: null, option3_value: null, retail_price: 20, compare_at_price: null, available_units: -4 }], []);
     expect(products[0].variants[0].availableUnits).toBe(0);
   });
+
+  it('marks untracked variants without inventing an available quantity', () => {
+    const products = projectOnlineShopProducts([{ product_id: 'p1', slug: 'service', name: 'Service', description: null,
+      brand: null, category: null, variant_id: 'v1', sku: null, barcode: null, option1_value: null,
+      option2_value: null, option3_value: null, retail_price: 20, compare_at_price: null, available_units: 0,
+      is_stock_item: 0 }], []);
+    expect(products[0].variants[0]).toMatchObject({ availableUnits: 0, tracksInventory: false });
+  });
 });
