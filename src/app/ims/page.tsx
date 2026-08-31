@@ -7148,7 +7148,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
-              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter the opening quantity and replenishment levels for each variant and location. Saving records a completed stocktake at each location.</div>
+              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock, minimum quantity and reorder quantity for each variant and location. Saving records a completed stocktake at each location.</div>
               {productLocations.length === 0 ? (
                 <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
               ) : (
@@ -26392,7 +26392,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showTags} defaultValue="yes" label="Tags" description="Show product tags in the product form." />
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showWholesalePrice} defaultValue="yes" label="Wholesale price" description="Show Wholesale $ for each product variant." />
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showWeight} defaultValue="yes" label="Weight" description="Show Wt. kg for each product variant." />
-              <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="yes" label="Add stock with new products" description="Allow opening quantities, minimum quantities and reorder quantities to be entered while creating a tracked product." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="no" label="Add stock with new products" description="Show opening stock, minimum quantity and reorder quantity fields while creating a tracked product. Off by default." />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button type="button" onClick={saveTaxSettings} disabled={!loaded || taxSaving || (taxDirtyKeys.size === 0 && !onlineChannelsDirty)} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>

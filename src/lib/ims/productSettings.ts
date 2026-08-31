@@ -6,12 +6,12 @@ export const PRODUCT_SETTING_KEYS = {
   allowOpeningStock: 'product_allow_opening_stock',
 } as const;
 
-const PRODUCT_SETTING_DEFAULTS: Record<string, 'yes'> = {
+const PRODUCT_SETTING_DEFAULTS: Record<string, 'yes' | 'no'> = {
   [PRODUCT_SETTING_KEYS.showProductType]: 'yes',
   [PRODUCT_SETTING_KEYS.showTags]: 'yes',
   [PRODUCT_SETTING_KEYS.showWholesalePrice]: 'yes',
   [PRODUCT_SETTING_KEYS.showWeight]: 'yes',
-  [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'yes',
+  [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'no',
 };
 
 export interface ProductSettings {
@@ -34,7 +34,7 @@ export function parseProductSettings(settings: Record<string, string>): ProductS
     showTags: (settings[PRODUCT_SETTING_KEYS.showTags] ?? 'yes') === 'yes',
     showWholesalePrice: (settings[PRODUCT_SETTING_KEYS.showWholesalePrice] ?? 'yes') === 'yes',
     showWeight: (settings[PRODUCT_SETTING_KEYS.showWeight] ?? 'yes') === 'yes',
-    allowOpeningStock: (settings[PRODUCT_SETTING_KEYS.allowOpeningStock] ?? 'yes') === 'yes',
+    allowOpeningStock: (settings[PRODUCT_SETTING_KEYS.allowOpeningStock] ?? 'no') === 'yes',
   };
 }
 

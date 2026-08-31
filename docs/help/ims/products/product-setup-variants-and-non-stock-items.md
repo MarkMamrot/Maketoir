@@ -14,7 +14,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
 - Choose which optional product and variant fields appear under **Settings > Products**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
-- Enter opening stock, minimum quantity and reorder quantity by location when creating a tracked product.
+- Optionally enable **Add stock with new products** to enter opening stock, minimum quantity and reorder quantity by location while creating a tracked product.
 - Use the Product Import header list or copy its current CSV titles before preparing a spreadsheet.
 - Use Product Type to classify an item; do not assume the wording alone switches stock tracking off.
 
@@ -53,11 +53,11 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 8. For a simple product, add one blank row and use the default variant.
 9. For choices, enter up to three Option Sets, such as Size and Colour, then select **Generate Variants**.
 10. Review every generated row. Enter a unique SKU and barcode, tax-inclusive RRP, wholesale or sale price, tax-exclusive cost and weight where relevant.
-11. For a new tracked product, enter any opening quantity, Min Qty and Reorder Qty for each location. Zero is a valid value.
+11. If **Add stock with new products** is enabled, enter any opening quantity, Min Qty and Reorder Qty for each location. Zero is a valid value.
 12. Use **Copy** only when the source row's prices and sale dates genuinely apply to the other variants.
 13. Select **Save All**, then check the uploaded photos, representative variants and any completed opening-stock stocktakes.
 
-Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, and opening-stock entry. Hiding a field removes it from product entry; it does not erase values already saved.
+Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, and **Add stock with new products**. Add stock is off by default because most product creation does not need opening, minimum or reorder quantities. Hiding a field removes it from product entry; it does not erase values already saved.
 
 Opening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
 
