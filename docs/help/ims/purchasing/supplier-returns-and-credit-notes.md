@@ -36,6 +36,8 @@ Use a Supplier Credit Note when a supplier owes your business money, with or wit
 
 Supplier credit lines use positive quantities and values in the form, even if the supplier's PDF prints them as negatives. Solvantis converts entered negative values to positive credit-note values.
 
+Enter the tax rate as a percentage, such as **10** for 10%. With **Tax exclusive**, tax is added to the entered unit cost. With **Tax inclusive**, tax is extracted from the entered unit cost and the total stays unchanged. **No tax** ignores the line tax rate. Changing the treatment updates the subtotal, tax and credit value without rewriting the entered unit cost.
+
 ## Step-by-step
 
 1. For received goods, open the completed PO and choose **Supplier Return / Credit**. For a standalone rebate, open **Purchasing > Supplier Credit Notes** and select **New Supplier Credit Note**.

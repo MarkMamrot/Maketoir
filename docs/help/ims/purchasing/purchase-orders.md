@@ -20,6 +20,8 @@ Advisor access is read-only. Other actions can be unavailable when the order's s
 
 ## Create or edit a purchase order
 
+Advisor access is read-only, so an Advisor cannot create or edit a purchase order.
+
 1. Open **Purchasing > Purchase Orders** and select **New Purchase Order**.
 2. Choose the supplier and receiving location.
 3. Add the exact product variants and quantities.

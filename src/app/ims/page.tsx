@@ -18,6 +18,7 @@ import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
 import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
+import { calculateSupplierCreditTotals, type SupplierCreditTaxTreatment } from '@/lib/ims/supplierCreditTotals';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { visiblePosPaymentTotals } from '@/lib/ims/posSalesPaymentSummary';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
@@ -12381,7 +12382,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   const [dateRange, setDateRange] = useState<SBDateRange>(DEFAULT_DATE_RANGE);
   const { settings } = useImsSettings();
 
-  const defaultTaxRate = () => ((settings?.sales_tax_on_sales ?? 'yes') === 'yes' ? Number(settings?.sales_tax_rate ?? 0.1) : 0);
+  const defaultTaxRate = () => Number(settings?.purchase_tax_rate ?? settings?.sales_tax_rate ?? 0.1);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -12437,11 +12438,14 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
 
   const normalizedQty = (item: any) => Math.abs(Number(item.qty || 0));
   const normalizedUnitCost = (item: any) => Math.abs(Number(item.unit_cost || 0));
-  const normalizedTaxRate = (item: any) => Math.abs(Number(item.tax_rate || 0));
   const lineTotal = (item: any) => normalizedQty(item) * normalizedUnitCost(item);
-  const subtotal = lineItems.reduce((s, i) => s + lineTotal(i), 0);
-  const taxTotal = lineItems.reduce((s, i) => s + lineTotal(i) * normalizedTaxRate(i), 0);
-  const grandTotal = subtotal + taxTotal;
+  const supplierCreditTotals = calculateSupplierCreditTotals(
+    lineItems,
+    (form.tax_treatment ?? 'ex_tax') as SupplierCreditTaxTreatment,
+  );
+  const subtotal = supplierCreditTotals.subtotal;
+  const taxTotal = supplierCreditTotals.tax_amount;
+  const grandTotal = supplierCreditTotals.total_amount;
   const hasInvalidQty = lineItems.some(i => !(normalizedQty(i) > 0));
   const stockRemovedQty = lineItems.reduce((s, i) => {
     const doRestock = i.restock === undefined || i.restock === null ? true : !!i.restock;
@@ -12822,7 +12826,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                       <td style={{ padding: '4px 8px', fontWeight: item.remaining_returnable_qty != null ? 700 : 400 }}>{item.remaining_returnable_qty ?? '—'}</td>
                       <td style={{ padding: '4px 8px' }}><input type="number" min="0.001" max={item.remaining_returnable_qty ?? undefined} step="any" value={item.qty} onChange={e => updateLine(i, 'qty', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, width: 90, fontSize: 12 }} /></td>
-                      <td style={{ padding: '4px 8px' }}><input type="number" step="any" value={item.tax_rate} onChange={e => updateLine(i, 'tax_rate', e.target.value)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
+                      <td style={{ padding: '4px 8px' }}><input type="number" min="0" max="100" step="0.01" value={Number(item.tax_rate || 0) * 100} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, width: 70, fontSize: 12 }} /></td>
                       <td style={{ padding: '4px 8px', textAlign: 'center' }}><input type="checkbox" checked={!!item.restock} onChange={e => updateLine(i, 'restock', e.target.checked)} title="Goods physically returned to supplier — reduces stock" /></td>
                       <td style={{ padding: '4px 8px', color: 'var(--sv-text-main)' }}>{money(lineTotal(item))}</td>
                       <td style={{ padding: '4px 8px' }}><button type="button" onClick={() => removeLine(i)} style={btnStyle('danger', 'xs')}>×</button></td>

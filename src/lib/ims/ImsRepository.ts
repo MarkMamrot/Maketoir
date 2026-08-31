@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { normalizePurchaseOrderField } from './purchaseOrderInput';
+import { calculateSupplierCreditTotals } from './supplierCreditTotals';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { getCurrentImsDb } from '@/services/imsContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -6066,12 +6067,7 @@ export const ImsSupplierCNRepo = {
     businessId: string,
     createdBy?: string,
   ): Promise<number> {
-    let subtotal = 0, tax_amount = 0;
-    for (const item of items) {
-      const line = Number(item.qty) * Number(item.unit_cost);
-      subtotal   += line;
-      tax_amount += line * Number(item.tax_rate ?? 0);
-    }
+    const { subtotal, tax_amount, total_amount } = calculateSupplierCreditTotals(items, data.tax_treatment);
     const pool = getIMSPool();
     const conn = await pool.getConnection();
     const numberLock = `ims:scn-number:${businessId}`;
@@ -6096,7 +6092,7 @@ export const ImsSupplierCNRepo = {
         [businessId, scnNumber, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
          data.scn_date, data.reference ?? null, data.supplier_credit_ref ?? null,
          data.currency_code ?? 'AUD', data.exchange_rate ?? 1, data.tax_treatment,
-         subtotal, tax_amount, subtotal + tax_amount, data.notes ?? null, createdBy ?? null],
+         subtotal, tax_amount, total_amount, data.notes ?? null, createdBy ?? null],
       );
       const scnId = (res as any).insertId;
       for (const item of items) {
@@ -6132,7 +6128,7 @@ export const ImsSupplierCNRepo = {
     try {
       await conn.beginTransaction();
       const [[current]] = await conn.execute<any[]>(
-        `SELECT po_id FROM ims_supplier_credit_notes
+        `SELECT po_id, tax_treatment FROM ims_supplier_credit_notes
           WHERE id = ? AND business_id = ? AND status = 'draft' FOR UPDATE`,
         [id, businessId],
       );
@@ -6148,15 +6144,10 @@ export const ImsSupplierCNRepo = {
       }
       if (items !== undefined) {
         await validateSupplierReturnCapsTx(conn, businessId, data.po_id ?? current.po_id, items as ImsSupplierCNItem[], id);
-        let subtotal = 0;
-        let taxAmount = 0;
-        for (const item of items) {
-          const line = Number(item.qty) * Number(item.unit_cost);
-          subtotal += line;
-          taxAmount += line * Number(item.tax_rate ?? 0);
-        }
+        const taxTreatment = data.tax_treatment ?? current.tax_treatment ?? 'ex_tax';
+        const totals = calculateSupplierCreditTotals(items, taxTreatment);
         sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-        vals.push(subtotal, taxAmount, subtotal + taxAmount);
+        vals.push(totals.subtotal, totals.tax_amount, totals.total_amount);
       }
       if (sets.length) {
         await conn.execute(
