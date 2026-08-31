@@ -56,6 +56,37 @@ describe('Google pricing preview', () => {
     ]));
   });
 
+  it('maps Google short and long Pro SKU labels to separate context bands', () => {
+    const preview = buildGoogleRatePreview(
+      [
+        { skuId: 'SKU-SHORT', displayName: 'Generate content input token count Gemini 2.5 Pro short input text' },
+        { skuId: 'SKU-LONG', displayName: 'Generate content input token count Gemini 2.5 Pro long input text' },
+      ],
+      [
+        { name: 'billingAccounts/a/skus/SKU-SHORT/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+        { name: 'billingAccounts/a/skus/SKU-LONG/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '4' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+      ],
+    );
+    expect(preview.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'SKU-SHORT:input_tokens', metric: 'input_tokens', priceAud: '2' }),
+      expect.objectContaining({ id: 'SKU-LONG:input_tokens_over_200k', metric: 'input_tokens_over_200k', priceAud: '4' }),
+    ]));
+  });
+
+  it('excludes experimental, TTS, and input-modality Pro SKUs', () => {
+    const names = [
+      'Generate content input token count Gemini 2.5 Pro Experimental short input text',
+      'GenerateContent text input token count for Gemini 2.5 Pro TTS',
+      'Generate content input token count Gemini 2.5 Pro input image',
+    ];
+    const preview = buildGoogleRatePreview(
+      names.map((displayName, index) => ({ skuId: `SKU-${index}`, displayName })),
+      names.map((_, index) => ({ name: `billingAccounts/a/skus/SKU-${index}/price`, currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } })),
+    );
+    expect(preview.candidates).toHaveLength(0);
+    expect(preview.warnings).toHaveLength(3);
+  });
+
   it('continues to reject unsupported arbitrary tier boundaries', () => {
     const preview = buildGoogleRatePreview(
       [{ skuId: 'SKU-TIERS', displayName: 'Gemini 2.5 Pro Input Tokens' }],
@@ -121,9 +152,23 @@ describe('Google pricing preview', () => {
   it('rejects malformed inline credentials with an actionable error', async () => {
     process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID = 'ABC-123';
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = '{bad';
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.GOOGLE_CLIENT_EMAIL;
     delete process.env.GOOGLE_PRIVATE_KEY;
     await expect(fetchGoogleRatePreview()).rejects.toThrow('not valid JSON');
+  });
+
+  it('falls back to the configured credential file when inline credentials are malformed', async () => {
+    process.env.GOOGLE_CLOUD_BILLING_ACCOUNT_ID = 'ABC-123';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = '{bad';
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = 'service-account.json';
+    delete process.env.GOOGLE_CLIENT_EMAIL;
+    delete process.env.GOOGLE_PRIVATE_KEY;
+    vi.stubGlobal('fetch', vi.fn(async (request: string) => {
+      if (String(request).includes('/services')) return Response.json({ billingAccountServices: [{ name: 'billingAccounts/ABC-123/services/gemini', displayName: 'Gemini API' }] });
+      return Response.json(String(request).includes('/prices') ? { billingAccountPrices: [] } : { billingAccountSkus: [] });
+    }));
+    await expect(fetchGoogleRatePreview()).resolves.toEqual(expect.objectContaining({ candidates: [] }));
   });
 
   it('follows pagination and uses the Gemini API service filter', async () => {

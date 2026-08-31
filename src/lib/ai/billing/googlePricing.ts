@@ -40,7 +40,11 @@ function parseCredentials() {
   if (!raw) return undefined;
   try { return JSON.parse(raw); }
   catch {
-    if (raw.trim().startsWith('{\\"')) return JSON.parse(raw.replace(/\\"/g, '"'));
+    if (raw.trim().startsWith('{\\"')) {
+      try { return JSON.parse(raw.replace(/\\"/g, '"')); }
+      catch { /* Fall through to the credential-file fallback. */ }
+    }
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) return undefined;
     throw new Error('Google service-account credentials are not valid JSON.');
   }
 }
@@ -110,7 +114,9 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
     const modelId = modelIdFromSku(skuName);
     if (!modelId) continue;
     const price = priceBySku.get(skuId);
-    const excluded = /batch|flex|priority|storage|grounding|search|maps|audio|video|live|embedding|tuning/i.test(skuName);
+    const imageModel = /gemini\s+\d+(?:\.\d+)?\s+(?:flash[ -]?lite|flash|pro)\s+image\b/i.test(skuName);
+    const excluded = /batch|flex|priority|storage|grounding|search|maps|audio|video|live|embedding|tuning|experimental|\btts\b/i.test(skuName)
+      || (/\bimage\b/i.test(skuName) && !imageModel);
     const tiers = price?.rate?.tiers || [];
     const metrics = metricsFromSku(skuName);
     const unitScale = Number(price?.rate?.unitInfo?.unitQuantity?.value || 0);
@@ -127,7 +133,7 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
         warnings.push({ skuId, skuName, reason: 'Pricing shape cannot be represented safely.' });
         continue;
       }
-      const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k/i.test(skuName);
+      const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k|\blong\s+(?:input|output|text)\b/i.test(skuName);
       const useLongContext = tierIndex === 1 || explicitLongContext;
       const priceAud = moneyDecimal(amount);
       for (const baseMetric of metrics) {
