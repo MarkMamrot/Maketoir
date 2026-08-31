@@ -15,6 +15,7 @@ export interface WholesaleQuickOrderProduct {
   product_id: string;
   name: string;
   allow_indent_wholesale: number;
+  is_stock_item?: number;
   variants: WholesaleQuickOrderVariant[];
 }
 
@@ -28,6 +29,7 @@ export interface WholesaleQuickOrderItem {
   unit_price: number;
   available: number;
   allow_indent: boolean;
+  tracks_inventory: boolean;
   is_indent: boolean;
   indent_qty: number;
   pack_size?: number | null;
@@ -165,18 +167,19 @@ export function buildWholesaleQuickOrder(
   let adjustedLines = 0;
   const items: WholesaleQuickOrderItem[] = [];
   for (const request of requestedByVariant.values()) {
-    const allowIndent = !!request.product.allow_indent_wholesale;
+    const tracksInventory = Number(request.product.is_stock_item ?? 1) === 1;
+    const allowIndent = tracksInventory && !!request.product.allow_indent_wholesale;
     const alreadyInCart = Number(existingQuantities[request.variant.variant_id] ?? 0);
     const remainingStock = Math.max(0, Number(request.variant.available) - alreadyInCart);
     const requestedUnits = request.quantity * (quantityMode === 'pack' ? Math.max(1, Number(request.variant.pack_size) || 1) : 1);
-    const quantity = allowIndent ? requestedUnits : Math.min(requestedUnits, remainingStock - (quantityMode === 'pack' ? remainingStock % Math.max(1, Number(request.variant.pack_size) || 1) : 0));
+    const quantity = !tracksInventory || allowIndent ? requestedUnits : Math.min(requestedUnits, remainingStock - (quantityMode === 'pack' ? remainingStock % Math.max(1, Number(request.variant.pack_size) || 1) : 0));
     if (quantity <= 0) {
       issues.push({ line: request.line, identifier: request.identifier, reason: 'No additional stock is available.' });
       continue;
     }
     if (quantity < requestedUnits) adjustedLines += 1;
     const finalQuantity = alreadyInCart + quantity;
-    const indentQty = Math.max(0, finalQuantity - Number(request.variant.available));
+    const indentQty = tracksInventory ? Math.max(0, finalQuantity - Number(request.variant.available)) : 0;
     items.push({
       variant_id: request.variant.variant_id,
       product_id: request.product.product_id,
@@ -187,6 +190,7 @@ export function buildWholesaleQuickOrder(
       unit_price: Number(request.variant.price_wholesale),
       available: Number(request.variant.available),
       allow_indent: allowIndent,
+      tracks_inventory: tracksInventory,
       is_indent: indentQty > 0,
       indent_qty: indentQty,
       pack_size: request.variant.pack_size,

@@ -5,6 +5,7 @@ export interface OnlineShopAllocationLine {
   variantId: string;
   quantity: number;
   unitPriceCents: number;
+  tracksInventory?: boolean;
 }
 
 export interface OnlineShopLocationStock {
@@ -90,17 +91,18 @@ export function allocateOnlineShopCart(input: {
   const locations = orderedLocations(input.locations);
   if (!locations.length) throw new OnlineShopStockConflict('No online fulfilment locations are available.');
   const totals = lineTotals(input.lines);
+  const trackedLines = input.lines.filter(line => line.tracksInventory !== false);
 
   if (input.mode === 'single_location') {
-    const location = locations.find(candidate => input.lines.every(line =>
+    const location = locations.find(candidate => trackedLines.every(line =>
       Math.floor(Number(candidate.availableByVariant[line.variantId]) || 0) >= line.quantity));
     if (!location) throw new OnlineShopStockConflict('No single location can fulfil the whole cart.');
-    const reservations = input.lines.map(line => ({ variantId: line.variantId, locationId: location.locationId, quantity: line.quantity }));
+    const reservations = trackedLines.map(line => ({ variantId: line.variantId, locationId: location.locationId, quantity: line.quantity }));
     return { dispatchLocationId: location.locationId, reservations, fulfilmentGroups: [{ locationId: location.locationId, reservations }], ...totals };
   }
 
   const reservations: OnlineShopStockReservationPlan[] = [];
-  for (const line of input.lines) {
+  for (const line of trackedLines) {
     let remaining = line.quantity;
     for (const location of locations) {
       const available = Math.max(0, Math.floor(Number(location.availableByVariant[line.variantId]) || 0));
@@ -114,7 +116,8 @@ export function allocateOnlineShopCart(input: {
 
   const groups = groupReservations(reservations);
   if (input.mode === 'split') {
-    return { dispatchLocationId: groups[0].locationId, reservations, fulfilmentGroups: groups, ...totals };
+    const fulfilmentGroups = groups.length ? groups : [{ locationId: locations[0].locationId, reservations: [] }];
+    return { dispatchLocationId: fulfilmentGroups[0].locationId, reservations, fulfilmentGroups, ...totals };
   }
   const dispatchLocationId = wholePositive(Number(input.dispatchLocationId), 'Dispatch location ID');
   if (!locations.some(location => location.locationId === dispatchLocationId)) {

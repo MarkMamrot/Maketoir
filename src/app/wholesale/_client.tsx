@@ -61,6 +61,7 @@ interface WholesaleProduct {
   category: string | null;
   subcategory: string | null;
   allow_indent_wholesale: number;
+  is_stock_item?: number;
   created_at: string;
   image_url: string | null;
   images?: string[];
@@ -190,8 +191,9 @@ function ProductCard({
         {(expanded ? product.variants : product.variants.slice(0, 3)).map(v => {
           const lbl = variantLabel(v);
           const inCart  = cartQtyMap[v.variant_id] ?? 0;
-          const isOos   = v.available <= 0 && !product.allow_indent_wholesale;
-          const isIndent = v.available <= 0 && !!product.allow_indent_wholesale;
+          const tracksInventory = Number(product.is_stock_item ?? 1) === 1;
+          const isOos   = tracksInventory && v.available <= 0 && !product.allow_indent_wholesale;
+          const isIndent = tracksInventory && v.available <= 0 && !!product.allow_indent_wholesale;
           const favourite = favouriteVariantIds.has(v.variant_id);
           return (
             <div key={v.variant_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px solid #f1f5f9' }}>
@@ -203,7 +205,7 @@ function ProductCard({
                   {v.pack_size && v.pack_size > 1 && <span style={{ fontSize: 10, color: '#94a3b8' }}>pk{v.pack_size}</span>}
                 </div>
                 <div style={{ fontSize: 10, fontWeight: 600, marginTop: 1, color: isOos ? '#ef4444' : isIndent ? '#f59e0b' : '#22c55e' }}>
-                  {isOos ? 'Out of Stock' : isIndent ? `Indent (${v.available} on hand)` : `${v.available} available`}
+                  {!tracksInventory ? 'Inventory not tracked' : isOos ? 'Out of Stock' : isIndent ? `Indent (${v.available} on hand)` : `${v.available} available`}
                 </div>
               </div>
               <button
@@ -217,7 +219,7 @@ function ProductCard({
               {isOos ? (
                 <span style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, padding: '3px 7px', border: '1px solid #fecaca', borderRadius: 6 }}>Out of Stock</span>
               ) : (
-                <WholesaleQuantityAdd productName={product.name} variantLabel={lbl} packSize={v.pack_size} available={v.available} allowIndent={!!product.allow_indent_wholesale} quantityMode={quantityMode} inCart={inCart} compact onAdd={qty => onAdd({ variant_id: v.variant_id, product_id: product.product_id, product_name: product.name, variant_label: lbl, sku: v.sku, qty, pack_size: v.pack_size, unit_price: v.price_wholesale, available: v.available, allow_indent: !!product.allow_indent_wholesale })} />
+                <WholesaleQuantityAdd productName={product.name} variantLabel={lbl} packSize={v.pack_size} available={v.available} allowIndent={!!product.allow_indent_wholesale} tracksInventory={tracksInventory} quantityMode={quantityMode} inCart={inCart} compact onAdd={qty => onAdd({ variant_id: v.variant_id, product_id: product.product_id, product_name: product.name, variant_label: lbl, sku: v.sku, qty, pack_size: v.pack_size, unit_price: v.price_wholesale, available: v.available, allow_indent: !!product.allow_indent_wholesale, tracks_inventory: tracksInventory })} />
               )}
             </div>
           );
@@ -383,9 +385,10 @@ export default function WholesalePortalClient({
     if (session.preview && !canTestCheckout) { showToast('Staff preview is read-only.'); return; }
     setCartItems(prev => {
       const ex = prev.find(i => i.variant_id === item.variant_id);
-      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const qty = i.allow_indent ? i.qty + item.qty : Math.min(i.qty + item.qty, i.available); const indentQty = Math.max(0, qty - i.available); return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
-      const qty = item.allow_indent ? item.qty : Math.min(item.qty, item.available);
-      const indentQty = Math.max(0, qty - item.available);
+      if (ex) return prev.map(i => { if (i.variant_id !== item.variant_id) return i; const tracksInventory = i.tracks_inventory !== false; const qty = !tracksInventory || i.allow_indent ? i.qty + item.qty : Math.min(i.qty + item.qty, i.available); const indentQty = tracksInventory ? Math.max(0, qty - i.available) : 0; return { ...i, qty, indent_qty: indentQty, is_indent: indentQty > 0 }; });
+      const tracksInventory = item.tracks_inventory !== false;
+      const qty = !tracksInventory || item.allow_indent ? item.qty : Math.min(item.qty, item.available);
+      const indentQty = tracksInventory ? Math.max(0, qty - item.available) : 0;
       return [...prev, { ...item, qty, indent_qty: indentQty, is_indent: indentQty > 0 }];
     });
     showToast(`Added: ${item.product_name} — ${item.variant_label}`);
@@ -393,8 +396,9 @@ export default function WholesalePortalClient({
 
   const handleQtyChange = (vid: string, qty: number) => setCartItems(p => p.map(i => {
     if (i.variant_id !== vid) return i;
-    const nextQty = i.allow_indent ? qty : Math.min(qty, i.available);
-    const indentQty = Math.max(0, nextQty - i.available);
+    const tracksInventory = i.tracks_inventory !== false;
+    const nextQty = !tracksInventory || i.allow_indent ? qty : Math.min(qty, i.available);
+    const indentQty = tracksInventory ? Math.max(0, nextQty - i.available) : 0;
     return { ...i, qty: nextQty, indent_qty: indentQty, is_indent: indentQty > 0 };
   }));
   const handleRemove    = (vid: string) => setCartItems(p => p.filter(i => i.variant_id !== vid));
@@ -565,7 +569,7 @@ export default function WholesalePortalClient({
           sku: variant.sku,
           price: Number(variant.price_wholesale),
           available: Number(variant.available),
-          orderable: variant.available > 0 || !!product.allow_indent_wholesale,
+          orderable: Number(product.is_stock_item ?? 1) === 0 || variant.available > 0 || !!product.allow_indent_wholesale,
         });
       }
     }
@@ -587,6 +591,7 @@ export default function WholesalePortalClient({
         unit_price: variant.price_wholesale,
         available: variant.available,
         allow_indent: !!product.allow_indent_wholesale,
+        tracks_inventory: Number(product.is_stock_item ?? 1) === 1,
       });
       return;
     }
@@ -602,7 +607,7 @@ export default function WholesalePortalClient({
           continue;
         }
         const quantity = next[index].qty + item.qty;
-        const indentQty = Math.max(0, quantity - item.available);
+        const indentQty = item.tracks_inventory === false ? 0 : Math.max(0, quantity - item.available);
         next[index] = { ...next[index], ...item, qty: quantity, indent_qty: indentQty, is_indent: indentQty > 0 };
       }
       return next;
@@ -649,8 +654,8 @@ export default function WholesalePortalClient({
         if (!nameMatch && !variantMatch) return [];
       }
       const variants = p.variants.filter(variant => {
-        if (availabilityFilter === 'available') return variant.available > 0;
-        if (availabilityFilter === 'indent') return variant.available <= 0 && !!p.allow_indent_wholesale;
+        if (availabilityFilter === 'available') return Number(p.is_stock_item ?? 1) === 0 || variant.available > 0;
+        if (availabilityFilter === 'indent') return Number(p.is_stock_item ?? 1) === 1 && variant.available <= 0 && !!p.allow_indent_wholesale;
         return true;
       });
       return variants.length > 0 ? [{ ...p, variants }] : [];
@@ -774,6 +779,7 @@ export default function WholesalePortalClient({
             unit_price: variant.price_wholesale,
             available: variant.available,
             allow_indent: !!selectedProduct.allow_indent_wholesale,
+            tracks_inventory: Number(selectedProduct.is_stock_item ?? 1) === 1,
           })}
           onClose={() => setSelectedProduct(null)}
           layoutSections={effectiveLayout.pages.product.sections}

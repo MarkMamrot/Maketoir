@@ -50,6 +50,15 @@ describe('buildWholesaleReorderCart', () => {
     expect(result.adjustedLines).toBe(0);
   });
 
+  it('preserves requested quantity for an untracked product without indent', () => {
+    const result = buildWholesaleReorderCart(
+      [{ variant_id: 'variant-1', qty_ordered: 40 }],
+      [{ ...product, is_stock_item: 0, variants: [{ ...product.variants[0], available: 0 }] }],
+    );
+
+    expect(result.items[0]).toMatchObject({ qty: 40, tracks_inventory: false, allow_indent: false, is_indent: false, indent_qty: 0 });
+  });
+
   it('omits retired variants and out-of-stock non-indent variants', () => {
     const result = buildWholesaleReorderCart(
       [{ variant_id: 'retired', qty_ordered: 2 }, { variant_id: 'variant-1', qty_ordered: 1 }],

@@ -16,7 +16,7 @@ import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
-import { shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
+import { shopifyInventoryPolicyPayload, shopifyVariantPricePayload, pushInventoryForBusiness } from '@/lib/ims/shopifyInventorySync';
 import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
@@ -277,8 +277,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
           weight_unit: 'g',
           option1: hasOpt1 ? (v.option1_value?.trim() || 'Default') : 'Default Title',
-          inventory_management: 'shopify',
-          inventory_policy: 'deny',
+          ...shopifyInventoryPolicyPayload(product.is_stock_item),
         };
         if (hasOpt2) vp.option2 = v.option2_value?.trim() || 'Default';
         if (hasOpt3) vp.option3 = v.option3_value?.trim() || 'Default';
@@ -344,6 +343,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (!v.shopify_variant_id) continue;
       const variantPayload: Record<string, any> = {
         ...shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale),
+        ...shopifyInventoryPolicyPayload(product.is_stock_item),
       };
       if (v.sku)     variantPayload.sku     = v.sku;
       if (v.barcode) variantPayload.barcode = v.barcode;

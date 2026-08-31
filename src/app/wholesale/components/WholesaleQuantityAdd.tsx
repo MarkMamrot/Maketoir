@@ -11,6 +11,7 @@ export function WholesaleQuantityAdd({
   packSize,
   available,
   allowIndent,
+  tracksInventory = true,
   quantityMode,
   inCart,
   onAdd,
@@ -21,14 +22,15 @@ export function WholesaleQuantityAdd({
   packSize: number | null;
   available: number;
   allowIndent: boolean;
+  tracksInventory?: boolean;
   quantityMode: WholesaleOrderQuantityMode;
   inCart: number;
   onAdd: (units: number) => void;
   compact?: boolean;
 }) {
   const effectivePackSize = quantityMode === 'pack' ? wholesalePackSize(packSize) : 1;
-  const maximum = allowIndent ? undefined : Math.floor(available / effectivePackSize);
-  const orderable = allowIndent || maximum > 0;
+  const maximum = !tracksInventory || allowIndent ? undefined : Math.floor(available / effectivePackSize);
+  const orderable = !tracksInventory || allowIndent || maximum > 0;
   const [quantity, setQuantity] = useState(1);
 
   useEffect(() => setQuantity(1), [productName, variantLabel, quantityMode]);

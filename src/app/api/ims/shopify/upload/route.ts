@@ -6,6 +6,7 @@ import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { getShopifyAdminCredentials } from '@/lib/shopifyCredentials';
 import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRepository';
+import { shopifyInventoryPolicyPayload } from '@/lib/ims/shopifyInventorySync';
 
 
 export async function POST(req: Request) {
@@ -48,8 +49,7 @@ export async function POST(req: Request) {
           option1:   hasOpt1 ? (v.option1_value?.trim() || 'Default') : 'Default Title',
           ...(hasOpt2 ? { option2: v.option2_value?.trim() || 'Default' } : {}),
           ...(hasOpt3 ? { option3: v.option3_value?.trim() || 'Default' } : {}),
-          inventory_management: 'shopify',
-          inventory_policy: 'deny',
+          ...shopifyInventoryPolicyPayload(product.is_stock_item),
         }));
 
         const options = [];

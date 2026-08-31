@@ -58,10 +58,10 @@ export async function GET(req: Request) {
     const products = await imsQuery<{
       id: number; product_id: string; name: string; description: string | null;
       product_type: string | null; brand: string | null; category: string | null;
-      subcategory: string | null; allow_indent_wholesale: number; created_at: string;
+      subcategory: string | null; allow_indent_wholesale: number; is_stock_item: number; created_at: string;
     }>(
       `SELECT p.id, p.product_id, p.name, p.description, p.product_type,
-              p.brand, p.category, p.subcategory, p.allow_indent_wholesale, p.created_at
+              p.brand, p.category, p.subcategory, p.allow_indent_wholesale, COALESCE(p.is_stock_item, 1) AS is_stock_item, p.created_at
        FROM ims_products p
        ${where}
        ORDER BY p.created_at DESC`,

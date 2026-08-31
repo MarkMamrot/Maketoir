@@ -77,8 +77,12 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
     );
     if (!attemptRows[0] || Number(attemptRows[0].amount_cents) !== input.amountCents) throw new Error('Payment attempt does not match this checkout.');
     const [itemRows] = await connection.execute<any[]>(
-      `SELECT variant_id, quantity, unit_price_cents, tax_cents, line_total_cents
-         FROM ims_online_shop_checkout_items WHERE business_id = ? AND checkout_id = ? ORDER BY id FOR UPDATE`,
+      `SELECT item.variant_id, item.quantity, item.unit_price_cents, item.tax_cents, item.line_total_cents,
+              COALESCE(product.is_stock_item, 1) AS is_stock_item
+         FROM ims_online_shop_checkout_items item
+         JOIN ims_product_variants variant ON variant.business_id = item.business_id AND variant.variant_id = item.variant_id
+         JOIN ims_products product ON product.business_id = variant.business_id AND product.product_id = variant.product_id
+        WHERE item.business_id = ? AND item.checkout_id = ? ORDER BY item.id FOR UPDATE`,
       [input.businessId, input.checkoutId],
     );
     const items = itemRows as CheckoutItemRow[];
@@ -87,7 +91,11 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
         WHERE business_id = ? AND checkout_id = ? ORDER BY id FOR UPDATE`, [input.businessId, input.checkoutId],
     );
     const reservations = reservationRows as ReservationRow[];
-    if (!items.length || !reservations.length || reservations.some(reservation => reservation.status !== 'active')) {
+    const trackedItems = items.filter(item => Number((item as any).is_stock_item ?? 1) === 1);
+    const trackedReservationsMatch = trackedItems.every(item => reservations
+      .filter(reservation => reservation.variant_id === item.variant_id)
+      .reduce((sum, reservation) => sum + Number(reservation.quantity), 0) === Number(item.quantity));
+    if (!items.length || reservations.some(reservation => reservation.status !== 'active') || !trackedReservationsMatch) {
       throw new Error('Paid checkout stock reservations are no longer available.');
     }
     const groups = existingGroups as GroupRow[];
@@ -170,6 +178,11 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
         for (const reservation of reservations.filter(row => Number(row.location_id) === Number(group.location_id))) {
           groupQuantities.set(reservation.variant_id, (groupQuantities.get(reservation.variant_id) ?? 0) + Number(reservation.quantity));
         }
+        if (groupIndex === 0) {
+          for (const item of items.filter(item => Number((item as any).is_stock_item ?? 1) === 0)) {
+            groupQuantities.set(item.variant_id, Number(item.quantity));
+          }
+        }
       }
       const groupItems = items.flatMap(item => {
         const quantity = groupQuantities.get(item.variant_id) ?? 0;
@@ -216,11 +229,13 @@ async function finalizeInTenant(input: { businessId: string; checkoutId: string;
            VALUES (?, ?, ?, ?, 0, ?, 0, 0.1, ?, 'Native online shop')`,
           [input.businessId, soId, item.variant_id, item.quantity, Number(item.unit_price_cents) / 100, item.lineTotalCents / 100],
         );
-        await connection.execute(
-          `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
-           VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-          [input.businessId, item.variant_id, group.location_id, item.quantity],
-        );
+        if (Number((item as any).is_stock_item ?? 1) === 1) {
+          await connection.execute(
+            `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+             VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+            [input.businessId, item.variant_id, group.location_id, item.quantity],
+          );
+        }
       }
       if (stripeCents > 0) {
         await connection.execute(

@@ -81,20 +81,21 @@ export async function POST(_req: Request, { params }: Ctx) {
     // Recompute indent quantities from live availability; client flags are advisory only.
     const variantIds = items.map((item: any) => item.variant_id);
     const stockPlaceholders = variantIds.map(() => '?').join(',');
-    const stockRows = await imsQuery<{ variant_id: string; available: number; allow_indent_wholesale: number }>(
-      `SELECT pv.variant_id, p.allow_indent_wholesale,
+    const stockRows = await imsQuery<{ variant_id: string; available: number; allow_indent_wholesale: number; is_stock_item: number }>(
+      `SELECT pv.variant_id, p.allow_indent_wholesale, COALESCE(p.is_stock_item, 1) AS is_stock_item,
               GREATEST(0, COALESCE(SUM(s.qty_on_hand),0) - COALESCE(SUM(s.qty_committed),0)) AS available
          FROM ims_product_variants pv
          JOIN ims_products p ON p.product_id = pv.product_id AND p.business_id = ?
          LEFT JOIN ims_stock s ON s.variant_id = pv.variant_id AND s.business_id = ?
         WHERE pv.variant_id IN (${stockPlaceholders})
-        GROUP BY pv.variant_id, p.allow_indent_wholesale`,
+        GROUP BY pv.variant_id, p.allow_indent_wholesale, p.is_stock_item`,
       [session.businessId, session.businessId, ...variantIds],
     );
     const liveStock = new Map(stockRows.map(row => [row.variant_id, row]));
     for (const item of items) {
       const stock = liveStock.get(item.variant_id);
-      item.indent_qty = Math.max(0, Number(item.qty) - Number(stock?.available ?? 0));
+      item.is_stock_item = Number(stock?.is_stock_item ?? item.is_stock_item ?? 1);
+      item.indent_qty = item.is_stock_item === 0 ? 0 : Math.max(0, Number(item.qty) - Number(stock?.available ?? 0));
       item.is_indent = item.indent_qty > 0;
     }
 

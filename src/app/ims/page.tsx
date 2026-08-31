@@ -18,6 +18,7 @@ import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
+import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
 import { parseWebsiteJsonResponse } from '@/lib/website/httpJsonResponse';
 import { selectProductResearchVariant } from '@/lib/website/productResearchRules';
 import { WebsiteGeneratedContentEditor } from '@/components/website/WebsiteGeneratedContentEditor';
@@ -3292,8 +3293,10 @@ interface VariantRow {
   _delete?: boolean;
 }
 interface OptionSet { name: string; values: string; }
+interface OpeningStockValue { quantity: string; minQty: string; reorderQty: string }
+interface PendingProductSave { productId: string; requestToken: string }
 
-const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, base_sku: '' };
+const BLANK_PRODUCT = { name: '', description: '', product_type: '', brand: '', tags: '', category: '', subcategory: '', is_active: 1, is_stock_item: 1, base_sku: '' };
 
 const blankRow = (): VariantRow => ({
   _tempId: Math.random().toString(36).slice(2, 10),
@@ -5873,8 +5876,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [primaryImages, setPrimaryImages] = useState<Record<string, string>>({});
   const [importProductsOpen, setImportProductsOpen] = useState(false);
   const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
+  const [productLocations, setProductLocations] = useState<Array<{ id: number; name: string; is_active?: number }>>([]);
+  const [openingStock, setOpeningStock] = useState<Record<string, OpeningStockValue>>({});
+  const [pendingProductSave, setPendingProductSave] = useState<PendingProductSave | null>(null);
+  const openingStockScrollRef = useRef<HTMLDivElement | null>(null);
+  useTableArrowScroll(openingStockScrollRef);
   const { settings: productSettings } = useImsSettings();
-  const showCategories = productSettings.use_categories === 'yes';
+  const productFeatures = parseProductSettings(productSettings);
+  const showCategories = productFeatures.showCategories;
   const showZoneBin    = productSettings.use_zones_bins  !== 'no';
   const showFxCosts    = productSettings.use_foreign_currencies !== 'no';
   const [exporting, setExporting] = useState(false);
@@ -5946,7 +5955,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); loadBrands(); loadProductTypeOptions(); loadContacts(); }, [load, loadBrands, loadProductTypeOptions, loadContacts]);
+  const loadProductLocations = useCallback(() => {
+    fetch('/api/ims/locations').then(r => r.json()).then(d => {
+      if (d.success) setProductLocations((d.data ?? []).filter((location: any) => Number(location.is_active ?? 1) !== 0));
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => { load(); loadBrands(); loadProductTypeOptions(); loadContacts(); loadProductLocations(); }, [load, loadBrands, loadProductTypeOptions, loadContacts, loadProductLocations]);
 
   // Deep-link: auto-open a product when the URL hash is #products/<product_id>
   // Works on first load AND when navigating back/forward.
@@ -5992,6 +6007,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     clearPendingProductPhotos();
     setDescHtmlMode('preview');
     setForm({ ...BLANK_PRODUCT });
+    setOpeningStock({});
+    setPendingProductSave(null);
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
     setVariantRows([{ ...blankRow(), option1_value: 'Default' }]);
     setActiveCurrencies([]);
@@ -6084,6 +6101,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const updateRow = (tempId: string, field: string, value: any) =>
     setVariantRows(rows => rows.map(r => r._tempId === tempId ? { ...r, [field]: value } : r));
 
+  const updateOpeningStock = (tempId: string, locationId: number, field: keyof OpeningStockValue, value: string) => {
+    const key = `${tempId}:${locationId}`;
+    setOpeningStock(current => ({
+      ...current,
+      [key]: { quantity: '', minQty: '', reorderQty: '', ...current[key], [field]: value },
+    }));
+  };
+
   const copyPricingToOtherVariants = (source: VariantRow) => {
     setVariantRows(rows => rows.map(row => {
       if (row._tempId === source._tempId || row._delete) return row;
@@ -6109,16 +6134,21 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const doSave = async (brandOverride?: string, formOverride?: any): Promise<boolean> => {
     setSaving(true);
     try {
-      const isNewProduct = !modal.edit;
-      let productId: string = modal.edit?.product_id ?? '';
+      const isNewProduct = !modal.edit && !pendingProductSave;
+      const isProductCreationFlow = !modal.edit;
+      let productId: string = modal.edit?.product_id ?? pendingProductSave?.productId ?? '';
+      let openingRequest = pendingProductSave;
       const [o1n, o2n, o3n] = optionSets.map(s => s.name.trim());
       const sourceForm = formOverride ?? form;
       const saveForm = brandOverride !== undefined ? { ...sourceForm, brand: brandOverride } : sourceForm;
       if (modal.edit) {
         await apiFetch(`/api/ims/products/${productId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saveForm) });
-      } else {
+      } else if (!pendingProductSave) {
         const res = await apiFetch('/api/ims/products', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saveForm) });
         productId = res.product_id;
+        const pending = { productId, requestToken: crypto.randomUUID() };
+        openingRequest = pending;
+        setPendingProductSave(pending);
       }
       for (const row of variantRows) {
         if (row._delete) {
@@ -6149,11 +6179,31 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
         if (row.variant_id) {
           await apiFetch(`/api/ims/variants/${row.variant_id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         } else {
-          await apiFetch('/api/ims/variants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const result = await apiFetch('/api/ims/variants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          row.variant_id = result.variant_id;
+          setVariantRows(current => current.map(currentRow => currentRow._tempId === row._tempId ? { ...currentRow, variant_id: result.variant_id } : currentRow));
         }
       }
+      if (openingRequest && productFeatures.allowOpeningStock && Number(saveForm.is_stock_item ?? 1) === 1 && productLocations.length > 0) {
+        const lines = variantRows.filter(row => !row._delete).flatMap(row => productLocations.map(location => {
+          const value = openingStock[`${row._tempId}:${location.id}`];
+          return {
+            variantId: row.variant_id,
+            locationId: location.id,
+            quantity: Number(value?.quantity || 0),
+            minQty: Number(value?.minQty || 0),
+            reorderQty: Number(value?.reorderQty || 0),
+          };
+        }));
+        await apiFetch(`/api/ims/products/${productId}/opening-stock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestToken: openingRequest.requestToken, lines }),
+        });
+      }
+      setPendingProductSave(null);
       const failedPhotoNames: string[] = [];
-      if (isNewProduct && pendingProductPhotos.length > 0) {
+      if (isProductCreationFlow && pendingProductPhotos.length > 0) {
         for (const [index, photo] of pendingProductPhotos.entries()) {
           try {
             const data = new FormData();
@@ -6988,12 +7038,14 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
             <Field label="Product SKU *"><input required value={form.base_sku ?? ''} onChange={sf('base_sku')} style={inputStyle} placeholder="e.g. MT-PROD (used to generate variant SKUs)" /></Field>
             <Row2>
-              <Field label="Product Type">
-                <input list="product-type-list" value={form.product_type ?? ''} onChange={sf('product_type')} style={inputStyle} placeholder="Type or select…" />
-                <datalist id="product-type-list">
-                  {productTypeOptions.map(pt => <option key={pt} value={pt} />)}
-                </datalist>
-              </Field>
+              {productFeatures.showProductType && (
+                <Field label="Product Type">
+                  <input list="product-type-list" value={form.product_type ?? ''} onChange={sf('product_type')} style={inputStyle} placeholder="Type or select…" />
+                  <datalist id="product-type-list">
+                    {productTypeOptions.map(pt => <option key={pt} value={pt} />)}
+                  </datalist>
+                </Field>
+              )}
               <Field label="Brand">
                 <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or select…" />
                 <datalist id="brand-list">
@@ -7008,7 +7060,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               </Row2>
             )}
             <Row2>
-              <Field label="Tags (comma separated)"><input value={form.tags} onChange={sf('tags')} style={inputStyle} /></Field>
+              {productFeatures.showTags && <Field label="Tags (comma separated)"><input value={form.tags} onChange={sf('tags')} style={inputStyle} /></Field>}
               <Field label="Active">
                 <select value={form.is_active} onChange={sf('is_active')} style={inputStyle}>
                   <option value={1}>Yes</option><option value={0}>No</option>
@@ -7081,6 +7133,62 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               )}
             </div>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Inventory</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
+          </div>
+          <div style={{ marginBottom: 20, padding: '12px 14px', border: '1px solid var(--sv-etch)', borderRadius: 8, background: 'var(--sv-bg-2)', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Tracks inventory</div>
+              <div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12, lineHeight: 1.45 }}>When off, this product can be sold without stock checks. Existing stock balances are preserved.</div>
+            </div>
+            <button type="button" role="switch" aria-checked={Number(form.is_stock_item ?? 1) === 1} onClick={() => setForm((previous: any) => ({ ...previous, is_stock_item: Number(previous.is_stock_item ?? 1) === 1 ? 0 : 1 }))} title={`${Number(form.is_stock_item ?? 1) === 1 ? 'Disable' : 'Enable'} inventory tracking`} style={{ width: 44, height: 24, padding: 0, border: 0, borderRadius: 99, background: Number(form.is_stock_item ?? 1) === 1 ? 'var(--sv-action)' : 'var(--sv-etch)', position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+              <span style={{ position: 'absolute', top: 3, left: Number(form.is_stock_item ?? 1) === 1 ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)', transition: 'left .15s' }} />
+            </button>
+          </div>
+          {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
+              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter the opening quantity and replenishment levels for each variant and location. Saving records a completed stocktake at each location.</div>
+              {productLocations.length === 0 ? (
+                <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
+              ) : (
+                <div ref={openingStockScrollRef} tabIndex={0} aria-label="Opening stock by variant and location. Use arrow keys to scroll." style={{ overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 360 }}>
+                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: Math.max(720, 180 + productLocations.length * 300), width: '100%', fontSize: 12 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--sv-bg-2)' }}>
+                      <tr>
+                        <th rowSpan={2} style={{ width: 180, minWidth: 180, padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)' }}>Variant</th>
+                        {productLocations.map(location => <th key={location.id} colSpan={3} style={{ width: 300, padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>{location.name}</th>)}
+                      </tr>
+                      <tr>
+                        {productLocations.flatMap(location => ['Qty', 'Min qty', 'Reorder qty'].map(label => <th key={`${location.id}:${label}`} style={{ width: 100, padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{label}</th>))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {variantRows.filter(row => !row._delete).map(row => {
+                        const variantLabel = [row.option1_value, row.option2_value, row.option3_value].filter(Boolean).join(' / ') || row.sku || 'Default';
+                        return (
+                          <tr key={row._tempId}>
+                            <td style={{ padding: '7px 10px', borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontWeight: 600 }}>{variantLabel}</td>
+                            {productLocations.flatMap(location => {
+                              const value = openingStock[`${row._tempId}:${location.id}`] ?? { quantity: '', minQty: '', reorderQty: '' };
+                              return ([['quantity', value.quantity], ['minQty', value.minQty], ['reorderQty', value.reorderQty]] as const).map(([field, fieldValue]) => (
+                                <td key={`${location.id}:${field}`} style={{ padding: 4, borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>
+                                  <input type="number" min="0" step="0.0001" value={fieldValue} onChange={event => updateOpeningStock(row._tempId, location.id, field, event.target.value)} style={{ ...cellInput, width: 92, boxSizing: 'border-box' }} placeholder="0" />
+                                </td>
+                              ));
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Media ── */}
           <>
@@ -7188,7 +7296,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }}>
-                    {['Variant','SKU','Barcode','RRP $','Wholesale $','Sale $','Sale From','Sale To','Copy','Cost $','Wt kg',
+                    {['Variant','SKU','Barcode','RRP $',...(productFeatures.showWholesalePrice ? ['Wholesale $'] : []),'Sale $','Sale From','Sale To','Copy','Cost $',...(productFeatures.showWeight ? ['Wt kg'] : []),
                       ...activeCurrencies.map(c => c),
                       '✓',''].map((h, i) => (
                       <th key={i} style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600, color: 'var(--sv-text-dim)', fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -7212,7 +7320,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                         <td style={{ padding: '2px 4px', minWidth: 80 }}><input value={row.sku} onChange={e => updateRow(row._tempId, 'sku', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 90 }}><input value={row.barcode} onChange={e => updateRow(row._tempId, 'barcode', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp} onChange={e => updateRow(row._tempId, 'price_rrp', e.target.value)} style={cellInput} placeholder="0.00" /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 80 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} /></td>
+                        {productFeatures.showWholesalePrice && <td style={{ padding: '2px 4px', minWidth: 80 }}><input type="number" step="0.01" min="0" value={row.price_wholesale} onChange={e => updateRow(row._tempId, 'price_wholesale', e.target.value)} style={cellInput} /></td>}
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.01" min="0" value={row.price_rrp_sale} onChange={e => updateRow(row._tempId, 'price_rrp_sale', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_start_date} onChange={e => updateRow(row._tempId, 'discount_start_date', e.target.value)} style={cellInput} /></td>
                         <td style={{ padding: '2px 4px', minWidth: 108 }}><input type="date" value={row.discount_end_date} onChange={e => updateRow(row._tempId, 'discount_end_date', e.target.value)} style={cellInput} /></td>
@@ -7237,7 +7345,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                           >Copy ↓</button>
                         </td>
                         <td style={{ padding: '2px 4px', minWidth: 72 }}><input type="number" step="0.0001" min="0" value={row.cost_aud} onChange={e => updateRow(row._tempId, 'cost_aud', e.target.value)} style={cellInput} /></td>
-                        <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>
+                        {productFeatures.showWeight && <td style={{ padding: '2px 4px', minWidth: 60 }}><input type="number" step="0.001" min="0" value={row.weight_kg} onChange={e => updateRow(row._tempId, 'weight_kg', e.target.value)} style={cellInput} /></td>}
                         {activeCurrencies.map(cur => (
                           <td key={cur} style={{ padding: '2px 4px', minWidth: 72 }}>
                             <input type="number" step="0.01" min="0"
@@ -21399,7 +21507,7 @@ function BulkEditView() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Settings — section type and context helper
 // ─────────────────────────────────────────────────────────────────────────────
-type SettingsSection = 'general' | 'business-profile' | 'users' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
+type SettingsSection = 'general' | 'business-profile' | 'users' | 'products' | 'ai-models' | 'ai-account' | 'purchase-orders' | 'sales-orders' | 'inventory-documents' | 'pos' | 'loyalty' | 'xero' | 'sync' | 'shopify' | 'utilities' | 'locations' | 'wholesale';
 
 function sectionFromView(v: ImsView): SettingsSection {
   if (v === 'purchase-orders') return 'purchase-orders';
@@ -26228,6 +26336,7 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
     { id: 'general',          label: 'General',          icon: '⚙' },
     { id: 'business-profile', label: 'Business Profile', icon: '🏢' },
     { id: 'locations',        label: 'Locations',        icon: '🏗' },
+    { id: 'products',         label: 'Products',         icon: '▦' },
     { id: 'users',           label: 'Users',           icon: '👥' },
     { id: 'ai-models',       label: 'AI Models',       icon: <BrainCircuit size={15} /> },
     { id: 'ai-account',      label: 'Account & AI Credits', icon: <WalletCards size={15} /> },
@@ -26274,6 +26383,27 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
 
         {active === 'ai-models' && <AiModelSettingsSection />}
         {active === 'ai-account' && <AccountAiCreditsSection />}
+
+        {active === 'products' && (
+          <div style={{ padding: 32, maxWidth: 760 }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 18, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Product Settings</h2>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--sv-text-dim)' }}>Choose which optional fields and inventory tools appear when maintaining products.</p>
+            <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 8, border: '1px solid var(--sv-etch)', marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Feature Toggles</h3>
+              <OperationToggle setting="use_categories" label="Category and subcategory" description="Show category and subcategory fields in the product form." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.showProductType} defaultValue="yes" label="Product type" description="Show the Product Type field in the product form." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.showTags} defaultValue="yes" label="Tags" description="Show product tags in the product form." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.showWholesalePrice} defaultValue="yes" label="Wholesale price" description="Show Wholesale $ for each product variant." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.showWeight} defaultValue="yes" label="Weight" description="Show Wt. kg for each product variant." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="yes" label="Add stock with new products" description="Allow opening quantities, minimum quantities and reorder quantities to be entered while creating a tracked product." />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button type="button" onClick={saveTaxSettings} disabled={!loaded || taxSaving || (taxDirtyKeys.size === 0 && !onlineChannelsDirty)} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
+              {taxSaved && <span style={{ fontSize: 13, color: 'var(--sv-mint)' }}>Saved</span>}
+              {taxSaveError && <span style={{ fontSize: 13, color: 'var(--sv-red)' }}>{taxSaveError}</span>}
+            </div>
+          </div>
+        )}
 
         {/* ── Purchase Orders ── */}
         {active === 'purchase-orders' && (
@@ -26666,7 +26796,6 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
                 <h4 style={{ margin: 0, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 750 }}>Locations and catalogue</h4>
                 <OperationToggle setting="use_multiple_locations" defaultValue="yes" label="Multiple locations" description="Use separate shops, warehouses, stock balances, and branch transfers." />
                 <OperationToggle setting="use_zones_bins" label="Zones and bins" description="Track the physical shelf or storage position of stock inside each location." />
-                <OperationToggle setting="use_categories" label="Product categories" description="Use category and subcategory browsing and reporting in the product catalogue." />
               </section>
 
               <section style={{ marginBottom: 22 }}>

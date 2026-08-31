@@ -14,6 +14,7 @@ interface CheckoutVariantRow {
   variant_label: string | null;
   sku: string | null;
   retail_price: number | string;
+  is_stock_item: number;
 }
 
 interface StockRow {
@@ -125,7 +126,7 @@ async function createCheckoutInTransaction(input: CreateCheckoutInput): Promise<
     const [variantRows] = await connection.execute<CheckoutVariantRow[]>(
       `SELECT v.variant_id, p.name AS product_name, NULLIF(CONCAT_WS(' / ',
                 NULLIF(v.option1_value, ''), NULLIF(v.option2_value, ''), NULLIF(v.option3_value, '')), '') AS variant_label,
-              v.sku,
+              v.sku, COALESCE(p.is_stock_item, 1) AS is_stock_item,
               CASE WHEN v.price_rrp_sale IS NOT NULL AND v.price_rrp_sale > 0
                 AND (v.discount_start_date IS NULL OR v.discount_start_date <= CURRENT_DATE)
                 AND (v.discount_end_date IS NULL OR v.discount_end_date >= CURRENT_DATE)
@@ -174,7 +175,7 @@ async function createCheckoutInTransaction(input: CreateCheckoutInput): Promise<
       const row = variants.get(line.variantId)!;
       const unitPriceCents = Math.round(Number(row.retail_price) * 100);
       if (!Number.isSafeInteger(unitPriceCents) || unitPriceCents <= 0) throw new OnlineShopStockConflict(`${row.product_name} is not currently available for sale.`);
-      return { variantId: line.variantId, quantity: line.quantity, unitPriceCents };
+      return { variantId: line.variantId, quantity: line.quantity, unitPriceCents, tracksInventory: Number(row.is_stock_item) === 1 };
     });
     const plan = allocateOnlineShopCart({ mode: fulfilmentMode, lines: pricedLines, locations: locationStock, dispatchLocationId });
     const shippingOptions = shippingRule && shippingAddress

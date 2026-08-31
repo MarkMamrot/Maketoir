@@ -52,4 +52,27 @@ describe('allocateOnlineShopCart', () => {
       { locationId: 2, priority: 1, availableByVariant: { 'red-small': 1, 'blue-large': 1 } },
     ] })).toThrow('Insufficient stock for variant red-small.');
   });
+
+  it('does not check or reserve inventory for untracked lines', () => {
+    const result = allocateOnlineShopCart({
+      mode: 'single_location',
+      lines: [{ variantId: 'service', quantity: 50, unitPriceCents: 1100, tracksInventory: false }],
+      locations: [{ locationId: 2, priority: 1, availableByVariant: {} }],
+    });
+    expect(result.dispatchLocationId).toBe(2);
+    expect(result.reservations).toEqual([]);
+    expect(result.fulfilmentGroups).toEqual([{ locationId: 2, reservations: [] }]);
+  });
+
+  it('checks only tracked inventory in mixed carts', () => {
+    const result = allocateOnlineShopCart({
+      mode: 'split',
+      lines: [
+        { variantId: 'tracked', quantity: 1, unitPriceCents: 1100 },
+        { variantId: 'service', quantity: 100, unitPriceCents: 500, tracksInventory: false },
+      ],
+      locations: [{ locationId: 2, priority: 1, availableByVariant: { tracked: 1 } }],
+    });
+    expect(result.reservations).toEqual([{ variantId: 'tracked', locationId: 2, quantity: 1 }]);
+  });
 });

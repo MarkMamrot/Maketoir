@@ -19,6 +19,7 @@ export interface WholesaleCartItem {
   unit_price: number;
   available: number;
   allow_indent: boolean;
+  tracks_inventory?: boolean;
   is_indent: boolean;
   indent_qty: number;
   pack_size?: number | null;

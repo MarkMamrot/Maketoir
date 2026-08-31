@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: { slug: strin
       const match = variants.get(line.variantId); if (!match) return [];
       const unitPriceCents = Math.round(match.variant.price.amount * 100);
       return [{ variantId: line.variantId, quantity: line.quantity, availableUnits: match.variant.availableUnits,
-        isAvailable: line.quantity <= match.variant.availableUnits, productId: match.product.productId, productSlug: match.product.slug,
+        tracksInventory: match.variant.tracksInventory, isAvailable: !match.variant.tracksInventory || line.quantity <= match.variant.availableUnits, productId: match.product.productId, productSlug: match.product.slug,
         name: match.product.name, optionLabel: match.variant.optionValues.join(' / '), image: match.product.images[0] ?? null,
         unitPriceCents, lineTotalCents: unitPriceCents * line.quantity }];
     });

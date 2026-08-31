@@ -19,6 +19,7 @@ interface WholesaleReorderProduct {
   product_id: string;
   name: string;
   allow_indent_wholesale: number;
+  is_stock_item?: number;
   variants: WholesaleReorderVariant[];
 }
 
@@ -32,6 +33,7 @@ export interface WholesaleReorderCartItem {
   unit_price: number;
   available: number;
   allow_indent: boolean;
+  tracks_inventory: boolean;
   is_indent: boolean;
   indent_qty: number;
   pack_size?: number | null;
@@ -65,15 +67,16 @@ export function buildWholesaleReorderCart(
       return [];
     }
 
-    const allowIndent = !!live.product.allow_indent_wholesale;
+    const tracksInventory = Number(live.product.is_stock_item ?? 1) === 1;
+    const allowIndent = tracksInventory && !!live.product.allow_indent_wholesale;
     const requestedQty = Number(line.qty_ordered);
-    const quantity = allowIndent ? requestedQty : Math.min(requestedQty, Number(live.variant.available));
+    const quantity = !tracksInventory || allowIndent ? requestedQty : Math.min(requestedQty, Number(live.variant.available));
     if (!Number.isFinite(quantity) || quantity <= 0) {
       unavailableLines += 1;
       return [];
     }
     if (quantity < requestedQty) adjustedLines += 1;
-    const indentQty = Math.max(0, quantity - Number(live.variant.available));
+    const indentQty = tracksInventory ? Math.max(0, quantity - Number(live.variant.available)) : 0;
     return [{
       variant_id: live.variant.variant_id,
       product_id: live.product.product_id,
@@ -84,6 +87,7 @@ export function buildWholesaleReorderCart(
       unit_price: Number(live.variant.price_wholesale),
       available: Number(live.variant.available),
       allow_indent: allowIndent,
+      tracks_inventory: tracksInventory,
       is_indent: indentQty > 0,
       indent_qty: indentQty,
       pack_size: live.variant.pack_size,

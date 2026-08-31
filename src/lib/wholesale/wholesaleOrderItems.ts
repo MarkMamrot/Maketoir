@@ -42,9 +42,11 @@ export async function validateWholesaleOrderItems(
     variant_id: string; product_id: string; product_name: string; brand: string | null;
     sku: string | null; option1_value: string | null; option2_value: string | null; option3_value: string | null;
     price_wholesale: number; pack_size: number | null;
+    is_stock_item: number;
   }>(
     `SELECT v.variant_id, v.product_id, p.name AS product_name, p.brand, v.sku,
-            v.option1_value, v.option2_value, v.option3_value, v.price_wholesale, v.pack_size
+            v.option1_value, v.option2_value, v.option3_value, v.price_wholesale, v.pack_size,
+            COALESCE(p.is_stock_item, 1) AS is_stock_item
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = ?
       WHERE v.variant_id IN (${placeholders})
@@ -74,6 +76,7 @@ export async function validateWholesaleOrderItems(
       sku: row.sku,
       qty: item.qty,
       unit_price: unitPrice,
+      is_stock_item: Number(row.is_stock_item ?? 1),
       is_indent: false,
       indent_qty: 0,
     };

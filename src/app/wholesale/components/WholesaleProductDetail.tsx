@@ -28,6 +28,7 @@ export type WholesaleProductDetailProduct = {
   category: string | null;
   subcategory: string | null;
   allow_indent_wholesale: number;
+  is_stock_item?: number;
   image_url: string | null;
   images?: string[];
   variants: DetailVariant[];
@@ -130,16 +131,17 @@ export function WholesaleProductDetail({
               {product.variants.map(variant => {
                 const variantLabel = label(variant);
                 const favourite = favouriteVariantIds.has(variant.variant_id);
-                const orderable = variant.available > 0 || !!product.allow_indent_wholesale;
+                const tracksInventory = Number(product.is_stock_item ?? 1) === 1;
+                const orderable = !tracksInventory || variant.available > 0 || !!product.allow_indent_wholesale;
                 return (
                   <div className={styles.matrixRow} key={variant.variant_id}>
                     <div><strong>{variantLabel}</strong><small>{variant.sku || 'No SKU'}</small></div>
                     <span>{variant.pack_size && variant.pack_size > 1 ? `${variant.pack_size} units` : 'Single'}</span>
-                    <span className={variant.available > 0 ? styles.available : product.allow_indent_wholesale ? styles.indent : styles.unavailable}>{variant.available > 0 ? variant.available : product.allow_indent_wholesale ? 'Indent' : 'Out'}</span>
+                    <span className={!tracksInventory || variant.available > 0 ? styles.available : product.allow_indent_wholesale ? styles.indent : styles.unavailable}>{!tracksInventory ? 'Not tracked' : variant.available > 0 ? variant.available : product.allow_indent_wholesale ? 'Indent' : 'Out'}</span>
                     <strong>${Number(variant.price_wholesale).toFixed(2)}</strong>
                     <div className={styles.actions}>
                       <button className={styles.iconButton} onClick={() => onToggleFavourite(variant.variant_id)} aria-label={`${favourite ? 'Remove' : 'Add'} ${variantLabel} ${favourite ? 'from' : 'to'} favourites`} title={favourite ? 'Remove favourite' : 'Add favourite'}><Heart size={15} fill={favourite ? 'currentColor' : 'none'} /></button>
-                      <WholesaleQuantityAdd productName={product.name} variantLabel={variantLabel} packSize={variant.pack_size} available={variant.available} allowIndent={!!product.allow_indent_wholesale} quantityMode={quantityMode} inCart={cartQuantities[variant.variant_id] ?? 0} onAdd={quantity => onAdd(variant, variantLabel, quantity)} />
+                      <WholesaleQuantityAdd productName={product.name} variantLabel={variantLabel} packSize={variant.pack_size} available={variant.available} allowIndent={!!product.allow_indent_wholesale} tracksInventory={tracksInventory} quantityMode={quantityMode} inCart={cartQuantities[variant.variant_id] ?? 0} onAdd={quantity => onAdd(variant, variantLabel, quantity)} />
                     </div>
                   </div>
                 );

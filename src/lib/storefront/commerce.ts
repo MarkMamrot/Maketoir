@@ -18,6 +18,7 @@ export interface StorefrontProductVariant {
   price: StorefrontMoney;
   compareAtPrice: StorefrontMoney | null;
   availableUnits: number;
+  tracksInventory: boolean;
 }
 
 export interface StorefrontProductProjection {

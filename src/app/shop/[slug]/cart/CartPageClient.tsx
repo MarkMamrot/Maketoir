@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import styles from '../Storefront.module.css';
 
-interface QuoteLine { variantId: string; quantity: number; availableUnits: number; isAvailable: boolean; productSlug: string;
+interface QuoteLine { variantId: string; quantity: number; availableUnits: number; tracksInventory: boolean; isAvailable: boolean; productSlug: string;
   name: string; optionLabel: string; image: { url: string; altText: string } | null; unitPriceCents: number; lineTotalCents: number }
 interface Quote { lines: QuoteLine[]; subtotalCents: number; canCheckout: boolean }
 
@@ -27,7 +27,7 @@ export function CartPageClient({ storeSlug }: { storeSlug: string }) {
     {!quote.lines.length ? <div className={styles.empty}>Your cart is empty.</div> : <div className={styles.cartLayout}><div className={styles.cartLines}>{quote.lines.map(line => <article className={styles.cartLine} key={line.variantId}>
       {line.image ? <img src={line.image.url} alt={line.image.altText || line.name} /> : <div className={styles.cartThumb} />}
       <div><Link href={`/shop/${storeSlug}/products/${line.productSlug}`}><strong>{line.name}</strong></Link>{line.optionLabel && <span>{line.optionLabel}</span>}<span>{money(line.unitPriceCents)}</span>{!line.isAvailable && <em>Only {line.availableUnits} available</em>}</div>
-      <input aria-label={`Quantity for ${line.name}`} type="number" min={0} max={Math.max(0, line.availableUnits)} value={line.quantity} onChange={event => update(line.variantId, Math.max(0, Math.floor(Number(event.target.value) || 0)))} />
+      <input aria-label={`Quantity for ${line.name}`} type="number" min={0} max={line.tracksInventory ? Math.max(0, line.availableUnits) : undefined} value={line.quantity} onChange={event => update(line.variantId, Math.max(0, Math.floor(Number(event.target.value) || 0)))} />
       <strong>{money(line.lineTotalCents)}</strong><button onClick={() => update(line.variantId, 0)}>Remove</button>
     </article>)}</div><aside className={styles.summary}><div><span>Subtotal</span><strong>{money(quote.subtotalCents)}</strong></div><p>Shipping and discounts are calculated at checkout.</p><Link className={quote.canCheckout ? styles.checkoutButton : styles.checkoutButtonDisabled} aria-disabled={!quote.canCheckout} href={quote.canCheckout ? `/shop/${storeSlug}/checkout` : '#'}>Checkout</Link></aside></div>}
   </div>;

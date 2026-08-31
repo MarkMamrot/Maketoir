@@ -69,6 +69,13 @@ export function shopifyVariantPricePayload(
   };
 }
 
+export function shopifyInventoryPolicyPayload(isStockItem: number | boolean | null | undefined) {
+  const tracksInventory = Number(isStockItem ?? 1) === 1;
+  return tracksInventory
+    ? { inventory_management: 'shopify', inventory_policy: 'deny' }
+    : { inventory_management: null, inventory_policy: 'continue' };
+}
+
 /** Resolve the Shopify location used for online inventory.
  *  Infers it from an existing inventory level (write_inventory scope only).
  *  Caches the result in ims_settings so subsequent calls are instant.
@@ -84,7 +91,8 @@ export async function getShopifyInventoryLocationId(businessId: string, shopify:
     const rows = await imsQuery<{ shopify_inventory_item_id: string }>(
       `SELECT v.shopify_inventory_item_id
          FROM ims_product_variants v JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''
+        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1
+          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''
         LIMIT 1`,
       [businessId],
     );
@@ -162,7 +170,8 @@ export async function pushInventoryForBusiness(
       `SELECT v.variant_id, v.shopify_inventory_item_id
          FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
+        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1
+          AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
       [businessId],
     );
   } else {
@@ -173,7 +182,7 @@ export async function pushInventoryForBusiness(
       `SELECT v.variant_id, v.shopify_inventory_item_id
          FROM ims_product_variants v
          JOIN ims_products p ON p.product_id = v.product_id
-        WHERE p.business_id = ? AND v.variant_id IN (${ph})
+        WHERE p.business_id = ? AND COALESCE(p.is_stock_item, 1) = 1 AND v.variant_id IN (${ph})
           AND v.shopify_inventory_item_id IS NOT NULL AND v.shopify_inventory_item_id <> ''`,
       [businessId, ...ids],
     );

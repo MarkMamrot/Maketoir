@@ -7,7 +7,7 @@ interface ProductVariantRow {
   product_id: string; slug: string; name: string; description: string | null; brand: string | null; category: string | null;
   variant_id: string; sku: string | null; barcode: string | null; option1_value: string | null;
   option2_value: string | null; option3_value: string | null; retail_price: number | string;
-  compare_at_price: number | string | null; available_units: number | string;
+  compare_at_price: number | string | null; available_units: number | string; is_stock_item?: number;
 }
 interface ProductImageRow { id: number | string; product_id: string; url: string; alt_text: string | null; sort_order: number }
 
@@ -32,12 +32,12 @@ export function projectOnlineShopProducts(rows: readonly ProductVariantRow[], im
     product.variants.push({ variantId: row.variant_id, sku: row.sku, barcode: row.barcode,
       optionValues: [row.option1_value, row.option2_value, row.option3_value].map(value => value?.trim() ?? '').filter(Boolean),
       price: { amount: price, currency: 'AUD' }, compareAtPrice: compare > price ? { amount: compare, currency: 'AUD' } : null,
-      availableUnits: Math.max(0, Math.floor(Number(row.available_units) || 0)) });
+      availableUnits: Math.max(0, Math.floor(Number(row.available_units) || 0)), tracksInventory: Number(row.is_stock_item ?? 1) === 1 });
   }
   return [...products.values()];
 }
 
-const productSql = `SELECT pub.product_id, pub.slug, p.name, p.description, p.brand, p.category,
+const productSql = `SELECT pub.product_id, pub.slug, p.name, p.description, p.brand, p.category, COALESCE(p.is_stock_item, 1) AS is_stock_item,
   v.variant_id, v.sku, v.barcode, v.option1_value, v.option2_value, v.option3_value,
   CASE WHEN v.price_rrp_sale IS NOT NULL AND v.price_rrp_sale > 0
     AND (v.discount_start_date IS NULL OR v.discount_start_date <= CURRENT_DATE)

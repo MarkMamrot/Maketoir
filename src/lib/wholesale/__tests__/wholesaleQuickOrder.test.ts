@@ -47,6 +47,12 @@ describe('buildWholesaleQuickOrder', () => {
     expect(result.issues[0].reason).toBe('No additional stock is available.');
   });
 
+  it('keeps the requested quantity for an untracked product without creating indent', () => {
+    const result = buildWholesaleQuickOrder('RAIN-GRN-M, 20', [{ ...product, is_stock_item: 0, variants: [{ ...product.variants[0], available: 0 }] }]);
+
+    expect(result.items[0]).toMatchObject({ qty: 20, tracks_inventory: false, allow_indent: false, is_indent: false, indent_qty: 0 });
+  });
+
   it('does not treat an identical SKU and barcode on one variant as ambiguous', () => {
     const sameIdentifier = { ...product, variants: [{ ...product.variants[0], barcode: 'RAIN-GRN-M' }] };
     const result = buildWholesaleQuickOrder('RAIN-GRN-M, 1', [sameIdentifier]);
