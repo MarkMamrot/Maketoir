@@ -1,6 +1,6 @@
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages } from '@/lib/cin7Helpers';
-import { normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
+import { convertCin7BaseAmountToForeign, normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
 import { getImportSession, makeSSEStream } from '../_helpers';
 
 const MONTHS_BACK = 36;
@@ -109,20 +109,32 @@ export async function POST() {
 
     for (const order of orders) {
       const cin7Id = String(order.id);
+      const cin7CurrencyCode = String(order.currencyCode ?? order.currency ?? 'AUD').toUpperCase();
+      const cin7CurrencyRate = order.currencyRate ?? order.exchangeRate;
+      const toOrderCurrency = (amount: unknown) => convertCin7BaseAmountToForeign(
+        Number(amount ?? 0),
+        cin7CurrencyCode,
+        cin7CurrencyRate,
+      );
 
       // Compute totals from Cin7 order data (works for both new and existing POs)
       const lines: any[] = Array.isArray(order.lineItems) ? order.lineItems : [];
       const computedSubtotal = lines.reduce((s, l) => {
         const qty      = Number(l.qty ?? 0);
         const unitPrice = Number(l.unitPrice ?? 0);
-        const disc     = Number(l.discount ?? 0);
-        return s + (qty * unitPrice * (1 - disc / 100));
+        const discount = Number(l.discount ?? 0);
+        return s + Number(l.lineTotal ?? l.total ?? qty * unitPrice - discount);
       }, 0);
-      const subtotal    = order.productTotal != null ? Number(order.productTotal) : computedSubtotal;
-      const taxAmount   = Number(order.taxTotal ?? order.taxAmount ?? 0);
-      const freight     = Number(order.freightTotal ?? order.freight ?? 0);
-      const discount    = Number(order.discountTotal ?? order.discount ?? 0);
-      const totalAmount = Number(order.total ?? order.totalIncTax ?? subtotal + taxAmount + freight - discount);
+      const rawSubtotal = order.productTotal != null ? Number(order.productTotal) : computedSubtotal;
+      const rawTaxAmount = Number(order.taxTotal ?? order.taxAmount ?? 0);
+      const rawFreight = Number(order.freightTotal ?? order.freight ?? 0);
+      const rawDiscount = Number(order.discountTotal ?? order.discount ?? 0);
+      const rawTotalAmount = Number(order.total ?? order.totalIncTax ?? rawSubtotal + rawTaxAmount + rawFreight - rawDiscount);
+      const subtotal = toOrderCurrency(rawSubtotal);
+      const taxAmount = cin7CurrencyCode === 'AUD' ? rawTaxAmount : 0;
+      const freight = toOrderCurrency(rawFreight);
+      const discount = toOrderCurrency(rawDiscount);
+      const totalAmount = toOrderCurrency(rawTotalAmount);
 
       // If already imported, update totals + is_historical and refresh line items (discount_pct etc.)
       if (poMap.has(cin7Id)) {
@@ -131,8 +143,8 @@ export async function POST() {
         const supplierNameRaw = (order.company || (order.firstName ? `${order.firstName} ${order.lastName ?? ''}`.trim() : null) || null) as string | null;
         const existingStatus = mapStatus(order.status ?? '', order.stage ?? '');
         const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
-          currencyCode: order.currencyCode ?? order.currency,
-          exchangeRate: order.exchangeRate ?? order.currencyRate,
+          currencyCode: cin7CurrencyCode,
+          exchangeRate: cin7CurrencyRate,
           paymentTerms: order.paymentTerms ?? order.terms,
           supplierInvoiceNumber: order.supplierInvoiceNumber ?? order.invoiceNumber,
           supplierInvoiceDate: order.supplierInvoiceDate ?? order.invoiceDate,
@@ -151,7 +163,8 @@ export async function POST() {
                  supplier_name_raw=COALESCE(supplier_name_raw, ?)
            WHERE id=?`,
           [subtotal, taxAmount, freight, discount, totalAmount,
-           treatmentForSupplier(existingSupplierId), purchaseTaxCode,
+           normalizedMeta.taxTreatment ?? treatmentForSupplier(existingSupplierId),
+           normalizedMeta.taxTreatment ? null : purchaseTaxCode,
            normalizedMeta.paymentTerms,
            normalizedMeta.supplierInvoiceNumber,
            normalizedMeta.supplierInvoiceDate,
@@ -167,9 +180,12 @@ export async function POST() {
           const variantId = (line.code ? variantBySkuMap.get(line.code) : undefined)
             ?? variantMap.get(Number(line.productOptionId)) ?? null;
           const qty         = Number(line.qty ?? 0);
-          const unitCost    = Number(line.unitPrice ?? 0);
-          const lineDiscount = Number(line.discount ?? 0);
-          const lineTotal   = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
+          const rawUnitCost = Number(line.unitPrice ?? 0);
+          const rawLineDiscount = Number(line.discount ?? 0);
+          const unitCost = toOrderCurrency(rawUnitCost);
+          const lineDiscount = qty * rawUnitCost > 0 ? (rawLineDiscount / (qty * rawUnitCost)) * 100 : 0;
+          const rawLineTotal = Number(line.lineTotal ?? line.total ?? qty * rawUnitCost - rawLineDiscount);
+          const lineTotal = Math.round(toOrderCurrency(rawLineTotal) * 10000) / 10000;
           const qtyReceived = existingStatus === 'complete' ? qty : 0;
           const nameRaw     = (line.name ?? line.description ?? null) as string | null;
           const skuRaw      = (line.code ?? null) as string | null;
@@ -195,8 +211,8 @@ export async function POST() {
       const expectedDate  = safeDate(order.expectedDeliveryDate);
       const receivedDate  = safeDate(order.fullyReceivedDate);
       const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
-        currencyCode: order.currencyCode ?? order.currency,
-        exchangeRate: order.exchangeRate ?? order.currencyRate,
+        currencyCode: cin7CurrencyCode,
+        exchangeRate: cin7CurrencyRate,
         paymentTerms: order.paymentTerms ?? order.terms,
         supplierInvoiceNumber: order.supplierInvoiceNumber ?? order.invoiceNumber,
         supplierInvoiceDate: order.supplierInvoiceDate ?? order.invoiceDate,
@@ -218,7 +234,8 @@ export async function POST() {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [poNumber, supplierId, supplierNameRaw, locationId, status, orderDate, expectedDate, receivedDate,
          paymentTerms, supplierInvNo, supplierInvDate, currencyCode, exchangeRate,
-         treatmentForSupplier(supplierId), purchaseTaxCode,
+         normalizedMeta.taxTreatment ?? treatmentForSupplier(supplierId),
+         normalizedMeta.taxTreatment ? null : purchaseTaxCode,
          subtotal, taxAmount, freight, discount, totalAmount, cin7Id, isHistorical],
       ) as any;
 
@@ -230,9 +247,12 @@ export async function POST() {
           ?? variantMap.get(Number(line.productOptionId)) ?? null;
 
         const qty        = Number(line.qty ?? 0);
-        const unitCost   = Number(line.unitPrice ?? 0);
-        const lineDiscount = Number(line.discount ?? 0);
-        const lineTotal  = Math.round(qty * unitCost * (1 - lineDiscount / 100) * 10000) / 10000;
+        const rawUnitCost = Number(line.unitPrice ?? 0);
+        const rawLineDiscount = Number(line.discount ?? 0);
+        const unitCost = toOrderCurrency(rawUnitCost);
+        const lineDiscount = qty * rawUnitCost > 0 ? (rawLineDiscount / (qty * rawUnitCost)) * 100 : 0;
+        const rawLineTotal = Number(line.lineTotal ?? line.total ?? qty * rawUnitCost - rawLineDiscount);
+        const lineTotal = Math.round(toOrderCurrency(rawLineTotal) * 10000) / 10000;
         const qtyReceived = status === 'complete' ? qty : 0;
         const nameRaw    = (line.name ?? line.description ?? null) as string | null;
         const skuRaw     = (line.code ?? null) as string | null;

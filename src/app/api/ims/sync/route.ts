@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
+import { convertCin7BaseAmountToForeign, normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
 
 
 async function getImsSetting(businessId: string, key: string): Promise<string | null> {
@@ -1021,9 +1021,16 @@ export async function POST(req: Request) {
             const rawExpected = po.deliveryDate ?? po.dueDate ?? '';
             const expectedDate = rawExpected ? String(rawExpected).slice(0, 10) : null;
             const receivedDate = poStatus === 'complete' ? (expectedDate || orderDate) : null;
+            const cin7CurrencyCode = String(po.currencyCode ?? po.currency ?? 'AUD').toUpperCase();
+            const cin7CurrencyRate = po.currencyRate ?? po.exchangeRate;
+            const toOrderCurrency = (amount: unknown) => convertCin7BaseAmountToForeign(
+              Number(amount ?? 0),
+              cin7CurrencyCode,
+              cin7CurrencyRate,
+            );
             const normalizedMeta = normalizeCin7PurchaseOrderMetadata({
-              currencyCode: po.currencyCode ?? po.currency,
-              exchangeRate: po.exchangeRate ?? po.currencyRate,
+              currencyCode: cin7CurrencyCode,
+              exchangeRate: cin7CurrencyRate,
               paymentTerms: po.paymentTerms ?? po.terms,
               supplierInvoiceNumber: po.supplierInvoiceNumber ?? po.invoiceNumber,
               supplierInvoiceDate: po.supplierInvoiceDate ?? po.invoiceDate,
@@ -1038,18 +1045,24 @@ export async function POST(req: Request) {
               const unitCost = Number(l.unitPrice ?? l.price_rrp ?? l.unitCost ?? 0);
               return s + Number(l.lineTotal ?? l.total ?? qty * unitCost);
             }, 0);
-            const subtotal = po.productTotal != null ? Number(po.productTotal) : computedSubtotal;
-            const freight = Number(po.freight ?? po.freightCost ?? po.freightTotal ?? 0);
-            const discount = Number(po.discount ?? po.discountTotal ?? 0);
+            const rawSubtotal = po.productTotal != null ? Number(po.productTotal) : computedSubtotal;
+            const rawFreight = Number(po.freight ?? po.freightCost ?? po.freightTotal ?? 0);
+            const rawDiscount = Number(po.discount ?? po.discountTotal ?? 0);
             // Cin7 encodes tax via taxStatus + taxRate (no taxTotal field)
             const poTaxRate = Number(po.taxRate ?? 0);
             const poTaxStatus = String(po.taxStatus ?? 'Excl').toUpperCase();
-            const poBase = subtotal + freight - discount + Number(po.surcharge ?? 0);
-            const taxTreatment = poTaxRate === 0 ? 'no_tax' : poTaxStatus.startsWith('INCL') ? 'inc_tax' : 'ex_tax';
-            const totalAmt = Number(po.total ?? (poBase * (1 + (taxTreatment === 'ex_tax' ? poTaxRate : 0))));
-            const taxAmt = poTaxRate === 0 ? 0
+            const rawPoBase = rawSubtotal + rawFreight - rawDiscount + Number(po.surcharge ?? 0);
+            const taxTreatment = normalizedMeta.taxTreatment
+              ?? (poTaxRate === 0 ? 'no_tax' : poTaxStatus.startsWith('INCL') ? 'inc_tax' : 'ex_tax');
+            const rawTotalAmt = Number(po.total ?? (rawPoBase * (1 + (taxTreatment === 'ex_tax' ? poTaxRate : 0))));
+            const subtotal = toOrderCurrency(rawSubtotal);
+            const freight = toOrderCurrency(rawFreight);
+            const discount = toOrderCurrency(rawDiscount);
+            const totalAmt = toOrderCurrency(rawTotalAmt);
+            const taxAmt = normalizedMeta.taxTreatment ? 0
+              : poTaxRate === 0 ? 0
               : taxTreatment === 'inc_tax' ? totalAmt * poTaxRate / (1 + poTaxRate)
-              : poBase * poTaxRate;
+              : toOrderCurrency(rawPoBase * poTaxRate);
             const lineItemTaxRate = taxTreatment === 'ex_tax' ? poTaxRate : 0;
             const poCurrencyCode = normalizedMeta.currencyCode;
             const poExchangeRate = normalizedMeta.exchangeRate;
@@ -1091,12 +1104,14 @@ export async function POST(req: Request) {
               const cin7OptId = line.productOptionId ?? line.productId;
               const qty = Number(line.qty ?? 0);
               if (!cin7OptId || qty === 0) continue;
-              const unitCost = Number(line.unitPrice ?? line.price_rrp ?? line.unitCost ?? 0);
+              const rawUnitCost = Number(line.unitPrice ?? line.price_rrp ?? line.unitCost ?? 0);
+              const unitCost = toOrderCurrency(rawUnitCost);
               // Cin7 PO line.discount is a dollar amount (not a percentage)
               const lineDiscAmt = Number(line.discount ?? 0);
-              const lineSub = qty * unitCost;
-              const lineDiscount = lineSub > 0 ? (lineDiscAmt / lineSub) * 100 : 0;
-              const lineTotal = Math.round((lineSub - lineDiscAmt) * 10000) / 10000;
+              const rawLineSub = qty * rawUnitCost;
+              const lineDiscount = rawLineSub > 0 ? (lineDiscAmt / rawLineSub) * 100 : 0;
+              const rawLineTotal = Number(line.lineTotal ?? line.total ?? rawLineSub - lineDiscAmt);
+              const lineTotal = Math.round(toOrderCurrency(rawLineTotal) * 10000) / 10000;
               const poItemVariantId = (line.code ? variantBySku.get(line.code) : undefined) ?? null;
               try {
                 await imsExecute(

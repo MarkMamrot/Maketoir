@@ -155,15 +155,13 @@ const normalizeDisplayFxRate = (currency?: string, exchangeRate?: number | strin
   const cur = (currency ?? 'AUD').toUpperCase();
   const rate = Number(exchangeRate ?? 1);
   if (cur === 'AUD' || !Number.isFinite(rate) || rate <= 0) return 1;
-  return rate < 1 ? 1 / rate : rate;
+  return rate;
 };
 
-const displayForeignCurrencyAmount = (amount: number | null | undefined, currency?: string, exchangeRate?: number | string | null) => {
+const displayForeignCurrencyAmount = (amount: number | null | undefined, currency?: string, _exchangeRate?: number | string | null) => {
   const cur = (currency ?? 'AUD').toUpperCase();
   const raw = Number(amount ?? 0);
   if (cur === 'AUD' || !Number.isFinite(raw) || raw === 0) return raw;
-  const rate = Number(exchangeRate ?? 1);
-  if (rate > 0 && rate < 1) return raw / normalizeDisplayFxRate(cur, rate);
   return raw;
 };
 
@@ -9887,7 +9885,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.supplier_invoice_number || '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{po.location_name}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{po.order_date?.slice(0, 10)}</td>
-                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtCurrency(po.total_amount)}</td>
+                    <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, whiteSpace: 'nowrap' }}>{fmtFx(po.total_amount, po.currency_code)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={po.status} orderKind="purchase_order" /></td>
                     <td style={{ padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%' }}>
@@ -10347,10 +10345,10 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{item.variant_label || 'Default'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_ordered)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtQty(item.qty_received)}</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtCurrency(item.unit_cost)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13 }}>{fmtFx(item.unit_cost, currency)}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{Number(item.discount_pct) > 0 ? `${Number(item.discount_pct).toFixed(1)}%` : '—'}</td>
                   <td style={{ padding: '8px 10px', fontSize: 13 }}>{(Number(item.tax_rate) * 100).toFixed(0)}%</td>
-                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtCurrency(item.line_total)}</td>
+                  <td style={{ padding: '8px 10px', fontSize: 13, fontWeight: 600 }}>{fmtFx(item.line_total, currency)}</td>
                 </tr>
               ))}
             </tbody>
@@ -10358,30 +10356,30 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               {(Number(viewModal.po.tax_amount) > 0 || Number(viewModal.po.discount) > 0 || Number(viewModal.po.freight) > 0) && (
                 <tr style={{ borderTop: '1px solid var(--sv-etch)' }}>
                   <td colSpan={7} style={{ padding: '6px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Products Total</td>
-                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.subtotal)}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.subtotal, currency)}</td>
                 </tr>
               )}
               {Number(viewModal.po.freight) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Freight (+)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtCurrency(viewModal.po.freight)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>+{fmtFx(viewModal.po.freight, currency)}</td>
                 </tr>
               )}
               {Number(viewModal.po.tax_amount) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Tax</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtCurrency(viewModal.po.tax_amount)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-text-dim)' }}>{fmtFx(viewModal.po.tax_amount, currency)}</td>
                 </tr>
               )}
               {Number(viewModal.po.discount) > 0 && (
                 <tr>
                   <td colSpan={7} style={{ padding: '4px 10px', textAlign: 'right', fontSize: 12, color: 'var(--sv-text-dim)' }}>Discount (−)</td>
-                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtCurrency(viewModal.po.discount)}</td>
+                  <td style={{ padding: '4px 10px', fontSize: 12, color: 'var(--sv-red)' }}>−{fmtFx(viewModal.po.discount, currency)}</td>
                 </tr>
               )}
               <tr style={{ borderTop: '2px solid var(--sv-etch)', background: 'var(--sv-bg-1)' }}>
                 <td colSpan={7} style={{ padding: '8px 10px', textAlign: 'right', fontSize: 13, color: 'var(--sv-text-dim)' }}>Total</td>
-                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtCurrency(viewModal.po.total_amount)}</td>
+                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--sv-text-strong)' }}>{fmtFx(viewModal.po.total_amount, currency)}</td>
               </tr>
             </tfoot>
           </table>
