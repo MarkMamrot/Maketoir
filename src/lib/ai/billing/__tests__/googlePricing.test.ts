@@ -73,6 +73,24 @@ describe('Google pricing preview', () => {
     ]));
   });
 
+  it('maps generic Gemini 3 Pro billing labels to Gemini 3.1 Pro Preview', () => {
+    const preview = buildGoogleRatePreview(
+      [
+        { skuId: 'SKU-3-SHORT', displayName: 'Generate_content text input token count for gemini 3 pro short' },
+        { skuId: 'SKU-3-LONG', displayName: 'Generate_content text input token count for gemini 3 pro long' },
+      ],
+      [
+        { name: 'billingAccounts/a/skus/SKU-3-SHORT/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '2' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+        { name: 'billingAccounts/a/skus/SKU-3-LONG/price', currencyCode: 'AUD', valueType: 'rate', rate: { tiers: [{ startAmount: { value: '0' }, contractPrice: { currencyCode: 'AUD', units: '4' } }], unitInfo: { unitQuantity: { value: '1000000' } } } },
+      ],
+    );
+    expect(preview.candidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({ modelId: 'gemini-3.1-pro-preview', metric: 'input_tokens', priceAud: '2' }),
+      expect.objectContaining({ modelId: 'gemini-3.1-pro-preview', metric: 'input_tokens_over_200k', priceAud: '4' }),
+    ]));
+    expect(preview.warnings).toHaveLength(0);
+  });
+
   it('excludes experimental, TTS, and input-modality Pro SKUs', () => {
     const names = [
       'Generate content input token count Gemini 2.5 Pro Experimental short input text',

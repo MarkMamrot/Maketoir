@@ -86,6 +86,7 @@ function modelIdFromSku(name: string): string | null {
   const match = name.match(/gemini\s+(\d+(?:\.\d+)?)\s+(flash[ -]?lite|flash|pro)(?:\s+(image))?(?:\s+(preview))?\b/i);
   if (!match) return null;
   const family = match[2].toLowerCase().replace(' ', '-');
+  if (match[1] === '3' && family === 'pro' && !match[3]) return 'gemini-3.1-pro-preview';
   return `gemini-${match[1]}-${family}${match[3] ? '-image' : ''}${match[4] ? '-preview' : ''}`;
 }
 
@@ -133,7 +134,7 @@ export function buildGoogleRatePreview(skus: any[], prices: GooglePrice[], fetch
         warnings.push({ skuId, skuName, reason: 'Pricing shape cannot be represented safely.' });
         continue;
       }
-      const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k|\blong\s+(?:input|output|text)\b/i.test(skuName);
+      const explicitLongContext = /(?:>|over|more than)\s*200[,.]?000|over\s*200k|\blong\b/i.test(skuName);
       const useLongContext = tierIndex === 1 || explicitLongContext;
       const priceAud = moneyDecimal(amount);
       for (const baseMetric of metrics) {
