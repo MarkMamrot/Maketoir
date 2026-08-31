@@ -7,7 +7,7 @@ import {
 } from '../productSettings';
 
 describe('product settings', () => {
-  it('shows common product fields but keeps new-product stock entry off by default', () => {
+  it('shows opening quantity but keeps replenishment fields off by default', () => {
     const settings: Record<string, string> = {};
     applyProductSettingDefaults(settings);
 
@@ -17,7 +17,8 @@ describe('product settings', () => {
       showTags: true,
       showWholesalePrice: true,
       showWeight: true,
-      allowOpeningStock: false,
+      allowOpeningStock: true,
+      showReplenishmentQuantities: false,
     });
   });
 
@@ -25,13 +26,15 @@ describe('product settings', () => {
     const settings = {
       use_categories: 'yes',
       [PRODUCT_SETTING_KEYS.showTags]: 'no',
-      [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'yes',
+      [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'no',
+      [PRODUCT_SETTING_KEYS.showReplenishmentQuantities]: 'yes',
     };
     applyProductSettingDefaults(settings);
 
     expect(parseProductSettings(settings).showCategories).toBe(true);
     expect(parseProductSettings(settings).showTags).toBe(false);
-    expect(parseProductSettings(settings).allowOpeningStock).toBe(true);
+    expect(parseProductSettings(settings).allowOpeningStock).toBe(false);
+    expect(parseProductSettings(settings).showReplenishmentQuantities).toBe(true);
   });
 
   it('accepts only yes or no for product feature settings', () => {

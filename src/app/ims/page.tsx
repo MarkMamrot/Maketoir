@@ -7329,19 +7329,19 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {productFeatures.allowOpeningStock && (!modal.edit || pendingProductSave) && Number(form.is_stock_item ?? 1) === 1 && variantRows.some(row => !row._delete) && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ marginBottom: 8, color: 'var(--sv-text-strong)', fontSize: 13, fontWeight: 650 }}>Add stock</div>
-              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock, minimum quantity and reorder quantity for each variant and location. Saving records a completed stocktake at each location.</div>
+              <div style={{ marginBottom: 10, color: 'var(--sv-text-dim)', fontSize: 12 }}>Enter opening stock for each variant and location{productFeatures.showReplenishmentQuantities ? ', with optional minimum and reorder quantities' : ''}. Saving records a completed stocktake at each location.</div>
               {productLocations.length === 0 ? (
                 <div style={{ padding: 12, border: '1px solid var(--sv-etch)', borderRadius: 8, color: 'var(--sv-text-dim)', fontSize: 12 }}>Add an active location before entering opening stock.</div>
               ) : (
                 <div ref={openingStockScrollRef} tabIndex={0} aria-label="Opening stock by variant and location. Use arrow keys to scroll." style={{ overflow: 'auto', border: '1px solid var(--sv-etch)', borderRadius: 8, maxHeight: 360 }}>
-                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: Math.max(720, 180 + productLocations.length * 300), width: '100%', fontSize: 12 }}>
+                  <table style={{ borderCollapse: 'separate', borderSpacing: 0, minWidth: Math.max(520, 180 + productLocations.length * (productFeatures.showReplenishmentQuantities ? 300 : 100)), width: '100%', fontSize: 12 }}>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--sv-bg-2)' }}>
                       <tr>
                         <th rowSpan={2} style={{ width: 180, minWidth: 180, padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)' }}>Variant</th>
-                        {productLocations.map(location => <th key={location.id} colSpan={3} style={{ width: 300, padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>{location.name}</th>)}
+                        {productLocations.map(location => <th key={location.id} colSpan={productFeatures.showReplenishmentQuantities ? 3 : 1} style={{ width: productFeatures.showReplenishmentQuantities ? 300 : 100, padding: '8px 10px', textAlign: 'center', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>{location.name}</th>)}
                       </tr>
                       <tr>
-                        {productLocations.flatMap(location => ['Qty', 'Min qty', 'Reorder qty'].map(label => <th key={`${location.id}:${label}`} style={{ width: 100, padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{label}</th>))}
+                        {productLocations.flatMap(location => (productFeatures.showReplenishmentQuantities ? ['Qty', 'Min qty', 'Reorder qty'] : ['Qty']).map(label => <th key={`${location.id}:${label}`} style={{ width: 100, padding: '6px 8px', textAlign: 'left', borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)', color: 'var(--sv-text-dim)', fontWeight: 600 }}>{label}</th>))}
                       </tr>
                     </thead>
                     <tbody>
@@ -7352,7 +7352,10 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                             <td style={{ padding: '7px 10px', borderBottom: '1px solid var(--sv-etch)', color: 'var(--sv-text-main)', fontWeight: 600 }}>{variantLabel}</td>
                             {productLocations.flatMap(location => {
                               const value = openingStock[`${row._tempId}:${location.id}`] ?? { quantity: '', minQty: '', reorderQty: '' };
-                              return ([['quantity', value.quantity], ['minQty', value.minQty], ['reorderQty', value.reorderQty]] as const).map(([field, fieldValue]) => (
+                              const fields = productFeatures.showReplenishmentQuantities
+                                ? ([['quantity', value.quantity], ['minQty', value.minQty], ['reorderQty', value.reorderQty]] as const)
+                                : ([['quantity', value.quantity]] as const);
+                              return fields.map(([field, fieldValue]) => (
                                 <td key={`${location.id}:${field}`} style={{ padding: 4, borderBottom: '1px solid var(--sv-etch)', borderLeft: '1px solid var(--sv-etch)' }}>
                                   <input type="number" min="0" step="0.0001" value={fieldValue} onChange={event => updateOpeningStock(row._tempId, location.id, field, event.target.value)} style={{ ...cellInput, width: 92, boxSizing: 'border-box' }} placeholder="0" />
                                 </td>
@@ -26392,7 +26395,8 @@ function SettingsModal({ isOpen, onClose, defaultSection, businessId, syncing, s
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showTags} defaultValue="yes" label="Tags" description="Show product tags in the product form." />
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showWholesalePrice} defaultValue="yes" label="Wholesale price" description="Show Wholesale $ for each product variant." />
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showWeight} defaultValue="yes" label="Weight" description="Show Wt. kg for each product variant." />
-              <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="no" label="Add stock with new products" description="Show opening stock, minimum quantity and reorder quantity fields while creating a tracked product. Off by default." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="yes" label="Add stock with new products" description="Show opening stock quantity by variant and location while creating a tracked product." />
+              <OperationToggle setting={PRODUCT_SETTING_KEYS.showReplenishmentQuantities} defaultValue="no" label="Minimum and reorder quantities" description="Also show Min qty and Reorder qty beside opening stock in New Product. Off by default." />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button type="button" onClick={saveTaxSettings} disabled={!loaded || taxSaving || (taxDirtyKeys.size === 0 && !onlineChannelsDirty)} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>

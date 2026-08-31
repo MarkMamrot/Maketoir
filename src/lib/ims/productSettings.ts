@@ -4,6 +4,7 @@ export const PRODUCT_SETTING_KEYS = {
   showWholesalePrice: 'product_show_wholesale_price',
   showWeight: 'product_show_weight',
   allowOpeningStock: 'product_allow_opening_stock',
+  showReplenishmentQuantities: 'product_show_replenishment_quantities',
 } as const;
 
 const PRODUCT_SETTING_DEFAULTS: Record<string, 'yes' | 'no'> = {
@@ -11,7 +12,8 @@ const PRODUCT_SETTING_DEFAULTS: Record<string, 'yes' | 'no'> = {
   [PRODUCT_SETTING_KEYS.showTags]: 'yes',
   [PRODUCT_SETTING_KEYS.showWholesalePrice]: 'yes',
   [PRODUCT_SETTING_KEYS.showWeight]: 'yes',
-  [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'no',
+  [PRODUCT_SETTING_KEYS.allowOpeningStock]: 'yes',
+  [PRODUCT_SETTING_KEYS.showReplenishmentQuantities]: 'no',
 };
 
 export interface ProductSettings {
@@ -21,6 +23,7 @@ export interface ProductSettings {
   showWholesalePrice: boolean;
   showWeight: boolean;
   allowOpeningStock: boolean;
+  showReplenishmentQuantities: boolean;
 }
 
 export function applyProductSettingDefaults(settings: Record<string, string>): void {
@@ -34,7 +37,8 @@ export function parseProductSettings(settings: Record<string, string>): ProductS
     showTags: (settings[PRODUCT_SETTING_KEYS.showTags] ?? 'yes') === 'yes',
     showWholesalePrice: (settings[PRODUCT_SETTING_KEYS.showWholesalePrice] ?? 'yes') === 'yes',
     showWeight: (settings[PRODUCT_SETTING_KEYS.showWeight] ?? 'yes') === 'yes',
-    allowOpeningStock: (settings[PRODUCT_SETTING_KEYS.allowOpeningStock] ?? 'no') === 'yes',
+    allowOpeningStock: (settings[PRODUCT_SETTING_KEYS.allowOpeningStock] ?? 'yes') === 'yes',
+    showReplenishmentQuantities: (settings[PRODUCT_SETTING_KEYS.showReplenishmentQuantities] ?? 'no') === 'yes',
   };
 }
 
