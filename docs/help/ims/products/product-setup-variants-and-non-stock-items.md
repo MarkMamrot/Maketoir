@@ -11,6 +11,7 @@ Use this guide to create a clean product record and give each sellable option it
 - Add up to 10 product photos when creating or editing a product.
 - Add a default variant for a single-option item, or generate variants from Size, Colour or Style.
 - Give each variant a unique SKU and, where used, a unique barcode.
+- Optionally generate a Product SKU from the brand and current date and time.
 - Enter retail, wholesale and sale prices as tax-inclusive selling prices.
 - Choose which optional product and variant fields appear under **Settings > Products**.
 - Leave **Tracks Inventory** on for physical stock, or turn it off for items sold without quantity limits.
@@ -45,7 +46,7 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 1. Open **Products > All Products** and search for the item.
 	The Product SKU column shows the product-level identifier. Expand a product to see the separate SKU for each variant.
 2. Select **New Product** when no matching product exists.
-3. Enter the product Name and Product SKU.
+3. Enter the product Name and Product SKU. For a new product, turn on **Auto SKU** to generate it from the first three brand letters, or **SOL** when no brand is available, followed by the current date and time.
 4. Choose or type the Product Type, brand, category, subcategory, tags and default supplier as needed. Optional fields are shown only when enabled under **Settings > Products**.
 5. Add a description and set Active to **Yes** when the item should be available.
 6. Leave **Tracks Inventory** on for physical goods. Turn it off for a service, fee or other item that must sell without stock checks or movements.
@@ -61,6 +62,8 @@ Selling prices are tax-inclusive. A retail price of $110 includes $10 GST. The C
 Under **Settings > Products**, authorised users can show or hide Category and Subcategory, Tags, Product Type, Wholesale Price, Weight, **Add stock with new products**, and **Minimum and reorder quantities**. Opening quantity is available by default. Min Qty and Reorder Qty are off by default because most product creation does not need replenishment settings. Hiding a field removes it from product entry; it does not erase values already saved.
 
 Opening quantities are set through a completed stocktake at each location, so Stock History retains the adjustment. If saving opening stock is interrupted, retry the save; Solvantis reuses the protected request rather than creating the product or applying a completed location twice.
+
+Auto SKU uses the format **ABC-YYMMDD-HHMMSS**. Changing the brand while Auto SKU is on refreshes the generated value. Typing in Product SKU turns Auto SKU off. Generated variant SKUs continue to use the Product SKU as their base.
 
 ## Import products
 

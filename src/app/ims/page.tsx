@@ -16,6 +16,7 @@ import { buildBarcodeLabelHtml, buildBarcodeSvgMarkup } from '@/lib/ims/barcodeL
 import { isCrmCustomerType } from '@/lib/ims/contactCrmAccess';
 import { resolveImportMatch } from '@/lib/ims/importMatch';
 import { deriveVariantSku } from '@/lib/ims/importSku';
+import { generateProductSku } from '@/lib/ims/productSku';
 import { calculatePosProfitability } from '@/lib/ims/posReturnCreditNote';
 import { buildNotificationDetailSections } from '@/lib/ims/notificationPresentation';
 import { parseProductSettings, PRODUCT_SETTING_KEYS } from '@/lib/ims/productSettings';
@@ -5793,6 +5794,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const [descHtmlMode, setDescHtmlMode] = useState<'source' | 'preview'>('preview');
   const [descBuilderOpen, setDescBuilderOpen] = useState(false);
   const [form, setForm] = useState<any>({ ...BLANK_PRODUCT });
+  const [autoGenerateSku, setAutoGenerateSku] = useState(false);
   const [optionSets, setOptionSets] = useState<OptionSet[]>([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
   const [variantRows, setVariantRows] = useState<VariantRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -6005,6 +6007,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     clearPendingProductPhotos();
     setDescHtmlMode('preview');
     setForm({ ...BLANK_PRODUCT });
+    setAutoGenerateSku(false);
     setOpeningStock({});
     setPendingProductSave(null);
     setOptionSets([{ name: 'Size', values: '' }, { name: 'Colour', values: '' }]);
@@ -6016,6 +6019,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const openEdit = (p: any) => {
     clearPendingProductPhotos();
     setDescHtmlMode('preview');
+    setAutoGenerateSku(false);
     // Prefer DB-stored base_sku; fall back to deriving from variant SKU common prefix
     let base_sku = p.base_sku || '';
     if (!base_sku) {
@@ -7033,7 +7037,33 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
               </div>
             )}
             <Field label="Name *"><input required value={form.name} onChange={sf('name')} style={inputStyle} /></Field>
-            <Field label="Product SKU *"><input required value={form.base_sku ?? ''} onChange={sf('base_sku')} style={inputStyle} placeholder="e.g. MT-PROD (used to generate variant SKUs)" /></Field>
+            <Field label="Product SKU *">
+              <div style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                <input
+                  required
+                  value={form.base_sku ?? ''}
+                  onChange={event => {
+                    setAutoGenerateSku(false);
+                    setForm((previous: any) => ({ ...previous, base_sku: event.target.value }));
+                  }}
+                  style={inputStyle}
+                  placeholder="e.g. MT-PROD (used to generate variant SKUs)"
+                />
+                {!modal.edit && (
+                  <button
+                    type="button"
+                    aria-pressed={autoGenerateSku}
+                    title="Generate the product SKU from the brand and current date and time"
+                    onClick={() => {
+                      const next = !autoGenerateSku;
+                      setAutoGenerateSku(next);
+                      if (next) setForm((previous: any) => ({ ...previous, base_sku: generateProductSku(previous.brand) }));
+                    }}
+                    style={{ ...btnStyle(autoGenerateSku ? 'action' : 'ghost', 'sm'), whiteSpace: 'nowrap', minWidth: 92 }}
+                  >Auto SKU</button>
+                )}
+              </div>
+            </Field>
             <Row2>
               {productFeatures.showProductType && (
                 <Field label="Product Type">
@@ -7044,7 +7074,20 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 </Field>
               )}
               <Field label="Brand">
-                <input list="brand-list" value={form.brand} onChange={sf('brand')} style={inputStyle} placeholder="Type or select…" />
+                <input
+                  list="brand-list"
+                  value={form.brand}
+                  onChange={event => {
+                    const brand = event.target.value;
+                    setForm((previous: any) => ({
+                      ...previous,
+                      brand,
+                      ...(autoGenerateSku && !modal.edit ? { base_sku: generateProductSku(brand) } : {}),
+                    }));
+                  }}
+                  style={inputStyle}
+                  placeholder="Type or select…"
+                />
                 <datalist id="brand-list">
                   {brands.map(b => <option key={b.id} value={b.name} />)}
                 </datalist>
@@ -7133,7 +7176,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
 
           {/* ── Media ── */}
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
               <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
               <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Media</span>
               <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -7188,7 +7231,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           </>
 
           {/* ── Section divider ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Variants</span>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -7312,7 +7355,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             <p style={{ color: 'var(--sv-text-dim)', fontSize: 13, marginBottom: 16 }}>No variants yet — define options above and click ⚡ Generate Variants, or add a Blank Row.</p>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Inventory</span>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -7375,7 +7418,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {modal.edit?.product_id && (
             <>
               {/* Website Title — separate from the supplier product name */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Online Store</span>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -7406,7 +7449,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           {/* ── Wholesale ── */}
           {modal.edit?.product_id && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '4px 0 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Wholesale</span>
                 <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
