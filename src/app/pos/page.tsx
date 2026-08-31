@@ -355,7 +355,12 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
     const prodData   = await prodRes.json().catch(() => ({ products: [], server_time: Date.now() }));
     const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
     const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
-    let products = prodData.products ?? [];
+    const refreshedProducts = Array.isArray(prodData.products) ? prodData.products : [];
+    const cachedProducts = loadProductsCache();
+    if (!prodRes.ok && !cachedProducts.length) {
+      throw new Error('The product catalogue could not be loaded. Check the connection and try again.');
+    }
+    let products = prodRes.ok ? refreshedProducts : cachedProducts;
     const imgCache = loadImageCache();
     if (imgCache && products.length) products = mergeProductImages(products, imgCache);
     const productsCached = saveProductsCache(products);
@@ -8255,11 +8260,19 @@ export default function PosPage() {
           setOfflineMode(false);
           setSession(sess);
           const cached = loadProductsCache();
-          if (cached.length) setProducts(cached);
-          checkRegisterGate(sess, cfg, () => setScreen('pos'));
-          // Refresh products + payment methods in the background. Admin-as-POS
-          // replaces the unscoped browser cache; cashier restores stay incremental.
-          handleSync(sess.pos_user_id === 0, cfg).catch(() => {/* offline — keep cached */});
+          if (cached.length) {
+            setProducts(cached);
+            checkRegisterGate(sess, cfg, () => setScreen('pos'));
+            // Refresh products + payment methods in the background. Admin-as-POS
+            // replaces the unscoped browser cache; cashier restores stay incremental.
+            handleSync(sess.pos_user_id === 0, cfg).catch(() => {/* offline — keep cached */});
+          } else {
+            // A valid session can survive staff clearing only the catalogue cache.
+            // Do not open a scanner with an empty product list while the rebuild runs.
+            handleSync(true, cfg)
+              .then(() => checkRegisterGate(sess, cfg, () => setScreen('pos')))
+              .catch(() => setScreen('login'));
+          }
           fetch('/api/pos/settings/products').then(r => r.json()).then(viewData => {
             if (viewData.defaultView) setDefaultView(viewData.defaultView);
             else setDefaultView(prev => prev ?? 'all');
@@ -8367,6 +8380,9 @@ export default function PosPage() {
     ]);
     const prodData   = await prodRes.json().catch(() => ({ products: [], removed: [], server_time: Date.now() }));
     const methodData = await methodRes.json().catch(() => ({ methods: [] }));
+    if (!prodRes.ok || !Array.isArray(prodData.products)) {
+      throw new Error('Product catalogue refresh failed.');
+    }
     const deltaProducts: CachedProduct[] = prodData.products ?? [];
     const removedIds: string[]           = prodData.removed ?? [];
     const serverTime: number             = prodData.server_time ?? Date.now();

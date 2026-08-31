@@ -63,6 +63,23 @@ describe('POS tenant browser storage', () => {
     expect(loadProductsCache()).toEqual([{ variant_id: 'existing-item' }]);
   });
 
+  it('uses the legacy catalogue when tenant migration exceeds browser storage quota', () => {
+    localStorage.setItem('pos_products_cache', JSON.stringify({
+      cached_at: 1,
+      products: [{ variant_id: 'legacy-item' }],
+    }));
+    saveDeviceConfig(alphaDevice);
+    const storage = globalThis.localStorage;
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (key, value) => {
+      if (key === 'pos_products_cache:alpha') throw new DOMException('Quota exceeded', 'QuotaExceededError');
+      setItem(key, value);
+    };
+
+    expect(loadProductsCache()).toEqual([{ variant_id: 'legacy-item' }]);
+    expect(localStorage.getItem('pos_products_cache')).not.toBeNull();
+  });
+
   it('does not block POS login when the local session cannot be cached', () => {
     saveDeviceConfig(alphaDevice);
     const storage = globalThis.localStorage;

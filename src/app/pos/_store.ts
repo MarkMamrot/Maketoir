@@ -40,8 +40,12 @@ function getTenantItem(key: string): string | null {
   if (scoped != null || scopedKey === key) return scoped;
   const legacy = localStorage.getItem(key);
   if (legacy != null) {
-    localStorage.setItem(scopedKey, legacy);
-    localStorage.removeItem(key);
+    try {
+      localStorage.setItem(scopedKey, legacy);
+      localStorage.removeItem(key);
+    } catch {
+      return legacy;
+    }
   }
   return legacy;
 }
