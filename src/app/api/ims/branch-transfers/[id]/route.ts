@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { BranchTransferUndoConflict, ImsBTRepo } from '@/lib/ims/ImsRepository';
+import { BranchTransferEditConflict, BranchTransferUndoConflict, ImsBTRepo } from '@/lib/ims/ImsRepository';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -80,11 +80,15 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       }
 
     } else {
+      const existing = await ImsBTRepo.get(Number(params.id), session.businessId);
       await ImsBTRepo.update(Number(params.id), btData, items, session.businessId);
 
       // EVENT-DRIVEN CACHE UPDATE
       if (items && items.length > 0) {
-        const vids = items.map((i: any) => i.variant_id).filter(Boolean) as string[];
+        const vids = [...new Set([
+          ...(existing?.items ?? []).map(item => item.variant_id),
+          ...items.map((item: any) => item.variant_id),
+        ].filter(Boolean))] as string[];
         if (vids.length > 0) {
           refreshVariantCache(vids).catch(err => console.error('Failed inline cache refresh for BT:', err));
         }
@@ -92,6 +96,9 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (e instanceof BranchTransferEditConflict) {
+      return NextResponse.json({ success: false, error: e.message }, { status: 409 });
+    }
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

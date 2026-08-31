@@ -11,6 +11,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 - Add multiline transfer notes for packing instructions or selected Store Daybook needs.
 - Send the transfer when goods leave the source.
 - Keep Sent goods in transit until the destination counts them.
+- Edit a Sent transfer when its route, lines, quantities, costs, or notes need correction before receipt.
 - Receive the actual quantities or save a partial receipt for later.
 - Undo a mistaken partial or completed receipt and reopen the transfer as Sent.
 - Find completed transfer history in Branch Transfers.
@@ -20,7 +21,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 | Status | Physical meaning | Stock position | Next action |
 |---|---|---|---|
 | Draft | Goods have not been dispatched | Source and destination are unchanged | Edit, send, cancel, or delete as offered |
-| Sent | Goods left the source and are in transit | Source movement is recorded; destination has not received them | Destination counts and receives |
+| Sent | Goods left the source and are in transit | Sent quantities are committed at the source; destination has not received them | Edit a dispatch error or receive at the destination |
 | Partially Received | Some quantities arrived or were confirmed | Only received quantities are at the destination; short lines remain visible | Continue receiving, finalise reviewed shorts, or undo a mistaken receipt |
 | Received | Destination receipt is finished | Actual received quantities are recorded at the destination | Review it or undo a mistaken receipt |
 | Cancelled | Transfer will not proceed | Retained for audit | Create a new transfer if goods move later |
@@ -46,6 +47,9 @@ When the destination allows POS sales from incoming transfers, POS can sell the 
 4. Review the transfer number, route, items, quantities, and value.
 5. Use **Print** when a paper transfer is needed. The saved notes print in a separate section at the bottom, after all item lines.
 6. Mark the transfer **Sent** only when the goods physically leave the source.
+7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.
+
+> **Important:** Once receipt has started, use **Undo Receipt** before editing the transfer. This keeps destination stock and the transfer record aligned.
 
 ### Receive at the destination
 

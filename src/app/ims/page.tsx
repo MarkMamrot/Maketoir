@@ -23710,6 +23710,7 @@ function BTActions({ bt, onEdit, onDelete, onStatus, onReceive, onUndoReceipt, o
     if (!isAdvisor) { btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>); }
   }
   if (bt.status === 'sent') {
+    if (!isAdvisor) { btns.push(<button key="e" onClick={onEdit} style={btnStyle('secondary', 'xs')}>Edit</button>); }
     if (!isAdvisor) { btns.push(<button key="r" onClick={onReceive} style={btnStyle('mint', 'xs')}>Receive</button>); }
     if (!isAdvisor) { btns.push(<button key="x" onClick={() => onStatus(bt, 'cancelled')} style={btnStyle('ghost', 'xs')}>Cancel</button>); }
   }

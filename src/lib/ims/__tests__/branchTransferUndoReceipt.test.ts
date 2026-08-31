@@ -98,3 +98,54 @@ describe('ImsBTRepo.undoReceipt', () => {
     expect(connection.commit).not.toHaveBeenCalled();
   });
 });
+
+describe('ImsBTRepo.update', () => {
+  it('rebalances commitments when editing a sent transfer', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, from_location_id')) {
+        return [[{ status: 'sent', from_location_id: 1 }]];
+      }
+      if (sql.includes('SELECT variant_id, qty_sent')) {
+        return [[{ variant_id: 'old-variant', qty_sent: 4 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute,
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsBTRepo.update(42, { from_location_id: 3 }, [
+      { variant_id: 'new-variant', qty_sent: 6, unit_cost: 10 },
+    ], 'biz-1');
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_committed = GREATEST(0, qty_committed - ?)'),
+      [4, 'old-variant', 1, 'biz-1'],
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('qty_committed = qty_committed + VALUES(qty_committed)'),
+      ['biz-1', 'new-variant', 3, 6],
+    );
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects edits after receipt has started', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, from_location_id')) {
+        return [[{ status: 'partial', from_location_id: 1 }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(), execute,
+    };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await expect(ImsBTRepo.update(42, { notes: 'changed' }, undefined, 'biz-1'))
+      .rejects.toThrow('Only draft or sent branch transfers can be edited.');
+
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+});

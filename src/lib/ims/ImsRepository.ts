@@ -4173,6 +4173,13 @@ export class BranchTransferUndoConflict extends Error {
   }
 }
 
+export class BranchTransferEditConflict extends Error {
+  constructor(message = 'Only draft or sent branch transfers can be edited.') {
+    super(message);
+    this.name = 'BranchTransferEditConflict';
+  }
+}
+
 async function nextBTNumber(businessId: string): Promise<string> {
   await ensureBranchTransferTenantTables();
   const year = new Date().getFullYear();
@@ -4410,9 +4417,12 @@ export const ImsBTRepo = {
       // Snapshot BEFORE any change. A 'sent' transfer holds qty_committed at its
       // OLD source; replacing the lines would strand it, so rebalance here.
       const [[preEdit]] = await conn.execute<any[]>(
-        `SELECT status, from_location_id FROM ims_branch_transfers WHERE id = ? AND business_id = ?`, [id, businessId]
+        `SELECT status, from_location_id FROM ims_branch_transfers WHERE id = ? AND business_id = ? FOR UPDATE`, [id, businessId]
       );
       if (!preEdit) throw new Error('Branch transfer not found');
+      if (preEdit.status !== 'draft' && preEdit.status !== 'sent') {
+        throw new BranchTransferEditConflict();
+      }
       const rebalanceCommitted = !!items && preEdit?.status === 'sent';
       let oldCommitItems: any[] = [];
       if (rebalanceCommitted) {
