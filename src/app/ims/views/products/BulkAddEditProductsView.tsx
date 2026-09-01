@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, Plus, Save, Settings2, Sparkles, Trash2, X } from 'lucide-react';
 import {
   bulkFillTargets,
   enabledBulkProductFields,
@@ -102,6 +102,12 @@ function blankProduct(): ProductDraft {
 }
 
 function optionSetsFromVariants(variants: Record<string, unknown>[]): ProductOptionSet[] {
+  if (variants.length === 1
+    && ['', 'default'].includes(String(variants[0].option1_value ?? '').trim().toLowerCase())
+    && !String(variants[0].option2_value ?? '').trim()
+    && !String(variants[0].option3_value ?? '').trim()) {
+    return [{ name: '', values: '' }];
+  }
   const sets: ProductOptionSet[] = [];
   for (let index = 1; index <= 3; index += 1) {
     const name = String(variants.find(variant => variant[`option${index}_name`])?.[`option${index}_name`] ?? '');
@@ -139,6 +145,14 @@ function variantLabel(variant: VariantDraft): string {
   return [variant.option1Value, variant.option2Value, variant.option3Value].filter(Boolean).join(' / ') || 'Default';
 }
 
+function isDefaultVariant(variant: VariantDraft): boolean {
+  return ['', 'default'].includes(variant.option1Value.trim().toLowerCase()) && !variant.option2Value && !variant.option3Value;
+}
+
+function hasGeneratedVariants(product: ProductDraft): boolean {
+  return product.variants.length > 1 || product.variants.some(variant => !isDefaultVariant(variant));
+}
+
 export function BulkAddEditProductsView({ businessId }: { businessId: string }) {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [brands, setBrands] = useState<LookupOption[]>([]);
@@ -149,6 +163,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [manageVariantsProductId, setManageVariantsProductId] = useState<string | null>(null);
   const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -256,7 +271,13 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   };
 
   const updateProductField = (productClientId: string, fieldId: string, value: unknown) => {
-    mutateProduct(productClientId, product => ({ ...product, [fieldId]: value }));
+    mutateProduct(productClientId, product => ({
+      ...product,
+      [fieldId]: value,
+      variants: fieldId === 'base_sku' && product.variants.length === 1 && isDefaultVariant(product.variants[0])
+        ? [{ ...product.variants[0], sku: String(value) }]
+        : product.variants,
+    }));
     setErrors(current => ({ ...current, [productClientId]: { ...current[productClientId], [fieldId]: '' } }));
   };
 
@@ -271,7 +292,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   const visibleRows = useMemo<VisibleRow[]>(() => displayedProducts.flatMap(product => {
     const rows: VisibleRow[] = [{ id: product.clientId, owner: 'product', productClientId: product.clientId }];
-    if (expanded.has(product.clientId)) rows.push(...product.variants.map(variant => ({
+    if (!hasGeneratedVariants(product) && product.variants[0]) rows.push({
+      id: product.variants[0].clientId, owner: 'variant' as const, productClientId: product.clientId, variantClientId: product.variants[0].clientId,
+    });
+    if (hasGeneratedVariants(product) && expanded.has(product.clientId)) rows.push(...product.variants.map(variant => ({
       id: variant.clientId, owner: 'variant' as const, productClientId: product.clientId, variantClientId: variant.clientId,
     })));
     return rows;
@@ -309,10 +333,16 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     return () => { window.removeEventListener('pointerup', finish); window.removeEventListener('keydown', cancel); };
   }, [fill, visibleRows]);
 
+  useEffect(() => {
+    if (!manageVariantsProductId) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setManageVariantsProductId(null); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [manageVariantsProductId]);
+
   const addProduct = () => {
     const product = blankProduct();
     setNewProducts(current => [product, ...current]);
-    setExpanded(current => new Set(current).add(product.clientId));
   };
 
   const generateVariants = (product: ProductDraft) => {
@@ -322,6 +352,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     }
     const result = reconcileVariantMatrix(product.base_sku, product.optionSets, product.variants, () => newId('variant'));
     mutateProduct(product.clientId, current => ({ ...current, variants: result.variants.map(variant => ({ ...blankVariant(), ...variant })) as VariantDraft[] }));
+    if (result.variants.length > 1 || result.variants.some(variant => variant.option1Value || variant.option2Value || variant.option3Value)) {
+      setExpanded(current => new Set(current).add(product.clientId));
+    } else {
+      setExpanded(current => { const next = new Set(current); next.delete(product.clientId); return next; });
+    }
     if (result.unmatchedExisting.length) setMessage(`${result.unmatchedExisting.length} saved variant(s) no longer match the matrix and were kept.`);
   };
 
@@ -355,6 +390,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
             product.clientId === firstError.clientId || product.variants.some(variant => variant.clientId === firstError.clientId),
           );
           if (affectedProduct) setExpanded(current => new Set(current).add(affectedProduct.clientId));
+          if (affectedProduct && firstError.field === 'sku') setManageVariantsProductId(affectedProduct.clientId);
           window.requestAnimationFrame(() => {
             const cell = document.querySelector<HTMLElement>(`[data-row-id="${firstError.clientId}"][data-field-id="${firstError.field}"]`);
             cell?.scrollIntoView({ block: 'center', inline: 'center' });
@@ -381,9 +417,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     setMessage('Changes discarded.');
   };
 
-  const allExpanded = displayedProducts.length > 0 && displayedProducts.every(product => expanded.has(product.clientId));
-  const totalWidth = 44 + 140 + fields.reduce((sum, field) => sum + field.width, 0);
-  const renderColGroup = () => <colgroup><col style={{ width: 44 }} /><col style={{ width: 140 }} />{fields.map(field => <col key={field.id} style={{ width: field.width }} />)}</colgroup>;
+  const productsWithVariants = displayedProducts.filter(hasGeneratedVariants);
+  const managedProduct = displayedProducts.find(product => product.clientId === manageVariantsProductId) ?? null;
+  const totalWidth = 44 + 180 + fields.reduce((sum, field) => sum + field.width, 0);
+  const renderColGroup = () => <colgroup><col style={{ width: 44 }} /><col style={{ width: 180 }} />{fields.map(field => <col key={field.id} style={{ width: field.width }} />)}</colgroup>;
 
   const valueFor = (product: ProductDraft, variant: VariantDraft | undefined, field: BulkProductFieldDefinition) => {
     if (field.owner === 'product') return product[field.id] ?? '';
@@ -441,18 +478,18 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   };
 
   const renderDataRow = (product: ProductDraft, variant?: VariantDraft) => {
-    const owner: BulkProductFieldOwner = variant ? 'variant' : 'product';
+    const defaultVariant = !variant && !hasGeneratedVariants(product) ? product.variants[0] : undefined;
     return (
       <tr key={variant?.clientId ?? product.clientId} style={{ background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)' }}>
         <td style={{ position: 'sticky', left: 0, zIndex: 3, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: 4, borderBottom: '1px solid var(--sv-etch)', textAlign: 'center' }}>
-          {!variant && <button type="button" aria-label={`${expanded.has(product.clientId) ? 'Collapse' : 'Expand'} ${product.name || 'new product'}`} onClick={() => setExpanded(current => { const next = new Set(current); next.has(product.clientId) ? next.delete(product.clientId) : next.add(product.clientId); return next; })} style={{ ...buttonStyle, padding: 4, border: 0 }}>
+          {!variant && hasGeneratedVariants(product) && <button type="button" aria-label={`${expanded.has(product.clientId) ? 'Collapse' : 'Expand'} ${product.name || 'new product'} variants`} onClick={() => setExpanded(current => { const next = new Set(current); next.has(product.clientId) ? next.delete(product.clientId) : next.add(product.clientId); return next; })} style={{ ...buttonStyle, padding: 4, border: 0 }}>
             {expanded.has(product.clientId) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>}
         </td>
         <td style={{ position: 'sticky', left: 44, zIndex: 2, background: variant ? 'var(--sv-bg-2)' : 'var(--sv-bg-1)', padding: '5px 8px', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', fontSize: 11, fontWeight: 650, color: 'var(--sv-text-dim)' }}>
-          {variant ? variantLabel(variant) : product.productId ? 'Existing product' : 'New product'}
+          {variant ? variantLabel(variant) : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}><span>{product.productId ? 'Existing product' : 'New product'}</span><button type="button" title="Manage variants" aria-label={`Manage variants for ${product.name || 'new product'}`} onClick={() => setManageVariantsProductId(product.clientId)} style={{ ...buttonStyle, padding: '4px 6px' }}><Settings2 size={14} /> Variants</button></div>}
         </td>
-        {fields.map(field => <td key={field.id} style={{ padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === owner ? renderEditor(product, variant, field) : null}</td>)}
+        {fields.map(field => <td key={field.id} style={{ padding: 3, borderBottom: '1px solid var(--sv-etch)', verticalAlign: 'top' }}>{field.owner === 'product' && !variant ? renderEditor(product, undefined, field) : field.owner === 'variant' && (variant || defaultVariant) ? renderEditor(product, variant ?? defaultVariant, field) : null}</td>)}
       </tr>
     );
   };
@@ -482,7 +519,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         <input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="Search name, SKU, barcode or brand" style={{ ...inputStyle, width: 270 }} />
         <select value={brandFilter} onChange={event => { setBrandFilter(event.target.value); setPage(1); }} style={{ ...inputStyle, width: 170 }}><option value="">All brands</option>{brands.map(brand => <option key={brand.id} value={brand.name}>{brand.name}</option>)}</select>
         <select value={supplierFilter} onChange={event => { setSupplierFilter(event.target.value); setPage(1); }} style={{ ...inputStyle, width: 190 }}><option value="">All suppliers</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select>
-        <button type="button" onClick={() => setExpanded(allExpanded ? new Set() : new Set(displayedProducts.map(product => product.clientId)))} style={buttonStyle}>{allExpanded ? <ChevronsDownUp size={15} /> : <ChevronsUpDown size={15} />}{allExpanded ? 'Collapse all' : 'Expand all'}</button>
+        <div style={{ display: 'inline-flex', gap: 2 }}>
+          <button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ ...buttonStyle, padding: '5px 7px', opacity: productsWithVariants.length ? 1 : .5 }}><ChevronsUpDown size={14} /> Expand all</button>
+          <button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ ...buttonStyle, padding: '5px 7px', opacity: expanded.size ? 1 : .5 }}><ChevronsDownUp size={14} /> Collapse all</button>
+        </div>
         <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{total} existing products{newProducts.length ? ` + ${newProducts.length} new` : ''}</span>
       </div>
       {message && <div role="status" style={{ marginBottom: 10, padding: '8px 10px', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>{message}</div>}
@@ -495,8 +535,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
           <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<tbody>
             {displayedProducts.map(product => <Fragment key={product.clientId}>
               {renderDataRow(product)}
-              {expanded.has(product.clientId) && <tr key={`${product.clientId}-options`} style={{ background: 'var(--sv-bg-2)' }}><td style={{ position: 'sticky', left: 0, zIndex: 3, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)' }} /><td style={{ position: 'sticky', left: 44, zIndex: 2, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', padding: 6, fontSize: 11, fontWeight: 700 }}>Variant matrix</td><td colSpan={fields.length} style={{ padding: 7, borderBottom: '1px solid var(--sv-etch)' }}><div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>{product.optionSets.map((option, index) => <span key={index} style={{ display: 'inline-flex', gap: 4 }}><input aria-label={`Option ${index + 1} name`} placeholder={index === 0 ? 'Size' : index === 1 ? 'Colour' : 'Style'} value={option.name} onChange={event => mutateProduct(product.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} style={{ ...inputStyle, width: 95 }} /><input aria-label={`Option ${index + 1} values`} placeholder="S, M, L" value={option.values} onChange={event => mutateProduct(product.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, values: event.target.value } : item) }))} style={{ ...inputStyle, width: 150 }} /></span>)}{product.optionSets.length < 3 && <button type="button" onClick={() => mutateProduct(product.clientId, current => ({ ...current, optionSets: [...current.optionSets, { name: '', values: '' }] }))} style={buttonStyle}><Plus size={13} /> Option</button>}<button type="button" onClick={() => generateVariants(product)} style={buttonStyle}><Sparkles size={13} /> Generate variants</button><button type="button" onClick={() => mutateProduct(product.clientId, current => ({ ...current, variants: [...current.variants, blankVariant(current.base_sku)] }))} style={buttonStyle}><Plus size={13} /> Blank variant</button></div></td></tr>}
-              {expanded.has(product.clientId) && product.variants.map(variant => renderDataRow(product, variant))}
+              {hasGeneratedVariants(product) && expanded.has(product.clientId) && product.variants.map(variant => renderDataRow(product, variant))}
             </Fragment>)}
             {!loading && !displayedProducts.length && <tr><td colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No products match these filters. Use Add products to begin a new batch.</td></tr>}
             {loading && <tr><td colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading products...</td></tr>}
@@ -504,6 +543,34 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 10 }}><button type="button" disabled={page <= 1} onClick={() => setPage(current => Math.max(1, current - 1))} style={{ ...buttonStyle, opacity: page <= 1 ? .5 : 1 }}>Previous</button><span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>Page {page} of {Math.max(1, Math.ceil(total / 50))}</span><button type="button" disabled={page * 50 >= total} onClick={() => setPage(current => current + 1)} style={{ ...buttonStyle, opacity: page * 50 >= total ? .5 : 1 }}>Next</button></div>
+
+      {managedProduct && <div role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setManageVariantsProductId(null); }} style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', padding: 20, background: 'rgba(15, 23, 42, .48)' }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="bulk-variants-title" style={{ width: 'min(720px, 100%)', maxHeight: 'min(720px, calc(100vh - 40px))', overflowY: 'auto', background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 24px 60px rgba(15,23,42,.24)' }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', background: 'var(--sv-bg-1)', borderBottom: '1px solid var(--sv-etch)' }}>
+            <div><h3 id="bulk-variants-title" style={{ margin: 0, fontSize: 16, color: 'var(--sv-text-strong)' }}>Manage variants</h3><div style={{ marginTop: 2, fontSize: 12, color: 'var(--sv-text-dim)' }}>{managedProduct.name || 'New product'}</div></div>
+            <button type="button" title="Close" aria-label="Close variants" onClick={() => setManageVariantsProductId(null)} style={{ ...buttonStyle, padding: 5 }}><X size={16} /></button>
+          </div>
+          <div style={{ padding: 14 }}>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {managedProduct.optionSets.map((option, index) => <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 160px) minmax(180px, 1fr) 30px', gap: 6, alignItems: 'center' }}>
+                <input aria-label={`Option ${index + 1} name`} placeholder={index === 0 ? 'Size' : index === 1 ? 'Colour' : 'Style'} value={option.name} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} style={inputStyle} />
+                <input aria-label={`Option ${index + 1} values`} placeholder="S, M, L" value={option.values} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, values: event.target.value } : item) }))} style={inputStyle} />
+                <button type="button" title={`Remove option ${index + 1}`} aria-label={`Remove option ${index + 1}`} disabled={managedProduct.optionSets.length === 1} onClick={() => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.filter((_, itemIndex) => itemIndex !== index) }))} style={{ ...buttonStyle, padding: 5, opacity: managedProduct.optionSets.length === 1 ? .4 : 1 }}><Trash2 size={14} /></button>
+              </div>)}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              {managedProduct.optionSets.length < 3 && <button type="button" onClick={() => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: [...current.optionSets, { name: '', values: '' }] }))} style={buttonStyle}><Plus size={14} /> Option</button>}
+              <button type="button" onClick={() => generateVariants(managedProduct)} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', color: 'var(--sv-action)' }}><Sparkles size={14} /> Generate variants</button>
+            </div>
+            <div style={{ marginTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
+              {managedProduct.variants.map(variant => <div key={variant.clientId} style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(180px, 1.4fr)', gap: 10, alignItems: 'center', padding: '9px 2px', borderBottom: '1px solid var(--sv-etch)' }}>
+                <div style={{ fontSize: 12, fontWeight: 650, color: 'var(--sv-text-main)' }}>{variantLabel(variant)}</div>
+                <div data-row-id={variant.clientId} data-field-id="sku"><input aria-label={`${variantLabel(variant)} variant SKU`} value={variant.sku} onChange={event => updateVariantField(managedProduct.clientId, variant.clientId, 'sku', event.target.value)} style={{ ...inputStyle, borderColor: errors[variant.clientId]?.sku ? 'var(--sv-red)' : 'var(--sv-etch)' }} />{errors[variant.clientId]?.sku && <div style={{ marginTop: 3, color: 'var(--sv-red)', fontSize: 11 }}>{errors[variant.clientId].sku}</div>}</div>
+              </div>)}
+            </div>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }

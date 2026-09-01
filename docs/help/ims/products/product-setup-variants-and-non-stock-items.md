@@ -79,13 +79,14 @@ Before reimporting products that already use custom variant SKUs, align those SK
 ## Bulk Add/Edit products
 
 1. Open **Products > Bulk Add/Edit** and filter existing products when needed.
-2. Use **Add products** to add one or more new product rows. New products begin expanded with one default variant.
+2. Use **Add products** to add one or more new product rows. New products begin with one default variant on the main row.
 3. Use **Add fields** to show the product and variant columns needed for this task. The selection is remembered in this browser for the active business.
-4. Enter Product Name and Product SKU. **Auto Generate Product SKU** fills only blank Product SKU cells, using each row's brand and the same format as New Product.
-5. Expand a product to edit variants. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Matching existing variants retain their saved identity and entered values.
-6. Enter a unique Variant SKU and, where used, a unique barcode for each sellable row. Selling prices remain tax-inclusive and costs remain tax-exclusive.
+4. Enter Product Name and Product SKU. **Auto Generate Product SKU** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.
+5. Enter Barcode, RRP, Cost and any other selected variant values directly on the main row while the product has only its default variant.
+6. Select **Manage variants** on a product to open its variants popup. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Review or change generated Variant SKUs in the popup. Matching existing variants retain their saved identity and entered values.
 7. To repeat a value, drag the small fill handle through compatible visible cells in the same column. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.
-8. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. If any row fails, nothing in that save is applied.
+8. Use the compact **Expand** and **Collapse** controls to show or hide child rows for products with generated variants. Default-only products do not have child rows.
+9. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. If any row fails, nothing in that save is applied.
 
 > **Important:** Bulk Add/Edit is not a stock adjustment screen. Opening quantity, minimum quantity, reorder quantity, zone and bin are excluded because they belong to a location.
 

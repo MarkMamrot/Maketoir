@@ -47,6 +47,15 @@ describe('bulkProductEditor', () => {
     expect(result.unmatchedExisting.map(variant => variant.clientId)).toEqual(['saved-l']);
   });
 
+  it('keeps a saved legacy Default variant as the sole default', () => {
+    const existing = { clientId: 'saved-default', variantId: 'variant-1', option1Value: 'Default', option2Value: '', option3Value: '', sku: 'BASE' };
+
+    const result = reconcileVariantMatrix('BASE', [{ name: '', values: '' }], [existing], () => 'new-default');
+
+    expect(result.variants).toEqual([existing]);
+    expect(result.unmatchedExisting).toEqual([]);
+  });
+
   it('generates only blank product SKUs and advances timestamps', () => {
     const rows = populateBlankProductSkus([
       { brand: 'Monster Threads', baseSku: '' },
@@ -66,10 +75,10 @@ describe('bulkProductEditor', () => {
     expect(available.some(field => field.id === 'category')).toBe(false);
     expect(available.some(field => field.id === 'price_wholesale')).toBe(false);
     expect(available.some(field => field.id === 'cost_foreign')).toBe(false);
+    expect(available.some(field => field.id === 'sku')).toBe(false);
     expect(sanitizeBulkProductFieldSelection(['brand', 'category', 42], available)).toEqual([
       'name',
       'base_sku',
-      'sku',
       'brand',
     ]);
   });

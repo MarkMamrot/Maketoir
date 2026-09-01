@@ -71,9 +71,9 @@ Bulk Edit is the location-based workspace for minimum quantity, reorder quantity
 
 Bulk Add/Edit is the location-independent catalogue grid. Use it to add several products, generate variants, or change fields such as brand, supplier, barcode, price and cost across existing products.
 
-Use **Add fields** to choose visible columns. Solvantis remembers those choices in this browser for the active business. Use the small fill handle on a supported cell to copy its value through compatible visible rows in that column. Product values copy only to product rows, and variant values copy only to visible variant rows; fill-down does not cross pages or collapsed rows.
+Use **Add fields** to choose visible columns. Solvantis remembers those choices in this browser for the active business. A product with only its default variant keeps Barcode, RRP, Cost and other selected variant values on the main product row. Use the small fill handle on a supported cell to copy its value through compatible visible rows in that column. Product values copy only to product rows, and variant values copy only to visible variant rows; fill-down does not cross pages or collapsed rows.
 
-**Auto Generate Product SKU** fills blank Product SKU cells only. It does not replace a Product SKU already entered. Expand a product, enter up to three option names and comma-separated values, then use **Generate variants** to create the combinations. Existing matching variants and their edits are preserved.
+**Auto Generate Product SKU** fills blank Product SKU cells only. It does not replace a Product SKU already entered. For a default variant, its hidden Variant SKU follows the Product SKU. Select **Manage variants** on a product to enter up to three option names and comma-separated values, then use **Generate variants** to create the combinations. Existing matching variants and their edits are preserved. Products show expandable child rows only after they have variants other than the default; use the compact **Expand** and **Collapse** controls to show or hide all such rows.
 
 Saving is all-or-nothing. Solvantis checks every changed Product SKU, variant SKU and non-blank barcode before writing any product. If one row conflicts, no products in that save are changed and the affected field is identified.
 

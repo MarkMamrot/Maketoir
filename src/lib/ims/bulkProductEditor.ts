@@ -102,7 +102,7 @@ export function reconcileVariantMatrix(
 
   const nextVariants = combinations.map(([option1Value, option2Value, option3Value]) => {
     const existing = candidates.find(variant =>
-      variant.option1Value === option1Value
+      (variant.option1Value === option1Value || (!option1Value && variant.option1Value.trim().toLowerCase() === 'default'))
       && variant.option2Value === option2Value
       && variant.option3Value === option3Value,
     );
@@ -137,7 +137,7 @@ export function enabledBulkProductFields(
   settings: ProductSettings,
   useForeignCurrencies: boolean,
 ): BulkProductFieldDefinition[] {
-  return BULK_PRODUCT_FIELDS.filter(field => !field.enabled || field.enabled(settings, useForeignCurrencies));
+  return BULK_PRODUCT_FIELDS.filter(field => field.id !== 'sku' && (!field.enabled || field.enabled(settings, useForeignCurrencies)));
 }
 
 export function sanitizeBulkProductFieldSelection(
