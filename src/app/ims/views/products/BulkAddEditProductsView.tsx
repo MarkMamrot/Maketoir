@@ -486,12 +486,41 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     });
   }, []);
 
+  const applyWorkspace = (workspaceValue: unknown, presetId = '') => {
+    const workspace = sanitizeBulkProductWorkspace(workspaceValue);
+    setSelectedFields(sanitizeBulkProductFieldSelection(workspace.selectedFields, availableFields));
+    setSortKey(workspace.sortKey);
+    setSortDirection(workspace.sortDirection);
+    setFilterJoin(workspace.filterJoin);
+    setAdvancedFilters(workspace.filters);
+    setQuery(workspace.query);
+    setBrandFilter(workspace.brand);
+    setSupplierFilter(workspace.supplier);
+    setActivePresetId(presetId);
+    setPage(1);
+  };
+
   useEffect(() => {
     if (!configurationLoaded) return;
-    let stored: unknown;
-    try { stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null'); } catch { stored = null; }
-    setSelectedFields(sanitizeBulkProductFieldSelection(stored, availableFields));
-  }, [availableFields, configurationLoaded, storageKey]);
+    fetch('/api/ims/products/bulk-add-edit/presets').then(async response => {
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Presets could not be loaded.');
+      const loadedPresets = (result.presets ?? []) as BulkProductPreset[];
+      setPresets(loadedPresets);
+      const lastUsed = loadedPresets.find(preset => preset.id === String(result.lastUsedPresetId ?? ''));
+      if (lastUsed) applyWorkspace(lastUsed.settings, lastUsed.id);
+      else {
+        let stored: unknown;
+        try { stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null'); } catch { stored = null; }
+        setSelectedFields(sanitizeBulkProductFieldSelection(stored, availableFields));
+      }
+    }).catch(error => {
+      let stored: unknown;
+      try { stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null'); } catch { stored = null; }
+      setSelectedFields(sanitizeBulkProductFieldSelection(stored, availableFields));
+      setMessage(error instanceof Error ? error.message : 'Presets could not be loaded.');
+    }).finally(() => setWorkspaceLoaded(true));
+  }, [configurationLoaded]);
 
   useEffect(() => {
     if (configurationLoaded && selectedFields.length) localStorage.setItem(storageKey, JSON.stringify(selectedFields));
@@ -504,6 +533,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     if (query.trim()) params.set('q', query.trim());
     if (brandFilter) params.set('brand', brandFilter);
     if (supplierFilter) params.set('supplier', supplierFilter);
+    params.set('sort', sortKey);
+    params.set('direction', sortDirection);
+    params.set('filterJoin', filterJoin);
+    if (advancedFilters.length) params.set('filters', JSON.stringify(advancedFilters));
     try {
       const response = await fetch(`/api/ims/products/bulk-add-edit?${params}`);
       const result = await response.json();
@@ -519,7 +552,49 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     }
   };
 
-  useEffect(() => { void load(); }, [page, query, brandFilter, supplierFilter]);
+  useEffect(() => { if (workspaceLoaded) void load(); }, [workspaceLoaded, page, query, brandFilter, supplierFilter, sortKey, sortDirection, filterJoin, advancedFilters]);
+
+  const currentWorkspace = (): BulkProductWorkspaceSettings => sanitizeBulkProductWorkspace({
+    selectedFields, sortKey, sortDirection, filterJoin, filters: advancedFilters, query, brand: brandFilter, supplier: supplierFilter,
+  });
+
+  const selectPreset = async (presetId: string) => {
+    const preset = presets.find(candidate => candidate.id === presetId);
+    if (!preset) { setActivePresetId(''); return; }
+    applyWorkspace(preset.settings, preset.id);
+    try {
+      await fetch('/api/ims/products/bulk-add-edit/presets', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ presetId: preset.id }) });
+    } catch { /* The selected workspace remains usable for this session. */ }
+  };
+
+  const savePreset = async () => {
+    const name = presetName.trim();
+    if (!name) return;
+    try {
+      const response = await fetch('/api/ims/products/bulk-add-edit/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, settings: currentWorkspace() }) });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Preset could not be saved.');
+      const saved = result.preset as BulkProductPreset;
+      setPresets(current => [...current.filter(preset => preset.id !== saved.id && preset.name !== saved.name), saved].sort((left, right) => left.name.localeCompare(right.name)));
+      setActivePresetId(saved.id);
+      setPresetName('');
+      setPresetsOpen(false);
+      setMessage(`Preset “${saved.name}” saved.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Preset could not be saved.');
+    }
+  };
+
+  const deletePreset = async () => {
+    if (!activePresetId) return;
+    const response = await fetch(`/api/ims/products/bulk-add-edit/presets?id=${encodeURIComponent(activePresetId)}`, { method: 'DELETE' });
+    const result = await response.json();
+    if (!response.ok || !result.success) { setMessage(result.error || 'Preset could not be deleted.'); return; }
+    setPresets(current => current.filter(preset => preset.id !== activePresetId));
+    setActivePresetId('');
+    setPresetsOpen(false);
+    setMessage('Preset deleted.');
+  };
 
   const mutateProduct = (clientId: string, mutate: (product: ProductDraft) => ProductDraft) => {
     const newIndex = newProducts.findIndex(product => product.clientId === clientId);
@@ -785,8 +860,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   return (
     <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
         <div><h2 style={{ margin: 0, fontSize: 19, color: 'var(--sv-text-strong)' }}>Bulk Add/Edit Products</h2><div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12 }}>Catalogue and variant fields across all locations</div></div>
+        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+          <button type="button" disabled={!dirtyCount || saving} onClick={discard} style={{ ...buttonStyle, opacity: !dirtyCount || saving ? .5 : 1 }}><Trash2 size={15} /> Discard</button>
+          <button type="button" title={hasRequiredFieldErrors ? 'Enter Product Name, Product SKU and Variant SKU for every changed product.' : 'Save all changed products'} disabled={!dirtyCount || saving || hasRequiredFieldErrors} onClick={() => void save()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: !dirtyCount || saving || hasRequiredFieldErrors ? .5 : 1 }}><Save size={15} /> {saving ? 'Saving...' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
@@ -798,10 +877,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
           <button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ ...buttonStyle, padding: '5px 7px', opacity: expanded.size ? 1 : .5 }}><ChevronsDownUp size={14} /> Collapse all</button>
         </div>
         <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{total} existing products{newProducts.length ? ` + ${newProducts.length} new` : ''}</span>
+        {(query || brandFilter || supplierFilter || advancedFilters.length > 0) && <button type="button" onClick={() => { setQuery(''); setBrandFilter(''); setSupplierFilter(''); setAdvancedFilters([]); setPage(1); setActivePresetId(''); }} style={{ ...buttonStyle, padding: '5px 7px' }}>Clear filters</button>}
       </div>
       {message && <div role="status" style={{ marginBottom: 10, padding: '8px 10px', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>{message}</div>}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6, paddingLeft: 44 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
           <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add New Products</button>
           <button type="button" onClick={() => {
@@ -810,8 +890,47 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
           }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKUs</button>
         </div>
         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select aria-label="Sort products" value={`${sortKey}:${sortDirection}`} onChange={event => { const [nextKey, nextDirection] = event.target.value.split(':') as [BulkProductSortKey, BulkProductSortDirection]; setSortKey(nextKey); setSortDirection(nextDirection); setPage(1); }} style={{ ...inputStyle, width: 225 }}>
+          {SORT_OPTIONS.map(option => <option key={`${option.key}:${option.direction}`} value={`${option.key}:${option.direction}`}>{option.label}</option>)}
+        </select>
         <div style={{ position: 'relative' }}>
-          <button type="button" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen(open => !open)} style={buttonStyle}><Columns3 size={15} /> Add fields</button>
+          <button type="button" aria-expanded={filtersOpen} onClick={() => { setFiltersOpen(open => !open); setFieldsOpen(false); setPresetsOpen(false); }} style={{ ...buttonStyle, borderColor: advancedFilters.length ? 'var(--sv-action)' : 'var(--sv-etch)', color: advancedFilters.length ? 'var(--sv-action)' : 'var(--sv-text-main)' }}><ListFilter size={15} /> Filter{advancedFilters.length ? ` (${advancedFilters.length})` : ''}</button>
+          {filtersOpen && <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setFiltersOpen(false)} />
+            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: 'min(620px, calc(100vh - 180px))', overflowY: 'auto', padding: 12, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div><div style={{ fontSize: 12, fontWeight: 750, color: 'var(--sv-text-main)' }}>Filters</div><div style={{ marginTop: 2, fontSize: 11, color: 'var(--sv-text-dim)' }}>Search, Brand and Supplier above always narrow the workspace.</div></div>
+                <div style={{ display: 'inline-flex', border: '1px solid var(--sv-etch)', borderRadius: 5, overflow: 'hidden' }}>
+                  {([['and', 'Match ALL'], ['or', 'Match ANY']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => { setFilterJoin(value); setPage(1); }} style={{ padding: '5px 8px', border: 0, borderRight: value === 'and' ? '1px solid var(--sv-etch)' : 0, background: filterJoin === value ? 'var(--sv-action)' : 'var(--sv-bg-1)', color: filterJoin === value ? '#fff' : 'var(--sv-text-main)', fontSize: 11, cursor: 'pointer' }}>{label}</button>)}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gap: 7 }}>
+                {advancedFilters.map(filter => {
+                  const definition = FILTER_FIELDS.find(candidate => candidate.id === filter.field) ?? FILTER_FIELDS[0];
+                  const operators: Array<[BulkProductFilterOperator, string]> = definition.kind === 'text'
+                    ? [['contains', 'contains'], ['=', 'equals'], ['!=', 'does not equal']]
+                    : definition.kind === 'boolean' ? [['=', 'is']] : [['>=', '≥'], ['<=', '≤'], ['=', '='], ['!=', '≠'], ['>', '>'], ['<', '<']];
+                  const booleanOptions = filter.field === 'status' ? [['1', 'Active'], ['0', 'Inactive']] : filter.field === 'website' ? [['1', 'Online'], ['0', 'Not online']] : [['1', 'Linked'], ['0', 'Not linked']];
+                  return <div key={filter.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) 105px minmax(120px, 1fr) 28px', gap: 6, alignItems: 'center' }}>
+                    <select aria-label="Filter field" value={filter.field} onChange={event => { const field = event.target.value as BulkProductFilterField; const defaults = filterDefaults(field); setAdvancedFilters(current => current.map(candidate => candidate.id === filter.id ? { ...candidate, field, ...defaults } : candidate)); setPage(1); }} style={inputStyle}>{FILTER_FIELDS.map(field => <option key={field.id} value={field.id}>{field.label}</option>)}</select>
+                    <select aria-label={`${definition.label} operator`} value={filter.operator} onChange={event => { setAdvancedFilters(current => current.map(candidate => candidate.id === filter.id ? { ...candidate, operator: event.target.value as BulkProductFilterOperator } : candidate)); setPage(1); }} style={inputStyle}>{operators.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                    {definition.kind === 'boolean'
+                      ? <select aria-label={`${definition.label} value`} value={filter.value} onChange={event => { setAdvancedFilters(current => current.map(candidate => candidate.id === filter.id ? { ...candidate, value: event.target.value } : candidate)); setPage(1); }} style={inputStyle}>{booleanOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+                      : <input aria-label={`${definition.label} value`} type={definition.kind === 'number' ? 'number' : 'text'} value={filter.value} onChange={event => { setAdvancedFilters(current => current.map(candidate => candidate.id === filter.id ? { ...candidate, value: event.target.value } : candidate)); setPage(1); }} placeholder={definition.kind === 'number' ? 'Value' : 'Text'} step={definition.kind === 'number' ? 'any' : undefined} style={inputStyle} />}
+                    <button type="button" title={`Remove ${definition.label} filter`} aria-label={`Remove ${definition.label} filter`} onClick={() => { setAdvancedFilters(current => current.filter(candidate => candidate.id !== filter.id)); setPage(1); }} style={{ ...buttonStyle, padding: 5 }}><X size={14} /></button>
+                  </div>;
+                })}
+                {!advancedFilters.length && <div style={{ padding: '10px 4px', color: 'var(--sv-text-dim)', fontSize: 12 }}>No advanced filters. Add one below.</div>}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 10 }}>
+                <button type="button" onClick={() => setAdvancedFilters(current => [...current, { id: newId('filter'), field: 'status', ...filterDefaults('status') }])} style={buttonStyle}><Plus size={14} /> Add filter</button>
+                <button type="button" disabled={!advancedFilters.length} onClick={() => { setAdvancedFilters([]); setPage(1); }} style={{ ...buttonStyle, opacity: advancedFilters.length ? 1 : .5 }}>Clear</button>
+              </div>
+            </div>
+          </>}
+        </div>
+        <div style={{ position: 'relative' }}>
+          <button type="button" aria-expanded={fieldsOpen} onClick={() => { setFieldsOpen(open => !open); setFiltersOpen(false); setPresetsOpen(false); }} style={buttonStyle}><Columns3 size={15} /> Display Fields</button>
           {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 330, maxHeight: 520, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
             {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '7px 4px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{standardFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
             {currencyFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
@@ -830,8 +949,21 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
             </div>}
           </div>}
         </div>
-        <button type="button" disabled={!dirtyCount || saving} onClick={discard} style={{ ...buttonStyle, opacity: !dirtyCount || saving ? .5 : 1 }}><Trash2 size={15} /> Discard</button>
-        <button type="button" title={hasRequiredFieldErrors ? 'Enter Product Name, Product SKU and Variant SKU for every changed product.' : 'Save all changed products'} disabled={!dirtyCount || saving || hasRequiredFieldErrors} onClick={() => void save()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: !dirtyCount || saving || hasRequiredFieldErrors ? .5 : 1 }}><Save size={15} /> {saving ? 'Saving...' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
+        <select aria-label="Select preset" value={activePresetId} onChange={event => void selectPreset(event.target.value)} style={{ ...inputStyle, width: 150 }}><option value="">Presets...</option>{presets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
+        <div style={{ position: 'relative' }}>
+          <button type="button" title="Manage presets" aria-label="Manage presets" aria-expanded={presetsOpen} onClick={() => { setPresetsOpen(open => !open); setFiltersOpen(false); setFieldsOpen(false); }} style={{ ...buttonStyle, padding: '7px 8px' }}><Bookmark size={15} /></button>
+          {presetsOpen && <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setPresetsOpen(false)} />
+            <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 290, padding: 12, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 8, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+              <div style={{ marginBottom: 8, fontSize: 12, fontWeight: 750, color: 'var(--sv-text-main)' }}>Save current workspace</div>
+              <input aria-label="Preset name" value={presetName} onChange={event => setPresetName(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') void savePreset(); }} maxLength={80} placeholder="Preset name" style={inputStyle} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, marginTop: 8 }}>
+                <button type="button" disabled={!activePresetId} onClick={() => void deletePreset()} style={{ ...buttonStyle, opacity: activePresetId ? 1 : .5 }}><Trash2 size={14} /> Delete selected</button>
+                <button type="button" disabled={!presetName.trim()} onClick={() => void savePreset()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', color: 'var(--sv-action)', opacity: presetName.trim() ? 1 : .5 }}><Save size={14} /> Save</button>
+              </div>
+            </div>
+          </>}
+        </div>
         </div>
       </div>
 
