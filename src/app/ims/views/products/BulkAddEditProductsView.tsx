@@ -432,7 +432,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const fillDragCandidateRef = useRef<FillDragCandidate | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
-  useTableArrowScroll(bodyScrollRef);
+  useTableArrowScroll(bodyScrollRef, 'window', { captureHorizontalFromControls: true });
 
   const productSettings = useMemo(() => parseProductSettings(settings), [settings]);
   const availableFields = useMemo(() => {
@@ -712,6 +712,13 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     return () => window.removeEventListener('keydown', close);
   }, [manageVariantsProductId]);
 
+  useEffect(() => {
+    if (!fieldsOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFieldsOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [fieldsOpen]);
+
   const addProduct = () => {
     const product = blankProduct();
     setNewProducts(current => [product, ...current]);
@@ -952,7 +959,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
         <div style={{ position: 'relative' }}>
           <button type="button" aria-expanded={fieldsOpen} onClick={() => { setFieldsOpen(open => !open); setFiltersOpen(false); setPresetsOpen(false); }} style={buttonStyle}><Columns3 size={15} /> Display Fields</button>
-          {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 330, maxHeight: 520, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+          {fieldsOpen && <><div style={{ position: 'fixed', inset: 0, zIndex: 19 }} onClick={() => setFieldsOpen(false)} /><div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 330, maxHeight: 520, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
             {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '7px 4px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{standardFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
             {currencyFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
               <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Currency costs</div>
@@ -963,12 +970,11 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
               <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Branch Level Variables</div>
               {([
                 ['SOH at every branch', locationFields.filter(field => field.locationField === 'quantity').map(field => field.id)],
-                ['Min Qty', locationFields.filter(field => field.locationField === 'minQty').map(field => field.id)],
-                ['Reorder Point', locationFields.filter(field => field.locationField === 'reorderQty').map(field => field.id)],
+                ['Min Qty / Reorder Point', locationFields.filter(field => field.locationField === 'minQty' || field.locationField === 'reorderQty').map(field => field.id)],
                 ['Zones / Bins', locationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
               ] as Array<[string, string[]]>).filter(([, fieldIds]) => fieldIds.length).map(([label, fieldIds]) => <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', fontSize: 12 }}><input type="checkbox" checked={fieldIds.every(id => selectedFields.includes(id))} onChange={event => setFieldGroup(fieldIds, event.target.checked)} />{label}</label>)}
             </div>}
-          </div>}
+          </div></>}
         </div>
         <select aria-label="Select preset" value={activePresetId} onChange={event => void selectPreset(event.target.value)} style={{ ...inputStyle, width: 150 }}><option value="">Presets...</option>{presets.map(preset => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>
         <div style={{ position: 'relative' }}>
@@ -988,15 +994,15 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
       </div>
 
-      <div style={{ border: '1px solid var(--sv-etch)', minWidth: 0 }}>
-        <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)' }}>
+      <div style={{ border: '1px solid var(--sv-etch)', borderRadius: 10, minWidth: 0, background: 'var(--sv-bg-1)' }}>
+        <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)', borderRadius: '10px 10px 0 0' }}>
           <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<thead><tr><th style={{ position: 'sticky', left: 0, zIndex: 12, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', height: 34, padding: 0 }}><div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}><button type="button" title="Expand all variants" aria-label="Expand all variants" disabled={!productsWithVariants.length} onClick={() => setExpanded(new Set(productsWithVariants.map(product => product.clientId)))} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: productsWithVariants.length ? 'pointer' : 'default', opacity: productsWithVariants.length ? 1 : .35 }}><ChevronsUpDown size={14} /></button><button type="button" title="Collapse all variants" aria-label="Collapse all variants" disabled={!expanded.size} onClick={() => setExpanded(new Set())} style={{ display: 'grid', placeItems: 'center', width: 20, height: 28, padding: 0, border: 0, background: 'transparent', color: 'var(--sv-text-dim)', cursor: expanded.size ? 'pointer' : 'default', opacity: expanded.size ? 1 : .35 }}><ChevronsDownUp size={14} /></button></div></th><th style={{ position: 'sticky', left: 44, zIndex: 11, background: 'var(--sv-bg-2)', borderBottom: '1px solid var(--sv-etch)', boxShadow: '3px 0 5px rgba(15,23,42,.06)', textAlign: 'left', padding: '0 8px', fontSize: 11 }}>Row</th>{fields.map(field => {
             const columnSortKey = fieldSortKey(field);
             const isActiveSort = columnSortKey === sortKey;
             return <th key={field.id} aria-sort={isActiveSort ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined} style={{ borderBottom: '1px solid var(--sv-etch)', textAlign: 'left', padding: 0, fontSize: 11, color: 'var(--sv-text-dim)' }}>{columnSortKey ? <button type="button" aria-label={`Sort by ${field.label}${isActiveSort ? ` ${sortDirection === 'asc' ? 'descending' : 'ascending'}` : ''}`} onClick={() => toggleColumnSort(columnSortKey)} title={`Sort by ${field.label}`} style={{ width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 5, padding: '0 7px', border: 0, background: isActiveSort ? 'color-mix(in srgb, var(--sv-action) 8%, transparent)' : 'transparent', color: isActiveSort ? 'var(--sv-action)' : 'var(--sv-text-dim)', font: 'inherit', fontWeight: isActiveSort ? 750 : 650, cursor: 'pointer', textAlign: 'left' }}><span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{field.label}</span>{isActiveSort && (sortDirection === 'asc' ? <ArrowUp size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} /> : <ArrowDown size={12} aria-hidden="true" style={{ flex: '0 0 auto' }} />)}</button> : <span style={{ display: 'flex', alignItems: 'center', height: 34, padding: '0 7px' }}>{field.label}</span>}</th>;
           })}</tr></thead></table>
         </div>
-        <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0 }}>
+        <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0, borderRadius: '0 0 10px 10px' }}>
           <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<tbody>
             {!loadError && displayedProducts.map(product => <Fragment key={product.clientId}>
               {renderDataRow(product)}

@@ -7,14 +7,20 @@ type VerticalScrollTarget = 'window' | 'element';
 export function useTableArrowScroll(
   scrollRef: RefObject<HTMLElement>,
   verticalTarget: VerticalScrollTarget = 'window',
+  options: { captureHorizontalFromControls?: boolean } = {},
 ) {
+  const captureHorizontalFromControls = options.captureHorizontalFromControls === true;
   useEffect(() => {
     const handleArrowScroll = (event: KeyboardEvent) => {
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-      if ((event.target as HTMLElement | null)?.closest?.('input, select, textarea, [contenteditable="true"]')) return;
+      const isHorizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+      const isFormControl = Boolean((event.target as HTMLElement | null)?.closest?.('input, select, textarea, [contenteditable="true"]'));
+      if (isFormControl && (!isHorizontal || !captureHorizontalFromControls)) return;
 
       const scroller = scrollRef.current;
       if (!scroller) return;
+
+      if (isHorizontal && captureHorizontalFromControls) event.stopPropagation();
 
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         event.preventDefault();
@@ -30,7 +36,7 @@ export function useTableArrowScroll(
       scroller.scrollBy({ left: event.key === 'ArrowLeft' ? -240 : 240, behavior: 'auto' });
     };
 
-    window.addEventListener('keydown', handleArrowScroll);
-    return () => window.removeEventListener('keydown', handleArrowScroll);
-  }, [scrollRef, verticalTarget]);
+    window.addEventListener('keydown', handleArrowScroll, { capture: captureHorizontalFromControls });
+    return () => window.removeEventListener('keydown', handleArrowScroll, { capture: captureHorizontalFromControls });
+  }, [captureHorizontalFromControls, scrollRef, verticalTarget]);
 }
