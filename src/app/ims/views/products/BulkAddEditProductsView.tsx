@@ -63,6 +63,11 @@ interface FillState {
   value: unknown;
 }
 
+interface FillDragCandidate extends FillState {
+  startX: number;
+  startY: number;
+}
+
 interface VisibleRow {
   id: string;
   owner: BulkProductFieldOwner;
@@ -175,6 +180,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [fill, setFill] = useState<FillState | null>(null);
+  const fillDragCandidateRef = useRef<FillDragCandidate | null>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   const bodyScrollRef = useRef<HTMLDivElement>(null);
   useTableArrowScroll(bodyScrollRef);
@@ -324,6 +330,20 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     }
   };
 
+  const fillTargetIds = useMemo(() => new Set(
+    fill ? bulkFillTargets(visibleRows, fill.sourceRowId, fill.targetRowId, fill.owner).map(row => row.id) : [],
+  ), [fill, visibleRows]);
+
+  useEffect(() => {
+    const clearCandidate = () => { fillDragCandidateRef.current = null; };
+    window.addEventListener('pointerup', clearCandidate);
+    window.addEventListener('pointercancel', clearCandidate);
+    return () => {
+      window.removeEventListener('pointerup', clearCandidate);
+      window.removeEventListener('pointercancel', clearCandidate);
+    };
+  }, []);
+
   useEffect(() => {
     if (!fill) return;
     const finish = () => { applyFill(fill); setFill(null); };
@@ -435,7 +455,8 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       ? updateVariantField(product.clientId, variant.clientId, field.id, next)
       : updateProductField(product.clientId, field.id, next);
     const error = errors[rowId]?.[field.id];
-    const common = { value: String(value ?? ''), onChange: (event: any) => update(event.target.value), style: { ...inputStyle, borderColor: error ? 'var(--sv-red)' : 'var(--sv-etch)' }, 'aria-invalid': Boolean(error), title: error || field.label };
+    const isFillTarget = Boolean(fill && fill.fieldId === field.id && fill.owner === field.owner && fillTargetIds.has(rowId));
+    const common = { value: String(value ?? ''), onChange: (event: any) => update(event.target.value), style: { ...inputStyle, borderColor: error ? 'var(--sv-red)' : isFillTarget ? 'var(--sv-action)' : 'var(--sv-etch)', background: isFillTarget ? 'color-mix(in srgb, var(--sv-action) 16%, var(--sv-bg-1))' : 'var(--sv-bg-1)', transition: 'background-color 100ms ease, border-color 100ms ease, box-shadow 100ms ease', boxShadow: isFillTarget ? 'inset 0 0 0 1px var(--sv-action)' : 'none' }, 'aria-invalid': Boolean(error), title: error || field.label };
     let editor;
     if (field.editor === 'boolean') {
       editor = <input type="checkbox" checked={Number(value) === 1} onChange={event => update(event.target.checked ? 1 : 0)} aria-label={field.label} />;
@@ -454,24 +475,27 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         data-field-id={field.id}
         data-fill-active={fill?.fieldId === field.id && fill?.owner === field.owner ? 'true' : undefined}
         onPointerEnter={() => fill && fill.fieldId === field.id && fill.owner === field.owner && setFill({ ...fill, targetRowId: rowId })}
-        style={{ position: 'relative', minHeight: 30, display: 'flex', alignItems: 'center', justifyContent: field.editor === 'boolean' ? 'center' : 'stretch', background: fill?.targetRowId === rowId && fill.fieldId === field.id ? 'color-mix(in srgb, var(--sv-action) 12%, transparent)' : undefined }}
+        onPointerDown={event => {
+          if (!field.fillDown || event.button !== 0) return;
+          const target = event.target as HTMLElement;
+          const selectableControl = field.editor === 'select' || target instanceof HTMLSelectElement || target instanceof HTMLInputElement && Boolean(target.list);
+          if (selectableControl) {
+            const bounds = target.getBoundingClientRect();
+            if (event.clientX >= bounds.right - 30) return;
+          }
+          fillDragCandidateRef.current = { fieldId: field.id, owner: field.owner, sourceRowId: rowId, targetRowId: rowId, value, startX: event.clientX, startY: event.clientY };
+        }}
+        onPointerMove={event => {
+          const candidate = fillDragCandidateRef.current;
+          if (!candidate || candidate.fieldId !== field.id || candidate.sourceRowId !== rowId || fill) return;
+          if (Math.hypot(event.clientX - candidate.startX, event.clientY - candidate.startY) < 5) return;
+          event.preventDefault();
+          setFill(candidate);
+        }}
+        style={{ position: 'relative', minHeight: 30, display: 'flex', alignItems: 'center', justifyContent: field.editor === 'boolean' ? 'center' : 'stretch', borderRadius: 4, background: isFillTarget ? 'color-mix(in srgb, var(--sv-action) 18%, transparent)' : undefined, boxShadow: isFillTarget ? '0 0 0 2px color-mix(in srgb, var(--sv-action) 45%, transparent)' : 'none', transition: 'background-color 100ms ease, box-shadow 100ms ease' }}
       >
         {editor}
-        {field.fillDown && (
-          <button
-            type="button"
-            aria-label={`Fill ${field.label} down`}
-            title={`Drag to fill ${field.label}; press Enter to fill compatible visible rows below`}
-            onPointerDown={event => { event.preventDefault(); setFill({ fieldId: field.id, owner: field.owner, sourceRowId: rowId, targetRowId: rowId, value }); }}
-            onKeyDown={event => {
-              if (event.key !== 'Enter') return;
-              const rows = visibleRows.filter(row => row.owner === field.owner);
-              const index = rows.findIndex(row => row.id === rowId);
-              if (index >= 0) applyFill({ fieldId: field.id, owner: field.owner, sourceRowId: rowId, targetRowId: rows.at(-1)?.id ?? rowId, value });
-            }}
-            style={{ position: 'absolute', right: 1, bottom: 1, width: 8, height: 8, padding: 0, border: 0, background: 'var(--sv-action)', cursor: 'crosshair' }}
-          />
-        )}
+        {field.fillDown && <span aria-hidden="true" title={`Drag anywhere in this field to copy ${field.label}`} style={{ position: 'absolute', left: 5, bottom: 1, width: 14, height: 2, borderRadius: 2, background: isFillTarget ? 'var(--sv-action)' : 'color-mix(in srgb, var(--sv-action) 45%, transparent)', pointerEvents: 'none' }} />}
         {error && <span style={{ position: 'absolute', left: 2, top: '100%', zIndex: 8, background: 'var(--sv-red)', color: '#fff', fontSize: 10, padding: '2px 5px', whiteSpace: 'nowrap' }}>{error}</span>}
       </div>
     );
@@ -496,23 +520,8 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   return (
     <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+      <div style={{ marginBottom: 14 }}>
         <div><h2 style={{ margin: 0, fontSize: 19, color: 'var(--sv-text-strong)' }}>Bulk Add/Edit Products</h2><div style={{ marginTop: 3, color: 'var(--sv-text-dim)', fontSize: 12 }}>Catalogue and variant fields across all locations</div></div>
-        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add products</button>
-          <div style={{ position: 'relative' }}>
-            <button type="button" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen(open => !open)} style={buttonStyle}><Columns3 size={15} /> Add fields</button>
-            {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 290, maxHeight: 420, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
-              {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '5px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{availableFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
-            </div>}
-          </div>
-          <button type="button" onClick={() => {
-            const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
-            generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
-          }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKU</button>
-          <button type="button" disabled={!dirtyCount || saving} onClick={discard} style={{ ...buttonStyle, opacity: !dirtyCount || saving ? .5 : 1 }}><Trash2 size={15} /> Discard</button>
-          <button type="button" title={hasRequiredFieldErrors ? 'Enter Product Name, Product SKU and Variant SKU for every changed product.' : 'Save all changed products'} disabled={!dirtyCount || saving || hasRequiredFieldErrors} onClick={() => void save()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: !dirtyCount || saving || hasRequiredFieldErrors ? .5 : 1 }}><Save size={15} /> {saving ? 'Saving...' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
-        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
@@ -526,6 +535,22 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         <span style={{ color: 'var(--sv-text-dim)', fontSize: 12 }}>{total} existing products{newProducts.length ? ` + ${newProducts.length} new` : ''}</span>
       </div>
       {message && <div role="status" style={{ marginBottom: 10, padding: '8px 10px', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>{message}</div>}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+        <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add New Products</button>
+        <div style={{ position: 'relative' }}>
+          <button type="button" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen(open => !open)} style={buttonStyle}><Columns3 size={15} /> Add fields</button>
+          {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 290, maxHeight: 420, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+            {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '5px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{availableFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
+          </div>}
+        </div>
+        <button type="button" onClick={() => {
+          const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
+          generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
+        }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKU</button>
+        <button type="button" disabled={!dirtyCount || saving} onClick={discard} style={{ ...buttonStyle, opacity: !dirtyCount || saving ? .5 : 1 }}><Trash2 size={15} /> Discard</button>
+        <button type="button" title={hasRequiredFieldErrors ? 'Enter Product Name, Product SKU and Variant SKU for every changed product.' : 'Save all changed products'} disabled={!dirtyCount || saving || hasRequiredFieldErrors} onClick={() => void save()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: !dirtyCount || saving || hasRequiredFieldErrors ? .5 : 1 }}><Save size={15} /> {saving ? 'Saving...' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
+      </div>
 
       <div style={{ border: '1px solid var(--sv-etch)', minWidth: 0 }}>
         <div ref={headerScrollRef} style={{ position: 'sticky', top: 0, zIndex: 10, overflow: 'hidden', background: 'var(--sv-bg-2)' }}>
@@ -552,9 +577,10 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
           </div>
           <div style={{ padding: 14 }}>
             <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 160px) minmax(180px, 1fr) 30px', gap: 6, padding: '0 2px', color: 'var(--sv-text-dim)', fontSize: 11, fontWeight: 750 }}><span>Variant name</span><span>Variant values</span><span /></div>
               {managedProduct.optionSets.map((option, index) => <div key={index} style={{ display: 'grid', gridTemplateColumns: 'minmax(100px, 160px) minmax(180px, 1fr) 30px', gap: 6, alignItems: 'center' }}>
-                <input aria-label={`Option ${index + 1} name`} placeholder={index === 0 ? 'Size' : index === 1 ? 'Colour' : 'Style'} value={option.name} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} style={inputStyle} />
-                <input aria-label={`Option ${index + 1} values`} placeholder="S, M, L" value={option.values} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, values: event.target.value } : item) }))} style={inputStyle} />
+                <input aria-label={`Option ${index + 1} name`} placeholder={index === 0 ? 'e.g. Size' : index === 1 ? 'e.g. Colour' : 'e.g. Style'} value={option.name} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item) }))} style={inputStyle} />
+                <input aria-label={`Option ${index + 1} values`} placeholder={index === 0 ? 'e.g. S, M, L' : index === 1 ? 'e.g. Red, Green, Blue' : 'e.g. Short Sleeve, Long Sleeve'} value={option.values} onChange={event => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.map((item, itemIndex) => itemIndex === index ? { ...item, values: event.target.value } : item) }))} style={inputStyle} />
                 <button type="button" title={`Remove option ${index + 1}`} aria-label={`Remove option ${index + 1}`} disabled={managedProduct.optionSets.length === 1} onClick={() => mutateProduct(managedProduct.clientId, current => ({ ...current, optionSets: current.optionSets.filter((_, itemIndex) => itemIndex !== index) }))} style={{ ...buttonStyle, padding: 5, opacity: managedProduct.optionSets.length === 1 ? .4 : 1 }}><Trash2 size={14} /></button>
               </div>)}
             </div>
