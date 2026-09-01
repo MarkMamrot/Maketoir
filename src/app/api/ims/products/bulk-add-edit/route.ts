@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { BulkProductValidationError, saveBulkProducts } from '@/lib/ims/bulkProductSave';
+import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsQuery } from '@/services/IMSMySQLService';
 
@@ -35,8 +36,8 @@ export async function GET(request: Request) {
          LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id AND c.business_id = p.business_id
         WHERE ${where}
         ORDER BY p.name, p.product_id
-        LIMIT ? OFFSET ?`,
-      [...params, perPage, (page - 1) * perPage],
+        LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
+      params,
     );
     const productIds = products.map(product => String(product.product_id));
     const variants = productIds.length
@@ -47,10 +48,28 @@ export async function GET(request: Request) {
           [businessId, ...productIds],
         )
       : [];
+    const variantIds = variants.map(variant => String(variant.variant_id));
+    const locationStock = variantIds.length
+      ? await imsQuery<Record<string, unknown>>(
+          `SELECT variant_id, location_id, qty_on_hand, min_qty, reorder_qty, zone, bin
+             FROM ims_stock
+            WHERE business_id = ? AND variant_id IN (${variantIds.map(() => '?').join(', ')})
+            ORDER BY variant_id, location_id`,
+          [businessId, ...variantIds],
+        )
+      : [];
+    const stockByVariant = new Map<string, Record<string, unknown>[]>();
+    for (const stock of locationStock) {
+      const variantId = String(stock.variant_id);
+      stockByVariant.set(variantId, [...(stockByVariant.get(variantId) ?? []), stock]);
+    }
     const variantsByProduct = new Map<string, Record<string, unknown>[]>();
     for (const variant of variants) {
       const productId = String(variant.product_id);
-      variantsByProduct.set(productId, [...(variantsByProduct.get(productId) ?? []), variant]);
+      variantsByProduct.set(productId, [...(variantsByProduct.get(productId) ?? []), {
+        ...variant,
+        location_stock: stockByVariant.get(String(variant.variant_id)) ?? [],
+      }]);
     }
     return NextResponse.json({
       success: true,
@@ -84,7 +103,23 @@ export async function POST(request: Request) {
   }
 
   try {
-    return NextResponse.json(await saveBulkProducts(businessId, body));
+    const result = await saveBulkProducts(businessId, body);
+    if (result.stockVariantIds.length) {
+      try {
+        await refreshVariantCache(result.stockVariantIds);
+      } catch (error) {
+        await reportRuntimeIssue({
+          businessId,
+          source: 'ims-products',
+          operation: 'bulk_add_edit_stock_cache_refresh',
+          title: 'Bulk Add/Edit stock cache refresh failed',
+          error,
+          context: { variantCount: result.stockVariantIds.length },
+        });
+      }
+    }
+    const { stockVariantIds: _stockVariantIds, ...response } = result;
+    return NextResponse.json(response);
   } catch (error) {
     if (error instanceof BulkProductValidationError) {
       return NextResponse.json({ success: false, error: error.message, errors: error.errors }, { status: 409 });

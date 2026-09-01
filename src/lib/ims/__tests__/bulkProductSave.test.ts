@@ -29,6 +29,32 @@ function connectionWith(responses: unknown[][]) {
   return { connection, execute, writes };
 }
 
+function locationStockConnection() {
+  const execute = vi.fn(async (sql: string) => {
+    const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (normalized.startsWith('select product_id, base_sku, is_stock_item')) return [[{ product_id: 'product-existing', base_sku: 'HLS', is_stock_item: 1 }], []];
+    if (normalized.startsWith('select v.variant_id, v.product_id')) return [[{ variant_id: 'variant-existing', product_id: 'product-existing' }], []];
+    if (normalized.startsWith('select id from ims_locations')) return [[{ id: 7 }], []];
+    if (normalized.startsWith('select `key`, value from ims_settings')) return [[
+      { key: 'product_allow_opening_stock', value: 'yes' },
+      { key: 'product_show_replenishment_quantities', value: 'yes' },
+      { key: 'use_zones_bins', value: 'yes' },
+    ], []];
+    if (normalized.startsWith('select product_id, name as product_name')) return [[], []];
+    if (normalized.startsWith('select v.product_id, p.name as product_name')) return [[], []];
+    if (normalized.startsWith('insert into ims_stocktakes')) return [{ insertId: 44 }, []];
+    return [[], []];
+  });
+  const connection = {
+    beginTransaction: vi.fn(async () => undefined),
+    commit: vi.fn(async () => undefined),
+    rollback: vi.fn(async () => undefined),
+    release: vi.fn(() => undefined),
+    execute,
+  } as unknown as PoolConnection;
+  return { connection, execute };
+}
+
 describe('bulkProductSave', () => {
   it('rolls back without writes when an identifier conflicts', async () => {
     const { connection, writes } = connectionWith([
@@ -86,6 +112,7 @@ describe('bulkProductSave', () => {
     expect(writes.filter(sql => sql.startsWith('UPDATE ims_products'))).toHaveLength(1);
     expect(writes.filter(sql => sql.startsWith('INSERT INTO ims_products'))).toHaveLength(1);
     expect(writes.filter(sql => sql.startsWith('UPDATE ims_product_variants'))).toHaveLength(1);
+    expect(writes.find(sql => sql.startsWith('UPDATE ims_product_variants'))).not.toContain('cost_foreign = ?');
     expect(writes.filter(sql => sql.startsWith('INSERT INTO ims_product_variants'))).toHaveLength(1);
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
@@ -152,5 +179,62 @@ describe('bulkProductSave', () => {
     expect(writes.some(sql => sql.startsWith('DELETE'))).toBe(false);
     expect(execute.mock.calls.some(([sql]) => String(sql).includes('variant-unsubmitted'))).toBe(false);
     expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
+  it('rejects SOH edits when opening stock is disabled in Product settings', async () => {
+    const { connection } = connectionWith([
+      [{ product_id: 'product-existing', base_sku: 'HLS', is_stock_item: 1 }],
+      [{ variant_id: 'variant-existing', product_id: 'product-existing' }],
+      [{ id: 7 }],
+      [{ key: 'product_allow_opening_stock', value: 'no' }],
+      [],
+      [],
+    ]);
+    const save = createBulkProductSaveService({ getConnection: async () => connection });
+
+    await expect(save('business-1', { products: [product({
+      productId: 'product-existing',
+      variants: [{ clientId: 'variant-client', variantId: 'variant-existing', sku: 'HLS-M', locationStock: [{ locationId: 7, quantity: 5 }] }],
+    })] })).rejects.toMatchObject({
+      errors: [expect.objectContaining({ field: 'location_7_soh' })],
+    });
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
+  });
+
+  it('completes explicit SOH counts on the bulk transaction before commit', async () => {
+    const { connection, execute } = locationStockConnection();
+    const applyStocktake = vi.fn(async () => ({ id: 44, status: 'completed' as const, applied: 1, variances: 1, countStartVariances: 1, replayed: false }));
+    const save = createBulkProductSaveService({ getConnection: async () => connection, applyStocktake });
+
+    await save('business-1', {
+      requestToken: 'request-token-123',
+      products: [product({
+        productId: 'product-existing',
+        variants: [{ clientId: 'variant-client', variantId: 'variant-existing', sku: 'HLS-M', locationStock: [{ locationId: 7, quantity: 5, minQty: 2, reorderQty: 3, zone: 'A', bin: '12' }] }],
+      })],
+    });
+
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_stock (business_id, variant_id, location_id'))).toBe(true);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO ims_stocktake_items'))).toBe(true);
+    expect(applyStocktake).toHaveBeenCalledWith(connection, expect.objectContaining({ businessId: 'business-1', stocktakeId: 44 }));
+    expect(connection.commit).toHaveBeenCalledOnce();
+    expect(connection.rollback).not.toHaveBeenCalled();
+  });
+
+  it('rolls back all product changes when stocktake completion fails', async () => {
+    const { connection } = locationStockConnection();
+    const applyStocktake = vi.fn(async () => { throw new Error('stocktake failed'); });
+    const save = createBulkProductSaveService({ getConnection: async () => connection, applyStocktake });
+
+    await expect(save('business-1', {
+      requestToken: 'request-token-123',
+      products: [product({
+        productId: 'product-existing',
+        variants: [{ clientId: 'variant-client', variantId: 'variant-existing', sku: 'HLS-M', locationStock: [{ locationId: 7, quantity: 5 }] }],
+      })],
+    })).rejects.toThrow('stocktake failed');
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.commit).not.toHaveBeenCalled();
   });
 });

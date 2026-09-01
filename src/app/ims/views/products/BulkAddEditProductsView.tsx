@@ -18,6 +18,14 @@ import { useTableArrowScroll } from '../../hooks/useTableArrowScroll';
 
 interface LookupOption { id: number | string; name: string }
 
+interface LocationStockDraft {
+  quantity: string;
+  minQty: string;
+  reorderQty: string;
+  zone: string;
+  bin: string;
+}
+
 interface ProductDraft {
   clientId: string;
   productId?: string;
@@ -52,6 +60,11 @@ interface VariantDraft extends BulkVariantDraft {
   discount_end_date: string;
   weight_kg: string;
   cost_foreign: string;
+  foreignCosts: Record<string, string>;
+  foreignCostsParseFailed: boolean;
+  foreignCostsEdited: boolean;
+  locationStock: Record<string, LocationStockDraft>;
+  locationEdits: Record<string, true>;
   is_active: number;
 }
 
@@ -86,6 +99,8 @@ const buttonStyle = {
   fontWeight: 650, cursor: 'pointer', whiteSpace: 'nowrap' as const,
 };
 
+const FOREIGN_CURRENCIES = ['USD', 'EUR', 'GBP', 'THB', 'CNY', 'JPY'];
+
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
@@ -94,7 +109,7 @@ function blankVariant(baseSku = ''): VariantDraft {
   return {
     clientId: newId('variant'), option1Value: '', option2Value: '', option3Value: '', sku: baseSku, barcode: '',
     cost_aud: '', price_rrp: '', price_wholesale: '', price_rrp_sale: '', discount_start_date: '', discount_end_date: '',
-    weight_kg: '', cost_foreign: '', is_active: 1,
+    weight_kg: '', cost_foreign: '', foreignCosts: {}, foreignCostsParseFailed: false, foreignCostsEdited: false, locationStock: {}, locationEdits: {}, is_active: 1,
   };
 }
 
@@ -132,7 +147,22 @@ function productFromApi(product: Record<string, any>): ProductDraft {
     is_stock_item: Number(product.is_stock_item ?? 1), is_online: Number(product.is_online ?? 1),
     supplier_contact_id: product.supplier_contact_id ? Number(product.supplier_contact_id) : '', website_title: String(product.website_title ?? ''),
     allow_indent_wholesale: Number(product.allow_indent_wholesale ?? 0), optionSets: optionSetsFromVariants(apiVariants),
-    variants: apiVariants.map((variant: Record<string, any>) => ({
+    variants: apiVariants.map((variant: Record<string, any>) => {
+      let foreignCosts: Record<string, string> = {};
+      let foreignCostsParseFailed = false;
+      try {
+        const parsed = JSON.parse(String(variant.cost_foreign ?? '{}'));
+        if (parsed && !Array.isArray(parsed) && typeof parsed === 'object') foreignCosts = Object.fromEntries(Object.entries(parsed).map(([currency, amount]) => [currency, String(amount)]));
+        else foreignCostsParseFailed = true;
+      } catch { foreignCostsParseFailed = true; }
+      const locationStock = Object.fromEntries((Array.isArray(variant.location_stock) ? variant.location_stock : []).map((stock: Record<string, any>) => [String(stock.location_id), {
+        quantity: stock.qty_on_hand == null ? '' : String(stock.qty_on_hand),
+        minQty: stock.min_qty == null ? '' : String(stock.min_qty),
+        reorderQty: stock.reorder_qty == null ? '' : String(stock.reorder_qty),
+        zone: String(stock.zone ?? ''),
+        bin: String(stock.bin ?? ''),
+      }]));
+      return {
       clientId: `variant-${variant.variant_id}`, variantId: String(variant.variant_id), option1Value: String(variant.option1_value ?? ''),
       option2Value: String(variant.option2_value ?? ''), option3Value: String(variant.option3_value ?? ''), sku: String(variant.sku ?? ''),
       barcode: String(variant.barcode ?? ''), cost_aud: variant.cost_aud == null ? '' : String(variant.cost_aud),
@@ -140,9 +170,11 @@ function productFromApi(product: Record<string, any>): ProductDraft {
       price_rrp_sale: variant.price_rrp_sale == null ? '' : String(variant.price_rrp_sale),
       discount_start_date: variant.discount_start_date ? String(variant.discount_start_date).slice(0, 10) : '',
       discount_end_date: variant.discount_end_date ? String(variant.discount_end_date).slice(0, 10) : '',
-      weight_kg: variant.weight_kg == null ? '' : String(variant.weight_kg), cost_foreign: String(variant.cost_foreign ?? ''),
+      weight_kg: variant.weight_kg == null ? '' : String(variant.weight_kg), cost_foreign: String(variant.cost_foreign ?? ''), foreignCosts, foreignCostsParseFailed, foreignCostsEdited: false,
+      locationStock, locationEdits: {},
       is_active: Number(variant.is_active ?? 1),
-    })),
+      };
+    }),
   };
 }
 
@@ -158,10 +190,50 @@ function hasGeneratedVariants(product: ProductDraft): boolean {
   return product.variants.length > 1 || product.variants.some(variant => !isDefaultVariant(variant));
 }
 
+function updateVariantDraftField(variant: VariantDraft, fieldId: string, value: unknown): VariantDraft {
+  const currencyMatch = fieldId.match(/^foreign_cost_([A-Z]{3})$/);
+  if (currencyMatch) return { ...variant, foreignCosts: { ...variant.foreignCosts, [currencyMatch[1]]: String(value) }, foreignCostsEdited: true };
+  const locationMatch = fieldId.match(/^location_(\d+)_(soh|min_qty|reorder_qty|zone|bin)$/);
+  if (locationMatch) {
+    const [, locationId, rawField] = locationMatch;
+    const locationField = ({ soh: 'quantity', min_qty: 'minQty', reorder_qty: 'reorderQty', zone: 'zone', bin: 'bin' } as const)[rawField as 'soh' | 'min_qty' | 'reorder_qty' | 'zone' | 'bin'];
+    const current = variant.locationStock[locationId] ?? { quantity: '', minQty: '', reorderQty: '', zone: '', bin: '' };
+    return {
+      ...variant,
+      locationStock: { ...variant.locationStock, [locationId]: { ...current, [locationField]: String(value) } },
+      locationEdits: { ...variant.locationEdits, [fieldId]: true },
+    };
+  }
+  const dataField = fieldId === 'is_active_variant' ? 'is_active' : fieldId;
+  return { ...variant, [dataField]: value };
+}
+
+function locationStockChanges(variant: VariantDraft) {
+  const changes = new Map<number, Record<string, unknown>>();
+  for (const fieldId of Object.keys(variant.locationEdits)) {
+    const match = fieldId.match(/^location_(\d+)_(soh|min_qty|reorder_qty|zone|bin)$/);
+    if (!match) continue;
+    const locationId = Number(match[1]);
+    const rawField = match[2] as 'soh' | 'min_qty' | 'reorder_qty' | 'zone' | 'bin';
+    const locationField = ({ soh: 'quantity', min_qty: 'minQty', reorder_qty: 'reorderQty', zone: 'zone', bin: 'bin' } as const)[rawField];
+    const change = changes.get(locationId) ?? { locationId };
+    change[locationField] = variant.locationStock[String(locationId)]?.[locationField] ?? '';
+    changes.set(locationId, change);
+  }
+  return [...changes.values()];
+}
+
+function serializedForeignCosts(variant: VariantDraft): string | null | undefined {
+  if (variant.foreignCostsParseFailed && !variant.foreignCostsEdited) return undefined;
+  const costs = Object.fromEntries(Object.entries(variant.foreignCosts).filter(([, amount]) => amount !== ''));
+  return Object.keys(costs).length ? JSON.stringify(costs) : null;
+}
+
 export function BulkAddEditProductsView({ businessId }: { businessId: string }) {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [brands, setBrands] = useState<LookupOption[]>([]);
   const [suppliers, setSuppliers] = useState<LookupOption[]>([]);
+  const [locations, setLocations] = useState<LookupOption[]>([]);
   const [serverProducts, setServerProducts] = useState<ProductDraft[]>([]);
   const [dirtyProducts, setDirtyProducts] = useState<Record<string, ProductDraft>>({});
   const [newProducts, setNewProducts] = useState<ProductDraft[]>([]);
@@ -173,6 +245,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
   const [query, setQuery] = useState('');
   const [brandFilter, setBrandFilter] = useState('');
@@ -186,10 +259,26 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   useTableArrowScroll(bodyScrollRef);
 
   const productSettings = useMemo(() => parseProductSettings(settings), [settings]);
-  const availableFields = useMemo(
-    () => enabledBulkProductFields(productSettings, settings.use_foreign_currencies !== 'no'),
-    [productSettings, settings.use_foreign_currencies],
-  );
+  const availableFields = useMemo(() => {
+    const baseFields = enabledBulkProductFields(productSettings, settings.use_foreign_currencies !== 'no');
+    const currencyFields: BulkProductFieldDefinition[] = settings.use_foreign_currencies !== 'no'
+      ? FOREIGN_CURRENCIES.map(currencyCode => ({ id: `foreign_cost_${currencyCode}`, label: `Cost ${currencyCode} (GST Exc)`, owner: 'variant', editor: 'number', width: 150, fillDown: true, currencyCode }))
+      : [];
+    const locationFields: BulkProductFieldDefinition[] = locations.flatMap(location => {
+      const fields: BulkProductFieldDefinition[] = [];
+      if (productSettings.allowOpeningStock) fields.push({ id: `location_${location.id}_soh`, label: `${location.name} SOH`, owner: 'variant', editor: 'number', width: 125, fillDown: true, locationId: Number(location.id), locationField: 'quantity' });
+      if (productSettings.showReplenishmentQuantities) fields.push(
+        { id: `location_${location.id}_min_qty`, label: `${location.name} Min Qty`, owner: 'variant', editor: 'number', width: 145, fillDown: true, locationId: Number(location.id), locationField: 'minQty' },
+        { id: `location_${location.id}_reorder_qty`, label: `${location.name} Reorder Qty`, owner: 'variant', editor: 'number', width: 165, fillDown: true, locationId: Number(location.id), locationField: 'reorderQty' },
+      );
+      if (settings.use_zones_bins === 'yes') fields.push(
+        { id: `location_${location.id}_zone`, label: `${location.name} Zone`, owner: 'variant', editor: 'text', width: 130, fillDown: true, locationId: Number(location.id), locationField: 'zone' },
+        { id: `location_${location.id}_bin`, label: `${location.name} Bin`, owner: 'variant', editor: 'text', width: 130, fillDown: true, locationId: Number(location.id), locationField: 'bin' },
+      );
+      return fields;
+    });
+    return [...baseFields, ...currencyFields, ...locationFields];
+  }, [locations, productSettings, settings.use_foreign_currencies, settings.use_zones_bins]);
   const fields = useMemo(
     () => selectedFields.map(id => availableFields.find(field => field.id === id)).filter((field): field is BulkProductFieldDefinition => Boolean(field)),
     [availableFields, selectedFields],
@@ -222,10 +311,16 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         if (!response.ok || !result.success) throw new Error(result.error || 'Suppliers could not be loaded.');
         return result;
       }),
-    ]).then(([settingsResult, brandsResult, suppliersResult]) => {
+      fetch('/api/ims/locations').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Locations could not be loaded.');
+        return result;
+      }),
+    ]).then(([settingsResult, brandsResult, suppliersResult, locationsResult]) => {
       setSettings(settingsResult.data ?? {});
       setBrands(brandsResult.data ?? []);
       setSuppliers(suppliersResult.data ?? []);
+      setLocations((locationsResult.data ?? []).filter((location: any) => Number(location.is_active ?? 1) !== 0));
       setConfigurationLoaded(true);
     }).catch(error => {
       setSelectedFields(sanitizeBulkProductFieldSelection(null, availableFields));
@@ -246,7 +341,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   const load = async () => {
     setLoading(true);
-    setMessage('');
+    setLoadError('');
     const params = new URLSearchParams({ page: String(page) });
     if (query.trim()) params.set('q', query.trim());
     if (brandFilter) params.set('brand', brandFilter);
@@ -258,7 +353,9 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       setServerProducts(result.products.map(productFromApi));
       setTotal(Number(result.total ?? 0));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Products could not be loaded.');
+      setServerProducts([]);
+      setTotal(0);
+      setLoadError(error instanceof Error ? error.message : 'Products could not be loaded.');
     } finally {
       setLoading(false);
     }
@@ -288,10 +385,9 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   };
 
   const updateVariantField = (productClientId: string, variantClientId: string, fieldId: string, value: unknown) => {
-    const dataField = fieldId === 'is_active_variant' ? 'is_active' : fieldId;
     mutateProduct(productClientId, product => ({
       ...product,
-      variants: product.variants.map(variant => variant.clientId === variantClientId ? { ...variant, [dataField]: value } : variant),
+      variants: product.variants.map(variant => variant.clientId === variantClientId ? updateVariantDraftField(variant, fieldId, value) : variant),
     }));
     setErrors(current => ({ ...current, [variantClientId]: { ...current[variantClientId], [fieldId]: '' } }));
   };
@@ -318,10 +414,9 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     for (const [productClientId, rowIds] of targetsByProduct) {
       mutateProduct(productClientId, product => {
         if (state.owner === 'product') return { ...product, [state.fieldId]: state.value };
-        const dataField = state.fieldId === 'is_active_variant' ? 'is_active' : state.fieldId;
         return {
           ...product,
-          variants: product.variants.map(variant => rowIds.has(variant.clientId) ? { ...variant, [dataField]: state.value } : variant),
+          variants: product.variants.map(variant => rowIds.has(variant.clientId) ? updateVariantDraftField(variant, state.fieldId, state.value) : variant),
         };
       });
       for (const rowId of rowIds) {
@@ -389,10 +484,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     try {
       const response = await fetch('/api/ims/products/bulk-add-edit', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ products: products.map(product => ({
+        body: JSON.stringify({ requestToken: crypto.randomUUID(), products: products.map(product => ({
           ...product,
           variants: product.variants.map(variant => ({
             ...variant,
+            cost_foreign: serializedForeignCosts(variant),
+            locationStock: locationStockChanges(variant),
             option1_name: product.optionSets[0]?.name ?? '', option1_value: variant.option1Value,
             option2_name: product.optionSets[1]?.name ?? '', option2_value: variant.option2Value,
             option3_name: product.optionSets[2]?.name ?? '', option3_value: variant.option3Value,
@@ -439,11 +536,21 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   const productsWithVariants = displayedProducts.filter(hasGeneratedVariants);
   const managedProduct = displayedProducts.find(product => product.clientId === manageVariantsProductId) ?? null;
+  const currencyFields = availableFields.filter(field => field.currencyCode);
+  const locationFields = availableFields.filter(field => field.locationId);
+  const standardFields = availableFields.filter(field => !field.currencyCode && !field.locationId);
+  const selectedCurrencyFields = currencyFields.filter(field => selectedFields.includes(field.id));
+  const setFieldGroup = (fieldIds: string[], checked: boolean) => setSelectedFields(current => sanitizeBulkProductFieldSelection(
+    checked ? [...current, ...fieldIds] : current.filter(id => !fieldIds.includes(id)),
+    availableFields,
+  ));
   const totalWidth = 44 + 180 + fields.reduce((sum, field) => sum + field.width, 0);
   const renderColGroup = () => <colgroup><col style={{ width: 44 }} /><col style={{ width: 180 }} />{fields.map(field => <col key={field.id} style={{ width: field.width }} />)}</colgroup>;
 
   const valueFor = (product: ProductDraft, variant: VariantDraft | undefined, field: BulkProductFieldDefinition) => {
     if (field.owner === 'product') return product[field.id] ?? '';
+    if (field.currencyCode) return variant?.foreignCosts[field.currencyCode] ?? '';
+    if (field.locationId && field.locationField) return variant?.locationStock[String(field.locationId)]?.[field.locationField] ?? '';
     const dataField = field.id === 'is_active_variant' ? 'is_active' : field.id;
     return variant?.[dataField] ?? '';
   };
@@ -536,20 +643,37 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
       </div>
       {message && <div role="status" style={{ marginBottom: 10, padding: '8px 10px', border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-2)', color: 'var(--sv-text-main)', fontSize: 12 }}>{message}</div>}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
-        <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add New Products</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 7, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6, paddingLeft: 44 }}>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button type="button" onClick={addProduct} style={buttonStyle}><Plus size={15} /> Add New Products</button>
+          <button type="button" onClick={() => {
+            const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
+            generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
+          }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKUs</button>
+        </div>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ position: 'relative' }}>
           <button type="button" aria-expanded={fieldsOpen} onClick={() => setFieldsOpen(open => !open)} style={buttonStyle}><Columns3 size={15} /> Add fields</button>
-          {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 290, maxHeight: 420, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
-            {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '5px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{availableFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
+          {fieldsOpen && <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 5px)', zIndex: 20, width: 330, maxHeight: 520, overflowY: 'auto', padding: 10, background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 6, boxShadow: '0 12px 28px rgba(15,23,42,.16)' }}>
+            {(['product', 'variant'] as const).map(owner => <div key={owner}><div style={{ margin: '7px 4px 4px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>{owner} fields</div>{standardFields.filter(field => field.owner === owner).map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" disabled={field.required} checked={selectedFields.includes(field.id)} onChange={event => setSelectedFields(current => sanitizeBulkProductFieldSelection(event.target.checked ? [...current, field.id] : current.filter(id => id !== field.id), availableFields))} />{field.label}</label>)}</div>)}
+            {currencyFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
+              <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Currency costs</div>
+              <select aria-label="Add currency cost" value="" onChange={event => { if (event.target.value) setFieldGroup([event.target.value], true); }} style={{ ...inputStyle, marginBottom: selectedCurrencyFields.length ? 5 : 0 }}><option value="">Add a currency...</option>{currencyFields.filter(field => !selectedFields.includes(field.id)).map(field => <option key={field.id} value={field.id}>{field.currencyCode}</option>)}</select>
+              {selectedCurrencyFields.map(field => <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 4px', fontSize: 12 }}><input type="checkbox" checked onChange={() => setFieldGroup([field.id], false)} />{field.label}</label>)}
+            </div>}
+            {locationFields.length > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--sv-etch)' }}>
+              <div style={{ margin: '0 4px 6px', fontSize: 10, fontWeight: 750, color: 'var(--sv-text-dim)', textTransform: 'uppercase' }}>Add inventory</div>
+              {([
+                ['SOH at every branch', locationFields.filter(field => field.locationField === 'quantity').map(field => field.id)],
+                ['Location Min Qty / Reorder Qty', locationFields.filter(field => field.locationField === 'minQty' || field.locationField === 'reorderQty').map(field => field.id)],
+                ['Location Zones / Bins', locationFields.filter(field => field.locationField === 'zone' || field.locationField === 'bin').map(field => field.id)],
+              ] as Array<[string, string[]]>).filter(([, fieldIds]) => fieldIds.length).map(([label, fieldIds]) => <label key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px', fontSize: 12 }}><input type="checkbox" checked={fieldIds.every(id => selectedFields.includes(id))} onChange={event => setFieldGroup(fieldIds, event.target.checked)} />{label}</label>)}
+            </div>}
           </div>}
         </div>
-        <button type="button" onClick={() => {
-          const generated = populateBlankProductSkus(displayedProducts.map(product => ({ clientId: product.clientId, brand: product.brand, baseSku: product.base_sku })));
-          generated.forEach(row => { if (row.baseSku !== displayedProducts.find(product => product.clientId === row.clientId)?.base_sku) updateProductField(String(row.clientId), 'base_sku', row.baseSku ?? ''); });
-        }} style={buttonStyle}><Sparkles size={15} /> Auto Generate Product SKU</button>
         <button type="button" disabled={!dirtyCount || saving} onClick={discard} style={{ ...buttonStyle, opacity: !dirtyCount || saving ? .5 : 1 }}><Trash2 size={15} /> Discard</button>
         <button type="button" title={hasRequiredFieldErrors ? 'Enter Product Name, Product SKU and Variant SKU for every changed product.' : 'Save all changed products'} disabled={!dirtyCount || saving || hasRequiredFieldErrors} onClick={() => void save()} style={{ ...buttonStyle, borderColor: 'var(--sv-action)', background: 'var(--sv-action)', color: '#fff', opacity: !dirtyCount || saving || hasRequiredFieldErrors ? .5 : 1 }}><Save size={15} /> {saving ? 'Saving...' : `Save${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
+        </div>
       </div>
 
       <div style={{ border: '1px solid var(--sv-etch)', minWidth: 0 }}>
@@ -558,11 +682,12 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         </div>
         <div ref={bodyScrollRef} className="ims-sticky-table ims-sticky-table--self-scroll bulk-add-edit-products-scroll" tabIndex={0} role="region" aria-label="Bulk Add/Edit Products table. Use Left and Right arrows to scroll columns and Up and Down arrows to scroll the page." onScroll={event => { if (headerScrollRef.current) headerScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }} style={{ overflowX: 'auto', overflowY: 'hidden', minWidth: 0 }}>
           <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>{renderColGroup()}<tbody>
-            {displayedProducts.map(product => <Fragment key={product.clientId}>
+            {!loadError && displayedProducts.map(product => <Fragment key={product.clientId}>
               {renderDataRow(product)}
               {hasGeneratedVariants(product) && expanded.has(product.clientId) && product.variants.map(variant => renderDataRow(product, variant))}
             </Fragment>)}
-            {!loading && !displayedProducts.length && <tr><td colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No products match these filters. Use Add products to begin a new batch.</td></tr>}
+            {!loading && loadError && <tr><td role="alert" colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-danger, #b42318)', fontSize: 13 }}>{loadError}</td></tr>}
+            {!loading && !loadError && !displayedProducts.length && <tr><td colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>No products match these filters. Use Add New Products to begin a new batch.</td></tr>}
             {loading && <tr><td colSpan={fields.length + 2} style={{ padding: 28, textAlign: 'center', color: 'var(--sv-text-dim)', fontSize: 13 }}>Loading products...</td></tr>}
           </tbody></table>
         </div>

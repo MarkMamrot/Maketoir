@@ -161,10 +161,10 @@ export async function transitionStocktake(
   }
 }
 
-export async function applyStocktake(input: StocktakeOperationInput): Promise<StocktakeApplyResult> {
-  const connection = await getIMSPool().getConnection();
-  try {
-    await connection.beginTransaction();
+export async function applyStocktakeInTransaction(
+  connection: PoolConnection,
+  input: StocktakeOperationInput,
+): Promise<StocktakeApplyResult> {
     const stocktake = await lockHeader(connection, input.businessId, input.stocktakeId);
     const operation = await claimInventoryDocumentOperation<StocktakeApplyResult>(connection, input.context, {
       businessId: input.businessId,
@@ -175,7 +175,6 @@ export async function applyStocktake(input: StocktakeOperationInput): Promise<St
       beforeMetadata: { status: stocktake.status, locationId: stocktake.location_id },
     });
     if (operation.replayed) {
-      await connection.commit();
       return operation.response ? { ...operation.response, replayed: true } : {
         id: input.stocktakeId, status: 'completed', applied: 0, variances: 0, countStartVariances: 0, replayed: true,
       };
@@ -241,6 +240,14 @@ export async function applyStocktake(input: StocktakeOperationInput): Promise<St
       response,
       { status: 'completed', appliedLineCount: items.length, actualAdjustmentCount: variances, countStartVarianceCount: countStartVariances },
     );
+    return response;
+}
+
+export async function applyStocktake(input: StocktakeOperationInput): Promise<StocktakeApplyResult> {
+  const connection = await getIMSPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const response = await applyStocktakeInTransaction(connection, input);
     await connection.commit();
     return response;
   } catch (error) {

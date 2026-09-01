@@ -43,6 +43,9 @@ export interface BulkProductFieldDefinition {
   defaultVisible?: boolean;
   fillDown?: boolean;
   enabled?: (settings: ProductSettings, useForeignCurrencies: boolean) => boolean;
+  currencyCode?: string;
+  locationId?: number;
+  locationField?: 'quantity' | 'minQty' | 'reorderQty' | 'zone' | 'bin';
 }
 
 export const BULK_PRODUCT_FIELDS: BulkProductFieldDefinition[] = [
@@ -137,7 +140,7 @@ export function enabledBulkProductFields(
   settings: ProductSettings,
   useForeignCurrencies: boolean,
 ): BulkProductFieldDefinition[] {
-  return BULK_PRODUCT_FIELDS.filter(field => field.id !== 'sku' && (!field.enabled || field.enabled(settings, useForeignCurrencies)));
+  return BULK_PRODUCT_FIELDS.filter(field => !['sku', 'cost_foreign'].includes(field.id) && (!field.enabled || field.enabled(settings, useForeignCurrencies)));
 }
 
 export function sanitizeBulkProductFieldSelection(

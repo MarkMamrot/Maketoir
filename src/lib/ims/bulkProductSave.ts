@@ -1,7 +1,18 @@
 import { randomUUID } from 'node:crypto';
-import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { isReservedShopifyFallbackSku } from '@/lib/shopifyFallbackVariant';
+import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
+import { applyStocktakeInTransaction } from '@/lib/ims/stocktakes/stocktakeOperations';
+
+export interface BulkProductLocationStockInput {
+  locationId: unknown;
+  quantity?: unknown;
+  minQty?: unknown;
+  reorderQty?: unknown;
+  zone?: unknown;
+  bin?: unknown;
+}
 
 export interface BulkProductSaveVariantInput {
   clientId: string;
@@ -23,6 +34,7 @@ export interface BulkProductSaveVariantInput {
   weight_kg?: unknown;
   cost_foreign?: unknown;
   is_active?: unknown;
+  locationStock?: BulkProductLocationStockInput[];
 }
 
 export interface BulkProductSaveProductInput {
@@ -65,11 +77,13 @@ export class BulkProductValidationError extends Error {
 interface BulkProductSaveDependencies {
   getConnection(): Promise<PoolConnection>;
   newId(): string;
+  applyStocktake: typeof applyStocktakeInTransaction;
 }
 
 interface ExistingProductRow extends RowDataPacket {
   product_id: string;
   base_sku: string | null;
+  is_stock_item: number;
 }
 
 interface ExistingVariantRow extends RowDataPacket {
@@ -78,6 +92,10 @@ interface ExistingVariantRow extends RowDataPacket {
 }
 
 interface ExistingSupplierRow extends RowDataPacket {
+  id: number;
+}
+
+interface ExistingLocationRow extends RowDataPacket {
   id: number;
 }
 
@@ -156,6 +174,21 @@ function normalizedForeignCosts(value: unknown, clientId: string, errors: BulkPr
   }
 }
 
+function optionalNonnegativeNumber(
+  value: unknown,
+  field: string,
+  clientId: string,
+  errors: BulkProductSaveError[],
+): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) {
+    errors.push({ clientId, field, message: `${field.replaceAll('_', ' ')} must be zero or greater.` });
+    return undefined;
+  }
+  return number;
+}
+
 function duplicateError(
   seen: Map<string, string>,
   value: string,
@@ -178,6 +211,7 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
   const dependencies: BulkProductSaveDependencies = {
     getConnection: () => getIMSPool().getConnection(),
     newId: randomUUID,
+    applyStocktake: applyStocktakeInTransaction,
     ...overrides,
   };
 
@@ -226,10 +260,27 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
           else if (field === 'is_active') values[field] = booleanNumber(value, 1);
           else if (NUMERIC_VARIANT_FIELDS.has(field)) values[field] = nullableNumber(value, field, variantClientId, errors);
           else if (DATE_FIELDS.has(field)) values[field] = normalizedDate(value, field, variantClientId, errors);
-          else if (field === 'cost_foreign') values[field] = normalizedForeignCosts(value, variantClientId, errors);
+          else if (field === 'cost_foreign') values[field] = value === undefined ? undefined : normalizedForeignCosts(value, variantClientId, errors);
           else values[field] = nullableText(value);
         }
-        return { clientId: variantClientId, variantId, values };
+        const seenLocationIds = new Set<number>();
+        const locationStock = (Array.isArray(variant.locationStock) ? variant.locationStock : []).map(raw => {
+          const locationId = Number(raw.locationId);
+          if (!Number.isInteger(locationId) || locationId <= 0) {
+            errors.push({ clientId: variantClientId, field: 'location_stock', message: 'Location is invalid.' });
+          }
+          if (seenLocationIds.has(locationId)) errors.push({ clientId: variantClientId, field: `location_${locationId}`, message: 'Each location can be edited only once per variant.' });
+          seenLocationIds.add(locationId);
+          const fieldPrefix = `location_${locationId}`;
+          const locationValues: { quantity?: number; minQty?: number; reorderQty?: number; zone?: string | null; bin?: string | null } = {};
+          if ('quantity' in raw) locationValues.quantity = optionalNonnegativeNumber(raw.quantity, `${fieldPrefix}_soh`, variantClientId, errors);
+          if ('minQty' in raw) locationValues.minQty = optionalNonnegativeNumber(raw.minQty, `${fieldPrefix}_min_qty`, variantClientId, errors);
+          if ('reorderQty' in raw) locationValues.reorderQty = optionalNonnegativeNumber(raw.reorderQty, `${fieldPrefix}_reorder_qty`, variantClientId, errors);
+          if ('zone' in raw) locationValues.zone = nullableText(raw.zone);
+          if ('bin' in raw) locationValues.bin = nullableText(raw.bin);
+          return { locationId, values: locationValues };
+        }).filter(location => Object.keys(location.values).length > 0);
+        return { clientId: variantClientId, variantId, values, locationStock };
       });
 
       const values: Record<string, unknown> = {};
@@ -263,7 +314,7 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
         }
         if (product.productId) {
           const [rows] = await connection.execute<ExistingProductRow[]>(
-            'SELECT product_id, base_sku FROM ims_products WHERE business_id = ? AND product_id = ? FOR UPDATE',
+            'SELECT product_id, base_sku, is_stock_item FROM ims_products WHERE business_id = ? AND product_id = ? FOR UPDATE',
             [businessId, product.productId],
           );
           if (!rows[0]) errors.push({ clientId: product.clientId, field: 'productId', message: 'Product was not found for this business.' });
@@ -279,6 +330,38 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
             [businessId, variant.variantId, product.productId ?? ''],
           );
           if (!rows[0]) errors.push({ clientId: variant.clientId, field: 'variantId', message: 'Variant was not found under this product.' });
+        }
+      }
+
+      const allLocationIds = [...new Set(normalizedProducts.flatMap(product => product.variants.flatMap(variant => variant.locationStock.map(location => location.locationId))))];
+      if (allLocationIds.length) {
+        const [locationRows] = await connection.execute<ExistingLocationRow[]>(
+          `SELECT id FROM ims_locations WHERE business_id = ? AND is_active = 1 AND id IN (${allLocationIds.map(() => '?').join(', ')})`,
+          [businessId, ...allLocationIds],
+        );
+        const foundLocationIds = new Set(locationRows.map(location => Number(location.id)));
+        for (const product of normalizedProducts) {
+          for (const variant of product.variants) {
+            for (const location of variant.locationStock) {
+              if (!foundLocationIds.has(location.locationId)) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}`, message: 'Location was not found for this business.' });
+              if (location.values.quantity !== undefined && Number(product.values.is_stock_item) !== 1) {
+                errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_soh`, message: 'SOH can only be set for a product that tracks inventory.' });
+              }
+            }
+          }
+        }
+        const [settingRows] = await connection.execute<RowDataPacket[]>(
+          "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('product_allow_opening_stock', 'product_show_replenishment_quantities', 'use_zones_bins')",
+          [businessId],
+        );
+        const featureSettings = new Map(settingRows.map(row => [String(row.key), String(row.value)]));
+        const allowSoh = (featureSettings.get('product_allow_opening_stock') ?? 'yes') === 'yes';
+        const allowReplenishment = (featureSettings.get('product_show_replenishment_quantities') ?? 'no') === 'yes';
+        const allowZonesBins = (featureSettings.get('use_zones_bins') ?? 'no') === 'yes';
+        for (const product of normalizedProducts) for (const variant of product.variants) for (const location of variant.locationStock) {
+          if (location.values.quantity !== undefined && !allowSoh) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_soh`, message: 'SOH editing is disabled in Product settings.' });
+          if ((location.values.minQty !== undefined || location.values.reorderQty !== undefined) && !allowReplenishment) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_min_qty`, message: 'Minimum and reorder quantities are disabled in Product settings.' });
+          if ((location.values.zone !== undefined || location.values.bin !== undefined) && !allowZonesBins) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_zone`, message: 'Zones and bins are disabled in settings.' });
         }
       }
 
@@ -309,6 +392,7 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
       if (errors.length) throw new BulkProductValidationError(errors);
 
       const mappings: Array<{ clientId: string; productId: string; variants: Array<{ clientId: string; variantId: string }> }> = [];
+      const stocktakeLinesByLocation = new Map<number, Array<{ variantId: string; quantity: number }>>();
       let created = 0;
       let updated = 0;
       for (const product of normalizedProducts) {
@@ -332,24 +416,77 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
         for (const variant of product.variants) {
           const variantId = variant.variantId ?? dependencies.newId();
           if (variant.variantId) {
-            const assignments = VARIANT_COLUMNS.map(field => `${field} = ?`).join(', ');
+            const updateColumns = VARIANT_COLUMNS.filter(field => field !== 'cost_foreign' || variant.values[field] !== undefined);
+            const assignments = updateColumns.map(field => `${field} = ?`).join(', ');
             await connection.execute(
               `UPDATE ims_product_variants SET ${assignments} WHERE business_id = ? AND product_id = ? AND variant_id = ?`,
-              [...VARIANT_COLUMNS.map(field => variant.values[field]), businessId, productId, variantId],
+              [...updateColumns.map(field => variant.values[field]), businessId, productId, variantId],
             );
           } else {
             await connection.execute(
               `INSERT INTO ims_product_variants (business_id, product_id, variant_id, ${VARIANT_COLUMNS.join(', ')}) VALUES (?, ?, ?, ${VARIANT_COLUMNS.map(() => '?').join(', ')})`,
-              [businessId, productId, variantId, ...VARIANT_COLUMNS.map(field => variant.values[field])],
+              [businessId, productId, variantId, ...VARIANT_COLUMNS.map(field => variant.values[field] ?? null)],
             );
+          }
+          for (const location of variant.locationStock) {
+            const metadataEntries = [
+              ['min_qty', location.values.minQty],
+              ['reorder_qty', location.values.reorderQty],
+              ['zone', location.values.zone],
+              ['bin', location.values.bin],
+            ].filter((entry): entry is [string, number | string | null] => entry[1] !== undefined);
+            if (metadataEntries.length) {
+              const columns = metadataEntries.map(([column]) => column);
+              await connection.execute(
+                `INSERT INTO ims_stock (business_id, variant_id, location_id, ${columns.join(', ')})
+                 VALUES (?, ?, ?, ${columns.map(() => '?').join(', ')})
+                 ON DUPLICATE KEY UPDATE ${columns.map(column => `${column} = VALUES(${column})`).join(', ')}`,
+                [businessId, variantId, location.locationId, ...metadataEntries.map(([, entryValue]) => entryValue)],
+              );
+            }
+            if (location.values.quantity !== undefined) {
+              const lines = stocktakeLinesByLocation.get(location.locationId) ?? [];
+              lines.push({ variantId, quantity: location.values.quantity });
+              stocktakeLinesByLocation.set(location.locationId, lines);
+            }
           }
           variantMappings.push({ clientId: variant.clientId, variantId });
         }
         mappings.push({ clientId: product.clientId, productId, variants: variantMappings });
       }
 
+      const requestToken = text((input as { requestToken?: unknown }).requestToken);
+      if (stocktakeLinesByLocation.size && !/^[a-zA-Z0-9-]{8,100}$/.test(requestToken)) {
+        throw new BulkProductValidationError([{ clientId: 'batch', field: 'requestToken', message: 'A valid stock edit request token is required.' }]);
+      }
+      for (const [locationId, lines] of stocktakeLinesByLocation) {
+        const reference = `BULK-PRODUCT-${requestToken.slice(0, 48)}-${locationId}`.slice(0, 100);
+        const [stocktakeResult] = await connection.execute<ResultSetHeader>(
+          `INSERT INTO ims_stocktakes (business_id, reference, location_id, status, notes)
+           VALUES (?, ?, ?, 'in_progress', 'SOH counted through Bulk Add/Edit Products')`,
+          [businessId, reference, locationId],
+        );
+        const stocktakeId = Number(stocktakeResult.insertId);
+        for (const line of lines) {
+          await connection.execute(
+            `INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty, counted_qty, notes)
+             SELECT ?, v.variant_id, COALESCE(s.qty_on_hand, 0), ?, 'SOH count from Bulk Add/Edit Products'
+               FROM ims_product_variants v
+               LEFT JOIN ims_stock s ON s.business_id = v.business_id AND s.variant_id = v.variant_id AND s.location_id = ?
+              WHERE v.business_id = ? AND v.variant_id = ?`,
+            [stocktakeId, line.quantity, locationId, businessId, line.variantId],
+          );
+        }
+        const requestHash = await hashInventoryDocumentRequest({ locationId, lines });
+        await dependencies.applyStocktake(connection, {
+          businessId,
+          stocktakeId,
+          context: { operationKey: `bulk-product-stocktake-${requestToken}-${locationId}`, requestHash },
+        });
+      }
+
       await connection.commit();
-      return { success: true as const, created, updated, mappings };
+      return { success: true as const, created, updated, mappings, stockVariantIds: [...new Set([...stocktakeLinesByLocation.values()].flat().map(line => line.variantId))] };
     } catch (error) {
       await connection.rollback();
       throw error;

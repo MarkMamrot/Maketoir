@@ -80,15 +80,17 @@ Before reimporting products that already use custom variant SKUs, align those SK
 
 1. Open **Products > Bulk Add/Edit** and filter existing products when needed.
 2. Use **Add New Products** above the table to add one or more new product rows. New products begin with one default variant on the main row.
-3. Use **Add fields** to show the product and variant columns needed for this task. The selection is remembered in this browser for the active business.
-4. Enter Product Name and Product SKU. **Auto Generate Product SKU** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.
+3. Use **Add fields** to show the product and variant columns needed for this task. Under **Currency costs**, choose each foreign currency that needs its own tax-exclusive Cost column. The selection is remembered in this browser for the active business.
+4. Enter Product Name and Product SKU. **Auto Generate Product SKUs** fills only blank Product SKU cells, using each row's brand and the same format as New Product. A sole default variant uses the Product SKU as its hidden Variant SKU.
 5. Enter Barcode, **RRP $ (GST Inc)**, **Cost $ (GST Exc)** and any other selected variant values directly on the main row while the product has only its default variant.
 6. Select **Manage variants** on a product to open its variants popup. For a matrix, enter up to three option names and comma-separated values, then select **Generate variants**. Review or change generated Variant SKUs in the popup. Matching existing variants retain their saved identity and entered values.
 7. To repeat a value, drag from anywhere in a supported field through compatible visible cells in the same column. Use the arrow area at the right of a selectable field to open its choices instead. Solvantis highlights every field that will change while you drag. Product fields fill only product rows; variant fields fill only visible variant rows. The fill stops at the current page and does not include collapsed variants.
 8. Use the compact **Expand** and **Collapse** controls to show or hide child rows for products with generated variants. Default-only products do not have child rows.
-9. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. If any row fails, nothing in that save is applied.
+9. Under **Add inventory**, optionally add SOH, Min/Reorder, or Zone/Bin columns for every active branch. These groups appear only when their matching Product or business setting is enabled.
+10. Enter SOH as the new absolute count. Leave an SOH blank to keep it unchanged. Saving an entered count creates and completes a stocktake for that branch, including the adjustment from current SOH to the entered count.
+11. Review the dirty count and select **Save**. Solvantis validates the complete changed batch first. Product changes, location fields and completed stocktakes are committed together; if any row fails, nothing in that save is applied.
 
-> **Important:** Bulk Add/Edit is not a stock adjustment screen. Opening quantity, minimum quantity, reorder quantity, zone and bin are excluded because they belong to a location.
+> **Important:** Use Bulk Add/Edit SOH only for a counted absolute quantity. Receive purchases, fulfil sales and complete transfers in their own workflows so Solvantis records the correct stock activity.
 
 ## Variant setup matrix
 
