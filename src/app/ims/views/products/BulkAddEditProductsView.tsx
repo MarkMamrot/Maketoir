@@ -425,7 +425,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     const locationFields: BulkProductFieldDefinition[] = locations.flatMap(location => {
       const fields: BulkProductFieldDefinition[] = [];
       if (productSettings.allowOpeningStock) fields.push({ id: `location_${location.id}_soh`, label: `${location.name} SOH`, owner: 'variant', editor: 'number', width: 125, fillDown: true, locationId: Number(location.id), locationField: 'quantity' });
-      if (productSettings.showReplenishmentQuantities) fields.push(
+      fields.push(
         { id: `location_${location.id}_min_qty`, label: `${location.name} Min Qty`, owner: 'variant', editor: 'number', width: 145, fillDown: true, locationId: Number(location.id), locationField: 'minQty' },
         { id: `location_${location.id}_reorder_qty`, label: `${location.name} Reorder Point`, owner: 'variant', editor: 'number', width: 165, fillDown: true, locationId: Number(location.id), locationField: 'reorderQty' },
       );

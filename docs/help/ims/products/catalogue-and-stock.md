@@ -83,7 +83,7 @@ Save the current Display Fields, Sort and Filter setup as a named **Preset**. Pr
 
 Saving is all-or-nothing. Solvantis checks every changed Product SKU, variant SKU and non-blank barcode before writing any product. If one row conflicts, no products in that save are changed and the affected field is identified.
 
-Under **Branch Level Variables**, location fields are added for every active branch. **SOH at every branch** is available only when opening stock is enabled under Product settings. An entered SOH is the new absolute count for that variant and branch; saving records the difference through a completed stocktake. A blank SOH leaves the current count unchanged. **Min Qty** and **Reorder Point** can be added separately when replenishment quantities are enabled, while Zone and Bin fields follow the Zones and Bins setting. These location fields are saved only where a value was edited.
+Under **Branch Level Variables**, location fields are added for every active branch. **Min Qty** and **Reorder Point** are always available as separate Display Fields options. **SOH at every branch** is available only when opening stock is enabled under Product settings. An entered SOH is the new absolute count for that variant and branch; saving records the difference through a completed stocktake. A blank SOH leaves the current count unchanged. Zone and Bin fields follow the Zones and Bins setting. These location fields are saved only where a value was edited.
 
 Use purchase receipts, sales, transfers and their owning workflows for stock activity that is not a counted SOH correction. Do not use Bulk Add/Edit to imitate an incoming or outgoing stock movement.
 

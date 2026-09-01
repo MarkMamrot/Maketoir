@@ -351,16 +351,14 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
           }
         }
         const [settingRows] = await connection.execute<RowDataPacket[]>(
-          "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('product_allow_opening_stock', 'product_show_replenishment_quantities', 'use_zones_bins')",
+          "SELECT `key`, value FROM ims_settings WHERE business_id = ? AND `key` IN ('product_allow_opening_stock', 'use_zones_bins')",
           [businessId],
         );
         const featureSettings = new Map(settingRows.map(row => [String(row.key), String(row.value)]));
         const allowSoh = (featureSettings.get('product_allow_opening_stock') ?? 'yes') === 'yes';
-        const allowReplenishment = (featureSettings.get('product_show_replenishment_quantities') ?? 'no') === 'yes';
         const allowZonesBins = (featureSettings.get('use_zones_bins') ?? 'no') === 'yes';
         for (const product of normalizedProducts) for (const variant of product.variants) for (const location of variant.locationStock) {
           if (location.values.quantity !== undefined && !allowSoh) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_soh`, message: 'SOH editing is disabled in Product settings.' });
-          if ((location.values.minQty !== undefined || location.values.reorderQty !== undefined) && !allowReplenishment) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_min_qty`, message: 'Minimum and reorder quantities are disabled in Product settings.' });
           if ((location.values.zone !== undefined || location.values.bin !== undefined) && !allowZonesBins) errors.push({ clientId: variant.clientId, field: `location_${location.locationId}_zone`, message: 'Zones and bins are disabled in settings.' });
         }
       }
