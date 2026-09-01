@@ -76,6 +76,8 @@ describe('bulkProductEditor', () => {
     expect(available.some(field => field.id === 'price_wholesale')).toBe(false);
     expect(available.some(field => field.id === 'cost_foreign')).toBe(false);
     expect(available.some(field => field.id === 'sku')).toBe(false);
+    expect(available.find(field => field.id === 'price_rrp')?.label).toBe('RRP $ (GST Inc)');
+    expect(available.find(field => field.id === 'cost_aud')?.label).toBe('Cost $ (GST Exc)');
     expect(sanitizeBulkProductFieldSelection(['brand', 'category', 42], available)).toEqual([
       'name',
       'base_sku',
