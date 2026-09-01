@@ -107,6 +107,29 @@ describe('ImsPORepo.getSupplierReturnContext', () => {
 });
 
 describe('ImsPORepo.update', () => {
+  it('allows receipt metadata updates on a partially received PO without rewriting lines', async () => {
+    const execute = vi.fn(async (sql: string) => {
+      if (sql.includes('SELECT status, location_id')) {
+        return [[{ status: 'partially_received', location_id: 4, business_id: 'biz-1', po_number: 'PO-57' }]];
+      }
+      return [{ affectedRows: 1 }];
+    });
+    const connection = { beginTransaction: vi.fn(), commit: vi.fn(), execute, release: vi.fn(), rollback: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn(async () => connection) });
+
+    await ImsPORepo.update(42, {
+      supplier_invoice_number: 'INV-57',
+      notes: 'Second delivery received',
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE ims_purchase_orders SET notes = ?, supplier_invoice_number = ? WHERE id = ?'),
+      ['Second delivery received', 'INV-57', 42],
+    );
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('FROM ims_purchase_order_items'))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
+
   it('preserves existing PO line IDs and inserts only new lines', async () => {
     const execute = vi.fn(async (sql: string) => {
       if (sql.includes('SELECT status, location_id')) return [[{ status: 'draft', location_id: 4, business_id: 'biz-1' }]];

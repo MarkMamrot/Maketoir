@@ -13,6 +13,22 @@ export type PurchaseOrderReceivePlan = {
   shortfallLineCount: number;
 };
 
+const PARTIAL_RECEIPT_HEADER_FIELDS = [
+  'expected_date',
+  'notes',
+  'supplier_invoice_number',
+  'supplier_invoice_date',
+  'payment_terms',
+] as const;
+
+export function buildPartialReceiptHeaderUpdate(form: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    PARTIAL_RECEIPT_HEADER_FIELDS
+      .filter(field => form[field] !== undefined)
+      .map(field => [field, form[field]]),
+  );
+}
+
 export function planPurchaseOrderReceive(
   lines: PurchaseOrderReceiveLine[],
   targetStatus?: 'complete' | 'partially_received',

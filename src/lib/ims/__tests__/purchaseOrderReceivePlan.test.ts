@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planPurchaseOrderReceive } from '../purchaseOrderReceivePlan';
+import { buildPartialReceiptHeaderUpdate, planPurchaseOrderReceive } from '../purchaseOrderReceivePlan';
 
 const line = (enteredQuantity: number, alreadyReceivedQuantity = 0) => ({
   variantId: 'v-1',
@@ -40,5 +40,33 @@ describe('planPurchaseOrderReceive', () => {
 
   it('never reverses quantities already received', () => {
     expect(planPurchaseOrderReceive([line(2, 5)], 'partially_received').receivedItems).toEqual([]);
+  });
+});
+
+describe('buildPartialReceiptHeaderUpdate', () => {
+  it('keeps receipt-safe metadata and strips order structure and costs', () => {
+    expect(buildPartialReceiptHeaderUpdate({
+      supplier_id: 3,
+      location_id: 4,
+      order_date: '2026-08-30',
+      expected_date: '2026-09-10',
+      notes: 'Second delivery',
+      supplier_invoice_number: 'INV-57',
+      supplier_invoice_date: '2026-09-01',
+      payment_terms: '30 days',
+      tax_treatment: 'ex_tax',
+      currency_code: 'AUD',
+      exchange_rate: 1,
+      freight: 20,
+      discount: 5,
+      items: [{ variant_id: 'v-1' }],
+      landed_costs: [{ label: 'Freight', amount: 20 }],
+    })).toEqual({
+      expected_date: '2026-09-10',
+      notes: 'Second delivery',
+      supplier_invoice_number: 'INV-57',
+      supplier_invoice_date: '2026-09-01',
+      payment_terms: '30 days',
+    });
   });
 });

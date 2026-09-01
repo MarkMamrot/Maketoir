@@ -42,7 +42,8 @@ Supplier cost becomes inventory cost on a tax-exclusive AUD basis. For a $33 tax
 2. Choose **Receive** or **Continue Receiving**.
 3. Compare each product and variant with the delivery.
 4. Enter the cumulative received quantity for each line.
-5. Review the receiving location, unit costs, discounts, freight, landed costs, tax and currency.
+5. On the first receipt, review the receiving location, unit costs, discounts, freight, landed costs, tax and currency before saving.
+	When continuing a Partially Received PO, these order and cost fields are locked because earlier stock has already been valued. Supplier invoice details, payment terms, expected date and notes can still be updated.
 6. For a short delivery, save the actual receipt and keep the PO Partially Received unless the balance is being resolved now.
 7. To finish with a shortfall during receipt, choose the completion option that creates a held backorder only after reviewing the confirmation.
 8. Enter the supplier invoice number before marking the PO Complete.
@@ -74,6 +75,7 @@ The earlier receipt is not repeated by any resolution choice. A held backorder s
 | Symptom | Likely cause | Action |
 |---|---|---|
 | A line appears to include an earlier receipt | The field shows cumulative received quantity | Keep the earlier quantity and add only what arrived now |
+| Order and cost fields are locked during Continue Receiving | Earlier quantities have already been received and valued | Enter only the new cumulative received quantities; use Resolve Outstanding when the remaining order itself must change |
 | Complete is blocked | Supplier invoice number is blank | Enter the invoice number and try again |
 | Stock is correct but Xero failed | Receipt completed before accounting sync | Repair or retry Xero; do not receive again |
 | Resolve Outstanding offers financial choices | Paid or accounting records need a separate settlement decision | Review the preview and use the supplier reference or evidence requested on screen |

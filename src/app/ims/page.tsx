@@ -62,7 +62,7 @@ import { ContactCrmDataQuality } from './views/contacts/ContactCrmDataQuality';
 import { ContactCrmAnalytics } from './views/contacts/ContactCrmAnalytics';
 import { buildOrderEditOperationKey, buildOrderStatusOperationKey, buildPurchaseOrderReceiveOperationKey, buildPurchaseOrderUndoOperationKey, getDefaultEmailedSalesDocument, getOrderStatusLabel, getSalesDocumentFilename, isSalesDocumentAvailable, type OrderKind, type SOStatus, type SalesDocumentType } from '@/lib/ims/orderLifecyclePolicy';
 import { buildInventoryDocumentOperationKey } from '@/lib/ims/inventoryDocumentLifecycle';
-import { planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
+import { buildPartialReceiptHeaderUpdate, planPurchaseOrderReceive } from '@/lib/ims/purchaseOrderReceivePlan';
 import { installSessionExpiredGuard, redirectToLogin } from '@/lib/auth/sessionGuard';
 import {
   EMPTY_MULTI,
@@ -247,13 +247,14 @@ function useLocationSoh(locationId: string | number | null | undefined) {
 }
 
 // Searchable variant picker for document line items
-function VariantSearch({ value, variants, onChange, style, testId, sohByVariant }: {
+function VariantSearch({ value, variants, onChange, style, testId, sohByVariant, disabled = false }: {
   value: string;
   variants: any[];
   onChange: (variant_id: string) => void;
   style?: React.CSSProperties;
   testId?: string;
   sohByVariant?: Record<string, number> | null;
+  disabled?: boolean;
 }) {
   const [query, setQuery] = React.useState('');
   const [open, setOpen] = React.useState(false);
@@ -298,6 +299,7 @@ function VariantSearch({ value, variants, onChange, style, testId, sohByVariant 
         ref={inputRef}
         data-testid={testId}
         type="text"
+        disabled={disabled}
         value={open ? query : displayLabel}
         title={!open && displayLabel ? displayLabel : undefined}
         placeholder="Search variant…"
@@ -9367,6 +9369,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   const lineTotal = (item: any) => Number(item.qty_ordered || 0) * Number(item.unit_cost || 0) * (1 - Number(item.discount_pct || 0) / 100);
   const taxTreatment = (form.tax_treatment ?? 'ex_tax') as 'ex_tax' | 'inc_tax' | 'no_tax';
   const isReceiving = !!modal.edit && !modal.editOnly && (modal.edit.status === 'confirmed' || modal.edit.status === 'partially_received');
+  const isContinuingReceipt = isReceiving && modal.edit?.status === 'partially_received';
   const poSubtotal = taxTreatment === 'inc_tax'
     ? lineItems.reduce((s, i) => {
         const tot = lineTotal(i);
@@ -9511,7 +9514,9 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       const items = lineItems.map(i => ({ ...i, line_total: lineTotal(i) }));
       const landed_costs = landedCosts.filter(c => c.label && Number(c.amount) > 0).map(c => ({ label: c.label, reference: c.reference || null, amount: Number(c.amount) }));
       if (modal.edit) {
-        const editPayload = { ...form, items, landed_costs };
+        const editPayload = isContinuingReceipt
+          ? buildPartialReceiptHeaderUpdate(form)
+          : { ...form, items, landed_costs };
         await apiFetch(`/api/ims/purchase-orders/${modal.edit.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...editPayload, operationKey: await buildOrderEditOperationKey('purchase_order', modal.edit.id, modal.edit.updated_at, editPayload), expectedUpdatedAt: modal.edit.updated_at ?? null }) });
         // Also record any receiving deltas and let the batch transaction own final status.
         if (isReceiving) {
@@ -9990,18 +9995,18 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             )}
             <Row3>
               <Field label="Supplier">
-                <select data-testid="po-supplier" value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
+                <select data-testid="po-supplier" disabled={isContinuingReceipt} value={form.supplier_id} onChange={e => selectSupplier(e.target.value)} style={inputStyle}>
                   <option value="">— None —</option>
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </Field>
               <Field label="Location *">
-                <select data-testid="po-location" required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
+                <select data-testid="po-location" disabled={isContinuingReceipt} required value={form.location_id} onChange={sf('location_id')} style={inputStyle}>
                   <option value="">— Select —</option>
                   {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </Field>
-              <Field label="Order Date *"><input required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
+              <Field label="Order Date *"><input disabled={isContinuingReceipt} required type="date" value={form.order_date} onChange={sf('order_date')} style={inputStyle} /></Field>
             </Row3>
             <Row2>
               <Field label="Expected Date"><input type="date" value={form.expected_date} onChange={sf('expected_date')} style={inputStyle} /></Field>
@@ -10018,7 +10023,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             </Row3>
             <Row2>
               <Field label="Supplier costs are…">
-                <select data-testid="po-tax-treatment" value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
+                <select data-testid="po-tax-treatment" disabled={isContinuingReceipt} value={form.tax_treatment ?? 'ex_tax'} onChange={sf('tax_treatment')} style={inputStyle}>
                   <option value="ex_tax">Ex-tax (tax is added on top)</option>
                   <option value="inc_tax">Inc-tax (tax already included)</option>
                   <option value="no_tax">No tax / Zero-rated</option>
@@ -10026,7 +10031,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </Field>
               {showFxCosts && (
                 <Field label="Currency">
-                  <select value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
+                  <select disabled={isContinuingReceipt} value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
                     {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </Field>
@@ -10035,7 +10040,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {showFxCosts && (form.currency_code ?? 'AUD') !== 'AUD' && (
               <Row2>
                 <Field label={`Exchange Rate (1 ${form.currency_code} = ? AUD)`}>
-                  <input type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
+                  <input disabled={isContinuingReceipt} type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
                   {form._rateHint && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>{form._rateHint}</div>}
                 </Field>
               </Row2>
@@ -10046,19 +10051,20 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               <div style={{ fontSize: 12, color: 'var(--sv-text-dim)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>LINE ITEMS</span>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
-                  <button data-testid="po-add-line" type="button" onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
+                  <button type="button" disabled={isContinuingReceipt} onClick={() => setImportOpen(true)} style={btnStyle('secondary', 'xs')}>⬆ Import</button>
+                  <button data-testid="po-add-line" type="button" disabled={isContinuingReceipt} onClick={addLine} style={btnStyle('ghost', 'xs')}>+ Add Line</button>
                   <input
                     type="number"
                     min="0"
                     max="100"
                     step="1"
                     value={poBulkDiscountPct}
+                    disabled={isContinuingReceipt}
                     onChange={e => setPoBulkDiscountPct(e.target.value)}
                     placeholder="Disc %"
                     style={{ ...inputStyle, width: 82, fontSize: 12, padding: '4px 8px' }}
                   />
-                  <button type="button" onClick={applyPoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
+                  <button type="button" disabled={isContinuingReceipt} onClick={applyPoDiscountToAllLines} style={btnStyle('secondary', 'xs')}>Apply to All</button>
                   {isReceiving && (
                     <button type="button" onClick={() => {
                       const all: Record<string, number> = {};
@@ -10081,7 +10087,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     {lineItems.map((item, i) => (
                       <tr key={i} data-testid={`po-line-${i}`} style={{ borderTop: '1px solid var(--sv-etch)' }}>
                         <td style={{ padding: '4px 2px', width: 30 }}>
-                          <button type="button" onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
+                          <button type="button" disabled={isContinuingReceipt} onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red)', fontSize: 16, lineHeight: 1, padding: '0 4px' }}>×</button>
                         </td>
                         <td style={{ padding: 4, minWidth: 260 }}>
                           <VariantSearch
@@ -10090,20 +10096,21 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                             onChange={vid => selectPOVariant(i, vid)}
                             sohByVariant={locationSoh}
                             testId={`po-line-${i}-variant`}
+                            disabled={isContinuingReceipt}
                           />
                         </td>
                         <td style={{ padding: 4, width: 80 }}>
-                          <input data-testid={`po-line-${i}-qty`} type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-qty`} disabled={isContinuingReceipt} type="number" min="1" step="1" value={Math.round(Number(item.qty_ordered || 0))} onChange={e => updateLine(i, 'qty_ordered', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 100 }}>
-                          <input data-testid={`po-line-${i}-unit-cost`} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
+                          <input data-testid={`po-line-${i}-unit-cost`} disabled={isContinuingReceipt} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={e => updateLine(i, 'unit_cost', e.target.value)} style={{ ...inputStyle, fontSize: 12 }} />
                         </td>
                         <td style={{ padding: 4, width: 70 }}>
-                          <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
+                          <input disabled={isContinuingReceipt} type="number" min="0" max="100" step="1" value={Math.round(Number(item.discount_pct ?? 0))} onChange={e => updateLine(i, 'discount_pct', parseInt(e.target.value, 10) || 0)} style={{ ...inputStyle, fontSize: 12 }} placeholder="0" />
                         </td>
                         {taxTreatment !== 'no_tax' && (
                         <td style={{ padding: 4, width: 70 }}>
-                          <input type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
+                          <input disabled={isContinuingReceipt} type="number" min="0" max="100" step="1" value={Math.round(Number(item.tax_rate || 0) * 100)} onChange={e => updateLine(i, 'tax_rate', Number(e.target.value) / 100)} style={{ ...inputStyle, fontSize: 12 }} placeholder="10" />
                         </td>
                         )}
                         {isReceiving && (() => {
@@ -10135,11 +10142,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Freight (+)</span>
-                    <input type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isContinuingReceipt} type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Discount (−)</span>
-                    <input type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isContinuingReceipt} type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   {taxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
@@ -10177,7 +10184,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost on receive</span>
-                    {!lcForm && <button type="button" onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
+                    {!lcForm && <button type="button" disabled={isContinuingReceipt} onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
                   </div>
                 </div>
                 {landedCosts.length > 0 && (
@@ -10196,7 +10203,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                           <td style={{ padding: '4px 8px', color: 'var(--sv-text-dim)' }}>{c.reference || '—'}</td>
                           <td style={{ padding: '4px 8px', fontWeight: 600, textAlign: 'right' }}>{fmtCurrency(Number(c.amount))}</td>
                           <td style={{ padding: '4px 8px', textAlign: 'right' }}>
-                            <button type="button" onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
+                            <button type="button" disabled={isContinuingReceipt} onClick={() => setLandedCosts(p => p.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-red,#e05)', fontSize: 12, padding: '0 4px' }}>✕</button>
                           </td>
                         </tr>
                       ))}
