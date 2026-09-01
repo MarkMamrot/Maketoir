@@ -149,6 +149,7 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [configurationLoaded, setConfigurationLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -185,25 +186,42 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/ims/settings').then(response => response.json()),
-      fetch('/api/ims/brands').then(response => response.json()),
-      fetch('/api/ims/contacts?type=supplier&active=1').then(response => response.json()),
+      fetch('/api/ims/settings').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Product settings could not be loaded.');
+        return result;
+      }),
+      fetch('/api/ims/brands').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Brands could not be loaded.');
+        return result;
+      }),
+      fetch('/api/ims/contacts?type=supplier&active=1').then(async response => {
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || 'Suppliers could not be loaded.');
+        return result;
+      }),
     ]).then(([settingsResult, brandsResult, suppliersResult]) => {
       setSettings(settingsResult.data ?? {});
       setBrands(brandsResult.data ?? []);
       setSuppliers(suppliersResult.data ?? []);
-    }).catch(error => setMessage(error instanceof Error ? error.message : 'Product options could not be loaded.'));
+      setConfigurationLoaded(true);
+    }).catch(error => {
+      setSelectedFields(sanitizeBulkProductFieldSelection(null, availableFields));
+      setMessage(error instanceof Error ? error.message : 'Product options could not be loaded.');
+    });
   }, []);
 
   useEffect(() => {
+    if (!configurationLoaded) return;
     let stored: unknown;
     try { stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null'); } catch { stored = null; }
     setSelectedFields(sanitizeBulkProductFieldSelection(stored, availableFields));
-  }, [availableFields, storageKey]);
+  }, [availableFields, configurationLoaded, storageKey]);
 
   useEffect(() => {
-    if (selectedFields.length) localStorage.setItem(storageKey, JSON.stringify(selectedFields));
-  }, [selectedFields, storageKey]);
+    if (configurationLoaded && selectedFields.length) localStorage.setItem(storageKey, JSON.stringify(selectedFields));
+  }, [configurationLoaded, selectedFields, storageKey]);
 
   const load = async () => {
     setLoading(true);
@@ -331,6 +349,18 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
         const nextErrors: Record<string, Record<string, string>> = {};
         for (const error of result.errors ?? []) nextErrors[error.clientId] = { ...nextErrors[error.clientId], [error.field]: error.message };
         setErrors(nextErrors);
+        const firstError = result.errors?.[0];
+        if (firstError) {
+          const affectedProduct = products.find(product =>
+            product.clientId === firstError.clientId || product.variants.some(variant => variant.clientId === firstError.clientId),
+          );
+          if (affectedProduct) setExpanded(current => new Set(current).add(affectedProduct.clientId));
+          window.requestAnimationFrame(() => {
+            const cell = document.querySelector<HTMLElement>(`[data-row-id="${firstError.clientId}"][data-field-id="${firstError.field}"]`);
+            cell?.scrollIntoView({ block: 'center', inline: 'center' });
+            cell?.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+          });
+        }
         throw new Error(result.error || 'No products were saved.');
       }
       setMessage(`${result.created} product(s) created and ${result.updated} product(s) updated.`);
@@ -383,6 +413,8 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
     }
     return (
       <div
+        data-row-id={rowId}
+        data-field-id={field.id}
         data-fill-active={fill?.fieldId === field.id && fill?.owner === field.owner ? 'true' : undefined}
         onPointerEnter={() => fill && fill.fieldId === field.id && fill.owner === field.owner && setFill({ ...fill, targetRowId: rowId })}
         style={{ position: 'relative', minHeight: 30, display: 'flex', alignItems: 'center', justifyContent: field.editor === 'boolean' ? 'center' : 'stretch', background: fill?.targetRowId === rowId && fill.fieldId === field.id ? 'color-mix(in srgb, var(--sv-action) 12%, transparent)' : undefined }}

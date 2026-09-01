@@ -108,4 +108,49 @@ describe('bulkProductSave', () => {
     expect(writes).toEqual([]);
     expect(connection.rollback).toHaveBeenCalledOnce();
   });
+
+  it('rejects an existing variant ID on a new product before opening a transaction', async () => {
+    const getConnection = vi.fn();
+    const save = createBulkProductSaveService({ getConnection });
+
+    await expect(save('business-1', {
+      products: [product({ variants: [{ clientId: 'variant-client', variantId: 'variant-existing', sku: 'HLS-M' }] })],
+    })).rejects.toMatchObject({
+      name: 'BulkProductValidationError',
+      errors: [expect.objectContaining({ clientId: 'variant-client', field: 'variantId' })],
+    } satisfies Partial<BulkProductValidationError>);
+    expect(getConnection).not.toHaveBeenCalled();
+  });
+
+  it('adds a variant to an existing product without deleting unsubmitted variants', async () => {
+    const { connection, execute, writes } = connectionWith([
+      [{ product_id: 'product-existing', base_sku: 'HLS' }],
+      [{ variant_id: 'variant-existing', product_id: 'product-existing' }],
+      [],
+      [],
+      [],
+    ]);
+    const save = createBulkProductSaveService({
+      getConnection: async () => connection,
+      newId: () => 'variant-new',
+    });
+
+    const result = await save('business-1', {
+      products: [product({
+        productId: 'product-existing',
+        variants: [
+          { clientId: 'variant-existing-client', variantId: 'variant-existing', sku: 'HLS-M' },
+          { clientId: 'variant-new-client', sku: 'HLS-L' },
+        ],
+      })],
+    });
+
+    expect(result.mappings[0].variants).toEqual([
+      { clientId: 'variant-existing-client', variantId: 'variant-existing' },
+      { clientId: 'variant-new-client', variantId: 'variant-new' },
+    ]);
+    expect(writes.some(sql => sql.startsWith('DELETE'))).toBe(false);
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('variant-unsubmitted'))).toBe(false);
+    expect(connection.commit).toHaveBeenCalledOnce();
+  });
 });

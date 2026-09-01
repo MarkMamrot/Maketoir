@@ -207,8 +207,12 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
 
       const normalizedVariants = (Array.isArray(product.variants) ? product.variants : []).map(variant => {
         const variantClientId = text(variant.clientId) || clientId;
+        const variantId = text(variant.variantId) || undefined;
         const sku = text(variant.sku);
         const barcode = text(variant.barcode);
+        if (!text(product.productId) && variantId) {
+          errors.push({ clientId: variantClientId, field: 'variantId', message: 'An existing variant cannot be attached to a new product.' });
+        }
         if (!sku) errors.push({ clientId: variantClientId, field: 'sku', message: 'Variant SKU is required.' });
         if (isReservedShopifyFallbackSku(sku)) errors.push({ clientId: variantClientId, field: 'sku', message: 'SHOPIFY-MISC is reserved for the Shopify system fallback product.' });
         duplicateError(variantSkuSeen, sku, variantClientId, 'sku', 'Variant SKU', errors);
@@ -225,7 +229,7 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
           else if (field === 'cost_foreign') values[field] = normalizedForeignCosts(value, variantClientId, errors);
           else values[field] = nullableText(value);
         }
-        return { clientId: variantClientId, variantId: text(variant.variantId) || undefined, values };
+        return { clientId: variantClientId, variantId, values };
       });
 
       const values: Record<string, unknown> = {};

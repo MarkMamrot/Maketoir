@@ -26,7 +26,7 @@ vi.mock('@/lib/ims/bulkProductSave', () => ({
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.imsQuery }));
 
-import { POST } from '../route';
+import { GET, POST } from '../route';
 
 function request(products: unknown[]) {
   return new Request('http://localhost/api/ims/products/bulk-add-edit', {
@@ -78,5 +78,34 @@ describe('POST /api/ims/products/bulk-add-edit', () => {
       context: { productCount: 2 },
     }));
     expect(JSON.stringify(mocks.reportRuntimeIssue.mock.calls[0][0])).not.toContain('Secret customer-facing product data');
+  });
+});
+
+describe('GET /api/ims/products/bulk-add-edit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getSession.mockResolvedValue({ businessId: 'business-1' });
+  });
+
+  it('loads one tenant-scoped product page with nested variants and no stock query', async () => {
+    mocks.imsQuery
+      .mockResolvedValueOnce([{ total: 1 }])
+      .mockResolvedValueOnce([{ product_id: 'product-1', name: 'Harbour Shirt' }])
+      .mockResolvedValueOnce([{ variant_id: 'variant-1', product_id: 'product-1', sku: 'HLS-M' }]);
+
+    const response = await GET(new Request('http://localhost/api/ims/products/bulk-add-edit?page=2&q=Harbour'));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      success: true,
+      page: 2,
+      perPage: 50,
+      products: [{ product_id: 'product-1', variants: [{ variant_id: 'variant-1' }] }],
+    });
+    expect(mocks.imsQuery).toHaveBeenCalledTimes(3);
+    expect(mocks.imsQuery.mock.calls[0][1][0]).toBe('business-1');
+    expect(mocks.imsQuery.mock.calls[1][1].slice(-2)).toEqual([50, 50]);
+    expect(mocks.imsQuery.mock.calls[2][1]).toEqual(['business-1', 'product-1']);
+    expect(mocks.imsQuery.mock.calls.flatMap(call => call[0]).join(' ')).not.toContain('ims_stock');
   });
 });
