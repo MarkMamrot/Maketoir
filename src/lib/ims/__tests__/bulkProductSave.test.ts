@@ -90,4 +90,22 @@ describe('bulkProductSave', () => {
     expect(connection.commit).toHaveBeenCalledOnce();
     expect(connection.rollback).not.toHaveBeenCalled();
   });
+
+  it('rejects a supplier that is not owned by the active business', async () => {
+    const { connection, execute, writes } = connectionWith([[]]);
+    const save = createBulkProductSaveService({ getConnection: async () => connection });
+
+    await expect(save('business-1', {
+      products: [product({ supplier_contact_id: 91 })],
+    })).rejects.toMatchObject({
+      name: 'BulkProductValidationError',
+      errors: [expect.objectContaining({ clientId: 'product-client', field: 'supplier_contact_id' })],
+    } satisfies Partial<BulkProductValidationError>);
+    expect(execute).toHaveBeenCalledWith(
+      'SELECT id FROM ims_contacts WHERE business_id = ? AND id = ? LIMIT 1',
+      ['business-1', 91],
+    );
+    expect(writes).toEqual([]);
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
 });

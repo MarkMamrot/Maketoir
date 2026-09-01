@@ -9,7 +9,8 @@ export async function GET(request: Request) {
   if (!session) return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 });
   const businessId = String(session.businessId ?? '');
   const url = new URL(request.url);
-  const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+  const requestedPage = Number(url.searchParams.get('page'));
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const perPage = 50;
   const search = String(url.searchParams.get('q') ?? '').trim();
   const brand = String(url.searchParams.get('brand') ?? '').trim();

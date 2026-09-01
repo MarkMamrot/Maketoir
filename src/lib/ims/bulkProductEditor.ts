@@ -26,6 +26,13 @@ export interface BulkProductSkuDraft {
 export type BulkProductFieldOwner = 'product' | 'variant';
 export type BulkProductEditorType = 'text' | 'textarea' | 'number' | 'date' | 'select' | 'boolean';
 
+export interface BulkFillVisibleRow {
+  id: string;
+  owner: BulkProductFieldOwner;
+  productClientId: string;
+  variantClientId?: string;
+}
+
 export interface BulkProductFieldDefinition {
   id: string;
   label: string;
@@ -148,4 +155,17 @@ export function sanitizeBulkProductFieldSelection(
 export function canFillBulkProductField(fieldId: string, rowOwner: BulkProductFieldOwner): boolean {
   const field = BULK_PRODUCT_FIELDS.find(candidate => candidate.id === fieldId);
   return Boolean(field?.fillDown && field.owner === rowOwner);
+}
+
+export function bulkFillTargets(
+  rows: BulkFillVisibleRow[],
+  sourceRowId: string,
+  targetRowId: string,
+  owner: BulkProductFieldOwner,
+): BulkFillVisibleRow[] {
+  const sourceIndex = rows.findIndex(row => row.id === sourceRowId);
+  const targetIndex = rows.findIndex(row => row.id === targetRowId);
+  if (sourceIndex < 0 || targetIndex < 0) return [];
+  const [from, to] = sourceIndex <= targetIndex ? [sourceIndex, targetIndex] : [targetIndex, sourceIndex];
+  return rows.slice(from, to + 1).filter(row => row.owner === owner);
 }

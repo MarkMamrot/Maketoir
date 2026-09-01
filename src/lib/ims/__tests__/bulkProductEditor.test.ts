@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bulkFillTargets,
   enabledBulkProductFields,
   optionCombinations,
   populateBlankProductSkus,
@@ -70,6 +71,26 @@ describe('bulkProductEditor', () => {
       'base_sku',
       'sku',
       'brand',
+    ]);
+  });
+
+  it('selects every compatible row in a fill range without crossing row ownership', () => {
+    const rows = [
+      { id: 'product-1', owner: 'product' as const, productClientId: 'product-1' },
+      { id: 'variant-1', owner: 'variant' as const, productClientId: 'product-1', variantClientId: 'variant-1' },
+      { id: 'variant-2', owner: 'variant' as const, productClientId: 'product-1', variantClientId: 'variant-2' },
+      { id: 'product-2', owner: 'product' as const, productClientId: 'product-2' },
+      { id: 'variant-3', owner: 'variant' as const, productClientId: 'product-2', variantClientId: 'variant-3' },
+    ];
+
+    expect(bulkFillTargets(rows, 'variant-1', 'variant-3', 'variant').map(row => row.id)).toEqual([
+      'variant-1',
+      'variant-2',
+      'variant-3',
+    ]);
+    expect(bulkFillTargets(rows, 'product-1', 'product-2', 'product').map(row => row.id)).toEqual([
+      'product-1',
+      'product-2',
     ]);
   });
 });

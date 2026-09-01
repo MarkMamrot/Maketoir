@@ -77,6 +77,10 @@ interface ExistingVariantRow extends RowDataPacket {
   product_id: string;
 }
 
+interface ExistingSupplierRow extends RowDataPacket {
+  id: number;
+}
+
 interface IdentifierRow extends RowDataPacket {
   product_id: string;
   product_name: string;
@@ -246,6 +250,13 @@ export function createBulkProductSaveService(overrides: Partial<BulkProductSaveD
       await connection.beginTransaction();
 
       for (const product of normalizedProducts) {
+        if (product.values.supplier_contact_id !== null) {
+          const [supplierRows] = await connection.execute<ExistingSupplierRow[]>(
+            'SELECT id FROM ims_contacts WHERE business_id = ? AND id = ? LIMIT 1',
+            [businessId, product.values.supplier_contact_id],
+          );
+          if (!supplierRows[0]) errors.push({ clientId: product.clientId, field: 'supplier_contact_id', message: 'Default Supplier was not found for this business.' });
+        }
         if (product.productId) {
           const [rows] = await connection.execute<ExistingProductRow[]>(
             'SELECT product_id, base_sku FROM ims_products WHERE business_id = ? AND product_id = ? FOR UPDATE',

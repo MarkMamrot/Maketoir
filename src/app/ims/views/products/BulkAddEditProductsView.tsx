@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Columns3, Plus, Save, Sparkles, Trash2 } from 'lucide-react';
 import {
+  bulkFillTargets,
   enabledBulkProductFields,
   populateBlankProductSkus,
   reconcileVariantMatrix,
@@ -259,14 +260,25 @@ export function BulkAddEditProductsView({ businessId }: { businessId: string }) 
   }), [displayedProducts, expanded]);
 
   const applyFill = (state: FillState) => {
-    const sourceIndex = visibleRows.findIndex(row => row.id === state.sourceRowId);
-    const targetIndex = visibleRows.findIndex(row => row.id === state.targetRowId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
-    const [from, to] = sourceIndex <= targetIndex ? [sourceIndex, targetIndex] : [targetIndex, sourceIndex];
-    for (const row of visibleRows.slice(from, to + 1)) {
-      if (row.owner !== state.owner) continue;
-      if (row.owner === 'product') updateProductField(row.productClientId, state.fieldId, state.value);
-      else if (row.variantClientId) updateVariantField(row.productClientId, row.variantClientId, state.fieldId, state.value);
+    const targets = bulkFillTargets(visibleRows, state.sourceRowId, state.targetRowId, state.owner);
+    const targetsByProduct = new Map<string, Set<string>>();
+    for (const row of targets) {
+      const rowIds = targetsByProduct.get(row.productClientId) ?? new Set<string>();
+      rowIds.add(row.variantClientId ?? row.id);
+      targetsByProduct.set(row.productClientId, rowIds);
+    }
+    for (const [productClientId, rowIds] of targetsByProduct) {
+      mutateProduct(productClientId, product => {
+        if (state.owner === 'product') return { ...product, [state.fieldId]: state.value };
+        const dataField = state.fieldId === 'is_active_variant' ? 'is_active' : state.fieldId;
+        return {
+          ...product,
+          variants: product.variants.map(variant => rowIds.has(variant.clientId) ? { ...variant, [dataField]: state.value } : variant),
+        };
+      });
+      for (const rowId of rowIds) {
+        setErrors(current => ({ ...current, [rowId]: { ...current[rowId], [state.fieldId]: '' } }));
+      }
     }
   };
 
