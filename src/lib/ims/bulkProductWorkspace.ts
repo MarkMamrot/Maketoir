@@ -104,7 +104,9 @@ function stockExists(filters: BulkProductFilter[]): { sql: string; params: unkno
       SELECT 1
         FROM ims_product_variants bv
         JOIN ims_stock bs ON bs.variant_id = bv.variant_id AND bs.business_id = bv.business_id
+        JOIN ims_locations bl ON bl.id = bs.location_id AND bl.business_id = bs.business_id AND bl.is_active = 1
        WHERE bv.product_id = p.product_id AND bv.business_id = p.business_id
+         AND bv.is_active = 1
          AND ${conditions.map(condition => condition.sql).join(' AND ')}
     )`,
     params: conditions.flatMap(condition => condition.params),
@@ -119,7 +121,7 @@ function standaloneCondition(filter: BulkProductFilter): { sql: string; params: 
     const column = filter.field === 'rrp' ? 'price_rrp' : 'cost_aud';
     const condition = numericCondition(`COALESCE(bv.${column}, 0)`, filter);
     return {
-      sql: `EXISTS (SELECT 1 FROM ims_product_variants bv WHERE bv.product_id = p.product_id AND bv.business_id = p.business_id AND ${condition.sql})`,
+      sql: `EXISTS (SELECT 1 FROM ims_product_variants bv WHERE bv.product_id = p.product_id AND bv.business_id = p.business_id AND bv.is_active = 1 AND ${condition.sql})`,
       params: condition.params,
     };
   }
@@ -145,9 +147,9 @@ export function buildBulkProductListPlan(input: {
   const sortExpressions: Record<BulkProductSortKey, string> = {
     created_at: 'p.created_at',
     name: 'p.name',
-    inventory: `COALESCE((SELECT SUM(ss.qty_on_hand) FROM ims_product_variants sv JOIN ims_stock ss ON ss.variant_id = sv.variant_id AND ss.business_id = sv.business_id WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
-    rrp: `COALESCE((SELECT MIN(NULLIF(sv.price_rrp, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
-    cost: `COALESCE((SELECT MIN(NULLIF(sv.cost_aud, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id), 0)`,
+    inventory: `COALESCE((SELECT SUM(ss.qty_on_hand) FROM ims_product_variants sv JOIN ims_stock ss ON ss.variant_id = sv.variant_id AND ss.business_id = sv.business_id JOIN ims_locations sl ON sl.id = ss.location_id AND sl.business_id = ss.business_id AND sl.is_active = 1 WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    rrp: `COALESCE((SELECT MIN(NULLIF(sv.price_rrp, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
+    cost: `COALESCE((SELECT MIN(NULLIF(sv.cost_aud, 0)) FROM ims_product_variants sv WHERE sv.product_id = p.product_id AND sv.business_id = p.business_id AND sv.is_active = 1), 0)`,
   };
   const sortKey = Object.prototype.hasOwnProperty.call(sortExpressions, input.sortKey) ? input.sortKey : 'name';
   const direction = input.sortDirection === 'desc' ? 'DESC' : 'ASC';

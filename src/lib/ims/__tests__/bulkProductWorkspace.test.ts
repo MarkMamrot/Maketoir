@@ -16,8 +16,12 @@ describe('bulk product workspace', () => {
     expect(plan.filterSql.match(/FROM ims_product_variants bv/g)).toHaveLength(1);
     expect(plan.filterSql).toContain("COALESCE(bs.zone, '') LIKE ?");
     expect(plan.filterSql).toContain('bs.min_qty >= ?');
+    expect(plan.filterSql).toContain('bl.is_active = 1');
+    expect(plan.filterSql).toContain('bv.is_active = 1');
     expect(plan.filterParams).toEqual(['%A%', 4]);
     expect(plan.orderBySql).toContain('SUM(ss.qty_on_hand)');
+    expect(plan.orderBySql).toContain('sl.is_active = 1');
+    expect(plan.orderBySql).toContain('sv.is_active = 1');
     expect(plan.orderBySql).toContain('DESC');
   });
 
